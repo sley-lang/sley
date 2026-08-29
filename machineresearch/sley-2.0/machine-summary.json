@@ -1054,6 +1054,33 @@
     "ariadne_review": "PASS_PRIOR_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_review": "PASS_PRIOR_P1_P1_P2_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
+  "s20_530_crash_recovery": {
+    "status": "CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
+    "contract": "docs/spec/CRASH_RECOVERY_MATRIX_V1.md",
+    "adr": "docs/adr/ADR-0023-crash-recovery-boundary.md",
+    "matrix_rows": 100,
+    "dependency_direction": "sley-repo -> sley-txn -> sley-store",
+    "implementation_complete": false,
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v1.json",
+    "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+    "contract_reviews": {
+      "nabu": {
+        "result": "PASS_CONTRACT_FREEZE",
+        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+      },
+      "ariadne": {
+        "result": "PASS_CONTRACT_FREEZE",
+        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+      },
+      "vulcan": {
+        "result": "PASS_CONTRACT_FREEZE",
+        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+      }
+    }
+  },
   "s20_700_remaining_surface_audit": {
     "status": "BLOCKED_MISSING_MERGE_BOUNDARY",
     "master_required_surface_count": 11,
@@ -1204,7 +1231,7 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_500_COMPLETE_S20_530_READY",
+    "status": "S20_530_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
     "goal_complete": false,
     "next_authority_safe_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
     "blocked_lane_count": 6,
@@ -1235,6 +1262,8 @@
     "s20_390_full_recovery_complete": false,
     "s20_500_native_refs_branches_implemented": true,
     "s20_500_closeout_complete": true,
+    "s20_530_contract_frozen": true,
+    "s20_530_implementation_complete": false,
     "s20_510_blocked_by_full_s20_250": true,
     "session_authority_available": false,
     "transaction_boundary_available": true,

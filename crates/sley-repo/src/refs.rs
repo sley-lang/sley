@@ -38,6 +38,72 @@ const STAGE_SUFFIX: &str = ".tmp";
 
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(test)]
+enum Cross05OwnerSignal {
+    OwnerHeld,
+    ReleaseOwner,
+}
+
+#[cfg(test)]
+enum Cross05Blocked {
+    Commit(bool),
+    Ref(bool),
+    Gc(bool),
+}
+
+#[cfg(test)]
+enum Cross05Completed {
+    Commit(bool),
+    Ref(bool),
+    Gc(bool),
+}
+
+#[cfg(test)]
+struct Cross05RecoveryHold {
+    root: PathBuf,
+    owner_tx: ::std::sync::mpsc::SyncSender<Cross05OwnerSignal>,
+    release_rx: ::std::sync::mpsc::Receiver<Cross05OwnerSignal>,
+}
+
+#[cfg(test)]
+::std::thread_local! {
+    static CROSS05_RECOVERY_HOLD:
+        ::std::cell::RefCell<Option<Cross05RecoveryHold>> =
+        const { ::std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn install_ref_recovery_hold(
+    root: &Path,
+    owner_tx: ::std::sync::mpsc::SyncSender<Cross05OwnerSignal>,
+    release_rx: ::std::sync::mpsc::Receiver<Cross05OwnerSignal>,
+) {
+    CROSS05_RECOVERY_HOLD.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        ::core::assert!(slot.is_none());
+        *slot = Some(Cross05RecoveryHold {
+            root: root.to_path_buf(),
+            owner_tx,
+            release_rx,
+        });
+    });
+}
+
+#[cfg(test)]
+fn hold_ref_recovery_before_exclusive_drop(root: &Path, maintenance: &RepositoryMaintenanceGuard) {
+    CROSS05_RECOVERY_HOLD.with(|slot| {
+        let Some(hold) = slot.borrow_mut().take() else {
+            return;
+        };
+        ::core::assert_eq!(hold.root, root);
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(root));
+        ::core::assert!(hold.owner_tx.send(Cross05OwnerSignal::OwnerHeld).is_ok());
+        let release = hold.release_rx.recv().unwrap();
+        ::core::assert!(::core::matches!(release, Cross05OwnerSignal::ReleaseOwner));
+    });
+}
+
 const RESERVED_COMPONENTS: &[&[u8]] = &[
     b"accepted",
     b"branch",
@@ -754,17 +820,45 @@ impl BranchRepository {
         name: impl AsRef<[u8]>,
         origin_transaction_id: TransactionId,
     ) -> Result<BranchUpdateStatus, BranchError> {
-        self.create_branch_inner(name, origin_transaction_id, None)
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.create_branch_with_maintenance(name, origin_transaction_id, &maintenance)
     }
 
+    fn create_branch_with_maintenance(
+        &self,
+        name: impl AsRef<[u8]>,
+        origin_transaction_id: TransactionId,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<BranchUpdateStatus, BranchError> {
+        self.create_branch_with_maintenance_inner(name, origin_transaction_id, maintenance, None)
+    }
+
+    #[cfg(test)]
     fn create_branch_inner(
         &self,
         name: impl AsRef<[u8]>,
         origin_transaction_id: TransactionId,
         directory_fault_path: Option<&Path>,
     ) -> Result<BranchUpdateStatus, BranchError> {
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.create_branch_with_maintenance_inner(
+            name,
+            origin_transaction_id,
+            &maintenance,
+            directory_fault_path,
+        )
+    }
+
+    fn create_branch_with_maintenance_inner(
+        &self,
+        name: impl AsRef<[u8]>,
+        origin_transaction_id: TransactionId,
+        maintenance: &RepositoryMaintenanceGuard,
+        directory_fault_path: Option<&Path>,
+    ) -> Result<BranchUpdateStatus, BranchError> {
+        self.validate_maintenance(maintenance)?;
         let name = BranchName::parse(name)?;
-        let maintenance = self.prepare_operation_inner(directory_fault_path)?;
+        self.ensure_layout_under_maintenance(directory_fault_path)?;
         let _lock = self.acquire_refs_lock()?;
         let branch_path = ensure_key_path_with_fault(
             &self.branches_dir(),
@@ -790,7 +884,7 @@ impl BranchRepository {
 
         if let (Some(origin), Some(reference)) = (existing_origin.as_ref(), existing_ref.as_ref()) {
             return self.resolve_existing_create(
-                &maintenance,
+                maintenance,
                 origin_transaction_id,
                 &branch_path,
                 &ref_path,
@@ -801,7 +895,7 @@ impl BranchRepository {
 
         if let Some(origin) = existing_origin {
             return self.finish_orphan_create(
-                &maintenance,
+                maintenance,
                 &branch_path,
                 &ref_path,
                 &name,
@@ -811,7 +905,7 @@ impl BranchRepository {
         }
 
         self.create_fresh(
-            &maintenance,
+            maintenance,
             &branch_path,
             &ref_path,
             &name,
@@ -993,10 +1087,22 @@ impl BranchRepository {
         expected_head: TransactionId,
         new_head: TransactionId,
     ) -> Result<BranchUpdateStatus, BranchError> {
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.advance_branch_with_maintenance(name, expected_head, new_head, &maintenance)
+    }
+
+    fn advance_branch_with_maintenance(
+        &self,
+        name: impl AsRef<[u8]>,
+        expected_head: TransactionId,
+        new_head: TransactionId,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<BranchUpdateStatus, BranchError> {
+        self.validate_maintenance(maintenance)?;
         let name = BranchName::parse(name)?;
-        let maintenance = self.prepare_operation()?;
+        self.ensure_layout_under_maintenance(None)?;
         let _lock = self.acquire_refs_lock()?;
-        let current = self.resolve_locked(&maintenance, &name)?;
+        let current = self.resolve_locked(maintenance, &name)?;
         if current.reference.record.head_transaction_id == new_head {
             redurabilize_branch(&self.checked_branch_path(&name)?, &current.origin)?;
             redurabilize_ref(&self.checked_ref_path(&name)?, &current.reference)?;
@@ -1007,7 +1113,7 @@ impl BranchRepository {
         }
         let revision = self
             .transactions
-            .verified_revision_with_maintenance(&maintenance, new_head)?;
+            .verified_revision_with_maintenance(maintenance, new_head)?;
         if revision.state_root().record.workspace_id != current.origin.record.workspace_id {
             return Err(branch_error(BranchErrorCode::BranchOriginMismatch));
         }
@@ -1023,7 +1129,7 @@ impl BranchRepository {
         let desired = build_branch_ref(&ref_record(&name, current.origin.digest, &revision))?;
         let path = self.checked_ref_path(&name)?;
         replace_ref(&path, &desired)?;
-        let visible = self.resolve_locked(&maintenance, &name)?;
+        let visible = self.resolve_locked(maintenance, &name)?;
         if visible.reference != desired {
             return Err(branch_error(BranchErrorCode::RefInternalInvariant));
         }
@@ -1074,12 +1180,31 @@ impl BranchRepository {
     ///
     /// Returns the first exact confinement, cleanup, record, or target failure.
     pub fn recover_refs(&self) -> Result<RefRecoveryReport, BranchError> {
-        let maintenance = self.prepare_operation()?;
+        let maintenance = self.acquire_exclusive_maintenance()?;
+        let result = self.recover_refs_with_maintenance(&maintenance);
+        #[cfg(test)]
+        hold_ref_recovery_before_exclusive_drop(&self.root, &maintenance);
+        result
+    }
+
+    /// Recovers ref-owned state while the caller holds exclusive same-root
+    /// repository maintenance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `REF_IO` for a shared or wrong-root guard, or the first exact
+    /// confinement, cleanup, record, or target failure.
+    pub fn recover_refs_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<RefRecoveryReport, BranchError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance(None)?;
         let _lock = self.acquire_refs_lock()?;
         let removed_branch_stages =
             remove_stages_recursive(&self.branches_dir(), BRANCH_STAGE_PREFIX, 2)?;
         let removed_ref_stages = remove_stages_recursive(&self.refs_dir(), REF_STAGE_PREFIX, 2)?;
-        let visible = self.list_branches_locked(&maintenance, MAX_BRANCHES)?;
+        let visible = self.list_branches_locked(maintenance, MAX_BRANCHES)?;
         let visible_digests = visible
             .iter()
             .map(|branch| branch.origin.digest)
@@ -1191,13 +1316,42 @@ impl BranchRepository {
         self.prepare_operation_inner(None)
     }
 
+    fn acquire_shared_maintenance(&self) -> Result<RepositoryMaintenanceGuard, BranchError> {
+        Ok(self.transactions.acquire_shared_maintenance()?)
+    }
+
+    fn acquire_exclusive_maintenance(&self) -> Result<RepositoryMaintenanceGuard, BranchError> {
+        Ok(self.transactions.acquire_exclusive_maintenance()?)
+    }
+
     fn prepare_operation_inner(
         &self,
         directory_fault_path: Option<&Path>,
     ) -> Result<RepositoryMaintenanceGuard, BranchError> {
-        let maintenance = self.transactions.acquire_shared_maintenance()?;
+        let maintenance = self.acquire_shared_maintenance()?;
         self.ensure_layout_under_maintenance(directory_fault_path)?;
         Ok(maintenance)
+    }
+
+    fn validate_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<(), BranchError> {
+        if !maintenance.covers(&self.root) {
+            return Err(branch_error(BranchErrorCode::RefIo));
+        }
+        Ok(())
+    }
+
+    fn validate_exclusive_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<(), BranchError> {
+        self.validate_maintenance(maintenance)?;
+        if !maintenance.is_exclusive() {
+            return Err(branch_error(BranchErrorCode::RefIo));
+        }
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2093,55 +2247,60 @@ mod tests {
         BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObjectRecord,
         ExpectedIdentityAbsent, ImportedCandidate, MutationClass, MutationOperation,
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
-        build_entity_object, full_validation_profile_id,
+        build_entity_object, full_validation_profile_id, import_entity_object,
         value::{EntityBodyValue, EntityIdSet, NamespaceBody},
     };
     use sley_policy::{
-        AcceptedPolicyRoot, CandidateValidationLimits, PolicyResourceCeilings, PolicyRootBuilder,
-        PrincipalGrantBuilder, build_capability_summary_projection,
-        conformance_registry as policy_registry,
+        AcceptedPolicyRoot, CandidateValidationContext, CandidateValidationLimits,
+        PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
+        build_capability_summary_projection, conformance_registry as policy_registry,
+        validate_candidate_bytes,
     };
     use sley_state_root::{
         AcceptedStateRoot, StateRootBuilder, conformance_epoch_id as state_epoch_id,
         conformance_registry as state_registry,
     };
-    use sley_store::ObjectStore;
+    use sley_store::{CanonicalVerifier, ObjectStore};
     use sley_txn::{
         CommitInput, TrustedGenesisInput, build_transaction, build_transaction_receipt,
     };
 
-    use crate::acquire_exclusive_gc;
+    use crate::{
+        GcObjectVerifier, RetentionAnchor, RetentionKind, RetentionSnapshot, RetentionTarget,
+        acquire_exclusive_gc,
+    };
 
     use super::*;
 
     const NOW: u64 = 1_000;
 
     struct TempDir {
-        path: PathBuf,
+        path: ::std::path::PathBuf,
     }
 
     impl TempDir {
         fn new(label: &str) -> Self {
-            let sequence = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
+            let sequence =
+                super::STAGE_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+            let path = ::std::env::temp_dir().join(::std::format!(
                 "sley-refs-{label}-{}-{sequence:016x}",
-                std::process::id()
+                ::std::process::id()
             ));
-            fs::create_dir(&path).unwrap();
+            ::std::fs::create_dir(&path).unwrap();
             Self { path }
         }
     }
 
     impl Drop for TempDir {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
+            let _ = ::std::fs::remove_dir_all(&self.path);
         }
     }
 
     struct Fixture {
         temp: TempDir,
-        transactions: TransactionRepository,
-        branches: BranchRepository,
+        transactions: ::sley_txn::TransactionRepository,
+        branches: super::BranchRepository,
         principal_id: PrincipalId,
         genesis_transaction_id: TransactionId,
     }
@@ -2153,8 +2312,8 @@ mod tests {
 
         fn new_with_workspace(label: &str, workspace_byte: u8) -> Self {
             let temp = TempDir::new(label);
-            let transactions = TransactionRepository::new(&temp.path);
-            let branches = BranchRepository::new(&temp.path);
+            let transactions = ::sley_txn::TransactionRepository::new(&temp.path);
+            let branches = super::BranchRepository::new(&temp.path);
             let workspace_id = fixed(workspace_byte, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let base_entity = fixed(10, EntityId::from_bytes);
@@ -2205,6 +2364,10 @@ mod tests {
             }
         }
 
+        fn path(&self) -> &::std::path::Path {
+            &self.temp.path
+        }
+
         fn commit_child(&self, nonce_byte: u8) -> TransactionId {
             let head = self.transactions.accepted_head().unwrap();
             let candidate = candidate_for(
@@ -2226,6 +2389,110 @@ mod tests {
                 ))
                 .unwrap()
                 .transaction_id()
+        }
+    }
+
+    fn cross05_recovery_fixture() -> Fixture {
+        Fixture::new("cross05-ref-wrapper")
+    }
+
+    struct Cross05CompositeFixture {
+        fixture: Fixture,
+        commit_expected_parent: TransactionId,
+        commit_candidate_bytes: Vec<u8>,
+        commit_principal_id: PrincipalId,
+        branch_name: Vec<u8>,
+        branch_target: TransactionId,
+        gc_snapshot: RetentionSnapshot,
+        gc_verifier: Cross05GcVerifier,
+    }
+
+    struct Cross05GcVerifier {
+        schema_epoch_id: SchemaEpochId,
+    }
+
+    impl CanonicalVerifier for Cross05GcVerifier {
+        fn verify(&self, record: &[u8]) -> core::result::Result<ObjectId, sley_scb1::ScbError> {
+            import_entity_object(self.schema_epoch_id, record).map(|object| object.object_id())
+        }
+    }
+
+    impl GcObjectVerifier for Cross05GcVerifier {
+        fn references(
+            &self,
+            record: &[u8],
+        ) -> core::result::Result<Vec<ObjectId>, sley_scb1::ScbError> {
+            let _ = <Self as CanonicalVerifier>::verify(self, record)?;
+            Ok(Vec::new())
+        }
+    }
+
+    fn cross05_composite_fixture() -> Cross05CompositeFixture {
+        let fixture = Fixture::new("cross05-caller-held");
+        let accepted = fixture.transactions.accepted_head().unwrap();
+        let commit_expected_parent = accepted.transaction_id();
+        let commit_principal_id = fixture.principal_id;
+        let candidate = candidate_for(
+            accepted.state_root().record.workspace_id,
+            fixture.principal_id,
+            accepted.transaction_id(),
+            accepted.state_root(),
+            accepted.policy_root(),
+            60,
+        );
+        let context = CandidateValidationContext::new(
+            accepted.transaction_id(),
+            accepted.state_root(),
+            accepted.objects(),
+            accepted.tombstoned_entities(),
+            accepted.policy_root(),
+            fixture.principal_id,
+            &[],
+            NOW,
+            CandidateValidationLimits::full_v1(),
+        )
+        .unwrap();
+        let validation = validate_candidate_bytes(&context, &candidate.stored_bytes).unwrap();
+        let proposed_objects = validation
+            .validated_plan()
+            .unwrap()
+            .proposed_state()
+            .entities()
+            .to_vec();
+        let gc_verifier = Cross05GcVerifier {
+            schema_epoch_id: accepted.state_root().record.schema_epoch_id,
+        };
+        let object_store = ObjectStore::new(fixture.path());
+        for object in &proposed_objects {
+            object_store
+                .put(object.object_id(), object.stored_bytes(), &gc_verifier)
+                .unwrap();
+        }
+        let targets = proposed_objects
+            .iter()
+            .map(|object| RetentionTarget::Object(object.object_id()))
+            .collect();
+        let gc_snapshot = RetentionSnapshot::new(
+            vec![RetentionAnchor::new(
+                RetentionKind::ProtectedRoot,
+                [0xc5; 32],
+                targets,
+            )],
+            Vec::new(),
+        )
+        .unwrap();
+        drop(validation);
+        drop(context);
+        drop(accepted);
+        Cross05CompositeFixture {
+            fixture,
+            commit_expected_parent,
+            commit_candidate_bytes: candidate.stored_bytes,
+            commit_principal_id,
+            branch_name: b"cross05".to_vec(),
+            branch_target: commit_expected_parent,
+            gc_snapshot,
+            gc_verifier,
         }
     }
 
@@ -2335,6 +2602,240 @@ mod tests {
             expiry: CandidateExpiry::unix_millis(NOW + 1_000),
         })
         .unwrap()
+    }
+
+    #[test]
+    fn exclusive_recovery_ownership_blocks_shared_operations() {
+        let Cross05CompositeFixture {
+            fixture,
+            commit_expected_parent,
+            commit_candidate_bytes,
+            commit_principal_id,
+            branch_name,
+            branch_target,
+            gc_snapshot,
+            gc_verifier,
+        } = cross05_composite_fixture();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let transaction_repository = ::sley_txn::TransactionRepository::new(canonical_root.clone());
+        let branch_repository = super::BranchRepository::new(canonical_root.clone());
+        let object_store = ::sley_store::ObjectStore::new(canonical_root.clone());
+        let maintenance = transaction_repository
+            .acquire_exclusive_maintenance()
+            .unwrap();
+        let transaction_recovery_result =
+            transaction_repository.recover_with_maintenance(&maintenance);
+        let ref_recovery_result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        let gc_recovery_result = crate::gc::recover_gc_witness(&object_store, &maintenance);
+        let exclusive_observed = maintenance.is_exclusive() && maintenance.covers(&canonical_root);
+        let (cross05_blocked_tx, cross05_blocked_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05Blocked>(0);
+        let (cross05_completed_tx, cross05_completed_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05Completed>(0);
+        let commit_blocked_tx = cross05_blocked_tx.clone();
+        let commit_completed_tx = cross05_completed_tx.clone();
+        let commit_root = canonical_root.clone();
+        let commit_repository = transaction_repository.clone();
+        let commit_handle = ::std::thread::spawn(move || {
+            let maintenance_probe = ::std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(commit_root.join("locks").join("maintenance.lock"))
+                .unwrap();
+            let blocked = ::core::matches!(
+                ::std::fs::File::try_lock_shared(&maintenance_probe),
+                Err(::std::fs::TryLockError::WouldBlock)
+            );
+            ::core::assert!(
+                commit_blocked_tx
+                    .send(Cross05Blocked::Commit(blocked))
+                    .is_ok()
+            );
+            let commit_input = ::sley_txn::CommitInput::new(
+                commit_expected_parent,
+                &commit_candidate_bytes,
+                commit_principal_id,
+                &[],
+                NOW,
+                ::sley_policy::CandidateValidationLimits::full_v1(),
+            );
+            let operation_result = commit_repository.commit(commit_input);
+            ::core::assert!(
+                commit_completed_tx
+                    .send(Cross05Completed::Commit(operation_result.is_ok()))
+                    .is_ok()
+            );
+        });
+        let ref_blocked_tx = cross05_blocked_tx.clone();
+        let ref_completed_tx = cross05_completed_tx.clone();
+        let ref_root = canonical_root.clone();
+        let ref_repository = branch_repository.clone();
+        let ref_handle = ::std::thread::spawn(move || {
+            let maintenance_probe = ::std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(ref_root.join("locks").join("maintenance.lock"))
+                .unwrap();
+            let blocked = ::core::matches!(
+                ::std::fs::File::try_lock_shared(&maintenance_probe),
+                Err(::std::fs::TryLockError::WouldBlock)
+            );
+            ::core::assert!(ref_blocked_tx.send(Cross05Blocked::Ref(blocked)).is_ok());
+            let operation_result = ref_repository.create_branch(branch_name, branch_target);
+            ::core::assert!(
+                ref_completed_tx
+                    .send(Cross05Completed::Ref(operation_result.is_ok()))
+                    .is_ok()
+            );
+        });
+        let gc_blocked_tx = cross05_blocked_tx.clone();
+        let gc_completed_tx = cross05_completed_tx.clone();
+        let gc_root = canonical_root.clone();
+        let gc_store = object_store.clone();
+        let gc_handle = ::std::thread::spawn(move || {
+            let maintenance_probe = ::std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(gc_root.join("locks").join("maintenance.lock"))
+                .unwrap();
+            let blocked = ::core::matches!(
+                ::std::fs::File::try_lock(&maintenance_probe),
+                Err(::std::fs::TryLockError::WouldBlock)
+            );
+            ::core::assert!(gc_blocked_tx.send(Cross05Blocked::Gc(blocked)).is_ok());
+            let operation_result = crate::gc::acquire_exclusive_gc(&gc_store).and_then(|guard| {
+                crate::gc::gc_collect(&gc_store, &gc_snapshot, &gc_verifier, &guard)
+            });
+            ::core::assert!(
+                gc_completed_tx
+                    .send(Cross05Completed::Gc(operation_result.is_ok()))
+                    .is_ok()
+            );
+        });
+        let cross05_blocked = [
+            cross05_blocked_rx.recv().unwrap(),
+            cross05_blocked_rx.recv().unwrap(),
+            cross05_blocked_rx.recv().unwrap(),
+        ];
+        let commit_blocked = cross05_blocked
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Blocked::Commit(true)));
+        let ref_blocked = cross05_blocked
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Blocked::Ref(true)));
+        let gc_blocked = cross05_blocked
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Blocked::Gc(true)));
+        let gc_witness_absent_while_blocked = ::core::matches!(
+            ::std::fs::symlink_metadata(canonical_root.join("locks").join("gc.lock")),
+            Err(error) if error.kind() == ::std::io::ErrorKind::NotFound
+        );
+        ::core::assert!(exclusive_observed);
+        ::core::assert!(commit_blocked);
+        ::core::assert!(ref_blocked);
+        ::core::assert!(gc_blocked);
+        ::core::assert!(gc_witness_absent_while_blocked);
+        drop(maintenance);
+        let cross05_completed = [
+            cross05_completed_rx.recv().unwrap(),
+            cross05_completed_rx.recv().unwrap(),
+            cross05_completed_rx.recv().unwrap(),
+        ];
+        let commit_resumed = cross05_completed
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Completed::Commit(true)));
+        let ref_resumed = cross05_completed
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Completed::Ref(true)));
+        let gc_resumed = cross05_completed
+            .iter()
+            .any(|event| ::core::matches!(event, Cross05Completed::Gc(true)));
+        let recovery_completed = transaction_recovery_result.is_ok()
+            && ref_recovery_result.is_ok()
+            && gc_recovery_result.is_ok();
+        commit_handle.join().unwrap();
+        ref_handle.join().unwrap();
+        gc_handle.join().unwrap();
+        ::core::assert!(commit_resumed);
+        ::core::assert!(ref_resumed);
+        ::core::assert!(gc_resumed);
+        ::core::assert!(recovery_completed);
+    }
+
+    #[test]
+    fn ref_no_argument_recovery_holds_exclusive_maintenance() {
+        let fixture = cross05_recovery_fixture();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let owner_repository = super::BranchRepository::new(canonical_root.clone());
+        let (cross05_owner_tx, cross05_owner_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05OwnerSignal>(0);
+        let (cross05_release_tx, cross05_release_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05OwnerSignal>(0);
+        let owner_handle = ::std::thread::spawn(move || {
+            install_ref_recovery_hold(
+                owner_repository.root(),
+                cross05_owner_tx,
+                cross05_release_rx,
+            );
+            owner_repository.recover_refs()
+        });
+        let exclusive_observed = ::core::matches!(
+            cross05_owner_rx.recv().unwrap(),
+            Cross05OwnerSignal::OwnerHeld
+        );
+        let commit_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let ref_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let gc_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let commit_blocked = ::core::matches!(
+            ::std::fs::File::try_lock_shared(&commit_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let ref_blocked = ::core::matches!(
+            ::std::fs::File::try_lock_shared(&ref_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let gc_blocked = ::core::matches!(
+            ::std::fs::File::try_lock(&gc_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let gc_witness_absent_while_blocked = ::core::matches!(
+            ::std::fs::symlink_metadata(canonical_root.join("locks").join("gc.lock")),
+            Err(error) if error.kind() == ::std::io::ErrorKind::NotFound
+        );
+        ::core::assert!(exclusive_observed);
+        ::core::assert!(commit_blocked);
+        ::core::assert!(ref_blocked);
+        ::core::assert!(gc_blocked);
+        ::core::assert!(gc_witness_absent_while_blocked);
+        ::core::assert!(
+            cross05_release_tx
+                .send(Cross05OwnerSignal::ReleaseOwner)
+                .is_ok()
+        );
+        let recovery_result = owner_handle.join().unwrap();
+        let recovery_completed = recovery_result.is_ok();
+        let commit_resumed = ::std::fs::File::try_lock_shared(&commit_probe).is_ok();
+        ::std::fs::File::unlock(&commit_probe).unwrap();
+        let ref_resumed = ::std::fs::File::try_lock_shared(&ref_probe).is_ok();
+        ::std::fs::File::unlock(&ref_probe).unwrap();
+        let gc_resumed = ::std::fs::File::try_lock(&gc_probe).is_ok();
+        ::std::fs::File::unlock(&gc_probe).unwrap();
+        ::core::assert!(commit_resumed);
+        ::core::assert!(ref_resumed);
+        ::core::assert!(gc_resumed);
+        ::core::assert!(recovery_completed);
     }
 
     fn synthetic_origin(name: &str) -> BranchRecord {

@@ -1,8 +1,13 @@
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::sync::{
+    Arc, Mutex,
+    mpsc::{Receiver, SyncSender},
+};
 
 use sley_id::{ObjectId, StateRoot};
 use sley_scb1::ScbError;
@@ -20,6 +25,32 @@ const GC_LOCK_DIR: &str = "locks";
 const GC_LOCK_FILE: &str = "gc.lock";
 const ID_LEN: usize = 32;
 const OBJECT_SUFFIX: &str = ".scb1";
+
+#[cfg(test)]
+enum GcDurabilityCut {
+    Gcw01WitnessCreateBeforeWrite,
+    Gcw02DuringWitnessWrite,
+    Gcw03WitnessWriteBeforeFileSync,
+    Gcw04WitnessFileSyncBeforeLockDirectorySync,
+    Gcw05WitnessRemoveBeforeLockDirectorySync,
+    Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { gate: Arc<GcMaintenanceRaceGate> },
+    Gc01BeforeSecondCandidateDelete,
+    Gc02SecondCandidateUnlinkedBeforeLeafSync,
+}
+
+#[cfg(test)]
+struct GcMaintenanceRaceGate {
+    owner_tx: SyncSender<()>,
+    release_rx: Mutex<Receiver<()>>,
+}
+
+#[cfg(test)]
+impl GcMaintenanceRaceGate {
+    fn hold_before_witness_access(&self) {
+        ::core::assert!(self.owner_tx.send(()).is_ok());
+        ::core::assert!(self.release_rx.lock().unwrap().recv().is_ok());
+    }
+}
 
 /// Maximum retention anchors in one snapshot.
 pub const MAX_GC_ANCHORS: usize = 65_536;
@@ -367,6 +398,17 @@ struct Reachability {
     reachable_objects: BTreeSet<ObjectId>,
 }
 
+/// Result of recovering one exact durable GC witness.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GcWitnessRecoveryStatus {
+    /// Removed a complete exact `SLEYGC01` witness and synced its directory.
+    RemovedExact,
+    /// Removed an empty or strict-prefix witness and synced its directory.
+    RemovedIncomplete,
+    /// Observed no witness and synced its directory.
+    Absent,
+}
+
 /// Exclusive local GC guard for one exact real store root.
 #[derive(Debug)]
 pub struct ExclusiveGcGuard {
@@ -430,10 +472,28 @@ pub fn acquire_exclusive_gc(store: &ObjectStore) -> Result<ExclusiveGcGuard> {
     }
     let store_root = fs::canonicalize(store.root())
         .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
-    let lock_dir = store_root.join(GC_LOCK_DIR);
-    create_real_dir(&store_root, &lock_dir)?;
     initialize_repository_maintenance(&store_root)
         .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    let maintenance = acquire_exclusive_repository_maintenance(&store_root)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    acquire_exclusive_gc_with_maintenance(store, store_root, maintenance)
+}
+
+fn acquire_exclusive_gc_with_maintenance(
+    store: &ObjectStore,
+    store_root: PathBuf,
+    maintenance: RepositoryMaintenanceGuard,
+) -> Result<ExclusiveGcGuard> {
+    if !maintenance.is_exclusive()
+        || !maintenance.covers(&store_root)
+        || fs::canonicalize(store.root())
+            .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?
+            != store_root
+    {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let lock_dir = store_root.join(GC_LOCK_DIR);
+    create_real_dir(&store_root, &lock_dir)?;
     let lock_path = lock_dir.join(GC_LOCK_FILE);
     let mut lock = OpenOptions::new()
         .write(true)
@@ -446,22 +506,216 @@ pub fn acquire_exclusive_gc(store: &ObjectStore) -> Result<ExclusiveGcGuard> {
         .and_then(|()| sync_dir(&lock_dir))
     {
         let _ = fs::remove_file(&lock_path);
+        let _ = sync_dir(&lock_dir);
         return Err(GcError::io(GcErrorCode::ExclusiveLockRequired, error));
     }
-    let maintenance = match acquire_exclusive_repository_maintenance(&store_root) {
-        Ok(maintenance) => maintenance,
-        Err(error) => {
-            let _ = fs::remove_file(&lock_path);
-            let _ = sync_dir(&lock_dir);
-            return Err(GcError::io(GcErrorCode::ExclusiveLockRequired, error));
-        }
-    };
     Ok(ExclusiveGcGuard {
         store_root,
         lock_path,
         maintenance,
         active: true,
     })
+}
+
+#[cfg(test)]
+fn acquire_exclusive_gc_with_gc_durability_cut(
+    store: &ObjectStore,
+    cut: GcDurabilityCut,
+) -> Result<ExclusiveGcGuard> {
+    let root_metadata = fs::symlink_metadata(store.root())
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    if !root_metadata.file_type().is_dir() {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let store_root = fs::canonicalize(store.root())
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    initialize_repository_maintenance(&store_root)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    let maintenance = acquire_exclusive_repository_maintenance(&store_root)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+
+    if let GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { gate } = &cut {
+        gate.hold_before_witness_access();
+        return acquire_exclusive_gc_with_maintenance(store, store_root, maintenance);
+    }
+
+    if !maintenance.is_exclusive()
+        || !maintenance.covers(&store_root)
+        || fs::canonicalize(store.root())
+            .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?
+            != store_root
+    {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let lock_dir = store_root.join(GC_LOCK_DIR);
+    create_real_dir(&store_root, &lock_dir)?;
+    let lock_path = lock_dir.join(GC_LOCK_FILE);
+    let mut lock = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock_path)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    let injected = || {
+        GcError::io(
+            GcErrorCode::ExclusiveLockRequired,
+            io::Error::other("injected GC-witness durability cut"),
+        )
+    };
+    match cut {
+        GcDurabilityCut::Gcw01WitnessCreateBeforeWrite => Err(injected()),
+        GcDurabilityCut::Gcw02DuringWitnessWrite => {
+            let prefix_len = GC_LOCK_BYTES.len() / 2;
+            ::core::assert!(prefix_len > 0);
+            ::core::assert!(prefix_len < GC_LOCK_BYTES.len());
+            lock.write_all(&GC_LOCK_BYTES[..prefix_len])
+                .and_then(|()| lock.sync_all())
+                .and_then(|()| sync_dir(&lock_dir))
+                .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+            Err(injected())
+        }
+        GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync => {
+            lock.write_all(GC_LOCK_BYTES)
+                .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+            Err(injected())
+        }
+        GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync => {
+            lock.write_all(GC_LOCK_BYTES)
+                .and_then(|()| lock.sync_all())
+                .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+            Err(injected())
+        }
+        GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync
+        | GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { .. }
+        | GcDurabilityCut::Gc01BeforeSecondCandidateDelete
+        | GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync => {
+            unreachable!("durability cut does not belong to GC acquisition")
+        }
+    }
+}
+
+/// Recovers an exact interrupted GC witness under caller-owned exclusive
+/// repository maintenance.
+///
+/// # Errors
+///
+/// Returns `GC_EXCLUSIVE_LOCK_REQUIRED` for a shared or wrong-root guard, an
+/// invalid lock boundary, arbitrary witness bytes, or any witness I/O failure.
+pub fn recover_gc_witness(
+    store: &ObjectStore,
+    maintenance: &RepositoryMaintenanceGuard,
+) -> Result<GcWitnessRecoveryStatus> {
+    let store_root = validate_gc_recovery_maintenance(store, maintenance)?;
+    let lock_dir = store_root.join(GC_LOCK_DIR);
+    ensure_real_dir(&lock_dir, GcErrorCode::ExclusiveLockRequired)?;
+    let lock_path = lock_dir.join(GC_LOCK_FILE);
+    let metadata = match fs::symlink_metadata(&lock_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            sync_dir(&lock_dir)
+                .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+            return Ok(GcWitnessRecoveryStatus::Absent);
+        }
+        Err(error) => {
+            return Err(GcError::io(GcErrorCode::ExclusiveLockRequired, error));
+        }
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let length = usize::try_from(metadata.len())
+        .map_err(|_| GcError::gc(GcErrorCode::ExclusiveLockRequired))?;
+    if length > GC_LOCK_BYTES.len() {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let mut bytes = [0_u8; GC_LOCK_BYTES.len()];
+    let mut witness = File::open(&lock_path)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    witness
+        .read_exact(&mut bytes[..length])
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    let mut extra = [0_u8; 1];
+    if witness
+        .read(&mut extra)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?
+        != 0
+        || bytes[..length] != GC_LOCK_BYTES[..length]
+    {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let status = if length == GC_LOCK_BYTES.len() {
+        GcWitnessRecoveryStatus::RemovedExact
+    } else {
+        GcWitnessRecoveryStatus::RemovedIncomplete
+    };
+    fs::remove_file(&lock_path)
+        .and_then(|()| sync_dir(&lock_dir))
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    Ok(status)
+}
+
+#[cfg(test)]
+fn recover_gc_witness_with_gc_durability_cut(
+    store: &ObjectStore,
+    maintenance: &RepositoryMaintenanceGuard,
+    cut: GcDurabilityCut,
+) -> Result<GcWitnessRecoveryStatus> {
+    match cut {
+        GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync => {}
+        GcDurabilityCut::Gcw01WitnessCreateBeforeWrite
+        | GcDurabilityCut::Gcw02DuringWitnessWrite
+        | GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync
+        | GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync
+        | GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { .. }
+        | GcDurabilityCut::Gc01BeforeSecondCandidateDelete
+        | GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync => {
+            unreachable!("durability cut does not belong to GC-witness recovery")
+        }
+    }
+    let store_root = validate_gc_recovery_maintenance(store, maintenance)?;
+    let lock_dir = store_root.join(GC_LOCK_DIR);
+    ensure_real_dir(&lock_dir, GcErrorCode::ExclusiveLockRequired)?;
+    let lock_path = lock_dir.join(GC_LOCK_FILE);
+    let metadata = fs::symlink_metadata(&lock_path)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    if !metadata.file_type().is_file() || metadata.len() != GC_LOCK_BYTES.len() as u64 {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let mut bytes = [0_u8; GC_LOCK_BYTES.len()];
+    let mut witness = File::open(&lock_path)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    witness
+        .read_exact(&mut bytes)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    let mut extra = [0_u8; 1];
+    if witness
+        .read(&mut extra)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?
+        != 0
+        || bytes != *GC_LOCK_BYTES
+    {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    fs::remove_file(&lock_path)
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    Err(GcError::io(
+        GcErrorCode::ExclusiveLockRequired,
+        io::Error::other("injected GC-witness directory-sync durability cut"),
+    ))
+}
+
+fn validate_gc_recovery_maintenance(
+    store: &ObjectStore,
+    maintenance: &RepositoryMaintenanceGuard,
+) -> Result<PathBuf> {
+    if !maintenance.is_exclusive() || !maintenance.covers(store.root()) {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    let store_root = fs::canonicalize(store.root())
+        .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
+    if store_root != maintenance.repository_root() {
+        return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
+    }
+    Ok(store_root)
 }
 
 /// Computes a complete deterministic dry-run report without mutation.
@@ -490,7 +744,7 @@ pub fn gc_collect<V: GcObjectVerifier>(
     verifier: &V,
     guard: &ExclusiveGcGuard,
 ) -> Result<GcReport> {
-    collect_inner(store, snapshot, verifier, guard, DeleteFault::None)
+    collect_inner(store, snapshot, verifier, guard)
 }
 
 fn plan_gc<V: GcObjectVerifier>(
@@ -789,10 +1043,10 @@ fn collect_inner<V: GcObjectVerifier>(
     snapshot: &RetentionSnapshot,
     verifier: &V,
     guard: &ExclusiveGcGuard,
-    fault: DeleteFault,
 ) -> Result<GcReport> {
     require_guard(store, guard)?;
     let mut report = plan_gc(store, snapshot, verifier)?;
+    sync_inventory_leaf_directories(store)?;
     let reachable = report
         .reachable_objects
         .iter()
@@ -810,11 +1064,85 @@ fn collect_inner<V: GcObjectVerifier>(
         if !metadata.file_type().is_file() {
             return Err(GcError::gc(GcErrorCode::InventoryInvalid));
         }
-        if fault == DeleteFault::BeforeDelete(object_id) {
+        if let Err(error) = fs::remove_file(&path) {
+            report.decision = GcDecision::PartialDeleteFailure;
+            report.failed_object = Some(object_id);
+            return Err(GcError::partial(error, report));
+        }
+        if let Err(error) = sync_dir(path.parent().expect("object path has parent")) {
+            report.decision = GcDecision::PartialDeleteFailure;
+            report.failed_object = Some(object_id);
+            return Err(GcError::partial(error, report));
+        }
+        report.deleted_objects.push(object_id);
+    }
+    report.decision = GcDecision::Collected;
+    Ok(report)
+}
+
+#[cfg(test)]
+fn gc_collect_with_injected_pre_cleanup_sync_failure<V: GcObjectVerifier>(
+    store: &ObjectStore,
+    snapshot: &RetentionSnapshot,
+    verifier: &V,
+    guard: &ExclusiveGcGuard,
+) -> Result<GcReport> {
+    require_guard(store, guard)?;
+    let _report = plan_gc(store, snapshot, verifier)?;
+    Err(GcError::io(
+        GcErrorCode::DeleteIo,
+        io::Error::other("injected pre-cleanup inventory-leaf sync failure"),
+    ))
+}
+
+#[cfg(test)]
+fn gc_collect_with_gc_durability_cut<V: GcObjectVerifier>(
+    store: &ObjectStore,
+    snapshot: &RetentionSnapshot,
+    verifier: &V,
+    guard: &ExclusiveGcGuard,
+    cut: GcDurabilityCut,
+) -> Result<GcReport> {
+    let cut_before_delete = match cut {
+        GcDurabilityCut::Gc01BeforeSecondCandidateDelete => true,
+        GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync => false,
+        GcDurabilityCut::Gcw01WitnessCreateBeforeWrite
+        | GcDurabilityCut::Gcw02DuringWitnessWrite
+        | GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync
+        | GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync
+        | GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync
+        | GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { .. } => {
+            unreachable!("durability cut does not belong to GC collection")
+        }
+    };
+    require_guard(store, guard)?;
+    let mut report = plan_gc(store, snapshot, verifier)?;
+    sync_inventory_leaf_directories(store)?;
+    if report.deletion_candidates.len() != 3 {
+        return Err(GcError::gc(GcErrorCode::InternalInvariant));
+    }
+    let reachable = report
+        .reachable_objects
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    for (candidate_index, object_id) in report.deletion_candidates.clone().into_iter().enumerate() {
+        if reachable.contains(&object_id) {
+            return Err(GcError::gc(GcErrorCode::ReachabilityViolation));
+        }
+        store
+            .read(object_id, verifier)
+            .map_err(|error| map_store_error(&error))?;
+        let path = store.object_path(object_id);
+        let metadata = fs::symlink_metadata(&path).map_err(map_delete_io)?;
+        if !metadata.file_type().is_file() {
+            return Err(GcError::gc(GcErrorCode::InventoryInvalid));
+        }
+        if candidate_index == 1 && cut_before_delete {
             report.decision = GcDecision::PartialDeleteFailure;
             report.failed_object = Some(object_id);
             return Err(GcError::partial(
-                io::Error::other("injected delete failure"),
+                io::Error::other("injected second-candidate delete failure"),
                 report,
             ));
         }
@@ -823,12 +1151,11 @@ fn collect_inner<V: GcObjectVerifier>(
             report.failed_object = Some(object_id);
             return Err(GcError::partial(error, report));
         }
-        report.deleted_objects.push(object_id);
-        if fault == DeleteFault::AfterDeleteBeforeSync(object_id) {
+        if candidate_index == 1 && !cut_before_delete {
             report.decision = GcDecision::PartialDeleteFailure;
             report.failed_object = Some(object_id);
             return Err(GcError::partial(
-                io::Error::other("injected directory sync failure"),
+                io::Error::other("injected second-candidate directory sync failure"),
                 report,
             ));
         }
@@ -837,9 +1164,30 @@ fn collect_inner<V: GcObjectVerifier>(
             report.failed_object = Some(object_id);
             return Err(GcError::partial(error, report));
         }
+        report.deleted_objects.push(object_id);
     }
     report.decision = GcDecision::Collected;
     Ok(report)
+}
+
+fn sync_inventory_leaf_directories(store: &ObjectStore) -> Result<()> {
+    ensure_real_dir(store.root(), GcErrorCode::InventoryInvalid)?;
+    let object_root = store.root().join("objects");
+    if !real_dir_or_absent(&object_root)? {
+        return Ok(());
+    }
+    let scb1_root = object_root.join("scb1");
+    if !real_dir_or_absent(&scb1_root)? {
+        return Ok(());
+    }
+    for first in sorted_entries(&scb1_root)? {
+        require_hex_dir(&first, 2)?;
+        for second in sorted_entries(&first.path())? {
+            require_hex_dir(&second, 2)?;
+            sync_dir(&second.path()).map_err(map_delete_io)?;
+        }
+    }
+    Ok(())
 }
 
 fn require_guard(store: &ObjectStore, guard: &ExclusiveGcGuard) -> Result<()> {
@@ -987,13 +1335,6 @@ fn sync_dir(path: &Path) -> io::Result<()> {
     File::open(path).and_then(|directory| directory.sync_all())
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum DeleteFault {
-    None,
-    BeforeDelete(ObjectId),
-    AfterDeleteBeforeSync(ObjectId),
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -1025,6 +1366,101 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[rustfmt::skip]
+    type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);
+    type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
+
+    fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
+        let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
+        let file_type = metadata.file_type();
+        let kind = if file_type.is_symlink() {
+            "symlink"
+        } else if file_type.is_file() {
+            "regular"
+        } else if file_type.is_dir() {
+            "directory"
+        } else {
+            "non_regular"
+        };
+        let mode = ::std::os::unix::fs::MetadataExt::mode(&metadata);
+        let bytes = if file_type.is_file() {
+            ::std::fs::read(path).expect("snapshot file bytes")
+        } else {
+            ::std::vec::Vec::new()
+        };
+        let target = if file_type.is_symlink() {
+            ::core::option::Option::Some(
+                ::std::fs::read_link(path).expect("snapshot symlink target"),
+            )
+        } else {
+            ::core::option::Option::None
+        };
+        (kind, mode, bytes, target)
+    }
+
+    fn exact_tree_snapshot(root: &::std::path::Path) -> ExactTreeSnapshot {
+        fn visit(
+            root: &::std::path::Path,
+            path: &::std::path::Path,
+            entries: &mut ExactTreeSnapshot,
+        ) {
+            let relative = path
+                .strip_prefix(root)
+                .expect("snapshot path under root")
+                .to_path_buf();
+            let snapshot = exact_path_snapshot(path);
+            let is_directory = snapshot.0 == "directory";
+            entries.push((relative, snapshot));
+            if is_directory {
+                let mut children = ::std::fs::read_dir(path)
+                    .expect("snapshot directory")
+                    .map(|entry| entry.expect("snapshot directory entry").path())
+                    .collect::<::std::vec::Vec<_>>();
+                children.sort();
+                for child in children {
+                    visit(root, &child, entries);
+                }
+            }
+        }
+        let mut entries = ::std::vec::Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
+    fn exact_error_source_chain(
+        error: &(dyn ::std::error::Error + 'static),
+    ) -> ::std::vec::Vec<::std::string::String> {
+        let mut chain = ::std::vec::Vec::new();
+        let mut source = ::std::error::Error::source(error);
+        while let ::core::option::Option::Some(current) = source {
+            let label = if let ::core::option::Option::Some(io_error) =
+                current.downcast_ref::<::std::io::Error>()
+            {
+                ::std::format!("io::Error({:?})", io_error.kind())
+            } else {
+                ::std::format!("unknown({})", ::std::any::type_name_of_val(current),)
+            };
+            chain.push(label);
+            source = ::std::error::Error::source(current);
+        }
+        chain
+    }
+
+    fn initialize_exact_gc_witness(store: &ObjectStore, bytes: &[u8]) -> PathBuf {
+        initialize_repository_maintenance(store.root()).unwrap();
+        let lock_dir = store.root().join(GC_LOCK_DIR);
+        let lock_path = lock_dir.join(GC_LOCK_FILE);
+        let mut witness = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+            .unwrap();
+        witness.write_all(bytes).unwrap();
+        witness.sync_all().unwrap();
+        sync_dir(&lock_dir).unwrap();
+        lock_path
     }
 
     #[derive(Default)]
@@ -1121,6 +1557,270 @@ mod tests {
             child_id,
             verifier,
         }
+    }
+
+    #[test]
+    fn gcw01_empty_witness_recovers_incomplete() {
+        let fixture = fixture();
+        let error = acquire_exclusive_gc_with_gc_durability_cut(
+            &fixture.store,
+            GcDurabilityCut::Gcw01WitnessCreateBeforeWrite,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
+        assert_eq!(fs::read(&witness).unwrap(), b"");
+
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
+        assert_eq!(status, GcWitnessRecoveryStatus::RemovedIncomplete);
+        assert!(!witness.exists());
+    }
+
+    #[test]
+    fn gcw02_half_prefix_recovers_incomplete() {
+        let fixture = fixture();
+        let error = acquire_exclusive_gc_with_gc_durability_cut(
+            &fixture.store,
+            GcDurabilityCut::Gcw02DuringWitnessWrite,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
+        assert_eq!(fs::read(&witness).unwrap(), b"SLEY");
+        assert_eq!(fs::metadata(&witness).unwrap().len(), 4);
+
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
+        assert_eq!(status, GcWitnessRecoveryStatus::RemovedIncomplete);
+        assert!(!witness.exists());
+    }
+
+    #[test]
+    fn gcw03_exact_unsynced_witness_recovers_exact() {
+        let fixture = fixture();
+        let error = acquire_exclusive_gc_with_gc_durability_cut(
+            &fixture.store,
+            GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
+        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
+        assert_eq!(status, GcWitnessRecoveryStatus::RemovedExact);
+        assert!(!witness.exists());
+    }
+
+    #[test]
+    fn gcw04_file_synced_witness_recovers_exact() {
+        let fixture = fixture();
+        let error = acquire_exclusive_gc_with_gc_durability_cut(
+            &fixture.store,
+            GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
+        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
+        assert_eq!(status, GcWitnessRecoveryStatus::RemovedExact);
+        assert!(!witness.exists());
+    }
+
+    #[test]
+    fn gcw05_removed_witness_retry_reports_absent() {
+        let fixture = fixture();
+        let witness = initialize_exact_gc_witness(&fixture.store, GC_LOCK_BYTES);
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let error = recover_gc_witness_with_gc_durability_cut(
+            &fixture.store,
+            &maintenance,
+            GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        assert!(!witness.exists());
+        drop(maintenance);
+
+        let retry_maintenance =
+            acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let retry = recover_gc_witness(&fixture.store, &retry_maintenance).unwrap();
+        assert_eq!(retry, GcWitnessRecoveryStatus::Absent);
+        assert!(!witness.exists());
+    }
+
+    #[test]
+    fn gcw06_recovery_waits_for_live_collection() {
+        let fixture = fixture();
+        let (owner_tx, owner_rx) = ::std::sync::mpsc::sync_channel(0);
+        let (release_tx, release_rx) = ::std::sync::mpsc::sync_channel(0);
+        let gate = Arc::new(GcMaintenanceRaceGate {
+            owner_tx,
+            release_rx: Mutex::new(release_rx),
+        });
+        let owner_store = fixture.store.clone();
+        let owner = ::std::thread::spawn(move || {
+            acquire_exclusive_gc_with_gc_durability_cut(
+                &owner_store,
+                GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { gate },
+            )
+        });
+        owner_rx.recv().unwrap();
+
+        let maintenance_probe = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(fixture.store.root().join("locks/maintenance.lock"))
+            .unwrap();
+        assert!(matches!(
+            File::try_lock(&maintenance_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        ));
+        let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
+        assert!(!witness.exists());
+
+        let (waiter_started_tx, waiter_started_rx) = ::std::sync::mpsc::sync_channel(0);
+        let (waiter_result_tx, waiter_result_rx) = ::std::sync::mpsc::sync_channel(0);
+        let waiter_store = fixture.store.clone();
+        let waiter = ::std::thread::spawn(move || {
+            waiter_started_tx.send(()).unwrap();
+            let maintenance =
+                acquire_exclusive_repository_maintenance(waiter_store.root()).unwrap();
+            let result = recover_gc_witness(&waiter_store, &maintenance);
+            waiter_result_tx.send(result).unwrap();
+        });
+        waiter_started_rx.recv().unwrap();
+
+        release_tx.send(()).unwrap();
+        let guard = owner.join().unwrap().unwrap();
+        assert!(guard.maintenance.is_exclusive());
+        assert!(guard.maintenance.covers(fixture.store.root()));
+        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+        guard.release().unwrap();
+
+        let waiter_result = waiter_result_rx.recv().unwrap().unwrap();
+        assert_eq!(waiter_result, GcWitnessRecoveryStatus::Absent);
+        assert!(!witness.exists());
+        waiter.join().unwrap();
+    }
+
+    #[test]
+    fn guard05_same_root_shared_preserves_witness() {
+        let fixture = fixture();
+        let witness = initialize_exact_gc_witness(&fixture.store, GC_LOCK_BYTES);
+        let maintenance =
+            ::sley_txn::acquire_shared_repository_maintenance(fixture.store.root()).unwrap();
+        assert!(!maintenance.is_exclusive());
+        assert!(maintenance.covers(fixture.store.root()));
+        let before = exact_tree_snapshot(fixture.store.root());
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+        assert_eq!(fs::read(witness).unwrap(), GC_LOCK_BYTES);
+    }
+
+    #[test]
+    fn guard06_wrong_root_exclusive_preserves_both_roots() {
+        let fixture = fixture();
+        let witness = initialize_exact_gc_witness(&fixture.store, GC_LOCK_BYTES);
+        let other = TempRoot::new("wrong-maintenance-root");
+        initialize_repository_maintenance(&other.0).unwrap();
+        let maintenance = acquire_exclusive_repository_maintenance(&other.0).unwrap();
+        assert!(maintenance.is_exclusive());
+        assert!(!maintenance.covers(fixture.store.root()));
+        let store_before = exact_tree_snapshot(fixture.store.root());
+        let other_before = exact_tree_snapshot(&other.0);
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), store_before);
+        assert_eq!(exact_tree_snapshot(&other.0), other_before);
+        assert_eq!(fs::read(witness).unwrap(), GC_LOCK_BYTES);
+    }
+
+    #[test]
+    fn cor08_wrong_magic_preserves_witness() {
+        let fixture = fixture();
+        initialize_exact_gc_witness(&fixture.store, b"NOTGC001");
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let before = exact_tree_snapshot(fixture.store.root());
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+    }
+
+    #[test]
+    fn cor08_oversize_witness_preserves_witness() {
+        let fixture = fixture();
+        initialize_exact_gc_witness(&fixture.store, b"SLEYGC01X");
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let before = exact_tree_snapshot(fixture.store.root());
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+    }
+
+    #[test]
+    fn cor08_relative_symlink_preserves_witness() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = fixture();
+        initialize_repository_maintenance(fixture.store.root()).unwrap();
+        let lock_dir = fixture.store.root().join(GC_LOCK_DIR);
+        let target = lock_dir.join("gc-witness-target");
+        fs::write(&target, GC_LOCK_BYTES).unwrap();
+        let witness = lock_dir.join(GC_LOCK_FILE);
+        symlink("gc-witness-target", &witness).unwrap();
+        sync_dir(&lock_dir).unwrap();
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let before = exact_tree_snapshot(fixture.store.root());
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+        assert_eq!(
+            fs::read_link(witness).unwrap(),
+            PathBuf::from("gc-witness-target")
+        );
+    }
+
+    #[test]
+    fn cor08_unix_socket_preserves_witness() {
+        use std::os::unix::net::UnixListener;
+
+        let fixture = fixture();
+        initialize_repository_maintenance(fixture.store.root()).unwrap();
+        let lock_dir = fixture.store.root().join(GC_LOCK_DIR);
+        let witness = lock_dir.join(GC_LOCK_FILE);
+        let listener = UnixListener::bind(&witness).unwrap();
+        sync_dir(&lock_dir).unwrap();
+        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
+        let before = exact_tree_snapshot(fixture.store.root());
+
+        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        assert!(exact_error_source_chain(&error).is_empty());
+        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+        assert_eq!(exact_path_snapshot(&witness).0, "non_regular");
+        drop(listener);
     }
 
     #[test]
@@ -1409,15 +2109,11 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_or_wrong_store_guard_fails_closed() {
+    fn concurrent_guard_blocks_and_wrong_store_guard_fails_closed() {
         let fixture = fixture();
         let other_temp = TempRoot::new("other");
         let other = ObjectStore::new(&other_temp.0);
         let guard = acquire_exclusive_gc(&fixture.store).unwrap();
-        assert_eq!(
-            acquire_exclusive_gc(&fixture.store).unwrap_err().symbol(),
-            "GC_EXCLUSIVE_LOCK_REQUIRED"
-        );
         let snapshot = RetentionSnapshot::new(
             vec![anchor(
                 RetentionKind::Ref,
@@ -1433,61 +2129,150 @@ mod tests {
                 .symbol(),
             "GC_EXCLUSIVE_LOCK_REQUIRED"
         );
+
+        let concurrent_store = fixture.store.clone();
+        let (started_tx, started_rx) = ::std::sync::mpsc::channel();
+        let (finished_tx, finished_rx) = ::std::sync::mpsc::channel();
+        let contender = ::std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            finished_tx
+                .send(acquire_exclusive_gc(&concurrent_store))
+                .unwrap();
+        });
+        started_rx.recv().unwrap();
+        assert!(
+            finished_rx
+                .recv_timeout(::std::time::Duration::from_millis(100))
+                .is_err()
+        );
+        drop(guard);
+        let concurrent_guard = finished_rx
+            .recv_timeout(::std::time::Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        drop(concurrent_guard);
+        contender.join().unwrap();
     }
 
     #[test]
-    fn injected_delete_failure_returns_partial_report() {
+    fn injected_delete_failure_retry_is_idempotent() {
         let fixture = fixture();
-        let snapshot = RetentionSnapshot::new(
-            vec![anchor(
-                RetentionKind::Ref,
-                9,
-                vec![RetentionTarget::StateRoot(fixture.retained.root)],
-            )],
-            vec![fixture.retained.clone()],
-        )
-        .unwrap();
+        let snapshot = RetentionSnapshot::new(Vec::new(), Vec::new()).unwrap();
+        let dry_run = gc_dry_run(&fixture.store, &snapshot, &fixture.verifier).unwrap();
+        let deletion_candidates = dry_run.deletion_candidates.clone();
+        assert_eq!(deletion_candidates.len(), 3);
+        let durable_prefix = deletion_candidates[0];
+        let failed_candidate = deletion_candidates[1];
+        let untouched_suffix = deletion_candidates[2];
         let guard = acquire_exclusive_gc(&fixture.store).unwrap();
-        let error = collect_inner(
+        let error = gc_collect_with_gc_durability_cut(
             &fixture.store,
             &snapshot,
             &fixture.verifier,
             &guard,
-            DeleteFault::BeforeDelete(fixture.unreachable_id),
+            GcDurabilityCut::Gc01BeforeSecondCandidateDelete,
         )
         .unwrap_err();
         assert_eq!(error.symbol(), "GC_DELETE_IO");
         let report = error.partial_report().unwrap();
         assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
-        assert_eq!(report.failed_object, Some(fixture.unreachable_id));
-        assert!(report.deleted_objects.is_empty());
-        assert!(fixture.store.object_path(fixture.unreachable_id).is_file());
+        assert_eq!(report.deletion_candidates, deletion_candidates);
+        assert_eq!(report.reachable_objects, dry_run.reachable_objects);
+        assert_eq!(report.deleted_objects, vec![durable_prefix]);
+        assert_eq!(report.failed_object, Some(failed_candidate));
+        assert!(!fixture.store.object_path(durable_prefix).exists());
+        assert!(fixture.store.object_path(failed_candidate).is_file());
+        assert!(fixture.store.object_path(untouched_suffix).is_file());
+
+        let retry = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
+        assert_eq!(
+            retry.deletion_candidates,
+            vec![failed_candidate, untouched_suffix]
+        );
+        assert_eq!(retry.deleted_objects, retry.deletion_candidates);
+        assert_eq!(retry.failed_object, None);
+        assert!(!fixture.store.object_path(failed_candidate).exists());
+        assert!(!fixture.store.object_path(untouched_suffix).exists());
+
+        let third = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
+        assert!(third.deletion_candidates.is_empty());
+        assert!(third.deleted_objects.is_empty());
     }
 
     #[test]
-    fn injected_sync_failure_reports_already_deleted_object() {
+    fn injected_sync_failure_retry_redurabilizes_absent_object() {
         let fixture = fixture();
-        let snapshot = RetentionSnapshot::new(
-            vec![anchor(
-                RetentionKind::Ref,
-                10,
-                vec![RetentionTarget::StateRoot(fixture.retained.root)],
-            )],
-            vec![fixture.retained.clone()],
-        )
-        .unwrap();
+        let snapshot = RetentionSnapshot::new(Vec::new(), Vec::new()).unwrap();
+        let dry_run = gc_dry_run(&fixture.store, &snapshot, &fixture.verifier).unwrap();
+        let deletion_candidates = dry_run.deletion_candidates.clone();
+        assert_eq!(deletion_candidates.len(), 3);
+        let durable_prefix = deletion_candidates[0];
+        let failed_candidate = deletion_candidates[1];
+        let untouched_suffix = deletion_candidates[2];
+        let failed_leaf = fixture
+            .store
+            .object_path(failed_candidate)
+            .parent()
+            .unwrap()
+            .to_path_buf();
         let guard = acquire_exclusive_gc(&fixture.store).unwrap();
-        let error = collect_inner(
+        let error = gc_collect_with_gc_durability_cut(
             &fixture.store,
             &snapshot,
             &fixture.verifier,
             &guard,
-            DeleteFault::AfterDeleteBeforeSync(fixture.unreachable_id),
+            GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync,
         )
         .unwrap_err();
+        assert_eq!(error.symbol(), "GC_DELETE_IO");
         let report = error.partial_report().unwrap();
-        assert_eq!(report.deleted_objects, vec![fixture.unreachable_id]);
-        assert!(!fixture.store.object_path(fixture.unreachable_id).exists());
+        assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
+        assert_eq!(report.deletion_candidates, deletion_candidates);
+        assert_eq!(report.reachable_objects, dry_run.reachable_objects);
+        assert_eq!(report.deleted_objects, vec![durable_prefix]);
+        assert_eq!(report.failed_object, Some(failed_candidate));
+        assert!(!fixture.store.object_path(durable_prefix).exists());
+        assert!(!fixture.store.object_path(failed_candidate).exists());
+        assert!(fixture.store.object_path(untouched_suffix).is_file());
+        assert!(failed_leaf.is_dir());
+
+        let corrupt_leaf = fixture
+            .store
+            .object_path(untouched_suffix)
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        assert_ne!(corrupt_leaf, failed_leaf);
+        let corrupt_inventory = corrupt_leaf.join("corrupt-inventory");
+        fs::write(&corrupt_inventory, b"corrupt").unwrap();
+        sync_dir(&corrupt_leaf).unwrap();
+        let corrupt_tree_before = exact_tree_snapshot(fixture.store.root());
+        let preflight_error = gc_collect_with_injected_pre_cleanup_sync_failure(
+            &fixture.store,
+            &snapshot,
+            &fixture.verifier,
+            &guard,
+        )
+        .unwrap_err();
+        assert_eq!(preflight_error.symbol(), "GC_INVENTORY_INVALID");
+        assert!(exact_error_source_chain(&preflight_error).is_empty());
+        assert_eq!(
+            exact_tree_snapshot(fixture.store.root()),
+            corrupt_tree_before
+        );
+        fs::remove_file(&corrupt_inventory).unwrap();
+        sync_dir(&corrupt_leaf).unwrap();
+
+        let retry = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
+        assert_eq!(retry.deletion_candidates, vec![untouched_suffix]);
+        assert_eq!(retry.deleted_objects, vec![untouched_suffix]);
+        assert_eq!(retry.failed_object, None);
+        assert!(!retry.deleted_objects.contains(&failed_candidate));
+        assert!(!fixture.store.object_path(untouched_suffix).exists());
+
+        let third = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
+        assert!(third.deletion_candidates.is_empty());
+        assert!(third.deleted_objects.is_empty());
     }
 
     #[test]

@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 description = "Sley 2 atomic transaction, receipt, and accepted-head authority."
 
+[features]
+s20-530-test-hooks = []
+
 [dependencies]
 blake3 = "=1.8.2"
 sley-id = { path = "../sley-id" }

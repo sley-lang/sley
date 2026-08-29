@@ -27,3 +27,6 @@ Current records:
 - ADR-0018: frozen legacy artifact adapter and retained version smoke
 - ADR-0019: unreleased epoch-1 generic Option contract re-anchor
 - ADR-0020: candidate result identity and monotonic validation boundary
+- ADR-0021: transaction receipts and fixed accepted-head durability boundary
+- ADR-0022: native branch and named-ref ownership boundary
+- ADR-0023: crash-recovery ownership and retry boundary

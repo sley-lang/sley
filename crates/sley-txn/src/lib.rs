@@ -5,6 +5,10 @@ mod codec;
 mod maintenance;
 mod repository;
 
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+#[doc(hidden)]
+pub mod recovery_ancestry_test_hook;
+
 pub use codec::{
     ChangedBinding, CommitMetadata, ImportedTransaction, ImportedTransactionReceipt,
     ObjectManifestEntry, TransactionCodecError, TransactionErrorCode, TransactionKind,

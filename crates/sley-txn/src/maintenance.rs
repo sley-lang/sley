@@ -1,6 +1,5 @@
 //! Shared repository-maintenance ownership for transactions, refs, and GC.
 
-use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -15,7 +14,7 @@ const MAINTENANCE_LOCK_FILE: &str = "maintenance.lock";
 pub struct RepositoryMaintenanceGuard {
     repository_root: PathBuf,
     exclusive: bool,
-    _file: File,
+    _file: ::std::fs::File,
 }
 
 impl RepositoryMaintenanceGuard {
@@ -58,37 +57,42 @@ fn initialize_repository_maintenance_inner(
 ) -> io::Result<()> {
     require_real_directory(root)?;
     let lock_directory = root.join(LOCK_DIRECTORY);
-    match fs::create_dir(&lock_directory) {
+    match ::std::fs::create_dir(&lock_directory) {
         Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) if error.kind() == ::std::io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(error),
     }
     require_real_directory(&lock_directory)?;
     sync_directory(root)?;
     let lock_path = lock_directory.join(MAINTENANCE_LOCK_FILE);
-    let (file, created) = match OpenOptions::new()
+    let (file, created) = match ::std::fs::OpenOptions::new()
         .read(true)
         .write(true)
         .create_new(true)
         .open(&lock_path)
     {
         Ok(file) => (file, true),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+        Err(error) if error.kind() == ::std::io::ErrorKind::AlreadyExists => {
             require_regular_file(&lock_path)?;
             (
-                OpenOptions::new().read(true).write(true).open(&lock_path)?,
+                ::std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&lock_path)?,
                 false,
             )
         }
         Err(error) => return Err(error),
     };
     if created && fail_after_lock_create_before_sync {
-        return Err(io::Error::other(
+        return Err(::std::io::Error::other(
             "injected maintenance-lock create-before-sync failure",
         ));
     }
     if !file.metadata()?.is_file() {
-        return Err(io::Error::other("maintenance lock is not a regular file"));
+        return Err(::std::io::Error::other(
+            "maintenance lock is not a regular file",
+        ));
     }
     file.sync_all()?;
     sync_directory(&lock_directory)?;
@@ -126,14 +130,19 @@ fn acquire_repository_maintenance(
     require_real_directory(&lock_directory)?;
     let lock_path = lock_directory.join(MAINTENANCE_LOCK_FILE);
     require_regular_file(&lock_path)?;
-    let file = OpenOptions::new().read(true).write(true).open(&lock_path)?;
+    let file = ::std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)?;
     if !file.metadata()?.is_file() {
-        return Err(io::Error::other("maintenance lock is not a regular file"));
+        return Err(::std::io::Error::other(
+            "maintenance lock is not a regular file",
+        ));
     }
     if exclusive {
-        file.lock()?;
+        ::std::fs::File::lock(&file)?;
     } else {
-        file.lock_shared()?;
+        ::std::fs::File::lock_shared(&file)?;
     }
     Ok(RepositoryMaintenanceGuard {
         repository_root,
@@ -144,13 +153,13 @@ fn acquire_repository_maintenance(
 
 fn canonical_real_directory(path: &Path) -> io::Result<PathBuf> {
     require_real_directory(path)?;
-    fs::canonicalize(path)
+    ::std::fs::canonicalize(path)
 }
 
 fn require_real_directory(path: &Path) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(path)?;
+    let metadata = ::std::fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(io::Error::other(
+        return Err(::std::io::Error::other(
             "repository component is not a real directory",
         ));
     }
@@ -158,19 +167,23 @@ fn require_real_directory(path: &Path) -> io::Result<()> {
 }
 
 fn require_regular_file(path: &Path) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(path)?;
+    let metadata = ::std::fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(io::Error::other("repository lock is not a regular file"));
+        return Err(::std::io::Error::other(
+            "repository lock is not a regular file",
+        ));
     }
     Ok(())
 }
 
 fn sync_directory(path: &Path) -> io::Result<()> {
-    File::open(path)?.sync_all()
+    ::std::fs::File::open(path)?.sync_all()
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;

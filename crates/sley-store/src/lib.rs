@@ -563,36 +563,35 @@ mod tests {
     };
 
     struct TempDir {
-        path: PathBuf,
+        path: ::std::path::PathBuf,
     }
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let mut path = std::env::temp_dir();
-            path.push(format!(
+            let mut path = ::std::env::temp_dir();
+            path.push(::std::format!(
                 "sley-store-{name}-{}-{}",
-                std::process::id(),
+                ::std::process::id(),
                 unique_counter()
             ));
-            fs::create_dir(&path).expect("create temp dir");
+            ::std::fs::create_dir(&path).expect("create temp dir");
             Self { path }
         }
 
-        fn path(&self) -> &Path {
+        fn path(&self) -> &::std::path::Path {
             &self.path
         }
     }
 
     impl Drop for TempDir {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
+            let _ = ::std::fs::remove_dir_all(&self.path);
         }
     }
 
     fn unique_counter() -> u64 {
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        NEXT.fetch_add(1, Ordering::Relaxed)
+        static NEXT: ::std::sync::atomic::AtomicU64 = ::std::sync::atomic::AtomicU64::new(0);
+        NEXT.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed)
     }
 
     fn bool_record(value: bool) -> (Vec<u8>, ObjectId) {

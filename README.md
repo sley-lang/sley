@@ -110,9 +110,12 @@ receipt ordering, and one fixed accepted-head compare-and-swap primitive. Its
 independent oracle, forged-manifest rejection, stale-race tests, five-boundary
 fault matrix, and persistent importer fuzz target pass. Candidate mutation
 operations are supported inside this restricted semantic subset, but selected
-tests remain empty. Named refs and branches (S20-500), recursive full recovery
-(S20-530), complete semantic operation analysis, runtime authority, protocol,
-benchmark trials, release, and GA remain explicit gaps.
+tests remain empty. S20-500 now provides immutable branch origins, atomic named
+refs, direct-parent fast-forward movement, bounded ancestry, and coordinated GC
+maintenance ownership. S20-530 has frozen its exact 100-row recovery contract,
+but production recursive recovery, complete semantic operation analysis,
+runtime authority, protocol, benchmark trials, release, and GA remain explicit
+gaps.
 S20-345 froze the candidate/value/precondition/capability-summary/validation-
 profile/expiry contracts as proposal-only specifications. The freeze itself
 added no builder or authority; S20-350 now implements the conforming builder

@@ -24,8 +24,8 @@ use crate::codec::{
     TransactionRecord, build_transaction, build_transaction_receipt, import_transaction_receipt,
 };
 use crate::maintenance::{
-    RepositoryMaintenanceGuard, acquire_shared_repository_maintenance,
-    initialize_repository_maintenance,
+    RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
+    acquire_shared_repository_maintenance, initialize_repository_maintenance,
 };
 
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
@@ -38,6 +38,61 @@ const STAGE_SUFFIX: &str = ".tmp";
 const MAX_STAGE_ATTEMPTS: u64 = 1_024;
 
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(test)]
+enum Cross05OwnerSignal {
+    OwnerHeld,
+    ReleaseOwner,
+}
+
+#[cfg(test)]
+struct Cross05RecoveryHold {
+    root: PathBuf,
+    owner_tx: ::std::sync::mpsc::SyncSender<Cross05OwnerSignal>,
+    release_rx: ::std::sync::mpsc::Receiver<Cross05OwnerSignal>,
+}
+
+#[cfg(test)]
+::std::thread_local! {
+    static CROSS05_RECOVERY_HOLD:
+        ::std::cell::RefCell<Option<Cross05RecoveryHold>> =
+        const { ::std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn install_transaction_recovery_hold(
+    root: &Path,
+    owner_tx: ::std::sync::mpsc::SyncSender<Cross05OwnerSignal>,
+    release_rx: ::std::sync::mpsc::Receiver<Cross05OwnerSignal>,
+) {
+    CROSS05_RECOVERY_HOLD.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        ::core::assert!(slot.is_none());
+        *slot = Some(Cross05RecoveryHold {
+            root: root.to_path_buf(),
+            owner_tx,
+            release_rx,
+        });
+    });
+}
+
+#[cfg(test)]
+fn hold_transaction_recovery_before_exclusive_drop(
+    root: &Path,
+    maintenance: &RepositoryMaintenanceGuard,
+) {
+    CROSS05_RECOVERY_HOLD.with(|slot| {
+        let Some(hold) = slot.borrow_mut().take() else {
+            return;
+        };
+        ::core::assert_eq!(hold.root, root);
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(root));
+        ::core::assert!(hold.owner_tx.send(Cross05OwnerSignal::OwnerHeld).is_ok());
+        let release = hold.release_rx.recv().unwrap();
+        ::core::assert!(::core::matches!(release, Cross05OwnerSignal::ReleaseOwner));
+    });
+}
 
 /// Complete verified transaction state loaded from durable bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -377,6 +432,17 @@ impl TransactionRepository {
         Ok(acquire_shared_repository_maintenance(&self.root)?)
     }
 
+    /// Acquires exclusive repository-maintenance ownership for recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` when the exact same-root maintenance boundary cannot
+    /// be created, verified, or locked exclusively.
+    pub fn acquire_exclusive_maintenance(&self) -> Result<RepositoryMaintenanceGuard, CommitError> {
+        initialize_repository_maintenance(&self.root)?;
+        Ok(acquire_exclusive_repository_maintenance(&self.root)?)
+    }
+
     /// Installs one explicit trusted genesis and makes it durably accepted.
     ///
     /// # Errors
@@ -397,7 +463,16 @@ impl TransactionRepository {
     /// Returns a typed stale or validation result before any write, or the
     /// first exact object, receipt, CAS, recovery, or I/O failure.
     pub fn commit(&self, input: CommitInput<'_>) -> Result<CommitOutput, CommitError> {
-        self.commit_inner(input, Fault::None)
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.commit_with_maintenance(input, &maintenance)
+    }
+
+    fn commit_with_maintenance(
+        &self,
+        input: CommitInput<'_>,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<CommitOutput, CommitError> {
+        self.commit_inner(input, maintenance, Fault::None)
     }
 
     /// Loads and verifies the complete currently accepted state.
@@ -473,7 +548,25 @@ impl TransactionRepository {
     ///
     /// Returns the first cleanup or accepted-state verification failure.
     pub fn recover(&self) -> Result<RecoveryReport, CommitError> {
-        let _maintenance = self.acquire_shared_maintenance()?;
+        let maintenance = self.acquire_exclusive_maintenance()?;
+        let result = self.recover_with_maintenance(&maintenance);
+        #[cfg(test)]
+        hold_transaction_recovery_before_exclusive_drop(&self.root, &maintenance);
+        result
+    }
+
+    /// Recovers transaction-owned state while the caller holds exclusive
+    /// same-root repository maintenance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` for a shared or wrong-root guard, or the first exact
+    /// cleanup or accepted-state verification failure.
+    pub fn recover_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<RecoveryReport, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
         let object_events = self.object_store.recover_staged()?;
@@ -555,9 +648,10 @@ impl TransactionRepository {
     fn commit_inner(
         &self,
         input: CommitInput<'_>,
+        maintenance: &RepositoryMaintenanceGuard,
         fault: Fault,
     ) -> Result<CommitOutput, CommitError> {
-        let _maintenance = self.acquire_shared_maintenance()?;
+        self.validate_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
         let actual = self
@@ -982,6 +1076,17 @@ impl TransactionRepository {
         Ok(())
     }
 
+    fn validate_exclusive_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<(), CommitError> {
+        self.validate_maintenance(maintenance)?;
+        if !maintenance.is_exclusive() {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        Ok(())
+    }
+
     fn acquire_lock(&self) -> Result<File, CommitError> {
         self.acquire_lock_inner(false)
     }
@@ -1059,7 +1164,8 @@ impl TransactionRepository {
         input: CommitInput<'_>,
         fault: Fault,
     ) -> Result<CommitOutput, CommitError> {
-        self.commit_inner(input, fault)
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.commit_inner(input, &maintenance, fault)
     }
 }
 
@@ -1457,30 +1563,31 @@ mod tests {
     const NOW: u64 = 1_000;
 
     struct TempDir {
-        path: PathBuf,
+        path: ::std::path::PathBuf,
     }
 
     impl TempDir {
         fn new(label: &str) -> Self {
-            let sequence = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
+            let sequence =
+                super::STAGE_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+            let path = ::std::env::temp_dir().join(::std::format!(
                 "sley-txn-{label}-{}-{sequence:016x}",
-                std::process::id()
+                ::std::process::id()
             ));
-            fs::create_dir(&path).unwrap();
+            ::std::fs::create_dir(&path).unwrap();
             Self { path }
         }
     }
 
     impl Drop for TempDir {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
+            let _ = ::std::fs::remove_dir_all(&self.path);
         }
     }
 
     struct Fixture {
         temp: TempDir,
-        repository: TransactionRepository,
+        repository: super::TransactionRepository,
         principal_id: PrincipalId,
         genesis_transaction_id: TransactionId,
         candidate: ImportedCandidate,
@@ -1489,7 +1596,7 @@ mod tests {
     impl Fixture {
         fn new(label: &str) -> Self {
             let temp = TempDir::new(label);
-            let repository = TransactionRepository::new(&temp.path);
+            let repository = super::TransactionRepository::new(&temp.path);
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let base_entity = fixed(10, EntityId::from_bytes);
@@ -1549,6 +1656,10 @@ mod tests {
             }
         }
 
+        fn path(&self) -> &::std::path::Path {
+            &self.temp.path
+        }
+
         fn input(&self) -> CommitInput<'_> {
             CommitInput::new(
                 self.genesis_transaction_id,
@@ -1571,6 +1682,10 @@ mod tests {
                 nonce_byte,
             )
         }
+    }
+
+    fn cross05_recovery_fixture() -> Fixture {
+        Fixture::new("cross05-transaction-wrapper")
     }
 
     fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
@@ -1632,6 +1747,82 @@ mod tests {
             expiry: CandidateExpiry::unix_millis(NOW + 1_000),
         })
         .unwrap()
+    }
+
+    #[test]
+    fn transaction_no_argument_recovery_holds_exclusive_maintenance() {
+        let fixture = cross05_recovery_fixture();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let owner_repository = super::TransactionRepository::new(canonical_root.clone());
+        let (cross05_owner_tx, cross05_owner_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05OwnerSignal>(0);
+        let (cross05_release_tx, cross05_release_rx) =
+            ::std::sync::mpsc::sync_channel::<Cross05OwnerSignal>(0);
+        let owner_handle = ::std::thread::spawn(move || {
+            install_transaction_recovery_hold(
+                owner_repository.root(),
+                cross05_owner_tx,
+                cross05_release_rx,
+            );
+            owner_repository.recover()
+        });
+        let exclusive_observed = ::core::matches!(
+            cross05_owner_rx.recv().unwrap(),
+            Cross05OwnerSignal::OwnerHeld
+        );
+        let commit_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let ref_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let gc_probe = ::std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(canonical_root.join("locks").join("maintenance.lock"))
+            .unwrap();
+        let commit_blocked = ::core::matches!(
+            ::std::fs::File::try_lock_shared(&commit_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let ref_blocked = ::core::matches!(
+            ::std::fs::File::try_lock_shared(&ref_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let gc_blocked = ::core::matches!(
+            ::std::fs::File::try_lock(&gc_probe),
+            Err(::std::fs::TryLockError::WouldBlock)
+        );
+        let gc_witness_absent_while_blocked = ::core::matches!(
+            ::std::fs::symlink_metadata(canonical_root.join("locks").join("gc.lock")),
+            Err(error) if error.kind() == ::std::io::ErrorKind::NotFound
+        );
+        ::core::assert!(exclusive_observed);
+        ::core::assert!(commit_blocked);
+        ::core::assert!(ref_blocked);
+        ::core::assert!(gc_blocked);
+        ::core::assert!(gc_witness_absent_while_blocked);
+        ::core::assert!(
+            cross05_release_tx
+                .send(Cross05OwnerSignal::ReleaseOwner)
+                .is_ok()
+        );
+        let recovery_result = owner_handle.join().unwrap();
+        let recovery_completed = recovery_result.is_ok();
+        let commit_resumed = ::std::fs::File::try_lock_shared(&commit_probe).is_ok();
+        ::std::fs::File::unlock(&commit_probe).unwrap();
+        let ref_resumed = ::std::fs::File::try_lock_shared(&ref_probe).is_ok();
+        ::std::fs::File::unlock(&ref_probe).unwrap();
+        let gc_resumed = ::std::fs::File::try_lock(&gc_probe).is_ok();
+        ::std::fs::File::unlock(&gc_probe).unwrap();
+        ::core::assert!(commit_resumed);
+        ::core::assert!(ref_resumed);
+        ::core::assert!(gc_resumed);
+        ::core::assert!(recovery_completed);
     }
 
     #[test]
