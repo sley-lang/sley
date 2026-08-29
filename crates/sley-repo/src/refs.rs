@@ -2273,6 +2273,8 @@ mod tests {
     use super::*;
 
     const NOW: u64 = 1_000;
+    static TEMP_DIR_COUNTER: ::std::sync::atomic::AtomicU64 =
+        ::std::sync::atomic::AtomicU64::new(0);
 
     struct TempDir {
         path: ::std::path::PathBuf,
@@ -2280,8 +2282,7 @@ mod tests {
 
     impl TempDir {
         fn new(label: &str) -> Self {
-            let sequence =
-                super::STAGE_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+            let sequence = TEMP_DIR_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
             let path = ::std::env::temp_dir().join(::std::format!(
                 "sley-refs-{label}-{}-{sequence:016x}",
                 ::std::process::id()
