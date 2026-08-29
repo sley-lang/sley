@@ -1738,7 +1738,9 @@ impl BranchRepository {
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<(), BranchError> {
         if !maintenance.covers(&self.root) {
-            return Err(branch_error(BranchErrorCode::RefIo));
+            return Err(BranchError::Io(io::Error::other(
+                "repository maintenance guard does not cover the branch repository root",
+            )));
         }
         Ok(())
     }
@@ -1749,7 +1751,9 @@ impl BranchRepository {
     ) -> Result<(), BranchError> {
         self.validate_maintenance(maintenance)?;
         if !maintenance.is_exclusive() {
-            return Err(branch_error(BranchErrorCode::RefIo));
+            return Err(BranchError::Io(io::Error::other(
+                "branch recovery requires exclusive repository maintenance ownership",
+            )));
         }
         Ok(())
     }
@@ -2320,7 +2324,12 @@ fn create_dir_component(
             fail_selected_native_ref_layout_cut(component_index)?;
             sync_dir(parent)?;
         }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            ensure_existing_directory(&path)?;
+            #[cfg(test)]
+            fail_selected_native_ref_layout_cut(component_index)?;
+            sync_dir(parent)?;
+        }
         Err(error) => return Err(error.into()),
     }
     ensure_existing_directory(&path)?;
@@ -3143,6 +3152,577 @@ mod tests {
                 .unwrap()
                 .transaction_id()
         }
+    }
+
+    #[rustfmt::skip]
+    type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);
+    type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
+    #[allow(dead_code)]
+    type ExactOptionalPathSnapshot = ::core::option::Option<ExactPathSnapshot>;
+    #[allow(dead_code)]
+    #[rustfmt::skip]
+    type ExactTreeDeltaPaths = (::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>);
+
+    fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
+        let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
+        let file_type = metadata.file_type();
+        let kind = if file_type.is_symlink() {
+            "symlink"
+        } else if file_type.is_file() {
+            "regular"
+        } else if file_type.is_dir() {
+            "directory"
+        } else {
+            "non_regular"
+        };
+        let mode = ::std::os::unix::fs::MetadataExt::mode(&metadata);
+        let bytes = if file_type.is_file() {
+            ::std::fs::read(path).expect("snapshot file bytes")
+        } else {
+            ::std::vec::Vec::new()
+        };
+        let target = if file_type.is_symlink() {
+            ::core::option::Option::Some(
+                ::std::fs::read_link(path).expect("snapshot symlink target"),
+            )
+        } else {
+            ::core::option::Option::None
+        };
+        (kind, mode, bytes, target)
+    }
+
+    fn exact_tree_snapshot(root: &::std::path::Path) -> ExactTreeSnapshot {
+        fn visit(
+            root: &::std::path::Path,
+            path: &::std::path::Path,
+            entries: &mut ExactTreeSnapshot,
+        ) {
+            let relative = path
+                .strip_prefix(root)
+                .expect("snapshot path under root")
+                .to_path_buf();
+            let snapshot = exact_path_snapshot(path);
+            let is_directory = snapshot.0 == "directory";
+            entries.push((relative, snapshot));
+            if is_directory {
+                let mut children = ::std::fs::read_dir(path)
+                    .expect("snapshot directory")
+                    .map(|entry| entry.expect("snapshot directory entry").path())
+                    .collect::<::std::vec::Vec<_>>();
+                children.sort();
+                for child in children {
+                    visit(root, &child, entries);
+                }
+            }
+        }
+        let mut entries = ::std::vec::Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
+    #[allow(dead_code)]
+    fn exact_optional_path_snapshot(path: &::std::path::Path) -> ExactOptionalPathSnapshot {
+        match ::std::fs::symlink_metadata(path) {
+            ::core::result::Result::Ok(_) => {
+                ::core::option::Option::Some(exact_path_snapshot(path))
+            }
+            ::core::result::Result::Err(error)
+                if error.kind() == ::std::io::ErrorKind::NotFound =>
+            {
+                ::core::option::Option::None
+            }
+            ::core::result::Result::Err(error) => {
+                ::core::panic!("optional snapshot metadata: {}", error)
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn exact_tree_delta_paths(
+        before: &ExactTreeSnapshot,
+        after: &ExactTreeSnapshot,
+    ) -> ExactTreeDeltaPaths {
+        let before_by_path = before
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let after_by_path = after
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let added = after_by_path
+            .keys()
+            .filter(|path| !before_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        let changed = after_by_path
+            .iter()
+            .filter_map(|(path, after_snapshot)| match before_by_path.get(path) {
+                ::core::option::Option::Some(before_snapshot)
+                    if *before_snapshot != *after_snapshot =>
+                {
+                    ::core::option::Option::Some(path.clone())
+                }
+                _ => ::core::option::Option::None,
+            })
+            .collect::<::std::vec::Vec<_>>();
+        let removed = before_by_path
+            .keys()
+            .filter(|path| !after_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        (added, changed, removed)
+    }
+
+    fn exact_error_source_chain(
+        error: &(dyn ::std::error::Error + 'static),
+    ) -> ::std::vec::Vec<::std::string::String> {
+        let mut chain = ::std::vec::Vec::new();
+        let mut source = ::std::error::Error::source(error);
+        while let ::core::option::Option::Some(current) = source {
+            let label = if current.is::<::sley_txn::CommitError>() {
+                ::std::string::String::from("CommitError")
+            } else if current.is::<::sley_txn::TransactionCodecError>() {
+                ::std::string::String::from("TransactionCodecError")
+            } else if current.is::<::sley_store::StoreError>() {
+                ::std::string::String::from("StoreError")
+            } else if let ::core::option::Option::Some(io_error) =
+                current.downcast_ref::<::std::io::Error>()
+            {
+                ::std::format!("io::Error({:?})", io_error.kind())
+            } else {
+                ::std::format!(
+                    "unknown({})",
+                    ::std::any::type_name_of_val(current),
+                )
+            };
+            chain.push(label);
+            source = ::std::error::Error::source(current);
+        }
+        chain
+    }
+
+    fn expected_recovery_ancestry_test_plan_digest(
+        owner_root: &::std::path::Path,
+        epochs: ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs,
+        left: ::sley_id::TransactionId,
+        right: ::sley_id::TransactionId,
+    ) -> [u8; 32] {
+        let epoch_budget = match epochs {
+            ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::One => 1_u64,
+            ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::Two => 2_u64,
+        };
+        let root_bytes = owner_root.as_os_str().as_encoded_bytes();
+        let root_len = u64::try_from(root_bytes.len()).expect("test root length");
+        let mut hasher = ::blake3::Hasher::new();
+        hasher.update(b"sley2.s20-530.recovery-ancestry-test-plan.v1");
+        hasher.update(&root_len.to_le_bytes());
+        hasher.update(root_bytes);
+        hasher.update(&epoch_budget.to_le_bytes());
+        hasher.update(left.as_bytes());
+        hasher.update(right.as_bytes());
+        *hasher.finalize().as_bytes()
+    }
+
+    struct MappedBranchName(BranchName);
+
+    impl AsRef<[u8]> for MappedBranchName {
+        fn as_ref(&self) -> &[u8] {
+            self.0.as_bytes()
+        }
+    }
+
+    impl ::core::ops::Deref for MappedBranchName {
+        type Target = BranchName;
+
+        fn deref(&self) -> &BranchName {
+            &self.0
+        }
+    }
+
+    type MappedRevisionClaim = (
+        TransactionId,
+        WorkspaceId,
+        StateRoot,
+        SchemaEpochId,
+        PolicyRootId,
+        ::std::vec::Vec<StateRoot>,
+    );
+
+    fn mapped_origin_claim(record: &BranchRecord) -> MappedRevisionClaim {
+        (
+            record.origin_transaction_id,
+            record.workspace_id,
+            record.origin_state_root,
+            record.schema_epoch_id,
+            record.policy_root_id,
+            record.dependency_roots.clone(),
+        )
+    }
+
+    fn mapped_ref_claim(record: &BranchRefRecord) -> MappedRevisionClaim {
+        (
+            record.head_transaction_id,
+            record.workspace_id,
+            record.head_state_root,
+            record.schema_epoch_id,
+            record.policy_root_id,
+            record.dependency_roots.clone(),
+        )
+    }
+
+    fn mapped_verified_claim(revision: &VerifiedRevision) -> MappedRevisionClaim {
+        (
+            revision.transaction_id(),
+            revision.state_root().record.workspace_id,
+            revision.state_root().root,
+            revision.state_root().record.schema_epoch_id,
+            revision.policy_root().root(),
+            revision.state_root().record.dependency_roots.clone(),
+        )
+    }
+
+    struct Anc05Provenance {
+        genesis_identity: TransactionId,
+        deep_missing_identity: TransactionId,
+        direct_parent_identity: TransactionId,
+        head_identity: TransactionId,
+        pointer_identity: TransactionId,
+        head_parent_identity: TransactionId,
+        direct_parent_parent_identity: TransactionId,
+        deep_missing_parent_identity: TransactionId,
+        deep_missing_depth: u64,
+        derived_deep_missing_identity: TransactionId,
+        deep_missing_receipt_path: PathBuf,
+        derived_deep_missing_receipt_path: PathBuf,
+        genesis_receipt_kind: &'static str,
+        direct_parent_receipt_kind: &'static str,
+        head_receipt_kind: &'static str,
+        origin_identity: TransactionId,
+        ref_identity: TransactionId,
+        origin_claim: MappedRevisionClaim,
+        verified_origin_claim: MappedRevisionClaim,
+        head_claim: MappedRevisionClaim,
+        verified_head_claim: MappedRevisionClaim,
+    }
+
+    fn anc05_provenance(fixture: &Fixture) -> (Anc05Provenance, PathBuf, PathBuf) {
+        let root = fixture.path().to_path_buf();
+        let genesis_identity = fixture.genesis_transaction_id;
+        let deep_missing = fixture.commit_child(71);
+        let direct_parent = fixture.commit_child(72);
+        let head = fixture.commit_child(73);
+        let branch_name = BranchName::parse("anc05-branch").unwrap();
+        fixture
+            .branches
+            .create_branch("anc05-branch", genesis_identity)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("anc05-branch", genesis_identity, deep_missing)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("anc05-branch", deep_missing, direct_parent)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("anc05-branch", direct_parent, head)
+            .unwrap();
+        let resolved = fixture.branches.resolve_branch("anc05-branch").unwrap();
+        let pointer_path = fixture.branches.checked_ref_path(&branch_name).unwrap();
+        let head_revision = fixture.transactions.verified_revision(head).unwrap();
+        let head_parent_identity = head_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let direct_parent_revision = fixture.transactions.verified_revision(direct_parent).unwrap();
+        let direct_parent_parent_identity = direct_parent_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let deep_missing_revision = fixture.transactions.verified_revision(deep_missing).unwrap();
+        let deep_missing_parent_identity = deep_missing_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let origin_revision = fixture
+            .transactions
+            .verified_revision(resolved.origin.record.origin_transaction_id)
+            .unwrap();
+        let derived_deep_missing_identity = direct_parent_parent_identity;
+        let deep_missing_receipt_path = transaction_receipt_path(&root, deep_missing);
+        let derived_deep_missing_receipt_path =
+            transaction_receipt_path(&root, derived_deep_missing_identity);
+        let genesis_receipt_kind =
+            exact_path_snapshot(&transaction_receipt_path(&root, genesis_identity)).0;
+        let direct_parent_receipt_kind =
+            exact_path_snapshot(&transaction_receipt_path(&root, direct_parent)).0;
+        let head_receipt_kind = exact_path_snapshot(&transaction_receipt_path(&root, head)).0;
+        fs::remove_file(&deep_missing_receipt_path).unwrap();
+        let provenance = Anc05Provenance {
+            genesis_identity,
+            deep_missing_identity: deep_missing,
+            direct_parent_identity: direct_parent,
+            head_identity: head,
+            pointer_identity: resolved.reference.record.head_transaction_id,
+            head_parent_identity,
+            direct_parent_parent_identity,
+            deep_missing_parent_identity,
+            deep_missing_depth: 2_u64,
+            derived_deep_missing_identity,
+            deep_missing_receipt_path: deep_missing_receipt_path.clone(),
+            derived_deep_missing_receipt_path,
+            genesis_receipt_kind,
+            direct_parent_receipt_kind,
+            head_receipt_kind,
+            origin_identity: resolved.origin.record.origin_transaction_id,
+            ref_identity: resolved.reference.record.head_transaction_id,
+            origin_claim: mapped_origin_claim(&resolved.origin.record),
+            verified_origin_claim: mapped_verified_claim(&origin_revision),
+            head_claim: mapped_ref_claim(&resolved.reference.record),
+            verified_head_claim: mapped_verified_claim(&head_revision),
+        };
+        (provenance, pointer_path, deep_missing_receipt_path)
+    }
+
+    struct RefGuardProvenance {
+        direct_target_identity: TransactionId,
+        authority_target_identity: TransactionId,
+        direct_target_receipt_path: PathBuf,
+        expected_direct_target_receipt_path: PathBuf,
+        owner_origin_stage_relative_path: PathBuf,
+        owner_origin_stage_expected_bytes: Vec<u8>,
+        owner_ref_stage_relative_path: PathBuf,
+        owner_ref_stage_expected_bytes: Vec<u8>,
+        guard_origin_stage_relative_path: PathBuf,
+        guard_origin_stage_expected_bytes: Vec<u8>,
+        guard_ref_stage_relative_path: PathBuf,
+        guard_ref_stage_expected_bytes: Vec<u8>,
+    }
+
+    struct RefGuardTopology {
+        provenance: RefGuardProvenance,
+        pointer_path: PathBuf,
+        direct_target_receipt_path: PathBuf,
+        owner_origin_stage_path: PathBuf,
+        owner_ref_stage_path: PathBuf,
+        guard_origin_stage_path: PathBuf,
+        guard_ref_stage_path: PathBuf,
+    }
+
+    fn plant_ref_guard_canaries(root: &Path, tag: u8) -> (PathBuf, PathBuf, Vec<u8>) {
+        let bytes = ::std::vec![tag; 9];
+        let origin_leaf = root.join("branches").join("v1").join("aa").join("bb");
+        fs::create_dir_all(&origin_leaf).unwrap();
+        let origin_stage = origin_leaf.join(".sley-branch-stage-7-0000000000000000.tmp");
+        fs::write(&origin_stage, &bytes).unwrap();
+        let ref_leaf = root.join("refs").join("v1").join("aa").join("bb");
+        fs::create_dir_all(&ref_leaf).unwrap();
+        let ref_stage = ref_leaf.join(".sley-ref-stage-7-0000000000000000.tmp");
+        fs::write(&ref_stage, &bytes).unwrap();
+        (origin_stage, ref_stage, bytes)
+    }
+
+    fn ref_guard_topology(
+        fixture: &Fixture,
+        guard_fixture: Option<&Fixture>,
+        label: &str,
+        tag: u8,
+    ) -> RefGuardTopology {
+        let root = fixture.path().to_path_buf();
+        let guard_root = guard_fixture
+            .map_or_else(|| root.clone(), |guard| guard.path().to_path_buf());
+        let genesis = fixture.genesis_transaction_id;
+        let head = fixture.commit_child(tag);
+        fixture.branches.create_branch(label, genesis).unwrap();
+        fixture.branches.advance_branch(label, genesis, head).unwrap();
+        let branch_name = BranchName::parse(label).unwrap();
+        let resolved = fixture.branches.resolve_branch(label).unwrap();
+        let authority_target_identity = resolved.reference.record.head_transaction_id;
+        let pointer_path = fixture.branches.checked_ref_path(&branch_name).unwrap();
+        let direct_target_receipt_path = transaction_receipt_path(&root, head);
+        let expected_direct_target_receipt_path =
+            transaction_receipt_path(&root, authority_target_identity);
+        fs::remove_file(&direct_target_receipt_path).unwrap();
+        let (owner_origin_stage_path, owner_ref_stage_path, owner_bytes) =
+            plant_ref_guard_canaries(&root, tag);
+        let (guard_origin_stage_path, guard_ref_stage_path, guard_bytes) =
+            match guard_fixture {
+                Some(guard) => plant_ref_guard_canaries(guard.path(), tag ^ 0x0f),
+                None => (
+                    owner_origin_stage_path.clone(),
+                    owner_ref_stage_path.clone(),
+                    owner_bytes.clone(),
+                ),
+            };
+        let provenance = RefGuardProvenance {
+            direct_target_identity: head,
+            authority_target_identity,
+            direct_target_receipt_path: direct_target_receipt_path.clone(),
+            expected_direct_target_receipt_path,
+            owner_origin_stage_relative_path: owner_origin_stage_path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_path_buf(),
+            owner_origin_stage_expected_bytes: owner_bytes.clone(),
+            owner_ref_stage_relative_path: owner_ref_stage_path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_path_buf(),
+            owner_ref_stage_expected_bytes: owner_bytes,
+            guard_origin_stage_relative_path: guard_origin_stage_path
+                .strip_prefix(&guard_root)
+                .unwrap()
+                .to_path_buf(),
+            guard_origin_stage_expected_bytes: guard_bytes.clone(),
+            guard_ref_stage_relative_path: guard_ref_stage_path
+                .strip_prefix(&guard_root)
+                .unwrap()
+                .to_path_buf(),
+            guard_ref_stage_expected_bytes: guard_bytes,
+        };
+        RefGuardTopology {
+            provenance,
+            pointer_path,
+            direct_target_receipt_path,
+            owner_origin_stage_path,
+            owner_ref_stage_path,
+            guard_origin_stage_path,
+            guard_ref_stage_path,
+        }
+    }
+
+    struct Anc08Provenance {
+        genesis_identity: TransactionId,
+        left_identity: TransactionId,
+        right_identity: TransactionId,
+        pointer_identity: TransactionId,
+        durable_left_parents: Vec<TransactionId>,
+        durable_right_parents: Vec<TransactionId>,
+        plan_owner_root: PathBuf,
+        logical_left_parents: Vec<TransactionId>,
+        logical_right_parents: Vec<TransactionId>,
+        plan_consumption_counts: Vec<(TransactionId, u64)>,
+        origin_identity: TransactionId,
+        ref_identity: TransactionId,
+        origin_claim: MappedRevisionClaim,
+        verified_origin_claim: MappedRevisionClaim,
+        left_claim: MappedRevisionClaim,
+        verified_left_claim: MappedRevisionClaim,
+    }
+
+    type MappedCycleObservation = (TransactionId, Vec<TransactionId>, Vec<TransactionId>);
+
+    fn anc08_provenance(fixture: &Fixture) -> (Anc08Provenance, PathBuf) {
+        let genesis_identity = fixture.genesis_transaction_id;
+        let right = fixture.commit_child(81);
+        let left = fixture.commit_child(82);
+        fixture
+            .branches
+            .create_branch("anc08-branch", genesis_identity)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("anc08-branch", genesis_identity, right)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("anc08-branch", right, left)
+            .unwrap();
+        let branch_name = BranchName::parse("anc08-branch").unwrap();
+        let resolved = fixture.branches.resolve_branch("anc08-branch").unwrap();
+        let pointer_path = fixture.branches.checked_ref_path(&branch_name).unwrap();
+        let left_revision = fixture.transactions.verified_revision(left).unwrap();
+        let right_revision = fixture.transactions.verified_revision(right).unwrap();
+        let origin_revision = fixture
+            .transactions
+            .verified_revision(resolved.origin.record.origin_transaction_id)
+            .unwrap();
+        let provenance = Anc08Provenance {
+            genesis_identity,
+            left_identity: left,
+            right_identity: right,
+            pointer_identity: resolved.reference.record.head_transaction_id,
+            durable_left_parents: left_revision
+                .receipt()
+                .transaction
+                .record
+                .parent_transaction_ids
+                .clone(),
+            durable_right_parents: right_revision
+                .receipt()
+                .transaction
+                .record
+                .parent_transaction_ids
+                .clone(),
+            plan_owner_root: PathBuf::new(),
+            logical_left_parents: vec![right],
+            logical_right_parents: vec![left],
+            plan_consumption_counts: Vec::new(),
+            origin_identity: resolved.origin.record.origin_transaction_id,
+            ref_identity: resolved.reference.record.head_transaction_id,
+            origin_claim: mapped_origin_claim(&resolved.origin.record),
+            verified_origin_claim: mapped_verified_claim(&origin_revision),
+            left_claim: mapped_ref_claim(&resolved.reference.record),
+            verified_left_claim: mapped_verified_claim(&left_revision),
+        };
+        (provenance, pointer_path)
+    }
+
+    fn install_recovery_ancestry_l_r_l_test_plan(
+        transactions: &::sley_txn::TransactionRepository,
+        maintenance: &RepositoryMaintenanceGuard,
+        left: TransactionId,
+        right: TransactionId,
+    ) -> ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestPlanIdentity {
+        let identity = ::sley_txn::recovery_ancestry_test_hook::install(
+            transactions,
+            maintenance,
+            ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::One,
+            left,
+            right,
+        )
+        .unwrap();
+        drop(::sley_txn::recovery_ancestry_test_hook::begin_ref_operation(transactions, maintenance));
+        identity
+    }
+
+    fn consumed_l_r_l_cycle_observations(
+        transactions: &::sley_txn::TransactionRepository,
+        maintenance: &RepositoryMaintenanceGuard,
+        identity: ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestPlanIdentity,
+        provenance: &Anc08Provenance,
+    ) -> (Vec<MappedCycleObservation>, Vec<(TransactionId, u64)>) {
+        let observations = ::sley_txn::recovery_ancestry_test_hook::take(transactions, maintenance, identity).unwrap();
+        assert_eq!(observations.epoch_budget(), 1);
+        assert_eq!(observations.remaining_epochs(), 0);
+        assert_eq!(observations.operation_1().claims(), 0);
+        assert_eq!(observations.operation_1().edge_counts(), (0, 0));
+        assert_eq!(observations.operation_2().claims(), 1);
+        let (left_edges, right_edges) = observations.operation_2().edge_counts();
+        assert_eq!((left_edges, right_edges), (1, 1));
+        (
+            vec![
+                (
+                    provenance.left_identity,
+                    provenance.durable_left_parents.clone(),
+                    provenance.logical_left_parents.clone(),
+                ),
+                (
+                    provenance.right_identity,
+                    provenance.durable_right_parents.clone(),
+                    provenance.logical_right_parents.clone(),
+                ),
+            ],
+            vec![
+                (provenance.left_identity, left_edges),
+                (provenance.right_identity, right_edges),
+            ],
+        )
     }
 
     fn cross05_recovery_fixture() -> Fixture {
@@ -5356,5 +5936,1088 @@ mod tests {
         ] {
             assert!(!is_owned_stage_name(foreign, REF_STAGE_PREFIX));
         }
+    }
+
+    #[test]
+    fn rlay01_branches_v1_create_retry_reaches_sync_hook() {
+        let fixture = Fixture::new("rlay01");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1");
+        let secondary_path = owner_root.join("refs").join("v1");
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.ensure_layout_with_native_ref_durability_cut(NativeRefDurabilityCut::Rlay01BranchesV1CreateBeforeBranchesSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = branch_repository.ensure_layout_with_native_ref_durability_cut(NativeRefDurabilityCut::Rlay01BranchesV1CreateBeforeBranchesSync);
+        let second_fault_error = second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "REF_IO");
+        let after_second_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.recover_refs();
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_second_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_second_fault_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_second_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_second_fault_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap().removed_branch_stages, 0_u64);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn rlay02_first_origin_fanout_retry_reaches_sync_hook() {
+        let fixture = Fixture::new("rlay02");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "rlay02-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]);
+        let secondary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]);
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Rlay02FirstOriginFanoutCreateBeforeParentSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Rlay02FirstOriginFanoutCreateBeforeParentSync);
+        let second_fault_error = second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "REF_IO");
+        let after_second_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.create_branch(branch_name, genesis_transaction_id);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_second_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_second_fault_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_second_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_second_fault_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &BranchUpdateStatus::Created);
+    }
+
+    #[test]
+    fn rlay03_second_origin_fanout_retry_reaches_sync_hook() {
+        let fixture = Fixture::new("rlay03");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "rlay03-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]);
+        let secondary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Rlay03SecondOriginFanoutCreateBeforeParentSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Rlay03SecondOriginFanoutCreateBeforeParentSync);
+        let second_fault_error = second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "REF_IO");
+        let after_second_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.create_branch(branch_name, genesis_transaction_id);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_second_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_second_fault_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_second_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_second_fault_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &BranchUpdateStatus::Created);
+    }
+
+    #[test]
+    fn ref01_during_origin_stage_write_removes_stage() {
+        let fixture = Fixture::new("ref01");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref01-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref01DuringOriginStageWrite);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_branch_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 0_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref02_verified_origin_stage_before_link_removes_stage() {
+        let fixture = Fixture::new("ref02");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref02-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref02VerifiedOriginStageBeforeFinalLink);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_branch_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 0_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref03_origin_link_before_first_sync_create_retry_redurabilizes() {
+        let fixture = Fixture::new("ref03");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref03-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref03OriginLinkBeforeFirstLeafSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.create_branch(branch_name, genesis_transaction_id);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_first_fault_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &BranchUpdateStatus::Created);
+    }
+
+    #[test]
+    fn ref04_first_origin_sync_before_unlink_reports_orphan() {
+        let fixture = Fixture::new("ref04");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref04-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref04FirstOriginLeafSyncBeforeStageUnlink);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_branch_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 1_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref05_origin_stage_unlink_before_second_sync_reports_orphan() {
+        let fixture = Fixture::new("ref05");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref05-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref05OriginStageUnlinkBeforeSecondLeafSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_branch_stages, 0_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 1_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref06_during_initial_ref_stage_write_reports_orphan() {
+        let fixture = Fixture::new("ref06");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref06-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref06DuringInitialRefStageWrite);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 1_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref07_verified_initial_ref_stage_before_link_reports_orphan() {
+        let fixture = Fixture::new("ref07");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref07-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref07VerifiedInitialRefStageBeforeFinalLink);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().orphan_origins.len(), 1_usize);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 0_u64);
+    }
+
+    #[test]
+    fn ref08_initial_ref_link_before_first_sync_create_retry_is_present() {
+        let fixture = Fixture::new("ref08");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref08-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref08InitialRefLinkBeforeFirstLeafSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.create_branch(branch_name, genesis_transaction_id);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_ne!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &BranchUpdateStatus::Present);
+    }
+
+    #[test]
+    fn ref09_first_initial_ref_sync_before_unlink_verifies_branch() {
+        let fixture = Fixture::new("ref09");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref09-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref09FirstInitialRefLeafSyncBeforeStageUnlink);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_ne!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 1_u64);
+    }
+
+    #[test]
+    fn ref10_initial_ref_stage_unlink_before_second_sync_verifies_branch() {
+        let fixture = Fixture::new("ref10");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref10-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.create_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, NativeRefDurabilityCut::Ref10InitialRefStageUnlinkBeforeSecondLeafSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_ne!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 0_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 1_u64);
+    }
+
+    #[test]
+    fn ref11_during_advance_ref_stage_write_keeps_old_branch() {
+        let fixture = Fixture::new("ref11");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref11-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let child_transaction_id = fixture.commit_child(41);
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.advance_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, child_transaction_id, NativeRefDurabilityCut::Ref11DuringAdvanceRefStageWrite);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 1_u64);
+    }
+
+    #[test]
+    fn ref12_verified_advance_ref_stage_before_rename_keeps_old_branch() {
+        let fixture = Fixture::new("ref12");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref12-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let child_transaction_id = fixture.commit_child(42);
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.advance_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, child_transaction_id, NativeRefDurabilityCut::Ref12VerifiedAdvanceRefStageBeforeRename);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 1_u64);
+    }
+
+    #[test]
+    fn ref13_advance_ref_rename_before_sync_advance_retry_is_present() {
+        let fixture = Fixture::new("ref13");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref13-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let child_transaction_id = fixture.commit_child(43);
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.advance_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, child_transaction_id, NativeRefDurabilityCut::Ref13AdvanceRefRenameBeforeLeafSync);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = branch_repository.advance_branch(branch_name, genesis_transaction_id, child_transaction_id);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_recovery_owner_tree_snapshot, after_ordinary_retry_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(after_first_recovery_primary_path_snapshot, after_ordinary_retry_primary_path_snapshot);
+        ::core::assert_ne!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_recovery_secondary_path_snapshot, after_ordinary_retry_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 2_u64);
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &BranchUpdateStatus::Present);
+    }
+
+    #[test]
+    fn ref14_advance_ref_sync_before_response_keeps_new_branch() {
+        let fixture = Fixture::new("ref14");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref14-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let child_transaction_id = fixture.commit_child(44);
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.branch.scb1"));
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(::std::format!("{hex}.ref.scb1"));
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.advance_branch_with_native_ref_durability_cut(branch_name, genesis_transaction_id, child_transaction_id, NativeRefDurabilityCut::Ref14AdvanceRefLeafSyncBeforeResponse);
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_first_fault_owner_tree_snapshot, after_second_recovery_owner_tree_snapshot);
+        ::core::assert_eq!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_recovery_primary_path_snapshot);
+        ::core::assert_ne!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_secondary_path_snapshot, after_second_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(second_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+        ::core::assert_eq!(second_recovery_result.as_ref().unwrap().verified_ancestry_transactions, 2_u64);
+    }
+
+    #[test]
+    fn ref15_origin_recovery_stage_unlink_retry_syncs_leaf() {
+        let fixture = Fixture::new("ref15");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref15-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(".sley-branch-stage-1-0000000000000001.tmp");
+        let secondary_path = owner_root.join("branches").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(".sley-branch-stage-1-0000000000000002.tmp");
+        ::std::fs::write(&primary_path, b"partial-a").unwrap();
+        ::std::fs::write(&secondary_path, b"partial-b").unwrap();
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.recover_refs_with_native_ref_durability_cut(NativeRefDurabilityCut::Ref15OriginRecoveryStageUnlinkBeforeLeafSync { branch_name: parsed_branch_name.clone() });
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = branch_repository.recover_refs_with_native_ref_durability_cut(NativeRefDurabilityCut::Ref15OriginRecoveryStageUnlinkBeforeLeafSync { branch_name: parsed_branch_name.clone() });
+        let second_fault_error = second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "REF_IO");
+        let after_second_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_second_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_second_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_first_fault_secondary_path_snapshot, after_second_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_branch_stages, 0_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+    }
+
+    #[test]
+    fn ref16_visible_ref_recovery_stage_unlink_retry_syncs_leaf() {
+        let fixture = Fixture::new("ref16");
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_name = "ref16-branch";
+        let parsed_branch_name = BranchName::parse(branch_name).unwrap();
+        let hex = hex_digest(&parsed_branch_name.path_key());
+        branch_repository.create_branch(branch_name, genesis_transaction_id).unwrap();
+        let owner_root = branch_repository.root();
+        let primary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(".sley-ref-stage-1-0000000000000001.tmp");
+        let secondary_path = owner_root.join("refs").join("v1").join(&hex[0..2]).join(&hex[2..4]).join(".sley-ref-stage-1-0000000000000002.tmp");
+        ::std::fs::write(&primary_path, b"partial-a").unwrap();
+        ::std::fs::write(&secondary_path, b"partial-b").unwrap();
+        let before_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = branch_repository.recover_refs_with_native_ref_durability_cut(NativeRefDurabilityCut::Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync { branch_name: parsed_branch_name.clone() });
+        let first_fault_error = first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "REF_IO");
+        let after_first_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = branch_repository.recover_refs_with_native_ref_durability_cut(NativeRefDurabilityCut::Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync { branch_name: parsed_branch_name.clone() });
+        let second_fault_error = second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "REF_IO");
+        let after_second_fault_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = branch_repository.recover_refs();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot = crate::refs::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(before_fault_owner_tree_snapshot, after_first_fault_owner_tree_snapshot);
+        ::core::assert_ne!(after_first_fault_owner_tree_snapshot, after_second_fault_owner_tree_snapshot);
+        ::core::assert_eq!(after_second_fault_owner_tree_snapshot, after_first_recovery_owner_tree_snapshot);
+        ::core::assert_ne!(before_fault_primary_path_snapshot, after_first_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_first_fault_primary_path_snapshot, after_second_fault_primary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_primary_path_snapshot, after_first_recovery_primary_path_snapshot);
+        ::core::assert_eq!(before_fault_secondary_path_snapshot, after_first_fault_secondary_path_snapshot);
+        ::core::assert_ne!(after_first_fault_secondary_path_snapshot, after_second_fault_secondary_path_snapshot);
+        ::core::assert_eq!(after_second_fault_secondary_path_snapshot, after_first_recovery_secondary_path_snapshot);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().removed_ref_stages, 0_u64);
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().visible_branches, 1_u64);
+    }
+
+    #[test]
+    fn anc02_shared_and_distinct_branch_ancestry_union_is_idempotent() {
+        let fixture = Fixture::new("anc02");
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let shared_transaction_id = fixture.commit_child(51);
+        let accepted_pointer_path = fixture.path().join("heads").join("accepted");
+        let shared_pointer_bytes = ::std::fs::read(&accepted_pointer_path).unwrap();
+        let alpha_transaction_id = fixture.commit_child(52);
+        ::std::fs::write(&accepted_pointer_path, &shared_pointer_bytes).unwrap();
+        let beta_transaction_id = fixture.commit_child(53);
+        let alpha_branch_name = MappedBranchName(BranchName::parse("anc02-alpha").unwrap());
+        let beta_branch_name = MappedBranchName(BranchName::parse("anc02-beta").unwrap());
+        branch_repository.create_branch(&alpha_branch_name, genesis_transaction_id).unwrap();
+        branch_repository.advance_branch(&alpha_branch_name, genesis_transaction_id, shared_transaction_id).unwrap();
+        branch_repository.advance_branch(&alpha_branch_name, shared_transaction_id, alpha_transaction_id).unwrap();
+        branch_repository.create_branch(&beta_branch_name, genesis_transaction_id).unwrap();
+        branch_repository.advance_branch(&beta_branch_name, genesis_transaction_id, shared_transaction_id).unwrap();
+        branch_repository.advance_branch(&beta_branch_name, shared_transaction_id, beta_transaction_id).unwrap();
+        let genesis_revision = transaction_repository.verified_revision(genesis_transaction_id).unwrap();
+        let shared_revision = transaction_repository.verified_revision(shared_transaction_id).unwrap();
+        let alpha_revision = transaction_repository.verified_revision(alpha_transaction_id).unwrap();
+        let beta_revision = transaction_repository.verified_revision(beta_transaction_id).unwrap();
+        let alpha_before = branch_repository.resolve_branch(&alpha_branch_name).unwrap();
+        let beta_before = branch_repository.resolve_branch(&beta_branch_name).unwrap();
+        let alpha_path = branch_repository.checked_ref_path(&alpha_branch_name).unwrap();
+        let beta_path = branch_repository.checked_ref_path(&beta_branch_name).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(transaction_repository.root()));
+        ::core::assert!(maintenance.covers(branch_repository.root()));
+        let alpha_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&alpha_path);
+        let beta_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&beta_path);
+        let first_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let alpha_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&alpha_path);
+        let beta_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&beta_path);
+        let alpha_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&alpha_path);
+        let beta_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&beta_path);
+        let second_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let alpha_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&alpha_path);
+        let beta_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&beta_path);
+        drop(maintenance);
+        let alpha_after = branch_repository.resolve_branch(&alpha_branch_name).unwrap();
+        let beta_after = branch_repository.resolve_branch(&beta_branch_name).unwrap();
+        ::core::assert_eq!(first_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.visible_branches, 2);
+        ::core::assert!(first_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(first_ref_recovery.verified_ancestry_transactions, 4);
+        ::core::assert_eq!(second_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.visible_branches, 2);
+        ::core::assert!(second_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(second_ref_recovery.verified_ancestry_transactions, 4);
+        ::core::assert_eq!(alpha_before_first_snapshot, alpha_after_first_snapshot);
+        ::core::assert_eq!(alpha_after_first_snapshot, alpha_before_second_snapshot);
+        ::core::assert_eq!(alpha_before_second_snapshot, alpha_after_second_snapshot);
+        ::core::assert_eq!(beta_before_first_snapshot, beta_after_first_snapshot);
+        ::core::assert_eq!(beta_after_first_snapshot, beta_before_second_snapshot);
+        ::core::assert_eq!(beta_before_second_snapshot, beta_after_second_snapshot);
+        ::core::assert!(genesis_revision.receipt().transaction.record.parent_transaction_ids.is_empty());
+        ::core::assert_eq!(shared_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[genesis_transaction_id]);
+        ::core::assert_eq!(alpha_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[shared_transaction_id]);
+        ::core::assert_eq!(beta_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[shared_transaction_id]);
+        ::core::assert_ne!(alpha_transaction_id, beta_transaction_id);
+        ::core::assert_eq!(alpha_before.reference.record.head_transaction_id, alpha_transaction_id);
+        ::core::assert_eq!(beta_before.reference.record.head_transaction_id, beta_transaction_id);
+        ::core::assert_eq!(alpha_after.reference.record.head_transaction_id, alpha_transaction_id);
+        ::core::assert_eq!(beta_after.reference.record.head_transaction_id, beta_transaction_id);
+    }
+
+    #[test]
+    fn anc06_ref_nested_codec_before_claim_mismatch_fails_closed() {
+        let fixture = Fixture::new("anc06-codec");
+        let deep_transaction_id = fixture.commit_child(61);
+        let parent_transaction_id = fixture.commit_child(62);
+        let head_transaction_id = fixture.commit_child(63);
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        branch_repository.create_branch("anc06-codec-branch", genesis_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-codec-branch", genesis_transaction_id, deep_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-codec-branch", deep_transaction_id, parent_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-codec-branch", parent_transaction_id, head_transaction_id).unwrap();
+        let deep_revision = fixture.transactions.verified_revision(deep_transaction_id).unwrap();
+        ::std::fs::write(transaction_receipt_path(fixture.path(), deep_transaction_id), corrupt_nested_receipt(deep_revision.receipt(), &deep_revision.receipt().record.stored_state_root)).unwrap();
+        let owner_root = branch_repository.root();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "SCB_DIGEST_MISMATCH");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::StateRoot(::sley_state_root::StateRootError::Scb(_))))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn anc06_ref_nested_store_before_cycle_fails_closed() {
+        let fixture = Fixture::new("anc06-store");
+        let deep_transaction_id = fixture.commit_child(61);
+        let parent_transaction_id = fixture.commit_child(62);
+        let head_transaction_id = fixture.commit_child(63);
+        let genesis_transaction_id = fixture.genesis_transaction_id;
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        branch_repository.create_branch("anc06-store-branch", genesis_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-store-branch", genesis_transaction_id, deep_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-store-branch", deep_transaction_id, parent_transaction_id).unwrap();
+        branch_repository.advance_branch("anc06-store-branch", parent_transaction_id, head_transaction_id).unwrap();
+        let deep_revision = fixture.transactions.verified_revision(deep_transaction_id).unwrap();
+        let deep_object_id = deep_revision.objects()[0].object_id();
+        let deep_object_store = ObjectStore::new(fixture.path());
+        let deep_object_path = deep_object_store.object_path(deep_object_id);
+        let mut deep_object_bytes = ::std::fs::read(&deep_object_path).unwrap();
+        *deep_object_bytes.last_mut().unwrap() ^= 1;
+        ::std::fs::write(&deep_object_path, deep_object_bytes).unwrap();
+        let owner_root = branch_repository.root();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "SCB_DIGEST_MISMATCH");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Store(_))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "StoreError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn anc05_deep_missing_branch_ancestor_fails_closed() {
+        let fixture = Fixture::new("anc05");
+        let (provenance, pointer_path, deep_missing_path) = anc05_provenance(&fixture);
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(("transaction_ids_distinct", ::std::collections::BTreeSet::from([provenance.genesis_identity, provenance.deep_missing_identity, provenance.direct_parent_identity, provenance.head_identity]).len()), ("transaction_ids_distinct", 4_usize));
+        ::core::assert_eq!(("pointer_decodes_head", provenance.pointer_identity), ("pointer_decodes_head", provenance.head_identity));
+        ::core::assert_eq!(("head_parent_is_direct_parent", provenance.head_parent_identity), ("head_parent_is_direct_parent", provenance.direct_parent_identity));
+        ::core::assert_eq!(("direct_parent_parent_is_deep_missing", provenance.direct_parent_parent_identity), ("direct_parent_parent_is_deep_missing", provenance.deep_missing_identity));
+        ::core::assert_eq!(("deep_missing_parent_is_genesis", provenance.deep_missing_parent_identity), ("deep_missing_parent_is_genesis", provenance.genesis_identity));
+        ::core::assert_eq!(("deep_missing_is_depth_two", provenance.deep_missing_depth), ("deep_missing_is_depth_two", 2_u64));
+        ::core::assert_eq!(("deep_missing_id_derived_from_parent_receipt", provenance.deep_missing_identity), ("deep_missing_id_derived_from_parent_receipt", provenance.derived_deep_missing_identity));
+        ::core::assert_eq!(("deep_missing_path_from_derived_id", provenance.deep_missing_receipt_path.as_path()), ("deep_missing_path_from_derived_id", provenance.derived_deep_missing_receipt_path.as_path()));
+        let deep_missing_before_snapshot = exact_optional_path_snapshot(&deep_missing_path);
+        ::core::assert!(deep_missing_before_snapshot.is_none(), "deep_missing_receipt_absent");
+        ::core::assert_eq!(("genesis_receipt_regular", provenance.genesis_receipt_kind), ("genesis_receipt_regular", "regular"));
+        ::core::assert_eq!(("direct_parent_receipt_regular", provenance.direct_parent_receipt_kind), ("direct_parent_receipt_regular", "regular"));
+        ::core::assert_eq!(("head_receipt_regular", provenance.head_receipt_kind), ("head_receipt_regular", "regular"));
+        ::core::assert_eq!(("origin_decodes_genesis", provenance.origin_identity), ("origin_decodes_genesis", provenance.genesis_identity));
+        ::core::assert_eq!(("ref_decodes_head", provenance.ref_identity), ("ref_decodes_head", provenance.head_identity));
+        ::core::assert_ne!(("origin_head_ids_distinct", provenance.origin_identity), ("origin_head_ids_distinct", provenance.head_identity));
+        ::core::assert_eq!(("origin_direct_claim_verified", provenance.origin_claim.clone()), ("origin_direct_claim_verified", provenance.verified_origin_claim.clone()));
+        ::core::assert_eq!(("head_direct_claim_verified", provenance.head_claim.clone()), ("head_direct_claim_verified", provenance.verified_head_claim.clone()));
+        let pointer_before_snapshot = exact_path_snapshot(&pointer_path);
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive() && maintenance.covers(owner_root), "maintenance_same_root_exclusive");
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Transaction(_))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError"]);
+        let deep_missing_after_snapshot = exact_optional_path_snapshot(&deep_missing_path);
+        let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
+        ::core::assert_eq!(("pointer_bytes_unchanged", pointer_before_snapshot.2.as_slice()), ("pointer_bytes_unchanged", pointer_after_snapshot.2.as_slice()));
+        ::core::assert_eq!(("deep_missing_path_unchanged", deep_missing_before_snapshot), ("deep_missing_path_unchanged", deep_missing_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+    }
+
+    #[test]
+    fn guard03_ref_recovery_same_root_shared_fails_closed() {
+        let fixture = Fixture::new("guard03");
+        let topology = ref_guard_topology(&fixture, ::core::option::Option::None, "guard03-branch", 0xa3);
+        let provenance = topology.provenance;
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let owner_root = branch_repository.root();
+        let canonical_owner_root = ::std::fs::canonicalize(owner_root).unwrap();
+        let loser_probe_error = transaction_repository.verified_revision(provenance.direct_target_identity).unwrap_err();
+        let owner_origin_stage_path = topology.owner_origin_stage_path;
+        let owner_ref_stage_path = topology.owner_ref_stage_path;
+        let authority_pointer_before_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let direct_target_receipt_before_snapshot = exact_optional_path_snapshot(&topology.direct_target_receipt_path);
+        let owner_origin_stage_before_snapshot = exact_path_snapshot(&owner_origin_stage_path);
+        let owner_ref_stage_before_snapshot = exact_path_snapshot(&owner_ref_stage_path);
+        let maintenance = branch_repository.acquire_shared_maintenance().unwrap();
+        ::core::assert!(::std::fs::symlink_metadata(owner_root).unwrap().is_dir() && !::std::fs::symlink_metadata(owner_root).unwrap().file_type().is_symlink(), "owner_root_real");
+        ::core::assert_eq!(("canonical_owner_root", canonical_owner_root.as_path()), ("canonical_owner_root", ::std::fs::canonicalize(owner_root).unwrap().as_path()));
+        ::core::assert_eq!(("maintenance_root_equals_canonical_owner", maintenance.repository_root()), ("maintenance_root_equals_canonical_owner", canonical_owner_root.as_path()));
+        ::core::assert!(!maintenance.is_exclusive(), "maintenance_is_shared");
+        ::core::assert!(maintenance.covers(owner_root), "maintenance_covers_owner");
+        ::core::assert_eq!(("direct_target_identity_from_authority", provenance.direct_target_identity), ("direct_target_identity_from_authority", provenance.authority_target_identity));
+        ::core::assert_eq!(("direct_target_receipt_path", provenance.direct_target_receipt_path.as_path()), ("direct_target_receipt_path", provenance.expected_direct_target_receipt_path.as_path()));
+        ::core::assert!(direct_target_receipt_before_snapshot.is_none(), "direct_target_receipt_absent");
+        ::core::assert!(::core::matches!(&loser_probe_error, ::sley_txn::CommitError::Transaction(_)), "loser_probe_variant");
+        ::core::assert_eq!(("loser_probe_code", loser_probe_error.code()), ("loser_probe_code", "RECOVERY_RECEIPT_INCOMPLETE"));
+        ::core::assert_eq!(("owner_origin_stage_path_from_root", owner_origin_stage_path.as_path()), ("owner_origin_stage_path_from_root", owner_root.join(provenance.owner_origin_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_origin_stage_kind_regular", owner_origin_stage_before_snapshot.0), ("owner_origin_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_origin_stage_bytes_exact", owner_origin_stage_before_snapshot.2.as_slice()), ("owner_origin_stage_bytes_exact", provenance.owner_origin_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("owner_ref_stage_path_from_root", owner_ref_stage_path.as_path()), ("owner_ref_stage_path_from_root", owner_root.join(provenance.owner_ref_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_ref_stage_kind_regular", owner_ref_stage_before_snapshot.0), ("owner_ref_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_ref_stage_bytes_exact", owner_ref_stage_before_snapshot.2.as_slice()), ("owner_ref_stage_bytes_exact", provenance.owner_ref_stage_expected_bytes.as_slice()));
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Io(_)));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["io::Error(Other)"]);
+        let authority_pointer_after_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let owner_origin_stage_after_snapshot = exact_path_snapshot(&owner_origin_stage_path);
+        let owner_ref_stage_after_snapshot = exact_path_snapshot(&owner_ref_stage_path);
+        ::core::assert_eq!(("authority_pointer_unchanged", authority_pointer_before_snapshot), ("authority_pointer_unchanged", authority_pointer_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+        ::core::assert_eq!(("owner_origin_stage_unchanged", owner_origin_stage_before_snapshot), ("owner_origin_stage_unchanged", owner_origin_stage_after_snapshot));
+        ::core::assert_eq!(("owner_ref_stage_unchanged", owner_ref_stage_before_snapshot), ("owner_ref_stage_unchanged", owner_ref_stage_after_snapshot));
+    }
+
+    #[test]
+    fn guard04_ref_recovery_wrong_root_exclusive_fails_closed() {
+        let fixture = Fixture::new("guard04");
+        let guard_fixture = Fixture::new("guard04-guard");
+        let topology = ref_guard_topology(&fixture, ::core::option::Option::Some(&guard_fixture), "guard04-branch", 0xa4);
+        let provenance = topology.provenance;
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let guard_repository = super::BranchRepository::new(guard_fixture.path());
+        let owner_root = branch_repository.root();
+        let guard_root = guard_repository.root();
+        let canonical_owner_root = ::std::fs::canonicalize(owner_root).unwrap();
+        let canonical_guard_root = ::std::fs::canonicalize(guard_root).unwrap();
+        let loser_probe_error = transaction_repository.verified_revision(provenance.direct_target_identity).unwrap_err();
+        let owner_origin_stage_path = topology.owner_origin_stage_path;
+        let owner_ref_stage_path = topology.owner_ref_stage_path;
+        let guard_origin_stage_path = topology.guard_origin_stage_path;
+        let guard_ref_stage_path = topology.guard_ref_stage_path;
+        let authority_pointer_before_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let direct_target_receipt_before_snapshot = exact_optional_path_snapshot(&topology.direct_target_receipt_path);
+        let owner_origin_stage_before_snapshot = exact_path_snapshot(&owner_origin_stage_path);
+        let owner_ref_stage_before_snapshot = exact_path_snapshot(&owner_ref_stage_path);
+        let guard_origin_stage_before_snapshot = exact_path_snapshot(&guard_origin_stage_path);
+        let guard_ref_stage_before_snapshot = exact_path_snapshot(&guard_ref_stage_path);
+        let maintenance = guard_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(::std::fs::symlink_metadata(owner_root).unwrap().is_dir() && !::std::fs::symlink_metadata(owner_root).unwrap().file_type().is_symlink(), "owner_root_real");
+        ::core::assert!(::std::fs::symlink_metadata(guard_root).unwrap().is_dir() && !::std::fs::symlink_metadata(guard_root).unwrap().file_type().is_symlink(), "guard_root_real");
+        ::core::assert_eq!(("canonical_owner_root", canonical_owner_root.as_path()), ("canonical_owner_root", ::std::fs::canonicalize(owner_root).unwrap().as_path()));
+        ::core::assert_eq!(("canonical_guard_root", canonical_guard_root.as_path()), ("canonical_guard_root", ::std::fs::canonicalize(guard_root).unwrap().as_path()));
+        ::core::assert_ne!(("canonical_roots_distinct", canonical_owner_root.as_path()), ("canonical_roots_distinct", canonical_guard_root.as_path()));
+        ::core::assert_eq!(("maintenance_root_equals_canonical_guard", maintenance.repository_root()), ("maintenance_root_equals_canonical_guard", canonical_guard_root.as_path()));
+        ::core::assert!(maintenance.is_exclusive(), "maintenance_is_exclusive");
+        ::core::assert!(maintenance.covers(guard_root), "maintenance_covers_guard");
+        ::core::assert!(!maintenance.covers(owner_root), "maintenance_does_not_cover_owner");
+        ::core::assert_eq!(("direct_target_identity_from_authority", provenance.direct_target_identity), ("direct_target_identity_from_authority", provenance.authority_target_identity));
+        ::core::assert_eq!(("direct_target_receipt_path", provenance.direct_target_receipt_path.as_path()), ("direct_target_receipt_path", provenance.expected_direct_target_receipt_path.as_path()));
+        ::core::assert!(direct_target_receipt_before_snapshot.is_none(), "direct_target_receipt_absent");
+        ::core::assert!(::core::matches!(&loser_probe_error, ::sley_txn::CommitError::Transaction(_)), "loser_probe_variant");
+        ::core::assert_eq!(("loser_probe_code", loser_probe_error.code()), ("loser_probe_code", "RECOVERY_RECEIPT_INCOMPLETE"));
+        ::core::assert_eq!(("owner_origin_stage_path_from_root", owner_origin_stage_path.as_path()), ("owner_origin_stage_path_from_root", owner_root.join(provenance.owner_origin_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_origin_stage_kind_regular", owner_origin_stage_before_snapshot.0), ("owner_origin_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_origin_stage_bytes_exact", owner_origin_stage_before_snapshot.2.as_slice()), ("owner_origin_stage_bytes_exact", provenance.owner_origin_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("owner_ref_stage_path_from_root", owner_ref_stage_path.as_path()), ("owner_ref_stage_path_from_root", owner_root.join(provenance.owner_ref_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_ref_stage_kind_regular", owner_ref_stage_before_snapshot.0), ("owner_ref_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_ref_stage_bytes_exact", owner_ref_stage_before_snapshot.2.as_slice()), ("owner_ref_stage_bytes_exact", provenance.owner_ref_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("guard_origin_stage_path_from_root", guard_origin_stage_path.as_path()), ("guard_origin_stage_path_from_root", guard_root.join(provenance.guard_origin_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("guard_origin_stage_kind_regular", guard_origin_stage_before_snapshot.0), ("guard_origin_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("guard_origin_stage_bytes_exact", guard_origin_stage_before_snapshot.2.as_slice()), ("guard_origin_stage_bytes_exact", provenance.guard_origin_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("guard_ref_stage_path_from_root", guard_ref_stage_path.as_path()), ("guard_ref_stage_path_from_root", guard_root.join(provenance.guard_ref_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("guard_ref_stage_kind_regular", guard_ref_stage_before_snapshot.0), ("guard_ref_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("guard_ref_stage_bytes_exact", guard_ref_stage_before_snapshot.2.as_slice()), ("guard_ref_stage_bytes_exact", provenance.guard_ref_stage_expected_bytes.as_slice()));
+        let guard_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(guard_root);
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let guard_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(guard_root);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Io(_)));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["io::Error(Other)"]);
+        let authority_pointer_after_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let owner_origin_stage_after_snapshot = exact_path_snapshot(&owner_origin_stage_path);
+        let owner_ref_stage_after_snapshot = exact_path_snapshot(&owner_ref_stage_path);
+        let guard_origin_stage_after_snapshot = exact_path_snapshot(&guard_origin_stage_path);
+        let guard_ref_stage_after_snapshot = exact_path_snapshot(&guard_ref_stage_path);
+        ::core::assert_eq!(("authority_pointer_unchanged", authority_pointer_before_snapshot), ("authority_pointer_unchanged", authority_pointer_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+        ::core::assert_eq!(("guard_tree_unchanged", guard_tree_before_snapshot), ("guard_tree_unchanged", guard_tree_after_snapshot));
+        ::core::assert_eq!(("owner_origin_stage_unchanged", owner_origin_stage_before_snapshot), ("owner_origin_stage_unchanged", owner_origin_stage_after_snapshot));
+        ::core::assert_eq!(("owner_ref_stage_unchanged", owner_ref_stage_before_snapshot), ("owner_ref_stage_unchanged", owner_ref_stage_after_snapshot));
+        ::core::assert_eq!(("guard_origin_stage_unchanged", guard_origin_stage_before_snapshot), ("guard_origin_stage_unchanged", guard_origin_stage_after_snapshot));
+        ::core::assert_eq!(("guard_ref_stage_unchanged", guard_ref_stage_before_snapshot), ("guard_ref_stage_unchanged", guard_ref_stage_after_snapshot));
+    }
+
+    #[test]
+    fn anc08_branch_ancestry_cycle_fails_closed() {
+        let fixture = Fixture::new("anc08");
+        let (mut provenance, pointer_path) = anc08_provenance(&fixture);
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let owner_root = branch_repository.root();
+        let canonical_owner_root = ::std::fs::canonicalize(owner_root).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let plan_identity = install_recovery_ancestry_l_r_l_test_plan(&transaction_repository, &maintenance, provenance.left_identity, provenance.right_identity);
+        provenance.plan_owner_root = plan_identity.owner_root().to_path_buf();
+        ::core::assert_eq!(("transaction_ids_distinct", ::std::collections::BTreeSet::from([provenance.genesis_identity, provenance.left_identity, provenance.right_identity]).len()), ("transaction_ids_distinct", 3_usize));
+        ::core::assert_eq!(("pointer_decodes_left", provenance.pointer_identity), ("pointer_decodes_left", provenance.left_identity));
+        ::core::assert_eq!(("durable_left_parent_is_right", provenance.durable_left_parents.as_slice()), ("durable_left_parent_is_right", [provenance.right_identity].as_slice()));
+        ::core::assert_eq!(("durable_right_parent_is_genesis", provenance.durable_right_parents.as_slice()), ("durable_right_parent_is_genesis", [provenance.genesis_identity].as_slice()));
+        ::core::assert!(provenance.durable_left_parents.as_slice() == [provenance.right_identity].as_slice() && provenance.durable_right_parents.as_slice() == [provenance.genesis_identity].as_slice(), "durable_graph_acyclic");
+        ::core::assert!(maintenance.is_exclusive() && maintenance.covers(owner_root), "maintenance_same_root_exclusive");
+        ::core::assert_eq!(("plan_installed_on_owner_repository", provenance.plan_owner_root.as_path()), ("plan_installed_on_owner_repository", canonical_owner_root.as_path()));
+        ::core::assert_eq!(("logical_left_parent_is_right", provenance.logical_left_parents.as_slice()), ("logical_left_parent_is_right", [provenance.right_identity].as_slice()));
+        ::core::assert_eq!(("logical_right_parent_is_left", provenance.logical_right_parents.as_slice()), ("logical_right_parent_is_left", [provenance.left_identity].as_slice()));
+        ::core::assert_eq!(("origin_decodes_genesis", provenance.origin_identity), ("origin_decodes_genesis", provenance.genesis_identity));
+        ::core::assert_eq!(("ref_decodes_left", provenance.ref_identity), ("ref_decodes_left", provenance.left_identity));
+        ::core::assert_ne!(("origin_left_ids_distinct", provenance.origin_identity), ("origin_left_ids_distinct", provenance.left_identity));
+        ::core::assert_eq!(("origin_direct_claim_verified", provenance.origin_claim.clone()), ("origin_direct_claim_verified", provenance.verified_origin_claim.clone()));
+        ::core::assert_eq!(("left_direct_claim_verified", provenance.left_claim.clone()), ("left_direct_claim_verified", provenance.verified_left_claim.clone()));
+        let pointer_before_snapshot = exact_path_snapshot(&pointer_path);
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "BRANCH_ANCESTRY_CYCLE");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        let (cycle_observations, plan_consumption_counts) = consumed_l_r_l_cycle_observations(&transaction_repository, &maintenance, plan_identity, &provenance);
+        provenance.plan_consumption_counts = plan_consumption_counts;
+        let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
+        ::core::assert_eq!(("observed_left_durable_and_logical_edges", cycle_observations[0].clone()), ("observed_left_durable_and_logical_edges", (provenance.left_identity, vec![provenance.right_identity], vec![provenance.right_identity])));
+        ::core::assert_eq!(("observed_right_durable_and_logical_edges", cycle_observations[1].clone()), ("observed_right_durable_and_logical_edges", (provenance.right_identity, vec![provenance.genesis_identity], vec![provenance.left_identity])));
+        ::core::assert_eq!(("plan_consumed_exactly_once_per_node", provenance.plan_consumption_counts.as_slice()), ("plan_consumed_exactly_once_per_node", [(provenance.left_identity, 1_u64), (provenance.right_identity, 1_u64)].as_slice()));
+        ::core::assert_eq!(("pointer_bytes_unchanged", pointer_before_snapshot.2.as_slice()), ("pointer_bytes_unchanged", pointer_after_snapshot.2.as_slice()));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+        ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)), "production_core_binding");
     }
 }

@@ -978,19 +978,12 @@ mod tests {
             .map(|fixture| fixture.object_id)
     }
 
-    type ExactPathSnapshot = (
-        &'static str,
-        u32,
-        ::std::vec::Vec<u8>,
-        ::core::option::Option<::std::path::PathBuf>,
-    );
+    #[rustfmt::skip]
+    type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);
     type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
     type ExactOptionalPathSnapshot = ::core::option::Option<ExactPathSnapshot>;
-    type ExactTreeDeltaPaths = (
-        ::std::vec::Vec<::std::path::PathBuf>,
-        ::std::vec::Vec<::std::path::PathBuf>,
-        ::std::vec::Vec<::std::path::PathBuf>,
-    );
+    #[rustfmt::skip]
+    type ExactTreeDeltaPaths = (::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>);
 
     fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
         let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
