@@ -493,8 +493,6 @@ impl ObjectStore {
                 .map_err(|_| StoreError::new(StoreErrorCode::StoreIo))?
                 .to_path_buf();
             fs::remove_file(&stage_path).map_err(StoreError::io)?;
-            #[cfg(test)]
-            fail_selected_object_recovery_cut(&stage_path)?;
             events.push(RecoveryEvent {
                 code: "RECOVERY_STAGED_OBJECT",
                 relative_path,
@@ -502,6 +500,8 @@ impl ObjectStore {
         }
         for directory in leaf_directories {
             ensure_existing_dir(&directory)?;
+            #[cfg(test)]
+            fail_selected_object_recovery_cut(&directory)?;
             sync_dir(&directory)?;
         }
         events.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
@@ -646,6 +646,8 @@ fn create_dir_component(parent: &Path, path: &Path, component_index: usize) -> R
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             ensure_existing_dir(path)?;
+            #[cfg(test)]
+            fail_selected_store_layout_cut(component_index)?;
             sync_dir(parent)
         }
         Err(error) => Err(StoreError::io(error)),
@@ -685,6 +687,8 @@ fn remove_file_if_exists(path: &Path) -> Result<()> {
 }
 
 fn ensure_object_recovery_limit(value: u64, limit: u64) -> Result<()> {
+    #[cfg(test)]
+    tests::record_s20_530_limit_probe(value, limit);
     if value > limit {
         return Err(StoreError::new(StoreErrorCode::StoreIo));
     }
@@ -892,13 +896,14 @@ fn fail_selected_store_layout_cut(component_index: usize) -> Result<()> {
 }
 
 #[cfg(test)]
-fn fail_selected_object_recovery_cut(stage_path: &Path) -> Result<()> {
-    let Some(name) = stage_path.file_name().and_then(std::ffi::OsStr::to_str) else {
+fn fail_selected_object_recovery_cut(leaf_directory: &Path) -> Result<()> {
+    let Some(second) = leaf_directory.file_name().and_then(std::ffi::OsStr::to_str) else {
         return Ok(());
     };
-    let Some(token) = name
-        .strip_prefix(STAGE_PREFIX)
-        .and_then(|name| name.strip_suffix(STAGE_SUFFIX))
+    let Some(first) = leaf_directory
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
     else {
         return Ok(());
     };
@@ -907,7 +912,8 @@ fn fail_selected_object_recovery_cut(stage_path: &Path) -> Result<()> {
         else {
             return false;
         };
-        token[..64] == object_id_hex(*object_id)
+        let hex = object_id_hex(*object_id);
+        first == &hex[0..2] && second == &hex[2..4]
     })
 }
 
@@ -970,6 +976,373 @@ mod tests {
         decode_standalone_fixture(record, FixtureContract::RequiredBool)
             .or_else(|_| decode_standalone_fixture(record, FixtureContract::EmptyObject))
             .map(|fixture| fixture.object_id)
+    }
+
+    type ExactPathSnapshot = (
+        &'static str,
+        u32,
+        ::std::vec::Vec<u8>,
+        ::core::option::Option<::std::path::PathBuf>,
+    );
+    type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
+    type ExactOptionalPathSnapshot = ::core::option::Option<ExactPathSnapshot>;
+    type ExactTreeDeltaPaths = (
+        ::std::vec::Vec<::std::path::PathBuf>,
+        ::std::vec::Vec<::std::path::PathBuf>,
+        ::std::vec::Vec<::std::path::PathBuf>,
+    );
+
+    fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
+        let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
+        let file_type = metadata.file_type();
+        let kind = if file_type.is_symlink() {
+            "symlink"
+        } else if file_type.is_file() {
+            "regular"
+        } else if file_type.is_dir() {
+            "directory"
+        } else {
+            "non_regular"
+        };
+        let mode = ::std::os::unix::fs::MetadataExt::mode(&metadata);
+        let bytes = if file_type.is_file() {
+            ::std::fs::read(path).expect("snapshot file bytes")
+        } else {
+            ::std::vec::Vec::new()
+        };
+        let target = if file_type.is_symlink() {
+            ::core::option::Option::Some(
+                ::std::fs::read_link(path).expect("snapshot symlink target"),
+            )
+        } else {
+            ::core::option::Option::None
+        };
+        (kind, mode, bytes, target)
+    }
+
+    fn exact_tree_snapshot(root: &::std::path::Path) -> ExactTreeSnapshot {
+        fn visit(
+            root: &::std::path::Path,
+            path: &::std::path::Path,
+            entries: &mut ExactTreeSnapshot,
+        ) {
+            let relative = path
+                .strip_prefix(root)
+                .expect("snapshot path under root")
+                .to_path_buf();
+            let snapshot = exact_path_snapshot(path);
+            let is_directory = snapshot.0 == "directory";
+            entries.push((relative, snapshot));
+            if is_directory {
+                let mut children = ::std::fs::read_dir(path)
+                    .expect("snapshot directory")
+                    .map(|entry| entry.expect("snapshot directory entry").path())
+                    .collect::<::std::vec::Vec<_>>();
+                children.sort();
+                for child in children {
+                    visit(root, &child, entries);
+                }
+            }
+        }
+        let mut entries = ::std::vec::Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
+    fn exact_optional_path_snapshot(path: &::std::path::Path) -> ExactOptionalPathSnapshot {
+        match ::std::fs::symlink_metadata(path) {
+            ::core::result::Result::Ok(_) => {
+                ::core::option::Option::Some(exact_path_snapshot(path))
+            }
+            ::core::result::Result::Err(error)
+                if error.kind() == ::std::io::ErrorKind::NotFound =>
+            {
+                ::core::option::Option::None
+            }
+            ::core::result::Result::Err(error) => {
+                ::core::panic!("optional snapshot metadata: {}", error)
+            }
+        }
+    }
+
+    fn exact_tree_delta_paths(
+        before: &ExactTreeSnapshot,
+        after: &ExactTreeSnapshot,
+    ) -> ExactTreeDeltaPaths {
+        let before_by_path = before
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let after_by_path = after
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let added = after_by_path
+            .keys()
+            .filter(|path| !before_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        let changed = after_by_path
+            .iter()
+            .filter_map(|(path, after_snapshot)| match before_by_path.get(path) {
+                ::core::option::Option::Some(before_snapshot)
+                    if *before_snapshot != *after_snapshot =>
+                {
+                    ::core::option::Option::Some(path.clone())
+                }
+                _ => ::core::option::Option::None,
+            })
+            .collect::<::std::vec::Vec<_>>();
+        let removed = before_by_path
+            .keys()
+            .filter(|path| !after_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        (added, changed, removed)
+    }
+
+    #[allow(dead_code)]
+    fn exact_error_source_chain(
+        error: &(dyn ::std::error::Error + 'static),
+    ) -> ::std::vec::Vec<::std::string::String> {
+        let mut chain = ::std::vec::Vec::new();
+        let mut source = ::std::error::Error::source(error);
+        while let ::core::option::Option::Some(current) = source {
+            let label = if let ::core::option::Option::Some(io_error) =
+                current.downcast_ref::<::std::io::Error>()
+            {
+                ::std::format!("io::Error({:?})", io_error.kind())
+            } else {
+                ::std::format!("unknown({})", ::std::any::type_name_of_val(current),)
+            };
+            chain.push(label);
+            source = ::std::error::Error::source(current);
+        }
+        chain
+    }
+
+    struct S20LimitFixtureObservation {
+        _temp: TempDir,
+        cardinality: u64,
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        target_usage: u64,
+    }
+
+    struct S20LimitRuntimeObservation {
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        injected_limit: u64,
+        fixture_cardinality: u64,
+        scanned_peak: u64,
+        retained_peak: u64,
+        rejected_target_usage: ::core::option::Option<u64>,
+    }
+
+    struct S20ActiveLimitProbe {
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        injected_limit: u64,
+        fixture_cardinality: u64,
+        scanned_peak: u64,
+        retained_peak: u64,
+        rejected_target_usage: ::core::option::Option<u64>,
+    }
+
+    struct S20LimitProbe;
+
+    ::std::thread_local! {
+        static S20_LIMIT_FIXTURE_CARDINALITIES: ::std::cell::RefCell<
+            ::std::vec::Vec<(::std::path::PathBuf, u64)>,
+        > = const { ::std::cell::RefCell::new(::std::vec::Vec::new()) };
+        static S20_ACTIVE_LIMIT_PROBE: ::std::cell::RefCell<
+            ::core::option::Option<S20ActiveLimitProbe>,
+        > = const { ::std::cell::RefCell::new(::core::option::Option::None) };
+    }
+
+    fn register_s20_530_limit_fixture(root: &::std::path::Path, cardinality: u64) {
+        S20_LIMIT_FIXTURE_CARDINALITIES.with(|registry| {
+            registry
+                .borrow_mut()
+                .push((root.to_path_buf(), cardinality));
+        });
+    }
+
+    fn begin_s20_530_limit_probe(
+        owner_root: &::std::path::Path,
+        qualified_field: &'static str,
+        injected_limit: u64,
+        event_sites: &[&'static str],
+    ) -> S20LimitProbe {
+        let fixture_cardinality = S20_LIMIT_FIXTURE_CARDINALITIES.with(|registry| {
+            registry
+                .borrow()
+                .iter()
+                .find(|(root, _)| root == owner_root)
+                .map(|(_, cardinality)| *cardinality)
+                .expect("limit probe owner root is registered")
+        });
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let previous = active.borrow_mut().replace(S20ActiveLimitProbe {
+                qualified_field,
+                event_sites: event_sites.to_vec(),
+                injected_limit,
+                fixture_cardinality,
+                scanned_peak: 0,
+                retained_peak: 0,
+                rejected_target_usage: ::core::option::Option::None,
+            });
+            assert!(previous.is_none(), "limit probes are not nested");
+        });
+        S20LimitProbe
+    }
+
+    pub(crate) fn record_s20_530_limit_probe(value: u64, limit: u64) {
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let mut active = active.borrow_mut();
+            let ::core::option::Option::Some(probe) = active.as_mut() else {
+                return;
+            };
+            if limit != probe.injected_limit {
+                return;
+            }
+            if value > limit {
+                probe.rejected_target_usage = ::core::option::Option::Some(value);
+            } else {
+                probe.scanned_peak = probe.scanned_peak.max(value);
+                probe.retained_peak = probe.retained_peak.max(value);
+            }
+        });
+    }
+
+    fn finish_s20_530_limit_probe(probe: S20LimitProbe) -> S20LimitRuntimeObservation {
+        let S20LimitProbe = probe;
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let state = active.borrow_mut().take().expect("limit probe is active");
+            S20LimitRuntimeObservation {
+                qualified_field: state.qualified_field,
+                event_sites: state.event_sites,
+                injected_limit: state.injected_limit,
+                fixture_cardinality: state.fixture_cardinality,
+                scanned_peak: state.scanned_peak,
+                retained_peak: state.retained_peak,
+                rejected_target_usage: state.rejected_target_usage,
+            }
+        })
+    }
+
+    fn prepare_s20_530_limit_fixture_store(
+        label: &str,
+        cardinality: u64,
+        qualified_field: &'static str,
+        event_site: &'static str,
+    ) -> (ObjectStore, S20LimitFixtureObservation) {
+        let temp = TempDir::new(label);
+        let store = ObjectStore::new(temp.path());
+        register_s20_530_limit_fixture(store.root(), cardinality);
+        let observation = S20LimitFixtureObservation {
+            _temp: temp,
+            cardinality,
+            qualified_field,
+            event_sites: ::std::vec![event_site],
+            target_usage: cardinality,
+        };
+        (store, observation)
+    }
+
+    fn prepare_s20_530_limit_01_object_fanout_directories_limit_fixture(
+        cardinality: u64,
+    ) -> (ObjectStore, S20LimitFixtureObservation) {
+        let (store, observation) = prepare_s20_530_limit_fixture_store(
+            "limit01-fanout",
+            cardinality,
+            "object_recovery_limits::fanout_directories",
+            "object.scan_fanout",
+        );
+        let first_level = store.root().join("objects").join("scb1").join("00");
+        ::std::fs::create_dir_all(&first_level).expect("limit fixture fanout dirs");
+        for index in 0..cardinality.saturating_sub(1) {
+            ::std::fs::create_dir(first_level.join(::std::format!("{index:02x}")))
+                .expect("limit fixture second-level fanout dir");
+        }
+        (store, observation)
+    }
+
+    fn prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(
+        cardinality: u64,
+    ) -> (ObjectStore, S20LimitFixtureObservation) {
+        let (store, observation) = prepare_s20_530_limit_fixture_store(
+            "limit01-leaf",
+            cardinality,
+            "object_recovery_limits::leaf_entries",
+            "object.scan_leaf",
+        );
+        let leaf_dir = store
+            .root()
+            .join("objects")
+            .join("scb1")
+            .join("00")
+            .join("00");
+        ::std::fs::create_dir_all(&leaf_dir).expect("limit fixture leaf dir");
+        for index in 0..cardinality {
+            ::std::fs::write(
+                leaf_dir.join(::std::format!("unknown-leaf-entry-{index:02}")),
+                b"unknown",
+            )
+            .expect("limit fixture leaf entry");
+        }
+        (store, observation)
+    }
+
+    fn prepare_s20_530_limit_01_final_objects_limit_fixture(
+        cardinality: u64,
+    ) -> (ObjectStore, S20LimitFixtureObservation) {
+        let (store, observation) = prepare_s20_530_limit_fixture_store(
+            "limit01-final",
+            cardinality,
+            "object_recovery_limits::final_objects",
+            "object.retain_final",
+        );
+        let leaf_dir = store
+            .root()
+            .join("objects")
+            .join("scb1")
+            .join("aa")
+            .join("bb");
+        ::std::fs::create_dir_all(&leaf_dir).expect("limit fixture final dir");
+        for index in 0..cardinality {
+            let object_hex = ::std::format!("aabb{}{index:02x}", "0".repeat(58));
+            ::std::fs::write(leaf_dir.join(::std::format!("{object_hex}.scb1")), b"")
+                .expect("limit fixture final object");
+        }
+        (store, observation)
+    }
+
+    fn prepare_s20_530_limit_01_object_stages_limit_fixture(
+        cardinality: u64,
+    ) -> (ObjectStore, S20LimitFixtureObservation) {
+        let (store, observation) = prepare_s20_530_limit_fixture_store(
+            "limit01-stages",
+            cardinality,
+            "object_recovery_limits::removable_stages",
+            "object.retain_stage",
+        );
+        let leaf_dir = store
+            .root()
+            .join("objects")
+            .join("scb1")
+            .join("10")
+            .join("20");
+        ::std::fs::create_dir_all(&leaf_dir).expect("limit fixture stage dir");
+        for index in 0..cardinality {
+            let token = ::std::format!("1020{}00000001{index:08x}", "3".repeat(60));
+            ::std::fs::write(
+                leaf_dir.join(::std::format!("{STAGE_PREFIX}{token}{STAGE_SUFFIX}")),
+                b"stage",
+            )
+            .expect("limit fixture stage entry");
+        }
+        (store, observation)
     }
 
     #[test]
@@ -1450,6 +1823,2915 @@ mod tests {
         assert_eq!(
             store.read(object_id, &verifier).unwrap_err().code(),
             StoreErrorCode::StoreObjectNotFound
+        );
+    }
+
+    #[test]
+    fn obj01_before_object_stage_write_recovers_clean() {
+        let temp = TempDir::new("obj01");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj01BeforeObjectStageWrite,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn obj02_during_object_stage_write_removes_stage() {
+        let temp = TempDir::new("obj02");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj02DuringObjectStageWrite,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 1);
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap()[0].code,
+            "RECOVERY_STAGED_OBJECT"
+        );
+    }
+
+    #[test]
+    fn obj03_verified_stage_before_promotion_removes_stage() {
+        let temp = TempDir::new("obj03");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj03VerifiedObjectStageBeforePromotion,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 1);
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap()[0].code,
+            "RECOVERY_STAGED_OBJECT"
+        );
+    }
+
+    #[test]
+    fn obj04_final_link_before_first_leaf_sync_keeps_final() {
+        let temp = TempDir::new("obj04");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj04FinalObjectLinkBeforeFirstLeafSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 1);
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap()[0].code,
+            "RECOVERY_STAGED_OBJECT"
+        );
+    }
+
+    #[test]
+    fn obj05_first_leaf_sync_before_stage_unlink_keeps_final() {
+        let temp = TempDir::new("obj05");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj05FirstLeafSyncBeforeObjectStageUnlink,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 1);
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap()[0].code,
+            "RECOVERY_STAGED_OBJECT"
+        );
+    }
+
+    #[test]
+    fn obj06_stage_unlink_before_second_leaf_sync_ordinary_retry() {
+        let temp = TempDir::new("obj06");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let pid = ::std::process::id();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}{pid:08x}00000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Obj06ObjectStageUnlinkBeforeSecondLeafSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = store.put(object_id, &record, &verifier);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(ordinary_retry_result.as_ref().unwrap(), &PutStatus::Present);
+    }
+
+    #[test]
+    fn obj07_recovery_stage_unlink_before_leaf_sync_retry_sync() {
+        let temp = TempDir::new("obj07");
+        let store = ObjectStore::new(temp.path());
+        let (record, stage_object_id) = bool_record(true);
+        let hex = object_id_hex(stage_object_id);
+        let stage_dir = temp
+            .path()
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4]);
+        ::std::fs::create_dir_all(&stage_dir).unwrap();
+        ::std::fs::write(
+            stage_dir.join(::std::format!(
+                "{STAGE_PREFIX}{hex}0000000100000000{STAGE_SUFFIX}"
+            )),
+            &record,
+        )
+        .unwrap();
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!(
+                "{STAGE_PREFIX}{hex}0000000100000000{STAGE_SUFFIX}"
+            ));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.recover_staged_with_store_durability_cut(
+            StoreDurabilityCut::Obj07RecoveryObjectStageUnlinkBeforeLeafSync {
+                object_id: stage_object_id,
+            },
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = store.recover_staged_with_store_durability_cut(
+            StoreDurabilityCut::Obj07RecoveryObjectStageUnlinkBeforeLeafSync {
+                object_id: stage_object_id,
+            },
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.symbol(), "STORE_IO");
+        let after_second_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = store.recover_staged();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(first_recovery_result.as_ref().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn olay01_scb1_component_create_retry_reaches_sync_hook() {
+        let temp = TempDir::new("olay01");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let owner_root = store.root();
+        let primary_path = owner_root.join("objects").join("scb1");
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay01Scb1DirectoryCreateBeforeObjectsSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay01Scb1DirectoryCreateBeforeObjectsSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.symbol(), "STORE_IO");
+        let after_second_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = store.put(object_id, &record, &verifier);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result.as_ref().unwrap(),
+            &PutStatus::Promoted
+        );
+    }
+
+    #[test]
+    fn olay02_first_fanout_create_retry_reaches_sync_hook() {
+        let temp = TempDir::new("olay02");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let owner_root = store.root();
+        let primary_path = owner_root.join("objects").join("scb1").join(&hex[0..2]);
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay02FirstObjectFanoutCreateBeforeParentSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay02FirstObjectFanoutCreateBeforeParentSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.symbol(), "STORE_IO");
+        let after_second_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = store.put(object_id, &record, &verifier);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result.as_ref().unwrap(),
+            &PutStatus::Promoted
+        );
+    }
+
+    #[test]
+    fn olay03_second_fanout_create_retry_reaches_sync_hook() {
+        let temp = TempDir::new("olay03");
+        let store = ObjectStore::new(temp.path());
+        let (record, object_id) = bool_record(true);
+        let hex = object_id_hex(object_id);
+        let owner_root = store.root();
+        let primary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4]);
+        let secondary_path = owner_root
+            .join("objects")
+            .join("scb1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(::std::format!("{hex}.scb1"));
+        let before_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay03SecondObjectFanoutCreateBeforeParentSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.symbol(), "STORE_IO");
+        let after_first_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = store.put_with_store_durability_cut(
+            object_id,
+            &record,
+            &verifier,
+            StoreDurabilityCut::Olay03SecondObjectFanoutCreateBeforeParentSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.symbol(), "STORE_IO");
+        let after_second_fault_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = store.put(object_id, &record, &verifier);
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result.as_ref().unwrap(),
+            &PutStatus::Promoted
+        );
+    }
+
+    #[test]
+    fn cor01_owned_stage_removed_and_synced() {
+        let temp = TempDir::new("s20-530-cor-01-owned-stage");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let owned_stage_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let owned_stage_path = owner_root.join(&owned_stage_relative_path);
+        ::core::assert_eq!(
+            owned_stage_path.strip_prefix(owner_root).unwrap(),
+            owned_stage_relative_path
+        );
+        ::std::fs::create_dir_all(owned_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&owned_stage_path, "S20-530:COR-01:owned_stage".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let owned_stage_before_snapshot = crate::tests::exact_path_snapshot(&owned_stage_path);
+        let owned_stage_before_kind = owned_stage_before_snapshot.0;
+        ::core::assert_eq!(owned_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            owned_stage_before_snapshot.2,
+            "S20-530:COR-01:owned_stage".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec![::std::path::PathBuf::from(
+                "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+            )]
+        );
+        let owned_stage_after_snapshot =
+            crate::tests::exact_optional_path_snapshot(&owned_stage_path);
+        ::core::assert_eq!(owned_stage_after_snapshot, ::core::option::Option::None);
+        ::core::assert_eq!(report.len(), 1);
+        ::core::assert_eq!(report[0].code, "RECOVERY_STAGED_OBJECT");
+        ::core::assert_eq!(report[0].relative_path, owned_stage_relative_path);
+    }
+
+    #[test]
+    fn cor01_prefix_suffix_lookalikes_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-prefix-suffix-lookalikes");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let prefix_lookalike_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001",
+        );
+        let prefix_lookalike_path = owner_root.join(&prefix_lookalike_relative_path);
+        ::core::assert_eq!(
+            prefix_lookalike_path.strip_prefix(owner_root).unwrap(),
+            prefix_lookalike_relative_path
+        );
+        let suffix_lookalike_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let suffix_lookalike_path = owner_root.join(&suffix_lookalike_relative_path);
+        ::core::assert_eq!(
+            suffix_lookalike_path.strip_prefix(owner_root).unwrap(),
+            suffix_lookalike_relative_path
+        );
+        ::std::fs::create_dir_all(prefix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &prefix_lookalike_path,
+            "S20-530:COR-01:prefix_lookalike".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(suffix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &suffix_lookalike_path,
+            "S20-530:COR-01:suffix_lookalike".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let prefix_lookalike_before_snapshot =
+            crate::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_before_kind = prefix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            prefix_lookalike_before_snapshot.2,
+            "S20-530:COR-01:prefix_lookalike".as_bytes().to_vec()
+        );
+        let suffix_lookalike_before_snapshot =
+            crate::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_before_kind = suffix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            suffix_lookalike_before_snapshot.2,
+            "S20-530:COR-01:suffix_lookalike".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let prefix_lookalike_after_snapshot =
+            crate::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_after_kind = prefix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(
+            prefix_lookalike_after_snapshot,
+            prefix_lookalike_before_snapshot
+        );
+        let suffix_lookalike_after_snapshot =
+            crate::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_after_kind = suffix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(
+            suffix_lookalike_after_snapshot,
+            suffix_lookalike_before_snapshot
+        );
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_object_id_case_width_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-object-id-case-width");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_id_uppercase_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp",
+        );
+        let object_id_uppercase_path = owner_root.join(&object_id_uppercase_relative_path);
+        ::core::assert_eq!(
+            object_id_uppercase_path.strip_prefix(owner_root).unwrap(),
+            object_id_uppercase_relative_path
+        );
+        let object_id_short_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let object_id_short_path = owner_root.join(&object_id_short_relative_path);
+        ::core::assert_eq!(
+            object_id_short_path.strip_prefix(owner_root).unwrap(),
+            object_id_short_relative_path
+        );
+        let object_id_long_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let object_id_long_path = owner_root.join(&object_id_long_relative_path);
+        ::core::assert_eq!(
+            object_id_long_path.strip_prefix(owner_root).unwrap(),
+            object_id_long_relative_path
+        );
+        ::std::fs::create_dir_all(object_id_uppercase_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &object_id_uppercase_path,
+            "S20-530:COR-01:object_id_uppercase".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(object_id_short_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &object_id_short_path,
+            "S20-530:COR-01:object_id_short".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(object_id_long_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &object_id_long_path,
+            "S20-530:COR-01:object_id_long".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_id_uppercase_before_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_uppercase_path);
+        let object_id_uppercase_before_kind = object_id_uppercase_before_snapshot.0;
+        ::core::assert_eq!(object_id_uppercase_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_id_uppercase_before_snapshot.2,
+            "S20-530:COR-01:object_id_uppercase".as_bytes().to_vec()
+        );
+        let object_id_short_before_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_short_path);
+        let object_id_short_before_kind = object_id_short_before_snapshot.0;
+        ::core::assert_eq!(object_id_short_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_id_short_before_snapshot.2,
+            "S20-530:COR-01:object_id_short".as_bytes().to_vec()
+        );
+        let object_id_long_before_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_long_path);
+        let object_id_long_before_kind = object_id_long_before_snapshot.0;
+        ::core::assert_eq!(object_id_long_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_id_long_before_snapshot.2,
+            "S20-530:COR-01:object_id_long".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_id_uppercase_after_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_uppercase_path);
+        let object_id_uppercase_after_kind = object_id_uppercase_after_snapshot.0;
+        ::core::assert_eq!(
+            object_id_uppercase_after_snapshot,
+            object_id_uppercase_before_snapshot
+        );
+        let object_id_short_after_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_short_path);
+        let object_id_short_after_kind = object_id_short_after_snapshot.0;
+        ::core::assert_eq!(
+            object_id_short_after_snapshot,
+            object_id_short_before_snapshot
+        );
+        let object_id_long_after_snapshot = crate::tests::exact_path_snapshot(&object_id_long_path);
+        let object_id_long_after_kind = object_id_long_after_snapshot.0;
+        ::core::assert_eq!(
+            object_id_long_after_snapshot,
+            object_id_long_before_snapshot
+        );
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_pid_zero_case_width_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-pid-zero-case-width");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let pid_zero_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp",
+        );
+        let pid_zero_path = owner_root.join(&pid_zero_relative_path);
+        ::core::assert_eq!(
+            pid_zero_path.strip_prefix(owner_root).unwrap(),
+            pid_zero_relative_path
+        );
+        let pid_uppercase_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp",
+        );
+        let pid_uppercase_path = owner_root.join(&pid_uppercase_relative_path);
+        ::core::assert_eq!(
+            pid_uppercase_path.strip_prefix(owner_root).unwrap(),
+            pid_uppercase_relative_path
+        );
+        let pid_short_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp",
+        );
+        let pid_short_path = owner_root.join(&pid_short_relative_path);
+        ::core::assert_eq!(
+            pid_short_path.strip_prefix(owner_root).unwrap(),
+            pid_short_relative_path
+        );
+        let pid_long_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp",
+        );
+        let pid_long_path = owner_root.join(&pid_long_relative_path);
+        ::core::assert_eq!(
+            pid_long_path.strip_prefix(owner_root).unwrap(),
+            pid_long_relative_path
+        );
+        ::std::fs::create_dir_all(pid_zero_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_zero_path, "S20-530:COR-01:pid_zero".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_uppercase_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &pid_uppercase_path,
+            "S20-530:COR-01:pid_uppercase".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(pid_short_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_short_path, "S20-530:COR-01:pid_short".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_long_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_long_path, "S20-530:COR-01:pid_long".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let pid_zero_before_snapshot = crate::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_before_kind = pid_zero_before_snapshot.0;
+        ::core::assert_eq!(pid_zero_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            pid_zero_before_snapshot.2,
+            "S20-530:COR-01:pid_zero".as_bytes().to_vec()
+        );
+        let pid_uppercase_before_snapshot = crate::tests::exact_path_snapshot(&pid_uppercase_path);
+        let pid_uppercase_before_kind = pid_uppercase_before_snapshot.0;
+        ::core::assert_eq!(pid_uppercase_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            pid_uppercase_before_snapshot.2,
+            "S20-530:COR-01:pid_uppercase".as_bytes().to_vec()
+        );
+        let pid_short_before_snapshot = crate::tests::exact_path_snapshot(&pid_short_path);
+        let pid_short_before_kind = pid_short_before_snapshot.0;
+        ::core::assert_eq!(pid_short_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            pid_short_before_snapshot.2,
+            "S20-530:COR-01:pid_short".as_bytes().to_vec()
+        );
+        let pid_long_before_snapshot = crate::tests::exact_path_snapshot(&pid_long_path);
+        let pid_long_before_kind = pid_long_before_snapshot.0;
+        ::core::assert_eq!(pid_long_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            pid_long_before_snapshot.2,
+            "S20-530:COR-01:pid_long".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let pid_zero_after_snapshot = crate::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_after_kind = pid_zero_after_snapshot.0;
+        ::core::assert_eq!(pid_zero_after_snapshot, pid_zero_before_snapshot);
+        let pid_uppercase_after_snapshot = crate::tests::exact_path_snapshot(&pid_uppercase_path);
+        let pid_uppercase_after_kind = pid_uppercase_after_snapshot.0;
+        ::core::assert_eq!(pid_uppercase_after_snapshot, pid_uppercase_before_snapshot);
+        let pid_short_after_snapshot = crate::tests::exact_path_snapshot(&pid_short_path);
+        let pid_short_after_kind = pid_short_after_snapshot.0;
+        ::core::assert_eq!(pid_short_after_snapshot, pid_short_before_snapshot);
+        let pid_long_after_snapshot = crate::tests::exact_path_snapshot(&pid_long_path);
+        let pid_long_after_kind = pid_long_after_snapshot.0;
+        ::core::assert_eq!(pid_long_after_snapshot, pid_long_before_snapshot);
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_counter_case_width_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-counter-case-width");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let counter_uppercase_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp",
+        );
+        let counter_uppercase_path = owner_root.join(&counter_uppercase_relative_path);
+        ::core::assert_eq!(
+            counter_uppercase_path.strip_prefix(owner_root).unwrap(),
+            counter_uppercase_relative_path
+        );
+        let counter_short_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp",
+        );
+        let counter_short_path = owner_root.join(&counter_short_relative_path);
+        ::core::assert_eq!(
+            counter_short_path.strip_prefix(owner_root).unwrap(),
+            counter_short_relative_path
+        );
+        let counter_long_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp",
+        );
+        let counter_long_path = owner_root.join(&counter_long_relative_path);
+        ::core::assert_eq!(
+            counter_long_path.strip_prefix(owner_root).unwrap(),
+            counter_long_relative_path
+        );
+        ::std::fs::create_dir_all(counter_uppercase_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &counter_uppercase_path,
+            "S20-530:COR-01:counter_uppercase".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(counter_short_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &counter_short_path,
+            "S20-530:COR-01:counter_short".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(counter_long_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&counter_long_path, "S20-530:COR-01:counter_long".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp"
+                ),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let counter_uppercase_before_snapshot =
+            crate::tests::exact_path_snapshot(&counter_uppercase_path);
+        let counter_uppercase_before_kind = counter_uppercase_before_snapshot.0;
+        ::core::assert_eq!(counter_uppercase_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            counter_uppercase_before_snapshot.2,
+            "S20-530:COR-01:counter_uppercase".as_bytes().to_vec()
+        );
+        let counter_short_before_snapshot = crate::tests::exact_path_snapshot(&counter_short_path);
+        let counter_short_before_kind = counter_short_before_snapshot.0;
+        ::core::assert_eq!(counter_short_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            counter_short_before_snapshot.2,
+            "S20-530:COR-01:counter_short".as_bytes().to_vec()
+        );
+        let counter_long_before_snapshot = crate::tests::exact_path_snapshot(&counter_long_path);
+        let counter_long_before_kind = counter_long_before_snapshot.0;
+        ::core::assert_eq!(counter_long_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            counter_long_before_snapshot.2,
+            "S20-530:COR-01:counter_long".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let counter_uppercase_after_snapshot =
+            crate::tests::exact_path_snapshot(&counter_uppercase_path);
+        let counter_uppercase_after_kind = counter_uppercase_after_snapshot.0;
+        ::core::assert_eq!(
+            counter_uppercase_after_snapshot,
+            counter_uppercase_before_snapshot
+        );
+        let counter_short_after_snapshot = crate::tests::exact_path_snapshot(&counter_short_path);
+        let counter_short_after_kind = counter_short_after_snapshot.0;
+        ::core::assert_eq!(counter_short_after_snapshot, counter_short_before_snapshot);
+        let counter_long_after_snapshot = crate::tests::exact_path_snapshot(&counter_long_path);
+        let counter_long_after_kind = counter_long_after_snapshot.0;
+        ::core::assert_eq!(counter_long_after_snapshot, counter_long_before_snapshot);
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_object_id_fanout_mismatch_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-object-id-fanout-mismatch");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_id_fanout_mismatch_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp",
+        );
+        let object_id_fanout_mismatch_path =
+            owner_root.join(&object_id_fanout_mismatch_relative_path);
+        ::core::assert_eq!(
+            object_id_fanout_mismatch_path
+                .strip_prefix(owner_root)
+                .unwrap(),
+            object_id_fanout_mismatch_relative_path
+        );
+        ::std::fs::create_dir_all(object_id_fanout_mismatch_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &object_id_fanout_mismatch_path,
+            "S20-530:COR-01:object_id_fanout_mismatch".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_id_fanout_mismatch_before_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
+        let object_id_fanout_mismatch_before_kind = object_id_fanout_mismatch_before_snapshot.0;
+        ::core::assert_eq!(object_id_fanout_mismatch_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_id_fanout_mismatch_before_snapshot.2,
+            "S20-530:COR-01:object_id_fanout_mismatch"
+                .as_bytes()
+                .to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_id_fanout_mismatch_after_snapshot =
+            crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
+        let object_id_fanout_mismatch_after_kind = object_id_fanout_mismatch_after_snapshot.0;
+        ::core::assert_eq!(
+            object_id_fanout_mismatch_after_snapshot,
+            object_id_fanout_mismatch_before_snapshot
+        );
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_fanout_case_shape_fails_closed() {
+        let temp = TempDir::new("s20-530-cor-01-fanout-case-shape");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_stage_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
+        );
+        let object_stage_path = owner_root.join(&object_stage_relative_path);
+        ::core::assert_eq!(
+            object_stage_path.strip_prefix(owner_root).unwrap(),
+            object_stage_relative_path
+        );
+        let malformed_fanout_relative_path = ::std::path::PathBuf::from("objects/scb1/f");
+        let malformed_fanout_path = owner_root.join(&malformed_fanout_relative_path);
+        ::core::assert_eq!(
+            malformed_fanout_path.strip_prefix(owner_root).unwrap(),
+            malformed_fanout_relative_path
+        );
+        let uppercase_fanout_relative_path = ::std::path::PathBuf::from("objects/scb1/FE");
+        let uppercase_fanout_path = owner_root.join(&uppercase_fanout_relative_path);
+        ::core::assert_eq!(
+            uppercase_fanout_path.strip_prefix(owner_root).unwrap(),
+            uppercase_fanout_relative_path
+        );
+        ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(&malformed_fanout_path).unwrap();
+        ::std::fs::create_dir_all(&uppercase_fanout_path).unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/00"),
+                ::std::path::PathBuf::from("objects/scb1/00/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/FE"),
+                ::std::path::PathBuf::from("objects/scb1/f")
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_stage_before_snapshot.2,
+            "S20-530:COR-01:object_stage".as_bytes().to_vec()
+        );
+        let malformed_fanout_before_snapshot =
+            crate::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_before_kind = malformed_fanout_before_snapshot.0;
+        ::core::assert_eq!(malformed_fanout_before_snapshot.0, "directory");
+        let uppercase_fanout_before_snapshot =
+            crate::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_before_kind = uppercase_fanout_before_snapshot.0;
+        ::core::assert_eq!(uppercase_fanout_before_snapshot.0, "directory");
+        ::core::assert!(object_stage_relative_path < malformed_fanout_relative_path);
+        ::core::assert!(object_stage_relative_path < uppercase_fanout_relative_path);
+        let result = store.recover_staged();
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
+        let malformed_fanout_after_snapshot =
+            crate::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_after_kind = malformed_fanout_after_snapshot.0;
+        ::core::assert_eq!(
+            malformed_fanout_after_snapshot,
+            malformed_fanout_before_snapshot
+        );
+        let uppercase_fanout_after_snapshot =
+            crate::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_after_kind = uppercase_fanout_after_snapshot.0;
+        ::core::assert_eq!(
+            uppercase_fanout_after_snapshot,
+            uppercase_fanout_before_snapshot
+        );
+        ::core::assert_eq!(error.symbol(), "STORE_IO");
+    }
+
+    #[test]
+    fn cor01_final_name_fanout_binding_fails_closed() {
+        let temp = TempDir::new("s20-530-cor-01-final-name-fanout-binding");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_stage_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
+        );
+        let object_stage_path = owner_root.join(&object_stage_relative_path);
+        ::core::assert_eq!(
+            object_stage_path.strip_prefix(owner_root).unwrap(),
+            object_stage_relative_path
+        );
+        let malformed_final_name_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1",
+        );
+        let malformed_final_name_path = owner_root.join(&malformed_final_name_relative_path);
+        ::core::assert_eq!(
+            malformed_final_name_path.strip_prefix(owner_root).unwrap(),
+            malformed_final_name_relative_path
+        );
+        let uppercase_final_name_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1",
+        );
+        let uppercase_final_name_path = owner_root.join(&uppercase_final_name_relative_path);
+        ::core::assert_eq!(
+            uppercase_final_name_path.strip_prefix(owner_root).unwrap(),
+            uppercase_final_name_relative_path
+        );
+        let final_fanout_mismatch_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1",
+        );
+        let final_fanout_mismatch_path = owner_root.join(&final_fanout_mismatch_relative_path);
+        ::core::assert_eq!(
+            final_fanout_mismatch_path.strip_prefix(owner_root).unwrap(),
+            final_fanout_mismatch_relative_path
+        );
+        ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(malformed_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &malformed_final_name_path,
+            "S20-530:COR-01:malformed_final_name".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(uppercase_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &uppercase_final_name_path,
+            "S20-530:COR-01:uppercase_final_name".as_bytes(),
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(final_fanout_mismatch_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &final_fanout_mismatch_path,
+            "S20-530:COR-01:final_fanout_mismatch".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/00"),
+                ::std::path::PathBuf::from("objects/scb1/00/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/fd"),
+                ::std::path::PathBuf::from("objects/scb1/fd/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/fe"),
+                ::std::path::PathBuf::from("objects/scb1/fe/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/ff"),
+                ::std::path::PathBuf::from("objects/scb1/ff/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_stage_before_snapshot.2,
+            "S20-530:COR-01:object_stage".as_bytes().to_vec()
+        );
+        let malformed_final_name_before_snapshot =
+            crate::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_before_kind = malformed_final_name_before_snapshot.0;
+        ::core::assert_eq!(malformed_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            malformed_final_name_before_snapshot.2,
+            "S20-530:COR-01:malformed_final_name".as_bytes().to_vec()
+        );
+        let uppercase_final_name_before_snapshot =
+            crate::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_before_kind = uppercase_final_name_before_snapshot.0;
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            uppercase_final_name_before_snapshot.2,
+            "S20-530:COR-01:uppercase_final_name".as_bytes().to_vec()
+        );
+        let final_fanout_mismatch_before_snapshot =
+            crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_before_kind = final_fanout_mismatch_before_snapshot.0;
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            final_fanout_mismatch_before_snapshot.2,
+            "S20-530:COR-01:final_fanout_mismatch".as_bytes().to_vec()
+        );
+        ::core::assert!(object_stage_relative_path < malformed_final_name_relative_path);
+        ::core::assert!(object_stage_relative_path < uppercase_final_name_relative_path);
+        ::core::assert!(object_stage_relative_path < final_fanout_mismatch_relative_path);
+        let result = store.recover_staged();
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
+        let malformed_final_name_after_snapshot =
+            crate::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_after_kind = malformed_final_name_after_snapshot.0;
+        ::core::assert_eq!(
+            malformed_final_name_after_snapshot,
+            malformed_final_name_before_snapshot
+        );
+        let uppercase_final_name_after_snapshot =
+            crate::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_after_kind = uppercase_final_name_after_snapshot.0;
+        ::core::assert_eq!(
+            uppercase_final_name_after_snapshot,
+            uppercase_final_name_before_snapshot
+        );
+        let final_fanout_mismatch_after_snapshot =
+            crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_after_kind = final_fanout_mismatch_after_snapshot.0;
+        ::core::assert_eq!(
+            final_fanout_mismatch_after_snapshot,
+            final_fanout_mismatch_before_snapshot
+        );
+        ::core::assert_eq!(error.symbol(), "STORE_IO");
+    }
+
+    #[test]
+    fn cor01_unknown_ascii_regular_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-unknown-ascii-regular");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let unknown_ascii_regular_relative_path =
+            ::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep");
+        let unknown_ascii_regular_path = owner_root.join(&unknown_ascii_regular_relative_path);
+        ::core::assert_eq!(
+            unknown_ascii_regular_path.strip_prefix(owner_root).unwrap(),
+            unknown_ascii_regular_relative_path
+        );
+        ::std::fs::create_dir_all(unknown_ascii_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &unknown_ascii_regular_path,
+            "S20-530:COR-01:unknown_ascii_regular".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep")
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let unknown_ascii_regular_before_snapshot =
+            crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_before_kind = unknown_ascii_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            unknown_ascii_regular_before_snapshot.2,
+            "S20-530:COR-01:unknown_ascii_regular".as_bytes().to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let unknown_ascii_regular_after_snapshot =
+            crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_after_kind = unknown_ascii_regular_after_snapshot.0;
+        ::core::assert_eq!(
+            unknown_ascii_regular_after_snapshot,
+            unknown_ascii_regular_before_snapshot
+        );
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_unknown_non_utf8_regular_preserved() {
+        let temp = TempDir::new("s20-530-cor-01-unknown-non-utf8-regular");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let unknown_non_utf8_regular_relative_path =
+            ::std::path::PathBuf::from("objects/scb1/10/20").join(
+                <::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![
+                    117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121
+                ]),
+            );
+        let unknown_non_utf8_regular_path =
+            owner_root.join(&unknown_non_utf8_regular_relative_path);
+        ::core::assert_eq!(
+            unknown_non_utf8_regular_path
+                .strip_prefix(owner_root)
+                .unwrap(),
+            unknown_non_utf8_regular_relative_path
+        );
+        ::std::fs::create_dir_all(unknown_non_utf8_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &unknown_non_utf8_regular_path,
+            "S20-530:COR-01:unknown_non_utf8_regular".as_bytes(),
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/10"),
+                ::std::path::PathBuf::from("objects/scb1/10/20"),
+                ::std::path::PathBuf::from("objects/scb1/10/20").join(
+                    <::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(
+                        ::std::vec![
+                            117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121
+                        ]
+                    )
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let unknown_non_utf8_regular_before_snapshot =
+            crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_before_kind = unknown_non_utf8_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            unknown_non_utf8_regular_before_snapshot.2,
+            "S20-530:COR-01:unknown_non_utf8_regular"
+                .as_bytes()
+                .to_vec()
+        );
+        let result = store.recover_staged();
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let unknown_non_utf8_regular_after_snapshot =
+            crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_after_kind = unknown_non_utf8_regular_after_snapshot.0;
+        ::core::assert_eq!(
+            unknown_non_utf8_regular_after_snapshot,
+            unknown_non_utf8_regular_before_snapshot
+        );
+        ::core::assert!(report.is_empty());
+    }
+
+    #[test]
+    fn cor01_symlink_fails_closed() {
+        let temp = TempDir::new("s20-530-cor-01-symlink");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_stage_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
+        );
+        let object_stage_path = owner_root.join(&object_stage_relative_path);
+        ::core::assert_eq!(
+            object_stage_path.strip_prefix(owner_root).unwrap(),
+            object_stage_relative_path
+        );
+        let fanout_symlink_relative_path = ::std::path::PathBuf::from("objects/scb1/fd");
+        let fanout_symlink_path = owner_root.join(&fanout_symlink_relative_path);
+        ::core::assert_eq!(
+            fanout_symlink_path.strip_prefix(owner_root).unwrap(),
+            fanout_symlink_relative_path
+        );
+        let stage_symlink_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let stage_symlink_path = owner_root.join(&stage_symlink_relative_path);
+        ::core::assert_eq!(
+            stage_symlink_path.strip_prefix(owner_root).unwrap(),
+            stage_symlink_relative_path
+        );
+        let final_symlink_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1",
+        );
+        let final_symlink_path = owner_root.join(&final_symlink_relative_path);
+        ::core::assert_eq!(
+            final_symlink_path.strip_prefix(owner_root).unwrap(),
+            final_symlink_relative_path
+        );
+        ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(fanout_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink(
+            "../../../../s20-530-cor-01-fanout_symlink",
+            &fanout_symlink_path,
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(stage_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink(
+            "../../../../s20-530-cor-01-stage_symlink",
+            &stage_symlink_path,
+        )
+        .unwrap();
+        ::std::fs::create_dir_all(final_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink(
+            "../../../../s20-530-cor-01-final_symlink",
+            &final_symlink_path,
+        )
+        .unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/00"),
+                ::std::path::PathBuf::from("objects/scb1/00/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/fd"),
+                ::std::path::PathBuf::from("objects/scb1/fe"),
+                ::std::path::PathBuf::from("objects/scb1/fe/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/ff"),
+                ::std::path::PathBuf::from("objects/scb1/ff/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_stage_before_snapshot.2,
+            "S20-530:COR-01:object_stage".as_bytes().to_vec()
+        );
+        let fanout_symlink_before_snapshot =
+            crate::tests::exact_path_snapshot(&fanout_symlink_path);
+        let fanout_symlink_before_kind = fanout_symlink_before_snapshot.0;
+        ::core::assert_eq!(fanout_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(
+            fanout_symlink_before_snapshot.3,
+            ::core::option::Option::Some(::std::path::PathBuf::from(
+                "../../../../s20-530-cor-01-fanout_symlink"
+            ))
+        );
+        let stage_symlink_before_snapshot = crate::tests::exact_path_snapshot(&stage_symlink_path);
+        let stage_symlink_before_kind = stage_symlink_before_snapshot.0;
+        ::core::assert_eq!(stage_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(
+            stage_symlink_before_snapshot.3,
+            ::core::option::Option::Some(::std::path::PathBuf::from(
+                "../../../../s20-530-cor-01-stage_symlink"
+            ))
+        );
+        let final_symlink_before_snapshot = crate::tests::exact_path_snapshot(&final_symlink_path);
+        let final_symlink_before_kind = final_symlink_before_snapshot.0;
+        ::core::assert_eq!(final_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(
+            final_symlink_before_snapshot.3,
+            ::core::option::Option::Some(::std::path::PathBuf::from(
+                "../../../../s20-530-cor-01-final_symlink"
+            ))
+        );
+        ::core::assert!(object_stage_relative_path < fanout_symlink_relative_path);
+        ::core::assert!(object_stage_relative_path < stage_symlink_relative_path);
+        ::core::assert!(object_stage_relative_path < final_symlink_relative_path);
+        let result = store.recover_staged();
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
+        let fanout_symlink_after_snapshot = crate::tests::exact_path_snapshot(&fanout_symlink_path);
+        let fanout_symlink_after_kind = fanout_symlink_after_snapshot.0;
+        ::core::assert_eq!(
+            fanout_symlink_after_snapshot,
+            fanout_symlink_before_snapshot
+        );
+        let stage_symlink_after_snapshot = crate::tests::exact_path_snapshot(&stage_symlink_path);
+        let stage_symlink_after_kind = stage_symlink_after_snapshot.0;
+        ::core::assert_eq!(stage_symlink_after_snapshot, stage_symlink_before_snapshot);
+        let final_symlink_after_snapshot = crate::tests::exact_path_snapshot(&final_symlink_path);
+        let final_symlink_after_kind = final_symlink_after_snapshot.0;
+        ::core::assert_eq!(final_symlink_after_snapshot, final_symlink_before_snapshot);
+        ::core::assert_eq!(error.symbol(), "STORE_IO");
+    }
+
+    #[test]
+    fn cor01_non_regular_fails_closed() {
+        let temp = TempDir::new("s20-530-cor-01-non-regular");
+        let store = super::ObjectStore::new(temp.path());
+        let owner_root = store.root();
+        ::core::assert_eq!(owner_root, temp.path());
+        let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let object_stage_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
+        );
+        let object_stage_path = owner_root.join(&object_stage_relative_path);
+        ::core::assert_eq!(
+            object_stage_path.strip_prefix(owner_root).unwrap(),
+            object_stage_relative_path
+        );
+        let fanout_non_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/fd");
+        let fanout_non_regular_path = owner_root.join(&fanout_non_regular_relative_path);
+        ::core::assert_eq!(
+            fanout_non_regular_path.strip_prefix(owner_root).unwrap(),
+            fanout_non_regular_relative_path
+        );
+        let stage_non_regular_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
+        );
+        let stage_non_regular_path = owner_root.join(&stage_non_regular_relative_path);
+        ::core::assert_eq!(
+            stage_non_regular_path.strip_prefix(owner_root).unwrap(),
+            stage_non_regular_relative_path
+        );
+        let final_non_regular_relative_path = ::std::path::PathBuf::from(
+            "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1",
+        );
+        let final_non_regular_path = owner_root.join(&final_non_regular_relative_path);
+        ::core::assert_eq!(
+            final_non_regular_path.strip_prefix(owner_root).unwrap(),
+            final_non_regular_relative_path
+        );
+        ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(fanout_non_regular_path.parent().unwrap()).unwrap();
+        let _fanout_non_regular_socket =
+            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("fanout-sock")).unwrap();
+        ::std::fs::rename(temp.path().join("fanout-sock"), &fanout_non_regular_path).unwrap();
+        ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
+        let _stage_non_regular_socket =
+            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("stage-sock")).unwrap();
+        ::std::fs::rename(temp.path().join("stage-sock"), &stage_non_regular_path).unwrap();
+        ::std::fs::create_dir_all(final_non_regular_path.parent().unwrap()).unwrap();
+        let _final_non_regular_socket =
+            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("final-sock")).unwrap();
+        ::std::fs::rename(temp.path().join("final-sock"), &final_non_regular_path).unwrap();
+        let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(
+            &fresh_owner_tree_snapshot,
+            &owner_tree_before_snapshot,
+        );
+        ::core::assert_eq!(
+            fixture_delta.0,
+            ::std::vec![
+                ::std::path::PathBuf::from("objects"),
+                ::std::path::PathBuf::from("objects/scb1"),
+                ::std::path::PathBuf::from("objects/scb1/00"),
+                ::std::path::PathBuf::from("objects/scb1/00/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/fd"),
+                ::std::path::PathBuf::from("objects/scb1/fe"),
+                ::std::path::PathBuf::from("objects/scb1/fe/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
+                ),
+                ::std::path::PathBuf::from("objects/scb1/ff"),
+                ::std::path::PathBuf::from("objects/scb1/ff/00"),
+                ::std::path::PathBuf::from(
+                    "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1"
+                )
+            ]
+        );
+        ::core::assert_eq!(
+            fixture_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            fixture_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(
+            object_stage_before_snapshot.2,
+            "S20-530:COR-01:object_stage".as_bytes().to_vec()
+        );
+        let fanout_non_regular_before_snapshot =
+            crate::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_before_kind = fanout_non_regular_before_snapshot.0;
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let stage_non_regular_before_snapshot =
+            crate::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_before_kind = stage_non_regular_before_snapshot.0;
+        ::core::assert_eq!(stage_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(stage_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let final_non_regular_before_snapshot =
+            crate::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_before_kind = final_non_regular_before_snapshot.0;
+        ::core::assert_eq!(final_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(final_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        ::core::assert!(object_stage_relative_path < fanout_non_regular_relative_path);
+        ::core::assert!(object_stage_relative_path < stage_non_regular_relative_path);
+        ::core::assert!(object_stage_relative_path < final_non_regular_relative_path);
+        let result = store.recover_staged();
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::tests::exact_tree_delta_paths(
+            &owner_tree_before_snapshot,
+            &owner_tree_after_snapshot,
+        );
+        ::core::assert_eq!(
+            operation_delta.0,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.1,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        ::core::assert_eq!(
+            operation_delta.2,
+            ::std::vec::Vec::<::std::path::PathBuf>::new()
+        );
+        let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
+        let fanout_non_regular_after_snapshot =
+            crate::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_after_kind = fanout_non_regular_after_snapshot.0;
+        ::core::assert_eq!(
+            fanout_non_regular_after_snapshot,
+            fanout_non_regular_before_snapshot
+        );
+        let stage_non_regular_after_snapshot =
+            crate::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_after_kind = stage_non_regular_after_snapshot.0;
+        ::core::assert_eq!(
+            stage_non_regular_after_snapshot,
+            stage_non_regular_before_snapshot
+        );
+        let final_non_regular_after_snapshot =
+            crate::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_after_kind = final_non_regular_after_snapshot.0;
+        ::core::assert_eq!(
+            final_non_regular_after_snapshot,
+            final_non_regular_before_snapshot
+        );
+        ::core::assert_eq!(error.symbol(), "STORE_IO");
+    }
+
+    #[test]
+    fn limit01_object_fanout_directories_exact_and_plus_one() {
+        let (exact_store, exact_fixture_observation) =
+            prepare_s20_530_limit_01_object_fanout_directories_limit_fixture(2_u64);
+        let (plus_one_store, plus_one_fixture_observation) =
+            prepare_s20_530_limit_01_object_fanout_directories_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(
+            exact_fixture_observation.qualified_field,
+            "object_recovery_limits::fanout_directories"
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.qualified_field,
+            "object_recovery_limits::fanout_directories"
+        );
+        ::core::assert_eq!(
+            exact_fixture_observation.event_sites.as_slice(),
+            &["object.scan_fanout"]
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.event_sites.as_slice(),
+            &["object.scan_fanout"]
+        );
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < OBJECT_RECOVERY_MAX_FANOUT_DIRECTORIES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(OBJECT_RECOVERY_MAX_FANOUT_DIRECTORIES, 65_792);
+        let default_limits = object_recovery_limits();
+        let mut exact_limits = object_recovery_limits();
+        let mut plus_one_limits = object_recovery_limits();
+        exact_limits.fanout_directories = injected_limit;
+        plus_one_limits.fanout_directories = injected_limit;
+        ::core::assert_eq!(
+            default_limits.fanout_directories,
+            OBJECT_RECOVERY_MAX_FANOUT_DIRECTORIES
+        );
+        ::core::assert_eq!(exact_limits.fanout_directories, injected_limit);
+        ::core::assert_eq!(plus_one_limits.fanout_directories, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.leaf_entries);
+        ::core::assert_eq!(exact_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_eq!(plus_one_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_ne!(injected_limit, default_limits.final_objects);
+        ::core::assert_eq!(exact_limits.final_objects, default_limits.final_objects);
+        ::core::assert_eq!(plus_one_limits.final_objects, default_limits.final_objects);
+        ::core::assert_ne!(injected_limit, default_limits.removable_stages);
+        ::core::assert_eq!(
+            exact_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        ::core::assert_eq!(
+            plus_one_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        let exact_owner_root = exact_store.root();
+        let plus_one_owner_root = plus_one_store.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(
+            exact_owner_root,
+            "object_recovery_limits::fanout_directories",
+            injected_limit,
+            &["object.scan_fanout"],
+        );
+        let exact_result = exact_store.recover_staged_with_limits(exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(
+            exact_runtime_observation.qualified_field,
+            "object_recovery_limits::fanout_directories"
+        );
+        ::core::assert_eq!(
+            exact_runtime_observation.event_sites.as_slice(),
+            &["object.scan_fanout"]
+        );
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.fixture_cardinality,
+            exact_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.rejected_target_usage,
+            ::core::option::Option::None
+        );
+        let plus_one_probe = begin_s20_530_limit_probe(
+            plus_one_owner_root,
+            "object_recovery_limits::fanout_directories",
+            injected_limit,
+            &["object.scan_fanout"],
+        );
+        let plus_one_result = plus_one_store.recover_staged_with_limits(plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(
+            plus_one_owner_tree_before_snapshot,
+            plus_one_owner_tree_after_snapshot
+        );
+        ::core::assert_eq!(limit_plus_one_error.symbol(), "STORE_IO");
+        ::core::assert_eq!(
+            plus_one_runtime_observation.qualified_field,
+            "object_recovery_limits::fanout_directories"
+        );
+        ::core::assert_eq!(
+            plus_one_runtime_observation.event_sites.as_slice(),
+            &["object.scan_fanout"]
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.fixture_cardinality,
+            plus_one_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.rejected_target_usage,
+            ::core::option::Option::Some(plus_one_fixture_observation.target_usage)
+        );
+    }
+
+    #[test]
+    fn limit01_object_leaf_entries_exact_and_plus_one() {
+        let (exact_store, exact_fixture_observation) =
+            prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(2_u64);
+        let (plus_one_store, plus_one_fixture_observation) =
+            prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(
+            exact_fixture_observation.qualified_field,
+            "object_recovery_limits::leaf_entries"
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.qualified_field,
+            "object_recovery_limits::leaf_entries"
+        );
+        ::core::assert_eq!(
+            exact_fixture_observation.event_sites.as_slice(),
+            &["object.scan_leaf"]
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.event_sites.as_slice(),
+            &["object.scan_leaf"]
+        );
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < OBJECT_RECOVERY_MAX_LEAF_ENTRIES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(OBJECT_RECOVERY_MAX_LEAF_ENTRIES, 524_288);
+        let default_limits = object_recovery_limits();
+        let mut exact_limits = object_recovery_limits();
+        let mut plus_one_limits = object_recovery_limits();
+        exact_limits.leaf_entries = injected_limit;
+        plus_one_limits.leaf_entries = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.fanout_directories);
+        ::core::assert_eq!(
+            exact_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_eq!(
+            plus_one_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_eq!(
+            default_limits.leaf_entries,
+            OBJECT_RECOVERY_MAX_LEAF_ENTRIES
+        );
+        ::core::assert_eq!(exact_limits.leaf_entries, injected_limit);
+        ::core::assert_eq!(plus_one_limits.leaf_entries, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.final_objects);
+        ::core::assert_eq!(exact_limits.final_objects, default_limits.final_objects);
+        ::core::assert_eq!(plus_one_limits.final_objects, default_limits.final_objects);
+        ::core::assert_ne!(injected_limit, default_limits.removable_stages);
+        ::core::assert_eq!(
+            exact_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        ::core::assert_eq!(
+            plus_one_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        let exact_owner_root = exact_store.root();
+        let plus_one_owner_root = plus_one_store.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(
+            exact_owner_root,
+            "object_recovery_limits::leaf_entries",
+            injected_limit,
+            &["object.scan_leaf"],
+        );
+        let exact_result = exact_store.recover_staged_with_limits(exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(
+            exact_runtime_observation.qualified_field,
+            "object_recovery_limits::leaf_entries"
+        );
+        ::core::assert_eq!(
+            exact_runtime_observation.event_sites.as_slice(),
+            &["object.scan_leaf"]
+        );
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.fixture_cardinality,
+            exact_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.rejected_target_usage,
+            ::core::option::Option::None
+        );
+        let plus_one_probe = begin_s20_530_limit_probe(
+            plus_one_owner_root,
+            "object_recovery_limits::leaf_entries",
+            injected_limit,
+            &["object.scan_leaf"],
+        );
+        let plus_one_result = plus_one_store.recover_staged_with_limits(plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(
+            plus_one_owner_tree_before_snapshot,
+            plus_one_owner_tree_after_snapshot
+        );
+        ::core::assert_eq!(limit_plus_one_error.symbol(), "STORE_IO");
+        ::core::assert_eq!(
+            plus_one_runtime_observation.qualified_field,
+            "object_recovery_limits::leaf_entries"
+        );
+        ::core::assert_eq!(
+            plus_one_runtime_observation.event_sites.as_slice(),
+            &["object.scan_leaf"]
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.fixture_cardinality,
+            plus_one_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.rejected_target_usage,
+            ::core::option::Option::Some(plus_one_fixture_observation.target_usage)
+        );
+    }
+
+    #[test]
+    fn limit01_final_objects_exact_and_plus_one() {
+        let (exact_store, exact_fixture_observation) =
+            prepare_s20_530_limit_01_final_objects_limit_fixture(2_u64);
+        let (plus_one_store, plus_one_fixture_observation) =
+            prepare_s20_530_limit_01_final_objects_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(
+            exact_fixture_observation.qualified_field,
+            "object_recovery_limits::final_objects"
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.qualified_field,
+            "object_recovery_limits::final_objects"
+        );
+        ::core::assert_eq!(
+            exact_fixture_observation.event_sites.as_slice(),
+            &["object.retain_final"]
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.event_sites.as_slice(),
+            &["object.retain_final"]
+        );
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < OBJECT_RECOVERY_MAX_FINAL_OBJECTS);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(OBJECT_RECOVERY_MAX_FINAL_OBJECTS, 262_144);
+        let default_limits = object_recovery_limits();
+        let mut exact_limits = object_recovery_limits();
+        let mut plus_one_limits = object_recovery_limits();
+        exact_limits.final_objects = injected_limit;
+        plus_one_limits.final_objects = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.fanout_directories);
+        ::core::assert_eq!(
+            exact_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_eq!(
+            plus_one_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_ne!(injected_limit, default_limits.leaf_entries);
+        ::core::assert_eq!(exact_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_eq!(plus_one_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_eq!(
+            default_limits.final_objects,
+            OBJECT_RECOVERY_MAX_FINAL_OBJECTS
+        );
+        ::core::assert_eq!(exact_limits.final_objects, injected_limit);
+        ::core::assert_eq!(plus_one_limits.final_objects, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.removable_stages);
+        ::core::assert_eq!(
+            exact_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        ::core::assert_eq!(
+            plus_one_limits.removable_stages,
+            default_limits.removable_stages
+        );
+        let exact_owner_root = exact_store.root();
+        let plus_one_owner_root = plus_one_store.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(
+            exact_owner_root,
+            "object_recovery_limits::final_objects",
+            injected_limit,
+            &["object.retain_final"],
+        );
+        let exact_result = exact_store.recover_staged_with_limits(exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(
+            exact_runtime_observation.qualified_field,
+            "object_recovery_limits::final_objects"
+        );
+        ::core::assert_eq!(
+            exact_runtime_observation.event_sites.as_slice(),
+            &["object.retain_final"]
+        );
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.fixture_cardinality,
+            exact_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.rejected_target_usage,
+            ::core::option::Option::None
+        );
+        let plus_one_probe = begin_s20_530_limit_probe(
+            plus_one_owner_root,
+            "object_recovery_limits::final_objects",
+            injected_limit,
+            &["object.retain_final"],
+        );
+        let plus_one_result = plus_one_store.recover_staged_with_limits(plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(
+            plus_one_owner_tree_before_snapshot,
+            plus_one_owner_tree_after_snapshot
+        );
+        ::core::assert_eq!(limit_plus_one_error.symbol(), "STORE_IO");
+        ::core::assert_eq!(
+            plus_one_runtime_observation.qualified_field,
+            "object_recovery_limits::final_objects"
+        );
+        ::core::assert_eq!(
+            plus_one_runtime_observation.event_sites.as_slice(),
+            &["object.retain_final"]
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.fixture_cardinality,
+            plus_one_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.rejected_target_usage,
+            ::core::option::Option::Some(plus_one_fixture_observation.target_usage)
+        );
+    }
+
+    #[test]
+    fn limit01_object_stages_exact_and_plus_one() {
+        let (exact_store, exact_fixture_observation) =
+            prepare_s20_530_limit_01_object_stages_limit_fixture(2_u64);
+        let (plus_one_store, plus_one_fixture_observation) =
+            prepare_s20_530_limit_01_object_stages_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(
+            exact_fixture_observation.qualified_field,
+            "object_recovery_limits::removable_stages"
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.qualified_field,
+            "object_recovery_limits::removable_stages"
+        );
+        ::core::assert_eq!(
+            exact_fixture_observation.event_sites.as_slice(),
+            &["object.retain_stage"]
+        );
+        ::core::assert_eq!(
+            plus_one_fixture_observation.event_sites.as_slice(),
+            &["object.retain_stage"]
+        );
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < OBJECT_RECOVERY_MAX_REMOVABLE_STAGES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(OBJECT_RECOVERY_MAX_REMOVABLE_STAGES, 262_144);
+        let default_limits = object_recovery_limits();
+        let mut exact_limits = object_recovery_limits();
+        let mut plus_one_limits = object_recovery_limits();
+        exact_limits.removable_stages = injected_limit;
+        plus_one_limits.removable_stages = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.fanout_directories);
+        ::core::assert_eq!(
+            exact_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_eq!(
+            plus_one_limits.fanout_directories,
+            default_limits.fanout_directories
+        );
+        ::core::assert_ne!(injected_limit, default_limits.leaf_entries);
+        ::core::assert_eq!(exact_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_eq!(plus_one_limits.leaf_entries, default_limits.leaf_entries);
+        ::core::assert_ne!(injected_limit, default_limits.final_objects);
+        ::core::assert_eq!(exact_limits.final_objects, default_limits.final_objects);
+        ::core::assert_eq!(plus_one_limits.final_objects, default_limits.final_objects);
+        ::core::assert_eq!(
+            default_limits.removable_stages,
+            OBJECT_RECOVERY_MAX_REMOVABLE_STAGES
+        );
+        ::core::assert_eq!(exact_limits.removable_stages, injected_limit);
+        ::core::assert_eq!(plus_one_limits.removable_stages, injected_limit);
+        let exact_owner_root = exact_store.root();
+        let plus_one_owner_root = plus_one_store.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(
+            exact_owner_root,
+            "object_recovery_limits::removable_stages",
+            injected_limit,
+            &["object.retain_stage"],
+        );
+        let exact_result = exact_store.recover_staged_with_limits(exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(
+            exact_runtime_observation.qualified_field,
+            "object_recovery_limits::removable_stages"
+        );
+        ::core::assert_eq!(
+            exact_runtime_observation.event_sites.as_slice(),
+            &["object.retain_stage"]
+        );
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.fixture_cardinality,
+            exact_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            exact_runtime_observation.rejected_target_usage,
+            ::core::option::Option::None
+        );
+        let plus_one_probe = begin_s20_530_limit_probe(
+            plus_one_owner_root,
+            "object_recovery_limits::removable_stages",
+            injected_limit,
+            &["object.retain_stage"],
+        );
+        let plus_one_result = plus_one_store.recover_staged_with_limits(plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot =
+            crate::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(
+            plus_one_owner_tree_before_snapshot,
+            plus_one_owner_tree_after_snapshot
+        );
+        ::core::assert_eq!(limit_plus_one_error.symbol(), "STORE_IO");
+        ::core::assert_eq!(
+            plus_one_runtime_observation.qualified_field,
+            "object_recovery_limits::removable_stages"
+        );
+        ::core::assert_eq!(
+            plus_one_runtime_observation.event_sites.as_slice(),
+            &["object.retain_stage"]
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.fixture_cardinality,
+            plus_one_fixture_observation.cardinality
+        );
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(
+            plus_one_runtime_observation.rejected_target_usage,
+            ::core::option::Option::Some(plus_one_fixture_observation.target_usage)
         );
     }
 }

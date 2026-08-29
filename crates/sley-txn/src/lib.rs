@@ -20,6 +20,8 @@ pub use maintenance::{
     acquire_shared_repository_maintenance, initialize_repository_maintenance,
 };
 pub use repository::{
-    AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryReport, TransactionRepository,
-    TrustedGenesisInput, VerifiedRevision,
+    AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
+    RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,
+    RecoveryRevisionClaim, RecoveryWorkUsage, TransactionRepository, TrustedGenesisInput,
+    VerifiedRevision,
 };

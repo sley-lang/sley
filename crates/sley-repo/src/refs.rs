@@ -13,6 +13,7 @@ use sley_scb1::{
     encode_list, encode_record, encode_uvar,
 };
 use sley_txn::{CommitError, RepositoryMaintenanceGuard, TransactionRepository, VerifiedRevision};
+use sley_txn::{RecoveryAncestryError, RecoveryAncestryRequest, RecoveryRevisionClaim};
 
 const BRANCH_MAGIC: [u8; 8] = *b"SLEYBR01";
 const REF_MAGIC: [u8; 8] = *b"SLEYRF01";
@@ -35,6 +36,100 @@ const MAX_STAGE_ATTEMPTS: u64 = 1_024;
 const BRANCH_STAGE_PREFIX: &str = ".sley-branch-stage-";
 const REF_STAGE_PREFIX: &str = ".sley-ref-stage-";
 const STAGE_SUFFIX: &str = ".tmp";
+const ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES: u64 = 65_792;
+const ORIGIN_RECOVERY_MAX_LEAF_ENTRIES: u64 = 131_072;
+const ORIGIN_RECOVERY_MAX_FINAL_RECORDS: u64 = 65_536;
+const ORIGIN_RECOVERY_MAX_REMOVABLE_STAGES: u64 = 65_536;
+const ORIGIN_RECOVERY_MAX_RECORD_BYTES: u64 = 1_073_741_824;
+const REF_RECOVERY_MAX_FANOUT_DIRECTORIES: u64 = 65_792;
+const REF_RECOVERY_MAX_LEAF_ENTRIES: u64 = 69_632;
+const REF_RECOVERY_MAX_REMOVABLE_STAGES: u64 = 65_536;
+const REF_RECOVERY_MAX_RECORD_BYTES: u64 = 268_435_456;
+const REF_RECOVERY_MAX_ORPHAN_ORIGINS: u64 = 65_536;
+const REF_RECOVERY_MAX_VISIBLE_BRANCHES: u64 = 4_096;
+
+/// Closed per-invocation ref-recovery scan and verification ceilings.
+#[derive(Clone, Copy)]
+struct RefRecoveryLimits {
+    origin_fanout_directories: u64,
+    origin_leaf_entries: u64,
+    final_origins: u64,
+    origin_stages: u64,
+    origin_record_bytes: u64,
+    ref_fanout_directories: u64,
+    ref_leaf_entries: u64,
+    ref_stages: u64,
+    visible_ref_record_bytes: u64,
+    orphan_origins: u64,
+    visible_branches: u64,
+}
+
+const fn ref_recovery_limits() -> RefRecoveryLimits {
+    RefRecoveryLimits {
+        origin_fanout_directories: ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES,
+        origin_leaf_entries: ORIGIN_RECOVERY_MAX_LEAF_ENTRIES,
+        final_origins: ORIGIN_RECOVERY_MAX_FINAL_RECORDS,
+        origin_stages: ORIGIN_RECOVERY_MAX_REMOVABLE_STAGES,
+        origin_record_bytes: ORIGIN_RECOVERY_MAX_RECORD_BYTES,
+        ref_fanout_directories: REF_RECOVERY_MAX_FANOUT_DIRECTORIES,
+        ref_leaf_entries: REF_RECOVERY_MAX_LEAF_ENTRIES,
+        ref_stages: REF_RECOVERY_MAX_REMOVABLE_STAGES,
+        visible_ref_record_bytes: REF_RECOVERY_MAX_RECORD_BYTES,
+        orphan_origins: REF_RECOVERY_MAX_ORPHAN_ORIGINS,
+        visible_branches: REF_RECOVERY_MAX_VISIBLE_BRANCHES,
+    }
+}
+
+/// Owned ref-recovery scan and verification usage tally.
+#[derive(Default)]
+struct RefRecoveryUsage {
+    origin_fanout_directories: u64,
+    origin_leaf_entries: u64,
+    final_origins: u64,
+    origin_stages: u64,
+    origin_record_bytes: u64,
+    ref_fanout_directories: u64,
+    ref_leaf_entries: u64,
+    ref_stages: u64,
+    visible_ref_record_bytes: u64,
+    orphan_origins: u64,
+    visible_branches: u64,
+}
+
+fn ensure_ref_recovery_limit(value: u64, limit: u64) -> Result<(), BranchError> {
+    if value > limit {
+        return Err(branch_error(BranchErrorCode::BranchResourceLimit));
+    }
+    Ok(())
+}
+
+/// Closed classification of one validated recovery leaf entry.
+enum RefRecoveryLeafKind {
+    Final,
+    OwnedStage,
+    Unknown,
+}
+
+/// Bounded read-only inventory over one owned recovery tree.
+struct RefRecoveryScanPlan {
+    final_paths: Vec<PathBuf>,
+    leaf_directories: Vec<PathBuf>,
+    removal_plan: Vec<PathBuf>,
+}
+
+struct RecoveryRecordPath {
+    path: PathBuf,
+}
+
+struct RecoveryVisibleBranch {
+    origin: ImportedBranchRecord,
+    reference: ImportedBranchRef,
+}
+
+struct RefRecordPreflight {
+    visible: Vec<RecoveryVisibleBranch>,
+    orphan_origins: Vec<OrphanBranchOrigin>,
+}
 
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -783,6 +878,8 @@ pub struct RefRecoveryReport {
     pub visible_branches: u64,
     /// Sorted immutable origins without a visible ref.
     pub orphan_origins: Vec<OrphanBranchOrigin>,
+    /// Unique transactions verified across all visible branch ancestries.
+    pub verified_ancestry_transactions: u64,
 }
 
 /// Repository-rooted native branch/ref owner.
@@ -830,23 +927,7 @@ impl BranchRepository {
         origin_transaction_id: TransactionId,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<BranchUpdateStatus, BranchError> {
-        self.create_branch_with_maintenance_inner(name, origin_transaction_id, maintenance, None)
-    }
-
-    #[cfg(test)]
-    fn create_branch_inner(
-        &self,
-        name: impl AsRef<[u8]>,
-        origin_transaction_id: TransactionId,
-        directory_fault_path: Option<&Path>,
-    ) -> Result<BranchUpdateStatus, BranchError> {
-        let maintenance = self.acquire_shared_maintenance()?;
-        self.create_branch_with_maintenance_inner(
-            name,
-            origin_transaction_id,
-            &maintenance,
-            directory_fault_path,
-        )
+        self.create_branch_with_maintenance_inner(name, origin_transaction_id, maintenance)
     }
 
     fn create_branch_with_maintenance_inner(
@@ -854,20 +935,13 @@ impl BranchRepository {
         name: impl AsRef<[u8]>,
         origin_transaction_id: TransactionId,
         maintenance: &RepositoryMaintenanceGuard,
-        directory_fault_path: Option<&Path>,
     ) -> Result<BranchUpdateStatus, BranchError> {
         self.validate_maintenance(maintenance)?;
         let name = BranchName::parse(name)?;
-        self.ensure_layout_under_maintenance(directory_fault_path)?;
+        self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
-        let branch_path = ensure_key_path_with_fault(
-            &self.branches_dir(),
-            &name,
-            ".branch.scb1",
-            directory_fault_path,
-        )?;
-        let ref_path =
-            ensure_key_path_with_fault(&self.refs_dir(), &name, ".ref.scb1", directory_fault_path)?;
+        let branch_path = ensure_key_path(&self.branches_dir(), &name, ".branch.scb1", 2, 3)?;
+        let ref_path = ensure_key_path(&self.refs_dir(), &name, ".ref.scb1", 0, 0)?;
         let branch_exists = path_exists(&branch_path)?;
         let ref_exists = path_exists(&ref_path)?;
 
@@ -1100,7 +1174,7 @@ impl BranchRepository {
     ) -> Result<BranchUpdateStatus, BranchError> {
         self.validate_maintenance(maintenance)?;
         let name = BranchName::parse(name)?;
-        self.ensure_layout_under_maintenance(None)?;
+        self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
         let current = self.resolve_locked(maintenance, &name)?;
         if current.reference.record.head_transaction_id == new_head {
@@ -1193,44 +1267,377 @@ impl BranchRepository {
     /// # Errors
     ///
     /// Returns `REF_IO` for a shared or wrong-root guard, or the first exact
-    /// confinement, cleanup, record, or target failure.
+    /// confinement, limit, record, ancestry, or cleanup failure.
     pub fn recover_refs_with_maintenance(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<RefRecoveryReport, BranchError> {
+        self.recover_refs_with_maintenance_and_limits(maintenance, ref_recovery_limits())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn recover_refs_with_maintenance_and_limits(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        limits: RefRecoveryLimits,
+    ) -> Result<RefRecoveryReport, BranchError> {
         self.validate_exclusive_maintenance(maintenance)?;
-        self.ensure_layout_under_maintenance(None)?;
+        #[cfg(test)]
+        let _recovery_ancestry_operation =
+            ::sley_txn::recovery_ancestry_test_hook::begin_ref_operation(
+                &self.transactions,
+                maintenance,
+            );
+        self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
-        let removed_branch_stages =
-            remove_stages_recursive(&self.branches_dir(), BRANCH_STAGE_PREFIX, 2)?;
-        let removed_ref_stages = remove_stages_recursive(&self.refs_dir(), REF_STAGE_PREFIX, 2)?;
-        let visible = self.list_branches_locked(maintenance, MAX_BRANCHES)?;
-        let visible_digests = visible
-            .iter()
-            .map(|branch| branch.origin.digest)
-            .collect::<BTreeSet<_>>();
-        let branch_paths = enumerate_record_paths(
-            &self.branches_dir(),
-            ".branch.scb1",
-            MAX_BRANCH_ORIGINS,
-            None,
-        )?;
-        let mut orphan_origins = Vec::new();
-        for path in branch_paths {
-            let origin = self.read_branch_at(&path)?;
-            if !visible_digests.contains(&origin.digest) {
-                orphan_origins.push(OrphanBranchOrigin {
-                    branch_name: origin.record.branch_name,
-                    branch_record_digest: origin.digest,
-                    origin_transaction_id: origin.record.origin_transaction_id,
-                });
+
+        let mut usage = RefRecoveryUsage::default();
+        let mut pending_origin_directories = vec![(self.branches_dir(), 0_usize)];
+        let mut origin_leaf_directories = Vec::new();
+        let mut final_origins = Vec::new();
+        let mut origin_removal_plan = Vec::new();
+        while let Some((directory, depth)) = pending_origin_directories.pop() {
+            ensure_existing_directory(&directory)?;
+            if depth == 2 {
+                origin_leaf_directories.push(directory.clone());
+            }
+            for entry in fs::read_dir(&directory)? {
+                let entry = entry?;
+                if depth < 2 {
+                    let classified_origin_fanout_path =
+                        classify_record_recovery_fanout(&entry, depth)?;
+                    let fanout_path = classified_origin_fanout_path;
+                    let one = 1_u64;
+                    let next_origin_fanout_directories = usage
+                        .origin_fanout_directories
+                        .checked_add(one)
+                        .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                    ensure_ref_recovery_limit(
+                        next_origin_fanout_directories,
+                        limits.origin_fanout_directories,
+                    )?;
+                    usage.origin_fanout_directories = next_origin_fanout_directories;
+                    pending_origin_directories.push(fanout_path);
+                    continue;
+                }
+                let next_origin_leaf_path = entry.path();
+                let leaf_path = next_origin_leaf_path;
+                let one = 1_u64;
+                let next_origin_leaf_entries = usage
+                    .origin_leaf_entries
+                    .checked_add(one)
+                    .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                ensure_ref_recovery_limit(next_origin_leaf_entries, limits.origin_leaf_entries)?;
+                usage.origin_leaf_entries = next_origin_leaf_entries;
+                classify_origin_recovery_leaf(&leaf_path)?;
+                match origin_recovery_leaf_kind(&leaf_path)? {
+                    RefRecoveryLeafKind::Final => {
+                        let classified_final_origin = leaf_path;
+                        let final_origin = classified_final_origin;
+                        let one = 1_u64;
+                        let next_final_origins = usage
+                            .final_origins
+                            .checked_add(one)
+                            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                        ensure_ref_recovery_limit(next_final_origins, limits.final_origins)?;
+                        usage.final_origins = next_final_origins;
+                        final_origins.push(final_origin);
+                    }
+                    RefRecoveryLeafKind::OwnedStage => {
+                        let classified_origin_stage_path = leaf_path;
+                        let origin_stage_path = classified_origin_stage_path;
+                        let one = 1_u64;
+                        let next_origin_stages = usage
+                            .origin_stages
+                            .checked_add(one)
+                            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                        ensure_ref_recovery_limit(next_origin_stages, limits.origin_stages)?;
+                        usage.origin_stages = next_origin_stages;
+                        origin_removal_plan.push(origin_stage_path);
+                    }
+                    RefRecoveryLeafKind::Unknown => {}
+                }
             }
         }
-        orphan_origins.sort_by(|left, right| left.branch_name.cmp(&right.branch_name));
+        final_origins.sort();
+        origin_leaf_directories.sort();
+        origin_removal_plan.sort();
+        let origin_plan = RefRecoveryScanPlan {
+            final_paths: final_origins,
+            leaf_directories: origin_leaf_directories,
+            removal_plan: origin_removal_plan,
+        };
+
+        let mut pending_ref_directories = vec![(self.refs_dir(), 0_usize)];
+        let mut ref_leaf_directories = Vec::new();
+        let mut final_refs = Vec::new();
+        let mut ref_removal_plan = Vec::new();
+        while let Some((directory, depth)) = pending_ref_directories.pop() {
+            ensure_existing_directory(&directory)?;
+            if depth == 2 {
+                ref_leaf_directories.push(directory.clone());
+            }
+            for entry in fs::read_dir(&directory)? {
+                let entry = entry?;
+                if depth < 2 {
+                    let classified_ref_fanout_path =
+                        classify_record_recovery_fanout(&entry, depth)?;
+                    let fanout_path = classified_ref_fanout_path;
+                    let one = 1_u64;
+                    let next_ref_fanout_directories = usage
+                        .ref_fanout_directories
+                        .checked_add(one)
+                        .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                    ensure_ref_recovery_limit(
+                        next_ref_fanout_directories,
+                        limits.ref_fanout_directories,
+                    )?;
+                    usage.ref_fanout_directories = next_ref_fanout_directories;
+                    pending_ref_directories.push(fanout_path);
+                    continue;
+                }
+                let next_ref_leaf_path = entry.path();
+                let leaf_path = next_ref_leaf_path;
+                let one = 1_u64;
+                let next_ref_leaf_entries = usage
+                    .ref_leaf_entries
+                    .checked_add(one)
+                    .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                ensure_ref_recovery_limit(next_ref_leaf_entries, limits.ref_leaf_entries)?;
+                usage.ref_leaf_entries = next_ref_leaf_entries;
+                classify_ref_recovery_leaf(&leaf_path)?;
+                match ref_recovery_leaf_kind(&leaf_path)? {
+                    RefRecoveryLeafKind::Final => {
+                        final_refs.push(leaf_path);
+                    }
+                    RefRecoveryLeafKind::OwnedStage => {
+                        let classified_ref_stage_path = leaf_path;
+                        let ref_stage_path = classified_ref_stage_path;
+                        let one = 1_u64;
+                        let next_ref_stages = usage
+                            .ref_stages
+                            .checked_add(one)
+                            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+                        ensure_ref_recovery_limit(next_ref_stages, limits.ref_stages)?;
+                        usage.ref_stages = next_ref_stages;
+                        ref_removal_plan.push(ref_stage_path);
+                    }
+                    RefRecoveryLeafKind::Unknown => {}
+                }
+            }
+        }
+        final_refs.sort();
+        ref_leaf_directories.sort();
+        ref_removal_plan.sort();
+        let ref_plan = RefRecoveryScanPlan {
+            final_paths: final_refs,
+            leaf_directories: ref_leaf_directories,
+            removal_plan: ref_removal_plan,
+        };
+
+        let record_preflight = self.preflight_ref_records_with_limits(
+            &origin_plan.final_paths,
+            &ref_plan.final_paths,
+            &limits,
+            &mut usage,
+        )?;
+        let visible = &record_preflight.visible;
+        let ancestry_requests = visible
+            .iter()
+            .map(|branch| {
+                RecoveryAncestryRequest::with_claims(
+                    RecoveryRevisionClaim::new(
+                        branch.origin.record.origin_transaction_id,
+                        branch.origin.record.workspace_id,
+                        branch.origin.record.origin_state_root,
+                        branch.origin.record.schema_epoch_id,
+                        branch.origin.record.policy_root_id,
+                        branch.origin.record.dependency_roots.clone(),
+                    ),
+                    RecoveryRevisionClaim::new(
+                        branch.reference.record.head_transaction_id,
+                        branch.reference.record.workspace_id,
+                        branch.reference.record.head_state_root,
+                        branch.reference.record.schema_epoch_id,
+                        branch.reference.record.policy_root_id,
+                        branch.reference.record.dependency_roots.clone(),
+                    ),
+                )
+            })
+            .collect::<r#Vec<_>>();
+        let ancestry_report = self
+            .transactions
+            .verify_branch_recovery_ancestries_with_maintenance(
+                maintenance,
+                &ancestry_requests,
+            )
+            .map_err(map_recovery_ancestry_error)?;
+
+        let removed_branch_stages = remove_planned_origin_stages(&origin_plan.removal_plan)?;
+        for directory in &origin_plan.leaf_directories {
+            ensure_existing_directory(directory)?;
+            sync_dir(directory)?;
+        }
+        let removed_ref_stages = remove_planned_ref_stages(&ref_plan.removal_plan)?;
+        for directory in &ref_plan.leaf_directories {
+            ensure_existing_directory(directory)?;
+            sync_dir(directory)?;
+        }
         Ok(RefRecoveryReport {
             removed_branch_stages,
             removed_ref_stages,
-            visible_branches: usize_to_u64(visible.len())?,
+            visible_branches: usize_to_u64(record_preflight.visible.len())?,
+            orphan_origins: record_preflight.orphan_origins,
+            verified_ancestry_transactions: ancestry_report.verified_transactions,
+        })
+    }
+
+    #[allow(clippy::unused_self)]
+    fn read_recovery_visible_ref_with_limits(
+        &self,
+        visible_ref: &RecoveryRecordPath,
+        limits: &RefRecoveryLimits,
+        usage: &mut RefRecoveryUsage,
+    ) -> Result<ImportedBranchRef, BranchError> {
+        let record_path = visible_ref.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&record_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let one = 1_u64;
+        let next_visible_branches = usage
+            .visible_branches
+            .checked_add(one)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        let next_visible_ref_record_bytes = usage
+            .visible_ref_record_bytes
+            .checked_add(metadata_bytes)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        ensure_ref_recovery_limit(next_visible_branches, limits.visible_branches)?;
+        ensure_ref_recovery_limit(
+            next_visible_ref_record_bytes,
+            limits.visible_ref_record_bytes,
+        )?;
+        usage.visible_branches = next_visible_branches;
+        usage.visible_ref_record_bytes = next_visible_ref_record_bytes;
+        let decoded_ref = read_recovery_ref_record(&record_path)?;
+        Ok(decoded_ref)
+    }
+
+    #[allow(clippy::unused_self)]
+    fn read_recovery_visible_origin_with_limits(
+        &self,
+        visible_origin: &RecoveryRecordPath,
+        limits: &RefRecoveryLimits,
+        usage: &mut RefRecoveryUsage,
+    ) -> Result<ImportedBranchRecord, BranchError> {
+        let origin_path = visible_origin.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let next_visible_origin_record_bytes = usage
+            .origin_record_bytes
+            .checked_add(metadata_bytes)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        ensure_ref_recovery_limit(next_visible_origin_record_bytes, limits.origin_record_bytes)?;
+        usage.origin_record_bytes = next_visible_origin_record_bytes;
+        let decoded_origin = read_recovery_origin_record(&origin_path)?;
+        Ok(decoded_origin)
+    }
+
+    #[allow(clippy::unused_self)]
+    fn read_recovery_orphan_origin_with_limits(
+        &self,
+        orphan_origin: &RecoveryRecordPath,
+        limits: &RefRecoveryLimits,
+        usage: &mut RefRecoveryUsage,
+        orphan_origins: &mut Vec<ImportedBranchRecord>,
+    ) -> Result<(), BranchError> {
+        let origin_path = orphan_origin.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let one = 1_u64;
+        let next_orphan_origins = usage
+            .orphan_origins
+            .checked_add(one)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        let next_orphan_origin_record_bytes = usage
+            .origin_record_bytes
+            .checked_add(metadata_bytes)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        ensure_ref_recovery_limit(next_orphan_origins, limits.orphan_origins)?;
+        ensure_ref_recovery_limit(next_orphan_origin_record_bytes, limits.origin_record_bytes)?;
+        usage.orphan_origins = next_orphan_origins;
+        usage.origin_record_bytes = next_orphan_origin_record_bytes;
+        let decoded_origin = read_recovery_origin_record(&origin_path)?;
+        orphan_origins.push(decoded_origin);
+        Ok(())
+    }
+
+    fn preflight_ref_records_with_limits(
+        &self,
+        origin_paths: &[PathBuf],
+        ref_paths: &[PathBuf],
+        limits: &RefRecoveryLimits,
+        usage: &mut RefRecoveryUsage,
+    ) -> Result<RefRecordPreflight, BranchError> {
+        let mut references = Vec::new();
+        for path in ref_paths {
+            let visible_ref = RecoveryRecordPath { path: path.clone() };
+            references.push(self.read_recovery_visible_ref_with_limits(
+                &visible_ref,
+                limits,
+                usage,
+            )?);
+        }
+        references.sort_by(|left, right| left.record.branch_name.cmp(&right.record.branch_name));
+        if references
+            .windows(2)
+            .any(|pair| pair[0].record.branch_name == pair[1].record.branch_name)
+        {
+            return Err(branch_error(BranchErrorCode::RefNameCollision));
+        }
+        let origin_paths = origin_paths.iter().cloned().collect::<BTreeSet<_>>();
+        let mut consumed_origins = BTreeSet::new();
+        let mut visible = Vec::with_capacity(references.len());
+        for reference in references {
+            let origin_path = self.checked_branch_path(&reference.record.branch_name)?;
+            if !origin_paths.contains(&origin_path) {
+                return Err(branch_error(BranchErrorCode::RecoveryNamedRefIncomplete));
+            }
+            let visible_origin = RecoveryRecordPath {
+                path: origin_path.clone(),
+            };
+            let origin =
+                self.read_recovery_visible_origin_with_limits(&visible_origin, limits, usage)?;
+            if origin.record.branch_name != reference.record.branch_name {
+                return Err(branch_error(BranchErrorCode::RefNameCollision));
+            }
+            validate_origin_ref_binding(&origin, &reference)?;
+            consumed_origins.insert(origin_path);
+            visible.push(RecoveryVisibleBranch { origin, reference });
+        }
+        let mut orphan_origin_records = Vec::new();
+        for path in origin_paths.difference(&consumed_origins) {
+            let orphan_origin = RecoveryRecordPath { path: path.clone() };
+            self.read_recovery_orphan_origin_with_limits(
+                &orphan_origin,
+                limits,
+                usage,
+                &mut orphan_origin_records,
+            )?;
+        }
+        let mut orphan_origins = Vec::with_capacity(orphan_origin_records.len());
+        for origin in orphan_origin_records {
+            orphan_origins.push(OrphanBranchOrigin {
+                branch_name: origin.record.branch_name,
+                branch_record_digest: origin.digest,
+                origin_transaction_id: origin.record.origin_transaction_id,
+            });
+        }
+        orphan_origins.sort_by(|left, right| left.branch_name.cmp(&right.branch_name));
+        Ok(RefRecordPreflight {
+            visible,
             orphan_origins,
         })
     }
@@ -1313,7 +1720,9 @@ impl BranchRepository {
     }
 
     fn prepare_operation(&self) -> Result<RepositoryMaintenanceGuard, BranchError> {
-        self.prepare_operation_inner(None)
+        let maintenance = self.acquire_shared_maintenance()?;
+        self.ensure_layout_under_maintenance()?;
+        Ok(maintenance)
     }
 
     fn acquire_shared_maintenance(&self) -> Result<RepositoryMaintenanceGuard, BranchError> {
@@ -1322,15 +1731,6 @@ impl BranchRepository {
 
     fn acquire_exclusive_maintenance(&self) -> Result<RepositoryMaintenanceGuard, BranchError> {
         Ok(self.transactions.acquire_exclusive_maintenance()?)
-    }
-
-    fn prepare_operation_inner(
-        &self,
-        directory_fault_path: Option<&Path>,
-    ) -> Result<RepositoryMaintenanceGuard, BranchError> {
-        let maintenance = self.acquire_shared_maintenance()?;
-        self.ensure_layout_under_maintenance(directory_fault_path)?;
-        Ok(maintenance)
     }
 
     fn validate_maintenance(
@@ -1360,17 +1760,13 @@ impl BranchRepository {
         Ok(())
     }
 
-    fn ensure_layout_under_maintenance(
-        &self,
-        directory_fault_path: Option<&Path>,
-    ) -> Result<(), BranchError> {
+    fn ensure_layout_under_maintenance(&self) -> Result<(), BranchError> {
         ensure_existing_directory(&self.root)?;
-        let branches =
-            create_dir_component_with_fault(&self.root, "branches", directory_fault_path)?;
-        create_dir_component_with_fault(&branches, "v1", directory_fault_path)?;
-        let refs = create_dir_component_with_fault(&self.root, "refs", directory_fault_path)?;
-        create_dir_component_with_fault(&refs, "v1", directory_fault_path)?;
-        create_dir_component_with_fault(&self.root, "locks", directory_fault_path)?;
+        let branches = create_dir_component(&self.root, "branches", 0)?;
+        create_dir_component(&branches, "v1", 1)?;
+        let refs = create_dir_component(&self.root, "refs", 0)?;
+        create_dir_component(&refs, "v1", 0)?;
+        create_dir_component(&self.root, "locks", 0)?;
         Ok(())
     }
 
@@ -1392,12 +1788,12 @@ impl BranchRepository {
 
     #[cfg(test)]
     fn ensure_branch_path(&self, name: &BranchName) -> Result<PathBuf, BranchError> {
-        ensure_key_path(&self.branches_dir(), name, ".branch.scb1")
+        ensure_key_path(&self.branches_dir(), name, ".branch.scb1", 0, 0)
     }
 
     #[cfg(test)]
     fn ensure_ref_path(&self, name: &BranchName) -> Result<PathBuf, BranchError> {
-        ensure_key_path(&self.refs_dir(), name, ".ref.scb1")
+        ensure_key_path(&self.refs_dir(), name, ".ref.scb1", 0, 0)
     }
 
     fn checked_branch_path(&self, name: &BranchName) -> Result<PathBuf, BranchError> {
@@ -1422,6 +1818,47 @@ impl BranchRepository {
 
     fn refs_dir(&self) -> PathBuf {
         self.root.join("refs").join("v1")
+    }
+
+    #[cfg(test)]
+    fn ensure_layout_with_native_ref_durability_cut(
+        &self,
+        cut: NativeRefDurabilityCut,
+    ) -> Result<(), BranchError> {
+        let _selection = NativeRefCutSelection::install(cut);
+        self.ensure_layout()
+    }
+
+    #[cfg(test)]
+    fn create_branch_with_native_ref_durability_cut(
+        &self,
+        name: impl AsRef<[u8]>,
+        origin_transaction_id: TransactionId,
+        cut: NativeRefDurabilityCut,
+    ) -> Result<BranchUpdateStatus, BranchError> {
+        let _selection = NativeRefCutSelection::install(cut);
+        self.create_branch(name, origin_transaction_id)
+    }
+
+    #[cfg(test)]
+    fn advance_branch_with_native_ref_durability_cut(
+        &self,
+        name: impl AsRef<[u8]>,
+        expected_head: TransactionId,
+        new_head: TransactionId,
+        cut: NativeRefDurabilityCut,
+    ) -> Result<BranchUpdateStatus, BranchError> {
+        let _selection = NativeRefCutSelection::install(cut);
+        self.advance_branch(name, expected_head, new_head)
+    }
+
+    #[cfg(test)]
+    fn recover_refs_with_native_ref_durability_cut(
+        &self,
+        cut: NativeRefDurabilityCut,
+    ) -> Result<RefRecoveryReport, BranchError> {
+        let _selection = NativeRefCutSelection::install(cut);
+        self.recover_refs()
     }
 }
 
@@ -1757,20 +2194,16 @@ fn key_path(root: &Path, name: &BranchName, suffix: &str) -> PathBuf {
         .join(format!("{hex}{suffix}"))
 }
 
-#[cfg(test)]
-fn ensure_key_path(root: &Path, name: &BranchName, suffix: &str) -> Result<PathBuf, BranchError> {
-    ensure_key_path_with_fault(root, name, suffix, None)
-}
-
-fn ensure_key_path_with_fault(
+fn ensure_key_path(
     root: &Path,
     name: &BranchName,
     suffix: &str,
-    directory_fault_path: Option<&Path>,
+    first_component_index: usize,
+    second_component_index: usize,
 ) -> Result<PathBuf, BranchError> {
     let hex = hex_digest(&name.path_key());
-    let first = create_dir_component_with_fault(root, &hex[0..2], directory_fault_path)?;
-    let second = create_dir_component_with_fault(&first, &hex[2..4], directory_fault_path)?;
+    let first = create_dir_component(root, &hex[0..2], first_component_index)?;
+    let second = create_dir_component(&first, &hex[2..4], second_component_index)?;
     Ok(second.join(format!("{hex}{suffix}")))
 }
 
@@ -1873,36 +2306,24 @@ fn ensure_existing_directory(path: &Path) -> Result<(), BranchError> {
     Ok(())
 }
 
-fn create_dir_component_with_fault(
+fn create_dir_component(
     parent: &Path,
     component: &str,
-    directory_fault_path: Option<&Path>,
+    component_index: usize,
 ) -> Result<PathBuf, BranchError> {
-    let path = parent.join(component);
-    create_dir_component_inner(
-        parent,
-        component,
-        directory_fault_path.is_some_and(|fault_path| fault_path == path),
-    )
-}
-
-fn create_dir_component_inner(
-    parent: &Path,
-    component: &str,
-    fail_before_parent_sync: bool,
-) -> Result<PathBuf, BranchError> {
+    let _ = component_index;
     ensure_existing_directory(parent)?;
     let path = parent.join(component);
     match fs::create_dir(&path) {
-        Ok(()) => {}
+        Ok(()) => {
+            #[cfg(test)]
+            fail_selected_native_ref_layout_cut(component_index)?;
+            sync_dir(parent)?;
+        }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(error.into()),
     }
     ensure_existing_directory(&path)?;
-    if fail_before_parent_sync {
-        return Err(io::Error::other("injected before-parent-sync failure").into());
-    }
-    sync_dir(parent)?;
     Ok(path)
 }
 
@@ -1970,14 +2391,48 @@ fn persist_no_overwrite<F>(
 where
     F: Fn(&[u8]) -> Result<(), BranchError>,
 {
-    persist_no_overwrite_inner(
-        final_path,
-        bytes,
-        stage_prefix,
-        collision_code,
-        verify,
-        false,
-    )
+    let final_dir = final_path
+        .parent()
+        .ok_or_else(|| branch_error(BranchErrorCode::RefIo))?;
+    let (stage_path, mut stage) = reserve_stage(final_dir, stage_prefix)?;
+    #[cfg(test)]
+    fail_selected_stage_write_cut(&mut stage, bytes, stage_prefix)?;
+    stage.write_all(bytes)?;
+    stage.flush()?;
+    stage.sync_all()?;
+    drop(stage);
+    verify(&bounded_read(&stage_path, MAX_STANDALONE_BYTES)?)?;
+    #[cfg(test)]
+    fail_selected_stage_verified_cut(stage_prefix)?;
+    match fs::hard_link(&stage_path, final_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let existing = bounded_read(final_path, MAX_STANDALONE_BYTES)?;
+            if existing != bytes {
+                return Err(branch_error(collision_code));
+            }
+            verify(&existing)?;
+            File::open(final_path)?.sync_all()?;
+            remove_file_if_exists(&stage_path)?;
+            sync_dir(final_dir)?;
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    }
+    #[cfg(test)]
+    fail_selected_record_link_cut(stage_prefix)?;
+    sync_dir(final_dir)?;
+    #[cfg(test)]
+    fail_selected_first_leaf_sync_cut(stage_prefix)?;
+    remove_file_if_exists(&stage_path)?;
+    #[cfg(test)]
+    fail_selected_stage_unlink_cut(stage_prefix)?;
+    sync_dir(final_dir)?;
+    let final_bytes = bounded_read(final_path, MAX_STANDALONE_BYTES)?;
+    if final_bytes != bytes {
+        return Err(branch_error(collision_code));
+    }
+    verify(&final_bytes)
 }
 
 fn persist_expected_ref(path: &Path, expected: &ImportedBranchRef) -> Result<(), BranchError> {
@@ -1994,54 +2449,6 @@ fn persist_expected_ref(path: &Path, expected: &ImportedBranchRef) -> Result<(),
             }
         },
     )
-}
-
-fn persist_no_overwrite_inner<F>(
-    final_path: &Path,
-    bytes: &[u8],
-    stage_prefix: &str,
-    collision_code: BranchErrorCode,
-    verify: F,
-    fail_after_link_before_sync: bool,
-) -> Result<(), BranchError>
-where
-    F: Fn(&[u8]) -> Result<(), BranchError>,
-{
-    let final_dir = final_path
-        .parent()
-        .ok_or_else(|| branch_error(BranchErrorCode::RefIo))?;
-    let (stage_path, mut stage) = reserve_stage(final_dir, stage_prefix)?;
-    stage.write_all(bytes)?;
-    stage.flush()?;
-    stage.sync_all()?;
-    drop(stage);
-    verify(&bounded_read(&stage_path, MAX_STANDALONE_BYTES)?)?;
-    match fs::hard_link(&stage_path, final_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            let existing = bounded_read(final_path, MAX_STANDALONE_BYTES)?;
-            if existing != bytes {
-                return Err(branch_error(collision_code));
-            }
-            verify(&existing)?;
-            File::open(final_path)?.sync_all()?;
-            remove_file_if_exists(&stage_path)?;
-            sync_dir(final_dir)?;
-            return Ok(());
-        }
-        Err(error) => return Err(error.into()),
-    }
-    if fail_after_link_before_sync {
-        return Err(io::Error::other("injected after-link-before-sync failure").into());
-    }
-    sync_dir(final_dir)?;
-    remove_file_if_exists(&stage_path)?;
-    sync_dir(final_dir)?;
-    let final_bytes = bounded_read(final_path, MAX_STANDALONE_BYTES)?;
-    if final_bytes != bytes {
-        return Err(branch_error(collision_code));
-    }
-    verify(&final_bytes)
 }
 
 fn redurabilize_branch(path: &Path, expected: &ImportedBranchRecord) -> Result<(), BranchError> {
@@ -2086,19 +2493,13 @@ where
 }
 
 fn replace_ref(path: &Path, expected: &ImportedBranchRef) -> Result<(), BranchError> {
-    replace_ref_inner(path, expected, false)
-}
-
-fn replace_ref_inner(
-    path: &Path,
-    expected: &ImportedBranchRef,
-    fail_after_rename_before_sync: bool,
-) -> Result<(), BranchError> {
     reject_symlink_if_present(path)?;
     let directory = path
         .parent()
         .ok_or_else(|| branch_error(BranchErrorCode::RefIo))?;
     let (stage_path, mut stage) = reserve_stage(directory, REF_STAGE_PREFIX)?;
+    #[cfg(test)]
+    fail_selected_advance_stage_write_cut(&mut stage, &expected.stored_bytes)?;
     stage.write_all(&expected.stored_bytes)?;
     stage.flush()?;
     stage.sync_all()?;
@@ -2106,12 +2507,30 @@ fn replace_ref_inner(
     if import_branch_ref(&bounded_read(&stage_path, MAX_STANDALONE_BYTES)?)? != *expected {
         return Err(branch_error(BranchErrorCode::RefInternalInvariant));
     }
+    #[cfg(test)]
+    fail_selected_native_ref_cut(|cut| {
+        matches!(
+            cut,
+            NativeRefDurabilityCut::Ref12VerifiedAdvanceRefStageBeforeRename
+        )
+    })?;
     reject_symlink_if_present(path)?;
     fs::rename(&stage_path, path)?;
-    if fail_after_rename_before_sync {
-        return Err(io::Error::other("injected after-rename-before-sync failure").into());
-    }
+    #[cfg(test)]
+    fail_selected_native_ref_cut(|cut| {
+        matches!(
+            cut,
+            NativeRefDurabilityCut::Ref13AdvanceRefRenameBeforeLeafSync
+        )
+    })?;
     sync_dir(directory)?;
+    #[cfg(test)]
+    fail_selected_native_ref_cut(|cut| {
+        matches!(
+            cut,
+            NativeRefDurabilityCut::Ref14AdvanceRefLeafSyncBeforeResponse
+        )
+    })?;
     if import_branch_ref(&bounded_read(path, MAX_STANDALONE_BYTES)?)? != *expected {
         return Err(branch_error(BranchErrorCode::RefInternalInvariant));
     }
@@ -2131,79 +2550,182 @@ fn remove_file_if_exists(path: &Path) -> Result<(), BranchError> {
     }
 }
 
-fn remove_stages_recursive(
-    root: &Path,
-    prefix: &str,
-    remaining_depth: usize,
-) -> Result<u64, BranchError> {
-    let mut fail_next_leaf_sync = false;
-    remove_stages_recursive_inner(root, prefix, remaining_depth, &mut fail_next_leaf_sync)
-}
-
-fn remove_stages_recursive_inner(
-    root: &Path,
-    prefix: &str,
-    remaining_depth: usize,
-    fail_next_leaf_sync: &mut bool,
-) -> Result<u64, BranchError> {
-    validate_recovery_tree(root, remaining_depth)?;
-    remove_stages_from_validated_tree(root, prefix, remaining_depth, fail_next_leaf_sync)
-}
-
-fn validate_recovery_tree(root: &Path, remaining_depth: usize) -> Result<(), BranchError> {
-    ensure_existing_directory(root)?;
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        if remaining_depth > 0 {
-            let name = exact_utf8_name(&entry)?;
-            if !file_type.is_dir() || !is_fanout_component(&name) {
-                return Err(branch_error(BranchErrorCode::RefIo));
-            }
-            validate_recovery_tree(&entry.path(), remaining_depth - 1)?;
-        } else if !file_type.is_file() {
-            return Err(branch_error(BranchErrorCode::RefIo));
+fn map_recovery_ancestry_error(
+    error: RecoveryAncestryError,
+) -> BranchError {
+    match error {
+        RecoveryAncestryError::Cycle => {
+            branch_error(BranchErrorCode::BranchAncestryCycle)
         }
+        RecoveryAncestryError::LimitExceeded => {
+            branch_error(BranchErrorCode::BranchResourceLimit)
+        }
+        RecoveryAncestryError::ClaimMismatch { claim_index: 0, .. } => {
+            branch_error(BranchErrorCode::BranchOriginMismatch)
+        }
+        RecoveryAncestryError::ClaimMismatch { claim_index: 1, .. } => {
+            branch_error(BranchErrorCode::RefTargetMismatch)
+        }
+        RecoveryAncestryError::ClaimMismatch { .. } => {
+            branch_error(BranchErrorCode::RefInternalInvariant)
+        }
+        RecoveryAncestryError::Verification(error) => error.into(),
+    }
+}
+
+/// Rejects a symlink or non-regular recovery record entry as `REF_IO`.
+fn ensure_recovery_regular_file(metadata: &fs::Metadata) -> Result<(), BranchError> {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(branch_error(BranchErrorCode::RefIo));
     }
     Ok(())
 }
 
-fn remove_stages_from_validated_tree(
-    root: &Path,
-    prefix: &str,
-    remaining_depth: usize,
-    fail_next_leaf_sync: &mut bool,
-) -> Result<u64, BranchError> {
-    let mut removed = 0_u64;
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let path = entry.path();
-        if file_type.is_dir() && remaining_depth > 0 {
-            removed = removed
-                .checked_add(remove_stages_from_validated_tree(
-                    &path,
-                    prefix,
-                    remaining_depth - 1,
-                    fail_next_leaf_sync,
-                )?)
-                .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-        } else if file_type.is_file() && remaining_depth == 0 {
-            let name = exact_utf8_name(&entry)?;
-            if is_owned_stage_name(&name, prefix) {
-                fs::remove_file(&path)?;
-                removed = removed
-                    .checked_add(1)
-                    .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-            }
-        }
+fn read_recovery_ref_record(path: &Path) -> Result<ImportedBranchRef, BranchError> {
+    import_branch_ref(&bounded_read(path, MAX_STANDALONE_BYTES)?)
+}
+
+fn read_recovery_origin_record(path: &Path) -> Result<ImportedBranchRecord, BranchError> {
+    import_branch_record(&bounded_read(path, MAX_STANDALONE_BYTES)?)
+}
+
+fn is_recovery_fanout_name(name: &std::ffi::OsStr) -> bool {
+    name.to_str().is_some_and(is_fanout_component)
+}
+
+fn classify_record_recovery_fanout(
+    entry: &fs::DirEntry,
+    depth: usize,
+) -> Result<(PathBuf, usize), BranchError> {
+    if depth >= 2 || !entry.file_type()?.is_dir() || !is_recovery_fanout_name(&entry.file_name()) {
+        return Err(branch_error(BranchErrorCode::RefIo));
     }
-    if remaining_depth == 0 || removed > 0 {
-        if remaining_depth == 0 && *fail_next_leaf_sync {
-            *fail_next_leaf_sync = false;
-            return Err(io::Error::other("injected recovery directory sync failure").into());
+    Ok((entry.path(), depth + 1))
+}
+
+fn classify_origin_recovery_leaf(path: &Path) -> Result<(), BranchError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(branch_error(BranchErrorCode::RefIo));
+    }
+    Ok(())
+}
+
+fn classify_ref_recovery_leaf(path: &Path) -> Result<(), BranchError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(branch_error(BranchErrorCode::RefIo));
+    }
+    Ok(())
+}
+
+fn is_final_record_name(name: &std::ffi::OsStr, suffix: &str) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(hex) = name.strip_suffix(suffix) else {
+        return false;
+    };
+    hex.len() == DIGEST_LEN * 2
+        && hex.as_bytes().iter().all(u8::is_ascii_hexdigit)
+        && !hex.as_bytes().iter().any(u8::is_ascii_uppercase)
+}
+
+fn is_final_record_name_for_dir(name: &std::ffi::OsStr, suffix: &str, directory: &Path) -> bool {
+    if !is_final_record_name(name, suffix) {
+        return false;
+    }
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let hex = &name[..name.len() - suffix.len()];
+    let Some(second) = directory.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
+    let Some(first) = directory
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    first == &hex[0..2] && second == &hex[2..4]
+}
+
+fn origin_recovery_leaf_kind(path: &Path) -> Result<RefRecoveryLeafKind, BranchError> {
+    record_recovery_leaf_kind(path, ".branch.scb1", BRANCH_STAGE_PREFIX)
+}
+
+fn ref_recovery_leaf_kind(path: &Path) -> Result<RefRecoveryLeafKind, BranchError> {
+    record_recovery_leaf_kind(path, ".ref.scb1", REF_STAGE_PREFIX)
+}
+
+fn record_recovery_leaf_kind(
+    path: &Path,
+    suffix: &str,
+    stage_prefix: &str,
+) -> Result<RefRecoveryLeafKind, BranchError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| branch_error(BranchErrorCode::RefIo))?;
+    let directory = path
+        .parent()
+        .ok_or_else(|| branch_error(BranchErrorCode::RefIo))?;
+    if is_final_record_name(name, suffix) {
+        if !is_final_record_name_for_dir(name, suffix, directory) {
+            return Err(branch_error(BranchErrorCode::RefIo));
         }
-        sync_dir(root)?;
+        return Ok(RefRecoveryLeafKind::Final);
+    }
+    let Some(name) = name.to_str() else {
+        return Ok(RefRecoveryLeafKind::Unknown);
+    };
+    if is_owned_stage_name(name, stage_prefix) {
+        return Ok(RefRecoveryLeafKind::OwnedStage);
+    }
+    Ok(RefRecoveryLeafKind::Unknown)
+}
+
+/// Removes planned branch-origin stages after an exact re-stat of every entry.
+fn remove_planned_origin_stages(origin_removal_plan: &[PathBuf]) -> Result<u64, BranchError> {
+    let mut removed = 0_u64;
+    for stage_path in origin_removal_plan {
+        let metadata = match fs::symlink_metadata(stage_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.file_type().is_file() {
+            return Err(branch_error(BranchErrorCode::RefIo));
+        }
+        fs::remove_file(stage_path)?;
+        #[cfg(test)]
+        fail_selected_origin_recovery_stage_cut(stage_path)?;
+        removed = removed
+            .checked_add(1)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+    }
+    Ok(removed)
+}
+
+/// Removes planned visible-ref stages after an exact re-stat of every entry.
+fn remove_planned_ref_stages(ref_removal_plan: &[PathBuf]) -> Result<u64, BranchError> {
+    let mut removed = 0_u64;
+    for stage_path in ref_removal_plan {
+        let metadata = match fs::symlink_metadata(stage_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.file_type().is_file() {
+            return Err(branch_error(BranchErrorCode::RefIo));
+        }
+        fs::remove_file(stage_path)?;
+        #[cfg(test)]
+        fail_selected_ref_recovery_stage_cut(stage_path)?;
+        removed = removed
+            .checked_add(1)
+            .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
     }
     Ok(removed)
 }
@@ -2234,6 +2756,236 @@ fn usize_to_u64(value: usize) -> Result<u64, BranchError> {
 
 fn branch_error(code: BranchErrorCode) -> BranchError {
     BranchError::Branch(code)
+}
+
+#[cfg(test)]
+enum NativeRefDurabilityCut {
+    Rlay01BranchesV1CreateBeforeBranchesSync,
+    Rlay02FirstOriginFanoutCreateBeforeParentSync,
+    Rlay03SecondOriginFanoutCreateBeforeParentSync,
+    Ref01DuringOriginStageWrite,
+    Ref02VerifiedOriginStageBeforeFinalLink,
+    Ref03OriginLinkBeforeFirstLeafSync,
+    Ref04FirstOriginLeafSyncBeforeStageUnlink,
+    Ref05OriginStageUnlinkBeforeSecondLeafSync,
+    Ref06DuringInitialRefStageWrite,
+    Ref07VerifiedInitialRefStageBeforeFinalLink,
+    Ref08InitialRefLinkBeforeFirstLeafSync,
+    Ref09FirstInitialRefLeafSyncBeforeStageUnlink,
+    Ref10InitialRefStageUnlinkBeforeSecondLeafSync,
+    Ref11DuringAdvanceRefStageWrite,
+    Ref12VerifiedAdvanceRefStageBeforeRename,
+    Ref13AdvanceRefRenameBeforeLeafSync,
+    Ref14AdvanceRefLeafSyncBeforeResponse,
+    Ref15OriginRecoveryStageUnlinkBeforeLeafSync { branch_name: BranchName },
+    Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync { branch_name: BranchName },
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static SELECTED_NATIVE_REF_CUT: std::cell::RefCell<Option<NativeRefDurabilityCut>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct NativeRefCutSelection;
+
+#[cfg(test)]
+impl NativeRefCutSelection {
+    fn install(cut: NativeRefDurabilityCut) -> Self {
+        SELECTED_NATIVE_REF_CUT.with(|selected| {
+            let previous = selected.replace(Some(cut));
+            assert!(
+                previous.is_none(),
+                "native ref durability selection is not nested"
+            );
+        });
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for NativeRefCutSelection {
+    fn drop(&mut self) {
+        SELECTED_NATIVE_REF_CUT.with(|selected| {
+            selected.replace(None);
+        });
+    }
+}
+
+#[cfg(test)]
+fn take_selected_native_ref_cut(predicate: impl FnOnce(&NativeRefDurabilityCut) -> bool) -> bool {
+    SELECTED_NATIVE_REF_CUT.with(|selected| {
+        let take = selected.borrow().as_ref().is_some_and(predicate);
+        if take {
+            selected.borrow_mut().take();
+        }
+        take
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_native_ref_cut(
+    predicate: impl FnOnce(&NativeRefDurabilityCut) -> bool,
+) -> Result<(), BranchError> {
+    if take_selected_native_ref_cut(predicate) {
+        return Err(branch_error(BranchErrorCode::RefIo));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_native_ref_layout_cut(component_index: usize) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| {
+        matches!(
+            (component_index, cut),
+            (
+                1,
+                NativeRefDurabilityCut::Rlay01BranchesV1CreateBeforeBranchesSync
+            ) | (
+                2,
+                NativeRefDurabilityCut::Rlay02FirstOriginFanoutCreateBeforeParentSync
+            ) | (
+                3,
+                NativeRefDurabilityCut::Rlay03SecondOriginFanoutCreateBeforeParentSync
+            )
+        )
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_stage_write_cut(
+    stage: &mut File,
+    bytes: &[u8],
+    stage_prefix: &str,
+) -> Result<(), BranchError> {
+    if take_selected_native_ref_cut(|cut| match cut {
+        NativeRefDurabilityCut::Ref01DuringOriginStageWrite => stage_prefix == BRANCH_STAGE_PREFIX,
+        NativeRefDurabilityCut::Ref06DuringInitialRefStageWrite => stage_prefix == REF_STAGE_PREFIX,
+        _ => false,
+    }) {
+        let split = bytes.len() / 2;
+        stage.write_all(&bytes[..split])?;
+        stage.flush()?;
+        stage.sync_all()?;
+        return Err(branch_error(BranchErrorCode::RefIo));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_stage_verified_cut(stage_prefix: &str) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| match cut {
+        NativeRefDurabilityCut::Ref02VerifiedOriginStageBeforeFinalLink => {
+            stage_prefix == BRANCH_STAGE_PREFIX
+        }
+        NativeRefDurabilityCut::Ref07VerifiedInitialRefStageBeforeFinalLink => {
+            stage_prefix == REF_STAGE_PREFIX
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_record_link_cut(stage_prefix: &str) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| match cut {
+        NativeRefDurabilityCut::Ref03OriginLinkBeforeFirstLeafSync => {
+            stage_prefix == BRANCH_STAGE_PREFIX
+        }
+        NativeRefDurabilityCut::Ref08InitialRefLinkBeforeFirstLeafSync => {
+            stage_prefix == REF_STAGE_PREFIX
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_first_leaf_sync_cut(stage_prefix: &str) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| match cut {
+        NativeRefDurabilityCut::Ref04FirstOriginLeafSyncBeforeStageUnlink => {
+            stage_prefix == BRANCH_STAGE_PREFIX
+        }
+        NativeRefDurabilityCut::Ref09FirstInitialRefLeafSyncBeforeStageUnlink => {
+            stage_prefix == REF_STAGE_PREFIX
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_stage_unlink_cut(stage_prefix: &str) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| match cut {
+        NativeRefDurabilityCut::Ref05OriginStageUnlinkBeforeSecondLeafSync => {
+            stage_prefix == BRANCH_STAGE_PREFIX
+        }
+        NativeRefDurabilityCut::Ref10InitialRefStageUnlinkBeforeSecondLeafSync => {
+            stage_prefix == REF_STAGE_PREFIX
+        }
+        _ => false,
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_advance_stage_write_cut(
+    stage: &mut File,
+    bytes: &[u8],
+) -> Result<(), BranchError> {
+    if take_selected_native_ref_cut(|cut| {
+        matches!(cut, NativeRefDurabilityCut::Ref11DuringAdvanceRefStageWrite)
+    }) {
+        let split = bytes.len() / 2;
+        stage.write_all(&bytes[..split])?;
+        stage.flush()?;
+        stage.sync_all()?;
+        return Err(branch_error(BranchErrorCode::RefIo));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn stage_path_matches_branch_fanout(stage_path: &Path, branch_name: &BranchName) -> bool {
+    let hex = hex_digest(&branch_name.path_key());
+    let Some(second) = stage_path
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    let Some(first) = stage_path
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    first == &hex[0..2] && second == &hex[2..4]
+}
+
+#[cfg(test)]
+fn fail_selected_origin_recovery_stage_cut(stage_path: &Path) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| {
+        let NativeRefDurabilityCut::Ref15OriginRecoveryStageUnlinkBeforeLeafSync { branch_name } =
+            cut
+        else {
+            return false;
+        };
+        stage_path_matches_branch_fanout(stage_path, branch_name)
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_ref_recovery_stage_cut(stage_path: &Path) -> Result<(), BranchError> {
+    fail_selected_native_ref_cut(|cut| {
+        let NativeRefDurabilityCut::Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync {
+            branch_name,
+        } = cut
+        else {
+            return false;
+        };
+        stage_path_matches_branch_fanout(stage_path, branch_name)
+    })
 }
 
 #[cfg(test)]
@@ -3219,24 +3971,21 @@ mod tests {
     fn directory_creation_retry_redurabilizes_layout_and_fanout_before_branch_success() {
         let fixture = Fixture::new("directory-retry-durability");
         let layout_name = BranchName::parse("layout-retry").unwrap();
-        let layout_fault = fixture.branches.root().join("branches").join("v1");
-        for _ in 0..2 {
-            assert_eq!(
-                fixture
-                    .branches
-                    .create_branch_inner(
-                        "layout-retry",
-                        fixture.genesis_transaction_id,
-                        Some(&layout_fault),
-                    )
-                    .unwrap_err()
-                    .code(),
-                "REF_IO"
-            );
-            assert!(layout_fault.is_dir());
-            assert!(!fixture.branches.branch_path(&layout_name).exists());
-            assert!(!fixture.branches.ref_path(&layout_name).exists());
-        }
+        let layout_component = fixture.branches.root().join("branches").join("v1");
+        assert_eq!(
+            fixture
+                .branches
+                .ensure_layout_with_native_ref_durability_cut(
+                    NativeRefDurabilityCut::Rlay01BranchesV1CreateBeforeBranchesSync,
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(layout_component.is_dir());
+        assert!(!fixture.branches.branch_path(&layout_name).exists());
+        assert!(!fixture.branches.ref_path(&layout_name).exists());
+        fixture.branches.ensure_layout().unwrap();
         assert_eq!(
             fixture
                 .branches
@@ -3247,24 +3996,38 @@ mod tests {
 
         let fanout_name = BranchName::parse("fanout-retry").unwrap();
         let fanout_hex = hex_digest(&fanout_name.path_key());
-        let fanout_fault = fixture.branches.branches_dir().join(&fanout_hex[0..2]);
-        for _ in 0..2 {
-            assert_eq!(
-                fixture
-                    .branches
-                    .create_branch_inner(
-                        "fanout-retry",
-                        fixture.genesis_transaction_id,
-                        Some(&fanout_fault),
-                    )
-                    .unwrap_err()
-                    .code(),
-                "REF_IO"
-            );
-            assert!(fanout_fault.is_dir());
-            assert!(!fixture.branches.branch_path(&fanout_name).exists());
-            assert!(!fixture.branches.ref_path(&fanout_name).exists());
-        }
+        let first_fanout = fixture.branches.branches_dir().join(&fanout_hex[0..2]);
+        let second_fanout = first_fanout.join(&fanout_hex[2..4]);
+        assert_eq!(
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "fanout-retry",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Rlay02FirstOriginFanoutCreateBeforeParentSync,
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(first_fanout.is_dir());
+        assert!(!fixture.branches.branch_path(&fanout_name).exists());
+        assert!(!fixture.branches.ref_path(&fanout_name).exists());
+        assert_eq!(
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "fanout-retry",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Rlay03SecondOriginFanoutCreateBeforeParentSync,
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(second_fanout.is_dir());
+        assert!(!fixture.branches.branch_path(&fanout_name).exists());
+        assert!(!fixture.branches.ref_path(&fanout_name).exists());
         assert_eq!(
             fixture
                 .branches
@@ -3288,39 +4051,26 @@ mod tests {
     fn interrupted_install_retries_redurabilize_visible_records() {
         let fixture = Fixture::new("retry-durability");
         fixture.branches.ensure_layout().unwrap();
-        let revision = fixture
-            .transactions
-            .verified_revision(fixture.genesis_transaction_id)
-            .unwrap();
 
         let origin_fault_name = BranchName::parse("origin-fault").unwrap();
-        let origin_fault =
-            build_branch_record(&origin_record(&origin_fault_name, &revision)).unwrap();
         let origin_fault_path = fixture
             .branches
             .ensure_branch_path(&origin_fault_name)
             .unwrap();
-        let expected_origin = origin_fault.clone();
         assert_eq!(
-            persist_no_overwrite_inner(
-                &origin_fault_path,
-                &origin_fault.stored_bytes,
-                BRANCH_STAGE_PREFIX,
-                BranchErrorCode::BranchOriginMismatch,
-                |bytes| {
-                    if import_branch_record(bytes)? == expected_origin {
-                        Ok(())
-                    } else {
-                        Err(branch_error(BranchErrorCode::BranchOriginMismatch))
-                    }
-                },
-                true,
-            )
-            .unwrap_err()
-            .code(),
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "origin-fault",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Ref03OriginLinkBeforeFirstLeafSync,
+                )
+                .unwrap_err()
+                .code(),
             "REF_IO"
         );
         assert!(origin_fault_path.is_file());
+        assert!(!fixture.branches.ref_path(&origin_fault_name).exists());
         assert_eq!(
             fixture
                 .branches
@@ -3330,47 +4080,20 @@ mod tests {
         );
 
         let ref_fault_name = BranchName::parse("ref-fault").unwrap();
-        let ref_fault_origin =
-            build_branch_record(&origin_record(&ref_fault_name, &revision)).unwrap();
-        let ref_fault_reference = build_branch_ref(&ref_record(
-            &ref_fault_name,
-            ref_fault_origin.digest,
-            &revision,
-        ))
-        .unwrap();
-        let ref_fault_origin_path = fixture
-            .branches
-            .ensure_branch_path(&ref_fault_name)
-            .unwrap();
-        persist_no_overwrite(
-            &ref_fault_origin_path,
-            &ref_fault_origin.stored_bytes,
-            BRANCH_STAGE_PREFIX,
-            BranchErrorCode::BranchOriginMismatch,
-            |_| Ok(()),
-        )
-        .unwrap();
         let ref_fault_path = fixture.branches.ensure_ref_path(&ref_fault_name).unwrap();
-        let expected_ref = ref_fault_reference.clone();
         assert_eq!(
-            persist_no_overwrite_inner(
-                &ref_fault_path,
-                &ref_fault_reference.stored_bytes,
-                REF_STAGE_PREFIX,
-                BranchErrorCode::RefAlreadyExists,
-                |bytes| {
-                    if import_branch_ref(bytes)? == expected_ref {
-                        Ok(())
-                    } else {
-                        Err(branch_error(BranchErrorCode::RefAlreadyExists))
-                    }
-                },
-                true,
-            )
-            .unwrap_err()
-            .code(),
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "ref-fault",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Ref08InitialRefLinkBeforeFirstLeafSync,
+                )
+                .unwrap_err()
+                .code(),
             "REF_IO"
         );
+        assert!(ref_fault_path.is_file());
         assert_eq!(
             fixture
                 .branches
@@ -3388,18 +4111,15 @@ mod tests {
             .branches
             .create_branch("advance-fault", fixture.genesis_transaction_id)
             .unwrap();
-        let advance_name = BranchName::parse("advance-fault").unwrap();
-        let current = fixture.branches.resolve_branch("advance-fault").unwrap();
-        let child_revision = fixture.transactions.verified_revision(child).unwrap();
-        let advanced = build_branch_ref(&ref_record(
-            &advance_name,
-            current.origin.digest,
-            &child_revision,
-        ))
-        .unwrap();
-        let advance_path = fixture.branches.checked_ref_path(&advance_name).unwrap();
         assert_eq!(
-            replace_ref_inner(&advance_path, &advanced, true)
+            fixture
+                .branches
+                .advance_branch_with_native_ref_durability_cut(
+                    "advance-fault",
+                    fixture.genesis_transaction_id,
+                    child,
+                    NativeRefDurabilityCut::Ref13AdvanceRefRenameBeforeLeafSync,
+                )
                 .unwrap_err()
                 .code(),
             "REF_IO"
@@ -4433,6 +5153,7 @@ mod tests {
         assert_eq!(report.visible_branches, 0);
         assert_eq!(report.orphan_origins.len(), 1);
         assert_eq!(report.orphan_origins[0].branch_name, name);
+        assert_eq!(report.verified_ancestry_transactions, 0);
         assert!(!branch_stage.exists());
         assert!(!ref_stage.exists());
 
@@ -4441,10 +5162,10 @@ mod tests {
             .unwrap()
             .join(".sley-branch-stage-foreign.tmp");
         fs::write(&foreign, b"foreign").unwrap();
-        assert_eq!(
-            fixture.branches.recover_refs().unwrap_err().code(),
-            "REF_IO"
-        );
+        let preserved = fixture.branches.recover_refs().unwrap();
+        assert_eq!(preserved.removed_branch_stages, 0);
+        assert_eq!(preserved.removed_ref_stages, 0);
+        assert_eq!(preserved.orphan_origins.len(), 1);
         assert!(foreign.exists());
     }
 
@@ -4462,23 +5183,159 @@ mod tests {
             std::process::id()
         ));
         fs::write(&stage_path, b"interrupted").unwrap();
-        let mut fail_next_leaf_sync = true;
         assert_eq!(
-            remove_stages_recursive_inner(
-                &fixture.branches.branches_dir(),
-                BRANCH_STAGE_PREFIX,
-                2,
-                &mut fail_next_leaf_sync,
-            )
-            .unwrap_err()
-            .code(),
+            fixture
+                .branches
+                .recover_refs_with_native_ref_durability_cut(
+                    NativeRefDurabilityCut::Ref15OriginRecoveryStageUnlinkBeforeLeafSync {
+                        branch_name: name.clone(),
+                    },
+                )
+                .unwrap_err()
+                .code(),
             "REF_IO"
         );
         assert!(!stage_path.exists());
+        let retry = fixture.branches.recover_refs().unwrap();
+        assert_eq!(retry.removed_branch_stages, 0);
+        assert_eq!(retry.removed_ref_stages, 0);
+        assert_eq!(retry.visible_branches, 1);
+
+        let ref_stage_path = fixture
+            .branches
+            .ref_path(&name)
+            .parent()
+            .unwrap()
+            .join(format!(
+                "{REF_STAGE_PREFIX}{}-0000000000000004{STAGE_SUFFIX}",
+                std::process::id()
+            ));
+        fs::write(&ref_stage_path, b"interrupted").unwrap();
         assert_eq!(
-            remove_stages_recursive(&fixture.branches.branches_dir(), BRANCH_STAGE_PREFIX, 2)
+            fixture
+                .branches
+                .recover_refs_with_native_ref_durability_cut(
+                    NativeRefDurabilityCut::Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync {
+                        branch_name: name.clone(),
+                    },
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(!ref_stage_path.exists());
+        let second_retry = fixture.branches.recover_refs().unwrap();
+        assert_eq!(second_retry.removed_branch_stages, 0);
+        assert_eq!(second_retry.removed_ref_stages, 0);
+        assert_eq!(second_retry.visible_branches, 1);
+    }
+
+    #[test]
+    fn recovery_verifies_shared_and_advanced_branch_ancestries() {
+        let fixture = Fixture::new("recovery-ancestry");
+        let child = fixture.commit_child(31);
+        fixture
+            .branches
+            .create_branch("mainline", fixture.genesis_transaction_id)
+            .unwrap();
+        fixture
+            .branches
+            .advance_branch("mainline", fixture.genesis_transaction_id, child)
+            .unwrap();
+        fixture
+            .branches
+            .create_branch("feature", fixture.genesis_transaction_id)
+            .unwrap();
+        let report = fixture.branches.recover_refs().unwrap();
+        assert_eq!(report.removed_branch_stages, 0);
+        assert_eq!(report.removed_ref_stages, 0);
+        assert_eq!(report.visible_branches, 2);
+        assert!(report.orphan_origins.is_empty());
+        assert_eq!(report.verified_ancestry_transactions, 2);
+        let second = fixture.branches.recover_refs().unwrap();
+        assert_eq!(second.verified_ancestry_transactions, 2);
+        assert_eq!(second.visible_branches, 2);
+    }
+
+    #[test]
+    fn native_ref_durability_cut_selection_installs_and_clears() {
+        let branch_name = BranchName::parse("cut-clears").unwrap();
+        let cuts = [
+            NativeRefDurabilityCut::Rlay01BranchesV1CreateBeforeBranchesSync,
+            NativeRefDurabilityCut::Rlay02FirstOriginFanoutCreateBeforeParentSync,
+            NativeRefDurabilityCut::Rlay03SecondOriginFanoutCreateBeforeParentSync,
+            NativeRefDurabilityCut::Ref01DuringOriginStageWrite,
+            NativeRefDurabilityCut::Ref02VerifiedOriginStageBeforeFinalLink,
+            NativeRefDurabilityCut::Ref03OriginLinkBeforeFirstLeafSync,
+            NativeRefDurabilityCut::Ref04FirstOriginLeafSyncBeforeStageUnlink,
+            NativeRefDurabilityCut::Ref05OriginStageUnlinkBeforeSecondLeafSync,
+            NativeRefDurabilityCut::Ref06DuringInitialRefStageWrite,
+            NativeRefDurabilityCut::Ref07VerifiedInitialRefStageBeforeFinalLink,
+            NativeRefDurabilityCut::Ref08InitialRefLinkBeforeFirstLeafSync,
+            NativeRefDurabilityCut::Ref09FirstInitialRefLeafSyncBeforeStageUnlink,
+            NativeRefDurabilityCut::Ref10InitialRefStageUnlinkBeforeSecondLeafSync,
+            NativeRefDurabilityCut::Ref11DuringAdvanceRefStageWrite,
+            NativeRefDurabilityCut::Ref12VerifiedAdvanceRefStageBeforeRename,
+            NativeRefDurabilityCut::Ref13AdvanceRefRenameBeforeLeafSync,
+            NativeRefDurabilityCut::Ref14AdvanceRefLeafSyncBeforeResponse,
+            NativeRefDurabilityCut::Ref15OriginRecoveryStageUnlinkBeforeLeafSync {
+                branch_name: branch_name.clone(),
+            },
+            NativeRefDurabilityCut::Ref16VisibleRefRecoveryStageUnlinkBeforeLeafSync {
+                branch_name,
+            },
+        ];
+        for cut in cuts {
+            let selection = NativeRefCutSelection::install(cut);
+            drop(selection);
+            assert!(!take_selected_native_ref_cut(|_| true));
+        }
+    }
+
+    #[test]
+    fn interrupted_stage_writes_leave_only_removable_stages() {
+        let fixture = Fixture::new("stage-write-cuts");
+        let name = BranchName::parse("write-fault").unwrap();
+        assert_eq!(
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "write-fault",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Ref01DuringOriginStageWrite,
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(!fixture.branches.branch_path(&name).exists());
+        assert!(!fixture.branches.ref_path(&name).exists());
+        assert_eq!(
+            fixture
+                .branches
+                .create_branch_with_native_ref_durability_cut(
+                    "write-fault",
+                    fixture.genesis_transaction_id,
+                    NativeRefDurabilityCut::Ref06DuringInitialRefStageWrite,
+                )
+                .unwrap_err()
+                .code(),
+            "REF_IO"
+        );
+        assert!(fixture.branches.branch_path(&name).exists());
+        assert!(!fixture.branches.ref_path(&name).exists());
+        let report = fixture.branches.recover_refs().unwrap();
+        assert_eq!(report.removed_branch_stages, 1);
+        assert_eq!(report.removed_ref_stages, 1);
+        assert_eq!(report.visible_branches, 0);
+        assert_eq!(report.orphan_origins.len(), 1);
+        assert_eq!(report.orphan_origins[0].branch_name, name);
+        assert_eq!(
+            fixture
+                .branches
+                .create_branch("write-fault", fixture.genesis_transaction_id)
                 .unwrap(),
-            0
+            BranchUpdateStatus::Created
         );
     }
 

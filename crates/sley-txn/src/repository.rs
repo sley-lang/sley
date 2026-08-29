@@ -7,7 +7,10 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sley_id::{EntityId, ObjectId, PrincipalId, ReceiptId, TransactionId};
+use sley_id::{
+    EntityId, ObjectId, PolicyRootId, PrincipalId, ReceiptId, SchemaEpochId, StateRoot,
+    TransactionId, WorkspaceId,
+};
 use sley_mutate::{EntityObject, import_entity_object};
 use sley_policy::{
     AcceptedPolicyRoot, CandidateDecision, CandidateValidationContext, CandidateValidationError,
@@ -27,6 +30,8 @@ use crate::maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
     acquire_shared_repository_maintenance, initialize_repository_maintenance,
 };
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+use crate::recovery_ancestry_test_hook;
 
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
 const HEAD_VERSION: u64 = 1;
@@ -36,8 +41,118 @@ const RECEIPT_STAGE_PREFIX: &str = ".sley-txn-stage-";
 const HEAD_STAGE_PREFIX: &str = ".sley-head-stage-";
 const STAGE_SUFFIX: &str = ".tmp";
 const MAX_STAGE_ATTEMPTS: u64 = 1_024;
+const FINAL_RECEIPT_SUFFIX: &str = ".receipt.scb1";
+const FINAL_RECEIPT_ID_HEX_LEN: usize = 64;
+const STAGE_TOKEN_HEX_LEN: usize = 16;
+
+const RECEIPT_RECOVERY_MAX_FANOUT_DIRECTORIES: u64 = 65_792;
+const RECEIPT_RECOVERY_MAX_LEAF_ENTRIES: u64 = 524_288;
+const RECEIPT_RECOVERY_MAX_FINAL_RECEIPTS: u64 = 262_144;
+const RECEIPT_RECOVERY_MAX_REMOVABLE_STAGES: u64 = 262_144;
+const HEAD_RECOVERY_MAX_ENTRIES: u64 = 4_096;
+const HEAD_RECOVERY_MAX_REMOVABLE_STAGES: u64 = 4_095;
+const ACCEPTED_RECOVERY_MAX_ANCESTRY_TRANSACTIONS: u64 = 65_536;
+const ACCEPTED_RECOVERY_MAX_RECEIPT_BYTES: u64 = 1_073_741_824;
+const ACCEPTED_RECOVERY_MAX_BINDING_VISITS: u64 = 4_194_304;
+const ACCEPTED_RECOVERY_MAX_OBJECT_VERIFICATIONS: u64 = 2_097_152;
+const ACCEPTED_RECOVERY_MAX_OBJECT_BYTES: u64 = 1_073_741_824;
+const BRANCH_RECOVERY_MAX_REQUESTS: u64 = 4_096;
+const BRANCH_RECOVERY_MAX_ANCESTRY_PER_POINTER: u64 = 65_536;
+const BRANCH_RECOVERY_MAX_RECEIPT_BYTES_PER_POINTER: u64 = 1_073_741_824;
+const BRANCH_RECOVERY_MAX_BINDING_VISITS_PER_POINTER: u64 = 4_194_304;
+const BRANCH_RECOVERY_MAX_OBJECT_VERIFICATIONS_PER_POINTER: u64 = 2_097_152;
+const BRANCH_RECOVERY_MAX_OBJECT_BYTES_PER_POINTER: u64 = 1_073_741_824;
+const BRANCH_RECOVERY_MAX_UNION_ANCESTRY: u64 = 262_144;
+const BRANCH_RECOVERY_MAX_UNION_RECEIPT_BYTES: u64 = 4_294_967_296;
+const BRANCH_RECOVERY_MAX_UNION_BINDING_VISITS: u64 = 16_777_216;
+const BRANCH_RECOVERY_MAX_UNION_OBJECT_VERIFICATIONS: u64 = 8_388_608;
+const BRANCH_RECOVERY_MAX_UNION_OBJECT_BYTES: u64 = 4_294_967_296;
 
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Closed per-invocation transaction-recovery scan ceilings.
+#[derive(Clone, Copy)]
+struct TransactionRecoveryLimits {
+    receipt_fanout_directories: u64,
+    receipt_leaf_entries: u64,
+    final_receipts: u64,
+    receipt_stages: u64,
+    head_entries: u64,
+    head_stages: u64,
+}
+
+const fn transaction_recovery_limits() -> TransactionRecoveryLimits {
+    TransactionRecoveryLimits {
+        receipt_fanout_directories: RECEIPT_RECOVERY_MAX_FANOUT_DIRECTORIES,
+        receipt_leaf_entries: RECEIPT_RECOVERY_MAX_LEAF_ENTRIES,
+        final_receipts: RECEIPT_RECOVERY_MAX_FINAL_RECEIPTS,
+        receipt_stages: RECEIPT_RECOVERY_MAX_REMOVABLE_STAGES,
+        head_entries: HEAD_RECOVERY_MAX_ENTRIES,
+        head_stages: HEAD_RECOVERY_MAX_REMOVABLE_STAGES,
+    }
+}
+
+/// Closed per-pointer ancestry-verification work ceilings.
+#[derive(Clone, Copy)]
+struct RecoveryWorkLimits {
+    ancestry_transactions: u64,
+    receipt_bytes: u64,
+    binding_visits: u64,
+    object_verifications: u64,
+    object_bytes: u64,
+}
+
+const fn accepted_recovery_limits() -> RecoveryWorkLimits {
+    RecoveryWorkLimits {
+        ancestry_transactions: ACCEPTED_RECOVERY_MAX_ANCESTRY_TRANSACTIONS,
+        receipt_bytes: ACCEPTED_RECOVERY_MAX_RECEIPT_BYTES,
+        binding_visits: ACCEPTED_RECOVERY_MAX_BINDING_VISITS,
+        object_verifications: ACCEPTED_RECOVERY_MAX_OBJECT_VERIFICATIONS,
+        object_bytes: ACCEPTED_RECOVERY_MAX_OBJECT_BYTES,
+    }
+}
+
+/// Closed multi-head branch-recovery verification ceilings.
+#[derive(Clone, Copy)]
+struct BranchRecoveryLimits {
+    max_requests: u64,
+    per_pointer: RecoveryWorkLimits,
+    union: RecoveryWorkLimits,
+}
+
+const fn branch_recovery_limits() -> BranchRecoveryLimits {
+    BranchRecoveryLimits {
+        max_requests: BRANCH_RECOVERY_MAX_REQUESTS,
+        per_pointer: RecoveryWorkLimits {
+            ancestry_transactions: BRANCH_RECOVERY_MAX_ANCESTRY_PER_POINTER,
+            receipt_bytes: BRANCH_RECOVERY_MAX_RECEIPT_BYTES_PER_POINTER,
+            binding_visits: BRANCH_RECOVERY_MAX_BINDING_VISITS_PER_POINTER,
+            object_verifications: BRANCH_RECOVERY_MAX_OBJECT_VERIFICATIONS_PER_POINTER,
+            object_bytes: BRANCH_RECOVERY_MAX_OBJECT_BYTES_PER_POINTER,
+        },
+        union: RecoveryWorkLimits {
+            ancestry_transactions: BRANCH_RECOVERY_MAX_UNION_ANCESTRY,
+            receipt_bytes: BRANCH_RECOVERY_MAX_UNION_RECEIPT_BYTES,
+            binding_visits: BRANCH_RECOVERY_MAX_UNION_BINDING_VISITS,
+            object_verifications: BRANCH_RECOVERY_MAX_UNION_OBJECT_VERIFICATIONS,
+            object_bytes: BRANCH_RECOVERY_MAX_UNION_OBJECT_BYTES,
+        },
+    }
+}
+
+fn ensure_transaction_recovery_limit(value: u64, limit: u64) -> Result<(), CommitError> {
+    if value > limit {
+        return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
+    }
+    Ok(())
+}
+
+fn ensure_ancestry_recovery_limit(value: u64, limit: u64) -> Result<(), RecoveryAncestryError> {
+    if value > limit {
+        return Err(RecoveryAncestryError::LimitExceeded);
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 enum Cross05OwnerSignal {
@@ -297,6 +412,213 @@ pub struct RecoveryReport {
     pub removed_head_stages: u64,
     /// Verified accepted transaction after cleanup, when initialized.
     pub accepted_transaction_id: Option<TransactionId>,
+    /// Unique accepted-ancestry transactions verified through trusted genesis.
+    pub verified_ancestry_transactions: u64,
+}
+
+/// Exact caller-claimed durable revision facts for recovery verification.
+pub struct RecoveryRevisionClaim {
+    transaction_id: TransactionId,
+    workspace_id: WorkspaceId,
+    state_root: StateRoot,
+    schema_epoch_id: SchemaEpochId,
+    policy_root_id: PolicyRootId,
+    dependency_roots: Vec<StateRoot>,
+}
+
+impl RecoveryRevisionClaim {
+    /// Binds the six exact claimed revision facts.
+    pub fn new(
+        transaction_id: TransactionId,
+        workspace_id: WorkspaceId,
+        state_root: StateRoot,
+        schema_epoch_id: SchemaEpochId,
+        policy_root_id: PolicyRootId,
+        dependency_roots: Vec<StateRoot>,
+    ) -> Self {
+        Self {
+            transaction_id,
+            workspace_id,
+            state_root,
+            schema_epoch_id,
+            policy_root_id,
+            dependency_roots,
+        }
+    }
+}
+
+/// One claimed branch-recovery pointer pair: slot zero is the branch-origin
+/// target and slot one is the visible-ref head.
+pub struct RecoveryAncestryRequest {
+    first_claim: RecoveryRevisionClaim,
+    head_claim: RecoveryRevisionClaim,
+}
+
+impl RecoveryAncestryRequest {
+    /// Binds the two ordered claim slots for one visible branch.
+    pub fn with_claims(
+        first_claim: RecoveryRevisionClaim,
+        head_claim: RecoveryRevisionClaim,
+    ) -> Self {
+        Self {
+            first_claim,
+            head_claim,
+        }
+    }
+}
+
+/// Exact ancestry-verification work quantities.
+#[derive(Debug)]
+pub struct RecoveryWorkUsage {
+    /// Receipt-file bytes charged before each receipt read.
+    pub receipt_bytes: u64,
+    /// Entity-binding entries traversed by inventory verification.
+    pub binding_visits: u64,
+    /// Bound objects verified.
+    pub object_verifications: u64,
+    /// Object bytes charged before each verifying object read.
+    pub object_bytes: u64,
+}
+
+/// Per-pointer branch-recovery ancestry verification result.
+#[derive(Debug)]
+pub struct RecoveryAncestryHeadReport {
+    /// Verified traversal head derived from claim slot one.
+    pub head_transaction_id: TransactionId,
+    /// Unique transactions in this head's complete logical ancestry.
+    pub verified_transactions: u64,
+    /// Logical isolated work charged to this pointer.
+    pub work: RecoveryWorkUsage,
+}
+
+/// Complete multi-head branch-recovery ancestry verification result.
+#[derive(Debug)]
+pub struct RecoveryAncestryReport {
+    /// One report per request in caller order.
+    pub heads: Vec<RecoveryAncestryHeadReport>,
+    /// Unique transactions verified across every request ancestry.
+    pub verified_transactions: u64,
+    /// Actual first-time union work performed by this call.
+    pub work: RecoveryWorkUsage,
+}
+
+/// Typed transaction-owned ancestry-verification failure.
+#[derive(Debug)]
+pub enum RecoveryAncestryError {
+    /// Ancestry traversal revisited an active node.
+    Cycle,
+    /// A closed branch-recovery ceiling was exceeded.
+    LimitExceeded,
+    /// A caller-supplied revision claim did not match verified facts.
+    ClaimMismatch {
+        /// Zero-based index of the mismatched request.
+        request_index: u64,
+        /// Zero-based mismatched claim slot within the request.
+        claim_index: u64,
+    },
+    /// Exact underlying transaction, codec, store, or host failure.
+    Verification(CommitError),
+}
+
+impl fmt::Display for RecoveryAncestryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cycle => formatter.write_str("recovery ancestry cycle"),
+            Self::LimitExceeded => formatter.write_str("recovery ancestry limit exceeded"),
+            Self::ClaimMismatch { .. } => formatter.write_str("recovery ancestry claim mismatch"),
+            Self::Verification(error) => fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for RecoveryAncestryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Verification(error) => Some(error),
+            Self::Cycle | Self::LimitExceeded | Self::ClaimMismatch { .. } => None,
+        }
+    }
+}
+
+/// Owned per-pointer ancestry usage tally, including the transaction count.
+#[derive(Clone, Copy, Default)]
+struct AncestryWorkUsage {
+    ancestry_transactions: u64,
+    receipt_bytes: u64,
+    binding_visits: u64,
+    object_verifications: u64,
+    object_bytes: u64,
+}
+
+/// Owned transaction-recovery scan usage tally.
+#[derive(Default)]
+struct TransactionRecoveryUsage {
+    receipt_fanout_directories: u64,
+    receipt_leaf_entries: u64,
+    final_receipts: u64,
+    receipt_stages: u64,
+    head_entries: u64,
+    head_stages: u64,
+}
+
+/// Revision-verified facts retained by the branch-recovery cache.
+#[derive(Clone, Debug)]
+struct CachedRecoveryRevision {
+    transaction_id: TransactionId,
+    workspace_id: WorkspaceId,
+    state_root: StateRoot,
+    schema_epoch_id: SchemaEpochId,
+    policy_root_id: PolicyRootId,
+    dependency_roots: Vec<StateRoot>,
+    parent_roots: Vec<StateRoot>,
+    parent_transaction_ids: Vec<TransactionId>,
+    record_workspace_id: WorkspaceId,
+    record_schema_epoch_id: SchemaEpochId,
+    record_policy_root_id: PolicyRootId,
+    transaction_kind: TransactionKind,
+    entity_bindings: Vec<(EntityId, ObjectId)>,
+    tombstoned_entities: Vec<EntityId>,
+    changed_entity_bindings: Vec<ChangedBinding>,
+    operations: Vec<sley_mutate::MutationOperation>,
+}
+
+/// Exact retained work and facts for one verified recovery revision.
+#[derive(Clone, Debug)]
+struct CachedRecoveryWork {
+    receipt_bytes: u64,
+    binding_visits: u64,
+    object_verifications: u64,
+    object_bytes: u64,
+    revision: CachedRecoveryRevision,
+}
+
+/// Deferred child-to-parent relationship facts awaiting parent verification.
+struct RecoveryParentExpectation {
+    parent_transaction_id: TransactionId,
+    parent_root: StateRoot,
+    workspace_id: WorkspaceId,
+    schema_epoch_id: SchemaEpochId,
+    policy_root_id: PolicyRootId,
+    operations: Vec<sley_mutate::MutationOperation>,
+    child_entity_bindings: Vec<(EntityId, ObjectId)>,
+    child_changed_bindings: Vec<ChangedBinding>,
+    child_tombstones: Vec<EntityId>,
+}
+
+/// One ordered unit of multi-head recovery verification work.
+#[derive(Clone, Copy)]
+enum RecoveryVerificationJob {
+    Claim {
+        request_index: usize,
+        claim_index: usize,
+    },
+    TraverseNode {
+        request_index: usize,
+        pending_transaction_id: TransactionId,
+    },
+    FinalizeRequest {
+        request_index: usize,
+    },
 }
 
 /// Commit, persistence, or fresh-validation failure.
@@ -453,7 +775,7 @@ impl TransactionRepository {
         &self,
         input: TrustedGenesisInput<'_>,
     ) -> Result<AcceptedHead, CommitError> {
-        self.initialize_trusted_genesis_inner(input, Fault::None)
+        self.initialize_trusted_genesis_inner(input)
     }
 
     /// Freshly validates and atomically commits one ordinary candidate.
@@ -472,7 +794,7 @@ impl TransactionRepository {
         input: CommitInput<'_>,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<CommitOutput, CommitError> {
-        self.commit_inner(input, maintenance, Fault::None)
+        self.commit_inner(input, maintenance)
     }
 
     /// Loads and verifies the complete currently accepted state.
@@ -561,33 +883,853 @@ impl TransactionRepository {
     /// # Errors
     ///
     /// Returns `TXN_IO` for a shared or wrong-root guard, or the first exact
-    /// cleanup or accepted-state verification failure.
+    /// cleanup, limit, or accepted-state verification failure.
     pub fn recover_with_maintenance(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<RecoveryReport, CommitError> {
+        self.recover_with_maintenance_and_limits(
+            maintenance,
+            transaction_recovery_limits(),
+            accepted_recovery_limits(),
+        )
+    }
+
+    fn recover_with_maintenance_and_limits(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        limits: TransactionRecoveryLimits,
+        accepted_limits: RecoveryWorkLimits,
+    ) -> Result<RecoveryReport, CommitError> {
         self.validate_exclusive_maintenance(maintenance)?;
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        let _recovery_ancestry_operation = recovery_ancestry_test_hook::begin_transaction_operation(
+            self,
+            maintenance,
+            recovery_ancestry_test_hook::TransactionOperationKind::AcceptedRecovery,
+        );
         self.ensure_layout_under_maintenance()?;
-        let _lock = self.acquire_lock()?;
-        let object_events = self.object_store.recover_staged()?;
-        let removed_receipt_stages = self.remove_receipt_stages()?;
-        let removed_head_stages = self.remove_head_stages()?;
-        let accepted_transaction_id = self.read_head()?;
-        if let Some(transaction_id) = accepted_transaction_id {
-            self.load_accepted(transaction_id)?;
+        let accepted_lock = self.acquire_lock()?;
+
+        let mut usage = TransactionRecoveryUsage::default();
+        let mut pending_receipt_directories = vec![(self.transactions_dir(), 0_usize)];
+        let mut receipt_leaf_directories = Vec::new();
+        let mut final_receipts = Vec::new();
+        let mut receipt_removal_plan = Vec::new();
+        while let Some((directory, depth)) = pending_receipt_directories.pop() {
+            ensure_existing_directory(&directory)?;
+            if depth == 2 {
+                receipt_leaf_directories.push(directory.clone());
+            }
+            for entry in fs::read_dir(&directory)? {
+                let entry = entry?;
+                if depth < 2 {
+                    let classified_receipt_fanout_path =
+                        classify_receipt_recovery_fanout(&entry, depth)?;
+                    let fanout_path = classified_receipt_fanout_path;
+                    let one = 1_u64;
+                    let next_receipt_fanout_directories = usage
+                        .receipt_fanout_directories
+                        .checked_add(one)
+                        .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                    ensure_transaction_recovery_limit(
+                        next_receipt_fanout_directories,
+                        limits.receipt_fanout_directories,
+                    )?;
+                    usage.receipt_fanout_directories = next_receipt_fanout_directories;
+                    pending_receipt_directories.push(fanout_path);
+                    continue;
+                }
+                let next_receipt_leaf_path = entry.path();
+                let leaf_path = next_receipt_leaf_path;
+                let one = 1_u64;
+                let next_receipt_leaf_entries = usage
+                    .receipt_leaf_entries
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(
+                    next_receipt_leaf_entries,
+                    limits.receipt_leaf_entries,
+                )?;
+                usage.receipt_leaf_entries = next_receipt_leaf_entries;
+                classify_receipt_recovery_leaf(&leaf_path)?;
+                match receipt_recovery_leaf_kind(&leaf_path)? {
+                    ReceiptRecoveryLeafKind::Final => {
+                        let classified_final_receipt = leaf_path;
+                        let final_receipt = classified_final_receipt;
+                        let one = 1_u64;
+                        let next_final_receipts = usage
+                            .final_receipts
+                            .checked_add(one)
+                            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                        ensure_transaction_recovery_limit(
+                            next_final_receipts,
+                            limits.final_receipts,
+                        )?;
+                        usage.final_receipts = next_final_receipts;
+                        final_receipts.push(final_receipt);
+                    }
+                    ReceiptRecoveryLeafKind::OwnedStage => {
+                        let classified_receipt_stage_path = leaf_path;
+                        let stage_path = classified_receipt_stage_path;
+                        let one = 1_u64;
+                        let next_receipt_stages = usage
+                            .receipt_stages
+                            .checked_add(one)
+                            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                        ensure_transaction_recovery_limit(
+                            next_receipt_stages,
+                            limits.receipt_stages,
+                        )?;
+                        usage.receipt_stages = next_receipt_stages;
+                        receipt_removal_plan.push(stage_path);
+                    }
+                    ReceiptRecoveryLeafKind::Unknown => {}
+                }
+            }
         }
+
+        let head_dir = self.head_dir();
+        ensure_existing_directory(&head_dir)?;
+        let mut head_removal_plan = Vec::new();
+        for entry in fs::read_dir(&head_dir)? {
+            let entry = entry?;
+            let next_head_entry_path = entry.path();
+            let head_entry_path = next_head_entry_path;
+            let one = 1_u64;
+            let next_head_entries = usage
+                .head_entries
+                .checked_add(one)
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            ensure_transaction_recovery_limit(next_head_entries, limits.head_entries)?;
+            usage.head_entries = next_head_entries;
+            classify_head_recovery_entry(&head_entry_path)?;
+            if head_recovery_entry_is_owned_stage(&head_entry_path) {
+                let classified_head_stage_path = head_entry_path;
+                let head_stage_path = classified_head_stage_path;
+                let one = 1_u64;
+                let next_head_stages = usage
+                    .head_stages
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(next_head_stages, limits.head_stages)?;
+                usage.head_stages = next_head_stages;
+                head_removal_plan.push(head_stage_path);
+            }
+        }
+
+        let (accepted_transaction_id, verified_ancestry_transactions) =
+            self.verify_accepted_recovery_ancestry(maintenance, &accepted_lock, accepted_limits)?;
+        let _ = final_receipts;
+
+        let object_events = self.object_store.recover_staged()?;
+        receipt_removal_plan.sort();
+        receipt_leaf_directories.sort();
+        head_removal_plan.sort();
+        let removed_receipt_stages = remove_planned_receipt_stages(&receipt_removal_plan)?;
+        for directory in &receipt_leaf_directories {
+            ensure_existing_directory(directory)?;
+            sync_dir(directory)?;
+        }
+        let removed_head_stages = remove_planned_head_stages(&head_removal_plan)?;
+        ensure_existing_directory(&head_dir)?;
+        sync_dir(&head_dir)?;
+
         Ok(RecoveryReport {
             removed_object_stages: usize_to_u64(object_events.len())?,
             removed_receipt_stages,
             removed_head_stages,
             accepted_transaction_id,
+            verified_ancestry_transactions,
         })
+    }
+
+    /// Reads the accepted pointer and verifies its complete bounded ancestry
+    /// through trusted genesis under the already-held `accepted.lock` token.
+    fn verify_accepted_recovery_ancestry(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        accepted_lock: &File,
+        limits: RecoveryWorkLimits,
+    ) -> Result<(Option<TransactionId>, u64), CommitError> {
+        let accepted_transaction_id = self.read_head()?;
+        let Some(head_transaction_id) = accepted_transaction_id else {
+            return Ok((None, 0));
+        };
+        let verified_ancestry_transactions = self.verify_accepted_recovery_ancestry_with_limits(
+            maintenance,
+            accepted_lock,
+            head_transaction_id,
+            limits,
+        )?;
+        Ok((accepted_transaction_id, verified_ancestry_transactions))
+    }
+
+    fn verify_accepted_recovery_ancestry_with_limits(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        _accepted_lock: &File,
+        head_transaction_id: TransactionId,
+        limits: RecoveryWorkLimits,
+    ) -> Result<u64, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        recovery_ancestry_test_hook::activate_ancestry_epoch(self, maintenance);
+        let mut usage = AncestryWorkUsage::default();
+        let mut seen: BTreeSet<TransactionId> = BTreeSet::new();
+        let mut ancestry_stack: Vec<TransactionId> = Vec::new();
+        let mut pending_expectation: Option<RecoveryParentExpectation> = None;
+        let mut pending_admission = Some(head_transaction_id);
+        while let Some(pending_transaction_id) = pending_admission.take() {
+            if seen.contains(&pending_transaction_id) {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+            }
+            seen.insert(pending_transaction_id);
+            let transaction_id = pending_transaction_id;
+            let one = 1_u64;
+            let next_accepted_ancestry_transactions = usage
+                .ancestry_transactions
+                .checked_add(one)
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            ensure_transaction_recovery_limit(
+                next_accepted_ancestry_transactions,
+                limits.ancestry_transactions,
+            )?;
+            usage.ancestry_transactions = next_accepted_ancestry_transactions;
+            ancestry_stack.push(transaction_id);
+
+            let receipt_path = self.receipt_path_readonly(transaction_id)?;
+            let metadata = recovery_receipt_metadata(&receipt_path)?;
+            let metadata_bytes = metadata.len();
+            let next_accepted_receipt_bytes = usage
+                .receipt_bytes
+                .checked_add(metadata_bytes)
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            ensure_transaction_recovery_limit(next_accepted_receipt_bytes, limits.receipt_bytes)?;
+            usage.receipt_bytes = next_accepted_receipt_bytes;
+            let receipt = self.read_recovery_receipt(&receipt_path)?;
+            if receipt.transaction.transaction_id != transaction_id {
+                return Err(txn_commit_error(
+                    TransactionErrorCode::ReceiptBindingMismatch,
+                ));
+            }
+
+            let verifier = &entity_verifier(receipt.state_root.record.schema_epoch_id);
+            let mut objects = Vec::with_capacity(receipt.state_root.record.entity_bindings.len());
+            for entity_binding in &receipt.state_root.record.entity_bindings {
+                let next_binding = *entity_binding;
+                let binding = next_binding;
+                let one = 1_u64;
+                let next_accepted_binding_visits = usage
+                    .binding_visits
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(
+                    next_accepted_binding_visits,
+                    limits.binding_visits,
+                )?;
+                usage.binding_visits = next_accepted_binding_visits;
+                inspect_recovery_binding(&binding)?;
+
+                let next_object_id = binding.1;
+                let object_id = next_object_id;
+                let object_bytes = self.object_store.bounded_object_len(object_id)?;
+                let one = 1_u64;
+                let next_accepted_object_verifications = usage
+                    .object_verifications
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                let next_accepted_object_bytes = usage
+                    .object_bytes
+                    .checked_add(object_bytes)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(
+                    next_accepted_object_verifications,
+                    limits.object_verifications,
+                )?;
+                ensure_transaction_recovery_limit(next_accepted_object_bytes, limits.object_bytes)?;
+                usage.object_verifications = next_accepted_object_verifications;
+                usage.object_bytes = next_accepted_object_bytes;
+                let object = self.object_store.read(object_id, verifier)?;
+
+                let imported =
+                    import_entity_object(receipt.state_root.record.schema_epoch_id, &object)
+                        .map_err(TransactionCodecError::Scb)?;
+                if imported.record().entity_id != binding.0 || imported.object_id() != binding.1 {
+                    return Err(txn_commit_error(
+                        TransactionErrorCode::ObjectInventoryMismatch,
+                    ));
+                }
+                objects.push(imported);
+            }
+            verify_manifest_lengths(&receipt.record.object_manifest, &objects)?;
+            validate_inventory(
+                &receipt.state_root,
+                &receipt.policy_root,
+                &objects,
+                &receipt.transaction.record.tombstoned_entities,
+            )?;
+
+            let revision = VerifiedRevision {
+                transaction_id,
+                receipt,
+                objects,
+            };
+            let parents = self.recovery_ancestry_parents(&revision);
+            let facts = recovery_revision_facts(&revision, parents.as_ref())?;
+            verify_recovery_revision_shape(&facts)?;
+            if let Some(expectation) = pending_expectation.take() {
+                verify_recovery_parent_expectation(&expectation, &facts)?;
+            }
+            if matches!(facts.transaction_kind, TransactionKind::OrdinaryCandidate) {
+                let parent_transaction_id = facts
+                    .parent_transaction_ids
+                    .first()
+                    .copied()
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ParentShape))?;
+                pending_expectation = Some(recovery_parent_expectation(&facts)?);
+                pending_admission = Some(parent_transaction_id);
+            }
+        }
+        Ok(usage.ancestry_transactions)
+    }
+
+    /// Verifies claimed branch-recovery pointer ancestries under the frozen
+    /// per-pointer and union ceilings.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first typed cycle, limit, indexed claim-mismatch, or exact
+    /// underlying verification failure.
+    pub fn verify_branch_recovery_ancestries_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        requests: &[RecoveryAncestryRequest],
+    ) -> Result<RecoveryAncestryReport, RecoveryAncestryError> {
+        self.verify_recovery_ancestries_with_limits(maintenance, requests, branch_recovery_limits())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn verify_recovery_ancestries_with_limits(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        requests: &[RecoveryAncestryRequest],
+        limits: BranchRecoveryLimits,
+    ) -> Result<RecoveryAncestryReport, RecoveryAncestryError> {
+        self.validate_exclusive_maintenance(maintenance)
+            .map_err(RecoveryAncestryError::Verification)?;
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        let _recovery_ancestry_operation = recovery_ancestry_test_hook::begin_transaction_operation(
+            self,
+            maintenance,
+            recovery_ancestry_test_hook::TransactionOperationKind::BranchAncestry,
+        );
+        let mut request_usage = 0_u64;
+        let request_count =
+            u64::try_from(requests.len()).map_err(|_| RecoveryAncestryError::LimitExceeded)?;
+        let next_request_count = request_usage
+            .checked_add(request_count)
+            .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+        ensure_ancestry_recovery_limit(next_request_count, limits.max_requests)?;
+        request_usage = next_request_count;
+        let mut head_reports = ::std::vec::Vec::with_capacity(requests.len());
+        let _ = request_usage;
+        if requests.is_empty() {
+            return Ok(RecoveryAncestryReport {
+                heads: head_reports,
+                verified_transactions: 0,
+                work: RecoveryWorkUsage {
+                    receipt_bytes: 0,
+                    binding_visits: 0,
+                    object_verifications: 0,
+                    object_bytes: 0,
+                },
+            });
+        }
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        recovery_ancestry_test_hook::activate_ancestry_epoch(self, maintenance);
+        self.ensure_layout_under_maintenance()
+            .map_err(RecoveryAncestryError::Verification)?;
+        let _accepted_lock = self
+            .acquire_lock()
+            .map_err(RecoveryAncestryError::Verification)?;
+
+        let mut union_usage = AncestryWorkUsage::default();
+        let mut union_seen: BTreeSet<TransactionId> = BTreeSet::new();
+        let mut recovery_cache: BTreeMap<TransactionId, CachedRecoveryWork> = BTreeMap::new();
+        let mut head_usages = vec![AncestryWorkUsage::default(); requests.len()];
+        let mut head_seens: Vec<BTreeSet<TransactionId>> = vec![BTreeSet::new(); requests.len()];
+        let mut charged: Vec<BTreeSet<TransactionId>> = vec![BTreeSet::new(); requests.len()];
+        let mut ancestry_stack: Vec<TransactionId> = Vec::new();
+        let mut pending_expectation: Option<RecoveryParentExpectation> = None;
+
+        let mut job_stack: Vec<RecoveryVerificationJob> = Vec::new();
+        for request_index in (0..requests.len()).rev() {
+            job_stack.push(RecoveryVerificationJob::FinalizeRequest { request_index });
+            job_stack.push(RecoveryVerificationJob::TraverseNode {
+                request_index,
+                pending_transaction_id: requests[request_index].head_claim.transaction_id,
+            });
+        }
+        for request_index in (0..requests.len()).rev() {
+            job_stack.push(RecoveryVerificationJob::Claim {
+                request_index,
+                claim_index: 1,
+            });
+            job_stack.push(RecoveryVerificationJob::Claim {
+                request_index,
+                claim_index: 0,
+            });
+        }
+
+        while let Some(job) = job_stack.pop() {
+            let (request_index, pending_transaction_id, ancestry_admission, claim_slot) = match job
+            {
+                RecoveryVerificationJob::FinalizeRequest { request_index } => {
+                    if pending_expectation.is_some() {
+                        return Err(RecoveryAncestryError::Verification(txn_commit_error(
+                            TransactionErrorCode::InternalInvariant,
+                        )));
+                    }
+                    let request = &requests[request_index];
+                    let request_ordinal =
+                        u64::try_from(request_index).expect("request index fits u64");
+                    if !head_seens[request_index].contains(&request.first_claim.transaction_id) {
+                        return Err(RecoveryAncestryError::ClaimMismatch {
+                            request_index: request_ordinal,
+                            claim_index: 0,
+                        });
+                    }
+                    if !head_seens[request_index].contains(&request.head_claim.transaction_id) {
+                        return Err(RecoveryAncestryError::ClaimMismatch {
+                            request_index: request_ordinal,
+                            claim_index: 1,
+                        });
+                    }
+                    let request_work = head_usages[request_index];
+                    head_reports.push(RecoveryAncestryHeadReport {
+                        head_transaction_id: request.head_claim.transaction_id,
+                        verified_transactions: request_work.ancestry_transactions,
+                        work: RecoveryWorkUsage {
+                            receipt_bytes: request_work.receipt_bytes,
+                            binding_visits: request_work.binding_visits,
+                            object_verifications: request_work.object_verifications,
+                            object_bytes: request_work.object_bytes,
+                        },
+                    });
+                    continue;
+                }
+                RecoveryVerificationJob::Claim {
+                    request_index,
+                    claim_index,
+                } => {
+                    let request = &requests[request_index];
+                    let claim = if claim_index == 0 {
+                        &request.first_claim
+                    } else {
+                        &request.head_claim
+                    };
+                    (
+                        request_index,
+                        claim.transaction_id,
+                        false,
+                        Some(claim_index),
+                    )
+                }
+                RecoveryVerificationJob::TraverseNode {
+                    request_index,
+                    pending_transaction_id,
+                } => (request_index, pending_transaction_id, true, None),
+            };
+
+            if ancestry_admission {
+                if head_seens[request_index].contains(&pending_transaction_id) {
+                    return Err(RecoveryAncestryError::Cycle);
+                }
+                let mut head_usage = head_usages[request_index];
+                let mut head_seen = ::std::mem::take(&mut head_seens[request_index]);
+                let transaction_id = pending_transaction_id;
+                let first_union = !union_seen.contains(&transaction_id);
+                let one = 1_u64;
+                let union_delta = u64::from(first_union);
+                let next_head_ancestry_transactions = head_usage
+                    .ancestry_transactions
+                    .checked_add(one)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_union_ancestry_transactions = union_usage
+                    .ancestry_transactions
+                    .checked_add(union_delta)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                ensure_ancestry_recovery_limit(
+                    next_head_ancestry_transactions,
+                    limits.per_pointer.ancestry_transactions,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_union_ancestry_transactions,
+                    limits.union.ancestry_transactions,
+                )?;
+                head_usage.ancestry_transactions = next_head_ancestry_transactions;
+                union_usage.ancestry_transactions = next_union_ancestry_transactions;
+                record_recovery_ancestry_visit(
+                    &mut head_seen,
+                    &mut union_seen,
+                    transaction_id,
+                    first_union,
+                );
+                ancestry_stack.push(transaction_id);
+                head_usages[request_index] = head_usage;
+                head_seens[request_index] = head_seen;
+            }
+
+            let transaction_id = pending_transaction_id;
+            let facts = if charged[request_index].contains(&transaction_id) {
+                recovery_cache
+                    .get(&transaction_id)
+                    .map(|cached| cached.revision.clone())
+                    .ok_or_else(|| {
+                        RecoveryAncestryError::Verification(txn_commit_error(
+                            TransactionErrorCode::InternalInvariant,
+                        ))
+                    })?
+            } else if recovery_cache.contains_key(&transaction_id) {
+                let mut head_usage = head_usages[request_index];
+                let cache_key = transaction_id;
+                let cached_work = recovery_cache
+                    .get(&cache_key)
+                    .expect("verified recovery cache entry");
+                let cached_receipt_bytes = cached_work.receipt_bytes;
+                let cached_binding_visits = cached_work.binding_visits;
+                let cached_object_verifications = cached_work.object_verifications;
+                let cached_object_bytes = cached_work.object_bytes;
+                let next_cached_head_receipt_bytes = head_usage
+                    .receipt_bytes
+                    .checked_add(cached_receipt_bytes)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_binding_visits = head_usage
+                    .binding_visits
+                    .checked_add(cached_binding_visits)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_object_verifications = head_usage
+                    .object_verifications
+                    .checked_add(cached_object_verifications)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_object_bytes = head_usage
+                    .object_bytes
+                    .checked_add(cached_object_bytes)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_receipt_bytes,
+                    limits.per_pointer.receipt_bytes,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_binding_visits,
+                    limits.per_pointer.binding_visits,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_object_verifications,
+                    limits.per_pointer.object_verifications,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_object_bytes,
+                    limits.per_pointer.object_bytes,
+                )?;
+                head_usage.receipt_bytes = next_cached_head_receipt_bytes;
+                head_usage.binding_visits = next_cached_head_binding_visits;
+                head_usage.object_verifications = next_cached_head_object_verifications;
+                head_usage.object_bytes = next_cached_head_object_bytes;
+                let cached_revision = use_cached_recovery_fact(&cache_key, cached_work)?;
+                head_usages[request_index] = head_usage;
+                charged[request_index].insert(cache_key);
+                cached_revision
+            } else {
+                let mut head_usage = head_usages[request_index];
+                let mut current_cache_work = RecoveryWorkUsage {
+                    receipt_bytes: 0,
+                    binding_visits: 0,
+                    object_verifications: 0,
+                    object_bytes: 0,
+                };
+                let receipt_path = self
+                    .receipt_path_readonly(transaction_id)
+                    .map_err(RecoveryAncestryError::Verification)?;
+                let metadata = recovery_receipt_metadata(&receipt_path)
+                    .map_err(RecoveryAncestryError::Verification)?;
+                let metadata_bytes = metadata.len();
+                let next_head_receipt_bytes = head_usage
+                    .receipt_bytes
+                    .checked_add(metadata_bytes)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_union_receipt_bytes = union_usage
+                    .receipt_bytes
+                    .checked_add(metadata_bytes)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_receipt_bytes = current_cache_work
+                    .receipt_bytes
+                    .checked_add(metadata_bytes)
+                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                ensure_ancestry_recovery_limit(
+                    next_head_receipt_bytes,
+                    limits.per_pointer.receipt_bytes,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_union_receipt_bytes,
+                    limits.union.receipt_bytes,
+                )?;
+                head_usage.receipt_bytes = next_head_receipt_bytes;
+                union_usage.receipt_bytes = next_union_receipt_bytes;
+                current_cache_work.receipt_bytes = next_cached_receipt_bytes;
+                let receipt = self
+                    .read_recovery_receipt(&receipt_path)
+                    .map_err(RecoveryAncestryError::Verification)?;
+                if receipt.transaction.transaction_id != transaction_id {
+                    return Err(RecoveryAncestryError::Verification(txn_commit_error(
+                        TransactionErrorCode::ReceiptBindingMismatch,
+                    )));
+                }
+
+                let verifier = &entity_verifier(receipt.state_root.record.schema_epoch_id);
+                let mut objects =
+                    Vec::with_capacity(receipt.state_root.record.entity_bindings.len());
+                for entity_binding in &receipt.state_root.record.entity_bindings {
+                    let next_binding = *entity_binding;
+                    let binding = next_binding;
+                    let one = 1_u64;
+                    let next_head_binding_visits = head_usage
+                        .binding_visits
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_union_binding_visits = union_usage
+                        .binding_visits
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_cached_binding_visits = current_cache_work
+                        .binding_visits
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    ensure_ancestry_recovery_limit(
+                        next_head_binding_visits,
+                        limits.per_pointer.binding_visits,
+                    )?;
+                    ensure_ancestry_recovery_limit(
+                        next_union_binding_visits,
+                        limits.union.binding_visits,
+                    )?;
+                    head_usage.binding_visits = next_head_binding_visits;
+                    union_usage.binding_visits = next_union_binding_visits;
+                    current_cache_work.binding_visits = next_cached_binding_visits;
+                    inspect_recovery_binding(&binding)
+                        .map_err(RecoveryAncestryError::Verification)?;
+
+                    let next_object_id = binding.1;
+                    let object_id = next_object_id;
+                    let object_bytes = self
+                        .object_store
+                        .bounded_object_len(object_id)
+                        .map_err(CommitError::from)
+                        .map_err(RecoveryAncestryError::Verification)?;
+                    let one = 1_u64;
+                    let next_head_object_verifications = head_usage
+                        .object_verifications
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_union_object_verifications = union_usage
+                        .object_verifications
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_head_object_bytes = head_usage
+                        .object_bytes
+                        .checked_add(object_bytes)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_union_object_bytes = union_usage
+                        .object_bytes
+                        .checked_add(object_bytes)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_cached_object_verifications = current_cache_work
+                        .object_verifications
+                        .checked_add(one)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    let next_cached_object_bytes = current_cache_work
+                        .object_bytes
+                        .checked_add(object_bytes)
+                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    ensure_ancestry_recovery_limit(
+                        next_head_object_verifications,
+                        limits.per_pointer.object_verifications,
+                    )?;
+                    ensure_ancestry_recovery_limit(
+                        next_union_object_verifications,
+                        limits.union.object_verifications,
+                    )?;
+                    ensure_ancestry_recovery_limit(
+                        next_head_object_bytes,
+                        limits.per_pointer.object_bytes,
+                    )?;
+                    ensure_ancestry_recovery_limit(
+                        next_union_object_bytes,
+                        limits.union.object_bytes,
+                    )?;
+                    head_usage.object_verifications = next_head_object_verifications;
+                    union_usage.object_verifications = next_union_object_verifications;
+                    head_usage.object_bytes = next_head_object_bytes;
+                    union_usage.object_bytes = next_union_object_bytes;
+                    current_cache_work.object_verifications = next_cached_object_verifications;
+                    current_cache_work.object_bytes = next_cached_object_bytes;
+                    let object = self
+                        .object_store
+                        .read(object_id, verifier)
+                        .map_err(CommitError::from)
+                        .map_err(RecoveryAncestryError::Verification)?;
+
+                    let imported =
+                        import_entity_object(receipt.state_root.record.schema_epoch_id, &object)
+                            .map_err(TransactionCodecError::Scb)
+                            .map_err(CommitError::from)
+                            .map_err(RecoveryAncestryError::Verification)?;
+                    if imported.record().entity_id != binding.0 || imported.object_id() != binding.1
+                    {
+                        return Err(RecoveryAncestryError::Verification(txn_commit_error(
+                            TransactionErrorCode::ObjectInventoryMismatch,
+                        )));
+                    }
+                    objects.push(imported);
+                }
+                verify_manifest_lengths(&receipt.record.object_manifest, &objects)
+                    .map_err(RecoveryAncestryError::Verification)?;
+                validate_inventory(
+                    &receipt.state_root,
+                    &receipt.policy_root,
+                    &objects,
+                    &receipt.transaction.record.tombstoned_entities,
+                )
+                .map_err(RecoveryAncestryError::Verification)?;
+
+                let revision = VerifiedRevision {
+                    transaction_id,
+                    receipt,
+                    objects,
+                };
+                let parents = self.recovery_ancestry_parents(&revision);
+                let facts = recovery_revision_facts(&revision, parents.as_ref())
+                    .map_err(RecoveryAncestryError::Verification)?;
+                verify_recovery_revision_shape(&facts)
+                    .map_err(RecoveryAncestryError::Verification)?;
+                head_usages[request_index] = head_usage;
+                recovery_cache.insert(
+                    transaction_id,
+                    CachedRecoveryWork {
+                        receipt_bytes: current_cache_work.receipt_bytes,
+                        binding_visits: current_cache_work.binding_visits,
+                        object_verifications: current_cache_work.object_verifications,
+                        object_bytes: current_cache_work.object_bytes,
+                        revision: facts.clone(),
+                    },
+                );
+                charged[request_index].insert(transaction_id);
+                facts
+            };
+
+            if let Some(claim_index) = claim_slot {
+                let request = &requests[request_index];
+                let claim = if claim_index == 0 {
+                    &request.first_claim
+                } else {
+                    &request.head_claim
+                };
+                if facts.transaction_id != claim.transaction_id
+                    || facts.workspace_id != claim.workspace_id
+                    || facts.state_root != claim.state_root
+                    || facts.schema_epoch_id != claim.schema_epoch_id
+                    || facts.policy_root_id != claim.policy_root_id
+                    || facts.dependency_roots != claim.dependency_roots
+                {
+                    return Err(RecoveryAncestryError::ClaimMismatch {
+                        request_index: u64::try_from(request_index)
+                            .expect("request index fits u64"),
+                        claim_index: u64::try_from(claim_index).expect("claim index fits u64"),
+                    });
+                }
+            } else {
+                if let Some(expectation) = pending_expectation.take() {
+                    verify_recovery_parent_expectation(&expectation, &facts)
+                        .map_err(RecoveryAncestryError::Verification)?;
+                }
+                if matches!(facts.transaction_kind, TransactionKind::OrdinaryCandidate) {
+                    let parent_transaction_id = facts
+                        .parent_transaction_ids
+                        .first()
+                        .copied()
+                        .ok_or_else(|| {
+                            RecoveryAncestryError::Verification(txn_commit_error(
+                                TransactionErrorCode::ParentShape,
+                            ))
+                        })?;
+                    pending_expectation = Some(
+                        recovery_parent_expectation(&facts)
+                            .map_err(RecoveryAncestryError::Verification)?,
+                    );
+                    job_stack.push(RecoveryVerificationJob::TraverseNode {
+                        request_index,
+                        pending_transaction_id: parent_transaction_id,
+                    });
+                }
+            }
+        }
+
+        Ok(RecoveryAncestryReport {
+            heads: head_reports,
+            verified_transactions: union_usage.ancestry_transactions,
+            work: RecoveryWorkUsage {
+                receipt_bytes: union_usage.receipt_bytes,
+                binding_visits: union_usage.binding_visits,
+                object_verifications: union_usage.object_verifications,
+                object_bytes: union_usage.object_bytes,
+            },
+        })
+    }
+
+    /// Returns the verified parents used for ancestry expansion. Only a
+    /// single-parent ordinary revision passes the parent-substitution seam.
+    #[allow(unused_variables)]
+    fn recovery_ancestry_parents<'a>(
+        &self,
+        revision: &'a VerifiedRevision,
+    ) -> ::std::borrow::Cow<'a, [TransactionId]> {
+        let durable_parents = revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids
+            .as_slice();
+        match revision.receipt().transaction.record.transaction_kind {
+            TransactionKind::TrustedGenesis => ::std::borrow::Cow::Borrowed(durable_parents),
+            TransactionKind::OrdinaryCandidate => match durable_parents.len() {
+                1 => {
+                    let parents = ::std::borrow::Cow::Borrowed(durable_parents);
+                    #[cfg(any(test, feature = "s20-530-test-hooks"))]
+                    let parents = recovery_ancestry_test_hook::substitute_verified_parents(
+                        self.root(),
+                        revision,
+                    );
+                    parents
+                }
+                _ => ::std::borrow::Cow::Borrowed(durable_parents),
+            },
+        }
+    }
+
+    /// Reads and imports one recovery receipt whose metadata was charged.
+    #[allow(clippy::unused_self)]
+    fn read_recovery_receipt(
+        &self,
+        path: &Path,
+    ) -> Result<ImportedTransactionReceipt, CommitError> {
+        let bytes = bounded_read(path, MAX_STANDALONE_BYTES)?;
+        Ok(import_transaction_receipt(&bytes)?)
     }
 
     fn initialize_trusted_genesis_inner(
         &self,
         input: TrustedGenesisInput<'_>,
-        fault: Fault,
     ) -> Result<AcceptedHead, CommitError> {
         let _maintenance = self.acquire_shared_maintenance()?;
         self.ensure_layout_under_maintenance()?;
@@ -605,7 +1747,13 @@ impl TransactionRepository {
             derive_binding_diff(&[], &input.state_root.record.entity_bindings, None)?;
         let manifest = manifest_for_changed(&changed_entity_bindings, input.objects)?;
         self.persist_objects(&manifest, input.objects)?;
-        fault.fail_if(Fault::AfterObjectsBeforeReceipt)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Gen03AfterAllGenesisObjectsBeforeReceiptStage
+            )
+        })?;
 
         let transaction = build_transaction(&TransactionRecord {
             format_version: 1,
@@ -639,9 +1787,15 @@ impl TransactionRepository {
             object_manifest: manifest,
             durability_profile: CommitMetadata::restricted_v1().durability_profile,
         })?;
-        self.persist_receipt(&receipt, fault)?;
-        fault.fail_if(Fault::AfterReceiptBeforeHead)?;
-        self.cas_head(None, receipt.transaction.transaction_id, fault)?;
+        self.persist_receipt(&receipt)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Gen09SecondGenesisReceiptLeafSyncBeforeHeadWork
+            )
+        })?;
+        self.cas_head(None, receipt.transaction.transaction_id)?;
         self.load_accepted(receipt.transaction.transaction_id)
     }
 
@@ -649,7 +1803,6 @@ impl TransactionRepository {
         &self,
         input: CommitInput<'_>,
         maintenance: &RepositoryMaintenanceGuard,
-        fault: Fault,
     ) -> Result<CommitOutput, CommitError> {
         self.validate_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
@@ -700,7 +1853,13 @@ impl TransactionRepository {
             plan.proposed_state().entities(),
         )?;
         self.persist_objects(&manifest, plan.proposed_state().entities())?;
-        fault.fail_if(Fault::AfterObjectsBeforeReceipt)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Tobj03AfterAllChangedObjectsBeforeReceiptStage
+            )
+        })?;
 
         let result = validation.result().clone();
         let candidate = plan.candidate();
@@ -736,9 +1895,15 @@ impl TransactionRepository {
             object_manifest: manifest,
             durability_profile: CommitMetadata::restricted_v1().durability_profile,
         })?;
-        self.persist_receipt(&receipt, fault)?;
-        fault.fail_if(Fault::AfterReceiptBeforeHead)?;
-        self.cas_head(Some(actual), receipt.transaction.transaction_id, fault)?;
+        self.persist_receipt(&receipt)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Txn06SecondReceiptLeafSyncBeforeHeadWork
+            )
+        })?;
+        self.cas_head(Some(actual), receipt.transaction.transaction_id)?;
         Ok(CommitOutput {
             transaction_id: receipt.transaction.transaction_id,
             receipt_id: receipt.receipt_id,
@@ -851,7 +2016,8 @@ impl TransactionRepository {
             .iter()
             .map(|object| (object.object_id(), object))
             .collect::<BTreeMap<_, _>>();
-        for entry in manifest {
+        for (entry_index, entry) in manifest.iter().enumerate() {
+            let _ = entry_index;
             let object = by_id
                 .get(&entry.object_id)
                 .ok_or_else(|| txn_commit_error(TransactionErrorCode::ObjectInventoryMismatch))?;
@@ -861,17 +2027,17 @@ impl TransactionRepository {
                 ));
             }
             let verifier = entity_verifier(object.schema_epoch_id());
+            #[cfg(test)]
+            fail_selected_object_boundary_cut(entry_index, false)?;
             self.object_store
                 .put(entry.object_id, object.stored_bytes(), &verifier)?;
+            #[cfg(test)]
+            fail_selected_object_boundary_cut(entry_index, true)?;
         }
         Ok(())
     }
 
-    fn persist_receipt(
-        &self,
-        receipt: &ImportedTransactionReceipt,
-        fault: Fault,
-    ) -> Result<(), CommitError> {
+    fn persist_receipt(&self, receipt: &ImportedTransactionReceipt) -> Result<(), CommitError> {
         let final_path = self.receipt_path(receipt.transaction.transaction_id)?;
         let final_dir = final_path
             .parent()
@@ -880,15 +2046,8 @@ impl TransactionRepository {
             return Self::verify_existing_receipt(&final_path, receipt);
         }
         let (stage_path, mut stage) = reserve_stage(final_dir, RECEIPT_STAGE_PREFIX)?;
-        if fault == Fault::DuringReceiptWrite {
-            let split = receipt.stored_bytes.len() / 2;
-            stage.write_all(&receipt.stored_bytes[..split])?;
-            stage.flush()?;
-            stage.sync_all()?;
-            return Err(txn_commit_error(
-                TransactionErrorCode::RecoveryReceiptIncomplete,
-            ));
-        }
+        #[cfg(test)]
+        fail_selected_receipt_stage_write_cut(&mut stage, &receipt.stored_bytes)?;
         stage.write_all(&receipt.stored_bytes)?;
         stage.flush()?;
         stage.sync_all()?;
@@ -900,6 +2059,14 @@ impl TransactionRepository {
                 TransactionErrorCode::ReceiptBindingMismatch,
             ));
         }
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Txn02VerifiedReceiptStageBeforeFinalLink
+                    | TransactionDurabilityCut::Gen05VerifiedGenesisReceiptStageBeforeFinalLink
+            )
+        })?;
         match fs::hard_link(&stage_path, &final_path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -910,8 +2077,32 @@ impl TransactionRepository {
             }
             Err(error) => return Err(error.into()),
         }
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Txn03FinalReceiptLinkBeforeFirstLeafSync
+                    | TransactionDurabilityCut::Gen06FinalGenesisReceiptLinkBeforeFirstLeafSync
+            )
+        })?;
         sync_dir(final_dir)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Txn04FirstReceiptLeafSyncBeforeStageUnlink
+                    | TransactionDurabilityCut::Gen07FirstGenesisReceiptLeafSyncBeforeStageUnlink
+            )
+        })?;
         remove_file_if_exists(&stage_path)?;
+        #[cfg(test)]
+        fail_selected_transaction_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Txn05ReceiptStageUnlinkBeforeSecondLeafSync
+                    | TransactionDurabilityCut::Gen08GenesisReceiptStageUnlinkBeforeSecondLeafSync
+            )
+        })?;
         sync_dir(final_dir)?;
         let final_bytes = bounded_read(&final_path, MAX_STANDALONE_BYTES)?;
         if import_transaction_receipt(&final_bytes)? != *receipt {
@@ -972,16 +2163,24 @@ impl TransactionRepository {
         &self,
         expected: Option<TransactionId>,
         new: TransactionId,
-        fault: Fault,
     ) -> Result<(), CommitError> {
         if self.read_head()? != expected {
             return Err(txn_commit_error(TransactionErrorCode::RefCasStale));
         }
-        fault.fail_if(Fault::BeforeHeadRename)?;
+        #[cfg(test)]
+        fail_selected_head_cas_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Head01BeforeAcceptedHeadStageCreate
+                    | TransactionDurabilityCut::Gen10BeforeGenesisHeadStageCreate
+            )
+        })?;
         let head_dir = self.head_dir();
         let head_path = self.head_path();
         let bytes = encode_head(new);
         let (stage_path, mut stage) = reserve_stage(&head_dir, HEAD_STAGE_PREFIX)?;
+        #[cfg(test)]
+        fail_selected_head_stage_write_cut(&mut stage, &bytes)?;
         stage.write_all(&bytes)?;
         stage.flush()?;
         stage.sync_all()?;
@@ -990,9 +2189,32 @@ impl TransactionRepository {
             return Err(txn_commit_error(TransactionErrorCode::HeadCorrupt));
         }
         reject_symlink_if_present(&head_path)?;
+        #[cfg(test)]
+        fail_selected_head_cas_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Head03VerifiedAcceptedHeadStageBeforeRename
+                    | TransactionDurabilityCut::Gen12VerifiedGenesisHeadStageBeforeRename
+            )
+        })?;
         fs::rename(&stage_path, &head_path)?;
-        fault.fail_if(Fault::AfterHeadRenameBeforeSync)?;
+        #[cfg(test)]
+        fail_selected_head_cas_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Head04AcceptedHeadRenameBeforeHeadSync
+                    | TransactionDurabilityCut::Gen13GenesisHeadRenameBeforeHeadSync
+            )
+        })?;
         sync_dir(&head_dir)?;
+        #[cfg(test)]
+        fail_selected_head_cas_cut(|cut| {
+            matches!(
+                cut,
+                TransactionDurabilityCut::Head05AcceptedHeadSyncBeforeResponse
+                    | TransactionDurabilityCut::Gen14GenesisHeadSyncBeforeResponse
+            )
+        })?;
         if self.read_head()? == Some(new) {
             Ok(())
         } else {
@@ -1012,8 +2234,8 @@ impl TransactionRepository {
     fn receipt_path(&self, transaction_id: TransactionId) -> Result<PathBuf, CommitError> {
         let hex = hex_id(transaction_id.as_bytes());
         let mut current = self.transactions_dir();
-        for component in [&hex[0..2], &hex[2..4]] {
-            current = create_dir_component(&current, component)?;
+        for (fanout_level, component) in [&hex[0..2], &hex[2..4]].into_iter().enumerate() {
+            current = create_dir_component(&current, component, 2 + fanout_level)?;
         }
         Ok(current.join(format!("{hex}.receipt.scb1")))
     }
@@ -1051,10 +2273,10 @@ impl TransactionRepository {
 
     fn ensure_layout_under_maintenance(&self) -> Result<(), CommitError> {
         ensure_existing_directory(&self.root)?;
-        let transactions = create_dir_component(&self.root, "transactions")?;
-        create_dir_component(&transactions, "v1")?;
-        create_dir_component(&self.root, "heads")?;
-        create_dir_component(&self.root, "locks")?;
+        let transactions = create_dir_component(&self.root, "transactions", 0)?;
+        create_dir_component(&transactions, "v1", 1)?;
+        create_dir_component(&self.root, "heads", 0)?;
+        create_dir_component(&self.root, "locks", 0)?;
         Ok(())
     }
 
@@ -1071,7 +2293,9 @@ impl TransactionRepository {
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<(), CommitError> {
         if !maintenance.covers(&self.root) {
-            return Err(txn_commit_error(TransactionErrorCode::Io));
+            return Err(CommitError::Io(io::Error::other(
+                "repository maintenance guard does not cover this repository root",
+            )));
         }
         Ok(())
     }
@@ -1082,7 +2306,9 @@ impl TransactionRepository {
     ) -> Result<(), CommitError> {
         self.validate_maintenance(maintenance)?;
         if !maintenance.is_exclusive() {
-            return Err(txn_commit_error(TransactionErrorCode::Io));
+            return Err(CommitError::Io(io::Error::other(
+                "repository maintenance guard is not exclusive",
+            )));
         }
         Ok(())
     }
@@ -1150,22 +2376,42 @@ impl TransactionRepository {
         self.head_dir().join("accepted")
     }
 
-    fn remove_receipt_stages(&self) -> Result<u64, CommitError> {
-        remove_stages_recursive(&self.transactions_dir(), RECEIPT_STAGE_PREFIX, 2)
-    }
-
-    fn remove_head_stages(&self) -> Result<u64, CommitError> {
-        remove_stages_recursive(&self.head_dir(), HEAD_STAGE_PREFIX, 0)
+    #[cfg(test)]
+    fn ensure_layout_with_transaction_durability_cut(
+        &self,
+        cut: TransactionDurabilityCut,
+    ) -> Result<(), CommitError> {
+        let _selection = TransactionCutSelection::install(cut);
+        self.ensure_layout()
     }
 
     #[cfg(test)]
-    fn commit_with_fault(
+    fn commit_with_transaction_durability_cut(
         &self,
         input: CommitInput<'_>,
-        fault: Fault,
+        cut: TransactionDurabilityCut,
     ) -> Result<CommitOutput, CommitError> {
-        let maintenance = self.acquire_shared_maintenance()?;
-        self.commit_inner(input, &maintenance, fault)
+        let _selection = TransactionCutSelection::install(cut);
+        self.commit(input)
+    }
+
+    #[cfg(test)]
+    fn initialize_trusted_genesis_with_transaction_durability_cut(
+        &self,
+        input: TrustedGenesisInput<'_>,
+        cut: TransactionDurabilityCut,
+    ) -> Result<AcceptedHead, CommitError> {
+        let _selection = TransactionCutSelection::install(cut);
+        self.initialize_trusted_genesis(input)
+    }
+
+    #[cfg(test)]
+    fn recover_with_transaction_durability_cut(
+        &self,
+        cut: TransactionDurabilityCut,
+    ) -> Result<RecoveryReport, CommitError> {
+        let _selection = TransactionCutSelection::install(cut);
+        self.recover()
     }
 }
 
@@ -1379,15 +2625,23 @@ fn ensure_existing_directory(path: &Path) -> Result<(), CommitError> {
     Ok(())
 }
 
-fn create_dir_component(parent: &Path, component: &str) -> Result<PathBuf, CommitError> {
+fn create_dir_component(
+    parent: &Path,
+    component: &str,
+    component_index: usize,
+) -> Result<PathBuf, CommitError> {
+    let _ = component_index;
     ensure_existing_directory(parent)?;
     let path = parent.join(component);
     match fs::create_dir(&path) {
-        Ok(()) => sync_dir(parent)?,
+        Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(error.into()),
     }
     ensure_existing_directory(&path)?;
+    #[cfg(test)]
+    fail_selected_transaction_layout_cut(component_index)?;
+    sync_dir(parent)?;
     Ok(path)
 }
 
@@ -1459,34 +2713,344 @@ fn remove_file_if_exists(path: &Path) -> Result<(), CommitError> {
     }
 }
 
-fn remove_stages_recursive(
-    root: &Path,
-    prefix: &str,
-    remaining_depth: usize,
-) -> Result<u64, CommitError> {
-    ensure_existing_directory(root)?;
-    let mut removed = 0_u64;
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let path = entry.path();
-        if file_type.is_dir() && remaining_depth > 0 {
-            removed = removed
-                .checked_add(remove_stages_recursive(&path, prefix, remaining_depth - 1)?)
-                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
-        } else if file_type.is_file() {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if name.starts_with(prefix) && name.ends_with(STAGE_SUFFIX) {
-                fs::remove_file(&path)?;
-                removed = removed
-                    .checked_add(1)
-                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+/// Owned receipt-tree leaf classification.
+enum ReceiptRecoveryLeafKind {
+    Final,
+    OwnedStage,
+    Unknown,
+}
+
+const fn is_lower_hex(byte: u8) -> bool {
+    byte.is_ascii_digit() || (byte >= b'a' && byte <= b'f')
+}
+
+fn is_recovery_hex_directory_name(name: &std::ffi::OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    name.len() == 2 && name.bytes().all(is_lower_hex)
+}
+
+/// Accepts only the exact owned stage grammar
+/// `<prefix><canonical-decimal-pid>-<lower-hex-token-16>.tmp`.
+fn is_recovery_stage_name(name: &std::ffi::OsStr, prefix: &str) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(token) = name
+        .strip_prefix(prefix)
+        .and_then(|name| name.strip_suffix(STAGE_SUFFIX))
+    else {
+        return false;
+    };
+    let Some((pid, hex_token)) = token.split_once('-') else {
+        return false;
+    };
+    if pid.is_empty()
+        || !pid.bytes().all(|byte| byte.is_ascii_digit())
+        || (pid.len() > 1 && pid.starts_with('0'))
+    {
+        return false;
+    }
+    let Ok(pid_value) = pid.parse::<u32>() else {
+        return false;
+    };
+    if pid_value == 0 {
+        return false;
+    }
+    hex_token.len() == STAGE_TOKEN_HEX_LEN && hex_token.bytes().all(is_lower_hex)
+}
+
+fn is_final_receipt_name(name: &std::ffi::OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(transaction_hex) = name.strip_suffix(FINAL_RECEIPT_SUFFIX) else {
+        return false;
+    };
+    transaction_hex.len() == FINAL_RECEIPT_ID_HEX_LEN && transaction_hex.bytes().all(is_lower_hex)
+}
+
+fn is_final_receipt_name_for_dir(name: &std::ffi::OsStr, directory: &Path) -> bool {
+    if !is_final_receipt_name(name) {
+        return false;
+    }
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let transaction_hex = &name[..name.len() - FINAL_RECEIPT_SUFFIX.len()];
+    let Some(second) = directory.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
+    let Some(first) = directory
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(std::ffi::OsStr::to_str)
+    else {
+        return false;
+    };
+    first == &transaction_hex[0..2] && second == &transaction_hex[2..4]
+}
+
+fn classify_receipt_recovery_fanout(
+    entry: &fs::DirEntry,
+    depth: usize,
+) -> Result<(PathBuf, usize), CommitError> {
+    if depth >= 2
+        || !entry.file_type()?.is_dir()
+        || !is_recovery_hex_directory_name(&entry.file_name())
+    {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    Ok((entry.path(), depth + 1))
+}
+
+fn classify_receipt_recovery_leaf(path: &Path) -> Result<(), CommitError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    Ok(())
+}
+
+fn receipt_recovery_leaf_kind(path: &Path) -> Result<ReceiptRecoveryLeafKind, CommitError> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| txn_commit_error(TransactionErrorCode::Io))?;
+    let directory = path
+        .parent()
+        .ok_or_else(|| txn_commit_error(TransactionErrorCode::Io))?;
+    if is_final_receipt_name(name) {
+        if !is_final_receipt_name_for_dir(name, directory) {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        return Ok(ReceiptRecoveryLeafKind::Final);
+    }
+    if is_recovery_stage_name(name, RECEIPT_STAGE_PREFIX) {
+        return Ok(ReceiptRecoveryLeafKind::OwnedStage);
+    }
+    Ok(ReceiptRecoveryLeafKind::Unknown)
+}
+
+fn classify_head_recovery_entry(path: &Path) -> Result<(), CommitError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    Ok(())
+}
+
+fn head_recovery_entry_is_owned_stage(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| is_recovery_stage_name(name, HEAD_STAGE_PREFIX))
+}
+
+/// Rejects a missing receipt as incomplete and any non-regular entry as I/O.
+fn recovery_receipt_metadata(path: &Path) -> Result<fs::Metadata, CommitError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(txn_commit_error(TransactionErrorCode::Io));
+            }
+            Ok(metadata)
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Err(txn_commit_error(
+            TransactionErrorCode::RecoveryReceiptIncomplete,
+        )),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Validates one traversed entity-binding entry.
+fn inspect_recovery_binding(binding: &(EntityId, ObjectId)) -> Result<(), CommitError> {
+    let (entity_id, object_id) = binding;
+    if entity_id.as_bytes() == object_id.as_bytes() {
+        return Err(txn_commit_error(
+            TransactionErrorCode::ObjectInventoryMismatch,
+        ));
+    }
+    Ok(())
+}
+
+fn record_recovery_ancestry_visit(
+    head_seen: &mut BTreeSet<TransactionId>,
+    union_seen: &mut BTreeSet<TransactionId>,
+    transaction_id: TransactionId,
+    first_union: bool,
+) {
+    head_seen.insert(transaction_id);
+    if first_union {
+        union_seen.insert(transaction_id);
+    }
+}
+
+fn use_cached_recovery_fact(
+    cache_key: &TransactionId,
+    cached_work: &CachedRecoveryWork,
+) -> Result<CachedRecoveryRevision, RecoveryAncestryError> {
+    if cached_work.revision.transaction_id != *cache_key {
+        return Err(RecoveryAncestryError::Verification(txn_commit_error(
+            TransactionErrorCode::InternalInvariant,
+        )));
+    }
+    Ok(cached_work.revision.clone())
+}
+
+fn recovery_revision_facts(
+    revision: &VerifiedRevision,
+    parents: &[TransactionId],
+) -> Result<CachedRecoveryRevision, CommitError> {
+    let receipt = revision.receipt();
+    let record = &receipt.transaction.record;
+    let operations = match record.transaction_kind {
+        TransactionKind::TrustedGenesis => Vec::new(),
+        TransactionKind::OrdinaryCandidate => receipt
+            .candidate
+            .as_ref()
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ReceiptBindingMismatch))?
+            .record
+            .operations
+            .clone(),
+    };
+    Ok(CachedRecoveryRevision {
+        transaction_id: revision.transaction_id(),
+        workspace_id: receipt.state_root.record.workspace_id,
+        state_root: receipt.state_root.root,
+        schema_epoch_id: receipt.state_root.record.schema_epoch_id,
+        policy_root_id: receipt.policy_root.root(),
+        dependency_roots: receipt.state_root.record.dependency_roots.clone(),
+        parent_roots: record.parent_roots.clone(),
+        parent_transaction_ids: parents.to_vec(),
+        record_workspace_id: record.workspace_id,
+        record_schema_epoch_id: record.schema_epoch_id,
+        record_policy_root_id: record.policy_root_id,
+        transaction_kind: record.transaction_kind,
+        entity_bindings: receipt.state_root.record.entity_bindings.clone(),
+        tombstoned_entities: record.tombstoned_entities.clone(),
+        changed_entity_bindings: record.changed_entity_bindings.clone(),
+        operations,
+    })
+}
+
+fn verify_recovery_revision_shape(facts: &CachedRecoveryRevision) -> Result<(), CommitError> {
+    match facts.transaction_kind {
+        TransactionKind::TrustedGenesis => {
+            let expected = derive_binding_diff(&[], &facts.entity_bindings, None)?;
+            if expected != facts.changed_entity_bindings {
+                return Err(txn_commit_error(TransactionErrorCode::GenesisInvalid));
+            }
+            if !facts.parent_transaction_ids.is_empty() {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+            }
+        }
+        TransactionKind::OrdinaryCandidate => {
+            if facts.parent_transaction_ids.len() != 1 || facts.parent_roots.len() != 1 {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
             }
         }
     }
-    if removed > 0 {
-        sync_dir(root)?;
+    Ok(())
+}
+
+fn recovery_parent_expectation(
+    facts: &CachedRecoveryRevision,
+) -> Result<RecoveryParentExpectation, CommitError> {
+    let parent_transaction_id = facts
+        .parent_transaction_ids
+        .first()
+        .copied()
+        .ok_or_else(|| txn_commit_error(TransactionErrorCode::ParentShape))?;
+    let parent_root = facts
+        .parent_roots
+        .first()
+        .copied()
+        .ok_or_else(|| txn_commit_error(TransactionErrorCode::ParentShape))?;
+    Ok(RecoveryParentExpectation {
+        parent_transaction_id,
+        parent_root,
+        workspace_id: facts.record_workspace_id,
+        schema_epoch_id: facts.record_schema_epoch_id,
+        policy_root_id: facts.record_policy_root_id,
+        operations: facts.operations.clone(),
+        child_entity_bindings: facts.entity_bindings.clone(),
+        child_changed_bindings: facts.changed_entity_bindings.clone(),
+        child_tombstones: facts.tombstoned_entities.clone(),
+    })
+}
+
+fn verify_recovery_parent_expectation(
+    expectation: &RecoveryParentExpectation,
+    parent: &CachedRecoveryRevision,
+) -> Result<(), CommitError> {
+    if parent.transaction_id != expectation.parent_transaction_id
+        || parent.state_root != expectation.parent_root
+        || parent.workspace_id != expectation.workspace_id
+        || parent.schema_epoch_id != expectation.schema_epoch_id
+        || parent.policy_root_id != expectation.policy_root_id
+    {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    }
+    let expected_changed = derive_binding_diff(
+        &parent.entity_bindings,
+        &expectation.child_entity_bindings,
+        Some(&expectation.operations),
+    )?;
+    if expected_changed != expectation.child_changed_bindings {
+        return Err(txn_commit_error(
+            TransactionErrorCode::ChangedBindingInvalid,
+        ));
+    }
+    let expected_tombstones = next_tombstones_from_records(
+        &parent.tombstoned_entities,
+        &expectation.child_changed_bindings,
+        &expectation.child_entity_bindings,
+    )?;
+    if expected_tombstones != expectation.child_tombstones {
+        return Err(txn_commit_error(TransactionErrorCode::TombstoneInvalid));
+    }
+    Ok(())
+}
+
+/// Removes planned receipt stages after an exact re-stat of every entry.
+fn remove_planned_receipt_stages(receipt_removal_plan: &[PathBuf]) -> Result<u64, CommitError> {
+    let mut removed = 0_u64;
+    for stage_path in receipt_removal_plan {
+        let metadata = match fs::symlink_metadata(stage_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.file_type().is_file() {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        fs::remove_file(stage_path)?;
+        #[cfg(test)]
+        fail_selected_receipt_recovery_stage_cut(stage_path)?;
+        removed = removed
+            .checked_add(1)
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+    }
+    Ok(removed)
+}
+
+/// Removes planned accepted-head stages after an exact re-stat of every entry.
+fn remove_planned_head_stages(head_removal_plan: &[PathBuf]) -> Result<u64, CommitError> {
+    let mut removed = 0_u64;
+    for stage_path in head_removal_plan {
+        let metadata = match fs::symlink_metadata(stage_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.file_type().is_file() {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        fs::remove_file(stage_path)?;
+        #[cfg(test)]
+        fail_selected_head_recovery_stage_cut()?;
+        removed = removed
+            .checked_add(1)
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
     }
     Ok(removed)
 }
@@ -1508,33 +3072,233 @@ fn txn_commit_error(code: TransactionErrorCode) -> CommitError {
     CommitError::Transaction(code)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Fault {
-    None,
-    AfterObjectsBeforeReceipt,
-    DuringReceiptWrite,
-    AfterReceiptBeforeHead,
-    BeforeHeadRename,
-    AfterHeadRenameBeforeSync,
+#[cfg(test)]
+enum TransactionDurabilityCut {
+    Tobj01BeforeFirstChangedObjectPut,
+    Tobj02AfterFirstChangedObjectDurable,
+    Tobj03AfterAllChangedObjectsBeforeReceiptStage,
+    Txn01DuringReceiptStageWrite,
+    Txn02VerifiedReceiptStageBeforeFinalLink,
+    Txn03FinalReceiptLinkBeforeFirstLeafSync,
+    Txn04FirstReceiptLeafSyncBeforeStageUnlink,
+    Txn05ReceiptStageUnlinkBeforeSecondLeafSync,
+    Txn06SecondReceiptLeafSyncBeforeHeadWork,
+    Head01BeforeAcceptedHeadStageCreate,
+    Head02DuringAcceptedHeadStageWrite,
+    Head03VerifiedAcceptedHeadStageBeforeRename,
+    Head04AcceptedHeadRenameBeforeHeadSync,
+    Head05AcceptedHeadSyncBeforeResponse,
+    Gen01BeforeFirstGenesisObjectPut,
+    Gen02AfterFirstGenesisObjectDurable,
+    Gen03AfterAllGenesisObjectsBeforeReceiptStage,
+    Gen04DuringGenesisReceiptStageWrite,
+    Gen05VerifiedGenesisReceiptStageBeforeFinalLink,
+    Gen06FinalGenesisReceiptLinkBeforeFirstLeafSync,
+    Gen07FirstGenesisReceiptLeafSyncBeforeStageUnlink,
+    Gen08GenesisReceiptStageUnlinkBeforeSecondLeafSync,
+    Gen09SecondGenesisReceiptLeafSyncBeforeHeadWork,
+    Gen10BeforeGenesisHeadStageCreate,
+    Gen11DuringGenesisHeadStageWrite,
+    Gen12VerifiedGenesisHeadStageBeforeRename,
+    Gen13GenesisHeadRenameBeforeHeadSync,
+    Gen14GenesisHeadSyncBeforeResponse,
+    Rcv01TransactionsV1CreateBeforeTransactionsSync,
+    Rcv02FirstReceiptFanoutCreateBeforeParentSync,
+    Rcv03SecondReceiptFanoutCreateBeforeParentSync,
+    Rcv04ReceiptRecoveryStageUnlinkBeforeLeafSync { transaction_id: TransactionId },
+    Rcv05HeadRecoveryStageUnlinkBeforeHeadSync,
 }
 
-impl Fault {
-    fn fail_if(self, boundary: Self) -> Result<(), CommitError> {
-        if self == boundary {
-            let code = match boundary {
-                Self::DuringReceiptWrite => TransactionErrorCode::RecoveryReceiptIncomplete,
-                Self::BeforeHeadRename | Self::AfterHeadRenameBeforeSync => {
-                    TransactionErrorCode::RecoveryRefCasIncomplete
-                }
-                Self::None | Self::AfterObjectsBeforeReceipt | Self::AfterReceiptBeforeHead => {
-                    TransactionErrorCode::Io
-                }
-            };
-            Err(txn_commit_error(code))
-        } else {
-            Ok(())
-        }
+#[cfg(test)]
+std::thread_local! {
+    static SELECTED_TRANSACTION_CUT: std::cell::RefCell<Option<TransactionDurabilityCut>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct TransactionCutSelection;
+
+#[cfg(test)]
+impl TransactionCutSelection {
+    fn install(cut: TransactionDurabilityCut) -> Self {
+        SELECTED_TRANSACTION_CUT.with(|selected| {
+            let previous = selected.replace(Some(cut));
+            assert!(
+                previous.is_none(),
+                "transaction durability selection is not nested"
+            );
+        });
+        Self
     }
+}
+
+#[cfg(test)]
+impl Drop for TransactionCutSelection {
+    fn drop(&mut self) {
+        SELECTED_TRANSACTION_CUT.with(|selected| {
+            selected.replace(None);
+        });
+    }
+}
+
+#[cfg(test)]
+fn take_selected_transaction_cut(
+    predicate: impl FnOnce(&TransactionDurabilityCut) -> bool,
+) -> bool {
+    SELECTED_TRANSACTION_CUT.with(|selected| {
+        let take = selected.borrow().as_ref().is_some_and(predicate);
+        if take {
+            selected.borrow_mut().take();
+        }
+        take
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_transaction_cut(
+    predicate: impl FnOnce(&TransactionDurabilityCut) -> bool,
+) -> Result<(), CommitError> {
+    if take_selected_transaction_cut(predicate) {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_head_cas_cut(
+    predicate: impl FnOnce(&TransactionDurabilityCut) -> bool,
+) -> Result<(), CommitError> {
+    if take_selected_transaction_cut(predicate) {
+        return Err(txn_commit_error(
+            TransactionErrorCode::RecoveryRefCasIncomplete,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_transaction_layout_cut(component_index: usize) -> Result<(), CommitError> {
+    fail_selected_transaction_cut(|cut| {
+        matches!(
+            (component_index, cut),
+            (
+                1,
+                TransactionDurabilityCut::Rcv01TransactionsV1CreateBeforeTransactionsSync
+            ) | (
+                2,
+                TransactionDurabilityCut::Rcv02FirstReceiptFanoutCreateBeforeParentSync
+            ) | (
+                3,
+                TransactionDurabilityCut::Rcv03SecondReceiptFanoutCreateBeforeParentSync
+            )
+        )
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_object_boundary_cut(
+    entry_index: usize,
+    first_durable: bool,
+) -> Result<(), CommitError> {
+    if entry_index != 0 {
+        return Ok(());
+    }
+    fail_selected_transaction_cut(|cut| {
+        matches!(
+            (first_durable, cut),
+            (
+                false,
+                TransactionDurabilityCut::Tobj01BeforeFirstChangedObjectPut
+                    | TransactionDurabilityCut::Gen01BeforeFirstGenesisObjectPut
+            ) | (
+                true,
+                TransactionDurabilityCut::Tobj02AfterFirstChangedObjectDurable
+                    | TransactionDurabilityCut::Gen02AfterFirstGenesisObjectDurable
+            )
+        )
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_receipt_stage_write_cut(
+    stage: &mut File,
+    stored_bytes: &[u8],
+) -> Result<(), CommitError> {
+    if take_selected_transaction_cut(|cut| {
+        matches!(
+            cut,
+            TransactionDurabilityCut::Txn01DuringReceiptStageWrite
+                | TransactionDurabilityCut::Gen04DuringGenesisReceiptStageWrite
+        )
+    }) {
+        let split = stored_bytes.len() / 2;
+        stage.write_all(&stored_bytes[..split])?;
+        stage.flush()?;
+        stage.sync_all()?;
+        return Err(txn_commit_error(
+            TransactionErrorCode::RecoveryReceiptIncomplete,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_head_stage_write_cut(stage: &mut File, bytes: &[u8]) -> Result<(), CommitError> {
+    if take_selected_transaction_cut(|cut| {
+        matches!(
+            cut,
+            TransactionDurabilityCut::Head02DuringAcceptedHeadStageWrite
+                | TransactionDurabilityCut::Gen11DuringGenesisHeadStageWrite
+        )
+    }) {
+        let split = bytes.len() / 2;
+        stage.write_all(&bytes[..split])?;
+        stage.flush()?;
+        stage.sync_all()?;
+        return Err(txn_commit_error(
+            TransactionErrorCode::RecoveryRefCasIncomplete,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_receipt_recovery_stage_cut(stage_path: &Path) -> Result<(), CommitError> {
+    fail_selected_transaction_cut(|cut| {
+        let TransactionDurabilityCut::Rcv04ReceiptRecoveryStageUnlinkBeforeLeafSync {
+            transaction_id,
+        } = cut
+        else {
+            return false;
+        };
+        let hex = hex_id(transaction_id.as_bytes());
+        let Some(second) = stage_path
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(std::ffi::OsStr::to_str)
+        else {
+            return false;
+        };
+        let Some(first) = stage_path
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::file_name)
+            .and_then(std::ffi::OsStr::to_str)
+        else {
+            return false;
+        };
+        first == &hex[0..2] && second == &hex[2..4]
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
+    fail_selected_transaction_cut(|cut| {
+        matches!(
+            cut,
+            TransactionDurabilityCut::Rcv05HeadRecoveryStageUnlinkBeforeHeadSync
+        )
+    })
 }
 
 #[cfg(test)]
@@ -1750,8 +3514,224 @@ mod tests {
         .unwrap()
     }
 
+    type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);
+    type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
+    type ExactOptionalPathSnapshot = ::core::option::Option<ExactPathSnapshot>;
+    type ExactTreeDeltaPaths = (::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>);
+
+    fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
+        let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
+        let file_type = metadata.file_type();
+        let kind = if file_type.is_symlink() {
+            "symlink"
+        } else if file_type.is_file() {
+            "regular"
+        } else if file_type.is_dir() {
+            "directory"
+        } else {
+            "non_regular"
+        };
+        let mode = ::std::os::unix::fs::MetadataExt::mode(&metadata);
+        let bytes = if file_type.is_file() {
+            ::std::fs::read(path).expect("snapshot file bytes")
+        } else {
+            ::std::vec::Vec::new()
+        };
+        let target = if file_type.is_symlink() {
+            ::core::option::Option::Some(
+                ::std::fs::read_link(path).expect("snapshot symlink target"),
+            )
+        } else {
+            ::core::option::Option::None
+        };
+        (kind, mode, bytes, target)
+    }
+
+    fn exact_tree_snapshot(root: &::std::path::Path) -> ExactTreeSnapshot {
+        fn visit(
+            root: &::std::path::Path,
+            path: &::std::path::Path,
+            entries: &mut ExactTreeSnapshot,
+        ) {
+            let relative = path
+                .strip_prefix(root)
+                .expect("snapshot path under root")
+                .to_path_buf();
+            let snapshot = exact_path_snapshot(path);
+            let is_directory = snapshot.0 == "directory";
+            entries.push((relative, snapshot));
+            if is_directory {
+                let mut children = ::std::fs::read_dir(path)
+                    .expect("snapshot directory")
+                    .map(|entry| entry.expect("snapshot directory entry").path())
+                    .collect::<::std::vec::Vec<_>>();
+                children.sort();
+                for child in children {
+                    visit(root, &child, entries);
+                }
+            }
+        }
+        let mut entries = ::std::vec::Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
+    fn exact_optional_path_snapshot(path: &::std::path::Path) -> ExactOptionalPathSnapshot {
+        match ::std::fs::symlink_metadata(path) {
+            ::core::result::Result::Ok(_) => {
+                ::core::option::Option::Some(exact_path_snapshot(path))
+            }
+            ::core::result::Result::Err(error)
+                if error.kind() == ::std::io::ErrorKind::NotFound =>
+            {
+                ::core::option::Option::None
+            }
+            ::core::result::Result::Err(error) => {
+                ::core::panic!("optional snapshot metadata: {}", error)
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn exact_tree_delta_paths(
+        before: &ExactTreeSnapshot,
+        after: &ExactTreeSnapshot,
+    ) -> ExactTreeDeltaPaths {
+        let before_by_path = before
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let after_by_path = after
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let added = after_by_path
+            .keys()
+            .filter(|path| !before_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        let changed = after_by_path
+            .iter()
+            .filter_map(|(path, after_snapshot)| match before_by_path.get(path) {
+                ::core::option::Option::Some(before_snapshot)
+                    if *before_snapshot != *after_snapshot =>
+                {
+                    ::core::option::Option::Some(path.clone())
+                }
+                _ => ::core::option::Option::None,
+            })
+            .collect::<::std::vec::Vec<_>>();
+        let removed = before_by_path
+            .keys()
+            .filter(|path| !after_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        (added, changed, removed)
+    }
+
+    fn exact_error_source_chain(
+        error: &(dyn ::std::error::Error + 'static),
+    ) -> ::std::vec::Vec<::std::string::String> {
+        let mut chain = ::std::vec::Vec::new();
+        let mut source = ::std::error::Error::source(error);
+        while let ::core::option::Option::Some(current) = source {
+            let label = if current.is::<super::CommitError>() {
+                ::std::string::String::from("CommitError")
+            } else if current.is::<crate::codec::TransactionCodecError>() {
+                ::std::string::String::from("TransactionCodecError")
+            } else if current.is::<::sley_store::StoreError>() {
+                ::std::string::String::from("StoreError")
+            } else if let ::core::option::Option::Some(io_error) =
+                current.downcast_ref::<::std::io::Error>()
+            {
+                ::std::format!("io::Error({:?})", io_error.kind())
+            } else {
+                ::std::format!("unknown({})", ::std::any::type_name_of_val(current),)
+            };
+            chain.push(label);
+            source = ::std::error::Error::source(current);
+        }
+        chain
+    }
+
+    #[allow(dead_code)]
+    fn expected_recovery_ancestry_test_plan_digest(
+        owner_root: &::std::path::Path,
+        epochs: crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs,
+        left: ::sley_id::TransactionId,
+        right: ::sley_id::TransactionId,
+    ) -> [u8; 32] {
+        let epoch_budget = match epochs {
+            crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::One => 1_u64,
+            crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::Two => 2_u64,
+        };
+        let root_bytes = owner_root.as_os_str().as_encoded_bytes();
+        let root_len = u64::try_from(root_bytes.len()).expect("test root length");
+        let mut hasher = ::blake3::Hasher::new();
+        hasher.update(b"sley2.s20-530.recovery-ancestry-test-plan.v1");
+        hasher.update(&root_len.to_le_bytes());
+        hasher.update(root_bytes);
+        hasher.update(&epoch_budget.to_le_bytes());
+        hasher.update(left.as_bytes());
+        hasher.update(right.as_bytes());
+        *hasher.finalize().as_bytes()
+    }
+
+    fn genesis_material_pair() -> GenesisMaterial {
+        let workspace_id = fixed(1, WorkspaceId::from_bytes);
+        let principal_id = fixed(2, PrincipalId::from_bytes);
+        let base_entity = fixed(10, EntityId::from_bytes);
+        let second_entity = fixed(11, EntityId::from_bytes);
+        let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+            1_000, 1_000, 1_000, 100, 100, 100,
+        ))
+        .mutation_class(MutationClass::CreateEntity)
+        .build()
+        .unwrap();
+        let policy = PolicyRootBuilder::new(workspace_id)
+            .principal_grant(principal_id, grant)
+            .build(&policy_registry().unwrap())
+            .unwrap();
+        let schema_epoch_id = state_epoch_id().unwrap();
+        let object = build_entity_object(
+            schema_epoch_id,
+            &EntityObjectRecord {
+                entity_id: base_entity,
+                body: namespace_body(),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let second_object = build_entity_object(
+            schema_epoch_id,
+            &EntityObjectRecord {
+                entity_id: second_entity,
+                body: namespace_body(),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let state = StateRootBuilder::new(
+            workspace_id,
+            fixed(20, ObjectId::from_bytes),
+            fixed(21, ObjectId::from_bytes),
+            policy.root(),
+        )
+        .entity_binding(base_entity, object.object_id())
+        .entity_binding(second_entity, second_object.object_id())
+        .build(&state_registry().unwrap())
+        .unwrap();
+        GenesisMaterial {
+            state,
+            policy,
+            objects: vec![object, second_object],
+        }
+    }
+
     #[test]
-    fn transaction_no_argument_recovery_holds_exclusive_maintenance() {
+    fn cross05_transaction_no_arg_wrapper_holds_exclusive_maintenance() {
         let fixture = cross05_recovery_fixture();
         let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
         let owner_repository = super::TransactionRepository::new(canonical_root.clone());
@@ -1884,6 +3864,7 @@ mod tests {
         assert_eq!(recovery.removed_object_stages, 0);
         assert_eq!(recovery.removed_receipt_stages, 0);
         assert_eq!(recovery.removed_head_stages, 0);
+        assert_eq!(recovery.verified_ancestry_transactions, 2);
     }
 
     #[test]
@@ -2023,46 +4004,681 @@ mod tests {
         );
         repository.accepted_head().unwrap();
     }
+    struct GenesisMaterial {
+        state: AcceptedStateRoot,
+        policy: AcceptedPolicyRoot,
+        objects: Vec<EntityObject>,
+    }
+    #[test]
+    fn recovery_preserves_lookalikes_and_removes_exact_owned_stages() {
+        let fixture = Fixture::new("grammar");
+        let leaf_dir = fixture
+            .repository
+            .receipt_path(fixture.genesis_transaction_id)
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let exact_receipt_stage = format!(
+            "{RECEIPT_STAGE_PREFIX}{}-{:016x}{STAGE_SUFFIX}",
+            1_u32, 0_u64
+        );
+        fs::write(leaf_dir.join(&exact_receipt_stage), b"partial").unwrap();
+        let lookalikes = [
+            ".sley-txn-stage-0-0000000000000000.tmp",
+            ".sley-txn-stage-01-0000000000000000.tmp",
+            ".sley-txn-stage-1-ABCDEF0000000000.tmp",
+            ".sley-txn-stage-1-00000000000000000.tmp",
+            ".sley-txn-stage-1-000000000000000.tmp",
+            ".sley-txn-stage-99999999999-0000000000000000.tmp",
+            "x.sley-txn-stage-1-0000000000000000.tmp",
+            ".sley-txn-stage-1-0000000000000000.tmpx",
+            "readme.txt",
+        ];
+        for name in lookalikes {
+            fs::write(leaf_dir.join(name), b"keep").unwrap();
+        }
+        let exact_head_stage = format!("{HEAD_STAGE_PREFIX}{}-{:016x}{STAGE_SUFFIX}", 7_u32, 1_u64);
+        let head_dir = fixture.repository.head_dir();
+        fs::write(head_dir.join(&exact_head_stage), b"partial").unwrap();
+        fs::write(
+            head_dir.join(".sley-head-stage-0-0000000000000000.tmp"),
+            b"keep",
+        )
+        .unwrap();
+
+        let recovered = fixture.repository.recover().unwrap();
+        assert_eq!(recovered.removed_receipt_stages, 1);
+        assert_eq!(recovered.removed_head_stages, 1);
+        assert!(!leaf_dir.join(&exact_receipt_stage).exists());
+        assert!(!head_dir.join(&exact_head_stage).exists());
+        for name in lookalikes {
+            assert!(leaf_dir.join(name).exists());
+        }
+        assert!(
+            head_dir
+                .join(".sley-head-stage-0-0000000000000000.tmp")
+                .exists()
+        );
+        let second = fixture.repository.recover().unwrap();
+        assert_eq!(second.removed_receipt_stages, 0);
+        assert_eq!(second.removed_head_stages, 0);
+        assert_eq!(
+            second.accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recovery_fails_closed_on_symlinked_or_non_regular_receipt_entries() {
+        use std::os::unix::fs::symlink;
+
+        let symlink_fixture = Fixture::new("recovery-symlink");
+        let outside = TempDir::new("recovery-symlink-outside");
+        symlink(
+            &outside.path,
+            symlink_fixture
+                .repository
+                .transactions_dir()
+                .join("zz-not-hex"),
+        )
+        .unwrap();
+        assert_eq!(
+            symlink_fixture.repository.recover().unwrap_err().code(),
+            "TXN_IO"
+        );
+
+        let non_regular_fixture = Fixture::new("recovery-non-regular");
+        let leaf_dir = non_regular_fixture
+            .repository
+            .receipt_path(non_regular_fixture.genesis_transaction_id)
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        fs::create_dir(leaf_dir.join("unexpected-directory")).unwrap();
+        assert_eq!(
+            non_regular_fixture.repository.recover().unwrap_err().code(),
+            "TXN_IO"
+        );
+    }
+
+    fn claim_for(
+        repository: &super::TransactionRepository,
+        transaction_id: TransactionId,
+    ) -> RecoveryRevisionClaim {
+        let revision = repository.verified_revision(transaction_id).unwrap();
+        let receipt = revision.receipt();
+        RecoveryRevisionClaim::new(
+            transaction_id,
+            receipt.state_root.record.workspace_id,
+            receipt.state_root.root,
+            receipt.state_root.record.schema_epoch_id,
+            receipt.policy_root.root(),
+            receipt.state_root.record.dependency_roots.clone(),
+        )
+    }
+
+    fn commit_on_head(fixture: &Fixture, nonce_byte: u8) -> CommitOutput {
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            head.transaction_id(),
+            head.state_root(),
+            head.policy_root(),
+            nonce_byte,
+        );
+        fixture
+            .repository
+            .commit(CommitInput::new(
+                head.transaction_id(),
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .unwrap()
+    }
 
     #[test]
-    fn interruption_matrix_accepts_only_old_or_complete_new_state() {
-        let cases = [
-            (Fault::AfterObjectsBeforeReceipt, false, 0_u64),
-            (Fault::DuringReceiptWrite, false, 1_u64),
-            (Fault::AfterReceiptBeforeHead, false, 0_u64),
-            (Fault::BeforeHeadRename, false, 0_u64),
-            (Fault::AfterHeadRenameBeforeSync, true, 0_u64),
+    fn transaction_durability_cut_selection_installs_and_clears() {
+        let transaction_id = TransactionId::from_bytes([3; 32]);
+        let cuts = [
+            TransactionDurabilityCut::Tobj01BeforeFirstChangedObjectPut,
+            TransactionDurabilityCut::Tobj02AfterFirstChangedObjectDurable,
+            TransactionDurabilityCut::Tobj03AfterAllChangedObjectsBeforeReceiptStage,
+            TransactionDurabilityCut::Txn01DuringReceiptStageWrite,
+            TransactionDurabilityCut::Txn02VerifiedReceiptStageBeforeFinalLink,
+            TransactionDurabilityCut::Txn03FinalReceiptLinkBeforeFirstLeafSync,
+            TransactionDurabilityCut::Txn04FirstReceiptLeafSyncBeforeStageUnlink,
+            TransactionDurabilityCut::Txn05ReceiptStageUnlinkBeforeSecondLeafSync,
+            TransactionDurabilityCut::Txn06SecondReceiptLeafSyncBeforeHeadWork,
+            TransactionDurabilityCut::Head01BeforeAcceptedHeadStageCreate,
+            TransactionDurabilityCut::Head02DuringAcceptedHeadStageWrite,
+            TransactionDurabilityCut::Head03VerifiedAcceptedHeadStageBeforeRename,
+            TransactionDurabilityCut::Head04AcceptedHeadRenameBeforeHeadSync,
+            TransactionDurabilityCut::Head05AcceptedHeadSyncBeforeResponse,
+            TransactionDurabilityCut::Gen01BeforeFirstGenesisObjectPut,
+            TransactionDurabilityCut::Gen02AfterFirstGenesisObjectDurable,
+            TransactionDurabilityCut::Gen03AfterAllGenesisObjectsBeforeReceiptStage,
+            TransactionDurabilityCut::Gen04DuringGenesisReceiptStageWrite,
+            TransactionDurabilityCut::Gen05VerifiedGenesisReceiptStageBeforeFinalLink,
+            TransactionDurabilityCut::Gen06FinalGenesisReceiptLinkBeforeFirstLeafSync,
+            TransactionDurabilityCut::Gen07FirstGenesisReceiptLeafSyncBeforeStageUnlink,
+            TransactionDurabilityCut::Gen08GenesisReceiptStageUnlinkBeforeSecondLeafSync,
+            TransactionDurabilityCut::Gen09SecondGenesisReceiptLeafSyncBeforeHeadWork,
+            TransactionDurabilityCut::Gen10BeforeGenesisHeadStageCreate,
+            TransactionDurabilityCut::Gen11DuringGenesisHeadStageWrite,
+            TransactionDurabilityCut::Gen12VerifiedGenesisHeadStageBeforeRename,
+            TransactionDurabilityCut::Gen13GenesisHeadRenameBeforeHeadSync,
+            TransactionDurabilityCut::Gen14GenesisHeadSyncBeforeResponse,
+            TransactionDurabilityCut::Rcv01TransactionsV1CreateBeforeTransactionsSync,
+            TransactionDurabilityCut::Rcv02FirstReceiptFanoutCreateBeforeParentSync,
+            TransactionDurabilityCut::Rcv03SecondReceiptFanoutCreateBeforeParentSync,
+            TransactionDurabilityCut::Rcv04ReceiptRecoveryStageUnlinkBeforeLeafSync {
+                transaction_id,
+            },
+            TransactionDurabilityCut::Rcv05HeadRecoveryStageUnlinkBeforeHeadSync,
         ];
-        for (index, (fault, new_visible, expected_receipt_stages)) in cases.into_iter().enumerate()
-        {
-            let fixture = Fixture::new(&format!("fault-{index}"));
-            let error = fixture
-                .repository
-                .commit_with_fault(fixture.input(), fault)
-                .unwrap_err();
-            assert!(matches!(
-                error.code(),
-                "TXN_IO" | "RECOVERY_RECEIPT_INCOMPLETE" | "RECOVERY_REF_CAS_INCOMPLETE"
-            ));
-            let recovered = fixture.repository.recover().unwrap();
-            assert_eq!(recovered.removed_receipt_stages, expected_receipt_stages);
-            let accepted = fixture.repository.accepted_head().unwrap();
-            if new_visible {
-                assert_ne!(accepted.transaction_id(), fixture.genesis_transaction_id);
-                assert_eq!(
-                    accepted.receipt().transaction.record.transaction_kind,
-                    TransactionKind::OrdinaryCandidate
-                );
-                assert_eq!(accepted.objects().len(), 2);
-            } else {
-                assert_eq!(accepted.transaction_id(), fixture.genesis_transaction_id);
-                assert_eq!(
-                    accepted.receipt().transaction.record.transaction_kind,
-                    TransactionKind::TrustedGenesis
-                );
-                assert_eq!(accepted.objects().len(), 1);
-            }
+        for cut in cuts {
+            let selection = TransactionCutSelection::install(cut);
+            drop(selection);
+            assert!(!take_selected_transaction_cut(|_| true));
         }
+    }
+
+    struct GuardProvenance {
+        direct_target_identity: TransactionId,
+        authority_target_identity: TransactionId,
+        direct_target_receipt_path: PathBuf,
+        expected_direct_target_receipt_path: PathBuf,
+        owner_object_stage_relative_path: PathBuf,
+        owner_object_stage_expected_bytes: Vec<u8>,
+        owner_receipt_stage_relative_path: PathBuf,
+        owner_receipt_stage_expected_bytes: Vec<u8>,
+        owner_head_stage_relative_path: PathBuf,
+        owner_head_stage_expected_bytes: Vec<u8>,
+    }
+
+    struct GuardTopology {
+        provenance: GuardProvenance,
+        pointer_path: PathBuf,
+        direct_target_receipt_path: PathBuf,
+        object_stage_path: PathBuf,
+        receipt_stage_path: PathBuf,
+        head_stage_path: PathBuf,
+    }
+
+    fn plant_guard_canaries(root: &Path, tag: u8) -> (PathBuf, PathBuf, PathBuf, Vec<u8>) {
+        let bytes = ::std::vec![tag; 9];
+        let object_leaf = root.join("objects").join("scb1").join("aa").join("bb");
+        ::std::fs::create_dir_all(&object_leaf).unwrap();
+        let object_stage = object_leaf.join(format!(
+            ".sley-store-stage-{}{:08x}{:08x}.tmp",
+            "cc".repeat(32),
+            7_u32,
+            0_u32
+        ));
+        ::std::fs::write(&object_stage, &bytes).unwrap();
+        let receipt_leaf = root.join("transactions").join("v1").join("aa").join("bb");
+        ::std::fs::create_dir_all(&receipt_leaf).unwrap();
+        let receipt_stage = receipt_leaf.join(".sley-txn-stage-7-0000000000000000.tmp");
+        ::std::fs::write(&receipt_stage, &bytes).unwrap();
+        let head_stage = root.join("heads").join(".sley-head-stage-7-0000000000000000.tmp");
+        ::std::fs::write(&head_stage, &bytes).unwrap();
+        (object_stage, receipt_stage, head_stage, bytes)
+    }
+
+    fn guard_topology(fixture: &Fixture, nonce: u8, tag: u8) -> GuardTopology {
+        let repository = &fixture.repository;
+        let head = commit_on_head(fixture, nonce).transaction_id();
+        let root = repository.root().to_path_buf();
+        let authority_target_identity = repository.accepted_head().unwrap().transaction_id();
+        let direct_target_receipt_path = repository.receipt_path(head).unwrap();
+        let expected_direct_target_receipt_path =
+            repository.receipt_path(authority_target_identity).unwrap();
+        ::std::fs::remove_file(&direct_target_receipt_path).unwrap();
+        let (object_stage_path, receipt_stage_path, head_stage_path, bytes) =
+            plant_guard_canaries(&root, tag);
+        let provenance = GuardProvenance {
+            direct_target_identity: head,
+            authority_target_identity,
+            direct_target_receipt_path: direct_target_receipt_path.clone(),
+            expected_direct_target_receipt_path,
+            owner_object_stage_relative_path: object_stage_path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_path_buf(),
+            owner_object_stage_expected_bytes: bytes.clone(),
+            owner_receipt_stage_relative_path: receipt_stage_path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_path_buf(),
+            owner_receipt_stage_expected_bytes: bytes.clone(),
+            owner_head_stage_relative_path: head_stage_path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_path_buf(),
+            owner_head_stage_expected_bytes: bytes,
+        };
+        GuardTopology {
+            provenance,
+            pointer_path: repository.head_path(),
+            direct_target_receipt_path,
+            object_stage_path,
+            receipt_stage_path,
+            head_stage_path,
+        }
+    }
+
+    #[test]
+    fn guard01_transaction_recovery_same_root_shared_fails_closed() {
+        let fixture = Fixture::new("guard01-txn");
+        let topology = guard_topology(&fixture, 71, 0xa1);
+        let provenance = topology.provenance;
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let canonical_owner_root = ::std::fs::canonicalize(owner_root).unwrap();
+        let loser_probe_error = repository.accepted_head().unwrap_err();
+        let owner_object_stage_path = topology.object_stage_path;
+        let owner_receipt_stage_path = topology.receipt_stage_path;
+        let owner_head_stage_path = topology.head_stage_path;
+        let authority_pointer_before_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let direct_target_receipt_before_snapshot =
+            exact_optional_path_snapshot(&topology.direct_target_receipt_path);
+        let owner_object_stage_before_snapshot = exact_path_snapshot(&owner_object_stage_path);
+        let owner_receipt_stage_before_snapshot = exact_path_snapshot(&owner_receipt_stage_path);
+        let owner_head_stage_before_snapshot = exact_path_snapshot(&owner_head_stage_path);
+        let maintenance = repository.acquire_shared_maintenance().unwrap();
+        ::core::assert!(::std::fs::symlink_metadata(owner_root).unwrap().is_dir() && !::std::fs::symlink_metadata(owner_root).unwrap().file_type().is_symlink(), "owner_root_real");
+        ::core::assert_eq!(("canonical_owner_root", canonical_owner_root.as_path()), ("canonical_owner_root", ::std::fs::canonicalize(owner_root).unwrap().as_path()));
+        ::core::assert_eq!(("maintenance_root_equals_canonical_owner", maintenance.repository_root()), ("maintenance_root_equals_canonical_owner", canonical_owner_root.as_path()));
+        ::core::assert!(!maintenance.is_exclusive(), "maintenance_is_shared");
+        ::core::assert!(maintenance.covers(owner_root), "maintenance_covers_owner");
+        ::core::assert_eq!(("direct_target_identity_from_authority", provenance.direct_target_identity), ("direct_target_identity_from_authority", provenance.authority_target_identity));
+        ::core::assert_eq!(("direct_target_receipt_path", provenance.direct_target_receipt_path.as_path()), ("direct_target_receipt_path", provenance.expected_direct_target_receipt_path.as_path()));
+        ::core::assert!(direct_target_receipt_before_snapshot.is_none(), "direct_target_receipt_absent");
+        ::core::assert!(::core::matches!(&loser_probe_error, super::CommitError::Transaction(_)), "loser_probe_variant");
+        ::core::assert_eq!(("loser_probe_code", loser_probe_error.code()), ("loser_probe_code", "RECOVERY_RECEIPT_INCOMPLETE"));
+        ::core::assert_eq!(("owner_object_stage_path_from_root", owner_object_stage_path.as_path()), ("owner_object_stage_path_from_root", owner_root.join(provenance.owner_object_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_object_stage_kind_regular", owner_object_stage_before_snapshot.0), ("owner_object_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_object_stage_bytes_exact", owner_object_stage_before_snapshot.2.as_slice()), ("owner_object_stage_bytes_exact", provenance.owner_object_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("owner_receipt_stage_path_from_root", owner_receipt_stage_path.as_path()), ("owner_receipt_stage_path_from_root", owner_root.join(provenance.owner_receipt_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_receipt_stage_kind_regular", owner_receipt_stage_before_snapshot.0), ("owner_receipt_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_receipt_stage_bytes_exact", owner_receipt_stage_before_snapshot.2.as_slice()), ("owner_receipt_stage_bytes_exact", provenance.owner_receipt_stage_expected_bytes.as_slice()));
+        ::core::assert_eq!(("owner_head_stage_path_from_root", owner_head_stage_path.as_path()), ("owner_head_stage_path_from_root", owner_root.join(provenance.owner_head_stage_relative_path.clone()).as_path()));
+        ::core::assert_eq!(("owner_head_stage_kind_regular", owner_head_stage_before_snapshot.0), ("owner_head_stage_kind_regular", "regular"));
+        ::core::assert_eq!(("owner_head_stage_bytes_exact", owner_head_stage_before_snapshot.2.as_slice()), ("owner_head_stage_bytes_exact", provenance.owner_head_stage_expected_bytes.as_slice()));
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "TXN_IO");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Io(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["io::Error(Other)"]);
+        let authority_pointer_after_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let owner_object_stage_after_snapshot = exact_path_snapshot(&owner_object_stage_path);
+        let owner_receipt_stage_after_snapshot = exact_path_snapshot(&owner_receipt_stage_path);
+        let owner_head_stage_after_snapshot = exact_path_snapshot(&owner_head_stage_path);
+        ::core::assert_eq!(("authority_pointer_unchanged", authority_pointer_before_snapshot), ("authority_pointer_unchanged", authority_pointer_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+        ::core::assert_eq!(("owner_object_stage_unchanged", owner_object_stage_before_snapshot), ("owner_object_stage_unchanged", owner_object_stage_after_snapshot));
+        ::core::assert_eq!(("owner_receipt_stage_unchanged", owner_receipt_stage_before_snapshot), ("owner_receipt_stage_unchanged", owner_receipt_stage_after_snapshot));
+        ::core::assert_eq!(("owner_head_stage_unchanged", owner_head_stage_before_snapshot), ("owner_head_stage_unchanged", owner_head_stage_after_snapshot));
+    }
+
+    struct Anc03Provenance {
+        genesis_identity: TransactionId,
+        deep_missing_identity: TransactionId,
+        direct_parent_identity: TransactionId,
+        head_identity: TransactionId,
+        pointer_identity: TransactionId,
+        head_parent_identity: TransactionId,
+        direct_parent_parent_identity: TransactionId,
+        deep_missing_parent_identity: TransactionId,
+        deep_missing_depth: u64,
+        derived_deep_missing_identity: TransactionId,
+        deep_missing_receipt_path: PathBuf,
+        derived_deep_missing_receipt_path: PathBuf,
+        genesis_receipt_kind: &'static str,
+        direct_parent_receipt_kind: &'static str,
+        head_receipt_kind: &'static str,
+    }
+
+    fn anc03_provenance(fixture: &Fixture) -> (Anc03Provenance, PathBuf, PathBuf) {
+        let repository = &fixture.repository;
+        let genesis_identity = fixture.genesis_transaction_id;
+        let deep_missing = commit_on_head(fixture, 60).transaction_id();
+        let direct_parent = commit_on_head(fixture, 61).transaction_id();
+        let head = commit_on_head(fixture, 62).transaction_id();
+        let pointer_identity = repository.accepted_head().unwrap().transaction_id();
+        let head_revision = repository.verified_revision(head).unwrap();
+        let head_parent_identity = head_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let direct_parent_revision = repository.verified_revision(direct_parent).unwrap();
+        let direct_parent_parent_identity = direct_parent_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let deep_missing_revision = repository.verified_revision(deep_missing).unwrap();
+        let deep_missing_parent_identity = deep_missing_revision
+            .receipt()
+            .transaction
+            .record
+            .parent_transaction_ids[0];
+        let derived_deep_missing_identity = direct_parent_parent_identity;
+        let deep_missing_receipt_path = repository.receipt_path(deep_missing).unwrap();
+        let derived_deep_missing_receipt_path = repository
+            .receipt_path(derived_deep_missing_identity)
+            .unwrap();
+        let genesis_receipt_kind = exact_path_snapshot(&repository.receipt_path(genesis_identity).unwrap()).0;
+        let direct_parent_receipt_kind = exact_path_snapshot(&repository.receipt_path(direct_parent).unwrap()).0;
+        let head_receipt_kind = exact_path_snapshot(&repository.receipt_path(head).unwrap()).0;
+        let pointer_path = repository.head_path();
+        ::std::fs::remove_file(&deep_missing_receipt_path).unwrap();
+        let provenance = Anc03Provenance {
+            genesis_identity,
+            deep_missing_identity: deep_missing,
+            direct_parent_identity: direct_parent,
+            head_identity: head,
+            pointer_identity,
+            head_parent_identity,
+            direct_parent_parent_identity,
+            deep_missing_parent_identity,
+            deep_missing_depth: 2_u64,
+            derived_deep_missing_identity,
+            deep_missing_receipt_path: deep_missing_receipt_path.clone(),
+            derived_deep_missing_receipt_path,
+            genesis_receipt_kind,
+            direct_parent_receipt_kind,
+            head_receipt_kind,
+        };
+        (provenance, pointer_path, deep_missing_receipt_path)
+    }
+
+    #[test]
+    fn anc03_deep_missing_accepted_ancestor_fails_closed() {
+        let fixture = Fixture::new("anc03");
+        let (provenance, pointer_path, deep_missing_path) = anc03_provenance(&fixture);
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        ::core::assert_eq!(("transaction_ids_distinct", ::std::collections::BTreeSet::from([provenance.genesis_identity, provenance.deep_missing_identity, provenance.direct_parent_identity, provenance.head_identity]).len()), ("transaction_ids_distinct", 4_usize));
+        ::core::assert_eq!(("pointer_decodes_head", provenance.pointer_identity), ("pointer_decodes_head", provenance.head_identity));
+        ::core::assert_eq!(("head_parent_is_direct_parent", provenance.head_parent_identity), ("head_parent_is_direct_parent", provenance.direct_parent_identity));
+        ::core::assert_eq!(("direct_parent_parent_is_deep_missing", provenance.direct_parent_parent_identity), ("direct_parent_parent_is_deep_missing", provenance.deep_missing_identity));
+        ::core::assert_eq!(("deep_missing_parent_is_genesis", provenance.deep_missing_parent_identity), ("deep_missing_parent_is_genesis", provenance.genesis_identity));
+        ::core::assert_eq!(("deep_missing_is_depth_two", provenance.deep_missing_depth), ("deep_missing_is_depth_two", 2_u64));
+        ::core::assert_eq!(("deep_missing_id_derived_from_parent_receipt", provenance.deep_missing_identity), ("deep_missing_id_derived_from_parent_receipt", provenance.derived_deep_missing_identity));
+        ::core::assert_eq!(("deep_missing_path_from_derived_id", provenance.deep_missing_receipt_path.as_path()), ("deep_missing_path_from_derived_id", provenance.derived_deep_missing_receipt_path.as_path()));
+        ::core::assert_eq!(("genesis_receipt_regular", provenance.genesis_receipt_kind), ("genesis_receipt_regular", "regular"));
+        ::core::assert_eq!(("direct_parent_receipt_regular", provenance.direct_parent_receipt_kind), ("direct_parent_receipt_regular", "regular"));
+        ::core::assert_eq!(("head_receipt_regular", provenance.head_receipt_kind), ("head_receipt_regular", "regular"));
+        let deep_missing_before_snapshot = exact_optional_path_snapshot(&deep_missing_path);
+        ::core::assert!(deep_missing_before_snapshot.is_none(), "deep_missing_receipt_absent");
+        let pointer_before_snapshot = exact_path_snapshot(&pointer_path);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive() && maintenance.covers(owner_root), "maintenance_same_root_exclusive");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error).len(), 0);
+        let deep_missing_after_snapshot = exact_optional_path_snapshot(&deep_missing_path);
+        let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
+        ::core::assert_eq!(("pointer_bytes_unchanged", pointer_before_snapshot.2.as_slice()), ("pointer_bytes_unchanged", pointer_after_snapshot.2.as_slice()));
+        ::core::assert_eq!(("deep_missing_path_unchanged", deep_missing_before_snapshot), ("deep_missing_path_unchanged", deep_missing_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
+    }
+
+    #[test]
+    fn accepted_ancestry_limits_enforce_exact_and_plus_one() {
+        let fixture = Fixture::new("accepted-limits");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let accepted_lock = repository.acquire_lock().unwrap();
+        let mut limits = accepted_recovery_limits();
+        limits.ancestry_transactions = 2;
+        let verified = repository
+            .verify_accepted_recovery_ancestry_with_limits(
+                &maintenance,
+                &accepted_lock,
+                output.transaction_id(),
+                limits,
+            )
+            .unwrap();
+        assert_eq!(verified, 2);
+        limits.ancestry_transactions = 1;
+        let error = repository
+            .verify_accepted_recovery_ancestry_with_limits(
+                &maintenance,
+                &accepted_lock,
+                output.transaction_id(),
+                limits,
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), "TXN_RESOURCE_LIMIT");
+    }
+
+    #[test]
+    fn branch_verifier_reports_per_head_and_union_work() {
+        let fixture = Fixture::new("branch-verifier");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let genesis_claim = claim_for(&repository, fixture.genesis_transaction_id);
+        let head_claim = claim_for(&repository, output.transaction_id());
+        let second_genesis_claim = claim_for(&repository, fixture.genesis_transaction_id);
+        let second_head_claim = claim_for(&repository, output.transaction_id());
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let requests = [
+            RecoveryAncestryRequest::with_claims(genesis_claim, head_claim),
+            RecoveryAncestryRequest::with_claims(second_genesis_claim, second_head_claim),
+        ];
+        let Ok(report) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests)
+        else {
+            panic!("branch verifier rejected verified claims");
+        };
+        assert_eq!(report.heads.len(), 2);
+        assert_eq!(report.verified_transactions, 2);
+        assert_eq!(report.heads[0].head_transaction_id, output.transaction_id());
+        assert_eq!(report.heads[0].verified_transactions, 2);
+        assert_eq!(report.heads[1].verified_transactions, 2);
+        assert_eq!(
+            report.heads[0].work.receipt_bytes,
+            report.heads[1].work.receipt_bytes
+        );
+        assert_eq!(
+            report.heads[0].work.binding_visits,
+            report.heads[1].work.binding_visits
+        );
+        assert_eq!(
+            report.heads[0].work.object_verifications,
+            report.heads[1].work.object_verifications
+        );
+        assert_eq!(
+            report.heads[0].work.object_bytes,
+            report.heads[1].work.object_bytes
+        );
+        assert_eq!(
+            report.work.receipt_bytes,
+            report.heads[0].work.receipt_bytes
+        );
+        assert_eq!(
+            report.work.binding_visits,
+            report.heads[0].work.binding_visits
+        );
+        assert_eq!(
+            report.work.object_verifications,
+            report.heads[0].work.object_verifications
+        );
+        assert_eq!(report.work.object_bytes, report.heads[0].work.object_bytes);
+        assert!(report.work.receipt_bytes > 0);
+        assert!(report.work.binding_visits > 0);
+        assert!(report.work.object_verifications > 0);
+        assert!(report.work.object_bytes > 0);
+    }
+
+    #[test]
+    fn branch_verifier_empty_input_succeeds_with_zero_reports() {
+        let fixture = Fixture::new("branch-verifier-empty");
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let Ok(report) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &[])
+        else {
+            panic!("branch verifier rejected empty input");
+        };
+        assert!(report.heads.is_empty());
+        assert_eq!(report.verified_transactions, 0);
+        assert_eq!(report.work.receipt_bytes, 0);
+        assert_eq!(report.work.binding_visits, 0);
+        assert_eq!(report.work.object_verifications, 0);
+        assert_eq!(report.work.object_bytes, 0);
+    }
+
+    #[test]
+    fn branch_verifier_returns_indexed_claim_mismatch() {
+        let fixture = Fixture::new("branch-claim-mismatch");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let genesis_claim = claim_for(&repository, fixture.genesis_transaction_id);
+        let true_head = claim_for(&repository, output.transaction_id());
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let forged_head = RecoveryRevisionClaim::new(
+            true_head.transaction_id,
+            true_head.workspace_id,
+            fixed(99, StateRoot::from_bytes),
+            true_head.schema_epoch_id,
+            true_head.policy_root_id,
+            true_head.dependency_roots.clone(),
+        );
+        let requests = [RecoveryAncestryRequest::with_claims(
+            genesis_claim,
+            forged_head,
+        )];
+        let Err(error) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests)
+        else {
+            panic!("branch verifier accepted a forged head claim");
+        };
+        assert!(matches!(
+            error,
+            RecoveryAncestryError::ClaimMismatch {
+                request_index: 0,
+                claim_index: 1,
+            }
+        ));
+    }
+
+    #[test]
+    fn branch_verifier_rejects_origin_outside_head_ancestry() {
+        let fixture = Fixture::new("branch-origin-unreachable");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let genesis_claim = claim_for(&repository, fixture.genesis_transaction_id);
+        let head_claim = claim_for(&repository, output.transaction_id());
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let requests = [RecoveryAncestryRequest::with_claims(
+            head_claim,
+            genesis_claim,
+        )];
+        let Err(error) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests)
+        else {
+            panic!("branch verifier accepted an unreachable origin claim");
+        };
+        assert!(matches!(
+            error,
+            RecoveryAncestryError::ClaimMismatch {
+                request_index: 0,
+                claim_index: 0,
+            }
+        ));
+    }
+
+    #[test]
+    fn injected_ancestry_cycle_maps_to_parent_shape_for_accepted_recovery() {
+        let fixture = Fixture::new("accepted-cycle");
+        let first = fixture.repository.commit(fixture.input()).unwrap();
+        let second = commit_on_head(&fixture, 40);
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let plan = crate::recovery_ancestry_test_hook::install(
+            &repository,
+            &maintenance,
+            crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::One,
+            second.transaction_id(),
+            first.transaction_id(),
+        )
+        .unwrap();
+        let error = repository
+            .recover_with_maintenance(&maintenance)
+            .unwrap_err();
+        assert_eq!(error.code(), "TXN_PARENT_SHAPE");
+        drop(plan);
+        let recovered = repository.recover_with_maintenance(&maintenance).unwrap();
+        assert_eq!(recovered.verified_ancestry_transactions, 3);
+        assert_eq!(
+            recovered.accepted_transaction_id,
+            Some(second.transaction_id())
+        );
+    }
+
+    #[test]
+    fn injected_ancestry_cycle_maps_to_cycle_for_branch_verifier() {
+        let fixture = Fixture::new("branch-cycle");
+        let first = fixture.repository.commit(fixture.input()).unwrap();
+        let second = commit_on_head(&fixture, 41);
+        let canonical_root = ::std::fs::canonicalize(fixture.path()).unwrap();
+        let repository = super::TransactionRepository::new(canonical_root);
+        let genesis_claim = claim_for(&repository, fixture.genesis_transaction_id);
+        let head_claim = claim_for(&repository, second.transaction_id());
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let requests = [RecoveryAncestryRequest::with_claims(
+            genesis_claim,
+            head_claim,
+        )];
+        let plan = crate::recovery_ancestry_test_hook::install(
+            &repository,
+            &maintenance,
+            crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::One,
+            second.transaction_id(),
+            first.transaction_id(),
+        )
+        .unwrap();
+        let Err(error) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests)
+        else {
+            panic!("branch verifier missed the injected cycle");
+        };
+        assert!(matches!(error, RecoveryAncestryError::Cycle));
+        drop(plan);
+        let Ok(report) =
+            repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests)
+        else {
+            panic!("branch verifier failed after the plan cleared");
+        };
+        assert_eq!(report.verified_transactions, 3);
     }
 
     #[test]
@@ -2243,5 +4859,2972 @@ mod tests {
             write!(&mut output, "{byte:02x}").unwrap();
         }
         output
+    }
+    #[test]
+    fn tobj01_before_first_changed_object_put_keeps_old_head() {
+        let fixture = Fixture::new("tobj01");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Tobj01BeforeFirstChangedObjectPut,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_eq!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn tobj02_after_first_changed_object_durable_keeps_old_head() {
+        let fixture = Fixture::new("tobj02");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Tobj02AfterFirstChangedObjectDurable,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn tobj03_after_all_changed_objects_keeps_old_head() {
+        let fixture = Fixture::new("tobj03");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Tobj03AfterAllChangedObjectsBeforeReceiptStage,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn txn01_during_receipt_stage_write_removes_one_stage() {
+        let fixture = Fixture::new("txn01");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn01DuringReceiptStageWrite,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn txn02_verified_receipt_stage_before_final_link_removes_stage() {
+        let fixture = Fixture::new("txn02");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn02VerifiedReceiptStageBeforeFinalLink,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn txn03_final_receipt_link_before_first_leaf_sync_retries() {
+        let fixture = Fixture::new("txn03");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn03FinalReceiptLinkBeforeFirstLeafSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = repository.commit(fixture.input());
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_recovery_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_recovery_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_recovery_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .candidate_result()
+                .record
+                .decision,
+            CandidateDecision::Valid
+        );
+    }
+
+    #[test]
+    fn txn04_first_leaf_sync_before_stage_unlink_removes_stage() {
+        let fixture = Fixture::new("txn04");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn04FirstReceiptLeafSyncBeforeStageUnlink,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn txn05_stage_unlink_before_second_leaf_sync_resyncs() {
+        let fixture = Fixture::new("txn05");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn05ReceiptStageUnlinkBeforeSecondLeafSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn txn06_second_leaf_sync_before_head_work_keeps_old_head() {
+        let fixture = Fixture::new("txn06");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Txn06SecondReceiptLeafSyncBeforeHeadWork,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn head01_before_accepted_head_stage_create_keeps_old_head() {
+        let fixture = Fixture::new("head01");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Head01BeforeAcceptedHeadStageCreate,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn head02_during_accepted_head_stage_write_removes_stage() {
+        let fixture = Fixture::new("head02");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Head02DuringAcceptedHeadStageWrite,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn head03_verified_head_stage_before_rename_removes_stage() {
+        let fixture = Fixture::new("head03");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Head03VerifiedAcceptedHeadStageBeforeRename,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn head04_head_rename_before_head_sync_keeps_new_head() {
+        let fixture = Fixture::new("head04");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Head04AcceptedHeadRenameBeforeHeadSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            2_u64
+        );
+    }
+
+    #[test]
+    fn head05_head_sync_before_response_keeps_new_head() {
+        let fixture = Fixture::new("head05");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Head05AcceptedHeadSyncBeforeResponse,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            2_u64
+        );
+    }
+
+    #[test]
+    fn gen01_before_first_genesis_object_put_stays_uninitialized() {
+        let temp = TempDir::new("gen01");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen01BeforeFirstGenesisObjectPut,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen02_after_first_genesis_object_durable_stays_uninitialized() {
+        let temp = TempDir::new("gen02");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen02AfterFirstGenesisObjectDurable,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen03_after_all_genesis_objects_stays_uninitialized() {
+        let temp = TempDir::new("gen03");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen03AfterAllGenesisObjectsBeforeReceiptStage,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen04_during_genesis_receipt_stage_write_removes_stage() {
+        let temp = TempDir::new("gen04");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen04DuringGenesisReceiptStageWrite,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen05_verified_genesis_receipt_stage_removes_stage() {
+        let temp = TempDir::new("gen05");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen05VerifiedGenesisReceiptStageBeforeFinalLink,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen06_final_genesis_receipt_link_removes_stage() {
+        let temp = TempDir::new("gen06");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen06FinalGenesisReceiptLinkBeforeFirstLeafSync,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen07_first_genesis_leaf_sync_removes_stage() {
+        let temp = TempDir::new("gen07");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen07FirstGenesisReceiptLeafSyncBeforeStageUnlink,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen08_genesis_stage_unlink_resyncs_leaf() {
+        let temp = TempDir::new("gen08");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen08GenesisReceiptStageUnlinkBeforeSecondLeafSync,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen09_second_genesis_leaf_sync_stays_uninitialized() {
+        let temp = TempDir::new("gen09");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen09SecondGenesisReceiptLeafSyncBeforeHeadWork,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen10_before_genesis_head_stage_create_stays_uninitialized() {
+        let temp = TempDir::new("gen10");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen10BeforeGenesisHeadStageCreate,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen11_during_genesis_head_stage_write_removes_stage() {
+        let temp = TempDir::new("gen11");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen11DuringGenesisHeadStageWrite,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen12_verified_genesis_head_stage_removes_stage() {
+        let temp = TempDir::new("gen12");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen12VerifiedGenesisHeadStageBeforeRename,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn gen13_genesis_head_rename_before_head_sync_verifies_genesis() {
+        let temp = TempDir::new("gen13");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen13GenesisHeadRenameBeforeHeadSync,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+    }
+
+    #[test]
+    fn gen14_genesis_head_sync_before_response_verifies_genesis() {
+        let temp = TempDir::new("gen14");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let material = genesis_material_pair();
+        let input =
+            TrustedGenesisInput::new(&material.state, &material.policy, &material.objects, &[]);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository
+            .initialize_trusted_genesis_with_transaction_durability_cut(
+                input,
+                TransactionDurabilityCut::Gen14GenesisHeadSyncBeforeResponse,
+            );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "RECOVERY_REF_CAS_INCOMPLETE");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_recovery_result = repository.recover();
+        ::core::assert!(second_recovery_result.is_ok());
+        let after_second_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_recovery_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_recovery_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            second_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+    }
+
+    #[test]
+    fn rcv01_transactions_v1_create_retry_reaches_sync_hook() {
+        let temp = TempDir::new("rcv01");
+        let repository = super::TransactionRepository::new(&temp.path);
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("transactions").join("v1");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.ensure_layout_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv01TransactionsV1CreateBeforeTransactionsSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = repository.ensure_layout_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv01TransactionsV1CreateBeforeTransactionsSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "TXN_IO");
+        let after_second_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = repository.recover();
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            0_u64
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            None
+        );
+    }
+
+    #[test]
+    fn rcv02_first_receipt_fanout_create_retry_reaches_sync_hook() {
+        let fixture = Fixture::new("rcv02");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Rcv02FirstReceiptFanoutCreateBeforeParentSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Rcv02FirstReceiptFanoutCreateBeforeParentSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "TXN_IO");
+        let after_second_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = repository.commit(fixture.input());
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .candidate_result()
+                .record
+                .decision,
+            CandidateDecision::Valid
+        );
+    }
+
+    #[test]
+    fn rcv03_second_receipt_fanout_create_retry_reaches_sync_hook() {
+        let fixture = Fixture::new("rcv03");
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("locks").join("accepted.lock");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Rcv03SecondReceiptFanoutCreateBeforeParentSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = repository.commit_with_transaction_durability_cut(
+            fixture.input(),
+            TransactionDurabilityCut::Rcv03SecondReceiptFanoutCreateBeforeParentSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "TXN_IO");
+        let after_second_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let ordinary_retry_result = repository.commit(fixture.input());
+        ::core::assert!(ordinary_retry_result.is_ok());
+        let after_ordinary_retry_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_ordinary_retry_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_ordinary_retry_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_owner_tree_snapshot,
+            after_ordinary_retry_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_ne!(
+            after_second_fault_primary_path_snapshot,
+            after_ordinary_retry_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_ordinary_retry_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            ordinary_retry_result
+                .as_ref()
+                .unwrap()
+                .candidate_result()
+                .record
+                .decision,
+            CandidateDecision::Valid
+        );
+    }
+
+    #[test]
+    fn rcv04_receipt_recovery_stage_unlink_retry_resyncs_leaf() {
+        let fixture = Fixture::new("rcv04");
+        let repository = fixture.repository.clone();
+        let receipt_leaf_dir = repository
+            .receipt_path(fixture.genesis_transaction_id)
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let first_stage_path = receipt_leaf_dir.join(".sley-txn-stage-1-0000000000000001.tmp");
+        let second_stage_path = receipt_leaf_dir.join(".sley-txn-stage-1-0000000000000002.tmp");
+        ::std::fs::write(&first_stage_path, b"partial-a").unwrap();
+        ::std::fs::write(&second_stage_path, b"partial-b").unwrap();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("transactions").join("v1");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.recover_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv04ReceiptRecoveryStageUnlinkBeforeLeafSync {
+                transaction_id: fixture.genesis_transaction_id,
+            },
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = repository.recover_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv04ReceiptRecoveryStageUnlinkBeforeLeafSync {
+                transaction_id: fixture.genesis_transaction_id,
+            },
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "TXN_IO");
+        let after_second_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
+    }
+
+    #[test]
+    fn rcv05_head_recovery_stage_unlink_retry_resyncs_head() {
+        let fixture = Fixture::new("rcv05");
+        let repository = fixture.repository.clone();
+        let head_stage_dir = repository.head_dir();
+        let first_stage_path = head_stage_dir.join(".sley-head-stage-1-0000000000000001.tmp");
+        let second_stage_path = head_stage_dir.join(".sley-head-stage-1-0000000000000002.tmp");
+        ::std::fs::write(&first_stage_path, b"partial-a").unwrap();
+        ::std::fs::write(&second_stage_path, b"partial-b").unwrap();
+        let owner_root = repository.root();
+        let primary_path = owner_root.join("heads").join("accepted");
+        let secondary_path = owner_root.join("heads");
+        let before_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let before_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let before_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_fault_result = repository.recover_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv05HeadRecoveryStageUnlinkBeforeHeadSync,
+        );
+        let first_fault_error =
+            first_fault_result.expect_err("expected first fault durability error");
+        ::core::assert_eq!(first_fault_error.code(), "TXN_IO");
+        let after_first_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let second_fault_result = repository.recover_with_transaction_durability_cut(
+            TransactionDurabilityCut::Rcv05HeadRecoveryStageUnlinkBeforeHeadSync,
+        );
+        let second_fault_error =
+            second_fault_result.expect_err("expected second fault durability error");
+        ::core::assert_eq!(second_fault_error.code(), "TXN_IO");
+        let after_second_fault_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_second_fault_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_second_fault_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        let first_recovery_result = repository.recover();
+        ::core::assert!(first_recovery_result.is_ok());
+        let after_first_recovery_owner_tree_snapshot =
+            crate::repository::tests::exact_tree_snapshot(owner_root);
+        let after_first_recovery_primary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&primary_path);
+        let after_first_recovery_secondary_path_snapshot =
+            crate::repository::tests::exact_optional_path_snapshot(&secondary_path);
+        ::core::assert_ne!(
+            before_fault_owner_tree_snapshot,
+            after_first_fault_owner_tree_snapshot
+        );
+        ::core::assert_ne!(
+            after_first_fault_owner_tree_snapshot,
+            after_second_fault_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_owner_tree_snapshot,
+            after_first_recovery_owner_tree_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_primary_path_snapshot,
+            after_first_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_primary_path_snapshot,
+            after_second_fault_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_primary_path_snapshot,
+            after_first_recovery_primary_path_snapshot
+        );
+        ::core::assert_eq!(
+            before_fault_secondary_path_snapshot,
+            after_first_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_first_fault_secondary_path_snapshot,
+            after_second_fault_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            after_second_fault_secondary_path_snapshot,
+            after_first_recovery_secondary_path_snapshot
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .removed_receipt_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result.as_ref().unwrap().removed_head_stages,
+            0_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .verified_ancestry_transactions,
+            1_u64
+        );
+        ::core::assert_eq!(
+            first_recovery_result
+                .as_ref()
+                .unwrap()
+                .accepted_transaction_id,
+            Some(fixture.genesis_transaction_id)
+        );
     }
 }

@@ -1371,6 +1371,11 @@ mod tests {
     #[rustfmt::skip]
     type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);
     type ExactTreeSnapshot = ::std::vec::Vec<(::std::path::PathBuf, ExactPathSnapshot)>;
+    #[allow(dead_code)]
+    type ExactOptionalPathSnapshot = ::core::option::Option<ExactPathSnapshot>;
+    #[allow(dead_code)]
+    #[rustfmt::skip]
+    type ExactTreeDeltaPaths = (::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>, ::std::vec::Vec<::std::path::PathBuf>);
 
     fn exact_path_snapshot(path: &::std::path::Path) -> ExactPathSnapshot {
         let metadata = ::std::fs::symlink_metadata(path).expect("snapshot metadata");
@@ -1427,6 +1432,60 @@ mod tests {
         let mut entries = ::std::vec::Vec::new();
         visit(root, root, &mut entries);
         entries
+    }
+
+    #[allow(dead_code)]
+    fn exact_optional_path_snapshot(path: &::std::path::Path) -> ExactOptionalPathSnapshot {
+        match ::std::fs::symlink_metadata(path) {
+            ::core::result::Result::Ok(_) => {
+                ::core::option::Option::Some(exact_path_snapshot(path))
+            }
+            ::core::result::Result::Err(error)
+                if error.kind() == ::std::io::ErrorKind::NotFound =>
+            {
+                ::core::option::Option::None
+            }
+            ::core::result::Result::Err(error) => {
+                ::core::panic!("optional snapshot metadata: {}", error)
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn exact_tree_delta_paths(
+        before: &ExactTreeSnapshot,
+        after: &ExactTreeSnapshot,
+    ) -> ExactTreeDeltaPaths {
+        let before_by_path = before
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let after_by_path = after
+            .iter()
+            .map(|(path, snapshot)| (path.clone(), snapshot))
+            .collect::<::std::collections::BTreeMap<_, _>>();
+        let added = after_by_path
+            .keys()
+            .filter(|path| !before_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        let changed = after_by_path
+            .iter()
+            .filter_map(|(path, after_snapshot)| match before_by_path.get(path) {
+                ::core::option::Option::Some(before_snapshot)
+                    if *before_snapshot != *after_snapshot =>
+                {
+                    ::core::option::Option::Some(path.clone())
+                }
+                _ => ::core::option::Option::None,
+            })
+            .collect::<::std::vec::Vec<_>>();
+        let removed = before_by_path
+            .keys()
+            .filter(|path| !after_by_path.contains_key(*path))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>();
+        (added, changed, removed)
     }
 
     fn exact_error_source_chain(
@@ -1567,15 +1626,20 @@ mod tests {
             GcDurabilityCut::Gcw01WitnessCreateBeforeWrite,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert_eq!(
+            exact_error_source_chain(&error),
+            ::std::vec!["io::Error(Other)"]
+        );
         let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
-        assert_eq!(fs::read(&witness).unwrap(), b"");
+        let immediate_state_verified = fs::read(&witness).unwrap().is_empty();
+        ::core::assert!(immediate_state_verified);
 
         let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
         let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
-        assert_eq!(status, GcWitnessRecoveryStatus::RemovedIncomplete);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            status == GcWitnessRecoveryStatus::RemovedIncomplete && !witness.exists();
+        ::core::assert!(recovery_result_verified);
     }
 
     #[test]
@@ -1586,16 +1650,21 @@ mod tests {
             GcDurabilityCut::Gcw02DuringWitnessWrite,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert_eq!(
+            exact_error_source_chain(&error),
+            ::std::vec!["io::Error(Other)"]
+        );
         let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
-        assert_eq!(fs::read(&witness).unwrap(), b"SLEY");
-        assert_eq!(fs::metadata(&witness).unwrap().len(), 4);
+        let immediate_state_verified =
+            fs::read(&witness).unwrap() == b"SLEY" && fs::metadata(&witness).unwrap().len() == 4;
+        ::core::assert!(immediate_state_verified);
 
         let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
         let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
-        assert_eq!(status, GcWitnessRecoveryStatus::RemovedIncomplete);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            status == GcWitnessRecoveryStatus::RemovedIncomplete && !witness.exists();
+        ::core::assert!(recovery_result_verified);
     }
 
     #[test]
@@ -1606,15 +1675,20 @@ mod tests {
             GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert_eq!(
+            exact_error_source_chain(&error),
+            ::std::vec!["io::Error(Other)"]
+        );
         let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
-        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+        let immediate_state_verified = fs::read(&witness).unwrap() == GC_LOCK_BYTES;
+        ::core::assert!(immediate_state_verified);
 
         let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
         let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
-        assert_eq!(status, GcWitnessRecoveryStatus::RemovedExact);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            status == GcWitnessRecoveryStatus::RemovedExact && !witness.exists();
+        ::core::assert!(recovery_result_verified);
     }
 
     #[test]
@@ -1625,15 +1699,20 @@ mod tests {
             GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert_eq!(
+            exact_error_source_chain(&error),
+            ::std::vec!["io::Error(Other)"]
+        );
         let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
-        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+        let immediate_state_verified = fs::read(&witness).unwrap() == GC_LOCK_BYTES;
+        ::core::assert!(immediate_state_verified);
 
         let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
         let status = recover_gc_witness(&fixture.store, &maintenance).unwrap();
-        assert_eq!(status, GcWitnessRecoveryStatus::RemovedExact);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            status == GcWitnessRecoveryStatus::RemovedExact && !witness.exists();
+        ::core::assert!(recovery_result_verified);
     }
 
     #[test]
@@ -1647,16 +1726,21 @@ mod tests {
             GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert_eq!(exact_error_source_chain(&error), vec!["io::Error(Other)"]);
-        assert!(!witness.exists());
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert_eq!(
+            exact_error_source_chain(&error),
+            ::std::vec!["io::Error(Other)"]
+        );
+        let immediate_state_verified = !witness.exists();
+        ::core::assert!(immediate_state_verified);
         drop(maintenance);
 
         let retry_maintenance =
             acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
         let retry = recover_gc_witness(&fixture.store, &retry_maintenance).unwrap();
-        assert_eq!(retry, GcWitnessRecoveryStatus::Absent);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            retry == GcWitnessRecoveryStatus::Absent && !witness.exists();
+        ::core::assert!(recovery_result_verified);
     }
 
     #[test]
@@ -1668,11 +1752,14 @@ mod tests {
             owner_tx,
             release_rx: Mutex::new(release_rx),
         });
+        let cut_gate = Arc::clone(&gate);
         let owner_store = fixture.store.clone();
         let owner = ::std::thread::spawn(move || {
             acquire_exclusive_gc_with_gc_durability_cut(
                 &owner_store,
-                GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess { gate },
+                GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess {
+                    gate: cut_gate,
+                },
             )
         });
         owner_rx.recv().unwrap();
@@ -1682,144 +1769,262 @@ mod tests {
             .write(true)
             .open(fixture.store.root().join("locks/maintenance.lock"))
             .unwrap();
-        assert!(matches!(
+        ::core::assert!(::core::matches!(
             File::try_lock(&maintenance_probe),
             Err(::std::fs::TryLockError::WouldBlock)
         ));
         let witness = fixture.store.root().join(GC_LOCK_DIR).join(GC_LOCK_FILE);
-        assert!(!witness.exists());
+        let immediate_state_verified = !witness.exists();
+        ::core::assert!(immediate_state_verified);
 
         let (waiter_started_tx, waiter_started_rx) = ::std::sync::mpsc::sync_channel(0);
         let (waiter_result_tx, waiter_result_rx) = ::std::sync::mpsc::sync_channel(0);
         let waiter_store = fixture.store.clone();
         let waiter = ::std::thread::spawn(move || {
             waiter_started_tx.send(()).unwrap();
-            let maintenance =
+            let waiter_maintenance =
                 acquire_exclusive_repository_maintenance(waiter_store.root()).unwrap();
-            let result = recover_gc_witness(&waiter_store, &maintenance);
-            waiter_result_tx.send(result).unwrap();
+            let waiter_status = recover_gc_witness(&waiter_store, &waiter_maintenance);
+            waiter_result_tx.send(waiter_status).unwrap();
         });
         waiter_started_rx.recv().unwrap();
 
         release_tx.send(()).unwrap();
         let guard = owner.join().unwrap().unwrap();
-        assert!(guard.maintenance.is_exclusive());
-        assert!(guard.maintenance.covers(fixture.store.root()));
-        assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
+        ::core::assert!(guard.maintenance.is_exclusive());
+        ::core::assert!(guard.maintenance.covers(fixture.store.root()));
+        ::core::assert_eq!(fs::read(&witness).unwrap(), GC_LOCK_BYTES);
         guard.release().unwrap();
 
         let waiter_result = waiter_result_rx.recv().unwrap().unwrap();
-        assert_eq!(waiter_result, GcWitnessRecoveryStatus::Absent);
-        assert!(!witness.exists());
+        let recovery_result_verified =
+            waiter_result == GcWitnessRecoveryStatus::Absent && !witness.exists();
+        ::core::assert!(recovery_result_verified);
         waiter.join().unwrap();
     }
 
     #[test]
     fn guard05_same_root_shared_preserves_witness() {
         let fixture = fixture();
-        let witness = initialize_exact_gc_witness(&fixture.store, GC_LOCK_BYTES);
-        let maintenance =
-            ::sley_txn::acquire_shared_repository_maintenance(fixture.store.root()).unwrap();
-        assert!(!maintenance.is_exclusive());
-        assert!(maintenance.covers(fixture.store.root()));
-        let before = exact_tree_snapshot(fixture.store.root());
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
-        assert_eq!(fs::read(witness).unwrap(), GC_LOCK_BYTES);
+        let store = fixture.store.clone();
+        initialize_exact_gc_witness(&store, GC_LOCK_BYTES);
+        let maintenance = ::sley_txn::acquire_shared_repository_maintenance(store.root()).unwrap();
+        ::core::assert!(!maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(store.root()));
+        let owner_root = store.root();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "regular");
+        ::core::assert_eq!(gc_witness_before_snapshot.2, b"SLEYGC01".to_vec());
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
     }
 
     #[test]
     fn guard06_wrong_root_exclusive_preserves_both_roots() {
         let fixture = fixture();
-        let witness = initialize_exact_gc_witness(&fixture.store, GC_LOCK_BYTES);
+        let store = fixture.store.clone();
+        initialize_exact_gc_witness(&store, GC_LOCK_BYTES);
         let other = TempRoot::new("wrong-maintenance-root");
         initialize_repository_maintenance(&other.0).unwrap();
         let maintenance = acquire_exclusive_repository_maintenance(&other.0).unwrap();
-        assert!(maintenance.is_exclusive());
-        assert!(!maintenance.covers(fixture.store.root()));
-        let store_before = exact_tree_snapshot(fixture.store.root());
-        let other_before = exact_tree_snapshot(&other.0);
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), store_before);
-        assert_eq!(exact_tree_snapshot(&other.0), other_before);
-        assert_eq!(fs::read(witness).unwrap(), GC_LOCK_BYTES);
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(!maintenance.covers(store.root()));
+        let guard_root_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(&other.0);
+        let owner_root = store.root();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "regular");
+        ::core::assert_eq!(gc_witness_before_snapshot.2, b"SLEYGC01".to_vec());
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
+        ::core::assert_eq!(
+            crate::gc::tests::exact_tree_snapshot(&other.0),
+            guard_root_tree_before_snapshot
+        );
     }
 
     #[test]
     fn cor08_wrong_magic_preserves_witness() {
         let fixture = fixture();
-        initialize_exact_gc_witness(&fixture.store, b"NOTGC001");
-        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
-        let before = exact_tree_snapshot(fixture.store.root());
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+        let store = fixture.store.clone();
+        initialize_exact_gc_witness(&store, b"NOTGC001");
+        let maintenance = acquire_exclusive_repository_maintenance(store.root()).unwrap();
+        let owner_root = store.root();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "regular");
+        ::core::assert_eq!(gc_witness_before_snapshot.2, b"NOTGC001".to_vec());
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
     }
 
     #[test]
     fn cor08_oversize_witness_preserves_witness() {
         let fixture = fixture();
-        initialize_exact_gc_witness(&fixture.store, b"SLEYGC01X");
-        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
-        let before = exact_tree_snapshot(fixture.store.root());
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
+        let store = fixture.store.clone();
+        initialize_exact_gc_witness(&store, b"SLEYGC01X");
+        let maintenance = acquire_exclusive_repository_maintenance(store.root()).unwrap();
+        let owner_root = store.root();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "regular");
+        ::core::assert_eq!(gc_witness_before_snapshot.2, b"SLEYGC01X".to_vec());
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
     }
 
     #[test]
     fn cor08_relative_symlink_preserves_witness() {
-        use std::os::unix::fs::symlink;
-
         let fixture = fixture();
-        initialize_repository_maintenance(fixture.store.root()).unwrap();
-        let lock_dir = fixture.store.root().join(GC_LOCK_DIR);
-        let target = lock_dir.join("gc-witness-target");
-        fs::write(&target, GC_LOCK_BYTES).unwrap();
-        let witness = lock_dir.join(GC_LOCK_FILE);
-        symlink("gc-witness-target", &witness).unwrap();
-        sync_dir(&lock_dir).unwrap();
-        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
-        let before = exact_tree_snapshot(fixture.store.root());
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
-        assert_eq!(
-            fs::read_link(witness).unwrap(),
-            PathBuf::from("gc-witness-target")
-        );
+        let store = fixture.store.clone();
+        initialize_repository_maintenance(store.root()).unwrap();
+        let maintenance = acquire_exclusive_repository_maintenance(store.root()).unwrap();
+        let owner_root = store.root();
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        fs::write(
+            owner_root.join("locks").join("gc-witness-target"),
+            GC_LOCK_BYTES,
+        )
+        .unwrap();
+        ::std::os::unix::fs::symlink("gc-witness-target", &gc_witness_path).unwrap();
+        sync_dir(&owner_root.join("locks")).unwrap();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "symlink");
+        ::core::assert_eq!(gc_witness_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("gc-witness-target")));
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
     }
 
     #[test]
     fn cor08_unix_socket_preserves_witness() {
-        use std::os::unix::net::UnixListener;
-
         let fixture = fixture();
-        initialize_repository_maintenance(fixture.store.root()).unwrap();
-        let lock_dir = fixture.store.root().join(GC_LOCK_DIR);
-        let witness = lock_dir.join(GC_LOCK_FILE);
-        let listener = UnixListener::bind(&witness).unwrap();
-        sync_dir(&lock_dir).unwrap();
-        let maintenance = acquire_exclusive_repository_maintenance(fixture.store.root()).unwrap();
-        let before = exact_tree_snapshot(fixture.store.root());
-
-        let error = recover_gc_witness(&fixture.store, &maintenance).unwrap_err();
-        assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
-        assert!(exact_error_source_chain(&error).is_empty());
-        assert_eq!(exact_tree_snapshot(fixture.store.root()), before);
-        assert_eq!(exact_path_snapshot(&witness).0, "non_regular");
+        let store = fixture.store.clone();
+        initialize_repository_maintenance(store.root()).unwrap();
+        let maintenance = acquire_exclusive_repository_maintenance(store.root()).unwrap();
+        let owner_root = store.root();
+        let gc_witness_path = owner_root.join("locks").join("gc.lock");
+        let listener = ::std::os::unix::net::UnixListener::bind(&gc_witness_path).unwrap();
+        sync_dir(&owner_root.join("locks")).unwrap();
+        let owner_tree_before_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_before_kind = gc_witness_before_snapshot.0;
+        ::core::assert_eq!(gc_witness_before_kind, "non_regular");
+        ::core::assert_eq!(gc_witness_before_snapshot.1 & 0o170000, 0o140000);
+        let result = super::recover_gc_witness(&store, &maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::gc::tests::exact_tree_snapshot(owner_root);
+        let gc_witness_after_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
+        let gc_witness_after_kind = gc_witness_after_snapshot.0;
+        ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
+        ::core::assert!(::core::matches!(
+            &error,
+            super::GcError {
+                symbol: "GC_EXCLUSIVE_LOCK_REQUIRED",
+                partial_report: ::core::option::Option::None,
+                source: ::core::option::Option::None
+            }
+        ));
+        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
+        ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
         drop(listener);
     }
 
@@ -2160,12 +2365,15 @@ mod tests {
         let snapshot = RetentionSnapshot::new(Vec::new(), Vec::new()).unwrap();
         let dry_run = gc_dry_run(&fixture.store, &snapshot, &fixture.verifier).unwrap();
         let deletion_candidates = dry_run.deletion_candidates.clone();
-        assert_eq!(deletion_candidates.len(), 3);
+        let candidate_count = deletion_candidates.len();
+        ::core::assert_eq!(candidate_count, 3);
+        let candidate_order_verified = deletion_candidates.windows(2).all(|pair| pair[0] < pair[1]);
+        ::core::assert!(candidate_order_verified);
         let durable_prefix = deletion_candidates[0];
         let failed_candidate = deletion_candidates[1];
         let untouched_suffix = deletion_candidates[2];
         let guard = acquire_exclusive_gc(&fixture.store).unwrap();
-        let error = gc_collect_with_gc_durability_cut(
+        let expected_result = gc_collect_with_gc_durability_cut(
             &fixture.store,
             &snapshot,
             &fixture.verifier,
@@ -2173,30 +2381,48 @@ mod tests {
             GcDurabilityCut::Gc01BeforeSecondCandidateDelete,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_DELETE_IO");
-        let report = error.partial_report().unwrap();
-        assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
-        assert_eq!(report.deletion_candidates, deletion_candidates);
-        assert_eq!(report.reachable_objects, dry_run.reachable_objects);
-        assert_eq!(report.deleted_objects, vec![durable_prefix]);
-        assert_eq!(report.failed_object, Some(failed_candidate));
-        assert!(!fixture.store.object_path(durable_prefix).exists());
-        assert!(fixture.store.object_path(failed_candidate).is_file());
-        assert!(fixture.store.object_path(untouched_suffix).is_file());
+        ::core::assert_eq!(expected_result.symbol(), "GC_DELETE_IO");
+        let report = expected_result.partial_report().unwrap();
+        ::core::assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
+        let failed_candidate_index = report
+            .deletion_candidates
+            .iter()
+            .position(|candidate| report.failed_object == Some(*candidate))
+            .unwrap();
+        ::core::assert_eq!(failed_candidate_index, 1);
+        let durable_prefix_count = report.deleted_objects.len();
+        ::core::assert_eq!(durable_prefix_count, 1);
+        let original_deletion_candidates_exact = report.deletion_candidates == deletion_candidates;
+        ::core::assert!(original_deletion_candidates_exact);
+        let reachable_objects_unchanged = report.reachable_objects == dry_run.reachable_objects;
+        ::core::assert!(reachable_objects_unchanged);
+        let deleted_objects_exact_prefix = report.deleted_objects
+            == deletion_candidates[..durable_prefix_count]
+            && !fixture.store.object_path(durable_prefix).exists();
+        ::core::assert!(deleted_objects_exact_prefix);
+        let failed_object_exact_current = report.failed_object == Some(failed_candidate);
+        ::core::assert!(failed_object_exact_current);
+        let failed_current_excluded = !report.deleted_objects.contains(&failed_candidate);
+        ::core::assert!(failed_current_excluded);
+        let suffix_untouched = fixture.store.object_path(untouched_suffix).is_file();
+        ::core::assert!(suffix_untouched);
+        let failed_current_present = fixture.store.object_path(failed_candidate).is_file();
+        ::core::assert!(failed_current_present);
 
         let retry = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
-        assert_eq!(
-            retry.deletion_candidates,
-            vec![failed_candidate, untouched_suffix]
-        );
-        assert_eq!(retry.deleted_objects, retry.deletion_candidates);
-        assert_eq!(retry.failed_object, None);
-        assert!(!fixture.store.object_path(failed_candidate).exists());
-        assert!(!fixture.store.object_path(untouched_suffix).exists());
+        let retry_deleted_exact_remaining =
+            retry.deleted_objects == ::std::vec![failed_candidate, untouched_suffix];
+        ::core::assert!(retry_deleted_exact_remaining);
+        let retry_complete = retry.failed_object.is_none()
+            && retry.deleted_objects == retry.deletion_candidates
+            && !fixture.store.object_path(failed_candidate).exists()
+            && !fixture.store.object_path(untouched_suffix).exists();
+        ::core::assert!(retry_complete);
 
         let third = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
-        assert!(third.deletion_candidates.is_empty());
-        assert!(third.deleted_objects.is_empty());
+        let third_run_empty =
+            third.deletion_candidates.is_empty() && third.deleted_objects.is_empty();
+        ::core::assert!(third_run_empty);
     }
 
     #[test]
@@ -2205,7 +2431,10 @@ mod tests {
         let snapshot = RetentionSnapshot::new(Vec::new(), Vec::new()).unwrap();
         let dry_run = gc_dry_run(&fixture.store, &snapshot, &fixture.verifier).unwrap();
         let deletion_candidates = dry_run.deletion_candidates.clone();
-        assert_eq!(deletion_candidates.len(), 3);
+        let candidate_count = deletion_candidates.len();
+        ::core::assert_eq!(candidate_count, 3);
+        let candidate_order_verified = deletion_candidates.windows(2).all(|pair| pair[0] < pair[1]);
+        ::core::assert!(candidate_order_verified);
         let durable_prefix = deletion_candidates[0];
         let failed_candidate = deletion_candidates[1];
         let untouched_suffix = deletion_candidates[2];
@@ -2216,7 +2445,7 @@ mod tests {
             .unwrap()
             .to_path_buf();
         let guard = acquire_exclusive_gc(&fixture.store).unwrap();
-        let error = gc_collect_with_gc_durability_cut(
+        let expected_result = gc_collect_with_gc_durability_cut(
             &fixture.store,
             &snapshot,
             &fixture.verifier,
@@ -2224,17 +2453,34 @@ mod tests {
             GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync,
         )
         .unwrap_err();
-        assert_eq!(error.symbol(), "GC_DELETE_IO");
-        let report = error.partial_report().unwrap();
-        assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
-        assert_eq!(report.deletion_candidates, deletion_candidates);
-        assert_eq!(report.reachable_objects, dry_run.reachable_objects);
-        assert_eq!(report.deleted_objects, vec![durable_prefix]);
-        assert_eq!(report.failed_object, Some(failed_candidate));
-        assert!(!fixture.store.object_path(durable_prefix).exists());
-        assert!(!fixture.store.object_path(failed_candidate).exists());
-        assert!(fixture.store.object_path(untouched_suffix).is_file());
-        assert!(failed_leaf.is_dir());
+        ::core::assert_eq!(expected_result.symbol(), "GC_DELETE_IO");
+        let report = expected_result.partial_report().unwrap();
+        ::core::assert_eq!(report.decision, GcDecision::PartialDeleteFailure);
+        let failed_candidate_index = report
+            .deletion_candidates
+            .iter()
+            .position(|candidate| report.failed_object == Some(*candidate))
+            .unwrap();
+        ::core::assert_eq!(failed_candidate_index, 1);
+        let durable_prefix_count = report.deleted_objects.len();
+        ::core::assert_eq!(durable_prefix_count, 1);
+        let original_deletion_candidates_exact = report.deletion_candidates == deletion_candidates;
+        ::core::assert!(original_deletion_candidates_exact);
+        let reachable_objects_unchanged = report.reachable_objects == dry_run.reachable_objects;
+        ::core::assert!(reachable_objects_unchanged);
+        let deleted_objects_exact_prefix = report.deleted_objects
+            == deletion_candidates[..durable_prefix_count]
+            && !fixture.store.object_path(durable_prefix).exists();
+        ::core::assert!(deleted_objects_exact_prefix);
+        let failed_object_exact_current = report.failed_object == Some(failed_candidate);
+        ::core::assert!(failed_object_exact_current);
+        let failed_current_excluded = !report.deleted_objects.contains(&failed_candidate);
+        ::core::assert!(failed_current_excluded);
+        let suffix_untouched = fixture.store.object_path(untouched_suffix).is_file();
+        ::core::assert!(suffix_untouched);
+        let failed_current_present = fixture.store.object_path(failed_candidate).is_file();
+        ::core::assert!(!failed_current_present);
+        ::core::assert!(failed_leaf.is_dir());
 
         let corrupt_leaf = fixture
             .store
@@ -2242,37 +2488,41 @@ mod tests {
             .parent()
             .unwrap()
             .to_path_buf();
-        assert_ne!(corrupt_leaf, failed_leaf);
+        ::core::assert_ne!(corrupt_leaf, failed_leaf);
         let corrupt_inventory = corrupt_leaf.join("corrupt-inventory");
         fs::write(&corrupt_inventory, b"corrupt").unwrap();
         sync_dir(&corrupt_leaf).unwrap();
         let corrupt_tree_before = exact_tree_snapshot(fixture.store.root());
-        let preflight_error = gc_collect_with_injected_pre_cleanup_sync_failure(
+        let preflight = gc_collect_with_injected_pre_cleanup_sync_failure(
             &fixture.store,
             &snapshot,
             &fixture.verifier,
             &guard,
         )
         .unwrap_err();
-        assert_eq!(preflight_error.symbol(), "GC_INVENTORY_INVALID");
-        assert!(exact_error_source_chain(&preflight_error).is_empty());
-        assert_eq!(
-            exact_tree_snapshot(fixture.store.root()),
-            corrupt_tree_before
-        );
+        let retry_resynced_failed_leaf_before_replan = preflight.symbol() == "GC_INVENTORY_INVALID"
+            && exact_error_source_chain(&preflight).is_empty()
+            && exact_tree_snapshot(fixture.store.root()) == corrupt_tree_before
+            && failed_leaf.is_dir();
+        ::core::assert!(retry_resynced_failed_leaf_before_replan);
         fs::remove_file(&corrupt_inventory).unwrap();
         sync_dir(&corrupt_leaf).unwrap();
 
         let retry = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
-        assert_eq!(retry.deletion_candidates, vec![untouched_suffix]);
-        assert_eq!(retry.deleted_objects, vec![untouched_suffix]);
-        assert_eq!(retry.failed_object, None);
-        assert!(!retry.deleted_objects.contains(&failed_candidate));
-        assert!(!fixture.store.object_path(untouched_suffix).exists());
+        let retry_deleted_exact_suffix = retry.deletion_candidates == ::std::vec![untouched_suffix]
+            && retry.deleted_objects == ::std::vec![untouched_suffix];
+        ::core::assert!(retry_deleted_exact_suffix);
+        let retry_did_not_claim_failed_current = !retry.deleted_objects.contains(&failed_candidate);
+        ::core::assert!(retry_did_not_claim_failed_current);
+        let retry_complete = retry.failed_object.is_none()
+            && retry.deleted_objects == retry.deletion_candidates
+            && !fixture.store.object_path(untouched_suffix).exists();
+        ::core::assert!(retry_complete);
 
         let third = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
-        assert!(third.deletion_candidates.is_empty());
-        assert!(third.deleted_objects.is_empty());
+        let third_run_empty =
+            third.deletion_candidates.is_empty() && third.deleted_objects.is_empty();
+        ::core::assert!(third_run_empty);
     }
 
     #[test]
