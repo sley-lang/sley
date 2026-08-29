@@ -522,7 +522,7 @@ prove that neither exceeds the injected ceiling.
 The checker owns one immutable `LIMIT_EVENT_SPECS` registry in the exact
 30-event order. It binds 37 unique qualified fields through 42 exact field-event
 memberships. Its SHA-256 is
-`6dd6bf07baf3be257ba37df08e88b3e364a8be18024e4122edbf9e0f1ba3c3f3`.
+`d136d756ff34d0c4a351a2841ce336fbb6a4e4fdaad502da43bd3b03015c4b3d`.
 Each event fixes its owner function, trusted measurement source, identity,
 atomic checked additions, retained-work additions, post-add guards,
 post-guard counter commits, first governed sink, and forbidden bypass tokens.
@@ -532,6 +532,35 @@ admission, and immutable cached work. The checker rejects a sink or limit-field
 access outside its registered event window in the owning function. Five fields
 intentionally have two memberships: origin record bytes and the four branch
 per-pointer cached-work fields. All other qualified fields have exactly one.
+
+The normal-build control grammar is closed to ASCII code after comments and
+string literals are projected away. Before trusting a standard-library method,
+the checker inventories module, block, and re-exported `use` authority across
+the complete local dependency closure. The only admitted external control
+import is the exact `unicode_normalization::UnicodeNormalization` import in
+`sley-scb1`; every other external extension-trait path fails closed. Every
+normal-build `extern crate` declaration is forbidden. Every function-body
+macro is inventoried and must resolve as one exact unqualified built-in macro
+from the closed checker set. A governed event owner admits only the
+non-diverging `format!`, `matches!`, `vec!`, and `write!` subset. All
+normal-build attributes are inventoried outside already frozen `macro_rules!`
+definitions and must match the closed inert built-in attribute grammar. The
+complete attribute chain of every governed owner and transitive local callable
+is SHA-256 bound into its review record, so an external procedural attribute
+cannot rewrite reviewed code after source parsing.
+
+Every nontrivial ordered event scope and every dominating success or
+fallthrough edge carries an explicit edge-liveness record. A runtime-rooted
+edge must trace to a concrete parameter, concrete owner state, an owned usage
+accumulator, an exact filesystem observation, a trusted standard method on
+one of those roots, or a prior governed limit event. Only an unconditional
+loop, `if true`, an unguarded match arm, or a checker-proven literal match
+selection may use static liveness, and static liveness is never sufficient for
+a dominating exit. Literal, frozen-constant, zero-input helper,
+literal-derived, and empty-iteration predicates therefore fail closed. The
+separate exact runtime-observation manifest still binds every registered event
+to the mapped N and N+1 test that proves the event was reached and its charge
+was observed.
 
 Receipt verification derives paths only through the non-creating
 `receipt_path_readonly` authority. One exact private

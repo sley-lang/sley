@@ -49,7 +49,9 @@ def main() -> int:
         summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
         require_equal(summary.get("status"), "IN_PROGRESS", "project status")
         require_equal(summary.get("phase"), "M2", "project phase")
-        require_equal(summary.get("publication_authorized"), False, "publication authority")
+        require_equal(
+            summary.get("publication_authorized"), False, "publication authority"
+        )
         require_equal(
             summary.get("artifact"),
             {"path": None, "sha256": None, "size_bytes": None, "reproducibility": None},
@@ -58,7 +60,7 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_500_COMPLETE_S20_530_READY",
+            "status": "S20_530_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
             "goal_complete": False,
             "next_authority_safe_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
             "blocked_lane_count": 6,
@@ -89,6 +91,8 @@ def main() -> int:
             "s20_390_full_recovery_complete": False,
             "s20_500_native_refs_branches_implemented": True,
             "s20_500_closeout_complete": True,
+            "s20_530_contract_frozen": True,
+            "s20_530_implementation_complete": False,
             "s20_510_blocked_by_full_s20_250": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,
@@ -107,7 +111,9 @@ def main() -> int:
         require_equal(frontier, expected_frontier, "machine-summary frontier")
 
         session = summary.get("session_handle_profile", {})
-        require_equal(session.get("implementation_started"), False, "S20-330 implementation")
+        require_equal(
+            session.get("implementation_started"), False, "S20-330 implementation"
+        )
         require_equal(
             session.get("unblocked_by_restricted_s20_320"), False, "S20-330 authority"
         )
@@ -277,8 +283,9 @@ def main() -> int:
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
-        if "python3 scripts/check_local_completion_frontier.py" not in MAKEFILE.read_text(
-            encoding="utf-8"
+        if (
+            "python3 scripts/check_local_completion_frontier.py"
+            not in MAKEFILE.read_text(encoding="utf-8")
         ):
             fail("quick gate omits local completion frontier")
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import math
@@ -71,17 +72,21 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v1.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v2.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "4f2aa8b30ccf637881bf76a2eae77015110c6d9bb2d8021760b5f7597ab1ac61"
+FROZEN_SPEC_SHA256 = "0ba5e237a056cbe4e2282ed53552f5a7427ee0e1f67df5fdf0c27474c42618f4"
 FROZEN_ADR_SHA256 = "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7"
-FROZEN_RUNNER_SHA256 = "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
-CHECKER_CONTRACT_SHA256 = "2fd8b06421d55c393c4b47b96102f342ff0c329b916b7eca5f9059f92d840522"
+FROZEN_RUNNER_SHA256 = (
+    "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+)
+CHECKER_CONTRACT_SHA256 = (
+    "9a57322768d4d54fd6afdf25d294a10fb3b8f682b9f9d78567d1bdd84e7211da"
+)
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
 OUTPUT_EXACT_PATHS = frozenset(
@@ -838,9 +843,7 @@ def visible_revision_fixture_spec(
         target_role=role,
         artifact_role="revision_object" if is_object else "revision_receipt",
         identity_recipe=identity_recipes[role],
-        path_recipe=(
-            "role_changed_object_path" if is_object else "role_receipt_path"
-        ),
+        path_recipe=("role_changed_object_path" if is_object else "role_receipt_path"),
         corrupter_class=fixture_class,
         probe_class=visible_revision_probe_class(fixture_class),
         selector=selector,
@@ -1156,9 +1159,7 @@ REF_OWNER_REQUIRED_FACTS_BY_LEAF = {
 }
 
 
-def corruption_fixture_specs() -> dict[
-    tuple[str, str, str], CorruptionFixtureSpec
-]:
+def corruption_fixture_specs() -> dict[tuple[str, str, str], CorruptionFixtureSpec]:
     visible_by_name = {case[0]: case for case in VISIBLE_REVISION_CASES}
     specs: dict[tuple[str, str, str], CorruptionFixtureSpec] = {}
     for row_id, groups in GROUPED_ERROR_CASES.items():
@@ -1570,7 +1571,9 @@ def corruption_fixture_fact_assertion(
             json.dumps(spec.expected_code),
         )
     if fact == "exact_limit_success":
-        return "::core::assert!(exact_limit_probe_result.is_ok(), \"exact_limit_success\");"
+        return (
+            '::core::assert!(exact_limit_probe_result.is_ok(), "exact_limit_success");'
+        )
     if fact == "limit_plus_one_failure":
         return tagged_fixture_eq(
             fact,
@@ -1586,7 +1589,7 @@ def corruption_fixture_fact_assertion(
     if fact == "origin_not_reachable_from_head":
         return (
             "::core::assert!(!fixture_direct.head_ancestry.contains("
-            "&fixture_direct.origin_identity), \"origin_not_reachable_from_head\");"
+            '&fixture_direct.origin_identity), "origin_not_reachable_from_head");'
         )
     claim = re.fullmatch(
         r"(?P<role>origin|head)_(?P<field>transaction_id|workspace_id|state_root|"
@@ -1783,9 +1786,7 @@ def render_ref_owner_corruption_fixture_plan(
 
 CORRUPTION_FIXTURE_RENDERERS = {
     "visible_revision": render_visible_revision_corruption_fixture_plan,
-    "accepted_head_pointer": (
-        render_accepted_head_pointer_corruption_fixture_plan
-    ),
+    "accepted_head_pointer": (render_accepted_head_pointer_corruption_fixture_plan),
     "ref_owner": render_ref_owner_corruption_fixture_plan,
 }
 
@@ -2118,7 +2119,7 @@ CROSS_05_TEST_FUNCTION_BODY_SHA256 = {
         "b88f149b9b6eb99cbc43e4a2e520987f4958dc3f6e528bfd2962d11a5afb7437"
     ),
     "crates/sley-txn/src/repository.rs:mod:tests/implTempDir:new": (
-        "db2f2817469c73d02914de1c114a94cedb0f0afa915922e4fd7e4e2be79ac3eb"
+        "9b575e587f3d0c7bc03ef257dccda0482c6a2a705200afe47c3c8c6e8019e2af"
     ),
     "crates/sley-txn/src/repository.rs:mod:tests/implDropforTempDir:drop": (
         "307fcd0dd4db156fe2884db6f538c23e410c11c26560fc0cddc709d7425977fc"
@@ -2133,7 +2134,7 @@ CROSS_05_TEST_FUNCTION_BODY_SHA256 = {
         "323c2ab9e2d10e7b549628e1389f40b0b8b67b36117597c296044658f7fe15d3"
     ),
     "crates/sley-repo/src/refs.rs:mod:tests/implTempDir:new": (
-        "092698f61d533022caa107e9769eafa7743559787314dbd2f66e608b01e72d9e"
+        "e9e38421df8e0a4a92cbe6f3cc96f8b270d2ef5008dbfa03036f20fcf487b4fb"
     ),
     "crates/sley-repo/src/refs.rs:mod:tests/implDropforTempDir:drop": (
         "307fcd0dd4db156fe2884db6f538c23e410c11c26560fc0cddc709d7425977fc"
@@ -2372,16 +2373,6 @@ CROSS_05_PRODUCTION_BODY_AUTHORITIES = (
     (
         "crates/sley-txn/src/repository.rs",
         "implTransactionRepository",
-        "commit_with_maintenance",
-    ),
-    (
-        "crates/sley-txn/src/repository.rs",
-        "implTransactionRepository",
-        "commit_inner",
-    ),
-    (
-        "crates/sley-txn/src/repository.rs",
-        "implTransactionRepository",
         "accepted_head",
     ),
     (
@@ -2417,22 +2408,7 @@ CROSS_05_PRODUCTION_BODY_AUTHORITIES = (
     (
         "crates/sley-repo/src/refs.rs",
         "implBranchRepository",
-        "create_branch_with_maintenance",
-    ),
-    (
-        "crates/sley-repo/src/refs.rs",
-        "implBranchRepository",
-        "create_branch_with_maintenance_inner",
-    ),
-    (
-        "crates/sley-repo/src/refs.rs",
-        "implBranchRepository",
         "advance_branch",
-    ),
-    (
-        "crates/sley-repo/src/refs.rs",
-        "implBranchRepository",
-        "advance_branch_with_maintenance",
     ),
     (
         "crates/sley-repo/src/refs.rs",
@@ -2536,12 +2512,6 @@ CROSS_05_PRODUCTION_BODY_SHA256 = {
     "crates/sley-txn/src/repository.rs:implTransactionRepository:commit": (
         "0078874dda00317f16d4d01728135f5a41571810d751bc48a01c6e83db43802e"
     ),
-    "crates/sley-txn/src/repository.rs:implTransactionRepository:commit_with_maintenance": (
-        "c892ea04fd755cdaf19bda80f65cd720a87980bd4c40c133ed22ef7b28b35a5f"
-    ),
-    "crates/sley-txn/src/repository.rs:implTransactionRepository:commit_inner": (
-        "f5cfa7d943d845441e4d30a165499718475ab469cb1a86fd81ad2b38d2ada78b"
-    ),
     "crates/sley-txn/src/repository.rs:implTransactionRepository:accepted_head": (
         "b7aea29c70402387c19b0ce6adf3f10f1ed6c86cb20f61d8b18a9f37a3c4a6c4"
     ),
@@ -2563,17 +2533,8 @@ CROSS_05_PRODUCTION_BODY_SHA256 = {
     "crates/sley-repo/src/refs.rs:implBranchRepository:create_branch": (
         "00c296a59e15f4c21709514eafbd4bd7ab8ffc1fba64d2d838604ab179a76b77"
     ),
-    "crates/sley-repo/src/refs.rs:implBranchRepository:create_branch_with_maintenance": (
-        "416113cd27ab0a804a2cb0af3495661a817b1ecc73891970575f8a1c70545612"
-    ),
-    "crates/sley-repo/src/refs.rs:implBranchRepository:create_branch_with_maintenance_inner": (
-        "91081d741aeef8e44371261563196064f1e307e0ece2021da6a400efbce5bcd4"
-    ),
     "crates/sley-repo/src/refs.rs:implBranchRepository:advance_branch": (
         "1498da5e86f323bc68c615e81a95a8b702cc06c812ca7ea48a35d0be3993827a"
-    ),
-    "crates/sley-repo/src/refs.rs:implBranchRepository:advance_branch_with_maintenance": (
-        "c71b14b3507d887d5450c86ea2420a1e92bba76089f1f52113b6acad7af1f82c"
     ),
     "crates/sley-repo/src/refs.rs:implBranchRepository:recover_refs": (
         "e12073756a10c37f3d074c1ec7a96fc637ef57151286d5850afffd1f1ab3f41f"
@@ -2643,6 +2604,41 @@ CROSS_05_EVOLVING_GUARDED_CORES = (
         ),
         "recover_refs_with_maintenance_and_limits",
         "validate_exclusive_maintenance",
+    ),
+)
+
+CROSS_05_MUTATION_GUARDED_CORES = (
+    (
+        "crates/sley-txn/src/repository.rs",
+        "TransactionRepository",
+        "commit_with_maintenance",
+        "commit_inner",
+        "validate_maintenance",
+        (
+            "self.commit_inner(input,maintenance,Fault::None)",
+            "self.commit_inner(input,maintenance)",
+        ),
+    ),
+    (
+        "crates/sley-repo/src/refs.rs",
+        "BranchRepository",
+        "create_branch_with_maintenance",
+        "create_branch_with_maintenance_inner",
+        "validate_maintenance",
+        (
+            "self.create_branch_with_maintenance_inner("
+            "name,origin_transaction_id,maintenance,None)",
+            "self.create_branch_with_maintenance_inner("
+            "name,origin_transaction_id,maintenance)",
+        ),
+    ),
+    (
+        "crates/sley-repo/src/refs.rs",
+        "BranchRepository",
+        None,
+        "advance_branch_with_maintenance",
+        "validate_maintenance",
+        (),
     ),
 )
 
@@ -3125,6 +3121,23 @@ class LimitEventSpec(NamedTuple):
     bypass_tokens: tuple[str, ...]
 
 
+class LimitRuntimeCaseSpec(NamedTuple):
+    qualified_field: str
+    row_id: str
+    subcase_id: str
+    owner_source: str
+    operation_kind: str
+    profile_constructor: str
+    profile_field: str
+    frozen_constant: str
+    frozen_default: int
+    exact_cardinality: int
+    plus_one_cardinality: int
+    event_ids: tuple[str, ...]
+    setup_helper: str
+    helper_functions: tuple[str, ...]
+
+
 LIMIT_EVENT_BYPASS_TOKENS = (
     "+=",
     "saturating_add",
@@ -3134,8 +3147,12 @@ LIMIT_EVENT_BYPASS_TOKENS = (
 )
 
 
-def limit_unit_source(identity: str, source: str) -> tuple[str, ...]:
-    return (f"let {identity} = {source};", "let one = 1_u64;")
+def limit_unit_source(
+    identity: str,
+    source: str,
+    delta: str = "one",
+) -> tuple[str, ...]:
+    return (f"let {identity} = {source};", f"let {delta} = 1_u64;")
 
 
 def limit_metadata_source(
@@ -3266,9 +3283,20 @@ LIMIT_EVENT_SPECS = {
         "implObjectStore",
         "recover_staged_with_limits",
         "unit",
-        limit_unit_source("fanout_path", "classified_fanout_path"),
+        limit_unit_source(
+            "fanout_path",
+            "classified_fanout_path",
+            "one_fanout_directory",
+        ),
         ("fanout_path",),
-        (("object_recovery_limits::fanout_directories", "usage.fanout_directories", "next_object_fanout_directories", "one"),),
+        (
+            (
+                "object_recovery_limits::fanout_directories",
+                "usage.fanout_directories",
+                "next_object_fanout_directories",
+                "one_fanout_directory",
+            ),
+        ),
         ("pending_directories.push(fanout_path);",),
     ),
     "object.scan_leaf": limit_event(
@@ -3276,9 +3304,16 @@ LIMIT_EVENT_SPECS = {
         "implObjectStore",
         "recover_staged_with_limits",
         "unit",
-        limit_unit_source("leaf_path", "next_leaf_path"),
+        limit_unit_source("leaf_path", "next_leaf_path", "one_leaf_entry"),
         ("leaf_path",),
-        (("object_recovery_limits::leaf_entries", "usage.leaf_entries", "next_object_leaf_entries", "one"),),
+        (
+            (
+                "object_recovery_limits::leaf_entries",
+                "usage.leaf_entries",
+                "next_object_leaf_entries",
+                "one_leaf_entry",
+            ),
+        ),
         ("classify_object_recovery_leaf(&leaf_path)?;",),
     ),
     "object.retain_final": limit_event(
@@ -3286,9 +3321,20 @@ LIMIT_EVENT_SPECS = {
         "implObjectStore",
         "recover_staged_with_limits",
         "unit",
-        limit_unit_source("final_object", "classified_final_object"),
+        limit_unit_source(
+            "final_object",
+            "classified_final_object",
+            "one_final_object",
+        ),
         ("final_object",),
-        (("object_recovery_limits::final_objects", "usage.final_objects", "next_final_objects", "one"),),
+        (
+            (
+                "object_recovery_limits::final_objects",
+                "usage.final_objects",
+                "next_final_objects",
+                "one_final_object",
+            ),
+        ),
         ("final_objects.push(final_object);",),
     ),
     "object.retain_stage": limit_event(
@@ -3296,9 +3342,20 @@ LIMIT_EVENT_SPECS = {
         "implObjectStore",
         "recover_staged_with_limits",
         "unit",
-        limit_unit_source("stage_path", "classified_owned_stage_path"),
+        limit_unit_source(
+            "stage_path",
+            "classified_owned_stage_path",
+            "one_removable_stage",
+        ),
         ("stage_path",),
-        (("object_recovery_limits::removable_stages", "usage.removable_stages", "next_object_stages", "one"),),
+        (
+            (
+                "object_recovery_limits::removable_stages",
+                "usage.removable_stages",
+                "next_object_stages",
+                "one_removable_stage",
+            ),
+        ),
         ("removal_plan.push(stage_path);",),
     ),
     "txn.receipt_scan_fanout": limit_event(
@@ -3308,7 +3365,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("fanout_path", "classified_receipt_fanout_path"),
         ("fanout_path",),
-        (("transaction_recovery_limits::receipt_fanout_directories", "usage.receipt_fanout_directories", "next_receipt_fanout_directories", "one"),),
+        (
+            (
+                "transaction_recovery_limits::receipt_fanout_directories",
+                "usage.receipt_fanout_directories",
+                "next_receipt_fanout_directories",
+                "one",
+            ),
+        ),
         ("pending_receipt_directories.push(fanout_path);",),
     ),
     "txn.receipt_scan_leaf": limit_event(
@@ -3318,7 +3382,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("leaf_path", "next_receipt_leaf_path"),
         ("leaf_path",),
-        (("transaction_recovery_limits::receipt_leaf_entries", "usage.receipt_leaf_entries", "next_receipt_leaf_entries", "one"),),
+        (
+            (
+                "transaction_recovery_limits::receipt_leaf_entries",
+                "usage.receipt_leaf_entries",
+                "next_receipt_leaf_entries",
+                "one",
+            ),
+        ),
         ("classify_receipt_recovery_leaf(&leaf_path)?;",),
     ),
     "txn.retain_receipt": limit_event(
@@ -3328,7 +3399,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("final_receipt", "classified_final_receipt"),
         ("final_receipt",),
-        (("transaction_recovery_limits::final_receipts", "usage.final_receipts", "next_final_receipts", "one"),),
+        (
+            (
+                "transaction_recovery_limits::final_receipts",
+                "usage.final_receipts",
+                "next_final_receipts",
+                "one",
+            ),
+        ),
         ("final_receipts.push(final_receipt);",),
     ),
     "txn.retain_receipt_stage": limit_event(
@@ -3338,7 +3416,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("stage_path", "classified_receipt_stage_path"),
         ("stage_path",),
-        (("transaction_recovery_limits::receipt_stages", "usage.receipt_stages", "next_receipt_stages", "one"),),
+        (
+            (
+                "transaction_recovery_limits::receipt_stages",
+                "usage.receipt_stages",
+                "next_receipt_stages",
+                "one",
+            ),
+        ),
         ("receipt_removal_plan.push(stage_path);",),
     ),
     "txn.head_scan_entry": limit_event(
@@ -3348,7 +3433,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("head_entry_path", "next_head_entry_path"),
         ("head_entry_path",),
-        (("transaction_recovery_limits::head_entries", "usage.head_entries", "next_head_entries", "one"),),
+        (
+            (
+                "transaction_recovery_limits::head_entries",
+                "usage.head_entries",
+                "next_head_entries",
+                "one",
+            ),
+        ),
         ("classify_head_recovery_entry(&head_entry_path)?;",),
     ),
     "txn.retain_head_stage": limit_event(
@@ -3358,7 +3450,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("head_stage_path", "classified_head_stage_path"),
         ("head_stage_path",),
-        (("transaction_recovery_limits::head_stages", "usage.head_stages", "next_head_stages", "one"),),
+        (
+            (
+                "transaction_recovery_limits::head_stages",
+                "usage.head_stages",
+                "next_head_stages",
+                "one",
+            ),
+        ),
         ("head_removal_plan.push(head_stage_path);",),
     ),
     "ref.origin_scan_fanout": limit_event(
@@ -3368,7 +3467,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("fanout_path", "classified_origin_fanout_path"),
         ("fanout_path",),
-        (("ref_recovery_limits::origin_fanout_directories", "usage.origin_fanout_directories", "next_origin_fanout_directories", "one"),),
+        (
+            (
+                "ref_recovery_limits::origin_fanout_directories",
+                "usage.origin_fanout_directories",
+                "next_origin_fanout_directories",
+                "one",
+            ),
+        ),
         ("pending_origin_directories.push(fanout_path);",),
     ),
     "ref.origin_scan_leaf": limit_event(
@@ -3378,7 +3484,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("leaf_path", "next_origin_leaf_path"),
         ("leaf_path",),
-        (("ref_recovery_limits::origin_leaf_entries", "usage.origin_leaf_entries", "next_origin_leaf_entries", "one"),),
+        (
+            (
+                "ref_recovery_limits::origin_leaf_entries",
+                "usage.origin_leaf_entries",
+                "next_origin_leaf_entries",
+                "one",
+            ),
+        ),
         ("classify_origin_recovery_leaf(&leaf_path)?;",),
     ),
     "ref.retain_origin": limit_event(
@@ -3388,7 +3501,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("final_origin", "classified_final_origin"),
         ("final_origin",),
-        (("ref_recovery_limits::final_origins", "usage.final_origins", "next_final_origins", "one"),),
+        (
+            (
+                "ref_recovery_limits::final_origins",
+                "usage.final_origins",
+                "next_final_origins",
+                "one",
+            ),
+        ),
         ("final_origins.push(final_origin);",),
     ),
     "ref.retain_origin_stage": limit_event(
@@ -3398,7 +3518,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("origin_stage_path", "classified_origin_stage_path"),
         ("origin_stage_path",),
-        (("ref_recovery_limits::origin_stages", "usage.origin_stages", "next_origin_stages", "one"),),
+        (
+            (
+                "ref_recovery_limits::origin_stages",
+                "usage.origin_stages",
+                "next_origin_stages",
+                "one",
+            ),
+        ),
         ("origin_removal_plan.push(origin_stage_path);",),
     ),
     "ref.record_scan_fanout": limit_event(
@@ -3408,7 +3535,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("fanout_path", "classified_ref_fanout_path"),
         ("fanout_path",),
-        (("ref_recovery_limits::ref_fanout_directories", "usage.ref_fanout_directories", "next_ref_fanout_directories", "one"),),
+        (
+            (
+                "ref_recovery_limits::ref_fanout_directories",
+                "usage.ref_fanout_directories",
+                "next_ref_fanout_directories",
+                "one",
+            ),
+        ),
         ("pending_ref_directories.push(fanout_path);",),
     ),
     "ref.record_scan_leaf": limit_event(
@@ -3418,7 +3552,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("leaf_path", "next_ref_leaf_path"),
         ("leaf_path",),
-        (("ref_recovery_limits::ref_leaf_entries", "usage.ref_leaf_entries", "next_ref_leaf_entries", "one"),),
+        (
+            (
+                "ref_recovery_limits::ref_leaf_entries",
+                "usage.ref_leaf_entries",
+                "next_ref_leaf_entries",
+                "one",
+            ),
+        ),
         ("classify_ref_recovery_leaf(&leaf_path)?;",),
     ),
     "ref.retain_record_stage": limit_event(
@@ -3428,7 +3569,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("ref_stage_path", "classified_ref_stage_path"),
         ("ref_stage_path",),
-        (("ref_recovery_limits::ref_stages", "usage.ref_stages", "next_ref_stages", "one"),),
+        (
+            (
+                "ref_recovery_limits::ref_stages",
+                "usage.ref_stages",
+                "next_ref_stages",
+                "one",
+            ),
+        ),
         ("ref_removal_plan.push(ref_stage_path);",),
     ),
     "ref.visible_record_read": limit_event(
@@ -3436,11 +3584,26 @@ LIMIT_EVENT_SPECS = {
         "implBranchRepository",
         "read_recovery_visible_ref_with_limits",
         "metadata_file",
-        limit_metadata_source("record_path", "visible_ref.path.clone()", "BranchError::from", include_one=True),
+        limit_metadata_source(
+            "record_path",
+            "visible_ref.path.clone()",
+            "BranchError::from",
+            include_one=True,
+        ),
         ("record_path",),
         (
-            ("ref_recovery_limits::visible_branches", "usage.visible_branches", "next_visible_branches", "one"),
-            ("ref_recovery_limits::visible_ref_record_bytes", "usage.visible_ref_record_bytes", "next_visible_ref_record_bytes", "metadata_bytes"),
+            (
+                "ref_recovery_limits::visible_branches",
+                "usage.visible_branches",
+                "next_visible_branches",
+                "one",
+            ),
+            (
+                "ref_recovery_limits::visible_ref_record_bytes",
+                "usage.visible_ref_record_bytes",
+                "next_visible_ref_record_bytes",
+                "metadata_bytes",
+            ),
         ),
         ("let decoded_ref = read_recovery_ref_record(&record_path)?;",),
     ),
@@ -3449,9 +3612,18 @@ LIMIT_EVENT_SPECS = {
         "implBranchRepository",
         "read_recovery_visible_origin_with_limits",
         "metadata_file",
-        limit_metadata_source("origin_path", "visible_origin.path.clone()", "BranchError::from"),
+        limit_metadata_source(
+            "origin_path", "visible_origin.path.clone()", "BranchError::from"
+        ),
         ("origin_path",),
-        (("ref_recovery_limits::origin_record_bytes", "usage.origin_record_bytes", "next_visible_origin_record_bytes", "metadata_bytes"),),
+        (
+            (
+                "ref_recovery_limits::origin_record_bytes",
+                "usage.origin_record_bytes",
+                "next_visible_origin_record_bytes",
+                "metadata_bytes",
+            ),
+        ),
         ("let decoded_origin = read_recovery_origin_record(&origin_path)?;",),
     ),
     "ref.orphan_origin_read": limit_event(
@@ -3459,11 +3631,26 @@ LIMIT_EVENT_SPECS = {
         "implBranchRepository",
         "read_recovery_orphan_origin_with_limits",
         "metadata_file",
-        limit_metadata_source("origin_path", "orphan_origin.path.clone()", "BranchError::from", include_one=True),
+        limit_metadata_source(
+            "origin_path",
+            "orphan_origin.path.clone()",
+            "BranchError::from",
+            include_one=True,
+        ),
         ("origin_path",),
         (
-            ("ref_recovery_limits::orphan_origins", "usage.orphan_origins", "next_orphan_origins", "one"),
-            ("ref_recovery_limits::origin_record_bytes", "usage.origin_record_bytes", "next_orphan_origin_record_bytes", "metadata_bytes"),
+            (
+                "ref_recovery_limits::orphan_origins",
+                "usage.orphan_origins",
+                "next_orphan_origins",
+                "one",
+            ),
+            (
+                "ref_recovery_limits::origin_record_bytes",
+                "usage.origin_record_bytes",
+                "next_orphan_origin_record_bytes",
+                "metadata_bytes",
+            ),
         ),
         (
             "let decoded_origin = read_recovery_origin_record(&origin_path)?;",
@@ -3480,7 +3667,14 @@ LIMIT_EVENT_SPECS = {
             "let request_count = u64::try_from(requests.len()).map_err(|_| RecoveryAncestryError::LimitExceeded)?;",
         ),
         ("requests",),
-        (("branch_recovery_limits::max_requests", "request_usage", "next_request_count", "request_count"),),
+        (
+            (
+                "branch_recovery_limits::max_requests",
+                "request_usage",
+                "next_request_count",
+                "request_count",
+            ),
+        ),
         ("let mut head_reports = ::std::vec::Vec::with_capacity(requests.len());",),
     ),
     "accepted.ancestry_node": limit_event(
@@ -3490,7 +3684,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("transaction_id", "pending_transaction_id"),
         ("transaction_id",),
-        (("accepted_recovery_limits::ancestry_transactions", "usage.ancestry_transactions", "next_accepted_ancestry_transactions", "one"),),
+        (
+            (
+                "accepted_recovery_limits::ancestry_transactions",
+                "usage.ancestry_transactions",
+                "next_accepted_ancestry_transactions",
+                "one",
+            ),
+        ),
         ("ancestry_stack.push(transaction_id);",),
     ),
     "accepted.receipt_read": limit_event(
@@ -3500,7 +3701,14 @@ LIMIT_EVENT_SPECS = {
         "metadata_file",
         limit_recovery_receipt_metadata_source(wrap_verification=False),
         ("receipt_path",),
-        (("accepted_recovery_limits::receipt_bytes", "usage.receipt_bytes", "next_accepted_receipt_bytes", "metadata_bytes"),),
+        (
+            (
+                "accepted_recovery_limits::receipt_bytes",
+                "usage.receipt_bytes",
+                "next_accepted_receipt_bytes",
+                "metadata_bytes",
+            ),
+        ),
         limit_recovery_receipt_sink(wrap_verification=False),
     ),
     "accepted.binding_visit": limit_event(
@@ -3510,7 +3718,14 @@ LIMIT_EVENT_SPECS = {
         "unit",
         limit_unit_source("binding", "next_binding"),
         ("binding",),
-        (("accepted_recovery_limits::binding_visits", "usage.binding_visits", "next_accepted_binding_visits", "one"),),
+        (
+            (
+                "accepted_recovery_limits::binding_visits",
+                "usage.binding_visits",
+                "next_accepted_binding_visits",
+                "one",
+            ),
+        ),
         limit_recovery_binding_sink(wrap_verification=False),
     ),
     "accepted.object_read": limit_event(
@@ -3521,8 +3736,18 @@ LIMIT_EVENT_SPECS = {
         limit_bounded_object_source("next_object_id"),
         ("object_id",),
         (
-            ("accepted_recovery_limits::object_verifications", "usage.object_verifications", "next_accepted_object_verifications", "one"),
-            ("accepted_recovery_limits::object_bytes", "usage.object_bytes", "next_accepted_object_bytes", "object_bytes"),
+            (
+                "accepted_recovery_limits::object_verifications",
+                "usage.object_verifications",
+                "next_accepted_object_verifications",
+                "one",
+            ),
+            (
+                "accepted_recovery_limits::object_bytes",
+                "usage.object_bytes",
+                "next_accepted_object_bytes",
+                "object_bytes",
+            ),
         ),
         ("let object = self.object_store.read(object_id, verifier)?;",),
     ),
@@ -3539,8 +3764,18 @@ LIMIT_EVENT_SPECS = {
         ),
         ("transaction_id",),
         (
-            ("branch_recovery_limits::per_pointer.ancestry_transactions", "head_usage.ancestry_transactions", "next_head_ancestry_transactions", "one"),
-            ("branch_recovery_limits::union.ancestry_transactions", "union_usage.ancestry_transactions", "next_union_ancestry_transactions", "union_delta"),
+            (
+                "branch_recovery_limits::per_pointer.ancestry_transactions",
+                "head_usage.ancestry_transactions",
+                "next_head_ancestry_transactions",
+                "one",
+            ),
+            (
+                "branch_recovery_limits::union.ancestry_transactions",
+                "union_usage.ancestry_transactions",
+                "next_union_ancestry_transactions",
+                "union_delta",
+            ),
         ),
         (
             "record_recovery_ancestry_visit(&mut head_seen, &mut union_seen, transaction_id, first_union);",
@@ -3555,11 +3790,27 @@ LIMIT_EVENT_SPECS = {
         limit_recovery_receipt_metadata_source(wrap_verification=True),
         ("receipt_path",),
         (
-            ("branch_recovery_limits::per_pointer.receipt_bytes", "head_usage.receipt_bytes", "next_head_receipt_bytes", "metadata_bytes"),
-            ("branch_recovery_limits::union.receipt_bytes", "union_usage.receipt_bytes", "next_union_receipt_bytes", "metadata_bytes"),
+            (
+                "branch_recovery_limits::per_pointer.receipt_bytes",
+                "head_usage.receipt_bytes",
+                "next_head_receipt_bytes",
+                "metadata_bytes",
+            ),
+            (
+                "branch_recovery_limits::union.receipt_bytes",
+                "union_usage.receipt_bytes",
+                "next_union_receipt_bytes",
+                "metadata_bytes",
+            ),
         ),
         limit_recovery_receipt_sink(wrap_verification=True),
-        retains=(("current_cache_work.receipt_bytes", "next_cached_receipt_bytes", "metadata_bytes"),),
+        retains=(
+            (
+                "current_cache_work.receipt_bytes",
+                "next_cached_receipt_bytes",
+                "metadata_bytes",
+            ),
+        ),
     ),
     "branch.actual_binding_visit": limit_event(
         TXN_LIMIT_SOURCE,
@@ -3569,11 +3820,23 @@ LIMIT_EVENT_SPECS = {
         limit_unit_source("binding", "next_binding"),
         ("binding",),
         (
-            ("branch_recovery_limits::per_pointer.binding_visits", "head_usage.binding_visits", "next_head_binding_visits", "one"),
-            ("branch_recovery_limits::union.binding_visits", "union_usage.binding_visits", "next_union_binding_visits", "one"),
+            (
+                "branch_recovery_limits::per_pointer.binding_visits",
+                "head_usage.binding_visits",
+                "next_head_binding_visits",
+                "one",
+            ),
+            (
+                "branch_recovery_limits::union.binding_visits",
+                "union_usage.binding_visits",
+                "next_union_binding_visits",
+                "one",
+            ),
         ),
         limit_recovery_binding_sink(wrap_verification=True),
-        retains=(("current_cache_work.binding_visits", "next_cached_binding_visits", "one"),),
+        retains=(
+            ("current_cache_work.binding_visits", "next_cached_binding_visits", "one"),
+        ),
     ),
     "branch.actual_object_read": limit_event(
         TXN_LIMIT_SOURCE,
@@ -3583,10 +3846,30 @@ LIMIT_EVENT_SPECS = {
         limit_bounded_object_source("next_object_id", wrap_store_error=True),
         ("object_id",),
         (
-            ("branch_recovery_limits::per_pointer.object_verifications", "head_usage.object_verifications", "next_head_object_verifications", "one"),
-            ("branch_recovery_limits::union.object_verifications", "union_usage.object_verifications", "next_union_object_verifications", "one"),
-            ("branch_recovery_limits::per_pointer.object_bytes", "head_usage.object_bytes", "next_head_object_bytes", "object_bytes"),
-            ("branch_recovery_limits::union.object_bytes", "union_usage.object_bytes", "next_union_object_bytes", "object_bytes"),
+            (
+                "branch_recovery_limits::per_pointer.object_verifications",
+                "head_usage.object_verifications",
+                "next_head_object_verifications",
+                "one",
+            ),
+            (
+                "branch_recovery_limits::union.object_verifications",
+                "union_usage.object_verifications",
+                "next_union_object_verifications",
+                "one",
+            ),
+            (
+                "branch_recovery_limits::per_pointer.object_bytes",
+                "head_usage.object_bytes",
+                "next_head_object_bytes",
+                "object_bytes",
+            ),
+            (
+                "branch_recovery_limits::union.object_bytes",
+                "union_usage.object_bytes",
+                "next_union_object_bytes",
+                "object_bytes",
+            ),
         ),
         (
             "let object = self.object_store.read(object_id, verifier)"
@@ -3594,8 +3877,16 @@ LIMIT_EVENT_SPECS = {
             ".map_err(RecoveryAncestryError::Verification)?;",
         ),
         retains=(
-            ("current_cache_work.object_verifications", "next_cached_object_verifications", "one"),
-            ("current_cache_work.object_bytes", "next_cached_object_bytes", "object_bytes"),
+            (
+                "current_cache_work.object_verifications",
+                "next_cached_object_verifications",
+                "one",
+            ),
+            (
+                "current_cache_work.object_bytes",
+                "next_cached_object_bytes",
+                "object_bytes",
+            ),
         ),
     ),
     "branch.cached_fact_use": limit_event(
@@ -3606,14 +3897,350 @@ LIMIT_EVENT_SPECS = {
         limit_cached_work_source(),
         ("cache_key",),
         (
-            ("branch_recovery_limits::per_pointer.receipt_bytes", "head_usage.receipt_bytes", "next_cached_head_receipt_bytes", "cached_receipt_bytes"),
-            ("branch_recovery_limits::per_pointer.binding_visits", "head_usage.binding_visits", "next_cached_head_binding_visits", "cached_binding_visits"),
-            ("branch_recovery_limits::per_pointer.object_verifications", "head_usage.object_verifications", "next_cached_head_object_verifications", "cached_object_verifications"),
-            ("branch_recovery_limits::per_pointer.object_bytes", "head_usage.object_bytes", "next_cached_head_object_bytes", "cached_object_bytes"),
+            (
+                "branch_recovery_limits::per_pointer.receipt_bytes",
+                "head_usage.receipt_bytes",
+                "next_cached_head_receipt_bytes",
+                "cached_receipt_bytes",
+            ),
+            (
+                "branch_recovery_limits::per_pointer.binding_visits",
+                "head_usage.binding_visits",
+                "next_cached_head_binding_visits",
+                "cached_binding_visits",
+            ),
+            (
+                "branch_recovery_limits::per_pointer.object_verifications",
+                "head_usage.object_verifications",
+                "next_cached_head_object_verifications",
+                "cached_object_verifications",
+            ),
+            (
+                "branch_recovery_limits::per_pointer.object_bytes",
+                "head_usage.object_bytes",
+                "next_cached_head_object_bytes",
+                "cached_object_bytes",
+            ),
         ),
         ("let cached_revision = use_cached_recovery_fact(&cache_key, cached_work)?;",),
     ),
 }
+
+
+class LimitControlItem(NamedTuple):
+    source: str
+    owner: str
+    function: str
+
+
+STORE_RECOVERY_ROOT = LimitControlItem(
+    STORE_LIMIT_SOURCE, "implObjectStore", "recover_staged"
+)
+STORE_RECOVERY_CORE = LimitControlItem(
+    STORE_LIMIT_SOURCE, "implObjectStore", "recover_staged_with_limits"
+)
+TXN_RECOVERY_ROOT = LimitControlItem(
+    TXN_LIMIT_SOURCE, "implTransactionRepository", "recover_with_maintenance"
+)
+TXN_RECOVERY_CORE = LimitControlItem(
+    TXN_LIMIT_SOURCE,
+    "implTransactionRepository",
+    "recover_with_maintenance_and_limits",
+)
+ACCEPTED_RECOVERY_CORE = LimitControlItem(
+    TXN_LIMIT_SOURCE,
+    "implTransactionRepository",
+    "verify_accepted_recovery_ancestry_with_limits",
+)
+BRANCH_RECOVERY_ROOT = LimitControlItem(
+    TXN_LIMIT_SOURCE,
+    "implTransactionRepository",
+    "verify_branch_recovery_ancestries_with_maintenance",
+)
+BRANCH_RECOVERY_CORE = LimitControlItem(
+    TXN_LIMIT_SOURCE,
+    "implTransactionRepository",
+    "verify_recovery_ancestries_with_limits",
+)
+REF_RECOVERY_ROOT = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "recover_refs_with_maintenance",
+)
+REF_RECOVERY_CORE = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "recover_refs_with_maintenance_and_limits",
+)
+REF_RECORD_PREFLIGHT = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "preflight_ref_records_with_limits",
+)
+REF_VISIBLE_READER = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "read_recovery_visible_ref_with_limits",
+)
+ORIGIN_VISIBLE_READER = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "read_recovery_visible_origin_with_limits",
+)
+ORIGIN_ORPHAN_READER = LimitControlItem(
+    REF_LIMIT_SOURCE,
+    "implBranchRepository",
+    "read_recovery_orphan_origin_with_limits",
+)
+LIMIT_EVENT_ENTRY_PATHS = {
+    STORE_RECOVERY_CORE: ((STORE_RECOVERY_ROOT, STORE_RECOVERY_CORE),),
+    TXN_RECOVERY_CORE: ((TXN_RECOVERY_ROOT, TXN_RECOVERY_CORE),),
+    REF_RECOVERY_CORE: ((REF_RECOVERY_ROOT, REF_RECOVERY_CORE),),
+    REF_VISIBLE_READER: (
+        (
+            REF_RECOVERY_ROOT,
+            REF_RECOVERY_CORE,
+            REF_RECORD_PREFLIGHT,
+            REF_VISIBLE_READER,
+        ),
+    ),
+    ORIGIN_VISIBLE_READER: (
+        (
+            REF_RECOVERY_ROOT,
+            REF_RECOVERY_CORE,
+            REF_RECORD_PREFLIGHT,
+            ORIGIN_VISIBLE_READER,
+        ),
+    ),
+    ORIGIN_ORPHAN_READER: (
+        (
+            REF_RECOVERY_ROOT,
+            REF_RECOVERY_CORE,
+            REF_RECORD_PREFLIGHT,
+            ORIGIN_ORPHAN_READER,
+        ),
+    ),
+    ACCEPTED_RECOVERY_CORE: (
+        (TXN_RECOVERY_ROOT, TXN_RECOVERY_CORE, ACCEPTED_RECOVERY_CORE),
+    ),
+    BRANCH_RECOVERY_CORE: (
+        (BRANCH_RECOVERY_ROOT, BRANCH_RECOVERY_CORE),
+        (
+            REF_RECOVERY_ROOT,
+            REF_RECOVERY_CORE,
+            BRANCH_RECOVERY_ROOT,
+            BRANCH_RECOVERY_CORE,
+        ),
+    ),
+}
+
+LIMIT_FIELD_RUNTIME_OBSERVATIONS = {
+    "object_recovery_limits::fanout_directories": (
+        "LIMIT-01",
+        "object_fanout_directories",
+    ),
+    "object_recovery_limits::leaf_entries": ("LIMIT-01", "object_leaf_entries"),
+    "object_recovery_limits::final_objects": ("LIMIT-01", "final_objects"),
+    "object_recovery_limits::removable_stages": ("LIMIT-01", "object_stages"),
+    "transaction_recovery_limits::receipt_fanout_directories": (
+        "LIMIT-02",
+        "receipt_fanout_directories",
+    ),
+    "transaction_recovery_limits::receipt_leaf_entries": (
+        "LIMIT-02",
+        "receipt_leaf_entries",
+    ),
+    "transaction_recovery_limits::final_receipts": ("LIMIT-02", "final_receipts"),
+    "transaction_recovery_limits::receipt_stages": ("LIMIT-02", "receipt_stages"),
+    "transaction_recovery_limits::head_entries": ("LIMIT-02", "head_entries"),
+    "transaction_recovery_limits::head_stages": ("LIMIT-02", "head_stages"),
+    "ref_recovery_limits::origin_fanout_directories": (
+        "LIMIT-03",
+        "origin_fanout_directories",
+    ),
+    "ref_recovery_limits::origin_leaf_entries": ("LIMIT-03", "origin_leaf_entries"),
+    "ref_recovery_limits::final_origins": ("LIMIT-03", "final_origins"),
+    "ref_recovery_limits::origin_stages": ("LIMIT-03", "origin_stages"),
+    "ref_recovery_limits::ref_fanout_directories": (
+        "LIMIT-03",
+        "ref_fanout_directories",
+    ),
+    "ref_recovery_limits::ref_leaf_entries": ("LIMIT-03", "ref_leaf_entries"),
+    "ref_recovery_limits::ref_stages": ("LIMIT-03", "ref_stages"),
+    "ref_recovery_limits::visible_branches": ("LIMIT-03", "visible_branches"),
+    "ref_recovery_limits::visible_ref_record_bytes": (
+        "LIMIT-03",
+        "visible_ref_record_bytes",
+    ),
+    "ref_recovery_limits::origin_record_bytes": ("LIMIT-03", "origin_record_bytes"),
+    "ref_recovery_limits::orphan_origins": ("LIMIT-03", "orphan_origins"),
+    "branch_recovery_limits::max_requests": ("LIMIT-03", "branch_requests"),
+    "accepted_recovery_limits::ancestry_transactions": (
+        "LIMIT-02",
+        "accepted_ancestry",
+    ),
+    "accepted_recovery_limits::receipt_bytes": ("LIMIT-02", "accepted_receipt_bytes"),
+    "accepted_recovery_limits::binding_visits": ("LIMIT-02", "accepted_binding_visits"),
+    "accepted_recovery_limits::object_verifications": (
+        "LIMIT-02",
+        "accepted_object_verifications",
+    ),
+    "accepted_recovery_limits::object_bytes": ("LIMIT-02", "accepted_object_bytes"),
+    "branch_recovery_limits::per_pointer.ancestry_transactions": (
+        "LIMIT-03",
+        "branch_ancestry_per_pointer",
+    ),
+    "branch_recovery_limits::union.ancestry_transactions": (
+        "LIMIT-03",
+        "branch_ancestry_union",
+    ),
+    "branch_recovery_limits::per_pointer.receipt_bytes": (
+        "LIMIT-03",
+        "branch_receipt_bytes_per_pointer",
+    ),
+    "branch_recovery_limits::union.receipt_bytes": (
+        "LIMIT-03",
+        "branch_receipt_bytes_union",
+    ),
+    "branch_recovery_limits::per_pointer.binding_visits": (
+        "LIMIT-03",
+        "branch_binding_visits_per_pointer",
+    ),
+    "branch_recovery_limits::union.binding_visits": (
+        "LIMIT-03",
+        "branch_binding_visits_union",
+    ),
+    "branch_recovery_limits::per_pointer.object_verifications": (
+        "LIMIT-03",
+        "branch_object_verifications_per_pointer",
+    ),
+    "branch_recovery_limits::union.object_verifications": (
+        "LIMIT-03",
+        "branch_object_verifications_union",
+    ),
+    "branch_recovery_limits::per_pointer.object_bytes": (
+        "LIMIT-03",
+        "branch_object_bytes_per_pointer",
+    ),
+    "branch_recovery_limits::union.object_bytes": (
+        "LIMIT-03",
+        "branch_object_bytes_union",
+    ),
+}
+
+LIMIT_RUNTIME_EXACT_CARDINALITY = 2
+LIMIT_RUNTIME_PLUS_ONE_CARDINALITY = 3
+LIMIT_RUNTIME_PROBE_HELPERS = (
+    "begin_s20_530_limit_probe",
+    "finish_s20_530_limit_probe",
+    "record_s20_530_limit_probe",
+)
+LIMIT_RUNTIME_PROBE_STATEMENT = (
+    "#[cfg(test)]tests::record_s20_530_limit_probe(value,limit);"
+)
+
+
+def limit_runtime_instrumented_helper_body(helper_body: str) -> str:
+    comparison = "ifvalue>limit"
+    if helper_body.count(comparison) != 1:
+        fail("limit comparison helper body lacks one exact comparison")
+    return helper_body.replace(
+        comparison,
+        LIMIT_RUNTIME_PROBE_STATEMENT + comparison,
+        1,
+    )
+
+
+def limit_runtime_operation_kind(row_id: str, subcase_id: str) -> str:
+    if row_id == "LIMIT-01":
+        return "store_recovery"
+    if row_id == "LIMIT-02":
+        return "transaction_recovery"
+    if row_id == "LIMIT-03" and subcase_id in TRANSACTION_OWNED_BRANCH_LIMIT_SUBCASES:
+        return "ancestry_verifier"
+    if row_id == "LIMIT-03":
+        return "ref_recovery"
+    fail(f"{row_id}/{subcase_id} lacks a limit runtime operation kind")
+
+
+def limit_runtime_setup_helper(row_id: str, subcase_id: str) -> str:
+    row = row_id.lower().replace("-", "_")
+    return f"prepare_s20_530_{row}_{subcase_id}_limit_fixture"
+
+
+def build_limit_runtime_case_specs() -> dict[tuple[str, str], LimitRuntimeCaseSpec]:
+    observation_fields = {
+        observation: qualified_field
+        for qualified_field, observation in LIMIT_FIELD_RUNTIME_OBSERVATIONS.items()
+    }
+    if len(observation_fields) != len(LIMIT_FIELD_RUNTIME_OBSERVATIONS):
+        fail("limit runtime field observations are not one-to-one")
+    profiles_by_constant: dict[str, tuple[str, str, str]] = {}
+    for profile in LIMIT_PROFILE_SPECS:
+        constructor = profile["constructor"]
+        constants = profile["constants"]
+        comparison_helper = profile["helper"]
+        if (
+            not isinstance(constructor, str)
+            or not isinstance(constants, tuple)
+            or not isinstance(comparison_helper, str)
+        ):
+            fail("limit runtime profile metadata differs")
+        for field, constant, _default in constants:
+            if constant in profiles_by_constant:
+                fail(f"limit runtime constant is duplicated: {constant}")
+            profiles_by_constant[constant] = (constructor, field, comparison_helper)
+
+    cases: dict[tuple[str, str], LimitRuntimeCaseSpec] = {}
+    for row_id, subcases in LIMIT_DEFAULTS.items():
+        for subcase_id, (owner, constant, default) in subcases.items():
+            key = (row_id, subcase_id)
+            try:
+                qualified_field = observation_fields[key]
+                constructor, field, comparison_helper = profiles_by_constant[constant]
+            except KeyError:
+                fail(f"{row_id}/{subcase_id} lacks closed limit runtime metadata")
+            event_ids = tuple(
+                event_id
+                for event_id, event in LIMIT_EVENT_SPECS.items()
+                if any(charge[0] == qualified_field for charge in event.charges)
+            )
+            setup_helper = limit_runtime_setup_helper(row_id, subcase_id)
+            cases[key] = LimitRuntimeCaseSpec(
+                qualified_field=qualified_field,
+                row_id=row_id,
+                subcase_id=subcase_id,
+                owner_source=owner,
+                operation_kind=limit_runtime_operation_kind(row_id, subcase_id),
+                profile_constructor=constructor,
+                profile_field=field,
+                frozen_constant=constant,
+                frozen_default=default,
+                exact_cardinality=LIMIT_RUNTIME_EXACT_CARDINALITY,
+                plus_one_cardinality=LIMIT_RUNTIME_PLUS_ONE_CARDINALITY,
+                event_ids=event_ids,
+                setup_helper=setup_helper,
+                helper_functions=(
+                    setup_helper,
+                    *LIMIT_RUNTIME_PROBE_HELPERS,
+                    comparison_helper,
+                ),
+            )
+    return cases
+
+
+LIMIT_RUNTIME_CASE_SPECS = build_limit_runtime_case_specs()
+
+
+def limit_runtime_case_specs_sha256(
+    specs: dict[tuple[str, str], LimitRuntimeCaseSpec] = LIMIT_RUNTIME_CASE_SPECS,
+) -> str:
+    return canonical_json_sha256(tuple((key, *spec) for key, spec in specs.items()))
+
+
+LIMIT_RUNTIME_CASE_SPECS_SHA256 = (
+    "6e3ff64d132e85da6b27ea1c8eb16ba08f48d4878784d13b64c56f6662492743"
+)
 
 CORRUPTION_CODES = {
     "COR-06": {case: code for case, code, _variant, _chain in COR_06_CASES},
@@ -4123,7 +4750,9 @@ def recovery_provenance_specs_sha256(
     ),
 ) -> str:
     return canonical_json_sha256(
-        tuple(recovery_provenance_record(case_id, spec) for case_id, spec in specs.items())
+        tuple(
+            recovery_provenance_record(case_id, spec) for case_id, spec in specs.items()
+        )
     )
 
 
@@ -4292,8 +4921,7 @@ def recovery_provenance_fact_assertion(
         ),
         "plan_consumed_exactly_once_per_node": (
             "provenance.plan_consumption_counts.as_slice()",
-            "[(provenance.left_identity, 1_u64), "
-            "(provenance.right_identity, 1_u64)]",
+            "[(provenance.left_identity, 1_u64), (provenance.right_identity, 1_u64)]",
         ),
         "plan_installed_on_owner_repository": (
             "provenance.plan_owner_root.as_path()",
@@ -4359,7 +4987,9 @@ def recovery_provenance_fact_assertion(
             else "[provenance.genesis_identity, provenance.left_identity, "
             "provenance.right_identity]"
         )
-        expected = "4_usize" if spec.fixture_family == "deep_missing_ancestry" else "3_usize"
+        expected = (
+            "4_usize" if spec.fixture_family == "deep_missing_ancestry" else "3_usize"
+        )
         return tagged_provenance_eq(
             fact,
             f"::std::collections::BTreeSet::from({identities}).len()",
@@ -4606,9 +5236,7 @@ def enum_error_authority(
     return ErrorAuthority("enum_fields", None, variant, (), fields)
 
 
-MULTIFAULT_OVERLAY_REGISTRY: tuple[
-    tuple[MultifaultKey, MultifaultOverlaySpec], ...
-] = (
+MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], ...] = (
     (
         ("ANC-04", "accepted_nested_codec_before_cycle", None),
         MultifaultOverlaySpec(
@@ -5430,6 +6058,9 @@ PUBLIC_API_SOURCE_PATHS = (
     "crates/sley-repo/src/lib.rs",
     "crates/sley-repo/src/refs.rs",
 )
+PUBLIC_API_TEST_ONLY_SOURCE_PATHS = (
+    "crates/sley-txn/src/recovery_ancestry_test_hook.rs",
+)
 CROSS_05_IMMUTABLE_LOCK_SOURCE_SHA256 = {
     "crates/sley-txn/src/maintenance.rs": (
         "634b518e1ad8b7d65ea38316db7a9d05d106026f14edf2a39ae44ae668d18653"
@@ -5496,15 +6127,16 @@ BUILTIN_DERIVES = frozenset(
     }
 )
 PUBLIC_API_BASELINE_SHA256 = {
-    "crates/sley-store/src/lib.rs": "af7532a93d68c4ac9743bf3ba12da325ff49cea6f10678b45a93808ce75f95a3",
-    "crates/sley-txn/src/codec.rs": "0ba52339cac6abefee43d205ca617de29b2b78b463104373f0ac694cd2d3aa90",
-    "crates/sley-txn/src/lib.rs": "a8a075675772398c8f81c958e04538ff5235d7add9fed0c89af38ee8de36eb97",
-    "crates/sley-txn/src/maintenance.rs": "3b2294882da02ec570274e418f74deeb9d4a70f3c9f78242f247f4a65f03af80",
-    "crates/sley-txn/src/repository.rs": "ab9344d8e6dfed6919e196bdf5009e822e6fc482c8ba25afa774155c2a904281",
-    "crates/sley-repo/src/gc.rs": "dcc98ca152e50ac4bc08ca7806c1b68092f11bdb94a22cf1bc49fd9fa7eb51eb",
-    "crates/sley-repo/src/lib.rs": "3644e1ea66b0edbaae5038d18d6c9052d383fbdd2aea2beca0ed0098a79ff761",
-    "crates/sley-repo/src/refs.rs": "8512924f1418f159bad0cb3ca286a37a2392ccfe32c86ec601273d7adc6cdabe",
+    "crates/sley-store/src/lib.rs": "71c2f2bccf6f6eb4e46790f8f1caa60513e40c6489a64b385523df7d4d5bf20e",
+    "crates/sley-txn/src/codec.rs": "aea91ca2f14a15c7fbe9e99c78ed0020011be846ce9cea2d035a22189ece6a56",
+    "crates/sley-txn/src/lib.rs": "aa24a7671a4c658e3ddb1ea2e9e0c2c1d6a80cd8169c739ed89f772e5a6acbcc",
+    "crates/sley-txn/src/maintenance.rs": "3449b0b047d7f77d65dbe5cd2077f33b08e7da3c50efff198968cbba2cb6d272",
+    "crates/sley-txn/src/repository.rs": "29c4cb16a9a03396d167e2b5368fc717e361815713a8a561292cdd173df3a982",
+    "crates/sley-repo/src/gc.rs": "0204cff3b173e4c3f413dde47078ac831904b17b686a994860290eaf8ee3173a",
+    "crates/sley-repo/src/lib.rs": "99bd04a3fe216262a5a6ad62cf48e156f2ef8adedffdfb2409b7177dccd3be8a",
+    "crates/sley-repo/src/refs.rs": "0d3eec2c881154542563abf14ce4cc541905ed111dc8cc52e0d94ec10b87f56e",
 }
+PUBLIC_API_BASELINE_ANCHOR = "39a6296df7fa78a92bf578d916afb38c7aa6dc6f"
 PUBLIC_API_ALLOWED_ADDITIONS = {
     "crates/sley-store/src/lib.rs": (
         "function:implObjectStore:pubfnbounded_object_len(&self,object_id:ObjectId)->Result<u64>",
@@ -7083,7 +7715,7 @@ def git_text(*arguments: str) -> str:
 def checker_contract_sha256() -> str:
     source = Path(__file__).resolve().read_text(encoding="utf-8")
     canonical, replacements = re.subn(
-        r'^CHECKER_CONTRACT_SHA256 = "[^"]+"$',
+        r'^CHECKER_CONTRACT_SHA256\s*=\s*(?:\(\s*)?"[^"]+"(?:\s*\))?$',
         'CHECKER_CONTRACT_SHA256 = "<SELF>"',
         source,
         count=1,
@@ -7743,8 +8375,35 @@ def owner_manifest_build_authority_problem(manifest: bytes) -> str | None:
     return None
 
 
-def owner_source_external_authority_problem(source: str) -> str | None:
+def owner_source_external_authority_problem(source: str, relative: str) -> str | None:
     projected = rust_code_projection(source)
+    owner_lib_roots = {
+        "crates/sley-store/src/lib.rs",
+        "crates/sley-txn/src/lib.rs",
+        "crates/sley-repo/src/lib.rs",
+    }
+    allowed_doc_includes: list[tuple[int, int]] = []
+    for match in re.finditer(r"#\s*!\s*\[", projected):
+        attribute = rust_attribute_end(source, match.start())
+        if attribute is None:
+            return "unterminated Rust inner attribute"
+        end, normalized = attribute
+        if normalized != 'doc=include_str!("../README.md")':
+            continue
+        if relative not in owner_lib_roots:
+            return "README doc include is not in an owner crate root"
+        if brace_depth_at(projected, [True] * len(projected), match.start()) != 0:
+            return "README doc include is not a crate-root inner attribute"
+        allowed_doc_includes.append((match.start(), end))
+    if relative in owner_lib_roots and len(allowed_doc_includes) != 1:
+        return "owner crate root lacks exactly one README doc include"
+    if allowed_doc_includes:
+        output = list(projected)
+        for start, end in allowed_doc_includes:
+            for index in range(start, end):
+                if output[index] != "\n":
+                    output[index] = " "
+        projected = "".join(output)
     forbidden_macros = re.findall(
         r"\b(include|include_str|include_bytes|env|option_env)\s*!\s*\(",
         projected,
@@ -8164,8 +8823,7 @@ def freeze_deterministic_inputs_problem(
     if not isinstance(hashes, dict) or tuple(hashes) != hash_fields:
         return "contract hash fields/order differ"
     if any(
-        not isinstance(value, str)
-        or re.fullmatch(r"[0-9a-f]{64}", value) is None
+        not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
         for value in hashes.values()
     ):
         return "contract hash value differs"
@@ -8182,12 +8840,23 @@ def freeze_deterministic_inputs_problem(
     return None
 
 
+S20_530_IMPLEMENTATION_REVIEW_OBLIGATIONS = {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": (
+        "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+    ),
+}
+
+
 def require_freeze_evidence(
     package: dict[str, object], implementation_complete: bool
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v1":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v2":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -8201,6 +8870,8 @@ def require_freeze_evidence(
     contract_set_sha256 = canonical_json_sha256(hashes)
     if evidence.get("contract_set_sha256") != contract_set_sha256:
         fail("contract-freeze set digest differs")
+    if evidence.get("review_obligations") != S20_530_IMPLEMENTATION_REVIEW_OBLIGATIONS:
+        fail("contract-freeze implementation review obligations differ")
     reviews = require_phase_reviews(
         evidence.get("reviews"),
         "PASS_CONTRACT_FREEZE",
@@ -8246,6 +8917,22 @@ def require_implementation(
         "contract",
         "contract_set_sha256",
         "matrix_test_map",
+        "limit_runtime_helpers",
+        "limit_runtime_helpers_sha256",
+        "limit_runtime_cases",
+        "limit_runtime_cases_sha256",
+        "limit_event_owner_bodies",
+        "limit_event_owner_bodies_sha256",
+        "limit_event_control_ancestries",
+        "limit_event_control_ancestries_sha256",
+        "limit_event_entry_call_paths",
+        "limit_event_entry_call_paths_sha256",
+        "limit_shared_state_authority",
+        "limit_shared_state_authority_sha256",
+        "limit_runtime_site_proofs",
+        "limit_runtime_site_proofs_sha256",
+        "limit_event_observations",
+        "limit_event_observations_sha256",
         "mapped_test_bodies",
         "mapped_test_bodies_sha256",
     ):
@@ -8268,9 +8955,15 @@ def require_implementation(
     sources["crates/sley-txn/src/maintenance.rs"] = (
         ROOT / "crates/sley-txn/src/maintenance.rs"
     ).read_text(encoding="utf-8")
+    if problem := limit_runtime_probe_binding_problem(sources):
+        fail(f"limit runtime comparison-helper binding differs: {problem}")
     authority_sources = {
         relative: (ROOT / relative).read_text(encoding="utf-8")
         for relative in PUBLIC_API_SOURCE_PATHS
+    }
+    limit_authority_sources = {
+        relative: (ROOT / relative).read_text(encoding="utf-8")
+        for relative in limit_production_source_paths()
     }
     if problem := cross05_production_contract_problem(authority_sources):
         fail(f"CROSS-05 production binding differs: {problem}")
@@ -8504,6 +9197,190 @@ def require_implementation(
         fail("mapped test-body review-manifest digest differs")
     if evidence.get("mapped_test_bodies_sha256") != mapped_test_bodies_sha256:
         fail("closeout evidence is bound to stale mapped test bodies")
+    expected_runtime_helpers = limit_runtime_helper_body_manifest(sources)
+    recorded_runtime_helpers = test_plan.get("limit_runtime_helpers")
+    if (
+        not isinstance(recorded_runtime_helpers, dict)
+        or tuple(recorded_runtime_helpers) != tuple(expected_runtime_helpers)
+        or recorded_runtime_helpers != expected_runtime_helpers
+    ):
+        fail("limit runtime helper-body review manifest differs")
+    for key, record in recorded_runtime_helpers.items():
+        if not isinstance(record, dict) or tuple(record) != (
+            "source",
+            "owner",
+            "function",
+            "attribute_chain_sha256",
+            "body_sha256",
+        ):
+            fail(f"limit runtime helper-body fields differ for {key}")
+    runtime_helpers_sha256 = canonical_json_sha256(expected_runtime_helpers)
+    if (
+        test_plan.get("limit_runtime_helpers_sha256") != runtime_helpers_sha256
+        or canonical_json_sha256(recorded_runtime_helpers) != runtime_helpers_sha256
+    ):
+        fail("limit runtime helper-body review-manifest digest differs")
+    expected_runtime_cases = limit_runtime_case_manifest(
+        row_map,
+        expected_test_bodies,
+        expected_runtime_helpers,
+    )
+    recorded_runtime_cases = test_plan.get("limit_runtime_cases")
+    if (
+        not isinstance(recorded_runtime_cases, dict)
+        or tuple(recorded_runtime_cases) != tuple(expected_runtime_cases)
+        or recorded_runtime_cases != expected_runtime_cases
+    ):
+        fail("limit runtime case review manifest differs")
+    runtime_cases_sha256 = canonical_json_sha256(expected_runtime_cases)
+    if (
+        test_plan.get("limit_runtime_cases_sha256") != runtime_cases_sha256
+        or canonical_json_sha256(recorded_runtime_cases) != runtime_cases_sha256
+    ):
+        fail("limit runtime case review-manifest digest differs")
+    expected_owner_bodies = limit_event_owner_body_manifest(sources)
+    recorded_owner_bodies = test_plan.get("limit_event_owner_bodies")
+    if (
+        not isinstance(recorded_owner_bodies, dict)
+        or tuple(recorded_owner_bodies) != tuple(expected_owner_bodies)
+        or recorded_owner_bodies != expected_owner_bodies
+    ):
+        fail("limit-event owner-body review manifest differs from exact production")
+    for key, record in recorded_owner_bodies.items():
+        if not isinstance(record, dict) or tuple(record) != (
+            "source",
+            "owner",
+            "function",
+            "body_sha256",
+        ):
+            fail(f"limit-event owner-body review fields differ for {key}")
+    owner_bodies_sha256 = canonical_json_sha256(expected_owner_bodies)
+    if (
+        test_plan.get("limit_event_owner_bodies_sha256") != owner_bodies_sha256
+        or canonical_json_sha256(recorded_owner_bodies) != owner_bodies_sha256
+    ):
+        fail("limit-event owner-body review-manifest digest differs")
+    expected_control_ancestries = limit_event_control_ancestry_manifest(
+        limit_authority_sources
+    )
+    if problem := limit_event_control_ancestry_problem(expected_control_ancestries):
+        fail(f"limit-event control ancestry is unresolved: {problem}")
+    recorded_control_ancestries = test_plan.get("limit_event_control_ancestries")
+    if (
+        not isinstance(recorded_control_ancestries, dict)
+        or tuple(recorded_control_ancestries) != tuple(LIMIT_EVENT_SPECS)
+        or recorded_control_ancestries != expected_control_ancestries
+    ):
+        fail("limit-event control-ancestry review manifest differs")
+    for event_id, record in recorded_control_ancestries.items():
+        if not isinstance(record, dict) or tuple(record) != (
+            "source",
+            "owner",
+            "function",
+            "owner_body",
+            "owner_attribute_chain_sha256",
+            "owner_body_sha256",
+            "owner_function_macros",
+            "ordered_scopes",
+            "dominating_exits",
+            "collection_mutations",
+        ):
+            fail(f"limit-event control-ancestry fields differ for {event_id}")
+        scopes = record["ordered_scopes"]
+        if not isinstance(scopes, list):
+            fail(f"limit-event control scopes differ for {event_id}")
+        for scope in scopes:
+            if not isinstance(scope, dict) or tuple(scope) != (
+                "header",
+                "header_sha256",
+                "identifiers",
+                "calls",
+                "macros",
+                "resolved_values",
+                "resolved_authority",
+                "kind",
+                "edge_liveness",
+            ):
+                fail(f"limit-event control scope fields differ for {event_id}")
+    control_ancestries_sha256 = canonical_json_sha256(expected_control_ancestries)
+    if (
+        test_plan.get("limit_event_control_ancestries_sha256")
+        != control_ancestries_sha256
+        or canonical_json_sha256(recorded_control_ancestries)
+        != control_ancestries_sha256
+        or evidence.get("limit_event_control_ancestries_sha256")
+        != control_ancestries_sha256
+    ):
+        fail("limit-event control-ancestry review-manifest digest differs")
+    expected_entry_paths = limit_event_entry_call_path_manifest(limit_authority_sources)
+    if problem := limit_event_entry_call_path_problem(expected_entry_paths):
+        fail(f"limit-event entry-call-path authority differs: {problem}")
+    recorded_entry_paths = test_plan.get("limit_event_entry_call_paths")
+    if recorded_entry_paths != expected_entry_paths:
+        fail("limit-event entry-call-path review manifest differs")
+    entry_paths_sha256 = canonical_json_sha256(expected_entry_paths)
+    if (
+        test_plan.get("limit_event_entry_call_paths_sha256") != entry_paths_sha256
+        or canonical_json_sha256(recorded_entry_paths) != entry_paths_sha256
+        or evidence.get("limit_event_entry_call_paths_sha256") != entry_paths_sha256
+    ):
+        fail("limit-event entry-call-path review-manifest digest differs")
+    expected_shared_state = limit_shared_state_authority_manifest(
+        limit_authority_sources
+    )
+    recorded_shared_state = test_plan.get("limit_shared_state_authority")
+    if recorded_shared_state != expected_shared_state:
+        fail("limit shared-state authority review manifest differs")
+    shared_state_sha256 = canonical_json_sha256(expected_shared_state)
+    if (
+        test_plan.get("limit_shared_state_authority_sha256") != shared_state_sha256
+        or canonical_json_sha256(recorded_shared_state) != shared_state_sha256
+        or evidence.get("limit_shared_state_authority_sha256") != shared_state_sha256
+    ):
+        fail("limit shared-state authority review-manifest digest differs")
+    expected_site_proofs = limit_runtime_site_proof_manifest(
+        expected_runtime_cases,
+        expected_owner_bodies,
+    )
+    recorded_site_proofs = test_plan.get("limit_runtime_site_proofs")
+    if (
+        not isinstance(recorded_site_proofs, dict)
+        or tuple(recorded_site_proofs) != tuple(expected_site_proofs)
+        or recorded_site_proofs != expected_site_proofs
+    ):
+        fail("limit runtime dual-site proof manifest differs")
+    site_proofs_sha256 = canonical_json_sha256(expected_site_proofs)
+    if (
+        test_plan.get("limit_runtime_site_proofs_sha256") != site_proofs_sha256
+        or canonical_json_sha256(recorded_site_proofs) != site_proofs_sha256
+    ):
+        fail("limit runtime dual-site proof-manifest digest differs")
+    expected_observations = limit_event_observation_manifest(
+        row_map,
+        expected_test_bodies,
+        expected_owner_bodies,
+    )
+    recorded_observations = test_plan.get("limit_event_observations")
+    if (
+        not isinstance(recorded_observations, dict)
+        or tuple(recorded_observations) != tuple(LIMIT_EVENT_SPECS)
+        or recorded_observations != expected_observations
+    ):
+        fail("limit-event runtime-observation review manifest differs")
+    for event_id, record in recorded_observations.items():
+        if not isinstance(record, dict) or tuple(record) != (
+            "owner_body",
+            "owner_attribute_chain_sha256",
+            "owner_body_sha256",
+            "charged_limit_tests",
+        ):
+            fail(f"limit-event runtime-observation fields differ for {event_id}")
+    observations_sha256 = canonical_json_sha256(expected_observations)
+    if (
+        test_plan.get("limit_event_observations_sha256") != observations_sha256
+        or canonical_json_sha256(recorded_observations) != observations_sha256
+    ):
+        fail("limit-event runtime-observation review-manifest digest differs")
     source_set_sha256, validated_commit = require_execution_evidence(
         evidence, used_tests, test_owners, qualified_tests
     )
@@ -8522,13 +9399,17 @@ def require_implementation(
 
 
 def require_public_recovery_api() -> None:
+    authority_sources = {
+        relative: (ROOT / relative).read_text(encoding="utf-8")
+        for relative in limit_production_source_paths()
+    }
     store = production_rust(ROOT / "crates/sley-store/src/lib.rs")
     txn = production_rust(ROOT / "crates/sley-txn/src/repository.rs")
     txn_lib = production_rust(ROOT / "crates/sley-txn/src/lib.rs")
     refs = production_rust(ROOT / "crates/sley-repo/src/refs.rs")
     gc = production_rust(ROOT / "crates/sley-repo/src/gc.rs")
     txn_normal = normal_build_rust(
-        (ROOT / "crates/sley-txn/src/repository.rs").read_text(encoding="utf-8")
+        authority_sources["crates/sley-txn/src/repository.rs"]
     )
 
     recovery_sources = {
@@ -8578,11 +9459,15 @@ def require_public_recovery_api() -> None:
         r"fn\s+recovery_receipt_metadata\s*\(\s*path\s*:\s*&Path\s*,?\s*\)\s*"
         r"->\s*Result\s*<\s*fs\s*::\s*Metadata\s*,\s*CommitError\s*>"
     )
-    if len(receipt_metadata_signatures) != 1 or re.fullmatch(
-        receipt_metadata_pattern,
-        receipt_metadata_signatures[0],
-        re.DOTALL,
-    ) is None:
+    if (
+        len(receipt_metadata_signatures) != 1
+        or re.fullmatch(
+            receipt_metadata_pattern,
+            receipt_metadata_signatures[0],
+            re.DOTALL,
+        )
+        is None
+    ):
         fail(
             "production transaction source lacks one exact private "
             "recovery-receipt metadata bridge"
@@ -8812,13 +9697,7 @@ def require_public_recovery_api() -> None:
         r"->\s*Result\s*<\s*GcWitnessRecoveryStatus\s*,\s*GcError\s*>",
         "exact public GC-witness recovery API",
     )
-    require_production_limit_defaults(
-        {
-            "crates/sley-store/src/lib.rs": store,
-            "crates/sley-txn/src/repository.rs": txn,
-            "crates/sley-repo/src/refs.rs": refs,
-        }
-    )
+    require_production_limit_defaults(authority_sources)
 
 
 def rust_char_literal_end(source: str, start: int) -> int | None:
@@ -9135,6 +10014,8 @@ def rust_attributed_item_end(source: str, attribute_end: int) -> int | None:
         if attribute is None:
             break
         cursor = attribute[0]
+    if re.match(r"(?:(?:unsafe|default)\s+)?impl\b", source[cursor:]):
+        return rust_impl_item_end(source, cursor)
     round_depth = 0
     square_depth = 0
     angle_depth = 0
@@ -9201,6 +10082,73 @@ def rust_attributed_item_end(source: str, attribute_end: int) -> int | None:
     return None
 
 
+def rust_impl_item_end(source: str, start: int) -> int | None:
+    """Return one impl extent without treating where-clause commas as terminators."""
+    cursor = start
+    while True:
+        cursor = skip_non_code_space(source, [True] * len(source), cursor)
+        if cursor >= len(source) or source[cursor] != "#":
+            break
+        attribute = rust_attribute_end(source, cursor)
+        if attribute is None:
+            return None
+        cursor = attribute[0]
+    header = re.match(r"(?:(?:unsafe|default)\s+)?impl\b", source[cursor:])
+    if header is None:
+        return None
+
+    round_depth = 0
+    square_depth = 0
+    angle_depth = 0
+    expression_brace_end = -1
+    for index in range(cursor + header.end(), len(source)):
+        if index <= expression_brace_end:
+            continue
+        character = source[index]
+        if character == "(":
+            round_depth += 1
+        elif character == ")":
+            round_depth -= 1
+        elif character == "[":
+            square_depth += 1
+        elif character == "]":
+            square_depth -= 1
+        elif character == "<":
+            angle_depth += 1
+        elif (
+            character == ">"
+            and angle_depth
+            and (index == 0 or source[index - 1] not in "-=")
+        ):
+            angle_depth -= 1
+        elif character == "{" and (round_depth or square_depth or angle_depth):
+            closing = matching_delimiter(source, [True] * len(source), index, "{", "}")
+            if closing is None:
+                return None
+            expression_brace_end = closing
+            continue
+        elif (
+            character == "{"
+            and round_depth == 0
+            and square_depth == 0
+            and angle_depth == 0
+        ):
+            closing = matching_delimiter(source, [True] * len(source), index, "{", "}")
+            if closing is None:
+                return None
+            return closing + 1
+        elif (
+            character == ";"
+            and round_depth == 0
+            and square_depth == 0
+            and angle_depth == 0
+        ):
+            return None
+        if round_depth < 0 or square_depth < 0 or angle_depth < 0:
+            return None
+    return None
+
+
 def rust_projection_delimiter_problem(source: str) -> str | None:
     stack: list[str] = []
     pairs = {")": "(", "]": "[", "}": "{"}
@@ -9248,12 +10196,12 @@ def unconditional_rust(source: str) -> str:
 
 S20_530_TEST_HOOK_FEATURE_GATE = 'cfg(any(test,feature="s20-530-test-hooks"))'
 S20_530_ALLOWED_FEATURE_GATED_ITEMS = (
-        """\
+    """\
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 #[doc(hidden)]
 pub mod recovery_ancestry_test_hook;
 """,
-        """\
+    """\
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 let _recovery_ancestry_operation =
     recovery_ancestry_test_hook::begin_transaction_operation(
@@ -9262,7 +10210,7 @@ let _recovery_ancestry_operation =
         recovery_ancestry_test_hook::TransactionOperationKind::AcceptedRecovery,
     );
 """,
-        """\
+    """\
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 let _recovery_ancestry_operation =
     recovery_ancestry_test_hook::begin_transaction_operation(
@@ -9271,11 +10219,11 @@ let _recovery_ancestry_operation =
         recovery_ancestry_test_hook::TransactionOperationKind::BranchAncestry,
     );
 """,
-        """\
+    """\
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 recovery_ancestry_test_hook::activate_ancestry_epoch(self, maintenance);
 """,
-        """\
+    """\
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 let parents = recovery_ancestry_test_hook::substitute_verified_parents(
     self.root(),
@@ -9293,9 +10241,19 @@ def normal_build_test_only_ranges(source: str, projected: str) -> list[tuple[int
         "cfg(all(test))",
     }
     for match in re.finditer(r"#\s*\[", projected):
+        if ranges and match.start() < ranges[-1][1]:
+            # The outer test-only item already removes this nested attribute.
+            # Trying to isolate a field or expression attribute independently
+            # can give it authority over the normal-build projection.
+            continue
         attribute = rust_attribute_end(projected, match.start())
         raw_attribute = rust_attribute_end(source, match.start())
         if attribute is None or raw_attribute is None:
+            continue
+        if (
+            raw_attribute[1] not in exact_test_only
+            and raw_attribute[1] != S20_530_TEST_HOOK_FEATURE_GATE
+        ):
             continue
         item_end = rust_attributed_item_end(projected, attribute[0])
         if item_end is None:
@@ -9307,8 +10265,7 @@ def normal_build_test_only_ranges(source: str, projected: str) -> list[tuple[int
             continue
         gated_item = normalize_rust_tokens(source[match.start() : item_end])
         allowed_items = {
-            normalize_rust_tokens(item)
-            for item in S20_530_ALLOWED_FEATURE_GATED_ITEMS
+            normalize_rust_tokens(item) for item in S20_530_ALLOWED_FEATURE_GATED_ITEMS
         }
         if gated_item in allowed_items:
             ranges.append((match.start(), item_end))
@@ -9475,7 +10432,9 @@ def recovery_ancestry_hook_gate_record(
                 owner,
                 function,
             ) in S20_530_RECOVERY_ANCESTRY_PROTECTED_FUNCTIONS
-            feature_gate = "s20-530-test-hooks" in source[match.start() : raw_attribute[0]]
+            feature_gate = (
+                "s20-530-test-hooks" in source[match.start() : raw_attribute[0]]
+            )
             if not protected and not feature_gate:
                 continue
             item_end = rust_attributed_item_end(projected, attribute[0])
@@ -9530,8 +10489,7 @@ def recovery_ancestry_test_hook_authority_problem() -> str | None:
         "crates/sley-repo/src/refs.rs",
     }
     sources = {
-        relative: (ROOT / relative).read_text(encoding="utf-8")
-        for relative in paths
+        relative: (ROOT / relative).read_text(encoding="utf-8") for relative in paths
     }
     return recovery_ancestry_hook_gate_problem(sources)
 
@@ -10856,8 +11814,28 @@ def rust_owner_ranges(source: str, projected: str) -> tuple[tuple[int, int, str]
                     f"mod:{semantic_rust_identifier(match['name'])}",
                 )
             )
+    for match in rust_item_matches(
+        projected,
+        rf"(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?(?:auto\s+)?trait\s+"
+        rf"(?P<name>{RUST_IDENTIFIER})\b",
+    ):
+        opening = public_function_signature_end(projected, match.start())
+        if opening is None or projected[opening] != "{":
+            fail("cannot isolate a Rust trait owner")
+        closing = matching_delimiter(
+            projected, [True] * len(projected), opening, "{", "}"
+        )
+        if closing is None:
+            fail("Rust trait owner has no closing brace")
+        ranges.append(
+            (
+                opening,
+                closing,
+                f"trait:{semantic_rust_identifier(match['name'])}",
+            )
+        )
     for match in rust_item_matches(projected, r"(?:(?:unsafe|default)\s+)?impl\b"):
-        extent = rust_attributed_item_end(projected, match.start())
+        extent = rust_impl_item_end(projected, match.start())
         if extent is None:
             fail("cannot isolate a Rust impl owner")
         opening = projected.find("{", match.start(), extent)
@@ -11067,6 +12045,7 @@ def exact_private_struct_fields(
 
 def ref_record_preflight_problem(production: str) -> str | None:
     expected_structs = {
+        "RecoveryRecordPath": (("path", "PathBuf"),),
         "RecoveryVisibleBranch": (
             ("origin", "ImportedBranchRecord"),
             ("reference", "ImportedBranchRef"),
@@ -11081,17 +12060,24 @@ def ref_record_preflight_problem(production: str) -> str | None:
             return f"{name} exact private fields/order differ"
 
     signatures = {
-        "read_recovery_ref_with_limits": (
-            "fn read_recovery_ref_with_limits("
-            "&self, path: &Path, limits: &RefRecoveryLimits, "
+        "read_recovery_visible_ref_with_limits": (
+            "fn read_recovery_visible_ref_with_limits("
+            "&self, visible_ref: &RecoveryRecordPath, limits: &RefRecoveryLimits, "
             "usage: &mut RefRecoveryUsage,"
             ") -> Result<ImportedBranchRef, BranchError>"
         ),
-        "read_recovery_origin_with_limits": (
-            "fn read_recovery_origin_with_limits("
-            "&self, path: &Path, limits: &RefRecoveryLimits, "
+        "read_recovery_visible_origin_with_limits": (
+            "fn read_recovery_visible_origin_with_limits("
+            "&self, visible_origin: &RecoveryRecordPath, limits: &RefRecoveryLimits, "
             "usage: &mut RefRecoveryUsage,"
             ") -> Result<ImportedBranchRecord, BranchError>"
+        ),
+        "read_recovery_orphan_origin_with_limits": (
+            "fn read_recovery_orphan_origin_with_limits("
+            "&self, orphan_origin: &RecoveryRecordPath, limits: &RefRecoveryLimits, "
+            "usage: &mut RefRecoveryUsage, "
+            "orphan_origins: &mut Vec<ImportedBranchRecord>,"
+            ") -> Result<(), BranchError>"
         ),
         "preflight_ref_records_with_limits": (
             "fn preflight_ref_records_with_limits("
@@ -11111,45 +12097,57 @@ def ref_record_preflight_problem(production: str) -> str | None:
             return f"{name} exact private signature differs"
 
     expected_bodies = {
-        "read_recovery_ref_with_limits": """
-let metadata = fs::symlink_metadata(path).map_err(BranchError::Io)?;
-if !metadata.file_type().is_file() {
-    return Err(branch_error(BranchErrorCode::RefIo));
-}
-usage.visible_ref_record_bytes = usage
-    .visible_ref_record_bytes
-    .checked_add(metadata.len())
-    .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-ensure_ref_recovery_limit(
-    usage.visible_ref_record_bytes,
-    limits.visible_ref_record_bytes,
-)?;
-self.read_ref_at(path)
+        "read_recovery_visible_ref_with_limits": """
+let record_path = visible_ref.path.clone();
+let metadata = ::std::fs::symlink_metadata(&record_path).map_err(BranchError::from)?;
+ensure_recovery_regular_file(&metadata)?;
+let metadata_bytes = metadata.len();
+let one = 1_u64;
+let next_visible_branches = usage.visible_branches.checked_add(one).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+let next_visible_ref_record_bytes = usage.visible_ref_record_bytes.checked_add(metadata_bytes).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+ensure_ref_recovery_limit(next_visible_branches, limits.visible_branches)?;
+ensure_ref_recovery_limit(next_visible_ref_record_bytes, limits.visible_ref_record_bytes)?;
+usage.visible_branches = next_visible_branches;
+usage.visible_ref_record_bytes = next_visible_ref_record_bytes;
+let decoded_ref = read_recovery_ref_record(&record_path)?;
+Ok(decoded_ref)
 """,
-        "read_recovery_origin_with_limits": """
-let metadata = fs::symlink_metadata(path).map_err(BranchError::Io)?;
-if !metadata.file_type().is_file() {
-    return Err(branch_error(BranchErrorCode::RefIo));
-}
-usage.origin_record_bytes = usage
-    .origin_record_bytes
-    .checked_add(metadata.len())
-    .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-ensure_ref_recovery_limit(
-    usage.origin_record_bytes,
-    limits.origin_record_bytes,
-)?;
-self.read_branch_at(path)
+        "read_recovery_visible_origin_with_limits": """
+let origin_path = visible_origin.path.clone();
+let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+ensure_recovery_regular_file(&metadata)?;
+let metadata_bytes = metadata.len();
+let next_visible_origin_record_bytes = usage.origin_record_bytes.checked_add(metadata_bytes).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+ensure_ref_recovery_limit(next_visible_origin_record_bytes, limits.origin_record_bytes)?;
+usage.origin_record_bytes = next_visible_origin_record_bytes;
+let decoded_origin = read_recovery_origin_record(&origin_path)?;
+Ok(decoded_origin)
+""",
+        "read_recovery_orphan_origin_with_limits": """
+let origin_path = orphan_origin.path.clone();
+let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+ensure_recovery_regular_file(&metadata)?;
+let metadata_bytes = metadata.len();
+let one = 1_u64;
+let next_orphan_origins = usage.orphan_origins.checked_add(one).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+let next_orphan_origin_record_bytes = usage.origin_record_bytes.checked_add(metadata_bytes).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+ensure_ref_recovery_limit(next_orphan_origins, limits.orphan_origins)?;
+ensure_ref_recovery_limit(next_orphan_origin_record_bytes, limits.origin_record_bytes)?;
+usage.orphan_origins = next_orphan_origins;
+usage.origin_record_bytes = next_orphan_origin_record_bytes;
+let decoded_origin = read_recovery_origin_record(&origin_path)?;
+orphan_origins.push(decoded_origin);
+Ok(())
 """,
         "preflight_ref_records_with_limits": """
 let mut references = Vec::new();
 for path in ref_paths {
-    usage.visible_branches = usage
-        .visible_branches
-        .checked_add(1)
-        .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-    ensure_ref_recovery_limit(usage.visible_branches, limits.visible_branches)?;
-    references.push(self.read_recovery_ref_with_limits(path, limits, usage)?);
+    let visible_ref = RecoveryRecordPath { path: path.clone() };
+    references.push(self.read_recovery_visible_ref_with_limits(
+        &visible_ref,
+        limits,
+        usage,
+    )?);
 }
 references.sort_by(|left, right| left.record.branch_name.cmp(&right.record.branch_name));
 if references
@@ -11166,7 +12164,14 @@ for reference in references {
     if !origin_paths.contains(&origin_path) {
         return Err(branch_error(BranchErrorCode::RecoveryNamedRefIncomplete));
     }
-    let origin = self.read_recovery_origin_with_limits(&origin_path, limits, usage)?;
+    let visible_origin = RecoveryRecordPath {
+        path: origin_path.clone(),
+    };
+    let origin = self.read_recovery_visible_origin_with_limits(
+        &visible_origin,
+        limits,
+        usage,
+    )?;
     if origin.record.branch_name != reference.record.branch_name {
         return Err(branch_error(BranchErrorCode::RefNameCollision));
     }
@@ -11174,14 +12179,18 @@ for reference in references {
     consumed_origins.insert(origin_path);
     visible.push(RecoveryVisibleBranch { origin, reference });
 }
-let mut orphan_origins = Vec::new();
+let mut orphan_origin_records = Vec::new();
 for path in origin_paths.difference(&consumed_origins) {
-    let origin = self.read_recovery_origin_with_limits(path, limits, usage)?;
-    usage.orphan_origins = usage
-        .orphan_origins
-        .checked_add(1)
-        .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-    ensure_ref_recovery_limit(usage.orphan_origins, limits.orphan_origins)?;
+    let orphan_origin = RecoveryRecordPath { path: path.clone() };
+    self.read_recovery_orphan_origin_with_limits(
+        &orphan_origin,
+        limits,
+        usage,
+        &mut orphan_origin_records,
+    )?;
+}
+let mut orphan_origins = Vec::with_capacity(orphan_origin_records.len());
+for origin in orphan_origin_records {
     orphan_origins.push(OrphanBranchOrigin {
         branch_name: origin.record.branch_name,
         branch_record_digest: origin.digest,
@@ -11202,9 +12211,9 @@ Ok(RefRecordPreflight {
             name,
             "implBranchRepository",
         )
-        if body is None or normalize_rust_tokens(body) != normalize_rust_tokens(
-            expected
-        ):
+        if body is None or normalize_limit_event_tokens(
+            body
+        ) != normalize_limit_event_tokens(expected):
             return f"{name} exact preflight body differs"
         actual_bodies[name] = body
 
@@ -11470,7 +12479,7 @@ def trait_impl_surface(
         impl_start = projected.find("impl", match.start(), match.end())
         if impl_start < 0:
             fail("cannot isolate a Rust trait impl")
-        extent = rust_attributed_item_end(projected, match.start())
+        extent = rust_impl_item_end(projected, match.start())
         if extent is None:
             fail("cannot isolate a Rust trait impl")
         opening = projected.find("{", match.start(), extent)
@@ -11571,7 +12580,7 @@ def rust_valid_authority_owner_openings(projected: str) -> dict[int, str]:
         if opening >= 0:
             candidates[opening] = "module"
     for match in rust_item_matches(projected, r"(?:(?:unsafe|default)\s+)?impl\b"):
-        extent = rust_attributed_item_end(projected, match.start())
+        extent = rust_impl_item_end(projected, match.start())
         if extent is None:
             continue
         opening = projected.find("{", match.start(), extent)
@@ -11696,13 +12705,14 @@ def generated_api_authority_problem(source: str) -> str | None:
         imported = set(re.findall(RUST_IDENTIFIER, use["body"]))
         if imported.intersection(allowed_expression_macros):
             return "expression-macro name is imported or shadowable"
+    if re.search(r"\bmacro_rules\s*!", projected):
+        return "macro_rules! authority is forbidden at every depth"
     for match in re.finditer(
-        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*)\s*!",
+        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*)"
+        r"\s*!\s*(?=[({\[])",
         projected,
     ):
         path = match["path"]
-        if path == "macro_rules":
-            return "macro_rules! authority is forbidden at every depth"
         if any(start <= match.start() < end for start, end in function_ranges):
             if path not in allowed_expression_macros:
                 return f"unbound expression-macro authority: {path}!"
@@ -11917,10 +12927,12 @@ def public_api_source_paths() -> tuple[str, ...]:
         ROOT / "crates/sley-repo/src",
     )
     return tuple(
-        str(path.relative_to(ROOT))
-        for root in roots
-        for path in sorted(root.rglob("*.rs"))
-        if path.is_file()
+        sorted(
+            str(path.relative_to(ROOT))
+            for root in roots
+            for path in sorted(root.rglob("*.rs"))
+            if path.is_file()
+        )
     )
 
 
@@ -12034,8 +13046,56 @@ def require_frozen_test_authority() -> None:
         fail(problem)
 
 
+def public_api_surface_baseline_sha256(
+    complete_source: str,
+    relative: str,
+    *,
+    require_allowed_additions: bool,
+) -> tuple[str | None, str | None]:
+    source = normal_build_source(complete_source)
+    if problem := generated_api_authority_problem(source):
+        return None, problem
+    surface = list(
+        complete_public_surface(
+            source,
+            body_exclusions=PUBLIC_API_BODY_EXCLUSIONS.get(relative, frozenset()),
+        )
+    )
+    for allowed in PUBLIC_API_ALLOWED_ADDITIONS.get(relative, ()):
+        try:
+            surface.remove(allowed)
+        except ValueError:
+            if require_allowed_additions:
+                return None, f"required public API delta is absent: {allowed}"
+    return canonical_json_sha256(surface), None
+
+
+def public_api_baseline_anchor_problem() -> str | None:
+    for relative, expected in PUBLIC_API_BASELINE_SHA256.items():
+        try:
+            source = git_bytes(
+                "show",
+                f"{PUBLIC_API_BASELINE_ANCHOR}:{relative}",
+            ).decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            return f"public API anchor source is not UTF-8: {relative}"
+        digest, problem = public_api_surface_baseline_sha256(
+            source,
+            relative,
+            require_allowed_additions=False,
+        )
+        if problem is not None:
+            return f"public API anchor source differs in {relative}: {problem}"
+        if digest != expected:
+            return f"public API baseline is not derived from its Git anchor: {relative}"
+    return None
+
+
 def public_api_baseline_problem() -> str | None:
-    if public_api_source_paths() != PUBLIC_API_SOURCE_PATHS:
+    expected_sources = tuple(
+        sorted((*PUBLIC_API_SOURCE_PATHS, *PUBLIC_API_TEST_ONLY_SOURCE_PATHS))
+    )
+    if public_api_source_paths() != expected_sources:
         return "production Rust source-path inventory differs"
     for relative, expected in PUBLIC_API_MODULE_GRAPH.items():
         source = normal_build_source((ROOT / relative).read_text(encoding="utf-8"))
@@ -12047,27 +13107,23 @@ def public_api_baseline_problem() -> str | None:
             return f"native library root differs in {relative}: {problem}"
         if problem := owner_manifest_build_authority_problem(manifest):
             return f"owner build authority differs in {relative}: {problem}"
+    if problem := public_api_baseline_anchor_problem():
+        return problem
     for relative in PUBLIC_API_SOURCE_PATHS:
         complete_source = (ROOT / relative).read_text(encoding="utf-8")
-        if problem := owner_source_external_authority_problem(complete_source):
+        if problem := owner_source_external_authority_problem(
+            complete_source, relative
+        ):
             return (
                 f"production API source has external authority in {relative}: {problem}"
             )
-        source = normal_build_source(complete_source)
-        if problem := generated_api_authority_problem(source):
-            return f"production API source has generated authority in {relative}: {problem}"
-        surface = list(
-            complete_public_surface(
-                source,
-                body_exclusions=PUBLIC_API_BODY_EXCLUSIONS.get(relative, frozenset()),
-            )
+        digest, problem = public_api_surface_baseline_sha256(
+            complete_source,
+            relative,
+            require_allowed_additions=True,
         )
-        for allowed in PUBLIC_API_ALLOWED_ADDITIONS.get(relative, ()):
-            try:
-                surface.remove(allowed)
-            except ValueError:
-                return f"required public API delta is absent from {relative}: {allowed}"
-        digest = canonical_json_sha256(surface)
+        if problem is not None:
+            return f"production API source differs in {relative}: {problem}"
         if digest != PUBLIC_API_BASELINE_SHA256[relative]:
             return f"complete public API baseline differs in {relative}"
     return None
@@ -12243,6 +13299,74 @@ def limit_qualified_fields() -> tuple[str, ...]:
     )
 
 
+def limit_runtime_case_metadata_problem(
+    specs: object = LIMIT_RUNTIME_CASE_SPECS,
+    expected_digest: object = LIMIT_RUNTIME_CASE_SPECS_SHA256,
+) -> str | None:
+    expected_keys = tuple(
+        (row_id, subcase_id)
+        for row_id, subcases in LIMIT_DEFAULTS.items()
+        for subcase_id in subcases
+    )
+    if not isinstance(specs, dict) or tuple(specs) != expected_keys:
+        return "limit runtime case keys/order differ"
+    if len(specs) != 37 or any(
+        not isinstance(spec, LimitRuntimeCaseSpec) for spec in specs.values()
+    ):
+        return "limit runtime authority is not exactly 37 typed cases"
+    expected_specs = build_limit_runtime_case_specs()
+    if specs != expected_specs:
+        return "limit runtime cases differ from the closed field/event authority"
+    event_memberships = tuple(
+        event_id for spec in specs.values() for event_id in spec.event_ids
+    )
+    if len(event_memberships) != 42:
+        return "limit runtime cases do not cover exactly 42 event memberships"
+    repeated = {
+        spec.qualified_field: spec.event_ids
+        for spec in specs.values()
+        if len(spec.event_ids) > 1
+    }
+    if set(repeated) != {
+        "ref_recovery_limits::origin_record_bytes",
+        "branch_recovery_limits::per_pointer.receipt_bytes",
+        "branch_recovery_limits::per_pointer.binding_visits",
+        "branch_recovery_limits::per_pointer.object_verifications",
+        "branch_recovery_limits::per_pointer.object_bytes",
+    } or any(len(event_ids) != 2 for event_ids in repeated.values()):
+        return "limit runtime dual-site cases differ"
+    if set(event_memberships) != set(LIMIT_EVENT_SPECS):
+        return "limit runtime cases omit or invent an event site"
+    for key, spec in specs.items():
+        if (spec.row_id, spec.subcase_id) != key:
+            return f"{key!r} limit runtime identity differs"
+        if spec.exact_cardinality != 2 or spec.plus_one_cardinality != 3:
+            return f"{key!r} limit runtime N/N+1 cardinality differs"
+        profile = limit_profile_map().get(spec.profile_constructor)
+        comparison_helper = None if profile is None else profile.get("helper")
+        if spec.helper_functions != (
+            spec.setup_helper,
+            *LIMIT_RUNTIME_PROBE_HELPERS,
+            comparison_helper,
+        ):
+            return f"{key!r} limit runtime helper inventory differs"
+        if spec.setup_helper != limit_runtime_setup_helper(*key):
+            return f"{key!r} limit runtime setup helper differs"
+        if any(
+            re.fullmatch(RUST_IDENTIFIER, helper) is None
+            for helper in spec.helper_functions
+        ):
+            return f"{key!r} limit runtime helper identifier is malformed"
+        if not spec.event_ids:
+            return f"{key!r} limit runtime case lacks an event site"
+    if (
+        not isinstance(expected_digest, str)
+        or limit_runtime_case_specs_sha256(specs) != expected_digest
+    ):
+        return "limit runtime case authority digest differs"
+    return None
+
+
 def limit_event_record(
     specs: dict[str, LimitEventSpec] = LIMIT_EVENT_SPECS,
 ) -> tuple[tuple[object, ...], ...]:
@@ -12256,7 +13380,7 @@ def limit_event_specs_sha256(
 
 
 LIMIT_EVENT_SPECS_SHA256 = (
-    "6dd6bf07baf3be257ba37df08e88b3e364a8be18024e4122edbf9e0f1ba3c3f3"
+    "d136d756ff34d0c4a351a2841ce336fbb6a4e4fdaad502da43bd3b03015c4b3d"
 )
 
 
@@ -12271,9 +13395,7 @@ def limit_event_profile(
     if profile is None:
         return None
     constants = profile.get("constants")
-    if not isinstance(constants, tuple) or field not in {
-        item[0] for item in constants
-    }:
+    if not isinstance(constants, tuple) or field not in {item[0] for item in constants}:
         return None
     return profile, field
 
@@ -12325,22 +13447,25 @@ def limit_event_expected_statements(spec: LimitEventSpec) -> tuple[str, ...]:
 def limit_event_source_problem(spec: LimitEventSpec) -> str | None:
     normalized = tuple(normalize_rust_tokens(statement) for statement in spec.source)
     if spec.source_kind == "unit":
-        if len(normalized) != 2 or normalized[-1] != "letone=1_u64;":
+        deltas = {delta for _field, _counter, _next, delta in spec.charges} | {
+            delta for _accumulator, _next, delta in spec.retains
+        }
+        if (
+            len(deltas) != 1
+            or re.fullmatch(RUST_IDENTIFIER, next(iter(deltas))) is None
+        ):
+            return "unit source does not have one exact governed delta binding"
+        delta = next(iter(deltas))
+        if len(normalized) != 2 or normalized[-1] != f"let{delta}=1_u64;":
             return "unit source is not one exact item plus one-unit delta"
-        if any(delta != "one" for _field, _counter, _next, delta in spec.charges):
-            return "unit source has a non-unit governed delta"
         if spec.identity == ("binding",):
-            wrap_verification = (
-                spec.site[2] == "verify_recovery_ancestries_with_limits"
-            )
+            wrap_verification = spec.site[2] == "verify_recovery_ancestries_with_limits"
             expected_sink = limit_recovery_binding_sink(
                 wrap_verification=wrap_verification,
             )
             if tuple(
                 normalize_rust_tokens(statement) for statement in spec.sink
-            ) != tuple(
-                normalize_rust_tokens(statement) for statement in expected_sink
-            ):
+            ) != tuple(normalize_rust_tokens(statement) for statement in expected_sink):
                 return "binding sink does not use its exact site-specific bridge"
     elif spec.source_kind == "batch_len":
         if normalized != (
@@ -12349,8 +13474,7 @@ def limit_event_source_problem(spec: LimitEventSpec) -> str | None:
         ):
             return "batch source is not the checked request-slice length"
         if any(
-            delta != "request_count"
-            for _field, _counter, _next, delta in spec.charges
+            delta != "request_count" for _field, _counter, _next, delta in spec.charges
         ):
             return "batch source has a non-length governed delta"
     elif spec.source_kind == "metadata_file":
@@ -12359,9 +13483,7 @@ def limit_event_source_problem(spec: LimitEventSpec) -> str | None:
             "verify_recovery_ancestries_with_limits",
         }
         if is_receipt_site:
-            wrap_verification = (
-                spec.site[2] == "verify_recovery_ancestries_with_limits"
-            )
+            wrap_verification = spec.site[2] == "verify_recovery_ancestries_with_limits"
             expected_source = limit_recovery_receipt_metadata_source(
                 wrap_verification=wrap_verification,
             )
@@ -12374,9 +13496,7 @@ def limit_event_source_problem(spec: LimitEventSpec) -> str | None:
             )
             if tuple(
                 normalize_rust_tokens(statement) for statement in spec.sink
-            ) != tuple(
-                normalize_rust_tokens(statement) for statement in expected_sink
-            ):
+            ) != tuple(normalize_rust_tokens(statement) for statement in expected_sink):
                 return "receipt sink does not use its exact site-specific bridge"
         else:
             if len(normalized) not in {4, 5}:
@@ -12400,9 +13520,7 @@ def limit_event_source_problem(spec: LimitEventSpec) -> str | None:
     elif spec.source_kind == "bounded_object":
         expected_source = limit_bounded_object_source(
             "next_object_id",
-            wrap_store_error=(
-                spec.site[2] == "verify_recovery_ancestries_with_limits"
-            ),
+            wrap_store_error=(spec.site[2] == "verify_recovery_ancestries_with_limits"),
         )
         if normalized != tuple(
             normalize_rust_tokens(statement) for statement in expected_source
@@ -12517,7 +13635,8 @@ def limit_event_metadata_problem(
             return f"{event_id} source kind differs"
         if (
             len(spec.site) != 3
-            or spec.site[0] not in {STORE_LIMIT_SOURCE, TXN_LIMIT_SOURCE, REF_LIMIT_SOURCE}
+            or spec.site[0]
+            not in {STORE_LIMIT_SOURCE, TXN_LIMIT_SOURCE, REF_LIMIT_SOURCE}
             or not spec.source
             or not spec.identity
             or not spec.charges
@@ -12555,7 +13674,8 @@ def limit_event_metadata_problem(
         ):
             return f"{event_id} repeats a charge or retention"
         if any(
-            token in code_only_normalized("\n".join(limit_event_expected_statements(spec)))
+            token
+            in code_only_normalized("\n".join(limit_event_expected_statements(spec)))
             for token in spec.bypass_tokens
         ):
             return f"{event_id} exact window contains a bypass token"
@@ -12577,6 +13697,25 @@ def limit_event_metadata_problem(
         return "limit field/event cardinalities are not exactly 37/42"
     if found_memberships != expected_memberships:
         return "limit field-event membership counter differs"
+    if tuple(LIMIT_FIELD_RUNTIME_OBSERVATIONS) != tuple(
+        dict.fromkeys(field_memberships)
+    ):
+        return "limit field runtime-observation order or coverage differs"
+    for qualified_field, observation in LIMIT_FIELD_RUNTIME_OBSERVATIONS.items():
+        if (
+            not isinstance(observation, tuple)
+            or len(observation) != 2
+            or observation[0] not in LIMIT_DEFAULTS
+            or observation[1] not in LIMIT_DEFAULTS[observation[0]]
+        ):
+            return f"{qualified_field} runtime observation is malformed"
+        profile = limit_event_profile(qualified_field)
+        if profile is None:
+            return f"{qualified_field} runtime observation is unbound"
+        owner = profile[0].get("path")
+        expected_owner = LIMIT_DEFAULTS[observation[0]][observation[1]][0]
+        if owner != expected_owner:
+            return f"{qualified_field} runtime observation owner differs"
 
     multi_charge_counts = {
         event_id: len(specs[event_id].charges)
@@ -12617,9 +13756,10 @@ def limit_event_metadata_problem(
     cached_fields = tuple(
         charge[0] for charge in specs["branch.cached_fact_use"].charges
     )
-    if any("::union." in field for field in cached_fields) or specs[
-        "branch.cached_fact_use"
-    ].retains:
+    if (
+        any("::union." in field for field in cached_fields)
+        or specs["branch.cached_fact_use"].retains
+    ):
         return "cached fact use charges union or republishes cache work"
     if (
         not isinstance(expected_digest, str)
@@ -12638,12 +13778,14 @@ def limit_event_window_problem(
     body = rust_named_function_raw_body(production, function, owner)
     if body is None:
         return f"cannot isolate limit event site {owner}::{function}"
+    if re.search(r"\bcfg\s*!\s*\(", rust_code_projection(body)):
+        return "limit event owner contains compile-time cfg! control"
     expected = limit_event_expected_statements(spec)
-    event_range = exact_statement_sequence_range(body, expected)
+    event_range = exact_lexical_statement_sequence_range(body, expected)
     if event_range is None:
         return "exact source/add/guard/commit/sink window is absent or repeated"
     window = body[event_range[0] : event_range[1]]
-    normalized_window = code_only_normalized(window)
+    normalized_window = normalize_limit_event_tokens(window)
     for token in spec.bypass_tokens:
         if token in normalized_window:
             return f"event window contains bypass token {token!r}"
@@ -12653,11 +13795,11 @@ def limit_event_window_problem(
             return f"unknown event field {qualified_field}"
         profile, field = resolved
         helper = profile["helper"]
-        checked = normalize_rust_tokens(
-            f"{counter}.checked_add({delta})"
+        checked = normalize_limit_event_tokens(f"{counter}.checked_add({delta})")
+        guard = normalize_limit_event_tokens(
+            f"{helper}({next_identifier},limits.{field})?"
         )
-        guard = normalize_rust_tokens(f"{helper}({next_identifier},limits.{field})?")
-        commit = normalize_rust_tokens(f"{counter}={next_identifier};")
+        commit = normalize_limit_event_tokens(f"{counter}={next_identifier};")
         if normalized_window.count(checked) != 1:
             return f"{qualified_field} lacks one checked-add of its trusted delta"
         if normalized_window.count(guard) != 1:
@@ -12679,6 +13821,1040 @@ def limit_sink_call_target(statement: str) -> str | None:
     return semantic_rust_identifier(match["callee"])
 
 
+LIMIT_BUILD_DIVERGENCE_PATTERNS = (
+    (
+        "debug assertion",
+        r"\bdebug_assert[A-Za-z0-9_]*\b",
+    ),
+    (
+        "panic profile observer",
+        r"\b(?:catch_unwind|AssertUnwindSafe)\b",
+    ),
+    (
+        "thread profile observer",
+        r"\b(?:thread|JoinHandle)\b",
+    ),
+    (
+        "compile environment observer",
+        r"\b(?:option_env|env)\b",
+    ),
+    (
+        "process observer",
+        r"\b(?:process|Command)\b",
+    ),
+)
+LIMIT_ALLOWED_PROCESS_ID_COUNTS = {
+    "crates/sley-store/src/lib.rs": 1,
+    "crates/sley-txn/src/repository.rs": 1,
+    "crates/sley-repo/src/refs.rs": 1,
+}
+LIMIT_ALLOWED_PROCESS_ID_PATTERN = r"(?:::)?std\s*::\s*process\s*::\s*id\s*\(\s*\)"
+LIMIT_AUTHORITY_OWNER_PACKAGE_ROOTS = (
+    "crates/sley-store",
+    "crates/sley-txn",
+    "crates/sley-repo",
+)
+LIMIT_ALLOWED_INNER_CFG_ATTRIBUTES = {
+    "crates/sley-policy/src/candidate_result.rs": (
+        """#![cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "crate-private encoder is reserved for validator-owned result construction"
+    )
+)]""",
+    ),
+}
+LIMIT_ALLOWED_DEBUG_ASSERTIONS = {
+    "crates/sley-policy/src/candidate_validation.rs": (
+        (
+            "implResultRenderer",
+            "pass",
+            "debug_assert_eq!(usize::try_from(phase).ok(), Some(self.passed.len() + 1));",
+        ),
+        (
+            "implResultRenderer",
+            "finish_failure",
+            """debug_assert_eq!(
+            usize::try_from(failure.phase).ok(),
+            Some(self.passed.len() + 1)
+        );""",
+        ),
+        (
+            "implResultRenderer",
+            "finish_valid",
+            "debug_assert_eq!(self.passed.len(), 13);",
+        ),
+    ),
+}
+LIMIT_ALLOWED_SHARED_STATE = {
+    "crates/sley-txn/src/repository.rs": {
+        "import": "use std::sync::atomic::{AtomicU64, Ordering};",
+        "declaration": "static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);",
+        "owner": "<crate>",
+        "function": "reserve_stage",
+        "signature": (
+            "fn reserve_stage(dir: &Path, prefix: &str) "
+            "-> Result<(PathBuf, File), CommitError>"
+        ),
+        "body": """
+ensure_existing_directory(dir)?;
+for _ in 0..MAX_STAGE_ATTEMPTS {
+    let token = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let name = format!("{prefix}{}-{token:016x}{STAGE_SUFFIX}", std::process::id());
+    let path = dir.join(name);
+    match OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(file) => return Ok((path, file)),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error.into()),
+    }
+}
+Err(txn_commit_error(TransactionErrorCode::Io))
+""",
+        "operation": ("let token = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);"),
+    },
+    "crates/sley-repo/src/refs.rs": {
+        "import": "use std::sync::atomic::{AtomicU64, Ordering};",
+        "declaration": "static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);",
+        "owner": "<crate>",
+        "function": "reserve_stage",
+        "signature": (
+            "fn reserve_stage(dir: &Path, prefix: &str) "
+            "-> Result<(PathBuf, File), BranchError>"
+        ),
+        "body": """
+ensure_existing_directory(dir)?;
+for _ in 0..MAX_STAGE_ATTEMPTS {
+    let token = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let name = format!("{prefix}{}-{token:016x}{STAGE_SUFFIX}", std::process::id());
+    let path = dir.join(name);
+    match OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(file) => return Ok((path, file)),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error.into()),
+    }
+}
+Err(branch_error(BranchErrorCode::RefIo))
+""",
+        "operation": ("let token = STAGE_COUNTER.fetch_add(1, Ordering::Relaxed);"),
+    },
+}
+LIMIT_ALLOWED_NORMAL_BUILD_MACRO_MANIFEST_SHA256 = {
+    "crates/sley-check/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+    "crates/sley-id/src/lib.rs": (
+        "f663c2bb54bcc669ef061c38893ee95b8d2f79fb7c005d339d318ea5d1b108c9"
+    ),
+    "crates/sley-mutate/src/codec.rs": (
+        "5424735be8f16685036bfd614e9eed9c833ee1839e0cac5dab5e530118764442"
+    ),
+    "crates/sley-mutate/src/lib.rs": (
+        "741caebd970ce709d203b42975da22960debabfa0a21f699febd45ed0eadff33"
+    ),
+    "crates/sley-mutate/src/value.rs": (
+        "05ab69051adeeb40ce7287519e51dbe59e4e23122f72ff9405dfaa8b05a9c8a8"
+    ),
+    "crates/sley-policy/src/candidate_result.rs": (
+        "f0fb18cf62b3118761e016503baf2092328adf9d9313863833920328e1f2863a"
+    ),
+    "crates/sley-policy/src/lib.rs": (
+        "96cedea56b2e9b67c5cc5470cead33ceb312554648c9c9691155b262682e7eaf"
+    ),
+    "crates/sley-repo/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+    "crates/sley-scb1/src/lib.rs": (
+        "7b919c5f8783b90b79d7b07cdf258bf011776fe111cc5f90bd7737aacc1bb822"
+    ),
+    "crates/sley-schema/src/lib.rs": (
+        "e90695a336cfbe949ccd1c92fb67551654e869ec50fc9aaac0c5f9e5f8b1aebb"
+    ),
+    "crates/sley-ssmc/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+    "crates/sley-state-root/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+    "crates/sley-store/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+    "crates/sley-txn/src/lib.rs": (
+        "09277b2169952bbbc95a65907ec9b5d68ed37743472991ed4b15935c7bfd4587"
+    ),
+}
+LIMIT_ALLOWED_FUNCTION_MACROS = frozenset(
+    {
+        "debug_assert_eq",
+        "format",
+        "matches",
+        "unreachable",
+        "vec",
+        "write",
+    }
+)
+LIMIT_ALLOWED_EVENT_OWNER_MACROS = frozenset(
+    {
+        "format",
+        "matches",
+        "vec",
+        "write",
+    }
+)
+LIMIT_ALLOWED_INERT_ATTRIBUTES = frozenset(
+    {
+        "cold",
+        "inline",
+        "inline(always)",
+        "inline(never)",
+        "must_use",
+        "non_exhaustive",
+        "track_caller",
+    }
+)
+LIMIT_SHARED_STATE_PATTERNS = (
+    (
+        "normal-build static",
+        r"(?<!['A-Za-z0-9_])static\b",
+    ),
+    (
+        "atomic authority",
+        r"\bAtomic[A-Za-z0-9_]*\b",
+    ),
+    (
+        "atomic operation",
+        r"\.\s*(?:load|store|swap|compare_exchange(?:_weak)?|fetch_[A-Za-z0-9_]*)\s*\(",
+    ),
+    (
+        "shared cell or lock authority",
+        r"\b(?:UnsafeCell|SyncUnsafeCell|Once|OnceLock|OnceCell|Barrier|LazyLock|LazyCell|Mutex|RwLock|Condvar|RefCell|Cell)\b",
+    ),
+    (
+        "thread-local authority",
+        r"\bthread_local\s*!",
+    ),
+    (
+        "stage-counter authority outside its exact declaration/use",
+        r"\bSTAGE_COUNTER\b",
+    ),
+)
+
+
+def mask_exact_source_fragments(
+    source: str,
+    fragments: tuple[str, ...],
+    *,
+    label: str,
+) -> str:
+    output = list(source)
+    occupied: list[tuple[int, int]] = []
+    for fragment in fragments:
+        starts = tuple(
+            match.start() for match in re.finditer(re.escape(fragment), source)
+        )
+        if len(starts) != 1:
+            fail(f"{label} exact fragment differs")
+        start = starts[0]
+        end = start + len(fragment)
+        if any(
+            start < prior_end and prior_start < end
+            for prior_start, prior_end in occupied
+        ):
+            fail(f"{label} exact fragments overlap")
+        occupied.append((start, end))
+        for index in range(start, end):
+            if output[index] != "\n":
+                output[index] = " "
+    return "".join(output)
+
+
+@functools.lru_cache(maxsize=1)
+def limit_local_dependency_package_roots() -> tuple[str, ...]:
+    queue = [ROOT / relative for relative in LIMIT_AUTHORITY_OWNER_PACKAGE_ROOTS]
+    visited: set[Path] = set()
+    while queue:
+        package_root = queue.pop()
+        try:
+            package_root = package_root.resolve(strict=True)
+            package_root.relative_to(ROOT / "crates")
+        except (OSError, ValueError) as error:
+            fail(f"limit-authority dependency root escapes the workspace: {error}")
+        if package_root in visited:
+            continue
+        manifest_path = package_root / "Cargo.toml"
+        try:
+            manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as error:
+            fail(f"cannot load limit-authority dependency manifest: {error}")
+        package = manifest.get("package")
+        if not isinstance(package, dict) or not isinstance(package.get("name"), str):
+            fail("limit-authority dependency package identity differs")
+        if (
+            package.get("build") not in {None, False}
+            or (package_root / "build.rs").exists()
+        ):
+            fail(
+                "limit-authority local dependency has build-script authority: "
+                f"{package_root.relative_to(ROOT)}"
+            )
+        library = manifest.get("lib", {})
+        if not isinstance(library, dict) or library.get("proc-macro") is True:
+            fail(
+                "limit-authority local dependency has procedural-macro authority: "
+                f"{package_root.relative_to(ROOT)}"
+            )
+        dependency_tables: list[object] = [manifest.get("dependencies", {})]
+        targets = manifest.get("target", {})
+        if not isinstance(targets, dict):
+            fail("limit-authority target dependency table differs")
+        for target in targets.values():
+            if not isinstance(target, dict):
+                fail("limit-authority target dependency entry differs")
+            dependency_tables.append(target.get("dependencies", {}))
+        for dependencies in dependency_tables:
+            if not isinstance(dependencies, dict):
+                fail("limit-authority dependency table differs")
+            for dependency in dependencies.values():
+                if not isinstance(dependency, dict) or "path" not in dependency:
+                    continue
+                relative_dependency = dependency.get("path")
+                if not isinstance(relative_dependency, str):
+                    fail("limit-authority local dependency path differs")
+                queue.append(package_root / relative_dependency)
+        visited.add(package_root)
+    return tuple(sorted(str(path.relative_to(ROOT)) for path in visited))
+
+
+def limit_normal_build_source(relative: str, source: str) -> str:
+    allowed_inner = LIMIT_ALLOWED_INNER_CFG_ATTRIBUTES.get(relative, ())
+    if allowed_inner:
+        source = mask_exact_source_fragments(
+            source,
+            allowed_inner,
+            label=f"{relative} allowed inner cfg attribute",
+        )
+    return normal_build_source(source)
+
+
+def limit_external_module_names(source: str) -> tuple[str, ...]:
+    projected = rust_code_projection(source)
+    if re.search(r"#\s*\[\s*path\s*=", projected):
+        fail("limit-authority source has custom module-path authority")
+    names: list[str] = []
+    for match in re.finditer(
+        rf"\b(?:pub(?:\([^)]*\))?\s+)?mod\s+(?P<name>{RUST_IDENTIFIER})\s*;",
+        projected,
+    ):
+        if delimiter_depth_at(projected, match.start()) != (0, 0, 0):
+            fail("limit-authority source has a nested external module")
+        names.append(semantic_rust_identifier(match["name"]))
+    return tuple(names)
+
+
+@functools.lru_cache(maxsize=1)
+def limit_production_source_paths() -> tuple[str, ...]:
+    sources: set[Path] = set()
+    queue: list[tuple[Path, Path]] = []
+    for relative_root in limit_local_dependency_package_roots():
+        package_root = ROOT / relative_root
+        manifest = tomllib.loads(
+            (package_root / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        library = manifest.get("lib", {})
+        library_path = library.get("path", "src/lib.rs")
+        if not isinstance(library_path, str):
+            fail("limit-authority library path differs")
+        queue.append((package_root, package_root / library_path))
+    while queue:
+        package_root, path = queue.pop()
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(package_root)
+            metadata = resolved.lstat()
+        except (OSError, ValueError) as error:
+            fail(f"limit-authority production source escapes its package: {error}")
+        if not stat.S_ISREG(metadata.st_mode):
+            fail("limit-authority production source is not a regular file")
+        if resolved in sources:
+            continue
+        relative = str(resolved.relative_to(ROOT))
+        try:
+            source = resolved.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            fail(f"cannot read limit-authority production source {relative}: {error}")
+        normal = limit_normal_build_source(relative, source)
+        if resolved.name in {"lib.rs", "main.rs", "mod.rs"}:
+            module_root = resolved.parent
+        else:
+            module_root = resolved.parent / resolved.stem
+        for name in limit_external_module_names(normal):
+            candidates = (
+                module_root / f"{name}.rs",
+                module_root / name / "mod.rs",
+            )
+            present = tuple(candidate for candidate in candidates if candidate.exists())
+            if len(present) != 1:
+                fail(
+                    f"limit-authority external module resolution differs: {relative}::{name}"
+                )
+            queue.append((package_root, present[0]))
+        projected = rust_code_projection(normal)
+        code_mask = rust_code_mask(normal)
+        include_matches = tuple(
+            match
+            for match in re.finditer(
+                r'\binclude\s*!\s*\(\s*"(?P<path>[^"\\]+)"\s*\)\s*;', normal
+            )
+            if code_mask[match.start()]
+        )
+        if len(include_matches) != len(tuple(re.finditer(r"\binclude\s*!", projected))):
+            fail("limit-authority source has non-literal include authority")
+        for include_match in include_matches:
+            queue.append((package_root, resolved.parent / include_match["path"]))
+        sources.add(resolved)
+    return tuple(sorted(str(path.relative_to(ROOT)) for path in sources))
+
+
+def mask_limit_allowed_debug_assertions(relative: str, source: str) -> str:
+    records = LIMIT_ALLOWED_DEBUG_ASSERTIONS.get(relative, ())
+    if not records or re.search(r"\bdebug_assert[A-Za-z0-9_]*\b", source) is None:
+        return source
+    fragments: list[str] = []
+    for owner, function, fragment in records:
+        body = rust_named_function_raw_body(source, function, owner)
+        if body is None or body.count(fragment) != 1:
+            fail(f"{relative} allowed debug assertion moved or differs")
+        fragments.append(fragment)
+    return mask_exact_source_fragments(
+        source,
+        tuple(fragments),
+        label=f"{relative} allowed debug assertion",
+    )
+
+
+def mask_limit_allowed_shared_state(relative: str, source: str) -> str:
+    ranges = limit_allowed_shared_state_ranges(relative, source)
+    if not ranges:
+        return source
+    output = list(source)
+    for _kind, _fragment, start, end in ranges:
+        for index in range(start, end):
+            if output[index] != "\n":
+                output[index] = " "
+    return "".join(output)
+
+
+def limit_allowed_shared_state_ranges(
+    relative: str,
+    source: str,
+) -> tuple[tuple[str, str, int, int], ...]:
+    record = LIMIT_ALLOWED_SHARED_STATE.get(relative)
+    if record is None:
+        return ()
+    owner = record["owner"]
+    function = record["function"]
+    signature = record["signature"]
+    expected_body = record["body"]
+    operation = record["operation"]
+    if not all(isinstance(value, str) for value in record.values()):
+        raise ValueError("checker allowed shared-state metadata differs")
+    projected = rust_code_projection(source)
+    code_mask = rust_code_mask(source)
+
+    def exact_unattributed_top_level_item(
+        kind: str,
+        fragment: str,
+    ) -> tuple[str, str, int, int]:
+        starts = tuple(
+            match.start() for match in re.finditer(re.escape(fragment), source)
+        )
+        if len(starts) != 1:
+            raise ValueError(f"{relative} allowed stage-counter {kind} differs")
+        start = starts[0]
+        end = start + len(fragment)
+        if (
+            projected[start:end] != rust_code_projection(fragment)
+            or delimiter_depth_at(projected, start) != (0, 0, 0)
+            or has_preceding_code_attribute(source, code_mask, start)
+        ):
+            raise ValueError(
+                f"{relative} allowed stage-counter {kind} is not one exact "
+                "unattributed top-level item"
+            )
+        cursor = start - 1
+        while cursor >= 0 and projected[cursor].isspace():
+            cursor -= 1
+        if cursor >= 0 and projected[cursor] not in ";}":
+            raise ValueError(f"{relative} allowed stage-counter {kind} has a qualifier")
+        return kind, fragment, start, end
+
+    item_ranges = (
+        exact_unattributed_top_level_item("import", record["import"]),
+        exact_unattributed_top_level_item("declaration", record["declaration"]),
+    )
+    signatures = rust_direct_function_signature(source, function, "private")
+    if len(signatures) != 1 or normalize_rust_tokens(signatures[0]) != (
+        normalize_rust_tokens(signature)
+    ):
+        raise ValueError(f"{relative} stage-counter owner signature differs")
+    function_matches = tuple(
+        match
+        for match in re.finditer(
+            rf"(?m)^[ \t]*fn[ \t]+{re.escape(function)}\s*\(",
+            projected,
+        )
+        if delimiter_depth_at(projected, match.start()) == (0, 0, 0)
+    )
+    if len(function_matches) != 1 or has_preceding_code_attribute(
+        source,
+        code_mask,
+        function_matches[0].start(),
+    ):
+        raise ValueError(
+            f"{relative} stage-counter owner is not one exact unattributed "
+            "private function"
+        )
+    body = rust_named_function_raw_body(source, function, owner)
+    if body is None or normalize_rust_tokens(body) != normalize_rust_tokens(
+        expected_body
+    ):
+        raise ValueError(f"{relative} stage-counter owner body moved or differs")
+    if len(tuple(re.finditer(r"\bSTAGE_COUNTER\b", projected))) != 2:
+        raise ValueError(f"{relative} stage-counter reference inventory differs")
+    operation_starts = tuple(
+        match.start() for match in re.finditer(re.escape(operation), source)
+    )
+    if len(operation_starts) != 1:
+        raise ValueError(f"{relative} stage-counter operation differs")
+    operation_start = operation_starts[0]
+    operation_end = operation_start + len(operation)
+    function_start = function_matches[0].start()
+    function_opening = public_function_signature_end(projected, function_start)
+    if function_opening is None or projected[function_opening] != "{":
+        raise ValueError(f"{relative} stage-counter owner extent differs")
+    function_closing = matching_delimiter(
+        projected,
+        [True] * len(projected),
+        function_opening,
+        "{",
+        "}",
+    )
+    if (
+        function_closing is None
+        or not (function_opening < operation_start < operation_end < function_closing)
+        or delimiter_depth_at(
+            projected[function_opening + 1 : function_closing],
+            operation_start - function_opening - 1,
+        )
+        != (0, 0, 1)
+    ):
+        raise ValueError(
+            f"{relative} stage-counter operation is not the exact loop statement"
+        )
+    return (
+        *item_ranges,
+        ("operation", operation, operation_start, operation_end),
+    )
+
+
+def limit_macro_delimiter_extent(
+    relative: str,
+    projected: str,
+    opening: int,
+) -> int:
+    delimiter = projected[opening]
+    closing_delimiter = {"(": ")", "[": "]", "{": "}"}[delimiter]
+    closing = matching_delimiter(
+        projected,
+        [True] * len(projected),
+        opening,
+        delimiter,
+        closing_delimiter,
+    )
+    if closing is None:
+        raise ValueError(f"{relative} macro authority has an unclosed delimiter")
+    end = closing + 1
+    while end < len(projected) and projected[end].isspace():
+        end += 1
+    if end < len(projected) and projected[end] == ";":
+        end += 1
+    return end
+
+
+def limit_normal_build_macro_definition_ranges(
+    relative: str,
+    projected: str,
+) -> tuple[tuple[str, int, int], ...]:
+    ranges: list[tuple[str, int, int]] = []
+    for match in re.finditer(
+        rf"\bmacro_rules\s*!\s*(?P<name>{RUST_IDENTIFIER})\s*(?P<opening>[({{\[])",
+        projected,
+    ):
+        end = limit_macro_delimiter_extent(
+            relative,
+            projected,
+            match.start("opening"),
+        )
+        ranges.append(
+            (
+                semantic_rust_identifier(match["name"]),
+                match.start(),
+                end,
+            )
+        )
+    return tuple(ranges)
+
+
+def limit_function_macro_entries(
+    relative: str,
+    source: str,
+    projected: str,
+    function_ranges: tuple[tuple[int, int], ...],
+    definition_ranges: tuple[tuple[str, int, int], ...],
+) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    invocation_pattern = re.compile(
+        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*)"
+        r"\s*!\s*(?P<opening>[({\[])"
+    )
+    for match in invocation_pattern.finditer(projected):
+        if not any(start <= match.start() < end for start, end in function_ranges):
+            continue
+        if any(start <= match.start() < end for _name, start, end in definition_ranges):
+            continue
+        path = normalize_rust_tokens(match["path"])
+        name = semantic_rust_identifier(path.split("::")[-1])
+        if name in LIMIT_CONTROL_AUTHORITY_KEYWORDS:
+            continue
+        end = limit_macro_delimiter_extent(
+            relative,
+            projected,
+            match.start("opening"),
+        )
+        fragment = source[match.start() : end]
+        classification = (
+            "ALLOWED_BUILTIN_FUNCTION_MACRO"
+            if path == name and name in LIMIT_ALLOWED_FUNCTION_MACROS
+            else "UNAPPROVED_FUNCTION_MACRO"
+        )
+        entries.append(
+            {
+                "path": path,
+                "name": name,
+                "classification": classification,
+                "normalized_sha256": hashlib.sha256(
+                    normalize_rust_tokens(fragment).encode("utf-8")
+                ).hexdigest(),
+                "source_sha256": hashlib.sha256(fragment.encode("utf-8")).hexdigest(),
+                "byte_start": match.start(),
+                "line": source.count("\n", 0, match.start()) + 1,
+            }
+        )
+    return entries
+
+
+def limit_normal_build_function_macro_authority_manifest(
+    relative: str,
+    source: str,
+) -> dict[str, object]:
+    normal = limit_normal_build_source(relative, source)
+    projected = rust_code_projection(normal)
+    definition_ranges = limit_normal_build_macro_definition_ranges(
+        relative,
+        projected,
+    )
+    entries = limit_function_macro_entries(
+        relative,
+        normal,
+        projected,
+        rust_function_body_ranges(projected),
+        definition_ranges,
+    )
+    imported_macro_names = sorted(
+        {
+            name
+            for name, _path in limit_control_all_use_bindings(relative, source)
+            if semantic_rust_identifier(name) in LIMIT_ALLOWED_FUNCTION_MACROS
+        }
+    )
+    return {
+        "entries": entries,
+        "imported_macro_names": imported_macro_names,
+        "manifest_sha256": canonical_json_sha256(
+            {
+                "entries": entries,
+                "imported_macro_names": imported_macro_names,
+            }
+        ),
+    }
+
+
+def limit_attribute_classification(normalized: str) -> str:
+    if normalized.startswith("derive(") and normalized.endswith(")"):
+        derives = tuple(
+            item for item in normalized[len("derive(") : -1].split(",") if item
+        )
+        if derives and all(item in BUILTIN_DERIVES for item in derives):
+            return "INERT_BUILTIN_ATTRIBUTE"
+        return "UNAPPROVED_PROCEDURAL_ATTRIBUTE"
+    if normalized in LIMIT_ALLOWED_INERT_ATTRIBUTES:
+        return "INERT_BUILTIN_ATTRIBUTE"
+    if re.fullmatch(
+        r"(?:allow|deny|forbid|warn)\("
+        r"[A-Za-z0-9_:]+(?:,[A-Za-z0-9_:]+)*(?:,reason=)?\)",
+        normalized,
+    ):
+        return "INERT_BUILTIN_ATTRIBUTE"
+    if normalized.startswith("repr(") and normalized.endswith(")"):
+        representations = tuple(
+            item for item in normalized[len("repr(") : -1].split(",") if item
+        )
+        if representations and all(
+            re.fullmatch(
+                r"(?:C|transparent|u8|u16|u32|u64|u128|usize|"
+                r"i8|i16|i32|i64|i128|isize|align\([0-9]+\)|"
+                r"packed(?:\([0-9]+\))?)",
+                item,
+            )
+            for item in representations
+        ):
+            return "INERT_BUILTIN_ATTRIBUTE"
+    if normalized == "doc=include_str!()":
+        return "INERT_BUILTIN_ATTRIBUTE"
+    return "UNAPPROVED_PROCEDURAL_ATTRIBUTE"
+
+
+def limit_normal_build_attribute_authority_manifest(
+    relative: str,
+    source: str,
+) -> dict[str, object]:
+    normal = limit_normal_build_source(relative, source)
+    projected = rust_code_projection(normal)
+    definition_ranges = limit_normal_build_macro_definition_ranges(
+        relative,
+        projected,
+    )
+    entries: list[dict[str, object]] = []
+    for match in re.finditer(r"#\s*!?\s*\[", projected):
+        if any(start <= match.start() < end for _name, start, end in definition_ranges):
+            continue
+        attribute = rust_attribute_end(projected, match.start())
+        if attribute is None:
+            raise ValueError(f"{relative} has an unterminated Rust attribute")
+        end, normalized = attribute
+        fragment = normal[match.start() : end]
+        entries.append(
+            {
+                "normalized": normalized,
+                "classification": limit_attribute_classification(normalized),
+                "normalized_sha256": hashlib.sha256(
+                    normalized.encode("utf-8")
+                ).hexdigest(),
+                "source_sha256": hashlib.sha256(fragment.encode("utf-8")).hexdigest(),
+                "byte_start": match.start(),
+                "line": normal.count("\n", 0, match.start()) + 1,
+            }
+        )
+    return {
+        "entries": entries,
+        "manifest_sha256": canonical_json_sha256(entries),
+    }
+
+
+def limit_function_declaration_start(projected: str, function_start: int) -> int:
+    qualifiers = re.search(
+        r"(?:(?:pub(?:\([^)]*\))?|const|async|unsafe|safe|default|"
+        r"extern(?:\s+\"[^\"]+\")?)\s+)+$",
+        projected[:function_start],
+    )
+    return qualifiers.start() if qualifiers is not None else function_start
+
+
+def limit_function_attribute_chain(
+    source: str,
+    projected: str,
+    function_start: int,
+) -> str:
+    declaration_start = limit_function_declaration_start(projected, function_start)
+    starts: list[int] = []
+    for match in re.finditer(r"#\s*!?\s*\[", projected):
+        attribute = rust_attribute_end(projected, match.start())
+        if attribute is None:
+            continue
+        end, _normalized = attribute
+        if rust_attribute_chain_target(projected, end) == declaration_start:
+            starts.append(match.start())
+    return source[min(starts) : declaration_start] if starts else ""
+
+
+def limit_named_function_attribute_chain(
+    source: str,
+    function: str,
+    owner: str,
+) -> str | None:
+    projected = rust_code_projection(source)
+    owner_ranges = rust_owner_ranges(source, projected)
+    matches = tuple(
+        match
+        for match in re.finditer(
+            rf"\bfn\s+(?:r#)?{re.escape(function)}\b",
+            projected,
+        )
+        if rust_owner_chain(owner_ranges, match.start()) == owner
+        and public_function_signature_end(projected, match.start()) is not None
+    )
+    if len(matches) != 1:
+        return None
+    return limit_function_attribute_chain(source, projected, matches[0].start())
+
+
+def limit_event_owner_function_macro_manifest(
+    relative: str,
+    body: str,
+) -> list[dict[str, object]]:
+    projected = rust_code_projection(body)
+    definition_ranges = limit_normal_build_macro_definition_ranges(
+        relative,
+        projected,
+    )
+    entries = limit_function_macro_entries(
+        relative,
+        body,
+        projected,
+        ((0, len(projected)),),
+        definition_ranges,
+    )
+    for entry in entries:
+        entry["event_owner_classification"] = (
+            "ALLOWED_EVENT_OWNER_MACRO"
+            if entry.get("path") == entry.get("name")
+            and entry.get("name") in LIMIT_ALLOWED_EVENT_OWNER_MACROS
+            else "UNAPPROVED_EVENT_OWNER_MACRO"
+        )
+    return entries
+
+
+def limit_normal_build_macro_authority_manifest(
+    relative: str,
+    source: str,
+) -> dict[str, object]:
+    normal = limit_normal_build_source(relative, source)
+    projected = rust_code_projection(normal)
+    function_ranges = rust_function_body_ranges(projected)
+    entries: list[dict[str, str]] = []
+    definitions = limit_normal_build_macro_definition_ranges(relative, projected)
+    definition_ranges = [(start, end) for _name, start, end in definitions]
+
+    for name, start, end in definitions:
+        fragment = normal[start:end]
+        entries.append(
+            {
+                "kind": "MACRO_RULES_DEFINITION",
+                "name": name,
+                "normalized_sha256": hashlib.sha256(
+                    normalize_rust_tokens(fragment).encode("utf-8")
+                ).hexdigest(),
+                "source_sha256": hashlib.sha256(fragment.encode("utf-8")).hexdigest(),
+            }
+        )
+
+    invocation_pattern = re.compile(
+        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*)"
+        r"\s*!\s*(?P<opening>[({\[])"
+    )
+    for match in invocation_pattern.finditer(projected):
+        if any(start <= match.start() < end for start, end in definition_ranges):
+            continue
+        if any(start <= match.start() < end for start, end in function_ranges):
+            continue
+        opening = match.start("opening")
+        end = limit_macro_delimiter_extent(relative, projected, opening)
+        fragment = normal[match.start() : end]
+        entries.append(
+            {
+                "kind": "ITEM_SCOPE_MACRO_INVOCATION",
+                "name": normalize_rust_tokens(match["path"]),
+                "normalized_sha256": hashlib.sha256(
+                    normalize_rust_tokens(fragment).encode("utf-8")
+                ).hexdigest(),
+                "source_sha256": hashlib.sha256(fragment.encode("utf-8")).hexdigest(),
+            }
+        )
+    manifest_sha256 = canonical_json_sha256(entries)
+    return {
+        "entries": entries,
+        "manifest_sha256": manifest_sha256,
+    }
+
+
+def limit_shared_state_source_manifest(
+    relative: str,
+    source: str,
+) -> dict[str, object]:
+    normal = limit_normal_build_source(relative, source)
+    projected = rust_code_projection(normal)
+    allowed_ranges = limit_allowed_shared_state_ranges(relative, source)
+    occurrences: list[dict[str, object]] = []
+    for label, pattern in LIMIT_SHARED_STATE_PATTERNS:
+        for match in re.finditer(pattern, projected):
+            authorities = [
+                (kind, fragment)
+                for kind, fragment, start, end in allowed_ranges
+                if start <= match.start() and match.end() <= end
+            ]
+            if len(authorities) > 1:
+                raise ValueError(
+                    f"{relative} shared-state occurrence has ambiguous authority"
+                )
+            if authorities:
+                kind, fragment = authorities[0]
+                classification = "ALLOWED_STAGE_COUNTER_CHANNEL"
+                authority = kind
+                authority_sha256 = hashlib.sha256(fragment.encode("utf-8")).hexdigest()
+            else:
+                classification = "UNAPPROVED_SHARED_STATE"
+                authority = "NONE"
+                authority_sha256 = hashlib.sha256(b"NONE").hexdigest()
+            token = match.group(0)
+            occurrences.append(
+                {
+                    "label": label,
+                    "token": normalize_rust_tokens(token),
+                    "token_sha256": hashlib.sha256(token.encode("utf-8")).hexdigest(),
+                    "byte_start": match.start(),
+                    "byte_end": match.end(),
+                    "line": normal.count("\n", 0, match.start()) + 1,
+                    "classification": classification,
+                    "authority": authority,
+                    "authority_sha256": authority_sha256,
+                }
+            )
+    occurrences.sort(
+        key=lambda item: (
+            item["byte_start"],
+            item["byte_end"],
+            item["label"],
+        )
+    )
+    return {
+        "source": relative,
+        "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+        "normal_build_sha256": hashlib.sha256(normal.encode("utf-8")).hexdigest(),
+        "normal_build_macro_authority": (
+            limit_normal_build_macro_authority_manifest(relative, source)
+        ),
+        "normal_build_function_macro_authority": (
+            limit_normal_build_function_macro_authority_manifest(relative, source)
+        ),
+        "normal_build_attribute_authority": (
+            limit_normal_build_attribute_authority_manifest(relative, source)
+        ),
+        "occurrences": occurrences,
+    }
+
+
+def limit_compile_time_authority_problem(sources: object) -> str | None:
+    if not isinstance(sources, dict) or any(
+        not isinstance(relative, str) or not isinstance(source, str)
+        for relative, source in sources.items()
+    ):
+        return "limit compile-time production sources differ"
+    expected_paths = limit_production_source_paths()
+    if tuple(sorted(sources)) != expected_paths:
+        return "limit compile-time production source inventory differs"
+    for relative in expected_paths:
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            return f"limit compile-time source is absent: {relative}"
+        normal = limit_normal_build_source(relative, source)
+        projected = rust_code_projection(normal)
+        if not projected.isascii():
+            return f"{relative} retains non-ASCII normal-build code authority"
+        if re.search(r"\bextern\s+crate\b", projected):
+            return f"{relative} retains forbidden extern-crate authority"
+    if problem := limit_control_external_use_authority_problem(sources):
+        return problem
+    for relative in expected_paths:
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            return f"limit compile-time source is absent: {relative}"
+        try:
+            shared_state = limit_shared_state_source_manifest(relative, source)
+        except ValueError as error:
+            return str(error)
+        for occurrence in shared_state["occurrences"]:
+            if occurrence["classification"] == "UNAPPROVED_SHARED_STATE":
+                return f"{relative} retains {occurrence['label']}"
+        macro_authority = shared_state.get("normal_build_macro_authority")
+        if not isinstance(macro_authority, dict):
+            return f"{relative} normal-build module/item macro manifest differs"
+        macro_entries = macro_authority.get("entries")
+        macro_digest = macro_authority.get("manifest_sha256")
+        if macro_entries:
+            expected_macro_digest = (
+                LIMIT_ALLOWED_NORMAL_BUILD_MACRO_MANIFEST_SHA256.get(relative)
+            )
+            if macro_digest != expected_macro_digest:
+                return f"{relative} normal-build module/item macro authority differs"
+        function_macro_authority = shared_state.get(
+            "normal_build_function_macro_authority"
+        )
+        if not isinstance(function_macro_authority, dict):
+            return f"{relative} normal-build function macro manifest differs"
+        if function_macro_authority.get("imported_macro_names") != []:
+            return f"{relative} imports or shadows a trusted function macro"
+        function_macro_entries = function_macro_authority.get("entries")
+        if not isinstance(function_macro_entries, list):
+            return f"{relative} normal-build function macro inventory differs"
+        for entry in function_macro_entries:
+            if (
+                not isinstance(entry, dict)
+                or entry.get("classification") != "ALLOWED_BUILTIN_FUNCTION_MACRO"
+            ):
+                return f"{relative} retains an unapproved function macro"
+        attribute_authority = shared_state.get("normal_build_attribute_authority")
+        if not isinstance(attribute_authority, dict):
+            return f"{relative} normal-build attribute manifest differs"
+        attribute_entries = attribute_authority.get("entries")
+        if not isinstance(attribute_entries, list):
+            return f"{relative} normal-build attribute inventory differs"
+        for entry in attribute_entries:
+            if (
+                not isinstance(entry, dict)
+                or entry.get("classification") != "INERT_BUILTIN_ATTRIBUTE"
+            ):
+                return f"{relative} retains a procedural or unbound attribute"
+        normal = limit_normal_build_source(relative, source)
+        normal = mask_limit_allowed_debug_assertions(relative, normal)
+        projected = rust_code_projection(normal)
+        if re.search(rf"\bmacro\s+{RUST_IDENTIFIER}\b", projected):
+            return f"{relative} retains unsupported declarative macro authority"
+        process_id_matches = tuple(
+            re.finditer(LIMIT_ALLOWED_PROCESS_ID_PATTERN, projected)
+        )
+        expected_process_ids = LIMIT_ALLOWED_PROCESS_ID_COUNTS.get(relative, 0)
+        if len(process_id_matches) != expected_process_ids:
+            return f"{relative} direct process-id authority differs"
+        semantic_output = list(projected)
+        for match in process_id_matches:
+            for index in range(match.start(), match.end()):
+                if semantic_output[index] != "\n":
+                    semantic_output[index] = " "
+        semantic_projected = "".join(semantic_output)
+        if re.search(r"\bcfg\s*!\s*\(", projected):
+            return f"{relative} retains cfg! compile-time limit authority"
+        if re.search(r"\b(?:core|std)\s*::\s*cfg\b", projected):
+            return f"{relative} retains cfg macro import authority"
+        for match in re.finditer(r"#\s*\[", projected):
+            attribute = rust_attribute_end(projected, match.start())
+            if attribute is not None and attribute[1].startswith(("cfg(", "cfg_attr(")):
+                return f"{relative} retains cfg/cfg_attr limit authority"
+        for label, pattern in LIMIT_BUILD_DIVERGENCE_PATTERNS:
+            if re.search(pattern, semantic_projected):
+                return f"{relative} retains {label}"
+    return None
+
+
 def limit_events_problem(sources: object) -> str | None:
     if problem := limit_event_metadata_problem():
         return f"limit event metadata differs: {problem}"
@@ -12687,6 +14863,8 @@ def limit_events_problem(sources: object) -> str | None:
         for relative, source in sources.items()
     ):
         return "limit event production sources differ"
+    if problem := limit_compile_time_authority_problem(sources):
+        return problem
     ranges_by_site: dict[tuple[str, str, str], list[tuple[int, int]]] = {}
     bodies_by_site: dict[tuple[str, str, str], str] = {}
     for event_id, spec in LIMIT_EVENT_SPECS.items():
@@ -12703,7 +14881,7 @@ def limit_events_problem(sources: object) -> str | None:
         )
         if body is None:
             return f"{event_id} limit event site disappeared after validation"
-        event_range = exact_statement_sequence_range(
+        event_range = exact_lexical_statement_sequence_range(
             body, limit_event_expected_statements(spec)
         )
         if event_range is None:
@@ -12764,9 +14942,7 @@ def limit_events_problem(sources: object) -> str | None:
         if normalized.count(f"{counter}=") != (
             expected_commits + expected_initializers
         ):
-            return (
-                f"{site[0]}::{site[2]} counter {counter} has an ungoverned write"
-            )
+            return f"{site[0]}::{site[2]} counter {counter} has an ungoverned write"
     for (site, target), expected_count in sinks.items():
         normalized = normalize_rust_tokens(bodies_by_site[site])
         if normalized.count(f"{target}(") != expected_count:
@@ -12779,9 +14955,11 @@ def limit_events_problem(sources: object) -> str | None:
         for token in LIMIT_EVENT_BYPASS_TOKENS:
             if token in normalized:
                 return (
-                    f"{site[0]}::{site[2]} contains global limit bypass token "
-                    f"{token!r}"
+                    f"{site[0]}::{site[2]} contains global limit bypass token {token!r}"
                 )
+    control_ancestries = limit_event_control_ancestry_manifest(sources)
+    if problem := limit_event_control_ancestry_problem(control_ancestries):
+        return problem
     return None
 
 
@@ -12963,10 +15141,9 @@ def recovery_provenance_metadata_problem(
         ):
             return f"{case_id!r} recovery required facts/order differ"
         rendered_assertions = recovery_provenance_fact_assertions(case_id, spec)
-        if (
-            tuple(rendered_assertions) != spec.required_facts
-            or len(set(rendered_assertions.values())) != len(rendered_assertions)
-        ):
+        if tuple(rendered_assertions) != spec.required_facts or len(
+            set(rendered_assertions.values())
+        ) != len(rendered_assertions):
             return f"{case_id!r} recovery fact assertion rendering differs"
         for fact, assertion in rendered_assertions.items():
             if ASSERTION_MACRO.match(assertion) is None:
@@ -13238,7 +15415,9 @@ def corruption_fixture_metadata_problem(
             "identity_recipe",
             "distinct_from_roles",
         }:
-            return f"target/origin fixture copies differ outside role binding: {selector}"
+            return (
+                f"target/origin fixture copies differ outside role binding: {selector}"
+            )
         if (
             target.identity_recipe != "decoded_ref_head_transaction_id"
             or origin.identity_recipe != "decoded_origin_transaction_id"
@@ -13247,9 +15426,7 @@ def corruption_fixture_metadata_problem(
         ):
             return f"target/origin role bindings differ: {selector}"
         for spec in (target, origin):
-            if not set(VISIBLE_REVISION_BRANCH_FACTS).issubset(
-                spec.required_facts
-            ):
+            if not set(VISIBLE_REVISION_BRANCH_FACTS).issubset(spec.required_facts):
                 return f"branch role-distinction facts are absent: {selector}"
             if spec.corrupter_class.startswith("object_") and not set(
                 VISIBLE_REVISION_BRANCH_OBJECT_FACTS
@@ -13290,9 +15467,7 @@ def corruption_fixture_metadata_problem(
         "production_traversal_core",
     }.issubset(ref_specs["branch_resource_limit"].required_facts):
         return "logical resource-limit plan lacks N/N+1 budget/core facts"
-    origin_topology_facts = set(
-        ref_specs["branch_origin_mismatch"].required_facts
-    )
+    origin_topology_facts = set(ref_specs["branch_origin_mismatch"].required_facts)
     for role in ("origin", "head"):
         for claim in (
             "transaction_id",
@@ -13331,7 +15506,9 @@ def corruption_fixture_plan_render_problem(
         return "fixture assertions are not unique"
     if not rendered.statements:
         return "fixture plan contains no statements"
-    expected_first = f"let fixture = Fixture::new({json.dumps(corruption_fixture_label(key))});"
+    expected_first = (
+        f"let fixture = Fixture::new({json.dumps(corruption_fixture_label(key))});"
+    )
     if normalize_rust_tokens(rendered.statements[0]) != normalize_rust_tokens(
         expected_first
     ):
@@ -13394,7 +15571,9 @@ def corruption_fixture_plan_metadata_problem() -> str | None:
         ):
             return f"{key!r} {problem}"
         plan_digests.append(digest)
-        helper_roots.update((spec.owner_source, helper) for helper in rendered.helper_ids)
+        helper_roots.update(
+            (spec.owner_source, helper) for helper in rendered.helper_ids
+        )
     if len(plan_digests) != 235 or len(set(plan_digests)) != 235:
         return "corruption fixture plan digests are not exactly 235 unique values"
     if len(helper_roots) != 77:
@@ -13475,10 +15654,7 @@ def error_authority_problem(authority: object) -> str | None:
 def fault_overlay_problem(overlay: object) -> str | None:
     if not isinstance(overlay, FaultOverlay):
         return "is not typed FaultOverlay"
-    if any(
-        not isinstance(value, str) or not value
-        for value in overlay[:-1]
-    ):
+    if any(not isinstance(value, str) or not value for value in overlay[:-1]):
         return "contains an empty closed identifier"
     if (
         not overlay.required_facts
@@ -13628,7 +15804,9 @@ def multifault_overlay_metadata_problem(
                 base.probe_class,
             ):
                 return f"{key!r} {label} does not bind its exact grouped fixture"
-    if MULTIFAULT_CASES != frozenset((row, subcase) for row, subcase, _ in expected_keys[:9]):
+    if MULTIFAULT_CASES != frozenset(
+        (row, subcase) for row, subcase, _ in expected_keys[:9]
+    ):
         return "derived non-grouped multifault view differs"
     if GROUPED_MULTIFAULT_CASES != frozenset(expected_keys[9:]):
         return "derived grouped multifault view differs"
@@ -13668,6 +15846,8 @@ def recovery_success_metadata_problem(
 def require_evidence_metadata() -> None:
     if problem := limit_profile_metadata_problem():
         fail(f"exact limit profile metadata differs: {problem}")
+    if problem := limit_runtime_case_metadata_problem():
+        fail(f"exact limit runtime case metadata differs: {problem}")
     if problem := limit_event_metadata_problem():
         fail(f"exact limit event metadata differs: {problem}")
     if problem := durability_retry_protocol_problem(DURABILITY_RETRY_PROTOCOLS):
@@ -14442,10 +16622,7 @@ def top_level_statement_ranges(
                 if brace_depth == 0:
                     break
                 brace_depth -= 1
-            elif (
-                character == ";"
-                and round_depth == square_depth == brace_depth == 0
-            ):
+            elif character == ";" and round_depth == square_depth == brace_depth == 0:
                 end = cursor + 1
                 break
             if min(round_depth, square_depth, brace_depth) < 0:
@@ -14473,6 +16650,218 @@ def exact_statement_sequence_range(
             normalized_expected
         ):
             matches.append((window[0][0], window[-1][1]))
+    return matches[0] if len(matches) == 1 else None
+
+
+def normalize_limit_event_tokens(value: str) -> str:
+    normalized = normalize_rust_tokens(value)
+    stack: list[int] = []
+    pairs: dict[int, int] = {}
+    for index, character in enumerate(normalized):
+        if character == "(":
+            stack.append(index)
+        elif character == ")" and stack:
+            pairs[index] = stack.pop()
+    removals: set[int] = set()
+    control_words = {"if", "while", "for", "match", "loop"}
+    for closing, opening in pairs.items():
+        comma = closing - 1
+        if comma < 0 or normalized[comma] != ",":
+            continue
+        cursor = opening - 1
+        if cursor < 0:
+            continue
+        character = normalized[cursor]
+        callable_opening = character in ")]}>?!"
+        if character.isalnum() or character == "_":
+            end = cursor + 1
+            while cursor >= 0 and (
+                normalized[cursor].isalnum() or normalized[cursor] == "_"
+            ):
+                cursor -= 1
+            callable_opening = normalized[cursor + 1 : end] not in control_words
+        if callable_opening:
+            removals.add(comma)
+    return "".join(
+        character for index, character in enumerate(normalized) if index not in removals
+    )
+
+
+def limit_event_scope_prefix(
+    projected: str,
+    brace_pairs: dict[int, int],
+    parent: int | None,
+    opening: int,
+) -> str:
+    """Return the direct parent-scope syntax that owns one candidate brace."""
+    cursor = 0 if parent is None else parent + 1
+    boundary = cursor
+    round_depth = 0
+    square_depth = 0
+    while cursor < opening:
+        character = projected[cursor]
+        if character == "(":
+            round_depth += 1
+        elif character == ")":
+            round_depth -= 1
+        elif character == "[":
+            square_depth += 1
+        elif character == "]":
+            square_depth -= 1
+        elif character == "{" and round_depth == square_depth == 0:
+            closing = brace_pairs.get(cursor)
+            if closing is None or closing >= opening:
+                return ""
+            cursor = closing
+            boundary = cursor + 1
+        elif character in ";," and round_depth == square_depth == 0:
+            boundary = cursor + 1
+        if round_depth < 0 or square_depth < 0:
+            return ""
+        cursor += 1
+    if round_depth != 0 or square_depth != 0:
+        return ""
+    return projected[boundary:opening]
+
+
+def limit_event_prefix_has_detached_owner(prefix: str, control_start: int) -> bool:
+    before = rust_code_projection(prefix[:control_start])
+    top_level = "".join(
+        character if delimiter_depth_at(before, index) == (0, 0, 0) else " "
+        for index, character in enumerate(before)
+    )
+    if re.search(
+        r"(?:^|[=(:,])\s*(?:async\s+|move\s+|async\s+move\s+)?"
+        r"\|[^|]*\|\s*(?:->\s*[^{}]+)?$",
+        top_level,
+    ):
+        return True
+    if re.search(
+        rf"(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*\s*!\s*[({{\[]",
+        top_level,
+    ):
+        return True
+    return False
+
+
+def limit_event_control_kind(prefix: str, parent_kind: str) -> str | None:
+    projected = rust_code_projection(prefix)
+    stripped = projected.strip()
+    if re.search(r"\bcfg\s*!\s*\(", projected):
+        return None
+    if parent_kind.startswith("match:") and stripped.endswith("=>"):
+        normalized_arm = normalize_rust_tokens(stripped)
+        if "iffalse=>" in normalized_arm:
+            return None
+        scrutinee = parent_kind.removeprefix("match:")
+        pattern = normalized_arm.removesuffix("=>").split("if", 1)[0]
+        literal = r"(?:true|false|[0-9][0-9_]*)"
+        if re.fullmatch(literal, scrutinee) and re.fullmatch(literal, pattern):
+            if scrutinee != pattern:
+                return None
+        return "match-arm"
+    control_matches = tuple(
+        match
+        for match in re.finditer(r"\b(if|for|while|loop|match)\b", projected)
+        if delimiter_depth_at(projected, match.start()) == (0, 0, 0)
+    )
+    if not control_matches:
+        return "else" if stripped == "else" else None
+    control = control_matches[-1]
+    if limit_event_prefix_has_detached_owner(prefix, control.start()):
+        return None
+    kind = control[1]
+    tail = normalize_rust_tokens(projected[control.end() :])
+    if kind in {"if", "while"} and (
+        tail in {"false", "(false)"} or tail.startswith("false&&")
+    ):
+        return None
+    if kind == "for" and re.search(r"\b(?:core|std)::iter::empty(?:::<.*>)?\(\)", tail):
+        return None
+    if kind == "if" and tail in {"true", "(true)"}:
+        return "if-true"
+    if kind == "match":
+        return f"match:{tail}"
+    return kind
+
+
+def limit_event_executable_scope_records(
+    source: str,
+) -> tuple[tuple[int, int, str, str], ...]:
+    """Enumerate root and directly executable scopes with exact control headers."""
+    projected = rust_code_projection(source)
+    stack: list[int] = []
+    pairs: dict[int, int] = {}
+    parents: dict[int, int | None] = {}
+    for index, character in enumerate(projected):
+        if character == "{":
+            parents[index] = stack[-1] if stack else None
+            stack.append(index)
+        elif character == "}":
+            if not stack:
+                return ()
+            pairs[stack.pop()] = index
+    if stack:
+        return ()
+
+    scopes: list[tuple[int, int, str, str]] = [(0, len(source), "root", "")]
+    accepted_kinds: dict[int | None, str] = {None: "root"}
+    openings_by_close = {closing: opening for opening, closing in pairs.items()}
+    for opening in sorted(pairs):
+        parent = parents[opening]
+        parent_kind = accepted_kinds.get(parent)
+        if parent_kind is None:
+            continue
+        prefix = limit_event_scope_prefix(projected, pairs, parent, opening)
+        kind = limit_event_control_kind(prefix, parent_kind)
+        if kind is None:
+            continue
+        if kind == "else":
+            else_start = opening - len(prefix) + prefix.find("else")
+            cursor = else_start - 1
+            while cursor >= 0 and projected[cursor].isspace():
+                cursor -= 1
+            prior_opening = openings_by_close.get(cursor)
+            if (
+                prior_opening is not None
+                and accepted_kinds.get(prior_opening) == "if-true"
+            ):
+                continue
+        accepted_kinds[opening] = kind
+        scopes.append((opening + 1, pairs[opening], kind, prefix))
+    return tuple(scopes)
+
+
+def limit_event_executable_scopes(source: str) -> tuple[tuple[int, int], ...]:
+    """Enumerate only root and directly executable control-flow statement scopes."""
+    return tuple(
+        (start, end)
+        for start, end, _kind, _prefix in limit_event_executable_scope_records(source)
+    )
+
+
+def exact_lexical_statement_sequence_range(
+    source: str,
+    expected: tuple[str, ...],
+) -> tuple[int, int] | None:
+    if not expected:
+        return None
+    normalized_expected = tuple(
+        normalize_limit_event_tokens(value) for value in expected
+    )
+    matches: list[tuple[int, int]] = []
+    for scope_start, scope_end in limit_event_executable_scopes(source):
+        statements = top_level_statement_ranges(source[scope_start:scope_end])
+        for index in range(0, len(statements) - len(expected) + 1):
+            window = statements[index : index + len(expected)]
+            if tuple(normalize_limit_event_tokens(value[2]) for value in window) == (
+                normalized_expected
+            ):
+                absolute = (
+                    scope_start + window[0][0],
+                    scope_start + window[-1][1],
+                )
+                matches.append(absolute)
     return matches[0] if len(matches) == 1 else None
 
 
@@ -14837,17 +17226,17 @@ def recovery_provenance_evidence_problem(
         starts = exact_direct_statement_starts(body, assertion)
         if len(starts) != 1:
             return f"recovery provenance fact {fact!r} is not one direct statement"
-        post_operation = fact.endswith(post_fact_markers[0]) or fact.startswith(
-            post_fact_markers[1:3]
-        ) or fact == post_fact_markers[3]
+        post_operation = (
+            fact.endswith(post_fact_markers[0])
+            or fact.startswith(post_fact_markers[1:3])
+            or fact == post_fact_markers[3]
+        )
         if post_operation and starts[0] < error_end:
             return f"post-operation provenance fact {fact!r} precedes error extraction"
         if not post_operation and starts[0] >= result_start:
             return f"pre-operation provenance fact {fact!r} does not precede recovery"
     projected = rust_code_projection(body)
-    expected_fixture_count = (
-        2 if spec.guard_relation == "wrong_root_exclusive" else 1
-    )
+    expected_fixture_count = 2 if spec.guard_relation == "wrong_root_exclusive" else 1
     if len(re.findall(r"\bFixture\s*::\s*new\s*\(", projected)) != (
         expected_fixture_count
     ):
@@ -14864,13 +17253,23 @@ def recovery_provenance_evidence_problem(
     if len(acquisitions) != 1 or expected_acquisition not in acquisitions[0]:
         return "maintenance acquisition mode or cardinality differs"
     if spec.guard_relation == "wrong_root_exclusive":
-        if "canonical_owner_root" not in projected or "canonical_guard_root" not in projected:
+        if (
+            "canonical_owner_root" not in projected
+            or "canonical_guard_root" not in projected
+        ):
             return "wrong-root fixture lacks both canonical root bindings"
         for name in ("guard_tree_before_snapshot", "guard_tree_after_snapshot"):
             if len(top_level_let_statement_ranges(body, name)) != 1:
                 return f"wrong-root fixture lacks one exact {name} binding"
     if spec.fixture_family == "logical_cycle":
-        if len(re.findall(r"\binstall_recovery_ancestry_l_r_l_test_plan\s*\(", projected)) != 1:
+        if (
+            len(
+                re.findall(
+                    r"\binstall_recovery_ancestry_l_r_l_test_plan\s*\(", projected
+                )
+            )
+            != 1
+        ):
             return "logical-cycle fixture lacks one exact production-core plan install"
         if len(top_level_let_statement_ranges(body, "cycle_observations")) != 1:
             return "logical-cycle fixture lacks one consumed observation binding"
@@ -15094,7 +17493,11 @@ def multifault_cycle_plan_install_statement(
     contract = spec.cycle_epochs
     if contract is None:
         return None
-    receiver = "repository" if spec.owner_source == TXN_PROVENANCE_SOURCE else "transaction_repository"
+    receiver = (
+        "repository"
+        if spec.owner_source == TXN_PROVENANCE_SOURCE
+        else "transaction_repository"
+    )
     budget = "One" if contract.epoch_budget == 1 else "Two"
     epoch_type = multifault_cycle_type_path(spec, "RecoveryAncestryTestEpochs")
     module = multifault_cycle_type_path(spec, "install")
@@ -15111,7 +17514,11 @@ def multifault_cycle_observation_drain_statement(
 ) -> str | None:
     if spec.cycle_epochs is None:
         return None
-    receiver = "repository" if spec.owner_source == TXN_PROVENANCE_SOURCE else "transaction_repository"
+    receiver = (
+        "repository"
+        if spec.owner_source == TXN_PROVENANCE_SOURCE
+        else "transaction_repository"
+    )
     module = multifault_cycle_type_path(spec, "take")
     return (
         f"let m2_cycle_drain = {module}("
@@ -15185,8 +17592,7 @@ def multifault_cycle_provenance_window(
         if key[0] == "ANC-06":
             statements.extend(
                 (
-                    "let m2_branch_head_transaction_id = "
-                    "m2_cycle_left_transaction_id;",
+                    "let m2_branch_head_transaction_id = m2_cycle_left_transaction_id;",
                     "let m2_secondary_cycle_entry_transaction_id = "
                     "m2_cycle_left_transaction_id;",
                 )
@@ -15196,8 +17602,7 @@ def multifault_cycle_provenance_window(
                 (
                     "let m2_secondary_ref_target_transaction_id = "
                     "m2_cycle_left_transaction_id;",
-                    "let m2_branch_ref_path = "
-                    "m2_cycle_pristine_ref_path.clone();",
+                    "let m2_branch_ref_path = m2_cycle_pristine_ref_path.clone();",
                     "let m2_primary_path = m2_cycle_pristine_ref_path.clone();",
                     "let m2_pristine_primary_bytes = "
                     "m2_cycle_pristine_ref_bytes.clone();",
@@ -15301,7 +17706,7 @@ def multifault_cycle_provenance_window(
                 "::core::option::Option::Some(m2_cycle_right_transaction_id);",
                 "let m2_primary_fault_node: "
                 "::core::option::Option<&'static str> = "
-                "::core::option::Option::Some(\"right_receipt\");",
+                '::core::option::Option::Some("right_receipt");',
             )
         )
     elif contract.primary_fault_node in {
@@ -15354,9 +17759,9 @@ def multifault_cycle_provenance_window(
                 "::core::option::Option<&'static str> = "
                 "::core::option::Option::Some("
                 + (
-                    "\"right_object\""
+                    '"right_object"'
                     if contract.primary_fault_node == "RIGHT_OBJECT"
-                    else "\"depth_one_right_ancestor_object\""
+                    else '"depth_one_right_ancestor_object"'
                 )
                 + ");",
             )
@@ -15373,7 +17778,9 @@ def multifault_cycle_provenance_window(
             )
         )
     else:
-        fail(f"unsupported multifault primary cycle node {contract.primary_fault_node!r}")
+        fail(
+            f"unsupported multifault primary cycle node {contract.primary_fault_node!r}"
+        )
 
     digest_helper = snapshot_helper_path(
         spec.owner_source,
@@ -15407,8 +17814,7 @@ def multifault_cycle_activation_identifiers(
             spec,
             include_cycle_critical=True,
         )
-        if identifier.startswith("m2_primary_")
-        and identifier not in provenance_owned
+        if identifier.startswith("m2_primary_") and identifier not in provenance_owned
     )
 
 
@@ -15423,8 +17829,7 @@ def multifault_secondary_baseline_and_primary_activation_window(
         "let m2_secondary_cycle_descriptor = [(m2_cycle_left_transaction_id, "
         "m2_cycle_right_transaction_id), (m2_cycle_right_transaction_id, "
         "m2_cycle_left_transaction_id)];",
-        "let m2_secondary_logical_edges = "
-        "m2_secondary_cycle_descriptor.to_vec();",
+        "let m2_secondary_logical_edges = m2_secondary_cycle_descriptor.to_vec();",
         f"let m2_secondary_only_owner_tree = {tree}(owner_root);",
         f"let m2_pristine_primary_observation = observe_{spec.fresh_fixture_recipe}_primary("
         "&fixture, &m2_fixture);",
@@ -15618,10 +18023,8 @@ def multifault_observation_window(
     statements.extend(
         (
             f"let m2_{phase}_{ordinal} = {tree}(owner_root);",
-            f"let m2_primary_{suffix} = {observe_primary}("
-            "&fixture, &m2_fixture);",
-            f"let m2_secondary_{suffix} = {observe_secondary}("
-            "&fixture, &m2_fixture);",
+            f"let m2_primary_{suffix} = {observe_primary}(&fixture, &m2_fixture);",
+            f"let m2_secondary_{suffix} = {observe_secondary}(&fixture, &m2_fixture);",
         )
     )
     return statements
@@ -15645,7 +18048,9 @@ def multifault_operation_bindings(
     spec: MultifaultOverlaySpec,
 ) -> dict[str, object]:
     receiver = (
-        "repository" if spec.recovery_operation != "ref_recovery" else "branch_repository"
+        "repository"
+        if spec.recovery_operation != "ref_recovery"
+        else "branch_repository"
     )
     label = json.dumps(multifault_fixture_label(key))
     if spec.owner_source == TXN_PROVENANCE_SOURCE:
@@ -15709,9 +18114,7 @@ def multifault_operation_bindings(
         "operation_2_post_observation_window": multifault_observation_window(
             spec, 2, "after"
         ),
-        "cycle_observation_drain": (
-            multifault_cycle_observation_drain_statement(spec)
-        ),
+        "cycle_observation_drain": (multifault_cycle_observation_drain_statement(spec)),
     }
 
 
@@ -15818,12 +18221,8 @@ def multifault_repair_assertions(spec: MultifaultOverlaySpec) -> dict[str, str]:
         "same_receiver": (
             "::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);"
         ),
-        "same_owner_root": (
-            "::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);"
-        ),
-        "same_guard": (
-            "::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);"
-        ),
+        "same_owner_root": ("::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);"),
+        "same_guard": ("::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);"),
         "same_arguments": same_arguments,
     }
 
@@ -15843,8 +18242,7 @@ def multifault_cycle_epoch_assertions(
         "::core::option::Option::None"
         if contract.primary_fault_node is None
         else (
-            "::core::option::Option::Some("
-            f"{node_variant[contract.primary_fault_node]})"
+            f"::core::option::Option::Some({node_variant[contract.primary_fault_node]})"
         )
     )
     entry_expression = (
@@ -15856,10 +18254,7 @@ def multifault_cycle_epoch_assertions(
     primary_origin = (
         "::core::option::Option::None"
         if contract.primary_fault_node is None
-        else (
-            "::core::option::Option::Some("
-            "m2_cycle_right_transaction_id)"
-        )
+        else ("::core::option::Option::Some(m2_cycle_right_transaction_id)")
     )
     return {
         "entry_is_left": tagged_fixture_eq(
@@ -15930,24 +18325,19 @@ def multifault_cycle_epoch_assertions(
 def multifault_snapshot_assertions() -> dict[str, str]:
     return {
         "secondary_probe_read_only": (
-            "::core::assert_eq!(m2_secondary_probe_before, "
-            "m2_secondary_probe_after);"
+            "::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);"
         ),
         "primary_probe_read_only": (
             "::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);"
         ),
-        "operation_1_tree_unchanged": (
-            "::core::assert_eq!(m2_before_1, m2_after_1);"
-        ),
+        "operation_1_tree_unchanged": ("::core::assert_eq!(m2_before_1, m2_after_1);"),
         "operation_1_primary_unchanged": (
             "::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);"
         ),
         "operation_1_secondary_unchanged": (
             "::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);"
         ),
-        "operation_2_tree_unchanged": (
-            "::core::assert_eq!(m2_before_2, m2_after_2);"
-        ),
+        "operation_2_tree_unchanged": ("::core::assert_eq!(m2_before_2, m2_after_2);"),
         "operation_2_primary_unchanged": (
             "::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);"
         ),
@@ -15990,9 +18380,7 @@ def multifault_statement_plan(
     statements.append(str(bindings["maintenance_guard"]))
     if selected.cycle_epochs is not None:
         cycle_provenance = bindings["cycle_provenance_window"]
-        activation_window = bindings[
-            "secondary_baseline_and_primary_activation_window"
-        ]
+        activation_window = bindings["secondary_baseline_and_primary_activation_window"]
         assert isinstance(cycle_provenance, list)
         assert isinstance(activation_window, list)
         statements.extend(str(value) for value in cycle_provenance)
@@ -16148,10 +18536,7 @@ def multifault_statement_plan_problem(
             references.discard(target)
         missing = sorted(references - bound)
         if missing:
-            return (
-                f"statement {ordinal} consumes unbound locals: "
-                + ", ".join(missing)
-            )
+            return f"statement {ordinal} consumes unbound locals: " + ", ".join(missing)
         if target is not None:
             if target in bound:
                 return f"statement {ordinal} rebinds local {target!r}"
@@ -16161,7 +18546,9 @@ def multifault_statement_plan_problem(
     install_token = normalize_rust_tokens("recovery_ancestry_test_hook::install(")
     drain_token = normalize_rust_tokens("recovery_ancestry_test_hook::take(")
     install_ordinals = tuple(
-        index for index, statement in enumerate(normalized) if install_token in statement
+        index
+        for index, statement in enumerate(normalized)
+        if install_token in statement
     )
     drain_ordinals = tuple(
         index for index, statement in enumerate(normalized) if drain_token in statement
@@ -16238,9 +18625,7 @@ class DirectAssertionRender(NamedTuple):
     right: str | None
 
 
-MULTIFAULT_FIXTURE_RENDER_SPECS: dict[
-    tuple[str, str], DirectAssertionRender
-] = {
+MULTIFAULT_FIXTURE_RENDER_SPECS: dict[tuple[str, str], DirectAssertionRender] = {
     ("primary", "primary_nested_state_root_corruption_present"): (
         DirectAssertionRender(
             "ne",
@@ -16319,8 +18704,7 @@ MULTIFAULT_FIXTURE_RENDER_SPECS: dict[
     ): DirectAssertionRender(
         "eq",
         "m2_primary_path.as_path()",
-        "repository.receipt_path(m2_cycle_right_transaction_id)"
-        ".unwrap().as_path()",
+        "repository.receipt_path(m2_cycle_right_transaction_id).unwrap().as_path()",
     ),
     ("primary", "primary_receipt_path_from_ref_head"): DirectAssertionRender(
         "eq",
@@ -16609,9 +18993,7 @@ def multifault_plan_sha256(
     spec = MULTIFAULT_OVERLAYS[key]
     base_digest = None
     if key[2] is not None:
-        base_digest = corruption_fixture_plan(
-            (key[0], key[1], str(key[2]))
-        )[0]
+        base_digest = corruption_fixture_plan((key[0], key[1], str(key[2])))[0]
     payload = (
         "sley-s20-530-multifault-m2-plan-v1",
         MULTIFAULT_OVERLAY_REGISTRY_SHA256,
@@ -16789,7 +19171,6 @@ def multifault_operation_binding_problem(
     return None
 
 
-
 def require_multifault_evidence(
     row_id: str,
     subcase_id: str,
@@ -16915,6 +19296,4919 @@ def mapped_test_body_manifest(
             "source": relative,
             "qualified_test": qualified,
             "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        }
+    return manifest
+
+
+def limit_runtime_helper_owner(spec: LimitRuntimeCaseSpec, function: str) -> str:
+    if function == spec.setup_helper or function in LIMIT_RUNTIME_PROBE_HELPERS:
+        return "mod:tests"
+    profile = limit_profile_map().get(spec.profile_constructor)
+    if profile is not None and function == profile.get("helper"):
+        return "<crate>"
+    fail(
+        f"{spec.row_id}/{spec.subcase_id} has an unowned limit runtime helper "
+        f"{function!r}"
+    )
+
+
+def limit_runtime_helper_body_key(relative: str, owner: str, function: str) -> str:
+    return f"{relative}:{owner}:{function}"
+
+
+def limit_runtime_helper_body_manifest(
+    sources: dict[str, str],
+) -> dict[str, dict[str, str]]:
+    authorities: dict[str, tuple[str, str, str]] = {}
+    for spec in LIMIT_RUNTIME_CASE_SPECS.values():
+        for function in spec.helper_functions:
+            owner = limit_runtime_helper_owner(spec, function)
+            key = limit_runtime_helper_body_key(spec.owner_source, owner, function)
+            authorities[key] = (spec.owner_source, owner, function)
+    manifest: dict[str, dict[str, str]] = {}
+    for key in sorted(authorities):
+        relative, owner, function = authorities[key]
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit runtime helper source is absent: {relative}")
+        body = rust_named_function_raw_body(source, function, owner)
+        if body is None:
+            fail(f"cannot isolate limit runtime helper body: {key}")
+        manifest[key] = {
+            "source": relative,
+            "owner": owner,
+            "function": function,
+            "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        }
+    return manifest
+
+
+def limit_runtime_probe_binding_problem(sources: dict[str, str]) -> str | None:
+    checked: set[tuple[str, str]] = set()
+    for spec in LIMIT_RUNTIME_CASE_SPECS.values():
+        profile = limit_profile_map().get(spec.profile_constructor)
+        if profile is None:
+            return f"{spec.qualified_field} lacks a limit probe profile"
+        helper = profile.get("helper")
+        helper_body = profile.get("helper_body")
+        if not isinstance(helper, str) or not isinstance(helper_body, str):
+            return f"{spec.qualified_field} limit probe helper metadata differs"
+        authority = (spec.owner_source, helper)
+        if authority in checked:
+            continue
+        checked.add(authority)
+        source = sources.get(spec.owner_source)
+        if not isinstance(source, str):
+            return f"limit probe source is absent: {spec.owner_source}"
+        raw_body = rust_named_function_raw_body(source, helper, "<crate>")
+        if raw_body is None:
+            return f"cannot isolate limit probe comparison helper {helper}"
+        expected = limit_runtime_instrumented_helper_body(helper_body)
+        if normalize_rust_tokens(raw_body) != normalize_rust_tokens(expected):
+            return f"{spec.owner_source}::{helper} runtime probe binding differs"
+    return None
+
+
+def limit_runtime_case_manifest(
+    row_map: dict[str, object],
+    mapped_test_bodies: dict[str, dict[str, str]],
+    helper_bodies: dict[str, dict[str, str]],
+) -> dict[str, dict[str, object]]:
+    manifest: dict[str, dict[str, object]] = {}
+    for (row_id, subcase_id), spec in LIMIT_RUNTIME_CASE_SPECS.items():
+        row = row_map.get(row_id)
+        subcases = row.get("subcases") if isinstance(row, dict) else None
+        subcase = subcases.get(subcase_id) if isinstance(subcases, dict) else None
+        tests = subcase.get("tests") if isinstance(subcase, dict) else None
+        if (
+            not isinstance(tests, list)
+            or len(tests) != 1
+            or not isinstance(tests[0], str)
+        ):
+            fail(f"{row_id}/{subcase_id} lacks one runtime case test")
+        test = tests[0]
+        test_record = mapped_test_bodies.get(test)
+        if not isinstance(test_record, dict) or tuple(test_record) != (
+            "source",
+            "qualified_test",
+            "body_sha256",
+        ):
+            fail(f"{row_id}/{subcase_id} runtime case test body is unreviewed")
+        if test_record.get("source") != spec.owner_source:
+            fail(f"{row_id}/{subcase_id} runtime case test owner differs")
+        helper_records: dict[str, dict[str, str]] = {}
+        for function in spec.helper_functions:
+            owner = limit_runtime_helper_owner(spec, function)
+            key = limit_runtime_helper_body_key(spec.owner_source, owner, function)
+            helper_record = helper_bodies.get(key)
+            if not isinstance(helper_record, dict):
+                fail(f"{row_id}/{subcase_id} helper body is unreviewed: {function}")
+            helper_records[key] = helper_record
+        identity = f"{row_id}/{subcase_id}"
+        manifest[identity] = {
+            "qualified_field": spec.qualified_field,
+            "owner_source": spec.owner_source,
+            "operation_kind": spec.operation_kind,
+            "profile_constructor": spec.profile_constructor,
+            "profile_field": spec.profile_field,
+            "frozen_constant": spec.frozen_constant,
+            "frozen_default": spec.frozen_default,
+            "exact_cardinality": spec.exact_cardinality,
+            "plus_one_cardinality": spec.plus_one_cardinality,
+            "event_sites": list(spec.event_ids),
+            "test": test,
+            "qualified_test": test_record["qualified_test"],
+            "test_body_sha256": test_record["body_sha256"],
+            "helper_bodies": helper_records,
+        }
+    return manifest
+
+
+def limit_runtime_site_proof_manifest(
+    runtime_cases: dict[str, dict[str, object]],
+    owner_bodies: dict[str, dict[str, str]],
+) -> dict[str, dict[str, object]]:
+    proofs: dict[str, dict[str, object]] = {}
+    for spec in LIMIT_RUNTIME_CASE_SPECS.values():
+        if len(spec.event_ids) == 1:
+            continue
+        case_id = f"{spec.row_id}/{spec.subcase_id}"
+        runtime_case = runtime_cases.get(case_id)
+        if not isinstance(runtime_case, dict):
+            fail(f"{case_id} dual-site runtime case is absent")
+        event_owner_bodies: dict[str, dict[str, str]] = {}
+        for event_id in spec.event_ids:
+            event = LIMIT_EVENT_SPECS[event_id]
+            owner_key = limit_event_owner_body_key(event)
+            owner_record = owner_bodies.get(owner_key)
+            if not isinstance(owner_record, dict):
+                fail(f"{case_id} event owner body is absent: {event_id}")
+            event_owner_bodies[event_id] = owner_record
+        proofs[spec.qualified_field] = {
+            "row_id": spec.row_id,
+            "subcase_id": spec.subcase_id,
+            "event_sites": list(spec.event_ids),
+            "test": runtime_case["test"],
+            "test_body_sha256": runtime_case["test_body_sha256"],
+            "setup_helper": spec.setup_helper,
+            "setup_helper_body_sha256": runtime_case["helper_bodies"][
+                limit_runtime_helper_body_key(
+                    spec.owner_source,
+                    "mod:tests",
+                    spec.setup_helper,
+                )
+            ]["body_sha256"],
+            "event_owner_bodies": event_owner_bodies,
+        }
+    return proofs
+
+
+def limit_event_owner_body_key(spec: LimitEventSpec) -> str:
+    return ":".join(spec.site)
+
+
+def limit_event_owner_body_manifest(
+    sources: dict[str, str],
+    specs: dict[str, LimitEventSpec] = LIMIT_EVENT_SPECS,
+) -> dict[str, dict[str, str]]:
+    manifest: dict[str, dict[str, str]] = {}
+    for spec in specs.values():
+        relative, owner, function = spec.site
+        key = limit_event_owner_body_key(spec)
+        if key in manifest:
+            continue
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit-event owner source is absent: {relative}")
+        production = normal_build_source(source)
+        body = rust_named_function_raw_body(production, function, owner)
+        if body is None:
+            fail(f"cannot isolate limit-event owner body: {key}")
+        attribute_chain = limit_named_function_attribute_chain(
+            production,
+            function,
+            owner,
+        )
+        if attribute_chain is None:
+            fail(f"cannot isolate limit-event owner attribute chain: {key}")
+        manifest[key] = {
+            "source": relative,
+            "owner": owner,
+            "function": function,
+            "attribute_chain_sha256": hashlib.sha256(
+                attribute_chain.encode("utf-8")
+            ).hexdigest(),
+            "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        }
+    return manifest
+
+
+LIMIT_CONTROL_AUTHORITY_KEYWORDS = frozenset(
+    {
+        "as",
+        "async",
+        "await",
+        "break",
+        "const",
+        "continue",
+        "crate",
+        "dyn",
+        "else",
+        "false",
+        "for",
+        "if",
+        "in",
+        "let",
+        "loop",
+        "match",
+        "move",
+        "mut",
+        "ref",
+        "return",
+        "self",
+        "Self",
+        "static",
+        "super",
+        "true",
+        "type",
+        "unsafe",
+        "where",
+        "while",
+    }
+)
+LIMIT_TRUSTED_CONTROL_METHODS = frozenset(
+    {
+        "all",
+        "and_then",
+        "as_bytes",
+        "as_deref",
+        "as_ref",
+        "bytes",
+        "checked_add",
+        "enumerate",
+        "file_name",
+        "file_type",
+        "get",
+        "is_dir",
+        "is_empty",
+        "is_file",
+        "is_ascii_digit",
+        "is_ok_and",
+        "is_symlink",
+        "iter",
+        "join",
+        "kind",
+        "len",
+        "map",
+        "map_err",
+        "next",
+        "ok",
+        "ok_or",
+        "ok_or_else",
+        "parent",
+        "path",
+        "pop",
+        "strip_prefix",
+        "strip_suffix",
+        "to_path_buf",
+        "to_str",
+        "try_into",
+        "unwrap_or",
+        "unwrap_or_else",
+    }
+)
+LIMIT_TRUSTED_CONTROL_DIRECT_CALLS = frozenset(
+    {
+        "Err",
+        "None",
+        "Ok",
+        "Some",
+        "fs::read_dir",
+        "fs::symlink_metadata",
+        "Path::file_name",
+        "std::ffi::OsStr::to_str",
+        "u32::from_str_radix",
+        "u64::try_from",
+        "usize::try_from",
+    }
+)
+LIMIT_ALLOWED_EXTERNAL_CONTROL_IMPORTS = frozenset(
+    {
+        (
+            "crates/sley-scb1/src/lib.rs",
+            "UnicodeNormalization",
+            "unicode_normalization::UnicodeNormalization",
+        ),
+    }
+)
+LIMIT_TRUSTED_CONTROL_ENUM_VARIANTS = frozenset(
+    {
+        "std::cmp::Ordering::Equal",
+        "std::cmp::Ordering::Greater",
+        "std::cmp::Ordering::Less",
+        "std::io::ErrorKind::AlreadyExists",
+        "std::io::ErrorKind::NotFound",
+        "std::sync::atomic::Ordering::AcqRel",
+        "std::sync::atomic::Ordering::Acquire",
+        "std::sync::atomic::Ordering::Relaxed",
+        "std::sync::atomic::Ordering::Release",
+        "std::sync::atomic::Ordering::SeqCst",
+    }
+)
+LIMIT_HIGHER_ORDER_CONTROL_METHODS = frozenset(
+    {
+        "all",
+        "and_then",
+        "any",
+        "filter",
+        "filter_map",
+        "is_ok_and",
+        "map",
+        "map_err",
+        "ok_or_else",
+        "sort_by",
+        "unwrap_or_else",
+    }
+)
+
+
+class LimitControlCallSite(NamedTuple):
+    callee: str
+    method: bool
+    arguments: str
+    receiver: str
+    start: int
+
+
+def limit_control_struct_fields(
+    source: str,
+    required_names: frozenset[str] | None = None,
+    projected: str | None = None,
+) -> dict[str, dict[str, str]]:
+    if projected is None:
+        projected = rust_code_projection(source)
+    structs: dict[str, dict[str, str]] = {}
+    mask = [True] * len(projected)
+    for match in rust_item_matches(
+        projected,
+        rf"(?:pub(?:\([^)]*\))?\s+)?struct\s+"
+        rf"(?P<name>{RUST_IDENTIFIER})\s*\{{",
+    ):
+        name = semantic_rust_identifier(match["name"])
+        if required_names is not None and name not in required_names:
+            continue
+        opening = projected.find("{", match.start(), match.end())
+        closing = matching_delimiter(
+            projected,
+            mask,
+            opening,
+            "{",
+            "}",
+        )
+        if opening < 0 or closing is None:
+            continue
+        fields: dict[str, str] = {}
+        valid = True
+        for item in split_top_level_rust_commas(source[opening + 1 : closing]):
+            raw = item.strip()
+            if not raw:
+                continue
+            field = re.match(
+                rf"^(?:pub(?:\([^)]*\))?\s+)?"
+                rf"(?P<name>{RUST_IDENTIFIER})\s*:\s*(?P<type>.+)$",
+                raw,
+                re.DOTALL,
+            )
+            if field is None:
+                valid = False
+                break
+            fields[semantic_rust_identifier(field["name"])] = normalize_rust_tokens(
+                field["type"]
+            )
+        if valid:
+            structs[name] = fields
+    return structs
+
+
+def limit_control_owner_self_type(owner: str) -> str | None:
+    impl_owners = tuple(
+        segment for segment in owner.split("/") if segment.startswith("impl")
+    )
+    if not impl_owners:
+        return None
+    owned = impl_owners[-1].removeprefix("impl")
+    if "for" in owned:
+        owned = owned.rsplit("for", 1)[1]
+    identifiers = re.findall(RUST_IDENTIFIER, owned)
+    if not identifiers:
+        return None
+    return semantic_rust_identifier(identifiers[0])
+
+
+def limit_control_method_owner_kind(owner: str) -> str | None:
+    segments = owner.split("/")
+    if any(segment.startswith("trait:") for segment in segments):
+        return "TRAIT_DEFAULT"
+    impl_owners = tuple(segment for segment in segments if segment.startswith("impl"))
+    if not impl_owners:
+        return None
+    return "TRAIT_IMPL" if "for" in impl_owners[-1] else "INHERENT_IMPL"
+
+
+def limit_control_module_use_bindings(
+    source: str,
+    projected: str | None = None,
+) -> dict[str, tuple[str, ...]]:
+    if projected is None:
+        projected = rust_code_projection(source)
+    top_level = bytearray(len(projected))
+    round_depth = square_depth = brace_depth = 0
+    for index, character in enumerate(projected):
+        top_level[index] = not (round_depth or square_depth or brace_depth)
+        if character == "(":
+            round_depth += 1
+        elif character == ")":
+            round_depth -= 1
+        elif character == "[":
+            square_depth += 1
+        elif character == "]":
+            square_depth -= 1
+        elif character == "{":
+            brace_depth += 1
+        elif character == "}":
+            brace_depth -= 1
+    bindings: dict[str, list[str]] = {}
+    for match in re.finditer(r"\buse\b", projected):
+        if not top_level[match.start()]:
+            continue
+        end = projected.find(";", match.end())
+        if end < 0:
+            continue
+        for name, path in rust_use_tree_bindings(source[match.start() : end + 1]):
+            bindings.setdefault(name, []).append(path)
+    return {name: tuple(dict.fromkeys(paths)) for name, paths in bindings.items()}
+
+
+def limit_control_source_module_components(relative: str) -> tuple[str, ...] | None:
+    parts = Path(relative).parts
+    if len(parts) < 4 or parts[0] != "crates" or parts[2] != "src":
+        return None
+    tail = list(parts[3:])
+    filename = tail.pop()
+    if filename not in {"lib.rs", "main.rs", "mod.rs"}:
+        tail.append(Path(filename).stem)
+    return tuple(tail)
+
+
+def limit_control_package_name(relative: str) -> str | None:
+    parts = Path(relative).parts
+    if len(parts) < 2 or parts[0] != "crates":
+        return None
+    return parts[1].replace("-", "_")
+
+
+def limit_control_workspace_package_names() -> frozenset[str]:
+    return frozenset(
+        package
+        for relative in limit_production_source_paths()
+        if (package := limit_control_package_name(relative)) is not None
+    )
+
+
+def limit_control_local_use_roots(
+    sources: dict[str, str],
+) -> dict[str, tuple[str, ...]]:
+    roots_by_package: dict[str, set[str]] = {}
+    for relative in limit_production_source_paths():
+        package = limit_control_package_name(relative)
+        source = sources.get(relative)
+        if package is None or not isinstance(source, str):
+            fail(f"limit control local-use source is absent: {relative}")
+        roots = roots_by_package.setdefault(package, {package})
+        module_components = limit_control_source_module_components(relative)
+        if module_components is not None:
+            roots.update(module_components)
+        normal = limit_normal_build_source(relative, source)
+        projected = rust_code_projection(normal)
+        roots.update(
+            semantic_rust_identifier(match["name"])
+            for match in re.finditer(
+                rf"\bmod\s+(?P<name>{RUST_IDENTIFIER})\b",
+                projected,
+            )
+        )
+    return {
+        relative: tuple(sorted(roots_by_package[package]))
+        for relative in limit_production_source_paths()
+        if (package := limit_control_package_name(relative)) is not None
+    }
+
+
+def limit_control_all_use_bindings(
+    relative: str,
+    source: str,
+) -> tuple[tuple[str, str], ...]:
+    normal = limit_normal_build_source(relative, source)
+    projected = rust_code_projection(normal)
+    bindings: list[tuple[str, str]] = []
+    for match in re.finditer(r"\buse\b", projected):
+        end = projected.find(";", match.end())
+        if end < 0:
+            raise ValueError(f"{relative} use authority cannot be isolated")
+        parsed = rust_use_tree_bindings(normal[match.start() : end + 1])
+        if not parsed:
+            raise ValueError(f"{relative} use authority cannot be resolved")
+        bindings.extend(parsed)
+    return tuple(dict.fromkeys(bindings))
+
+
+def limit_control_external_use_imports(
+    sources: dict[str, str],
+) -> tuple[tuple[str, str, str], ...]:
+    workspace_packages = limit_control_workspace_package_names()
+    local_roots = limit_control_local_use_roots(sources)
+    imports: set[tuple[str, str, str]] = set()
+    for relative in limit_production_source_paths():
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit control external-use source is absent: {relative}")
+        allowed_roots = {
+            "core",
+            "crate",
+            "self",
+            "std",
+            "super",
+            *workspace_packages,
+            *local_roots.get(relative, ()),
+        }
+        bindings = limit_control_all_use_bindings(relative, source)
+        changed = True
+        while changed:
+            changed = False
+            for name, path in bindings:
+                normalized = path.removeprefix("::")
+                root = semantic_rust_identifier(normalized.split("::", 1)[0])
+                alias = semantic_rust_identifier(name)
+                if root in allowed_roots and alias not in allowed_roots:
+                    allowed_roots.add(alias)
+                    changed = True
+        for name, path in bindings:
+            normalized = path.removeprefix("::")
+            root = semantic_rust_identifier(normalized.split("::", 1)[0])
+            if root not in allowed_roots:
+                imports.add((relative, name, path))
+    return tuple(sorted(imports))
+
+
+def limit_control_external_use_authority_problem(
+    sources: dict[str, str],
+) -> str | None:
+    try:
+        imports = limit_control_external_use_imports(sources)
+    except ValueError as error:
+        return str(error)
+    for relative, name, path in imports:
+        if (relative, name, path) not in LIMIT_ALLOWED_EXTERNAL_CONTROL_IMPORTS:
+            return (
+                f"{relative} retains unapproved external control import "
+                f"{name} <- {path}"
+            )
+    return None
+
+
+def limit_control_owner_module_components(owner: str) -> tuple[str, ...]:
+    return tuple(
+        segment.removeprefix("mod:")
+        for segment in owner.split("/")
+        if segment.startswith("mod:")
+    )
+
+
+def limit_control_canonical_item_path(
+    relative: str,
+    owner: str,
+    item: str,
+) -> str | None:
+    package = limit_control_package_name(relative)
+    source_modules = limit_control_source_module_components(relative)
+    if package is None or source_modules is None:
+        return None
+    return "::".join(
+        (
+            package,
+            *source_modules,
+            *limit_control_owner_module_components(owner),
+            item,
+        )
+    )
+
+
+def limit_control_enum_variant_index(
+    sources: dict[str, str],
+) -> dict[str, tuple[dict[str, object], ...]]:
+    variants_by_enum: dict[str, list[dict[str, object]]] = {}
+    for relative in limit_production_source_paths():
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit control enum source is absent: {relative}")
+        normal = limit_normal_build_source(relative, source)
+        projected = rust_code_projection(normal)
+        owner_ranges = rust_owner_ranges(normal, projected)
+        function_ranges = rust_function_body_ranges(projected)
+        for match in rust_item_matches(
+            projected,
+            rf"(?:pub(?:\([^)]*\))?\s+)?enum\s+"
+            rf"(?P<name>{RUST_IDENTIFIER})\s*\{{",
+        ):
+            if any(start <= match.start() < end for start, end in function_ranges):
+                continue
+            opening = projected.find("{", match.start(), match.end())
+            closing = matching_delimiter(
+                projected,
+                [True] * len(projected),
+                opening,
+                "{",
+                "}",
+            )
+            if opening < 0 or closing is None:
+                fail(f"cannot isolate limit control enum in {relative}")
+            variants: list[str] = []
+            for raw in split_top_level_rust_commas(projected[opening + 1 : closing]):
+                item = raw.strip()
+                while item.startswith("#"):
+                    attribute = rust_attribute_end(item, 0)
+                    if attribute is None:
+                        break
+                    item = item[attribute[0] :].strip()
+                variant = re.match(rf"(?P<name>{RUST_IDENTIFIER})\b", item)
+                if variant is None:
+                    fail(f"cannot isolate limit control enum variant in {relative}")
+                variants.append(semantic_rust_identifier(variant["name"]))
+            name = semantic_rust_identifier(match["name"])
+            declaration = normal[match.start() : closing + 1]
+            owner = rust_owner_chain(owner_ranges, match.start())
+            canonical_path = limit_control_canonical_item_path(relative, owner, name)
+            if canonical_path is None:
+                fail(f"cannot derive canonical limit control enum path in {relative}")
+            variants_by_enum.setdefault(name, []).append(
+                {
+                    "source": relative,
+                    "owner": owner,
+                    "canonical_path": canonical_path,
+                    "variants": variants,
+                    "declaration_sha256": hashlib.sha256(
+                        declaration.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+    return {
+        name: tuple(
+            sorted(
+                records,
+                key=lambda record: (
+                    str(record["source"]),
+                    str(record["owner"]),
+                    str(record["declaration_sha256"]),
+                ),
+            )
+        )
+        for name, records in variants_by_enum.items()
+    }
+
+
+def limit_local_callable_index(
+    sources: dict[str, str],
+) -> dict[str, tuple[dict[str, str], ...]]:
+    by_name: dict[str, list[dict[str, str]]] = {}
+    local_use_roots = limit_control_local_use_roots(sources)
+    enum_variants_json = json.dumps(
+        limit_control_enum_variant_index(sources),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    for relative in limit_production_source_paths():
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit control callable source is absent: {relative}")
+        normal = limit_normal_build_source(relative, source)
+        projected = rust_code_projection(normal)
+        owner_ranges = rust_owner_ranges(normal, projected)
+        required_structs = frozenset(
+            self_type
+            for _opening, _closing, owner in owner_ranges
+            if (self_type := limit_control_owner_self_type(owner)) is not None
+        )
+        struct_fields_json = json.dumps(
+            limit_control_struct_fields(normal, required_structs, projected),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        module_use_bindings_json = json.dumps(
+            limit_control_module_use_bindings(normal, projected),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        constants: dict[str, dict[str, str]] = {}
+        for constant in re.finditer(
+            rf"\bconst\s+(?P<name>{RUST_IDENTIFIER})\s*:\s*"
+            r"(?P<type>[^=;]+?)\s*=\s*(?P<initializer>[^;]+);",
+            projected,
+            re.DOTALL,
+        ):
+            name = semantic_rust_identifier(constant["name"])
+            raw_constants = tuple(
+                re.finditer(
+                    rf"\bconst\s+(?:r#)?{re.escape(name)}\s*:\s*"
+                    r"(?P<type>[^=;]+?)\s*=\s*(?P<initializer>[^;]+);",
+                    source,
+                    re.DOTALL,
+                )
+            )
+            if len(raw_constants) != 1:
+                continue
+            raw_constant = raw_constants[0]
+            constants[name] = {
+                "type": normalize_rust_tokens(
+                    source[raw_constant.start("type") : raw_constant.end("type")]
+                ),
+                "initializer": normalize_rust_tokens(
+                    source[
+                        raw_constant.start("initializer") : raw_constant.end(
+                            "initializer"
+                        )
+                    ]
+                ),
+                "declaration_sha256": hashlib.sha256(
+                    source[raw_constant.start() : raw_constant.end()].encode("utf-8")
+                ).hexdigest(),
+            }
+        constants_json = json.dumps(constants, sort_keys=True, separators=(",", ":"))
+        for match in re.finditer(rf"\bfn\s+(?P<name>{RUST_IDENTIFIER})\b", projected):
+            opening = public_function_signature_end(projected, match.start())
+            if opening is None or projected[opening] != "{":
+                continue
+            closing = matching_delimiter(
+                projected,
+                [True] * len(projected),
+                opening,
+                "{",
+                "}",
+            )
+            if closing is None:
+                fail(f"cannot isolate limit control callable in {relative}")
+            name = semantic_rust_identifier(match["name"])
+            owner = rust_owner_chain(owner_ranges, match.start())
+            signature = normal[match.start() : opening]
+            body = normal[opening + 1 : closing]
+            attribute_chain = limit_function_attribute_chain(
+                normal,
+                projected,
+                match.start(),
+            )
+            record = {
+                "source": relative,
+                "owner": owner,
+                "function": name,
+                "signature": signature,
+                "signature_sha256": hashlib.sha256(
+                    signature.encode("utf-8")
+                ).hexdigest(),
+                "body": body,
+                "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                "attribute_chain_sha256": hashlib.sha256(
+                    attribute_chain.encode("utf-8")
+                ).hexdigest(),
+                "constants_json": constants_json,
+                "enum_variants_json": enum_variants_json,
+                "struct_fields_json": struct_fields_json,
+                "module_use_bindings_json": module_use_bindings_json,
+                "local_use_roots_json": json.dumps(
+                    local_use_roots.get(relative, ()),
+                    separators=(",", ":"),
+                ),
+                "function_start": str(match.start()),
+                "body_start": str(opening + 1),
+                "body_end": str(closing),
+            }
+            by_name.setdefault(name, []).append(record)
+    return {name: tuple(records) for name, records in by_name.items()}
+
+
+def limit_control_item_record(
+    item: LimitControlItem,
+    index: dict[str, tuple[dict[str, str], ...]],
+) -> dict[str, str] | None:
+    candidates = tuple(
+        record
+        for record in index.get(item.function, ())
+        if record["source"] == item.source and record["owner"] == item.owner
+    )
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def limit_control_callsite_record(
+    caller: LimitControlItem,
+    callee: LimitControlItem,
+    caller_record: dict[str, str],
+    callable_index: dict[str, tuple[dict[str, str], ...]],
+) -> dict[str, object]:
+    body = caller_record["body"]
+    projected = rust_code_projection(body)
+    matches: list[tuple[LimitControlCallSite, dict[str, str]]] = []
+    for site in limit_control_call_sites(body):
+        if re.split(r"::|\.", site.callee)[-1] != callee.function:
+            continue
+        local = limit_control_local_callable(
+            site.callee,
+            callable_index,
+            caller_record["source"],
+            caller_record["owner"],
+        )
+        if local is None or (
+            local["source"],
+            local["owner"],
+            local["function"],
+        ) != tuple(callee):
+            continue
+        matches.append((site, local))
+    if len(matches) != 1:
+        return {
+            "caller": ":".join(caller),
+            "callee": ":".join(callee),
+            "unresolved": "callee occurrence is absent or repeated",
+        }
+    site, local = matches[0]
+    opening = projected.find("(", site.start)
+    closing = matching_delimiter(
+        projected,
+        [True] * len(projected),
+        opening,
+        "(",
+        ")",
+    )
+    if opening < 0 or closing is None:
+        return {
+            "caller": ":".join(caller),
+            "callee": ":".join(callee),
+            "unresolved": "callee arguments cannot be isolated",
+        }
+    callsite = body[site.start : closing + 1]
+    arguments = body[opening + 1 : closing]
+    prefix = body[: site.start]
+    suffix = body[closing + 1 :]
+    pattern_bindings = limit_control_site_pattern_bindings(body, site.start)
+    call_record = dict(caller_record)
+    call_record["pattern_bindings_json"] = json.dumps(
+        pattern_bindings,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    bound_local, argument_bindings, binding_problem = limit_control_bound_local_call(
+        site,
+        local,
+        call_record,
+        callable_index,
+    )
+    receiver_authority = ""
+    receiver_calls: list[dict[str, str]] = []
+    receiver_problem: str | None = None
+    if site.method:
+        receiver_authority, _receiver_sites, receiver_problem = (
+            limit_control_receiver_authority(site, call_record)
+        )
+        receiver_calls = limit_control_resolved_authority(
+            site.receiver,
+            callable_index,
+            call_record,
+            site.start,
+        )
+        if receiver_problem is None and not limit_control_receiver_targets_item(
+            receiver_authority,
+            caller_record,
+            callee,
+        ):
+            receiver_problem = "receiver type does not match the frozen target owner"
+        if (
+            receiver_problem is None
+            and caller.source == callee.source
+            and caller.owner == callee.owner
+            and not receiver_authority.startswith("CONCRETE_SELF:")
+        ):
+            receiver_problem = "same-owner delegation does not target self"
+    argument_values, argument_calls = limit_control_value_authority(
+        arguments,
+        callable_index,
+        call_record,
+        site.start,
+        pattern_bindings,
+    )
+    dominators: list[dict[str, object]] = []
+    for start, end, kind, header in limit_event_executable_scope_records(body):
+        if kind == "root" or not (start <= site.start and closing + 1 <= end):
+            continue
+        header_start = start - 1 - len(header)
+        authority = limit_control_header_authority(
+            header,
+            callable_index,
+            caller_record,
+            body,
+            header_start,
+        )
+        authority["kind"] = kind
+        dominators.append(authority)
+    dominating_exits = limit_event_dominating_exit_manifest(
+        body,
+        (site.start, closing + 1),
+        callable_index,
+        caller_record,
+    )
+    prefix_projection = rust_code_projection(prefix)
+    early_exit_tokens = [
+        match[1]
+        for match in re.finditer(r"\b(return|break|continue)\b", prefix_projection)
+    ]
+    unresolved: list[str] = []
+    if binding_problem is not None or bound_local is None:
+        unresolved.append(f"positional call binding differs: {binding_problem}")
+    if receiver_problem is not None:
+        unresolved.append(f"call receiver authority differs: {receiver_problem}")
+    if any(call.get("classification") == "UNRESOLVED" for call in receiver_calls):
+        unresolved.append("call receiver closure is unresolved")
+    if any(
+        value.get("classification") == "UNRESOLVED" for value in argument_values
+    ) or any(call.get("classification") == "UNRESOLVED" for call in argument_calls):
+        unresolved.append("call argument authority is unresolved")
+    for scope in [*dominators, *dominating_exits]:
+        if any(
+            item.get("classification") == "UNRESOLVED"
+            for field in ("resolved_values", "resolved_authority")
+            for item in scope.get(field, [])
+            if isinstance(item, dict)
+        ):
+            unresolved.append("call control authority is unresolved")
+            break
+    return {
+        "caller": ":".join(caller),
+        "callee": ":".join(callee),
+        "ordinal": 1,
+        "callsite": normalize_rust_tokens(callsite),
+        "callsite_sha256": hashlib.sha256(callsite.encode("utf-8")).hexdigest(),
+        "argument_nodes": normalize_rust_tokens(arguments),
+        "argument_nodes_sha256": hashlib.sha256(arguments.encode("utf-8")).hexdigest(),
+        "argument_bindings": argument_bindings,
+        "argument_bindings_sha256": canonical_json_sha256(argument_bindings),
+        "argument_values": argument_values,
+        "argument_calls": argument_calls,
+        "receiver": site.receiver,
+        "receiver_authority": receiver_authority,
+        "receiver_authority_sha256": hashlib.sha256(
+            receiver_authority.encode("utf-8")
+        ).hexdigest(),
+        "receiver_calls": receiver_calls,
+        "dominating_scopes": dominators,
+        "dominating_exits": dominating_exits,
+        "dominating_prefix_sha256": hashlib.sha256(prefix.encode("utf-8")).hexdigest(),
+        "following_suffix_sha256": hashlib.sha256(suffix.encode("utf-8")).hexdigest(),
+        "preceding_question_mark_count": prefix_projection.count("?"),
+        "preceding_early_exit_tokens": early_exit_tokens,
+        "unresolved": unresolved,
+    }
+
+
+def limit_control_receiver_targets_item(
+    receiver_authority: str,
+    caller_record: dict[str, str],
+    target: LimitControlItem,
+) -> bool:
+    target_type = limit_control_owner_self_type(target.owner)
+    if target_type is None:
+        return False
+    if receiver_authority.startswith("CONCRETE_SELF:"):
+        return limit_control_owner_self_type(caller_record["owner"]) == target_type
+    if receiver_authority.startswith("CONCRETE_SELF_FIELD:"):
+        parts = receiver_authority.split(":", 4)
+        return len(parts) == 5 and code_contains_token(parts[4], target_type)
+    if receiver_authority.startswith(("CONCRETE_PARAMETER:", "BOUND_PARAMETER:")):
+        return code_contains_token(receiver_authority, target_type)
+    return False
+
+
+def limit_event_reverse_caller_inventory(
+    sources: dict[str, str],
+    callable_index: dict[str, tuple[dict[str, str], ...]],
+    expected_edges: frozenset[tuple[LimitControlItem, LimitControlItem]],
+) -> dict[str, dict[str, object]]:
+    expected_by_target: dict[LimitControlItem, set[LimitControlItem]] = {}
+    for caller, callee in expected_edges:
+        expected_by_target.setdefault(callee, set()).add(caller)
+    inventory: dict[str, dict[str, object]] = {}
+    all_records = tuple(
+        record for records in callable_index.values() for record in records
+    )
+    records_by_source: dict[str, list[dict[str, str]]] = {}
+    for record in all_records:
+        records_by_source.setdefault(record["source"], []).append(record)
+    normal_sources = {
+        relative: limit_normal_build_source(relative, sources[relative])
+        for relative in limit_production_source_paths()
+    }
+    for target, expected_callers in sorted(
+        expected_by_target.items(), key=lambda item: tuple(item[0])
+    ):
+        found: list[dict[str, object]] = []
+        unresolved: list[str] = []
+        target_record = limit_control_item_record(target, callable_index)
+        if target_record is None:
+            unresolved.append("frozen target declaration is absent or ambiguous")
+            target_declaration = None
+        else:
+            signature_start = int(target_record["function_start"])
+            signature_end = int(target_record["body_start"])
+            declaration_match = re.search(
+                rf"\bfn\s+(?:r#)?(?P<name>{re.escape(target.function)})\b",
+                rust_code_projection(
+                    normal_sources[target.source][signature_start:signature_end]
+                ),
+            )
+            target_declaration = (
+                signature_start + declaration_match.start("name")
+                if declaration_match is not None
+                else None
+            )
+            if target_declaration is None:
+                unresolved.append("frozen target declaration token cannot be isolated")
+        for relative, source in normal_sources.items():
+            projected = rust_code_projection(source)
+            for occurrence in re.finditer(
+                rf"\b(?:r#)?{re.escape(target.function)}\b",
+                projected,
+            ):
+                position = occurrence.start()
+                containing_records = [
+                    record
+                    for record in records_by_source.get(relative, [])
+                    if int(record["function_start"])
+                    <= position
+                    < int(record["body_end"])
+                ]
+                declaration_records = [
+                    record
+                    for record in containing_records
+                    if int(record["function_start"])
+                    <= position
+                    < int(record["body_start"])
+                    and record["function"] == target.function
+                ]
+                if declaration_records:
+                    if (
+                        relative == target.source
+                        and position == target_declaration
+                        and len(declaration_records) == 1
+                    ):
+                        continue
+                    unresolved.append(
+                        f"non-target declaration of {target.function} at "
+                        f"{relative}:{position}"
+                    )
+                    continue
+                body_records = [
+                    record
+                    for record in containing_records
+                    if int(record["body_start"]) <= position < int(record["body_end"])
+                ]
+                if not body_records:
+                    unresolved.append(
+                        f"non-call reference to {target.function} at "
+                        f"{relative}:{position}"
+                    )
+                    continue
+                caller_record = min(
+                    body_records,
+                    key=lambda record: (
+                        int(record["body_end"]) - int(record["body_start"])
+                    ),
+                )
+                local_position = position - int(caller_record["body_start"])
+                body = caller_record["body"]
+                projected_body = rust_code_projection(body)
+                matching_sites: list[LimitControlCallSite] = []
+                for site in limit_control_call_sites(body):
+                    if re.split(r"::|\.", site.callee)[-1] != target.function:
+                        continue
+                    opening = projected_body.find("(", site.start)
+                    if opening < 0:
+                        continue
+                    if any(
+                        site.start + match.start() == local_position
+                        for match in re.finditer(
+                            rf"\b(?:r#)?{re.escape(target.function)}\b",
+                            projected_body[site.start : opening],
+                        )
+                    ):
+                        matching_sites.append(site)
+                if len(matching_sites) != 1:
+                    unresolved.append(
+                        f"non-direct or ambiguous reference to {target.function} at "
+                        f"{relative}:{position}"
+                    )
+                    continue
+                site = matching_sites[0]
+                caller = LimitControlItem(
+                    caller_record["source"],
+                    caller_record["owner"],
+                    caller_record["function"],
+                )
+                call_record = dict(caller_record)
+                call_record["pattern_bindings_json"] = json.dumps(
+                    limit_control_site_pattern_bindings(body, site.start),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                receiver_problem: str | None = None
+                receiver_authority = ""
+                receiver_calls: list[dict[str, str]] = []
+                if site.method:
+                    receiver_authority, _receiver_sites, receiver_problem = (
+                        limit_control_receiver_authority(site, call_record)
+                    )
+                    receiver_calls = limit_control_resolved_authority(
+                        site.receiver,
+                        callable_index,
+                        call_record,
+                        site.start,
+                    )
+                elif "::" in site.callee:
+                    qualifier = site.callee.rsplit("::", 1)[0].split("::")[-1]
+                    arguments = split_top_level_rust_commas(site.arguments)
+                    if (
+                        qualifier != limit_control_owner_self_type(target.owner)
+                        or not arguments
+                    ):
+                        receiver_problem = "UFCS target owner or receiver is unresolved"
+                    else:
+                        receiver = normalize_rust_tokens(arguments[0])
+                        receiver_site = LimitControlCallSite(
+                            f"{receiver}.{target.function}",
+                            True,
+                            ",".join(arguments[1:]),
+                            receiver,
+                            site.start,
+                        )
+                        receiver_authority, _receiver_sites, receiver_problem = (
+                            limit_control_receiver_authority(
+                                receiver_site,
+                                call_record,
+                            )
+                        )
+                        receiver_calls = limit_control_resolved_authority(
+                            receiver,
+                            callable_index,
+                            call_record,
+                            site.start,
+                        )
+                else:
+                    receiver_problem = "method target lacks a receiver"
+                if receiver_problem is None and not limit_control_receiver_targets_item(
+                    receiver_authority,
+                    caller_record,
+                    target,
+                ):
+                    receiver_problem = "receiver type does not match frozen target"
+                if (
+                    receiver_problem is None
+                    and caller.source == target.source
+                    and caller.owner == target.owner
+                    and not receiver_authority.startswith("CONCRETE_SELF:")
+                ):
+                    receiver_problem = "same-owner delegation does not target self"
+                if receiver_problem is not None or any(
+                    call.get("classification") == "UNRESOLVED"
+                    for call in receiver_calls
+                ):
+                    unresolved.append(
+                        f"receiver-unresolved call to {target.function} at "
+                        f"{relative}:{position}: {receiver_problem}"
+                    )
+                    continue
+                callsite = f"{site.callee}({normalize_rust_tokens(site.arguments)})"
+                caller_key = ":".join(caller)
+                found.append(
+                    {
+                        "caller": caller_key,
+                        "callsite": callsite,
+                        "callsite_sha256": hashlib.sha256(
+                            callsite.encode("utf-8")
+                        ).hexdigest(),
+                        "receiver_authority": receiver_authority,
+                    }
+                )
+                if caller not in expected_callers:
+                    unresolved.append(
+                        f"unexpected caller {caller_key} invokes {target.function}"
+                    )
+        expected = sorted(":".join(caller) for caller in expected_callers)
+        found_callers = sorted(
+            record["caller"] for record in found if isinstance(record["caller"], str)
+        )
+        if found_callers != expected:
+            unresolved.append("normal-build reverse caller inventory differs")
+        inventory[":".join(target)] = {
+            "expected_callers": expected,
+            "found_calls": sorted(
+                found,
+                key=lambda record: (str(record["caller"]), str(record["callsite"])),
+            ),
+            "unresolved": unresolved,
+        }
+    return inventory
+
+
+def limit_event_entry_call_path_manifest(
+    sources: dict[str, str],
+    specs: dict[str, LimitEventSpec] = LIMIT_EVENT_SPECS,
+) -> dict[str, dict[str, object]]:
+    callable_index = limit_local_callable_index(sources)
+    expected_edges = frozenset(
+        (path[index], path[index + 1])
+        for spec in specs.values()
+        for path in LIMIT_EVENT_ENTRY_PATHS.get(LimitControlItem(*spec.site), ())
+        for index in range(len(path) - 1)
+    )
+    reverse_callers = limit_event_reverse_caller_inventory(
+        sources,
+        callable_index,
+        expected_edges,
+    )
+    manifest: dict[str, dict[str, object]] = {}
+    for event_id, spec in specs.items():
+        site = LimitControlItem(*spec.site)
+        entry_paths = LIMIT_EVENT_ENTRY_PATHS.get(site)
+        if entry_paths is None:
+            fail(f"{event_id} lacks a frozen recovery entry path")
+        rendered_paths: list[dict[str, object]] = []
+        unresolved: list[str] = []
+        for path in entry_paths:
+            items: list[dict[str, str]] = []
+            item_records: list[dict[str, str]] = []
+            for item in path:
+                record = limit_control_item_record(item, callable_index)
+                if record is None:
+                    unresolved.append(f"missing or ambiguous item {':'.join(item)}")
+                    continue
+                item_records.append(record)
+                items.append(
+                    {
+                        "item_key": ":".join(item),
+                        "signature_sha256": record["signature_sha256"],
+                        "attribute_chain_sha256": record["attribute_chain_sha256"],
+                        "body_sha256": record["body_sha256"],
+                    }
+                )
+            callsites: list[dict[str, object]] = []
+            if len(item_records) == len(path):
+                for index_in_path in range(len(path) - 1):
+                    callsite = limit_control_callsite_record(
+                        path[index_in_path],
+                        path[index_in_path + 1],
+                        item_records[index_in_path],
+                        callable_index,
+                    )
+                    callsites.append(callsite)
+                    problem = callsite.get("unresolved")
+                    if isinstance(problem, str):
+                        unresolved.append(problem)
+            rendered_paths.append(
+                {
+                    "entry_root": ":".join(path[0]),
+                    "items": items,
+                    "callsites": callsites,
+                }
+            )
+        manifest[event_id] = {
+            "event_owner": ":".join(site),
+            "call_paths": rendered_paths,
+            "reverse_callers": {
+                ":".join(item): reverse_callers[":".join(item)]
+                for path in entry_paths
+                for item in path[1:]
+            },
+            "unresolved": unresolved,
+        }
+    return manifest
+
+
+def limit_event_entry_call_path_problem(manifest: object) -> str | None:
+    if not isinstance(manifest, dict) or tuple(manifest) != tuple(LIMIT_EVENT_SPECS):
+        return "limit-event entry-call-path event inventory differs"
+    for event_id, record in manifest.items():
+        if not isinstance(record, dict) or record.get("unresolved") != []:
+            return f"{event_id} entry-call-path authority is unresolved"
+        reverse_callers = record.get("reverse_callers")
+        if not isinstance(reverse_callers, dict) or any(
+            not isinstance(item, dict) or item.get("unresolved") != []
+            for item in reverse_callers.values()
+        ):
+            return f"{event_id} reverse caller inventory is unresolved"
+        call_paths = record.get("call_paths")
+        if not isinstance(call_paths, list):
+            return f"{event_id} entry-call-path records differ"
+        for path in call_paths:
+            if not isinstance(path, dict) or not isinstance(
+                path.get("callsites"), list
+            ):
+                return f"{event_id} entry-call-path record differs"
+            for index, callsite in enumerate(path["callsites"]):
+                if not isinstance(callsite, dict) or callsite.get("unresolved") != []:
+                    return f"{event_id} entry-call-site authority is unresolved"
+                if index == 0 and (
+                    callsite.get("dominating_scopes") != []
+                    or callsite.get("dominating_exits") != []
+                    or callsite.get("preceding_question_mark_count") != 0
+                    or callsite.get("preceding_early_exit_tokens") != []
+                ):
+                    return f"{event_id} public-root delegation is conditional"
+    return None
+
+
+def limit_control_matching_opening(projected: str, closing: int) -> int | None:
+    pairs = {")": "(", "]": "[", "}": "{"}
+    opening = pairs.get(projected[closing]) if 0 <= closing < len(projected) else None
+    if opening is None:
+        return None
+    depth = 1
+    for index in range(closing - 1, -1, -1):
+        character = projected[index]
+        if character == projected[closing]:
+            depth += 1
+        elif character == opening:
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def limit_control_receiver_start(projected: str, end: int) -> int:
+    """Return the start of the primary/call chain immediately before one dot."""
+    cursor = end
+    while cursor > 0 and projected[cursor - 1].isspace():
+        cursor -= 1
+    if cursor == 0:
+        return 0
+    final = cursor - 1
+    if projected[final] == "?":
+        return limit_control_receiver_start(projected, final)
+    if projected[final] in ")]}":
+        opening = limit_control_matching_opening(projected, final)
+        if opening is None:
+            return cursor
+        cursor = opening
+        while cursor > 0 and projected[cursor - 1].isspace():
+            cursor -= 1
+        while cursor > 0 and (
+            projected[cursor - 1].isalnum() or projected[cursor - 1] in "_:#"
+        ):
+            cursor -= 1
+        if cursor > 0 and projected[cursor - 1] == ".":
+            cursor = limit_control_receiver_start(projected, cursor - 1)
+        return cursor
+    while cursor > 0 and (
+        projected[cursor - 1].isalnum() or projected[cursor - 1] in "_:#"
+    ):
+        cursor -= 1
+    if cursor > 0 and projected[cursor - 1] == ".":
+        return limit_control_receiver_start(projected, cursor - 1)
+    return cursor
+
+
+def limit_control_call_sites(source: str) -> tuple[LimitControlCallSite, ...]:
+    projected = rust_code_projection(source)
+    sites: list[LimitControlCallSite] = []
+    for match in re.finditer(
+        rf"(?P<callee>(?:::)?{RUST_IDENTIFIER}"
+        rf"(?:(?:::|\.){RUST_IDENTIFIER})*)\s*\(",
+        projected,
+    ):
+        callee = normalize_rust_tokens(match["callee"])
+        preceding = match.start() - 1
+        while preceding >= 0 and projected[preceding].isspace():
+            preceding -= 1
+        preceded_by_dot = preceding >= 0 and projected[preceding] == "."
+        method = "." in callee or preceded_by_dot
+        receiver = ""
+        if "." in callee:
+            receiver = callee.rsplit(".", 1)[0]
+        elif preceded_by_dot:
+            receiver_start = limit_control_receiver_start(projected, preceding)
+            receiver = normalize_rust_tokens(source[receiver_start:preceding])
+        opening = projected.find("(", match.start(), match.end())
+        closing = matching_delimiter(
+            projected,
+            [True] * len(projected),
+            opening,
+            "(",
+            ")",
+        )
+        if opening < 0 or closing is None:
+            arguments = "<unresolved>"
+        else:
+            arguments = source[opening + 1 : closing]
+        site = LimitControlCallSite(callee, method, arguments, receiver, match.start())
+        if site not in sites:
+            sites.append(site)
+    return tuple(sites)
+
+
+def limit_control_local_callable(
+    callee: str,
+    index: dict[str, tuple[dict[str, str], ...]],
+    source_hint: str | None = None,
+    owner_hint: str | None = None,
+) -> dict[str, str] | None:
+    name = re.split(r"::|\.", callee)[-1]
+    candidates = list(index.get(name, ()))
+    if "::" not in callee and "." not in callee and source_hint is not None:
+        candidates = [
+            record for record in candidates if record["source"] == source_hint
+        ]
+    if "::" in callee and len(candidates) > 1:
+        qualifier = callee.rsplit("::", 1)[0].split("::")[-1]
+        owner_token = f"impl{qualifier}"
+        owner_candidates = [
+            record
+            for record in candidates
+            if record["owner"] == owner_token
+            or record["owner"].endswith(f"for{qualifier}")
+        ]
+        if owner_candidates:
+            candidates = owner_candidates
+        elif qualifier.startswith("sley_"):
+            package = qualifier.replace("_", "-")
+            candidates = [
+                record
+                for record in candidates
+                if record["source"].startswith(f"crates/{package}/")
+            ]
+        elif qualifier not in {"crate", "self", "super"}:
+            module_candidates = [
+                record
+                for record in candidates
+                if Path(record["source"]).stem == qualifier
+            ]
+            if module_candidates:
+                candidates = module_candidates
+    if len(candidates) > 1 and source_hint is not None:
+        source_candidates = [
+            record for record in candidates if record["source"] == source_hint
+        ]
+        if owner_hint is not None:
+            owner_candidates = [
+                record
+                for record in source_candidates
+                if record["owner"] in {owner_hint, "<crate>"}
+            ]
+            if len(owner_candidates) == 1:
+                candidates = owner_candidates
+            elif owner_candidates:
+                candidates = owner_candidates
+        if len(source_candidates) == 1:
+            candidates = source_candidates
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def limit_control_signature_parameter_types(
+    record: dict[str, str],
+) -> tuple[dict[str, str], frozenset[str]]:
+    signature = record["signature"]
+    projected = rust_code_projection(signature)
+    function = record["function"]
+    match = re.search(rf"\bfn\s+(?:r#)?{re.escape(function)}\b", projected)
+    if match is None:
+        return {}, frozenset({"<unresolved-signature>"})
+    opening = projected.find("(", match.end())
+    if opening < 0:
+        return {}, frozenset({"<unresolved-signature>"})
+    generic_region = projected[match.end() : opening]
+    generic_names = frozenset(
+        semantic_rust_identifier(name)
+        for name in re.findall(RUST_IDENTIFIER, generic_region)
+    )
+    closing = matching_delimiter(
+        projected,
+        [True] * len(projected),
+        opening,
+        "(",
+        ")",
+    )
+    if closing is None:
+        return {}, frozenset({"<unresolved-signature>"})
+    parameters: dict[str, str] = {}
+    for raw in split_top_level_rust_commas(signature[opening + 1 : closing]):
+        parameter = raw.strip()
+        if not parameter:
+            continue
+        if re.fullmatch(r"(?:&\s*(?:'[^\s]+\s*)?(?:mut\s+)?)?self", parameter):
+            parameters["self"] = record["owner"]
+            continue
+        typed = re.match(
+            rf"^(?:ref\s+|mut\s+)*"
+            rf"(?P<name>{RUST_IDENTIFIER})\s*:\s*(?P<type>.+)$",
+            parameter,
+            re.DOTALL,
+        )
+        if typed is None:
+            continue
+        parameters[semantic_rust_identifier(typed["name"])] = normalize_rust_tokens(
+            typed["type"]
+        )
+    return parameters, generic_names
+
+
+def limit_control_signature_return_type(record: dict[str, str]) -> str:
+    signature = record["signature"]
+    projected = rust_code_projection(signature)
+    function = record["function"]
+    match = re.search(rf"\bfn\s+(?:r#)?{re.escape(function)}\b", projected)
+    if match is None:
+        return "<unresolved>"
+    opening = projected.find("(", match.end())
+    if opening < 0:
+        return "<unresolved>"
+    closing = matching_delimiter(
+        projected,
+        [True] * len(projected),
+        opening,
+        "(",
+        ")",
+    )
+    if closing is None:
+        return "<unresolved>"
+    remainder = signature[closing + 1 :]
+    projected_remainder = rust_code_projection(remainder)
+    arrow = projected_remainder.find("->")
+    if arrow < 0:
+        return "()"
+    return_type = remainder[arrow + 2 :]
+    where_match = re.search(r"\bwhere\b", rust_code_projection(return_type))
+    if where_match is not None:
+        return_type = return_type[: where_match.start()]
+    normalized = normalize_rust_tokens(return_type)
+    return normalized or "<unresolved>"
+
+
+def limit_control_brace_stack(projected: str, position: int) -> tuple[int, ...]:
+    stack: list[int] = []
+    for index, character in enumerate(projected[:position]):
+        if character == "{":
+            stack.append(index)
+        elif character == "}" and stack:
+            stack.pop()
+    return tuple(stack)
+
+
+def limit_control_local_binding(
+    record: dict[str, str],
+    identifier: str,
+    before: int,
+) -> dict[str, str] | None:
+    body = record["body"]
+    projected = rust_code_projection(body)
+    use_stack = limit_control_brace_stack(projected, before)
+    candidates: list[dict[str, str]] = []
+    for match in re.finditer(r"\blet\b", projected[:before]):
+        binding_stack = limit_control_brace_stack(projected, match.start())
+        if use_stack[: len(binding_stack)] != binding_stack:
+            continue
+        round_depth = square_depth = 0
+        brace_depth = 0
+        assignment: int | None = None
+        end: int | None = None
+        for index in range(match.end(), min(before, len(projected))):
+            character = projected[index]
+            if character == "(":
+                round_depth += 1
+            elif character == ")":
+                round_depth -= 1
+            elif character == "[":
+                square_depth += 1
+            elif character == "]":
+                square_depth -= 1
+            elif character == "{":
+                brace_depth += 1
+            elif character == "}":
+                if brace_depth == 0:
+                    break
+                brace_depth -= 1
+            elif (
+                character == "="
+                and assignment is None
+                and round_depth == square_depth == brace_depth == 0
+            ):
+                assignment = index
+            elif (
+                character == ";"
+                and assignment is not None
+                and round_depth == square_depth == brace_depth == 0
+            ):
+                end = index + 1
+                break
+            if min(round_depth, square_depth, brace_depth) < 0:
+                break
+        if assignment is None or end is None:
+            continue
+        pattern = body[match.end() : assignment]
+        if not code_contains_token(pattern, identifier):
+            continue
+        expression = body[assignment + 1 : end - 1].strip()
+        expression_start = assignment + 1
+        while expression_start < end and body[expression_start].isspace():
+            expression_start += 1
+        expression_projection = rust_code_projection(expression)
+        else_match = next(
+            (
+                found
+                for found in re.finditer(r"\belse\b", expression_projection)
+                if delimiter_depth_at(expression_projection, found.start()) == (0, 0, 0)
+            ),
+            None,
+        )
+        if else_match is not None:
+            expression = expression[: else_match.start()].strip()
+        candidates.append(
+            {
+                "identifier": identifier,
+                "pattern": normalize_rust_tokens(pattern),
+                "expression": expression,
+                "statement_sha256": hashlib.sha256(
+                    body[match.start() : end].encode("utf-8")
+                ).hexdigest(),
+                "start": str(match.start()),
+                "end": str(end),
+                "expression_start": str(expression_start),
+                "mutable": str(
+                    bool(
+                        re.search(
+                            rf"\bmut\s+(?:r#)?{re.escape(identifier)}\b",
+                            rust_code_projection(pattern),
+                        )
+                    )
+                ).lower(),
+            }
+        )
+    if not candidates:
+        return None
+    latest = max(int(candidate["start"]) for candidate in candidates)
+    latest_candidates = [
+        candidate for candidate in candidates if int(candidate["start"]) == latest
+    ]
+    if len(latest_candidates) != 1:
+        return {
+            "identifier": identifier,
+            "problem": "local binding is ambiguous",
+        }
+    binding = latest_candidates[0]
+    problems: list[str] = []
+    if len(candidates) != 1:
+        problems.append("local binding is shadowed")
+    intervening = projected[int(binding["end"]) : before]
+    assignment = re.search(
+        rf"(?<![=!<>])\b(?:r#)?{re.escape(identifier)}\b"
+        rf"(?:\s*(?:\[[^]]*\]|\.{RUST_IDENTIFIER}))*\s*"
+        r"(?:<<=|>>=|[-+*/%&|^]=|=(?!=))",
+        intervening,
+    )
+    mutable_borrow = re.search(
+        rf"&\s*mut\s+(?:r#)?{re.escape(identifier)}\b",
+        intervening,
+    )
+    if assignment is not None:
+        problems.append("local binding is reassigned before use")
+    if mutable_borrow is not None:
+        problems.append("local binding is mutably borrowed before use")
+    if problems:
+        binding["problem"] = "; ".join(problems)
+    return binding
+
+
+def limit_control_local_binding_problem(
+    binding: dict[str, str],
+    *,
+    allow_mutable_declaration: bool = False,
+) -> str | None:
+    problem = binding.get("problem")
+    if isinstance(problem, str):
+        return problem
+    if binding.get("mutable") == "true" and not allow_mutable_declaration:
+        return "local binding is mutable"
+    return None
+
+
+def limit_control_visible_use_bindings(
+    record: dict[str, str],
+    before: int,
+) -> dict[str, tuple[str, ...]]:
+    body = record["body"]
+    projected = rust_code_projection(body)
+    use_stack = limit_control_brace_stack(projected, before)
+    visible: dict[str, list[str]] = {}
+    for match in re.finditer(r"\buse\b", projected[:before]):
+        binding_stack = limit_control_brace_stack(projected, match.start())
+        if use_stack[: len(binding_stack)] != binding_stack:
+            continue
+        end = projected.find(";", match.end(), before)
+        if end < 0:
+            continue
+        for name, path in rust_use_tree_bindings(body[match.start() : end + 1]):
+            visible.setdefault(name, []).append(path)
+    return {name: tuple(dict.fromkeys(paths)) for name, paths in visible.items()}
+
+
+def limit_control_pattern_variables(pattern: str) -> tuple[str, ...]:
+    variables: list[str] = []
+    projected = rust_code_projection(pattern)
+    for match in re.finditer(RUST_IDENTIFIER, projected):
+        identifier = semantic_rust_identifier(match[0])
+        if match.start() > 0 and projected[match.start() - 1].isdigit():
+            continue
+        if (
+            identifier in LIMIT_CONTROL_AUTHORITY_KEYWORDS
+            or identifier == "_"
+            or identifier[:1].isupper()
+        ):
+            continue
+        cursor = match.end()
+        while cursor < len(projected) and projected[cursor].isspace():
+            cursor += 1
+        if projected[cursor : cursor + 2] == "::":
+            continue
+        if identifier not in variables:
+            variables.append(identifier)
+    return tuple(variables)
+
+
+def limit_control_header_pattern_binding(
+    header: str,
+    match_source: str | None = None,
+) -> tuple[str, str] | None:
+    projected = rust_code_projection(header).strip()
+    let_match = re.match(r"^(?:if|while)\s+let\s+(.+?)\s*=\s*(.+)$", projected)
+    if let_match is not None:
+        return let_match[1], let_match[2]
+    for_match = re.match(r"^for\s+(.+?)\s+in\s+(.+)$", projected)
+    if for_match is not None:
+        return for_match[1], for_match[2]
+    if projected.endswith("=>") and match_source is not None:
+        pattern = projected[:-2].strip().split(" if ", 1)[0]
+        return pattern, match_source
+    return None
+
+
+def limit_control_pattern_bindings(
+    body: str,
+    position: int,
+    current_header: str,
+) -> dict[str, dict[str, str]]:
+    bindings: dict[str, dict[str, str]] = {}
+    scopes = limit_event_executable_scope_records(body)
+    containing = [
+        scope
+        for scope in scopes
+        if scope[2] != "root" and scope[0] <= position <= scope[1]
+    ]
+    for _start, _end, kind, header in containing:
+        match_source: str | None = None
+        if kind == "match-arm":
+            parents = [
+                parent
+                for parent in containing
+                if parent[2].startswith("match:")
+                and parent[0] <= _start
+                and _end <= parent[1]
+            ]
+            if parents:
+                match_source = parents[-1][2].removeprefix("match:")
+        parsed = limit_control_header_pattern_binding(header, match_source)
+        if parsed is None:
+            continue
+        pattern, expression = parsed
+        for identifier in limit_control_pattern_variables(pattern):
+            bindings[identifier] = {
+                "pattern": normalize_rust_tokens(pattern),
+                "expression": normalize_rust_tokens(expression),
+                "header_sha256": hashlib.sha256(header.encode("utf-8")).hexdigest(),
+            }
+    parsed_current = limit_control_header_pattern_binding(current_header)
+    if parsed_current is not None:
+        pattern, expression = parsed_current
+        for identifier in limit_control_pattern_variables(pattern):
+            bindings[identifier] = {
+                "pattern": normalize_rust_tokens(pattern),
+                "expression": normalize_rust_tokens(expression),
+                "header_sha256": hashlib.sha256(
+                    current_header.encode("utf-8")
+                ).hexdigest(),
+            }
+    return bindings
+
+
+def limit_control_site_pattern_bindings(
+    body: str,
+    position: int,
+) -> dict[str, dict[str, str]]:
+    scopes = limit_event_executable_scope_records(body)
+    header_scopes = [
+        (start, end, kind, header, start - 1 - len(header))
+        for start, end, kind, header in scopes
+        if kind != "root" and start - 1 - len(header) <= position < start - 1
+    ]
+    bindings = limit_control_pattern_bindings(body, position, "")
+    match_scopes = [
+        scope
+        for scope in scopes
+        if scope[2].startswith("match:") and scope[0] <= position <= scope[1]
+    ]
+    if match_scopes:
+        match_start, match_end, match_kind, _match_header = min(
+            match_scopes,
+            key=lambda scope: scope[1] - scope[0],
+        )
+        match_body = body[match_start:match_end]
+        projected_match_body = rust_code_projection(match_body)
+        arm_start = 0
+        round_depth = square_depth = brace_depth = 0
+        arm_ranges: list[tuple[int, int]] = []
+        for offset, character in enumerate(projected_match_body):
+            if character == "(":
+                round_depth += 1
+            elif character == ")":
+                round_depth -= 1
+            elif character == "[":
+                square_depth += 1
+            elif character == "]":
+                square_depth -= 1
+            elif character == "{":
+                brace_depth += 1
+            elif character == "}":
+                brace_depth -= 1
+            elif character == "," and round_depth == square_depth == brace_depth == 0:
+                arm_ranges.append((arm_start, offset))
+                arm_start = offset + 1
+        if arm_start < len(match_body):
+            arm_ranges.append((arm_start, len(match_body)))
+        relative_position = position - match_start
+        for arm_begin, arm_end in arm_ranges:
+            if not (arm_begin <= relative_position <= arm_end):
+                continue
+            arm = match_body[arm_begin:arm_end]
+            arrow = rust_code_projection(arm).find("=>")
+            if arrow < 0:
+                break
+            header = arm[: arrow + 2]
+            parsed = limit_control_header_pattern_binding(
+                header,
+                match_kind.removeprefix("match:"),
+            )
+            if parsed is not None:
+                pattern, expression = parsed
+                for identifier in limit_control_pattern_variables(pattern):
+                    bindings[identifier] = {
+                        "pattern": normalize_rust_tokens(pattern),
+                        "expression": normalize_rust_tokens(expression),
+                        "header_sha256": hashlib.sha256(
+                            header.encode("utf-8")
+                        ).hexdigest(),
+                    }
+            break
+    if not header_scopes:
+        return bindings
+    start, end, kind, header, header_start = min(
+        header_scopes,
+        key=lambda scope: len(scope[3]),
+    )
+    bindings.update(limit_control_pattern_bindings(body, header_start, ""))
+    match_source: str | None = None
+    if kind == "match-arm":
+        parents = [
+            parent
+            for parent in scopes
+            if parent[2].startswith("match:")
+            and parent[0] <= header_start
+            and end <= parent[1]
+        ]
+        if parents:
+            match_source = parents[-1][2].removeprefix("match:")
+    parsed = limit_control_header_pattern_binding(header, match_source)
+    if parsed is not None:
+        pattern, expression = parsed
+        for identifier in limit_control_pattern_variables(pattern):
+            bindings[identifier] = {
+                "pattern": normalize_rust_tokens(pattern),
+                "expression": normalize_rust_tokens(expression),
+                "header_sha256": hashlib.sha256(header.encode("utf-8")).hexdigest(),
+            }
+    return bindings
+
+
+def limit_control_root_identifiers(expression: str) -> tuple[str, ...]:
+    projected = rust_code_projection(expression)
+    identifiers: list[str] = []
+    for match in re.finditer(RUST_IDENTIFIER, projected):
+        identifier = semantic_rust_identifier(match[0])
+        if match.start() > 0 and projected[match.start() - 1].isdigit():
+            continue
+        if identifier in LIMIT_CONTROL_AUTHORITY_KEYWORDS:
+            continue
+        before = match.start() - 1
+        while before >= 0 and projected[before].isspace():
+            before -= 1
+        after = match.end()
+        while after < len(projected) and projected[after].isspace():
+            after += 1
+        if before >= 0 and projected[before] == ".":
+            continue
+        if before >= 1 and projected[before - 1 : before + 1] == "::":
+            continue
+        if projected[after : after + 2] == "::":
+            continue
+        if after < len(projected) and projected[after] in "(!":
+            continue
+        if identifier not in identifiers:
+            identifiers.append(identifier)
+    return tuple(identifiers)
+
+
+def limit_control_qualified_value_paths(expression: str) -> tuple[str, ...]:
+    projected = rust_code_projection(expression)
+    paths: list[str] = []
+    for match in re.finditer(
+        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})+)",
+        projected,
+    ):
+        before = match.start() - 1
+        while before >= 0 and projected[before].isspace():
+            before -= 1
+        if before >= 0 and projected[before] == ".":
+            continue
+        after = match.end()
+        while after < len(projected) and projected[after].isspace():
+            after += 1
+        if after < len(projected) and projected[after] in "(!":
+            continue
+        path = normalize_rust_tokens(match["path"])
+        if path not in paths:
+            paths.append(path)
+    return tuple(paths)
+
+
+def limit_control_resolve_import_path(
+    path: str,
+    record: dict[str, str],
+) -> tuple[str, ...] | None:
+    normalized = normalize_rust_tokens(path).removeprefix("::")
+    components = [
+        semantic_rust_identifier(component)
+        for component in normalized.split("::")
+        if component
+    ]
+    if not components:
+        return None
+    package = limit_control_package_name(record["source"])
+    source_modules = limit_control_source_module_components(record["source"])
+    if package is None or source_modules is None:
+        return None
+    current = [
+        package,
+        *source_modules,
+        *limit_control_owner_module_components(record["owner"]),
+    ]
+    if components[0] == "crate":
+        return tuple((package, *components[1:]))
+    if components[0] == "self":
+        return tuple((*current, *components[1:]))
+    if components[0] == "super":
+        supers = 0
+        while supers < len(components) and components[supers] == "super":
+            supers += 1
+        if supers > len(current) - 1:
+            return None
+        return tuple((*current[: len(current) - supers], *components[supers:]))
+    return tuple(components)
+
+
+def limit_control_qualified_type_identity(
+    path: str,
+    record: dict[str, str],
+    position: int,
+) -> str | None:
+    absolute = path.startswith("::")
+    normalized = path.removeprefix("::")
+    components = tuple(
+        semantic_rust_identifier(component)
+        for component in normalized.split("::")
+        if component
+    )
+    if len(components) < 2:
+        return None
+    type_components = components[:-1]
+    root = type_components[0]
+    if absolute:
+        if root not in {"core", "std"} and not root.startswith("sley_"):
+            return None
+        return "::".join(type_components)
+
+    visible = limit_control_visible_use_bindings(record, position)
+    module_bindings = json.loads(record.get("module_use_bindings_json", "{}"))
+    raw_bindings = (
+        visible.get(root)
+        if root in visible
+        else module_bindings.get(root)
+        if root in module_bindings
+        else None
+    )
+    if raw_bindings is not None:
+        if not isinstance(raw_bindings, (list, tuple)) or len(raw_bindings) != 1:
+            return None
+        resolved = limit_control_resolve_import_path(str(raw_bindings[0]), record)
+        if resolved is None:
+            return None
+        return "::".join((*resolved, *type_components[1:]))
+
+    if root in {"core", "std"}:
+        # Standard-library authority is spelling-independent only when it is
+        # rooted absolutely or reached through one exact reviewed import.
+        return None
+    if root.startswith("sley_"):
+        return "::".join(type_components)
+    if root in {"crate", "self", "super"}:
+        resolved = limit_control_resolve_import_path("::".join(type_components), record)
+        return "::".join(resolved) if resolved is not None else None
+
+    package = limit_control_package_name(record["source"])
+    source_modules = limit_control_source_module_components(record["source"])
+    if package is None or source_modules is None:
+        return None
+    current = (
+        package,
+        *source_modules,
+        *limit_control_owner_module_components(record["owner"]),
+    )
+    return "::".join((*current, *type_components))
+
+
+def limit_control_qualified_value_record(
+    path: str,
+    record: dict[str, str],
+    resolved_callables: list[dict[str, str]],
+    position: int,
+) -> dict[str, str]:
+    normalized = path.removeprefix("::")
+    terminal = semantic_rust_identifier(normalized.split("::")[-1])
+    if terminal[:1].islower():
+        callable_matches = [
+            resolution
+            for resolution in resolved_callables
+            if isinstance(resolution, dict)
+            and str(resolution.get("callee", "")).removeprefix("::") == normalized
+            and resolution.get("classification") != "UNRESOLVED"
+        ]
+        callable_authorities = {
+            (
+                str(resolution.get("classification")),
+                str(resolution.get("authority")),
+                str(resolution.get("authority_sha256")),
+            )
+            for resolution in callable_matches
+        }
+        if len(callable_authorities) == 1:
+            classification, callable_authority, callable_authority_sha256 = next(
+                iter(callable_authorities)
+            )
+            authority = (
+                f"RESOLVED_FUNCTION_ITEM:{normalized}:{classification}:"
+                f"{callable_authority}:{callable_authority_sha256}"
+            )
+            return {
+                "identifier": path,
+                "classification": "RESOLVED_FUNCTION_ITEM",
+                "authority": authority,
+                "authority_sha256": hashlib.sha256(
+                    authority.encode("utf-8")
+                ).hexdigest(),
+            }
+        reason = f"qualified callable/value authority is unresolved: {path}"
+        return {
+            "identifier": path,
+            "classification": "UNRESOLVED",
+            "authority": reason,
+            "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+        }
+
+    type_identity = limit_control_qualified_type_identity(path, record, position)
+    canonical_variant = (
+        f"{type_identity}::{terminal}" if type_identity is not None else None
+    )
+    if canonical_variant in LIMIT_TRUSTED_CONTROL_ENUM_VARIANTS:
+        authority = f"RUST_STANDARD_LIBRARY_ENUM_VARIANT:{canonical_variant}"
+        return {
+            "identifier": path,
+            "classification": "TRUSTED_RUST_ENUM_VARIANT",
+            "authority": authority,
+            "authority_sha256": hashlib.sha256(authority.encode("utf-8")).hexdigest(),
+        }
+    components = tuple(
+        semantic_rust_identifier(component)
+        for component in normalized.split("::")
+        if component
+    )
+    if len(components) < 2:
+        reason = f"qualified value path is malformed: {path}"
+        return {
+            "identifier": path,
+            "classification": "UNRESOLVED",
+            "authority": reason,
+            "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+        }
+    enum_name, variant = components[-2:]
+    raw_index = record.get("enum_variants_json")
+    enum_index = json.loads(raw_index) if isinstance(raw_index, str) else {}
+    raw_candidates = enum_index.get(enum_name, [])
+    candidates = [
+        candidate
+        for candidate in raw_candidates
+        if isinstance(candidate, dict) and variant in candidate.get("variants", [])
+    ]
+    candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.get("canonical_path") == type_identity
+    ]
+    if len(candidates) == 1:
+        candidate = candidates[0]
+        authority = (
+            f"FROZEN_ENUM_VARIANT:{candidate['source']}:{candidate['owner']}:"
+            f"{enum_name}:{variant}:{candidate['declaration_sha256']}"
+        )
+        return {
+            "identifier": path,
+            "classification": "FROZEN_ENUM_VARIANT",
+            "authority": authority,
+            "authority_sha256": hashlib.sha256(authority.encode("utf-8")).hexdigest(),
+        }
+    reason = f"qualified value authority is absent or ambiguous: {path}"
+    return {
+        "identifier": path,
+        "classification": "UNRESOLVED",
+        "authority": reason,
+        "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+    }
+
+
+def limit_control_exact_worklist_pop_reference(
+    expression: str,
+    identifier: str,
+) -> bool:
+    projected = rust_code_projection(expression)
+    matches = tuple(re.finditer(rf"\b(?:r#)?{re.escape(identifier)}\b", projected))
+    if not matches:
+        return False
+    for match in matches:
+        suffix = projected[match.end() :]
+        if re.match(r"\s*\.\s*pop\s*\(", suffix) is None:
+            return False
+    return True
+
+
+def limit_control_owned_usage_authority(
+    record: dict[str, str],
+    identifier: str,
+    binding: dict[str, str],
+) -> str | None:
+    initializer = normalize_rust_tokens(binding.get("expression", ""))
+    initialized = re.fullmatch(
+        rf"(?P<type>{RUST_IDENTIFIER})::default\(\)",
+        initializer,
+    )
+    if initialized is None or binding.get("mutable") != "true":
+        return None
+    usage_type = semantic_rust_identifier(initialized["type"])
+    struct_fields = json.loads(record.get("struct_fields_json", "{}"))
+    fields = struct_fields.get(usage_type)
+    if not isinstance(fields, dict) or not fields:
+        return None
+    expected_fields: set[str] = set()
+    for spec in LIMIT_EVENT_SPECS.values():
+        if tuple(spec.site) != (
+            record["source"],
+            record["owner"],
+            record["function"],
+        ):
+            continue
+        for _qualified, counter, _next, _delta in spec.charges:
+            base, separator, field = counter.partition(".")
+            if separator and base == identifier:
+                expected_fields.add(field)
+    if not expected_fields or set(fields) != expected_fields:
+        return None
+    projected = rust_code_projection(record["body"])
+    reads: dict[str, int] = {field: 0 for field in expected_fields}
+    writes: dict[str, int] = {field: 0 for field in expected_fields}
+    inventory: list[dict[str, object]] = []
+    for match in re.finditer(
+        rf"\b(?:r#)?{re.escape(identifier)}\b",
+        projected,
+    ):
+        if int(binding["start"]) <= match.start() < int(binding["end"]):
+            inventory.append({"offset": match.start(), "kind": "declaration"})
+            continue
+        suffix = normalize_rust_tokens(projected[match.end() :])
+        read = re.match(
+            rf"\.(?P<field>{RUST_IDENTIFIER})\.checked_add\(",
+            suffix,
+        )
+        if read is not None:
+            field = semantic_rust_identifier(read["field"])
+            if field not in expected_fields or fields.get(field) != "u64":
+                return None
+            reads[field] += 1
+            inventory.append(
+                {"offset": match.start(), "kind": "checked_add", "field": field}
+            )
+            continue
+        write = re.match(
+            rf"\.(?P<field>{RUST_IDENTIFIER})=(?P<value>{RUST_IDENTIFIER});",
+            suffix,
+        )
+        if write is not None:
+            field = semantic_rust_identifier(write["field"])
+            value = semantic_rust_identifier(write["value"])
+            if field not in expected_fields or fields.get(field) != "u64":
+                return None
+            writes[field] += 1
+            inventory.append(
+                {
+                    "offset": match.start(),
+                    "kind": "assignment",
+                    "field": field,
+                    "value": value,
+                }
+            )
+            continue
+        return None
+    if any(reads[field] != 1 or writes[field] != 1 for field in expected_fields):
+        return None
+    inventory_sha256 = canonical_json_sha256(inventory)
+    return (
+        f"OWNED_USAGE_ACCUMULATOR:{record['source']}:{record['owner']}:"
+        f"{record['function']}:{identifier}:{usage_type}:{inventory_sha256}"
+    )
+
+
+def limit_control_value_authority(
+    expression: str,
+    index: dict[str, tuple[dict[str, str], ...]],
+    record: dict[str, str],
+    position: int,
+    pattern_bindings: dict[str, dict[str, str]],
+    visited: frozenset[tuple[str, str, int]] = frozenset(),
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    values: list[dict[str, str]] = []
+    callables: list[dict[str, str]] = []
+    normalized_expression = normalize_rust_tokens(expression)
+    if problem := limit_control_slice_body_problem(expression):
+        values.append(
+            {
+                "identifier": "<expression>",
+                "classification": "UNRESOLVED",
+                "authority": problem,
+                "authority_sha256": hashlib.sha256(problem.encode("utf-8")).hexdigest(),
+            }
+        )
+        return values, callables
+    macros = tuple(
+        semantic_rust_identifier(match[1])
+        for match in re.finditer(
+            rf"\b({RUST_IDENTIFIER})\s*!\s*[({{\[]",
+            rust_code_projection(expression),
+        )
+    )
+    if any(macro != "vec" for macro in macros):
+        reason = f"unresolved value macro in {normalized_expression}"
+        values.append(
+            {
+                "identifier": "<macro>",
+                "classification": "UNRESOLVED",
+                "authority": reason,
+                "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+            }
+        )
+        return values, callables
+    resolved_callables = limit_control_resolved_authority(
+        expression, index, record, position
+    )
+    callables.extend(resolved_callables)
+    values.extend(
+        limit_control_qualified_value_record(
+            path,
+            record,
+            resolved_callables,
+            position,
+        )
+        for path in limit_control_qualified_value_paths(expression)
+    )
+    constants = json.loads(record.get("constants_json", "{}"))
+    parameters, generic_names = limit_control_signature_parameter_types(record)
+    caller_arguments = json.loads(record.get("caller_arguments_json", "{}"))
+    caller_argument_authority = json.loads(
+        record.get("caller_argument_authority_json", "{}")
+    )
+    closure_parameters = record.get("closure_parameters", ())
+    for identifier in limit_control_root_identifiers(expression):
+        key = (record["source"], identifier, position)
+        if key in visited:
+            reason = f"cyclic value authority for {identifier}"
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "UNRESOLVED",
+                    "authority": reason,
+                    "authority_sha256": hashlib.sha256(
+                        reason.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        next_visited = visited | {key}
+        pattern = pattern_bindings.get(identifier)
+        if pattern is not None:
+            authority = (
+                f"PATTERN_BINDING:{pattern['pattern']}:"
+                f"{pattern['expression']}:{pattern['header_sha256']}"
+            )
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "PATTERN_BINDING",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            nested_values, nested_calls = limit_control_value_authority(
+                pattern["expression"],
+                index,
+                record,
+                position,
+                {
+                    name: binding
+                    for name, binding in pattern_bindings.items()
+                    if name != identifier
+                },
+                next_visited,
+            )
+            values.extend(value for value in nested_values if value not in values)
+            callables.extend(
+                callable_record
+                for callable_record in nested_calls
+                if callable_record not in callables
+            )
+            continue
+        binding = limit_control_local_binding(record, identifier, position)
+        if binding is not None:
+            owned_usage_authority = limit_control_owned_usage_authority(
+                record,
+                identifier,
+                binding,
+            )
+            if owned_usage_authority is not None:
+                values.append(
+                    {
+                        "identifier": identifier,
+                        "classification": "OWNED_USAGE_ACCUMULATOR",
+                        "authority": owned_usage_authority,
+                        "authority_sha256": hashlib.sha256(
+                            owned_usage_authority.encode("utf-8")
+                        ).hexdigest(),
+                    }
+                )
+                continue
+            if problem := limit_control_local_binding_problem(
+                binding,
+                allow_mutable_declaration=limit_control_exact_worklist_pop_reference(
+                    expression,
+                    identifier,
+                ),
+            ):
+                reason = f"unresolved local binding {identifier}: {problem}"
+                values.append(
+                    {
+                        "identifier": identifier,
+                        "classification": "UNRESOLVED",
+                        "authority": reason,
+                        "authority_sha256": hashlib.sha256(
+                            reason.encode("utf-8")
+                        ).hexdigest(),
+                    }
+                )
+                continue
+            authority = (
+                f"UNIQUE_LOCAL_BINDING:{identifier}:{binding['pattern']}:"
+                f"{binding['statement_sha256']}:"
+                f"{normalize_rust_tokens(binding['expression'])}"
+            )
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "UNIQUE_LOCAL_BINDING",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            nested_values, nested_calls = limit_control_value_authority(
+                binding["expression"],
+                index,
+                record,
+                int(binding["expression_start"]),
+                pattern_bindings,
+                next_visited,
+            )
+            values.extend(value for value in nested_values if value not in values)
+            callables.extend(
+                callable_record
+                for callable_record in nested_calls
+                if callable_record not in callables
+            )
+            continue
+        if isinstance(closure_parameters, tuple) and identifier in closure_parameters:
+            callback_source = record.get("closure_parameter_source", "<unresolved>")
+            authority = f"LEXICAL_CALLBACK_PARAMETER:{identifier}:{callback_source}"
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "LEXICAL_CALLBACK_PARAMETER",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        parameter_type = parameters.get(identifier)
+        if parameter_type is not None:
+            argument_authority: object = None
+            if any(
+                code_contains_token(parameter_type, name) for name in generic_names
+            ) or re.search(
+                r"\b(?:dyn|impl)\b|\bFn(?:Mut|Once)?\b|\bfn\s*\(",
+                parameter_type,
+            ):
+                classification = "UNRESOLVED"
+                authority = f"non-monomorphic parameter {identifier}:{parameter_type}"
+            else:
+                argument = caller_arguments.get(identifier)
+                if isinstance(argument, str):
+                    argument_authority = caller_argument_authority.get(identifier)
+                    if not isinstance(argument_authority, dict):
+                        classification = "UNRESOLVED"
+                        authority = (
+                            f"bound parameter {identifier} lacks caller provenance"
+                        )
+                    else:
+                        classification = "BOUND_PARAMETER"
+                        authority = (
+                            f"{classification}:{identifier}:{parameter_type}:"
+                            f"{normalize_rust_tokens(argument)}:"
+                            f"{argument_authority.get('authority_sha256')}"
+                        )
+                else:
+                    argument_authority = None
+                    classification = "CONCRETE_PARAMETER"
+                    authority = f"{classification}:{identifier}:{parameter_type}"
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": classification,
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            if isinstance(argument_authority, dict):
+                nested_values = argument_authority.get("resolved_values", [])
+                nested_calls = argument_authority.get("resolved_calls", [])
+                if not isinstance(nested_values, list) or not isinstance(
+                    nested_calls, list
+                ):
+                    reason = f"bound parameter {identifier} provenance is malformed"
+                    values.append(
+                        {
+                            "identifier": identifier,
+                            "classification": "UNRESOLVED",
+                            "authority": reason,
+                            "authority_sha256": hashlib.sha256(
+                                reason.encode("utf-8")
+                            ).hexdigest(),
+                        }
+                    )
+                else:
+                    values.extend(
+                        value for value in nested_values if value not in values
+                    )
+                    callables.extend(
+                        callable_record
+                        for callable_record in nested_calls
+                        if callable_record not in callables
+                    )
+            continue
+        constant = constants.get(identifier)
+        if isinstance(constant, dict):
+            authority = (
+                f"FROZEN_CONSTANT:{record['source']}:{identifier}:"
+                f"{constant.get('type')}:{constant.get('initializer')}:"
+                f"{constant.get('declaration_sha256')}"
+            )
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "FROZEN_CONSTANT",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        if identifier == "self":
+            authority = f"CONCRETE_SELF:{record['source']}:{record['owner']}"
+            values.append(
+                {
+                    "identifier": identifier,
+                    "classification": "CONCRETE_SELF",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        reason = f"unresolved value authority {identifier} in {normalized_expression}"
+        values.append(
+            {
+                "identifier": identifier,
+                "classification": "UNRESOLVED",
+                "authority": reason,
+                "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+            }
+        )
+    return values, callables
+
+
+def limit_control_receiver_authority(
+    site: LimitControlCallSite,
+    record: dict[str, str] | None,
+) -> tuple[str, tuple[LimitControlCallSite, ...], str | None]:
+    receiver = site.receiver
+    if not receiver:
+        return "", (), "method receiver is absent"
+    receiver_calls = limit_control_call_sites(receiver)
+    if receiver_calls:
+        authority = f"CONCRETE_CALL_CHAIN:{normalize_rust_tokens(receiver)}"
+        return (
+            authority,
+            tuple(call._replace(start=site.start) for call in receiver_calls),
+            None,
+        )
+    identifiers = tuple(
+        semantic_rust_identifier(value)
+        for value in re.findall(RUST_IDENTIFIER, rust_code_projection(receiver))
+    )
+    if not identifiers:
+        authority = f"CONCRETE_LITERAL:{normalize_rust_tokens(receiver)}"
+        return authority, (), None
+    base = identifiers[0]
+    if record is None:
+        return "", (), f"receiver {receiver} lacks callable context"
+    closure_parameters = record.get("closure_parameters", ())
+    if isinstance(closure_parameters, tuple) and base in closure_parameters:
+        callback_source = record.get("closure_parameter_source", "<unresolved>")
+        authority = f"LEXICAL_CALLBACK_PARAMETER:{base}:{callback_source}"
+        return authority, (), None
+    binding = limit_control_local_binding(record, base, site.start)
+    if binding is not None:
+        owned_usage_authority = limit_control_owned_usage_authority(
+            record,
+            base,
+            binding,
+        )
+        normalized_receiver = normalize_rust_tokens(receiver)
+        usage_field = re.fullmatch(
+            rf"(?:r#)?{re.escape(base)}\.(?P<field>{RUST_IDENTIFIER})",
+            normalized_receiver,
+        )
+        if owned_usage_authority is not None and usage_field is not None:
+            field = semantic_rust_identifier(usage_field["field"])
+            struct_fields = json.loads(record.get("struct_fields_json", "{}"))
+            usage_type = owned_usage_authority.split(":")[-2]
+            field_type = struct_fields.get(usage_type, {}).get(field)
+            if isinstance(field_type, str):
+                authority = (
+                    f"OWNED_USAGE_FIELD:{field}:{field_type}:"
+                    f"{hashlib.sha256(owned_usage_authority.encode('utf-8')).hexdigest()}"
+                )
+                return authority, (), None
+        allow_mutable_declaration = re.split(r"::|\.", site.callee)[-1] == "pop"
+        if problem := limit_control_local_binding_problem(
+            binding,
+            allow_mutable_declaration=allow_mutable_declaration,
+        ):
+            return "", (), f"receiver local binding {base} is unresolved: {problem}"
+        expression = binding["expression"]
+        authority = (
+            f"UNIQUE_LOCAL_BINDING:{base}:{binding['pattern']}:"
+            f"{binding['statement_sha256']}:"
+            f"{normalize_rust_tokens(expression)}"
+        )
+        expression_start = int(binding["expression_start"])
+        expression_calls = tuple(
+            call._replace(start=expression_start + call.start)
+            for call in limit_control_call_sites(expression)
+        )
+        return authority, expression_calls, None
+    pattern_bindings = json.loads(record.get("pattern_bindings_json", "{}"))
+    pattern_binding = pattern_bindings.get(base)
+    if isinstance(pattern_binding, dict):
+        pattern_expression = str(pattern_binding.get("expression", ""))
+        authority = (
+            f"PATTERN_BOUND_RECEIVER:{base}:{pattern_binding.get('pattern')}:"
+            f"{pattern_expression}:"
+            f"{pattern_binding.get('header_sha256')}"
+        )
+        expression_calls = tuple(
+            call._replace(start=site.start)
+            for call in limit_control_call_sites(pattern_expression)
+        )
+        return authority, expression_calls, None
+    if base == "self":
+        normalized_receiver = normalize_rust_tokens(receiver)
+        field_match = re.fullmatch(
+            rf"self\.(?P<field>{RUST_IDENTIFIER})",
+            normalized_receiver,
+        )
+        self_type = limit_control_owner_self_type(record["owner"])
+        struct_fields = json.loads(record.get("struct_fields_json", "{}"))
+        if field_match is not None and self_type is not None:
+            owner_fields = struct_fields.get(self_type)
+            field_name = semantic_rust_identifier(field_match["field"])
+            field_type = (
+                owner_fields.get(field_name) if isinstance(owner_fields, dict) else None
+            )
+            if isinstance(field_type, str):
+                authority = (
+                    f"CONCRETE_SELF_FIELD:{record['source']}:{record['owner']}:"
+                    f"{field_name}:{field_type}"
+                )
+                return authority, (), None
+        authority = (
+            f"CONCRETE_SELF:{record['source']}:{record['owner']}:{normalized_receiver}"
+        )
+        return authority, (), None
+    parameters, generic_names = limit_control_signature_parameter_types(record)
+    parameter_type = parameters.get(base)
+    if parameter_type is not None:
+        if any(
+            code_contains_token(parameter_type, name) for name in generic_names
+        ) or re.search(
+            r"\b(?:dyn|impl)\b|\bFn(?:Mut|Once)?\b|\bfn\s*\(", parameter_type
+        ):
+            return "", (), f"receiver parameter {base} is not monomorphic"
+        caller_arguments = json.loads(record.get("caller_arguments_json", "{}"))
+        caller_argument = caller_arguments.get(base)
+        if isinstance(caller_argument, str):
+            caller_authorities = json.loads(
+                record.get("caller_argument_authority_json", "{}")
+            )
+            caller_authority = caller_authorities.get(base)
+            if not isinstance(caller_authority, dict):
+                return "", (), f"bound receiver {base} lacks caller provenance"
+            resolved_values = caller_authority.get("resolved_values")
+            resolved_calls = caller_authority.get("resolved_calls")
+            if not isinstance(resolved_values, list) or not isinstance(
+                resolved_calls, list
+            ):
+                return "", (), f"bound receiver {base} provenance is malformed"
+            if any(
+                item.get("classification") == "UNRESOLVED"
+                for item in [*resolved_values, *resolved_calls]
+                if isinstance(item, dict)
+            ):
+                return "", (), f"bound receiver {base} provenance is unresolved"
+            authority = (
+                f"BOUND_PARAMETER:{base}:{parameter_type}:"
+                f"{normalize_rust_tokens(caller_argument)}:"
+                f"{caller_authority.get('authority_sha256')}"
+            )
+            return authority, (), None
+        authority = f"CONCRETE_PARAMETER:{base}:{parameter_type}"
+        return authority, (), None
+    if base.isupper():
+        constants = json.loads(record.get("constants_json", "{}"))
+        constant = constants.get(base)
+        if isinstance(constant, dict) and set(constant) == {
+            "type",
+            "initializer",
+            "declaration_sha256",
+        }:
+            authority = (
+                f"FROZEN_CONSTANT_REFERENCE:{record['source']}:{base}:"
+                f"{constant['type']}:{constant['initializer']}:"
+                f"{constant['declaration_sha256']}"
+            )
+            return authority, (), None
+        return "", (), f"constant receiver is unresolved: {receiver}"
+    return "", (), f"receiver binding is unresolved: {receiver}"
+
+
+def limit_control_call_chain_return_type(
+    expression: str,
+    index: dict[str, tuple[dict[str, str], ...]],
+    current_record: dict[str, str] | None,
+) -> str | None:
+    sites = limit_control_call_sites(expression.rstrip().removesuffix("?"))
+    if not sites:
+        return None
+    final = sites[-1]
+    local = limit_control_local_callable(
+        final.callee,
+        index,
+        current_record["source"] if current_record is not None else None,
+        current_record["owner"] if current_record is not None else None,
+    )
+    if local is not None:
+        return limit_control_signature_return_type(local)
+    normalized = final.callee.removeprefix("::")
+    direct_result_types = {
+        "fs::read_dir": "std::io::Result<std::fs::ReadDir>",
+        "fs::symlink_metadata": "std::io::Result<std::fs::Metadata>",
+        "u32::from_str_radix": "Result<u32,ParseIntError>",
+        "u64::try_from": "Result<u64,TryFromIntError>",
+        "usize::try_from": "Result<usize,TryFromIntError>",
+    }
+    if normalized in direct_result_types:
+        return direct_result_types[normalized]
+    method_name = re.split(r"::|\.", final.callee)[-1]
+    method_result_types = {
+        "file_type": "std::io::Result<std::fs::FileType>",
+        "strip_prefix": "Result<&Path,StripPrefixError>",
+        "map_err": "Result<T,E>",
+        "ok_or": "Result<T,E>",
+        "ok_or_else": "Result<T,E>",
+        "try_into": "Result<T,E>",
+    }
+    return method_result_types.get(method_name)
+
+
+def limit_control_method_receiver_problem(
+    method_name: str,
+    receiver_authority: str,
+    receiver_return_type: str | None = None,
+) -> str | None:
+    parameter = re.fullmatch(
+        r"CONCRETE_PARAMETER:[^:]+:(?P<type>.+)", receiver_authority
+    )
+    bound_parameter = re.fullmatch(
+        r"BOUND_PARAMETER:[^:]+:(?P<type>[^:]+(?:::[^:]+)*):(?P<argument>.+)",
+        receiver_authority,
+    )
+    parameter_type = (
+        parameter["type"]
+        if parameter is not None
+        else bound_parameter["type"]
+        if bound_parameter is not None
+        else ""
+    )
+    call_chain = receiver_authority.removeprefix("CONCRETE_CALL_CHAIN:")
+    local_binding = receiver_authority.startswith("UNIQUE_LOCAL_BINDING:")
+    callback_parameter = receiver_authority.startswith("LEXICAL_CALLBACK_PARAMETER:")
+    pattern_receiver = receiver_authority.startswith("PATTERN_BOUND_RECEIVER:")
+    constant = receiver_authority.startswith("FROZEN_CONSTANT_REFERENCE:")
+    self_field = re.fullmatch(
+        r"CONCRETE_SELF_FIELD:[^:]+:[^:]+:[^:]+:(?P<type>.+)",
+        receiver_authority,
+    )
+    self_field_type = self_field["type"] if self_field is not None else ""
+    io_error_pattern = bool(
+        pattern_receiver
+        and re.search(r":(?:Some\()?Err\([^)]*\):", receiver_authority)
+        and re.search(
+            r":(?:::)?(?:std::)?fs::(?:read_dir|symlink_metadata)\(",
+            receiver_authority,
+        )
+    )
+    dir_entry_pattern = bool(
+        pattern_receiver
+        and "fs::read_dir(" in receiver_authority
+        and re.search(
+            r":(?:Some\()?Ok\([^)]*\):|:[A-Za-z_][A-Za-z0-9_]*:", receiver_authority
+        )
+    )
+    dir_entry_binding = bool(
+        local_binding
+        and ".map_err(" in receiver_authority
+        and not receiver_authority.rstrip().endswith(".map_err(")
+    )
+    metadata_pattern = bool(
+        pattern_receiver and "fs::symlink_metadata(" in receiver_authority
+    )
+    metadata_binding = bool(
+        local_binding and "fs::symlink_metadata(" in receiver_authority
+    )
+    path_parameter = bool(
+        (parameter_type or self_field_type)
+        and re.search(
+            r"(?:^|[&<]|::)(?:Path|PathBuf)(?:>|$)",
+            parameter_type or self_field_type,
+        )
+    )
+    os_string_parameter = bool(
+        parameter_type
+        and re.search(r"(?:^|::)(?:OsStr|OsString)(?:>|$)", parameter_type)
+    )
+    string_parameter = bool(
+        parameter_type and re.search(r"(?:^|[&<])(?:str|String)(?:>|$)", parameter_type)
+    )
+    byte_parameter = parameter_type in {"u8", "&u8"}
+    usage_field = re.fullmatch(
+        r"OWNED_USAGE_FIELD:[^:]+:(?P<type>[^:]+):[0-9a-f]{64}",
+        receiver_authority,
+    )
+    usage_field_type = usage_field["type"] if usage_field is not None else ""
+
+    if method_name == "kind":
+        return (
+            None
+            if parameter_type.endswith("io::Error") or io_error_pattern
+            else "requires io::Error"
+        )
+    if method_name == "is_ascii_digit":
+        return None if byte_parameter else "requires u8"
+    if method_name == "checked_add":
+        return (
+            None
+            if parameter_type in {"u64", "&u64"} or usage_field_type == "u64"
+            else "requires a concrete u64 accumulator field"
+        )
+    if method_name == "pop":
+        return (
+            None
+            if local_binding and re.search(r":(?:vec!\[|Vec::)", receiver_authority)
+            else "requires an inventoried concrete Vec binding"
+        )
+    if method_name in {"file_name", "parent"}:
+        dir_entry = parameter_type.endswith("DirEntry")
+        return (
+            None
+            if path_parameter
+            or (
+                method_name == "file_name"
+                and (dir_entry or dir_entry_pattern or dir_entry_binding)
+            )
+            else "requires a concrete Path or DirEntry receiver"
+        )
+    if method_name == "join":
+        path_binding = local_binding and ".join(" in receiver_authority
+        return (
+            None
+            if path_parameter or path_binding
+            else "requires a repository-root-derived Path receiver"
+        )
+    if method_name == "to_str":
+        return None if os_string_parameter else "requires a concrete OsStr receiver"
+    if method_name in {"strip_prefix", "strip_suffix"}:
+        string_binding = local_binding and any(
+            token in receiver_authority
+            for token in (".to_str()", ".strip_prefix(", ".strip_suffix(", ".and_then(")
+        )
+        return (
+            None
+            if string_parameter or string_binding or callback_parameter
+            else "requires a concrete string receiver"
+        )
+    if method_name in {"bytes", "len"}:
+        string_binding = local_binding and any(
+            token in receiver_authority
+            for token in (".to_str()", ".strip_prefix(", ".strip_suffix(", ".and_then(")
+        )
+        collection_binding = local_binding and re.search(
+            r":(?:vec!\[|Vec::|BTree(?:Map|Set)::)", receiver_authority
+        )
+        return (
+            None
+            if string_parameter or string_binding or collection_binding or constant
+            else "requires a concrete string or collection receiver"
+        )
+    if method_name == "all":
+        return (
+            None
+            if call_chain.endswith((".bytes()", ".iter()"))
+            else "requires a concrete iterator receiver"
+        )
+    if method_name == "iter":
+        collection_parameter = bool(
+            parameter_type
+            and re.search(
+                r"(?:^|[&<])(?:\[[^]]*\]|Vec|BTreeMap|BTreeSet)(?:[<>&]|$)",
+                parameter_type,
+            )
+        )
+        collection_binding = local_binding and bool(
+            re.search(r":(?:vec!\[|Vec::|BTree(?:Map|Set)::)", receiver_authority)
+        )
+        return (
+            None
+            if collection_parameter
+            or collection_binding
+            or call_chain.endswith(".as_bytes()")
+            else "requires a concrete standard collection receiver"
+        )
+    if method_name == "map":
+        option_or_result_parameter = bool(
+            parameter_type and re.search(r"(?:^|::)(?:Option|Result)<", parameter_type)
+        )
+        standard_chain = bool(
+            call_chain and call_chain.endswith((".iter()", ".bytes()", ".ok()"))
+        )
+        standard_binding = local_binding and any(
+            token in receiver_authority
+            for token in ("Some(", "Ok(", "Vec::", "vec![", "BTreeMap::", "BTreeSet::")
+        )
+        return (
+            None
+            if option_or_result_parameter or standard_chain or standard_binding
+            else "requires a concrete standard Option, Result, or iterator receiver"
+        )
+    if method_name == "next":
+        standard_chain = call_chain.endswith((".iter()", ".bytes()", ".enumerate()"))
+        standard_binding = local_binding and any(
+            token in receiver_authority
+            for token in ("fs::read_dir(", ".iter()", ".bytes()", ".enumerate()")
+        )
+        return (
+            None
+            if standard_chain or standard_binding
+            else "requires a concrete standard iterator receiver"
+        )
+    if method_name == "and_then":
+        return (
+            None
+            if call_chain
+            and any(
+                token in call_chain
+                for token in (
+                    ".file_name()",
+                    ".parent()",
+                    ".strip_prefix(",
+                    ".and_then(",
+                )
+            )
+            else "requires a concrete Option/Result receiver"
+        )
+    if method_name == "is_ok_and":
+        return (
+            None
+            if call_chain.startswith(("u32::from_str_radix(", "u64::try_from("))
+            else "requires a concrete Result receiver"
+        )
+    if method_name == "map_err":
+        return (
+            None
+            if (
+                receiver_return_type is not None
+                and re.search(r"(?:^|::)Result\s*<", receiver_return_type)
+            )
+            or pattern_receiver
+            else "requires a concrete Result receiver"
+        )
+    if method_name in {"ok_or", "ok_or_else", "unwrap_or", "unwrap_or_else"}:
+        return None if call_chain else "requires a concrete Option/Result receiver"
+    if method_name in {"is_dir", "is_file", "is_symlink"}:
+        fallible_file_type_chain = bool(
+            call_chain.endswith("?")
+            and ".file_type()" in call_chain
+            and ".map_err(" in call_chain
+        )
+        return (
+            None
+            if call_chain.endswith(".file_type()")
+            or fallible_file_type_chain
+            or parameter_type.endswith("FileType")
+            else "requires a concrete FileType receiver"
+        )
+    if method_name in {"file_type", "path"}:
+        metadata_receiver = method_name == "file_type" and (
+            metadata_pattern or metadata_binding
+        )
+        return (
+            None
+            if parameter_type.endswith("DirEntry")
+            or dir_entry_binding
+            or dir_entry_pattern
+            or metadata_receiver
+            else "requires a concrete Metadata or DirEntry receiver"
+        )
+    if method_name == "get":
+        collection_parameter = bool(
+            parameter_type
+            and re.search(
+                r"(?:^|[&<])(?:\[[^]]*\]|Vec|BTreeMap|BTreeSet|HashMap|HashSet)"
+                r"(?:[<>&]|$)",
+                parameter_type,
+            )
+        )
+        collection_binding = local_binding and bool(
+            re.search(
+                r":(?:vec!\[|Vec::|BTree(?:Map|Set)::|Hash(?:Map|Set)::)",
+                receiver_authority,
+            )
+        )
+        standard_chain = call_chain.endswith((".as_bytes()", ".as_ref()"))
+        return (
+            None
+            if collection_parameter or collection_binding or standard_chain
+            else "requires a concrete standard collection receiver"
+        )
+    if method_name in {
+        "as_bytes",
+        "as_deref",
+        "as_ref",
+        "enumerate",
+        "is_empty",
+        "ok",
+        "sort_by",
+        "to_path_buf",
+        "try_into",
+    }:
+        if parameter_type or local_binding or call_chain or callback_parameter:
+            return None
+        return "requires concrete receiver provenance"
+    return "method is absent from the typed terminal table"
+
+
+def limit_control_local_method_candidate_problem(
+    method_name: str,
+    receiver_authority: str,
+    site: LimitControlCallSite,
+    index: dict[str, tuple[dict[str, str], ...]],
+    current_record: dict[str, str] | None,
+) -> str | None:
+    candidates = tuple(
+        candidate
+        for candidate in index.get(method_name, ())
+        if limit_control_method_owner_kind(candidate.get("owner", "")) is not None
+    )
+    if not candidates:
+        return None
+    trait_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if limit_control_method_owner_kind(candidate["owner"])
+        in {"TRAIT_DEFAULT", "TRAIT_IMPL"}
+    )
+    if trait_candidates:
+        owners = tuple(sorted({candidate["owner"] for candidate in trait_candidates}))
+        return f"local trait method candidates are visible: {owners!r}"
+
+    receiver_types: set[str] = set()
+    for pattern in (
+        r"CONCRETE_PARAMETER:[^:]+:(?P<type>.+)",
+        r"BOUND_PARAMETER:[^:]+:(?P<type>[^:]+(?:::[^:]+)*):(?P<argument>.+)",
+        r"CONCRETE_SELF_FIELD:[^:]+:[^:]+:[^:]+:(?P<type>.+)",
+        r"OWNED_USAGE_FIELD:[^:]+:(?P<type>[^:]+):[0-9a-f]{64}",
+    ):
+        matched = re.fullmatch(pattern, receiver_authority)
+        if matched is not None:
+            receiver_types.update(
+                semantic_rust_identifier(identifier)
+                for identifier in re.findall(RUST_IDENTIFIER, matched["type"])
+            )
+    if (
+        receiver_authority.startswith("PATTERN_BOUND_RECEIVER:")
+        and re.search(r":(?:Some\()?Err\([^)]*\):", receiver_authority)
+        and "fs::" in receiver_authority
+    ):
+        receiver_types.add("Error")
+    if current_record is not None:
+        identifiers = tuple(
+            semantic_rust_identifier(identifier)
+            for identifier in re.findall(
+                RUST_IDENTIFIER,
+                rust_code_projection(site.receiver),
+            )
+        )
+        if identifiers:
+            binding = limit_control_local_binding(
+                current_record,
+                identifiers[0],
+                site.start,
+            )
+            if binding is not None:
+                pattern = binding.get("pattern", "")
+                typed = re.search(r":(?P<type>.+)$", pattern)
+                if typed is not None:
+                    receiver_types.update(
+                        semantic_rust_identifier(identifier)
+                        for identifier in re.findall(RUST_IDENTIFIER, typed["type"])
+                    )
+                initializer = normalize_rust_tokens(binding.get("expression", ""))
+                if initializer in {"false", "true"}:
+                    receiver_types.add("bool")
+                if any(
+                    marker in initializer
+                    for marker in ("PathBuf::", ".join(", ".to_path_buf(")
+                ):
+                    receiver_types.add("PathBuf")
+                if any(
+                    marker in initializer
+                    for marker in (
+                        ".to_str()",
+                        ".strip_prefix(",
+                        ".strip_suffix(",
+                    )
+                ):
+                    receiver_types.add("str")
+                if initializer.startswith(("vec![", "Vec::")):
+                    receiver_types.add("Vec")
+    receiver_return_type = limit_control_call_chain_return_type(
+        site.receiver,
+        index,
+        current_record,
+    )
+    if isinstance(receiver_return_type, str):
+        receiver_types.update(
+            semantic_rust_identifier(identifier)
+            for identifier in re.findall(RUST_IDENTIFIER, receiver_return_type)
+        )
+    candidate_types = {
+        candidate_type
+        for candidate in candidates
+        if (candidate_type := limit_control_owner_self_type(candidate["owner"]))
+        is not None
+    }
+    if not receiver_types or receiver_types & candidate_types:
+        return (
+            "local inherent method dispatch is unresolved: "
+            f"receiver_types={sorted(receiver_types)!r}, "
+            f"candidate_types={sorted(candidate_types)!r}"
+        )
+    return None
+
+
+def limit_control_external_method_import_problem(
+    current_record: dict[str, str] | None,
+    position: int,
+) -> str | None:
+    if current_record is None:
+        return "trusted method lacks callable context"
+    source = current_record.get("source")
+    if not isinstance(source, str):
+        return "trusted method source authority is absent"
+    try:
+        module_bindings = json.loads(
+            current_record.get("module_use_bindings_json", "{}")
+        )
+        local_roots = json.loads(current_record.get("local_use_roots_json", "[]"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return "trusted method import authority is malformed"
+    if not isinstance(module_bindings, dict) or not isinstance(local_roots, list):
+        return "trusted method import authority is malformed"
+    visible_bindings = limit_control_visible_use_bindings(current_record, position)
+    allowed_roots = {
+        "core",
+        "crate",
+        "self",
+        "std",
+        "super",
+        *limit_control_workspace_package_names(),
+        *(
+            semantic_rust_identifier(root)
+            for root in local_roots
+            if isinstance(root, str)
+        ),
+    }
+    combined: dict[str, list[str]] = {}
+    for bindings in (module_bindings, visible_bindings):
+        for name, paths in bindings.items():
+            if not isinstance(name, str) or not isinstance(paths, (list, tuple)):
+                return "trusted method import authority is malformed"
+            if any(not isinstance(path, str) for path in paths):
+                return "trusted method import authority is malformed"
+            combined.setdefault(name, []).extend(paths)
+    changed = True
+    while changed:
+        changed = False
+        for name, paths in combined.items():
+            for path in paths:
+                normalized = path.removeprefix("::")
+                root = semantic_rust_identifier(normalized.split("::", 1)[0])
+                alias = semantic_rust_identifier(name)
+                if root in allowed_roots and alias not in allowed_roots:
+                    allowed_roots.add(alias)
+                    changed = True
+    for name in sorted(combined):
+        for path in tuple(dict.fromkeys(combined[name])):
+            normalized = path.removeprefix("::")
+            root = semantic_rust_identifier(normalized.split("::", 1)[0])
+            if root in allowed_roots:
+                continue
+            if (source, name, path) in LIMIT_ALLOWED_EXTERNAL_CONTROL_IMPORTS:
+                continue
+            return f"external extension-trait authority is unresolved: {name} <- {path}"
+    return None
+
+
+def limit_control_bound_local_call(
+    site: LimitControlCallSite,
+    local: dict[str, str],
+    current_record: dict[str, str] | None,
+    index: dict[str, tuple[dict[str, str], ...]],
+) -> tuple[dict[str, str] | None, list[dict[str, str]], str | None]:
+    parameters, generic_names = limit_control_signature_parameter_types(local)
+    if generic_names:
+        return None, [], "generic local callable is forbidden"
+    if limit_control_method_owner_kind(local["owner"]) in {
+        "TRAIT_DEFAULT",
+        "TRAIT_IMPL",
+    }:
+        return None, [], "trait-dispatched local callable is forbidden"
+    arguments = split_top_level_rust_commas(site.arguments)
+    argument_parameters = [parameter for parameter in parameters if parameter != "self"]
+    callback_source = (
+        current_record.get("reference_callback_source")
+        if current_record is not None
+        else None
+    )
+    if (
+        not arguments
+        and len(argument_parameters) == 1
+        and isinstance(callback_source, str)
+    ):
+        arguments = (callback_source,)
+    if len(arguments) != len(argument_parameters):
+        return None, [], "local callable arguments do not bind positionally"
+    bindings: list[dict[str, str]] = []
+    bound_arguments: dict[str, str] = {}
+    bound_authority: dict[str, object] = {}
+    pattern_bindings = (
+        json.loads(current_record.get("pattern_bindings_json", "{}"))
+        if current_record is not None
+        else {}
+    )
+    if "self" in parameters:
+        if not site.method or not site.receiver:
+            return None, [], "local method receiver is absent"
+        bound_arguments["self"] = site.receiver
+        if current_record is None:
+            return None, [], "local method receiver lacks caller context"
+        receiver_authority, _receiver_sites, receiver_problem = (
+            limit_control_receiver_authority(site, current_record)
+        )
+        receiver_calls = limit_control_resolved_authority(
+            site.receiver,
+            index,
+            current_record,
+            site.start,
+        )
+        if receiver_problem is not None or any(
+            call.get("classification") == "UNRESOLVED" for call in receiver_calls
+        ):
+            return None, [], "local method receiver authority is unresolved"
+        bound_authority["self"] = {
+            "argument": site.receiver,
+            "receiver_authority": receiver_authority,
+            "resolved_calls": receiver_calls,
+        }
+        bindings.append(
+            {
+                "parameter": "self",
+                "type": parameters["self"],
+                "argument": site.receiver,
+                "argument_sha256": hashlib.sha256(
+                    site.receiver.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    for parameter, argument in zip(argument_parameters, arguments, strict=True):
+        normalized_argument = normalize_rust_tokens(argument)
+        bound_arguments[parameter] = normalized_argument
+        binding_record: dict[str, object] = {
+            "parameter": parameter,
+            "type": parameters[parameter],
+            "argument": normalized_argument,
+            "argument_sha256": hashlib.sha256(argument.encode("utf-8")).hexdigest(),
+        }
+        if isinstance(callback_source, str) and argument == callback_source:
+            authority_record: dict[str, object] = {
+                "argument": normalized_argument,
+                "classification": "STANDARD_HIGHER_ORDER_ITEM",
+                "resolved_values": [],
+                "resolved_calls": [],
+            }
+        else:
+            if current_record is None:
+                return None, [], "local callable argument lacks caller context"
+            resolved_values, resolved_calls = limit_control_value_authority(
+                argument,
+                index,
+                current_record,
+                site.start,
+                pattern_bindings,
+            )
+            authority_record = {
+                "argument": normalized_argument,
+                "classification": "CALLER_ARGUMENT",
+                "resolved_values": resolved_values,
+                "resolved_calls": resolved_calls,
+            }
+            if any(
+                item.get("classification") == "UNRESOLVED"
+                for item in [*resolved_values, *resolved_calls]
+            ):
+                return None, [], f"argument authority is unresolved for {parameter}"
+        authority_sha256 = canonical_json_sha256(authority_record)
+        authority_record["authority_sha256"] = authority_sha256
+        bound_authority[parameter] = authority_record
+        binding_record["argument_authority_sha256"] = authority_sha256
+        bindings.append(binding_record)
+    bound_local = dict(local)
+    bound_local["caller_arguments_json"] = json.dumps(
+        bound_arguments,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    bound_local["caller_argument_authority_json"] = json.dumps(
+        bound_authority,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return bound_local, bindings, None
+
+
+def limit_control_direct_call_binding_problem(
+    callee: str,
+    current_record: dict[str, str] | None,
+    position: int,
+) -> str | None:
+    if current_record is None:
+        return "trusted direct call lacks callable context"
+    normalized = callee.removeprefix("::")
+    required_bindings = {
+        "fs": "std::fs",
+        "Path": "std::path::Path",
+    }
+    root = normalized.split("::", 1)[0]
+    required = required_bindings.get(root)
+    if required is None:
+        return None
+    visible = limit_control_visible_use_bindings(current_record, position)
+    if root in visible:
+        return f"trusted direct-call root {root} is locally imported or shadowed"
+    raw_module_bindings = current_record.get("module_use_bindings_json")
+    if not isinstance(raw_module_bindings, str):
+        return f"trusted direct-call root {root} lacks import authority"
+    module_bindings = json.loads(raw_module_bindings)
+    paths = module_bindings.get(root)
+    if paths != [required]:
+        return (
+            f"trusted direct-call root {root} does not resolve uniquely to {required}"
+        )
+    return None
+
+
+def limit_control_callback_binding_problem(
+    callback: str,
+    current_record: dict[str, str] | None,
+    position: int,
+) -> str | None:
+    if current_record is None:
+        return "callback lacks callable context"
+    if limit_control_local_binding(current_record, callback, position) is not None:
+        return f"callback {callback} is shadowed by a local binding"
+    visible = limit_control_visible_use_bindings(current_record, position)
+    if callback in visible:
+        return f"callback {callback} is shadowed by a block-local import"
+    raw_module_bindings = current_record.get("module_use_bindings_json", "{}")
+    module_bindings = json.loads(raw_module_bindings)
+    if callback in module_bindings:
+        return f"callback {callback} is shadowed by a module import"
+    return None
+
+
+def limit_control_resolution_record(
+    site: LimitControlCallSite,
+    index: dict[str, tuple[dict[str, str], ...]],
+    current_record: dict[str, str] | None,
+) -> tuple[dict[str, str], dict[str, str] | None, tuple[LimitControlCallSite, ...]]:
+    callee = site.callee
+    method = site.method
+    method_name = re.split(r"::|\.", callee)[-1]
+    local = (
+        limit_control_local_callable(
+            callee,
+            index,
+            current_record["source"] if current_record is not None else None,
+            current_record["owner"] if current_record is not None else None,
+        )
+        if not method or site.receiver == "self"
+        else None
+    )
+    if local is not None:
+        bound_local, argument_bindings, binding_problem = (
+            limit_control_bound_local_call(site, local, current_record, index)
+        )
+        if binding_problem is not None or bound_local is None:
+            reason = f"unresolved local callable {callee}: {binding_problem}"
+            return (
+                {
+                    "callee": callee,
+                    "classification": "UNRESOLVED",
+                    "authority": reason,
+                    "authority_sha256": hashlib.sha256(
+                        reason.encode("utf-8")
+                    ).hexdigest(),
+                },
+                None,
+                (),
+            )
+        receiver_calls: tuple[LimitControlCallSite, ...] = ()
+        receiver_authority: str | None = None
+        if method:
+            receiver_authority, receiver_calls, receiver_problem = (
+                limit_control_receiver_authority(site, current_record)
+            )
+            if receiver_problem is not None:
+                reason = f"unresolved local receiver {callee}: {receiver_problem}"
+                return (
+                    {
+                        "callee": callee,
+                        "classification": "UNRESOLVED",
+                        "authority": reason,
+                        "authority_sha256": hashlib.sha256(
+                            reason.encode("utf-8")
+                        ).hexdigest(),
+                    },
+                    None,
+                    (),
+                )
+        authority = ":".join((local["source"], local["owner"], local["function"]))
+        attribute_chain_sha256 = local.get("attribute_chain_sha256")
+        if (
+            not isinstance(attribute_chain_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", attribute_chain_sha256) is None
+        ):
+            reason = f"unresolved local callable {callee}: attribute chain is unbound"
+            return (
+                {
+                    "callee": callee,
+                    "classification": "UNRESOLVED",
+                    "authority": reason,
+                    "authority_sha256": hashlib.sha256(
+                        reason.encode("utf-8")
+                    ).hexdigest(),
+                },
+                None,
+                (),
+            )
+        callable_authority_sha256 = canonical_json_sha256(
+            {
+                "attribute_chain_sha256": attribute_chain_sha256,
+                "body_sha256": local["body_sha256"],
+            }
+        )
+        resolution = {
+            "callee": callee,
+            "classification": "LOCAL_FUNCTION_BODY",
+            "authority": authority,
+            "authority_sha256": callable_authority_sha256,
+            "attribute_chain_sha256": attribute_chain_sha256,
+            "body_sha256": local["body_sha256"],
+            "return_type": limit_control_signature_return_type(local),
+            "argument_bindings": argument_bindings,
+            "argument_bindings_sha256": canonical_json_sha256(argument_bindings),
+        }
+        if receiver_authority is not None:
+            resolution["receiver"] = site.receiver
+            resolution["receiver_authority"] = receiver_authority
+            resolution["receiver_authority_sha256"] = hashlib.sha256(
+                receiver_authority.encode("utf-8")
+            ).hexdigest()
+        return resolution, bound_local, receiver_calls
+    if method:
+        if method_name in LIMIT_TRUSTED_CONTROL_METHODS:
+            receiver_authority = ""
+            receiver_calls: tuple[LimitControlCallSite, ...] = ()
+            receiver_problem = limit_control_external_method_import_problem(
+                current_record,
+                site.start,
+            )
+            if receiver_problem is None:
+                receiver_authority, receiver_calls, receiver_problem = (
+                    limit_control_receiver_authority(site, current_record)
+                )
+            if receiver_problem is None:
+                receiver_problem = limit_control_method_receiver_problem(
+                    method_name,
+                    receiver_authority,
+                    limit_control_call_chain_return_type(
+                        site.receiver,
+                        index,
+                        current_record,
+                    ),
+                )
+            if receiver_problem is None:
+                receiver_problem = limit_control_local_method_candidate_problem(
+                    method_name,
+                    receiver_authority,
+                    site,
+                    index,
+                    current_record,
+                )
+            if receiver_problem is not None:
+                reason = f"unresolved predicate receiver {callee}: {receiver_problem}"
+                return (
+                    {
+                        "callee": callee,
+                        "classification": "UNRESOLVED",
+                        "authority": reason,
+                        "authority_sha256": hashlib.sha256(
+                            reason.encode("utf-8")
+                        ).hexdigest(),
+                    },
+                    None,
+                    (),
+                )
+            authority = f"RUST_STANDARD_LIBRARY_METHOD:{method_name}"
+            return (
+                {
+                    "callee": callee,
+                    "classification": "TRUSTED_RUST_METHOD",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                    "receiver": site.receiver,
+                    "receiver_authority": receiver_authority,
+                    "receiver_authority_sha256": hashlib.sha256(
+                        receiver_authority.encode("utf-8")
+                    ).hexdigest(),
+                },
+                None,
+                receiver_calls,
+            )
+        reason = f"unresolved or forbidden predicate method {callee}"
+        return (
+            {
+                "callee": callee,
+                "classification": "UNRESOLVED",
+                "authority": reason,
+                "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+            },
+            None,
+            (),
+        )
+    normalized = callee.removeprefix("::")
+    if normalized in LIMIT_TRUSTED_CONTROL_DIRECT_CALLS:
+        if problem := limit_control_direct_call_binding_problem(
+            normalized,
+            current_record,
+            site.start,
+        ):
+            reason = f"unresolved trusted predicate callable {callee}: {problem}"
+            return (
+                {
+                    "callee": callee,
+                    "classification": "UNRESOLVED",
+                    "authority": reason,
+                    "authority_sha256": hashlib.sha256(
+                        reason.encode("utf-8")
+                    ).hexdigest(),
+                },
+                None,
+                (),
+            )
+        authority = f"RUST_STANDARD_LIBRARY_CALL:{normalized}"
+        return (
+            {
+                "callee": callee,
+                "classification": "TRUSTED_RUST_CALL",
+                "authority": authority,
+                "authority_sha256": hashlib.sha256(
+                    authority.encode("utf-8")
+                ).hexdigest(),
+            },
+            None,
+            (),
+        )
+    reason = f"unresolved predicate callable {callee}"
+    return (
+        {
+            "callee": callee,
+            "classification": "UNRESOLVED",
+            "authority": reason,
+            "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+        },
+        None,
+        (),
+    )
+
+
+def limit_control_slice_body_problem(source: str) -> str | None:
+    projected = rust_code_projection(source)
+    if re.search(r"\bcfg\s*!\s*\(", projected):
+        return "control slice retains cfg! authority"
+    for match in re.finditer(r"#\s*\[", projected):
+        attribute = rust_attribute_end(projected, match.start())
+        if attribute is not None and attribute[1].startswith(("cfg(", "cfg_attr(")):
+            return "control slice retains cfg/cfg_attr authority"
+    for label, pattern in LIMIT_BUILD_DIVERGENCE_PATTERNS:
+        if re.search(pattern, projected):
+            return f"control slice retains {label}"
+    for label, pattern in LIMIT_SHARED_STATE_PATTERNS:
+        if re.search(pattern, projected):
+            return f"control slice retains {label}"
+    if re.search(r"\.\s*exists\s*\(", projected):
+        return "control slice retains a filesystem-sentinel predicate"
+    if re.search(r"\b(?:dyn\s+Fn|fn\s*\([^)]*\)\s*->)", projected):
+        return "control slice retains dynamic callable authority"
+    for match in re.finditer(
+        rf"(?P<macro>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*)"
+        r"\s*!\s*[({\[]",
+        projected,
+    ):
+        if semantic_rust_identifier(match["macro"].split("::")[-1]) not in {
+            "matches",
+            "vec",
+        }:
+            return "control slice retains unresolved macro authority"
+    return None
+
+
+def limit_control_higher_order_authority(
+    site: LimitControlCallSite,
+    index: dict[str, tuple[dict[str, str], ...]],
+    current_record: dict[str, str] | None,
+) -> tuple[
+    list[dict[str, str]],
+    list[tuple[LimitControlCallSite, dict[str, str] | None]],
+]:
+    method_name = re.split(r"::|\.", site.callee)[-1]
+    if method_name not in LIMIT_HIGHER_ORDER_CONTROL_METHODS:
+        return [], []
+    arguments = site.arguments
+    projected = rust_code_projection(arguments)
+    records: list[dict[str, str]] = []
+    queued: list[tuple[LimitControlCallSite, dict[str, str] | None]] = []
+    closure_headers = tuple(re.finditer(r"\|[^|]*\|", projected))
+    if closure_headers:
+        if len(closure_headers) != 1 or current_record is None:
+            reason = "higher-order closure context is ambiguous"
+            return (
+                [
+                    {
+                        "callee": f"{site.callee}::<callback>",
+                        "classification": "UNRESOLVED",
+                        "authority": reason,
+                        "authority_sha256": hashlib.sha256(
+                            reason.encode("utf-8")
+                        ).hexdigest(),
+                    }
+                ],
+                [],
+            )
+        closure_header = closure_headers[0]
+        closure_parameters = tuple(
+            semantic_rust_identifier(value)
+            for value in re.findall(
+                RUST_IDENTIFIER,
+                projected[closure_header.start() + 1 : closure_header.end() - 1],
+            )
+            if semantic_rust_identifier(value) not in {"mut", "ref"}
+        )
+        closure_record = dict(current_record)
+        closure_record["closure_parameters"] = closure_parameters
+        closure_record["closure_parameter_source"] = (
+            f"{method_name}:{normalize_rust_tokens(site.receiver)}"
+        )
+        queued.extend(
+            (call._replace(start=site.start), closure_record)
+            for call in limit_control_call_sites(arguments)
+        )
+        authority = normalize_rust_tokens(arguments)
+        classification = "LEXICAL_CLOSURE_BODY"
+        if problem := limit_control_slice_body_problem(arguments):
+            classification = "UNRESOLVED"
+            authority = f"{authority}:{problem}"
+        records.append(
+            {
+                "callee": f"{site.callee}::<callback>",
+                "classification": classification,
+                "authority": authority,
+                "authority_sha256": hashlib.sha256(
+                    arguments.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    referenced: list[str] = []
+    for match in re.finditer(
+        rf"(?P<path>(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})+)",
+        projected,
+    ):
+        path = normalize_rust_tokens(match["path"])
+        if (
+            limit_control_local_callable(
+                path,
+                index,
+                current_record["source"] if current_record is not None else None,
+                current_record["owner"] if current_record is not None else None,
+            )
+            is not None
+            or path.removeprefix("::") in LIMIT_TRUSTED_CONTROL_DIRECT_CALLS
+        ) and path not in referenced:
+            referenced.append(path)
+    if not closure_headers:
+        bare_callback = re.fullmatch(
+            rf"\s*(?P<identifier>{RUST_IDENTIFIER})\s*",
+            projected,
+        )
+        if bare_callback is not None:
+            identifier = semantic_rust_identifier(bare_callback["identifier"])
+            if problem := limit_control_callback_binding_problem(
+                identifier,
+                current_record,
+                site.start,
+            ):
+                if (
+                    limit_control_local_callable(
+                        identifier,
+                        index,
+                        current_record["source"]
+                        if current_record is not None
+                        else None,
+                        current_record["owner"] if current_record is not None else None,
+                    )
+                    is not None
+                ):
+                    records.append(
+                        {
+                            "callee": f"{site.callee}::<callback>",
+                            "classification": "UNRESOLVED",
+                            "authority": problem,
+                            "authority_sha256": hashlib.sha256(
+                                problem.encode("utf-8")
+                            ).hexdigest(),
+                        }
+                    )
+            elif (
+                limit_control_local_callable(
+                    identifier,
+                    index,
+                    current_record["source"] if current_record is not None else None,
+                    current_record["owner"] if current_record is not None else None,
+                )
+                is not None
+                and identifier not in referenced
+            ):
+                referenced.append(identifier)
+    reference_record = dict(current_record) if current_record is not None else None
+    if reference_record is not None:
+        reference_record["reference_callback_source"] = (
+            f"{method_name}:{normalize_rust_tokens(site.receiver)}"
+        )
+    queued.extend(
+        (
+            LimitControlCallSite(reference, False, "", "", site.start),
+            reference_record,
+        )
+        for reference in referenced
+    )
+    if not closure_headers and not referenced and projected.strip():
+        reason = f"unresolved higher-order callback {normalize_rust_tokens(arguments)}"
+        records.append(
+            {
+                "callee": f"{site.callee}::<callback>",
+                "classification": "UNRESOLVED",
+                "authority": reason,
+                "authority_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(),
+            }
+        )
+    return records, queued
+
+
+def limit_control_resolved_authority(
+    header: str,
+    index: dict[str, tuple[dict[str, str], ...]],
+    root_record: dict[str, str],
+    header_start: int,
+) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    queued: list[tuple[LimitControlCallSite, dict[str, str] | None]] = [
+        (site._replace(start=header_start + site.start), root_record)
+        for site in limit_control_call_sites(header)
+    ]
+    visited_local: set[str] = set()
+    while queued:
+        site, current_record = queued.pop(0)
+        callee = site.callee
+        record, local, receiver_sites = limit_control_resolution_record(
+            site, index, current_record
+        )
+        if record not in records:
+            records.append(record)
+        queued.extend(
+            (receiver_site, current_record)
+            for receiver_site in receiver_sites
+            if (receiver_site, current_record) not in queued
+        )
+        callback_records, callback_sites = limit_control_higher_order_authority(
+            site, index, current_record
+        )
+        records.extend(record for record in callback_records if record not in records)
+        queued.extend(item for item in callback_sites if item not in queued)
+        if local is None:
+            continue
+        authority = record["authority"]
+        if authority in visited_local:
+            continue
+        visited_local.add(authority)
+        local_body = local["body"]
+        if problem := limit_control_slice_body_problem(local_body):
+            unresolved_authority = f"{authority}:{problem}"
+            records.append(
+                {
+                    "callee": callee,
+                    "classification": "UNRESOLVED",
+                    "authority": unresolved_authority,
+                    "authority_sha256": hashlib.sha256(
+                        unresolved_authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        for local_site in limit_control_call_sites(local_body):
+            local_context = dict(local)
+            local_context["pattern_bindings_json"] = json.dumps(
+                limit_control_site_pattern_bindings(
+                    local_body,
+                    local_site.start,
+                ),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            item = (local_site, local_context)
+            if item not in queued:
+                queued.append(item)
+    return records
+
+
+def limit_control_header_authority(
+    header: str,
+    callable_index: dict[str, tuple[dict[str, str], ...]],
+    owner_record: dict[str, str],
+    owner_body: str,
+    header_start: int,
+) -> dict[str, object]:
+    projected = rust_code_projection(header)
+    normalized = normalize_rust_tokens(projected)
+    calls: list[str] = []
+    for match in re.finditer(
+        rf"(?P<callee>(?:::)?{RUST_IDENTIFIER}"
+        rf"(?:(?:::|\.){RUST_IDENTIFIER})*)\s*\(",
+        projected,
+    ):
+        callee = normalize_rust_tokens(match["callee"])
+        if callee not in calls:
+            calls.append(callee)
+    macros: list[str] = []
+    for match in re.finditer(
+        rf"(?P<callee>(?:::)?{RUST_IDENTIFIER}"
+        rf"(?:::{RUST_IDENTIFIER})*)\s*!\s*[({{\[]",
+        projected,
+    ):
+        callee = normalize_rust_tokens(match["callee"])
+        if callee not in macros:
+            macros.append(callee)
+    identifiers: list[str] = []
+    for raw in re.findall(RUST_IDENTIFIER, projected):
+        identifier = semantic_rust_identifier(raw)
+        if identifier in LIMIT_CONTROL_AUTHORITY_KEYWORDS or identifier in identifiers:
+            continue
+        identifiers.append(identifier)
+    pattern_bindings = limit_control_pattern_bindings(
+        owner_body,
+        header_start,
+        header,
+    )
+    value_record = dict(owner_record)
+    value_record["pattern_bindings_json"] = json.dumps(
+        pattern_bindings,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    resolved_values, resolved_authority = limit_control_value_authority(
+        header,
+        callable_index,
+        value_record,
+        header_start,
+        pattern_bindings,
+    )
+    return {
+        "header": normalized,
+        "header_sha256": hashlib.sha256(header.encode("utf-8")).hexdigest(),
+        "identifiers": identifiers,
+        "calls": calls,
+        "macros": macros,
+        "resolved_values": resolved_values,
+        "resolved_authority": resolved_authority,
+    }
+
+
+def limit_event_dominating_exit_manifest(
+    body: str,
+    event_range: tuple[int, int],
+    callable_index: dict[str, tuple[dict[str, str], ...]],
+    owner_record: dict[str, str],
+) -> list[dict[str, object]]:
+    projected = rust_code_projection(body)
+    scopes = limit_event_executable_scope_records(body)
+    accepted_openings = {
+        start - 1 for start, _end, kind, _header in scopes if kind != "root"
+    }
+
+    stack: list[int] = []
+    brace_pairs: dict[int, int] = {}
+    brace_parents: dict[int, int | None] = {}
+    for index, character in enumerate(projected):
+        if character == "{":
+            brace_parents[index] = stack[-1] if stack else None
+            stack.append(index)
+        elif character == "}" and stack:
+            brace_pairs[stack.pop()] = index
+
+    def detached_owner(position: int) -> bool:
+        for opening in limit_control_brace_stack(projected, position):
+            if opening in accepted_openings:
+                continue
+            prefix = limit_event_scope_prefix(
+                projected,
+                brace_pairs,
+                brace_parents.get(opening),
+                opening,
+            )
+            top_level = normalize_rust_tokens(prefix)
+            if re.search(
+                r"(?:^|[=(:,])(?:async|move|asyncmove)?"
+                r"\|[^|]*\|(?:->[^{}]+)?$",
+                top_level,
+            ) or re.search(
+                rf"(?:::)?{RUST_IDENTIFIER}(?:::{RUST_IDENTIFIER})*!"
+                r"[({\[]?$",
+                top_level,
+            ):
+                return True
+            if re.search(r"(?:^|[;{}])(?:async|const)?fn\b[^{}]*$", top_level):
+                return True
+            if top_level in {"async", "asyncmove"}:
+                return True
+        return False
+
+    def guarding_scopes(position: int) -> list[tuple[int, int, str, str]]:
+        return [
+            scope
+            for scope in scopes
+            if scope[2] != "root"
+            and scope[0] <= position <= scope[1]
+            and not (scope[0] <= event_range[0] and event_range[1] <= scope[1])
+        ]
+
+    prior_governed_events: list[tuple[int, int, str, str]] = []
+    for governed_event_id, governed_spec in LIMIT_EVENT_SPECS.items():
+        if tuple(governed_spec.site) != (
+            owner_record["source"],
+            owner_record["owner"],
+            owner_record["function"],
+        ):
+            continue
+        governed_range = exact_lexical_statement_sequence_range(
+            body,
+            limit_event_expected_statements(governed_spec),
+        )
+        if (
+            governed_range is None
+            or governed_range == event_range
+            or governed_range[1] > event_range[0]
+        ):
+            continue
+        prior_governed_events.append(
+            (
+                governed_range[0],
+                governed_range[1],
+                governed_event_id,
+                canonical_json_sha256((governed_event_id, *governed_spec)),
+            )
+        )
+
+    def prior_governed_event(position: int) -> tuple[str, str] | None:
+        matches = [
+            (event_id, digest)
+            for start, end, event_id, digest in prior_governed_events
+            if start <= position < end
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def governed_edge_record(
+        event_id: str,
+        digest: str,
+        exit_token: str,
+    ) -> dict[str, object]:
+        authority = f"PRIOR_GOVERNED_LIMIT_EVENT:{event_id}:{digest}"
+        return {
+            "header": event_id,
+            "header_sha256": hashlib.sha256(event_id.encode("utf-8")).hexdigest(),
+            "identifiers": [],
+            "calls": [],
+            "macros": [],
+            "resolved_values": [],
+            "resolved_authority": [
+                {
+                    "callee": event_id,
+                    "classification": "PRIOR_GOVERNED_LIMIT_EVENT",
+                    "authority": authority,
+                    "authority_sha256": hashlib.sha256(
+                        authority.encode("utf-8")
+                    ).hexdigest(),
+                }
+            ],
+            "kind": "prior-governed-event",
+            "required_edge": "governed-success-or-exit",
+            "exit": exit_token,
+            "body_sha256": digest,
+        }
+
+    dominators: list[dict[str, object]] = []
+    for exit_match in re.finditer(r"\b(return|break|continue)\b", projected):
+        if exit_match.start() >= event_range[0]:
+            continue
+        governed = prior_governed_event(exit_match.start())
+        if governed is not None:
+            record = governed_edge_record(*governed, exit_match[1])
+            if record not in dominators:
+                dominators.append(record)
+            continue
+        if detached_owner(exit_match.start()):
+            continue
+        exit_kind = exit_match[1]
+        guards = guarding_scopes(exit_match.start())
+        if exit_kind in {"break", "continue"}:
+            loops = [
+                scope
+                for scope in scopes
+                if scope[2] in {"for", "while", "loop"}
+                and scope[0] <= exit_match.start() <= scope[1]
+            ]
+            if loops:
+                nearest_loop = min(loops, key=lambda scope: scope[1] - scope[0])
+                if not (
+                    nearest_loop[0] <= event_range[0]
+                    and event_range[1] <= nearest_loop[1]
+                ):
+                    continue
+        if not guards:
+            reason = f"unconditional prior owner {exit_kind} may bypass event"
+            dominators.append(
+                {
+                    "header": "",
+                    "header_sha256": hashlib.sha256(b"").hexdigest(),
+                    "identifiers": [],
+                    "calls": [],
+                    "macros": [],
+                    "resolved_values": [
+                        {
+                            "identifier": f"<{exit_kind}>",
+                            "classification": "UNRESOLVED",
+                            "authority": reason,
+                            "authority_sha256": hashlib.sha256(
+                                reason.encode("utf-8")
+                            ).hexdigest(),
+                        }
+                    ],
+                    "resolved_authority": [],
+                    "kind": "unconditional-exit",
+                    "required_edge": "unreachable",
+                    "exit": exit_kind,
+                    "body_sha256": hashlib.sha256(
+                        body[exit_match.start() : exit_match.end()].encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            continue
+        for start, end, kind, header in guards:
+            header_start = start - 1 - len(header)
+            authority = limit_control_header_authority(
+                header,
+                callable_index,
+                owner_record,
+                body,
+                header_start,
+            )
+            authority.update(
+                {
+                    "kind": kind,
+                    "required_edge": "fallthrough",
+                    "exit": exit_kind,
+                    "body_sha256": hashlib.sha256(
+                        body[start:end].encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            if authority not in dominators:
+                dominators.append(authority)
+
+    for question in re.finditer(r"\?", projected[: event_range[0]]):
+        governed = prior_governed_event(question.start())
+        if governed is not None:
+            record = governed_edge_record(*governed, "?")
+            if record not in dominators:
+                dominators.append(record)
+            continue
+        if detached_owner(question.start()):
+            continue
+        for start, end, kind, header in guarding_scopes(question.start()):
+            header_start = start - 1 - len(header)
+            guard_authority = limit_control_header_authority(
+                header,
+                callable_index,
+                owner_record,
+                body,
+                header_start,
+            )
+            guard_authority.update(
+                {
+                    "kind": f"question-mark-guard:{kind}",
+                    "required_edge": "evaluate-question-mark",
+                    "exit": "?",
+                    "body_sha256": hashlib.sha256(
+                        body[start:end].encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+            if guard_authority not in dominators:
+                dominators.append(guard_authority)
+        expression_start = limit_control_receiver_start(projected, question.start())
+        expression = body[expression_start : question.start()].strip()
+        pattern_bindings = limit_control_site_pattern_bindings(
+            body,
+            question.start(),
+        )
+        question_record = dict(owner_record)
+        question_record["pattern_bindings_json"] = json.dumps(
+            pattern_bindings,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        resolved_values, resolved_authority = limit_control_value_authority(
+            expression,
+            callable_index,
+            question_record,
+            expression_start,
+            pattern_bindings,
+        )
+        if not resolved_values and not resolved_authority:
+            reason = f"question-mark operand is unresolved: {expression}"
+            resolved_values.append(
+                {
+                    "identifier": "<?>",
+                    "classification": "UNRESOLVED",
+                    "authority": reason,
+                    "authority_sha256": hashlib.sha256(
+                        reason.encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+        dominators.append(
+            {
+                "header": normalize_rust_tokens(expression),
+                "header_sha256": hashlib.sha256(expression.encode("utf-8")).hexdigest(),
+                "identifiers": list(limit_control_root_identifiers(expression)),
+                "calls": [site.callee for site in limit_control_call_sites(expression)],
+                "macros": [],
+                "resolved_values": resolved_values,
+                "resolved_authority": resolved_authority,
+                "kind": "question-mark",
+                "required_edge": "success",
+                "exit": "?",
+                "body_sha256": hashlib.sha256(
+                    body[expression_start : question.end()].encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    return dominators
+
+
+def limit_control_path_provenance_record(
+    values: list[dict[str, str]],
+    callables: list[dict[str, str]],
+) -> dict[str, object]:
+    records = [*values, *callables]
+    root_identities: set[str] = set()
+    unresolved = any(record.get("classification") == "UNRESOLVED" for record in records)
+    has_read_dir = False
+    has_entry_path = False
+    has_join = False
+    has_caller_parameter = False
+    for record in records:
+        authority_fields = (
+            record.get("authority"),
+            record.get("receiver_authority"),
+        )
+        for authority in authority_fields:
+            if not isinstance(authority, str):
+                continue
+            field = re.match(
+                r"CONCRETE_SELF_FIELD:(?P<source>[^:]+):(?P<owner>[^:]+):"
+                r"(?P<field>[^:]+):(?P<type>.+)",
+                authority,
+            )
+            if field is not None and re.search(
+                r"(?:^|[&<]|::)(?:Path|PathBuf)(?:>|$)",
+                field["type"],
+            ):
+                root_identities.add(
+                    ":".join((field["source"], field["owner"], field["field"]))
+                )
+            if authority == "RUST_STANDARD_LIBRARY_CALL:fs::read_dir":
+                has_read_dir = True
+            if authority == "RUST_STANDARD_LIBRARY_METHOD:path":
+                has_entry_path = True
+            if authority == "RUST_STANDARD_LIBRARY_METHOD:join":
+                has_join = True
+            if authority.startswith(("CONCRETE_PARAMETER:", "BOUND_PARAMETER:")):
+                has_caller_parameter = True
+    if unresolved:
+        classification = "Unresolved"
+    elif len(root_identities) > 1:
+        classification = "AmbiguousRepositoryRoots"
+        unresolved = True
+    elif has_read_dir and has_entry_path and len(root_identities) == 1:
+        classification = "ReadDirEntry(OwnedDescendant)"
+    elif has_join and len(root_identities) == 1:
+        classification = "OwnedDescendant(RepositoryRoot)"
+    elif len(root_identities) == 1:
+        classification = "RepositoryRoot"
+    elif has_caller_parameter:
+        classification = "CallerOrUnprovenPath"
+    else:
+        classification = "ScalarOrUnclassified"
+    return {
+        "classification": classification,
+        "root_identities": sorted(root_identities),
+        "has_read_dir": has_read_dir,
+        "has_entry_path": has_entry_path,
+        "has_join": has_join,
+        "unresolved": unresolved,
+    }
+
+
+def limit_control_path_provenance(
+    values: list[dict[str, str]],
+    callables: list[dict[str, str]],
+) -> str:
+    return str(
+        limit_control_path_provenance_record(values, callables)["classification"]
+    )
+
+
+def limit_control_collection_occurrence_inventory(
+    body: str,
+    identifier: str,
+) -> tuple[list[dict[str, object]], list[str]]:
+    projected = rust_code_projection(body)
+    inventory: list[dict[str, object]] = []
+    unresolved: list[str] = []
+    for match in re.finditer(
+        rf"\b(?:r#)?{re.escape(identifier)}\b",
+        projected,
+    ):
+        prefix = projected[: match.start()]
+        suffix = projected[match.end() :]
+        statement_start = (
+            max(
+                prefix.rfind(";"),
+                prefix.rfind("{"),
+                prefix.rfind("}"),
+            )
+            + 1
+        )
+        statement_prefix = projected[statement_start : match.start()]
+        declaration = bool(re.search(r"\blet\b[^=;]*$", statement_prefix, re.DOTALL))
+        method_match = re.match(
+            rf"\s*\.\s*(?P<method>{RUST_IDENTIFIER})\s*\(",
+            suffix,
+        )
+        method = (
+            semantic_rust_identifier(method_match["method"])
+            if method_match is not None
+            else None
+        )
+        if declaration:
+            classification = "DECLARATION"
+        elif method in {"pop", "push"}:
+            classification = f"APPROVED_{method.upper()}_RECEIVER"
+        else:
+            classification = "UNRESOLVED_OCCURRENCE"
+            unresolved.append(
+                "collection identifier occurs outside its declaration or exact "
+                f"push/pop receiver at byte {match.start()}"
+            )
+        inventory.append(
+            {
+                "offset": match.start(),
+                "classification": classification,
+                "method": method,
+            }
+        )
+    if sum(item["classification"] == "DECLARATION" for item in inventory) != 1:
+        unresolved.append(
+            "collection does not have exactly one inventoried declaration"
+        )
+    return inventory, unresolved
+
+
+def limit_control_collection_manifest(
+    body: str,
+    event_range: tuple[int, int],
+    scopes: list[dict[str, object]],
+    callable_index: dict[str, tuple[dict[str, str], ...]],
+    owner_record: dict[str, str],
+) -> list[dict[str, object]]:
+    relevant: list[str] = []
+    for scope in scopes:
+        header = scope.get("header")
+        if not isinstance(header, str):
+            continue
+        for site in limit_control_call_sites(header):
+            if (
+                re.split(r"::|\.", site.callee)[-1] == "pop"
+                and re.fullmatch(RUST_IDENTIFIER, site.receiver)
+                and site.receiver not in relevant
+            ):
+                relevant.append(site.receiver)
+    collections: list[dict[str, object]] = []
+    all_sites = limit_control_call_sites(body)
+    for identifier in relevant:
+        binding = limit_control_local_binding(owner_record, identifier, event_range[0])
+        if binding is None:
+            collections.append(
+                {
+                    "collection": identifier,
+                    "unresolved": ["collection initializer is absent or ambiguous"],
+                }
+            )
+            continue
+        unresolved: list[str] = []
+        if problem := limit_control_local_binding_problem(
+            binding,
+            allow_mutable_declaration=True,
+        ):
+            unresolved.append(f"collection binding is unresolved: {problem}")
+        initializer_values, initializer_calls = limit_control_value_authority(
+            binding["expression"],
+            callable_index,
+            owner_record,
+            int(binding["expression_start"]),
+            limit_control_site_pattern_bindings(
+                body,
+                int(binding["expression_start"]),
+            ),
+        )
+        initializer_provenance = limit_control_path_provenance_record(
+            initializer_values,
+            initializer_calls,
+        )
+        if (
+            any(
+                item.get("classification") == "UNRESOLVED"
+                for item in [*initializer_values, *initializer_calls]
+            )
+            or initializer_provenance["unresolved"]
+        ):
+            unresolved.append("collection initializer authority is unresolved")
+        if initializer_provenance["classification"] != (
+            "OwnedDescendant(RepositoryRoot)"
+        ):
+            unresolved.append(
+                "collection initializer lacks repository-root descendant provenance"
+            )
+        initializer_roots = initializer_provenance["root_identities"]
+        if not isinstance(initializer_roots, list) or len(initializer_roots) != 1:
+            unresolved.append("collection initializer root identity is not unique")
+        occurrence_inventory, occurrence_problems = (
+            limit_control_collection_occurrence_inventory(body, identifier)
+        )
+        unresolved.extend(occurrence_problems)
+        operations: list[dict[str, object]] = []
+        for site in all_sites:
+            if site.receiver != identifier:
+                continue
+            method = re.split(r"::|\.", site.callee)[-1]
+            if method not in {"push", "pop"}:
+                if method in {
+                    "append",
+                    "clear",
+                    "extend",
+                    "insert",
+                    "remove",
+                    "retain",
+                    "swap_remove",
+                }:
+                    unresolved.append(f"unapproved collection mutation {method}")
+                continue
+            pattern_bindings = limit_control_site_pattern_bindings(body, site.start)
+            operation_record = dict(owner_record)
+            operation_record["pattern_bindings_json"] = json.dumps(
+                pattern_bindings,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            argument_values, argument_calls = limit_control_value_authority(
+                site.arguments,
+                callable_index,
+                operation_record,
+                site.start,
+                pattern_bindings,
+            )
+            provenance_record = limit_control_path_provenance_record(
+                argument_values,
+                argument_calls,
+            )
+            provenance = (
+                "CollectionElement"
+                if method == "pop"
+                else provenance_record["classification"]
+            )
+            if method == "push":
+                if provenance not in {
+                    "OwnedDescendant(RepositoryRoot)",
+                    "ReadDirEntry(OwnedDescendant)",
+                }:
+                    unresolved.append(
+                        "push argument lacks repository-root provenance: "
+                        f"{site.arguments}"
+                    )
+                if provenance_record["root_identities"] != initializer_roots:
+                    unresolved.append(
+                        "push argument repository-root identity differs: "
+                        f"{site.arguments}"
+                    )
+                if provenance_record["unresolved"]:
+                    unresolved.append(
+                        f"push path provenance is unresolved: {site.arguments}"
+                    )
+            if any(
+                value.get("classification") == "UNRESOLVED" for value in argument_values
+            ) or any(
+                call.get("classification") == "UNRESOLVED" for call in argument_calls
+            ):
+                unresolved.append(f"{method} argument authority is unresolved")
+            callsite = f"{identifier}.{method}({normalize_rust_tokens(site.arguments)})"
+            operations.append(
+                {
+                    "operation": method,
+                    "callsite": callsite,
+                    "callsite_sha256": hashlib.sha256(
+                        callsite.encode("utf-8")
+                    ).hexdigest(),
+                    "argument_values": argument_values,
+                    "argument_calls": argument_calls,
+                    "path_provenance": provenance,
+                    "path_provenance_record": provenance_record,
+                }
+            )
+        if sum(operation["operation"] == "pop" for operation in operations) != 1:
+            unresolved.append("collection does not have exactly one pop")
+        if not any(operation["operation"] == "push" for operation in operations):
+            unresolved.append("collection has no inventoried push")
+        collections.append(
+            {
+                "collection": identifier,
+                "binding_pattern": binding["pattern"],
+                "binding_statement_sha256": binding["statement_sha256"],
+                "initializer": normalize_rust_tokens(binding["expression"]),
+                "initializer_values": initializer_values,
+                "initializer_calls": initializer_calls,
+                "initializer_path_provenance": initializer_provenance["classification"],
+                "initializer_path_provenance_record": initializer_provenance,
+                "occurrence_inventory": occurrence_inventory,
+                "operations": operations,
+                "unresolved": unresolved,
+            }
+        )
+    return collections
+
+
+def limit_control_edge_liveness_manifest(
+    record: dict[str, object],
+    *,
+    ordered_scope: bool,
+) -> dict[str, object]:
+    kind = record.get("kind")
+    header = record.get("header")
+    if not isinstance(kind, str) or not isinstance(header, str):
+        return {
+            "classification": "UNRESOLVED_EDGE_LIVENESS",
+            "required_edge": "unknown",
+            "evidence": [],
+            "evidence_sha256": canonical_json_sha256([]),
+        }
+    required_edge = record.get("required_edge", "enter-scope")
+    static_authority: str | None = None
+    if ordered_scope:
+        if kind in {"if-true", "loop"}:
+            static_authority = kind
+        elif (
+            kind == "match-arm"
+            and re.search(
+                r"\bif\b",
+                rust_code_projection(header),
+            )
+            is None
+        ):
+            static_authority = "unguarded-match-arm"
+        elif kind.startswith("match:") and re.fullmatch(
+            r"(?:true|false|[0-9][0-9_]*)",
+            kind.removeprefix("match:"),
+        ):
+            static_authority = "literal-match-selection"
+    if static_authority is not None:
+        evidence = [f"STATICALLY_REQUIRED:{static_authority}"]
+        return {
+            "classification": "STATICALLY_REQUIRED_EDGE",
+            "required_edge": required_edge,
+            "evidence": evidence,
+            "evidence_sha256": canonical_json_sha256(evidence),
+        }
+
+    evidence: list[str] = []
+    values = record.get("resolved_values")
+    if isinstance(values, list):
+        for value in values:
+            if not isinstance(value, dict) or value.get("classification") not in {
+                "CONCRETE_PARAMETER",
+                "CONCRETE_SELF",
+                "OWNED_USAGE_ACCUMULATOR",
+            }:
+                continue
+            digest = value.get("authority_sha256")
+            if isinstance(digest, str):
+                witness = f"VALUE:{value['classification']}:{digest}"
+                if witness not in evidence:
+                    evidence.append(witness)
+    resolutions = record.get("resolved_authority")
+    if isinstance(resolutions, list):
+        for resolution in resolutions:
+            if not isinstance(resolution, dict):
+                continue
+            classification = resolution.get("classification")
+            authority = resolution.get("authority")
+            digest = resolution.get("authority_sha256")
+            if classification == "PRIOR_GOVERNED_LIMIT_EVENT" and isinstance(
+                digest, str
+            ):
+                witness = f"CALL:{classification}:{digest}"
+                if witness not in evidence:
+                    evidence.append(witness)
+                continue
+            if authority in {
+                "RUST_STANDARD_LIBRARY_CALL:fs::read_dir",
+                "RUST_STANDARD_LIBRARY_CALL:fs::symlink_metadata",
+            } and isinstance(digest, str):
+                witness = f"CALL:{classification}:{digest}"
+                if witness not in evidence:
+                    evidence.append(witness)
+                continue
+            receiver_authority = resolution.get("receiver_authority")
+            receiver_digest = resolution.get("receiver_authority_sha256")
+            if (
+                classification == "TRUSTED_RUST_METHOD"
+                and isinstance(receiver_authority, str)
+                and receiver_authority.startswith(
+                    (
+                        "CONCRETE_PARAMETER:",
+                        "CONCRETE_SELF:",
+                        "CONCRETE_SELF_FIELD:",
+                        "OWNED_USAGE_FIELD:",
+                    )
+                )
+                and isinstance(receiver_digest, str)
+            ):
+                witness = (
+                    f"RECEIVER:{receiver_authority.split(':', 1)[0]}:{receiver_digest}"
+                )
+                if witness not in evidence:
+                    evidence.append(witness)
+    return {
+        "classification": (
+            "RUNTIME_ROOTED_EDGE" if evidence else "UNRESOLVED_EDGE_LIVENESS"
+        ),
+        "required_edge": required_edge,
+        "evidence": evidence,
+        "evidence_sha256": canonical_json_sha256(evidence),
+    }
+
+
+def limit_event_control_ancestry_manifest(
+    sources: dict[str, str],
+    specs: dict[str, LimitEventSpec] = LIMIT_EVENT_SPECS,
+) -> dict[str, dict[str, object]]:
+    manifest: dict[str, dict[str, object]] = {}
+    callable_index = limit_local_callable_index(sources)
+    for event_id, spec in specs.items():
+        relative, owner, function = spec.site
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"{event_id} control-ancestry source is absent")
+        production = normal_build_source(source)
+        body = rust_named_function_raw_body(production, function, owner)
+        if body is None:
+            fail(f"{event_id} control-ancestry owner is absent")
+        owner_record = limit_control_item_record(
+            LimitControlItem(relative, owner, function),
+            callable_index,
+        )
+        if owner_record is None:
+            fail(f"{event_id} control-ancestry owner is ambiguous")
+        event_range = exact_lexical_statement_sequence_range(
+            body, limit_event_expected_statements(spec)
+        )
+        if event_range is None:
+            fail(f"{event_id} control-ancestry event is absent or repeated")
+        scopes: list[dict[str, object]] = []
+        for start, end, kind, header in limit_event_executable_scope_records(body):
+            if kind == "root" or not (
+                start <= event_range[0] and event_range[1] <= end
+            ):
+                continue
+            header_start = start - 1 - len(header)
+            authority = limit_control_header_authority(
+                header,
+                callable_index,
+                owner_record,
+                body,
+                header_start,
+            )
+            authority["kind"] = kind
+            authority["edge_liveness"] = limit_control_edge_liveness_manifest(
+                authority,
+                ordered_scope=True,
+            )
+            scopes.append(authority)
+        owner_key = limit_event_owner_body_key(spec)
+        dominating_exits = limit_event_dominating_exit_manifest(
+            body,
+            event_range,
+            callable_index,
+            owner_record,
+        )
+        for dominator in dominating_exits:
+            dominator["edge_liveness"] = limit_control_edge_liveness_manifest(
+                dominator,
+                ordered_scope=False,
+            )
+        collections = limit_control_collection_manifest(
+            body,
+            event_range,
+            scopes,
+            callable_index,
+            owner_record,
+        )
+        manifest[event_id] = {
+            "source": relative,
+            "owner": owner,
+            "function": function,
+            "owner_body": owner_key,
+            "owner_attribute_chain_sha256": owner_record["attribute_chain_sha256"],
+            "owner_body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            "owner_function_macros": limit_event_owner_function_macro_manifest(
+                relative,
+                body,
+            ),
+            "ordered_scopes": scopes,
+            "dominating_exits": dominating_exits,
+            "collection_mutations": collections,
+        }
+    return manifest
+
+
+def limit_event_control_ancestry_problem(
+    manifest: object,
+) -> str | None:
+    if not isinstance(manifest, dict) or tuple(manifest) != tuple(LIMIT_EVENT_SPECS):
+        return "limit-event control-ancestry event inventory differs"
+    for event_id, record in manifest.items():
+        if not isinstance(record, dict):
+            return f"{event_id} control-ancestry record differs"
+        owner_attribute_chain_sha256 = record.get("owner_attribute_chain_sha256")
+        if (
+            not isinstance(owner_attribute_chain_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", owner_attribute_chain_sha256) is None
+        ):
+            return f"{event_id} owner attribute-chain authority differs"
+        owner_function_macros = record.get("owner_function_macros")
+        if not isinstance(owner_function_macros, list):
+            return f"{event_id} owner function-macro inventory differs"
+        for macro in owner_function_macros:
+            if (
+                not isinstance(macro, dict)
+                or macro.get("event_owner_classification")
+                != "ALLOWED_EVENT_OWNER_MACRO"
+            ):
+                return f"{event_id} owner retains a diverging or unbound macro"
+        scopes = record.get("ordered_scopes")
+        if not isinstance(scopes, list):
+            return f"{event_id} control-scope inventory differs"
+        for scope in scopes:
+            if not isinstance(scope, dict):
+                return f"{event_id} control scope differs"
+            macros = scope.get("macros")
+            if macros != []:
+                return f"{event_id} control scope retains macro authority"
+            values = scope.get("resolved_values")
+            if not isinstance(values, list):
+                return f"{event_id} control value graph differs"
+            for value in values:
+                if (
+                    not isinstance(value, dict)
+                    or value.get("classification") == "UNRESOLVED"
+                ):
+                    return f"{event_id} control value is unresolved or forbidden"
+            resolutions = scope.get("resolved_authority")
+            if not isinstance(resolutions, list):
+                return f"{event_id} control callable closure differs"
+            for resolution in resolutions:
+                if (
+                    not isinstance(resolution, dict)
+                    or resolution.get("classification") == "UNRESOLVED"
+                ):
+                    return f"{event_id} control callable is unresolved or forbidden"
+            edge_liveness = scope.get("edge_liveness")
+            if not isinstance(edge_liveness, dict) or edge_liveness.get(
+                "classification"
+            ) not in {"RUNTIME_ROOTED_EDGE", "STATICALLY_REQUIRED_EDGE"}:
+                return f"{event_id} control edge lacks runtime or static liveness"
+        dominating_exits = record.get("dominating_exits")
+        if not isinstance(dominating_exits, list):
+            return f"{event_id} dominating-exit graph differs"
+        for dominator in dominating_exits:
+            if not isinstance(dominator, dict):
+                return f"{event_id} dominating exit differs"
+            values = dominator.get("resolved_values")
+            resolutions = dominator.get("resolved_authority")
+            if not isinstance(values, list) or not isinstance(resolutions, list):
+                return f"{event_id} dominating-exit authority differs"
+            if any(
+                not isinstance(value, dict)
+                or value.get("classification") == "UNRESOLVED"
+                for value in values
+            ):
+                return f"{event_id} dominating-exit value is unresolved"
+            if any(
+                not isinstance(resolution, dict)
+                or resolution.get("classification") == "UNRESOLVED"
+                for resolution in resolutions
+            ):
+                return f"{event_id} dominating-exit callable is unresolved"
+            edge_liveness = dominator.get("edge_liveness")
+            if (
+                not isinstance(edge_liveness, dict)
+                or edge_liveness.get("classification") != "RUNTIME_ROOTED_EDGE"
+            ):
+                return f"{event_id} dominating exit lacks runtime-rooted liveness"
+        collections = record.get("collection_mutations")
+        if not isinstance(collections, list):
+            return f"{event_id} collection-mutation inventory differs"
+        for collection in collections:
+            if not isinstance(collection, dict) or collection.get("unresolved") != []:
+                return f"{event_id} collection authority is unresolved"
+    return None
+
+
+def limit_shared_state_authority_manifest(
+    sources: dict[str, str],
+) -> dict[str, object]:
+    if problem := limit_compile_time_authority_problem(sources):
+        fail(f"cannot manifest unsafe limit shared-state authority: {problem}")
+    channels: dict[str, dict[str, str]] = {}
+    for relative, record in LIMIT_ALLOWED_SHARED_STATE.items():
+        declaration = record["declaration"]
+        operation = record["operation"]
+        channels[relative] = {
+            "owner": record["owner"],
+            "function": record["function"],
+            "signature": normalize_rust_tokens(record["signature"]),
+            "signature_sha256": hashlib.sha256(
+                record["signature"].encode("utf-8")
+            ).hexdigest(),
+            "body_sha256": hashlib.sha256(record["body"].encode("utf-8")).hexdigest(),
+            "declaration": normalize_rust_tokens(declaration),
+            "declaration_sha256": hashlib.sha256(
+                declaration.encode("utf-8")
+            ).hexdigest(),
+            "operation": normalize_rust_tokens(operation),
+            "operation_sha256": hashlib.sha256(operation.encode("utf-8")).hexdigest(),
+        }
+    return {
+        "production_source_paths": list(limit_production_source_paths()),
+        "production_source_paths_sha256": canonical_json_sha256(
+            list(limit_production_source_paths())
+        ),
+        "complete_source_scan": [
+            limit_shared_state_source_manifest(relative, sources[relative])
+            for relative in limit_production_source_paths()
+        ],
+        "allowed_channels": channels,
+    }
+
+
+def limit_event_observation_manifest(
+    row_map: dict[str, object],
+    mapped_test_bodies: dict[str, dict[str, str]],
+    owner_bodies: dict[str, dict[str, str]],
+    specs: dict[str, LimitEventSpec] = LIMIT_EVENT_SPECS,
+    field_observations: dict[str, tuple[str, str]] = (LIMIT_FIELD_RUNTIME_OBSERVATIONS),
+) -> dict[str, dict[str, object]]:
+    manifest: dict[str, dict[str, object]] = {}
+    for event_id, spec in specs.items():
+        owner_key = limit_event_owner_body_key(spec)
+        owner_record = owner_bodies.get(owner_key)
+        if not isinstance(owner_record, dict):
+            fail(f"{event_id} lacks an exact owner-body review record")
+        owner_digest = owner_record.get("body_sha256")
+        if not isinstance(owner_digest, str):
+            fail(f"{event_id} owner-body review digest is malformed")
+        owner_attribute_digest = owner_record.get("attribute_chain_sha256")
+        if not isinstance(owner_attribute_digest, str):
+            fail(f"{event_id} owner attribute-chain digest is malformed")
+        charged_tests: list[dict[str, str]] = []
+        for qualified_field, _counter, _next, _delta in spec.charges:
+            try:
+                row_id, subcase_id = field_observations[qualified_field]
+            except KeyError:
+                fail(f"{event_id} field lacks a runtime observation: {qualified_field}")
+            row_entry = row_map.get(row_id)
+            if not isinstance(row_entry, dict):
+                fail(f"{event_id} runtime-observation row is absent: {row_id}")
+            subcases = row_entry.get("subcases")
+            if not isinstance(subcases, dict):
+                fail(f"{event_id} runtime-observation subcases are absent: {row_id}")
+            subcase = subcases.get(subcase_id)
+            if not isinstance(subcase, dict):
+                fail(
+                    f"{event_id} runtime-observation subcase is absent: "
+                    f"{row_id}/{subcase_id}"
+                )
+            tests = subcase.get("tests")
+            if (
+                not isinstance(tests, list)
+                or len(tests) != 1
+                or not isinstance(tests[0], str)
+            ):
+                fail(
+                    f"{event_id} runtime observation does not bind one mapped test: "
+                    f"{row_id}/{subcase_id}"
+                )
+            test = tests[0]
+            test_record = mapped_test_bodies.get(test)
+            if not isinstance(test_record, dict) or tuple(test_record) != (
+                "source",
+                "qualified_test",
+                "body_sha256",
+            ):
+                fail(f"{event_id} runtime-observation test body is unreviewed: {test}")
+            charged_tests.append(
+                {
+                    "qualified_field": qualified_field,
+                    "row_id": row_id,
+                    "subcase_id": subcase_id,
+                    "test": test,
+                    "source": test_record["source"],
+                    "qualified_test": test_record["qualified_test"],
+                    "body_sha256": test_record["body_sha256"],
+                }
+            )
+        manifest[event_id] = {
+            "owner_body": owner_key,
+            "owner_attribute_chain_sha256": owner_attribute_digest,
+            "owner_body_sha256": owner_digest,
+            "charged_limit_tests": charged_tests,
         }
     return manifest
 
@@ -18349,10 +25643,9 @@ def cross05_exact_test_struct_body(source: str, name: str) -> str | None:
     if len(matches) != 1 or len(definitions) != 1:
         return None
     match = matches[0]
-    if (
-        brace_depth_at(module, module_mask, match.start()) != 0
-        or has_preceding_code_attribute(module, module_mask, match.start())
-    ):
+    if brace_depth_at(
+        module, module_mask, match.start()
+    ) != 0 or has_preceding_code_attribute(module, module_mask, match.start()):
         return None
     opening = projected.find("{", match.start(), match.end())
     closing = matching_delimiter(projected, [True] * len(projected), opening, "{", "}")
@@ -18616,6 +25909,59 @@ def split_top_level_rust_commas(value: str) -> tuple[str, ...]:
             start = index + 1
     parts.append(value[start:])
     return tuple(part for part in parts if part.strip())
+
+
+def rust_use_tree_bindings(
+    value: str,
+    prefix: tuple[str, ...] = (),
+) -> tuple[tuple[str, str], ...]:
+    tree = value.strip().removeprefix("use").removesuffix(";").strip()
+    opening = -1
+    depth = 0
+    for index, character in enumerate(tree):
+        if character == "{" and depth == 0:
+            opening = index
+            break
+        if character in "([<":
+            depth += 1
+        elif character in ")]>":
+            depth -= 1
+    if opening >= 0:
+        closing = matching_delimiter(tree, [True] * len(tree), opening, "{", "}")
+        if closing is None or tree[closing + 1 :].strip():
+            return ()
+        base = tuple(
+            semantic_rust_identifier(identifier)
+            for identifier in re.findall(RUST_IDENTIFIER, tree[:opening])
+        )
+        qualified = prefix + base
+        bindings: list[tuple[str, str]] = []
+        for member in split_top_level_rust_commas(tree[opening + 1 : closing]):
+            bindings.extend(rust_use_tree_bindings(member, qualified))
+        return tuple(bindings)
+
+    alias = re.search(rf"\bas\s+(?P<name>{RUST_IDENTIFIER})\s*$", tree)
+    alias_name = semantic_rust_identifier(alias["name"]) if alias is not None else None
+    if alias is not None:
+        tree = tree[: alias.start()].strip()
+    if tree == "*":
+        return ((alias_name or "*", "::".join(prefix + ("*",))),)
+    if tree == "self":
+        if not prefix:
+            return ()
+        return ((alias_name or prefix[-1], "::".join(prefix)),)
+    identifiers = tuple(
+        semantic_rust_identifier(identifier)
+        for identifier in re.findall(RUST_IDENTIFIER, tree)
+    )
+    if not identifiers:
+        return ()
+    qualified = prefix + identifiers
+    if qualified[-1] == "self":
+        qualified = qualified[:-1]
+    if not qualified:
+        return ()
+    return ((alias_name or qualified[-1], "::".join(qualified)),)
 
 
 def rust_use_tree_bound_names(
@@ -19001,6 +26347,74 @@ def cross05_evolving_guarded_core_problem(sources: dict[str, str]) -> str | None
             projection,
         ):
             return f"{type_name}::{name} releases or replaces its guard"
+    return None
+
+
+def cross05_mutation_guarded_core_problem(sources: dict[str, str]) -> str | None:
+    for (
+        relative,
+        type_name,
+        wrapper_name,
+        core_name,
+        validator,
+        allowed_delegates,
+    ) in CROSS_05_MUTATION_GUARDED_CORES:
+        normal = normal_build_source(sources[relative])
+        impls = rust_impl_bodies(normal, type_name)
+        if len(impls) != 1:
+            return f"{type_name} exact implementation owner differs"
+        owner = f"impl{type_name}"
+        signatures = rust_direct_function_signature(impls[0], core_name, "private")
+        if len(signatures) != 1 or (
+            "maintenance:&RepositoryMaintenanceGuard"
+            not in normalize_rust_tokens(signatures[0])
+        ):
+            return f"{type_name}::{core_name} exact borrowed-guard signature differs"
+        if wrapper_name is not None:
+            wrapper_body = rust_named_function_raw_body(normal, wrapper_name, owner)
+            normalized_wrapper = (
+                None if wrapper_body is None else normalize_rust_tokens(wrapper_body)
+            )
+            if normalized_wrapper not in allowed_delegates:
+                return f"{type_name}::{wrapper_name} guarded delegate differs"
+        body = rust_named_function_raw_body(normal, core_name, owner)
+        if body is None:
+            return f"cannot isolate mutation guarded core {type_name}::{core_name}"
+        validation = f"self.{validator}(maintenance)?;"
+        starts = exact_direct_statement_starts(body, validation)
+        if len(starts) != 1 or rust_code_projection(body[: starts[0]]).strip():
+            return f"{type_name}::{core_name} guard validation is not first"
+        projection = rust_code_projection(body)
+        for forbidden in (
+            "acquire_shared_maintenance",
+            "acquire_exclusive_maintenance",
+            "acquire_shared_repository_maintenance",
+            "acquire_exclusive_repository_maintenance",
+            "initialize_repository_maintenance",
+        ):
+            if code_contains_token(projection, forbidden):
+                return (
+                    f"{type_name}::{core_name} reacquires maintenance via {forbidden}"
+                )
+        if re.search(
+            r"\b(?:drop|forget|unlock)\s*\(\s*maintenance\b|"
+            r"\bmaintenance\s*=",
+            projection,
+        ):
+            return f"{type_name}::{core_name} releases or replaces its guard"
+        for mutation in (
+            "remove_file",
+            "remove_dir",
+            "remove_dir_all",
+            "rename",
+            "hard_link",
+            "create_dir",
+            "create_dir_all",
+        ):
+            if code_contains_token(projection, mutation):
+                return (
+                    f"{type_name}::{core_name} uses raw filesystem mutation {mutation}"
+                )
     return None
 
 
@@ -19506,6 +26920,8 @@ self.advance_branch_with_maintenance(
         ):
             return problem
     if problem := cross05_evolving_guarded_core_problem(sources):
+        return problem
+    if problem := cross05_mutation_guarded_core_problem(sources):
         return problem
     if problem := cross05_gc_acquisition_problem(gc):
         return problem
@@ -20088,9 +27504,7 @@ def owned_entry_fixture_fact_assertions(
     if not isinstance(name, str) or not isinstance(kind, str):
         fail("owned-entry fixture fact metadata differs")
     snapshot = f"{name}_before_snapshot"
-    assertions = [
-        f"::core::assert_eq!({snapshot}.0, {json.dumps(kind)});"
-    ]
+    assertions = [f"::core::assert_eq!({snapshot}.0, {json.dumps(kind)});"]
     if kind == "regular":
         payload = spec.get("bytes")
         if not isinstance(payload, bytes):
@@ -20111,9 +27525,7 @@ def owned_entry_fixture_fact_assertions(
         mode = spec.get("mode")
         if type(mode) is not int:
             fail("owned-entry non-regular fixture lacks an exact mode")
-        assertions.append(
-            f"::core::assert_eq!({snapshot}.1 & 0o170000, 0o{mode:o});"
-        )
+        assertions.append(f"::core::assert_eq!({snapshot}.1 & 0o170000, 0o{mode:o});")
     return tuple(assertions)
 
 
@@ -20208,9 +27620,7 @@ def owned_entry_fixture_setup_statements(
             fail("owned-entry fixture setup metadata differs")
         path = f"{name}_path"
         if kind == "directory":
-            statements.append(
-                f"::std::fs::create_dir_all(&{path}).unwrap();"
-            )
+            statements.append(f"::std::fs::create_dir_all(&{path}).unwrap();")
             continue
         statements.append(
             f"::std::fs::create_dir_all({path}.parent().unwrap()).unwrap();"
@@ -20228,8 +27638,7 @@ def owned_entry_fixture_setup_statements(
             if not isinstance(target, str):
                 fail("owned-entry symlink setup lacks an exact target")
             statements.append(
-                "::std::os::unix::fs::symlink("
-                f"{json.dumps(target)}, &{path}).unwrap();"
+                f"::std::os::unix::fs::symlink({json.dumps(target)}, &{path}).unwrap();"
             )
         elif kind == "non_regular":
             statements.append(
@@ -20270,9 +27679,7 @@ def owned_entry_before_statements(
     tree_helper = snapshot_helper_path(relative, "exact_tree_snapshot")
     delta_helper = snapshot_helper_path(relative, "exact_tree_delta_paths")
     path_helper = snapshot_helper_path(relative, "exact_path_snapshot")
-    added = owned_entry_path_vec(
-        owned_entry_expected_added_paths(row_id, subcase_id)
-    )
+    added = owned_entry_path_vec(owned_entry_expected_added_paths(row_id, subcase_id))
     statements = [
         f"let owner_tree_before_snapshot = {tree_helper}(owner_root);",
         (
@@ -20291,10 +27698,7 @@ def owned_entry_before_statements(
             fail("owned-entry before-snapshot name metadata differs")
         statements.extend(
             (
-                (
-                    f"let {name}_before_snapshot = "
-                    f"{path_helper}(&{name}_path);"
-                ),
+                (f"let {name}_before_snapshot = {path_helper}(&{name}_path);"),
                 f"let {name}_before_kind = {name}_before_snapshot.0;",
                 *owned_entry_fixture_fact_assertions(spec),
             )
@@ -20398,14 +27802,8 @@ def owned_entry_after_statements(
                 f"{delta_helper}(&owner_tree_before_snapshot, "
                 "&owner_tree_after_snapshot);"
             ),
-            (
-                f"::core::assert_eq!(operation_delta.0, "
-                f"{owned_entry_empty_path_vec()});"
-            ),
-            (
-                f"::core::assert_eq!(operation_delta.1, "
-                f"{owned_entry_empty_path_vec()});"
-            ),
+            (f"::core::assert_eq!(operation_delta.0, {owned_entry_empty_path_vec()});"),
+            (f"::core::assert_eq!(operation_delta.1, {owned_entry_empty_path_vec()});"),
             (
                 f"::core::assert_eq!(operation_delta.2, "
                 f"{owned_entry_path_vec(owned_entry_operation_delta_removed_paths(row_id, subcase_id))});"
@@ -20419,10 +27817,7 @@ def owned_entry_after_statements(
         if subcase_id == "owned_stage" and name == "owned_stage":
             statements.extend(
                 (
-                    (
-                        f"let {name}_after_snapshot = "
-                        f"{optional_helper}(&{name}_path);"
-                    ),
+                    (f"let {name}_after_snapshot = {optional_helper}(&{name}_path);"),
                     (
                         f"::core::assert_eq!({name}_after_snapshot, "
                         "::core::option::Option::None);"
@@ -20432,10 +27827,7 @@ def owned_entry_after_statements(
         else:
             statements.extend(
                 (
-                    (
-                        f"let {name}_after_snapshot = "
-                        f"{path_helper}(&{name}_path);"
-                    ),
+                    (f"let {name}_after_snapshot = {path_helper}(&{name}_path);"),
                     f"let {name}_after_kind = {name}_after_snapshot.0;",
                     (
                         f"::core::assert_eq!({name}_after_snapshot, "
@@ -20446,9 +27838,7 @@ def owned_entry_after_statements(
     if fatal:
         code = OWNED_ENTRY_ERROR_CODES[row_id]
         projection = "error.symbol()" if row_id == "COR-01" else "error.code()"
-        statements.append(
-            f"::core::assert_eq!({projection}, {json.dumps(code)});"
-        )
+        statements.append(f"::core::assert_eq!({projection}, {json.dumps(code)});")
         variant = owned_entry_error_variant_assertion(row_id, relative)
         if variant is not None:
             statements.append(variant)
@@ -20481,23 +27871,26 @@ def owned_entry_operation_binding_problem(
         return "fresh owner fixture/root/baseline binding is not the exact prefix"
     paths = owned_entry_path_binding_statements(row_id, subcase_id)
     path_range = exact_statement_sequence_range(body, paths)
-    if path_range is None or rust_code_projection(
-        body[fresh_range[1] : path_range[0]]
-    ).strip():
+    if (
+        path_range is None
+        or rust_code_projection(body[fresh_range[1] : path_range[0]]).strip()
+    ):
         return "case paths are not bound exactly after the fresh baseline"
 
     setup = owned_entry_fixture_setup_statements(row_id, subcase_id)
     setup_range = exact_statement_sequence_range(body, setup)
-    if setup_range is None or rust_code_projection(
-        body[path_range[1] : setup_range[0]]
-    ).strip():
+    if (
+        setup_range is None
+        or rust_code_projection(body[path_range[1] : setup_range[0]]).strip()
+    ):
         return "case fixture is not materialized exactly after path binding"
 
     before = owned_entry_before_statements(row_id, subcase_id, relative)
     before_range = exact_statement_sequence_range(body, before)
-    if before_range is None or rust_code_projection(
-        body[setup_range[1] : before_range[0]]
-    ).strip():
+    if (
+        before_range is None
+        or rust_code_projection(body[setup_range[1] : before_range[0]]).strip()
+    ):
         return "fixture delta/facts and recovery operation are not one exact sequence"
 
     operation = owned_entry_operation_call(row_id)
@@ -20506,9 +27899,10 @@ def owned_entry_operation_binding_problem(
 
     after = owned_entry_after_statements(row_id, subcase_id, relative)
     after_range = exact_statement_sequence_range(body, after)
-    if after_range is None or rust_code_projection(
-        body[before_range[1] : after_range[0]]
-    ).strip():
+    if (
+        after_range is None
+        or rust_code_projection(body[before_range[1] : after_range[0]]).strip()
+    ):
         return "post-operation snapshots/outcome are not one immediate exact sequence"
     if rust_code_projection(body[after_range[1] :]).strip():
         return "mapped owned-entry test has trailing unreviewed authority"
@@ -21907,6 +29301,252 @@ def limit_operation_root(kind: str, prefix: str) -> str:
         fail(f"unknown limit operation kind {kind!r}")
 
 
+def limit_runtime_operation_profiles(
+    kind: str,
+) -> tuple[tuple[dict[str, object], str, str, str], ...]:
+    constructors = {
+        "store_recovery": (("object_recovery_limits", "limits"),),
+        "transaction_recovery": (
+            ("transaction_recovery_limits", "recovery_limits"),
+            ("accepted_recovery_limits", "ancestry_limits"),
+        ),
+        "ancestry_verifier": (("branch_recovery_limits", "limits"),),
+        "ref_recovery": (("ref_recovery_limits", "limits"),),
+    }
+    try:
+        selected = constructors[kind]
+    except KeyError:
+        fail(f"unknown limit runtime operation kind {kind!r}")
+    profiles = limit_profile_map()
+    return tuple(
+        (
+            profiles[constructor],
+            f"default_{suffix}",
+            f"exact_{suffix}",
+            f"plus_one_{suffix}",
+        )
+        for constructor, suffix in selected
+    )
+
+
+def limit_runtime_fixture_setup_statements(
+    spec: LimitRuntimeCaseSpec,
+) -> tuple[str, str]:
+    helper = spec.setup_helper
+    exact = f"{spec.exact_cardinality}_u64"
+    plus_one = f"{spec.plus_one_cardinality}_u64"
+    statements = {
+        "store_recovery": (
+            f"let (exact_store, exact_fixture_observation) = {helper}({exact});",
+            f"let (plus_one_store, plus_one_fixture_observation) = {helper}({plus_one});",
+        ),
+        "transaction_recovery": (
+            "let (exact_repository, exact_maintenance, exact_fixture_observation) = "
+            f"{helper}({exact});",
+            "let (plus_one_repository, plus_one_maintenance, "
+            f"plus_one_fixture_observation) = {helper}({plus_one});",
+        ),
+        "ancestry_verifier": (
+            "let (exact_repository, exact_maintenance, exact_requests, "
+            f"exact_fixture_observation) = {helper}({exact});",
+            "let (plus_one_repository, plus_one_maintenance, plus_one_requests, "
+            f"plus_one_fixture_observation) = {helper}({plus_one});",
+        ),
+        "ref_recovery": (
+            "let (exact_branch_repository, exact_maintenance, "
+            f"exact_fixture_observation) = {helper}({exact});",
+            "let (plus_one_branch_repository, plus_one_maintenance, "
+            f"plus_one_fixture_observation) = {helper}({plus_one});",
+        ),
+    }
+    try:
+        return statements[spec.operation_kind]
+    except KeyError:
+        fail(f"unknown limit runtime fixture kind {spec.operation_kind!r}")
+
+
+def limit_runtime_event_slice(event_ids: tuple[str, ...]) -> str:
+    return "&[" + ",".join(json.dumps(event_id) for event_id in event_ids) + "]"
+
+
+def limit_runtime_profile_statements(
+    spec: LimitRuntimeCaseSpec,
+) -> tuple[str, ...]:
+    statements: list[str] = []
+    selected_profile_found = False
+    for profile, default_var, exact_var, plus_var in limit_runtime_operation_profiles(
+        spec.operation_kind
+    ):
+        constructor = profile["constructor"]
+        constants = profile["constants"]
+        if not isinstance(constructor, str) or not isinstance(constants, tuple):
+            fail("limit runtime profile renderer metadata differs")
+        statements.extend(
+            (
+                f"let {default_var} = {constructor}();",
+                f"let mut {exact_var} = {constructor}();",
+                f"let mut {plus_var} = {constructor}();",
+            )
+        )
+        if constructor == spec.profile_constructor:
+            selected_profile_found = True
+            statements.extend(
+                (
+                    f"{exact_var}.{spec.profile_field} = injected_limit;",
+                    f"{plus_var}.{spec.profile_field} = injected_limit;",
+                )
+            )
+        for field, constant, _default in constants:
+            if constructor == spec.profile_constructor and field == spec.profile_field:
+                statements.extend(
+                    (
+                        f"::core::assert_eq!({default_var}.{field}, {constant});",
+                        f"::core::assert_eq!({exact_var}.{field}, injected_limit);",
+                        f"::core::assert_eq!({plus_var}.{field}, injected_limit);",
+                    )
+                )
+            else:
+                statements.extend(
+                    (
+                        f"::core::assert_ne!(injected_limit, {default_var}.{field});",
+                        f"::core::assert_eq!({exact_var}.{field}, {default_var}.{field});",
+                        f"::core::assert_eq!({plus_var}.{field}, {default_var}.{field});",
+                    )
+                )
+    if not selected_profile_found:
+        fail(f"{spec.row_id}/{spec.subcase_id} target profile is not operation-owned")
+    return tuple(statements)
+
+
+def limit_runtime_probe_assertions(
+    prefix: str,
+    spec: LimitRuntimeCaseSpec,
+) -> tuple[str, ...]:
+    events = limit_runtime_event_slice(spec.event_ids)
+    rejected = (
+        "::core::option::Option::None"
+        if prefix == "exact"
+        else "::core::option::Option::Some(plus_one_fixture_observation.target_usage)"
+    )
+    return (
+        f"::core::assert_eq!({prefix}_runtime_observation.qualified_field, "
+        f"{json.dumps(spec.qualified_field)});",
+        f"::core::assert_eq!({prefix}_runtime_observation.event_sites.as_slice(), {events});",
+        f"::core::assert_eq!({prefix}_runtime_observation.injected_limit, injected_limit);",
+        f"::core::assert_eq!({prefix}_runtime_observation.fixture_cardinality, "
+        f"{prefix}_fixture_observation.cardinality);",
+        f"::core::assert_eq!({prefix}_runtime_observation.scanned_peak, injected_limit);",
+        f"::core::assert_eq!({prefix}_runtime_observation.retained_peak, injected_limit);",
+        f"::core::assert_eq!({prefix}_runtime_observation.rejected_target_usage, {rejected});",
+    )
+
+
+def limit_runtime_expected_statements(
+    relative: str,
+    row_id: str,
+    subcase_id: str,
+    semantic: dict[str, object],
+) -> tuple[str, ...]:
+    try:
+        spec = LIMIT_RUNTIME_CASE_SPECS[(row_id, subcase_id)]
+    except KeyError:
+        fail(f"{row_id}/{subcase_id} lacks a limit runtime case")
+    if relative != spec.owner_source:
+        fail(f"{row_id}/{subcase_id} limit runtime owner differs")
+    required_semantic = {
+        field: semantic.get(field)
+        for field in (
+            "no_mutation",
+            "frozen_default",
+            "exact_limit_success",
+            "limit_plus_one_code",
+            "no_partial_report",
+        )
+    }
+    if any(not isinstance(value, str) for value in required_semantic.values()):
+        fail(f"{row_id}/{subcase_id} limit runtime semantic mapping differs")
+    exact_setup, plus_setup = limit_runtime_fixture_setup_statements(spec)
+    events = limit_runtime_event_slice(spec.event_ids)
+    tree_helper = snapshot_helper_path(relative, "exact_tree_snapshot")
+    exact_call = limit_operation_call(spec.operation_kind, "exact")
+    plus_call = limit_operation_call(spec.operation_kind, "plus_one")
+    statements = [
+        exact_setup,
+        plus_setup,
+        f"::core::assert_eq!(exact_fixture_observation.cardinality, {spec.exact_cardinality}_u64);",
+        f"::core::assert_eq!(plus_one_fixture_observation.cardinality, {spec.plus_one_cardinality}_u64);",
+        f"::core::assert_eq!(exact_fixture_observation.qualified_field, {json.dumps(spec.qualified_field)});",
+        f"::core::assert_eq!(plus_one_fixture_observation.qualified_field, {json.dumps(spec.qualified_field)});",
+        f"::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), {events});",
+        f"::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), {events});",
+        "let injected_limit = exact_fixture_observation.target_usage;",
+        "::core::assert!(injected_limit > 0_u64);",
+        f"::core::assert!(injected_limit < {spec.frozen_constant});",
+        "::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);",
+        str(required_semantic["frozen_default"]),
+        *limit_runtime_profile_statements(spec),
+        f"let exact_owner_root = {limit_operation_root(spec.operation_kind, 'exact')};",
+        f"let plus_one_owner_root = {limit_operation_root(spec.operation_kind, 'plus_one')};",
+        "::core::assert_ne!(exact_owner_root, plus_one_owner_root);",
+        (
+            "let plus_one_owner_tree_before_snapshot = "
+            f"{tree_helper}(plus_one_owner_root);"
+        ),
+        (
+            "let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "
+            f"{json.dumps(spec.qualified_field)}, injected_limit, {events});"
+        ),
+        f"let exact_result = {exact_call};",
+        "let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);",
+        str(required_semantic["exact_limit_success"]),
+        *limit_runtime_probe_assertions("exact", spec),
+        (
+            "let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "
+            f"{json.dumps(spec.qualified_field)}, injected_limit, {events});"
+        ),
+        f"let plus_one_result = {plus_call};",
+        (
+            "let plus_one_runtime_observation = "
+            "finish_s20_530_limit_probe(plus_one_probe);"
+        ),
+        str(required_semantic["no_partial_report"]),
+        (
+            "let limit_plus_one_error = plus_one_result.expect_err("
+            '"expected limit-plus-one error");'
+        ),
+        (
+            "let plus_one_owner_tree_after_snapshot = "
+            f"{tree_helper}(plus_one_owner_root);"
+        ),
+        str(required_semantic["no_mutation"]),
+        str(required_semantic["limit_plus_one_code"]),
+        *limit_runtime_probe_assertions("plus_one", spec),
+    ]
+    return tuple(statements)
+
+
+def limit_runtime_test_body_problem(
+    body: str,
+    relative: str,
+    row_id: str,
+    subcase_id: str,
+    semantic: dict[str, object],
+) -> str | None:
+    expected = limit_runtime_expected_statements(
+        relative,
+        row_id,
+        subcase_id,
+        semantic,
+    )
+    actual_ranges = top_level_statement_ranges(body)
+    actual = tuple(statement for _start, _end, statement in actual_ranges)
+    if tuple(normalize_rust_tokens(statement) for statement in actual) != tuple(
+        normalize_rust_tokens(statement) for statement in expected
+    ):
+        return "checker-rendered N/N+1 setup, profiles, operations, or peaks differ"
+    return None
+
+
 def limit_operation_binding_problem(
     body: str,
     relative: str,
@@ -21914,6 +29554,14 @@ def limit_operation_binding_problem(
     subcase_id: str,
     semantic: dict[str, object],
 ) -> str | None:
+    if problem := limit_runtime_test_body_problem(
+        body,
+        relative,
+        row_id,
+        subcase_id,
+        semantic,
+    ):
+        return problem
     kind = limit_operation_kind(row_id, subcase_id)
     exact_call = limit_operation_call(kind, "exact")
     plus_call = limit_operation_call(kind, "plus_one")
@@ -22094,10 +29742,7 @@ def require_checker_negative_controls() -> None:
         "matrix_rows": len(MATRIX_IDS),
         "spec_sha256": freeze_hashes["spec_sha256"],
         "matrix_rows_sha256": freeze_hashes["matrix_rows_sha256"],
-        **{
-            field: freeze_hashes[field]
-            for field in freeze_hash_fields[2:]
-        },
+        **{field: freeze_hashes[field] for field in freeze_hash_fields[2:]},
     }
     extra_freeze_input = dict(exact_freeze_inputs)
     extra_freeze_input["extra"] = "forbidden"
@@ -22174,10 +29819,7 @@ def require_checker_negative_controls() -> None:
         RECOVERY_PROVENANCE_SPECS_SHA256,
         "0" * 64,
     )
-    if (
-        recovery_provenance_spec_digest_problem(stale_provenance_digest_spec)
-        is None
-    ):
+    if recovery_provenance_spec_digest_problem(stale_provenance_digest_spec) is None:
         fail("checker self-test accepted a stale provenance spec digest")
 
     exact_multifault_digest_spec = (
@@ -22362,9 +30004,7 @@ def require_checker_negative_controls() -> None:
 
     if corruption_fixture_metadata_problem() is not None:
         fail("checker self-test rejected exact corruption fixture metadata")
-    fixture_hostiles: list[
-        dict[tuple[str, str, str], CorruptionFixtureSpec]
-    ] = []
+    fixture_hostiles: list[dict[tuple[str, str, str], CorruptionFixtureSpec]] = []
     omitted_fixture = dict(CORRUPTION_FIXTURE_SPECS)
     omitted_fixture.pop(next(iter(omitted_fixture)))
     fixture_hostiles.append(omitted_fixture)
@@ -22991,6 +30631,9 @@ def require_checker_negative_controls() -> None:
         fail("checker self-test accepted hostile CROSS success operation order")
 
     ref_ancestry_fixture = r"""
+struct RecoveryRecordPath {
+    path: PathBuf,
+}
 struct RecoveryVisibleBranch {
     origin: ImportedBranchRecord,
     reference: ImportedBranchRef,
@@ -23022,45 +30665,75 @@ fn map_recovery_ancestry_error(
     }
 }
 impl BranchRepository {
-    fn read_recovery_ref_with_limits(
+    fn read_recovery_visible_ref_with_limits(
         &self,
-        path: &Path,
+        visible_ref: &RecoveryRecordPath,
         limits: &RefRecoveryLimits,
         usage: &mut RefRecoveryUsage,
     ) -> Result<ImportedBranchRef, BranchError> {
-        let metadata = fs::symlink_metadata(path).map_err(BranchError::Io)?;
-        if !metadata.file_type().is_file() {
-            return Err(branch_error(BranchErrorCode::RefIo));
-        }
-        usage.visible_ref_record_bytes = usage
+        let record_path = visible_ref.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&record_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let one = 1_u64;
+        let next_visible_branches = usage.visible_branches.checked_add(one).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        let next_visible_ref_record_bytes = usage
             .visible_ref_record_bytes
-            .checked_add(metadata.len())
+            .checked_add(metadata_bytes)
             .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        ensure_ref_recovery_limit(next_visible_branches, limits.visible_branches)?;
         ensure_ref_recovery_limit(
-            usage.visible_ref_record_bytes,
+            next_visible_ref_record_bytes,
             limits.visible_ref_record_bytes,
         )?;
-        self.read_ref_at(path)
+        usage.visible_branches = next_visible_branches;
+        usage.visible_ref_record_bytes = next_visible_ref_record_bytes;
+        let decoded_ref = read_recovery_ref_record(&record_path)?;
+        Ok(decoded_ref)
     }
-    fn read_recovery_origin_with_limits(
+    fn read_recovery_visible_origin_with_limits(
         &self,
-        path: &Path,
+        visible_origin: &RecoveryRecordPath,
         limits: &RefRecoveryLimits,
         usage: &mut RefRecoveryUsage,
     ) -> Result<ImportedBranchRecord, BranchError> {
-        let metadata = fs::symlink_metadata(path).map_err(BranchError::Io)?;
-        if !metadata.file_type().is_file() {
-            return Err(branch_error(BranchErrorCode::RefIo));
-        }
-        usage.origin_record_bytes = usage
+        let origin_path = visible_origin.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let next_visible_origin_record_bytes = usage
             .origin_record_bytes
-            .checked_add(metadata.len())
+            .checked_add(metadata_bytes)
             .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
         ensure_ref_recovery_limit(
-            usage.origin_record_bytes,
+            next_visible_origin_record_bytes,
             limits.origin_record_bytes,
         )?;
-        self.read_branch_at(path)
+        usage.origin_record_bytes = next_visible_origin_record_bytes;
+        let decoded_origin = read_recovery_origin_record(&origin_path)?;
+        Ok(decoded_origin)
+    }
+    fn read_recovery_orphan_origin_with_limits(
+        &self,
+        orphan_origin: &RecoveryRecordPath,
+        limits: &RefRecoveryLimits,
+        usage: &mut RefRecoveryUsage,
+        orphan_origins: &mut Vec<ImportedBranchRecord>,
+    ) -> Result<(), BranchError> {
+        let origin_path = orphan_origin.path.clone();
+        let metadata = ::std::fs::symlink_metadata(&origin_path).map_err(BranchError::from)?;
+        ensure_recovery_regular_file(&metadata)?;
+        let metadata_bytes = metadata.len();
+        let one = 1_u64;
+        let next_orphan_origins = usage.orphan_origins.checked_add(one).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        let next_orphan_origin_record_bytes = usage.origin_record_bytes.checked_add(metadata_bytes).ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
+        ensure_ref_recovery_limit(next_orphan_origins, limits.orphan_origins)?;
+        ensure_ref_recovery_limit(next_orphan_origin_record_bytes, limits.origin_record_bytes)?;
+        usage.orphan_origins = next_orphan_origins;
+        usage.origin_record_bytes = next_orphan_origin_record_bytes;
+        let decoded_origin = read_recovery_origin_record(&origin_path)?;
+        orphan_origins.push(decoded_origin);
+        Ok(())
     }
     fn preflight_ref_records_with_limits(
         &self,
@@ -23071,12 +30744,12 @@ impl BranchRepository {
     ) -> Result<RefRecordPreflight, BranchError> {
         let mut references = Vec::new();
         for path in ref_paths {
-            usage.visible_branches = usage
-                .visible_branches
-                .checked_add(1)
-                .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-            ensure_ref_recovery_limit(usage.visible_branches, limits.visible_branches)?;
-            references.push(self.read_recovery_ref_with_limits(path, limits, usage)?);
+            let visible_ref = RecoveryRecordPath { path: path.clone() };
+            references.push(self.read_recovery_visible_ref_with_limits(
+                &visible_ref,
+                limits,
+                usage,
+            )?);
         }
         references.sort_by(|left, right| left.record.branch_name.cmp(&right.record.branch_name));
         if references
@@ -23093,7 +30766,14 @@ impl BranchRepository {
             if !origin_paths.contains(&origin_path) {
                 return Err(branch_error(BranchErrorCode::RecoveryNamedRefIncomplete));
             }
-            let origin = self.read_recovery_origin_with_limits(&origin_path, limits, usage)?;
+            let visible_origin = RecoveryRecordPath {
+                path: origin_path.clone(),
+            };
+            let origin = self.read_recovery_visible_origin_with_limits(
+                &visible_origin,
+                limits,
+                usage,
+            )?;
             if origin.record.branch_name != reference.record.branch_name {
                 return Err(branch_error(BranchErrorCode::RefNameCollision));
             }
@@ -23101,14 +30781,18 @@ impl BranchRepository {
             consumed_origins.insert(origin_path);
             visible.push(RecoveryVisibleBranch { origin, reference });
         }
-        let mut orphan_origins = Vec::new();
+        let mut orphan_origin_records = Vec::new();
         for path in origin_paths.difference(&consumed_origins) {
-            let origin = self.read_recovery_origin_with_limits(path, limits, usage)?;
-            usage.orphan_origins = usage
-                .orphan_origins
-                .checked_add(1)
-                .ok_or_else(|| branch_error(BranchErrorCode::BranchResourceLimit))?;
-            ensure_ref_recovery_limit(usage.orphan_origins, limits.orphan_origins)?;
+            let orphan_origin = RecoveryRecordPath { path: path.clone() };
+            self.read_recovery_orphan_origin_with_limits(
+                &orphan_origin,
+                limits,
+                usage,
+                &mut orphan_origin_records,
+            )?;
+        }
+        let mut orphan_origins = Vec::with_capacity(orphan_origin_records.len());
+        for origin in orphan_origin_records {
             orphan_origins.push(OrphanBranchOrigin {
                 branch_name: origin.record.branch_name,
                 branch_record_digest: origin.digest,
@@ -23191,20 +30875,18 @@ impl BranchRepository {
             1,
         ),
         ref_ancestry_fixture.replace(
-            "        self.read_ref_at(path)",
-            "        let result = self.read_ref_at(path);\n"
-            "        self.transactions.verify(result);\n"
-            "        result",
+            "self.read_recovery_visible_ref_with_limits(\n",
+            "self.read_recovery_ref_with_limits(\n",
             1,
         ),
         ref_ancestry_fixture.replace(
-            "        usage.visible_ref_record_bytes = usage\n"
-            "            .visible_ref_record_bytes\n"
-            "            .checked_add(metadata.len())",
-            "        let result = self.read_ref_at(path);\n"
-            "        usage.visible_ref_record_bytes = usage\n"
-            "            .visible_ref_record_bytes\n"
-            "            .checked_add(metadata.len())",
+            "self.read_recovery_visible_origin_with_limits(\n",
+            "self.read_recovery_origin_with_limits(\n",
+            1,
+        ),
+        ref_ancestry_fixture.replace(
+            "self.read_recovery_orphan_origin_with_limits(\n",
+            "self.read_recovery_origin_with_limits(\n",
             1,
         ),
         ref_ancestry_fixture.replace(
@@ -23890,10 +31572,14 @@ impl BranchRepository {
     )
     if commit_inner_body is None or accepted_head_body is None:
         fail("checker maintenance hostile cannot isolate stable transaction bodies")
-    commit_digest_problem = (
+    commit_remove_file_problem = (
+        "TransactionRepository::commit_inner uses raw filesystem mutation remove_file"
+    )
+    commit_remove_dir_all_problem = "TransactionRepository::commit_inner uses raw filesystem mutation remove_dir_all"
+    accepted_head_digest_problem = (
         "production body digest differs: "
         "crates/sley-txn/src/repository.rs:"
-        "implTransactionRepository:commit_inner"
+        "implTransactionRepository:accepted_head"
     )
     escaped_path_problem = (
         "maintenance-lock path authority escaped into crates/sley-txn/src/repository.rs"
@@ -23941,14 +31627,14 @@ impl BranchRepository {
                 "let _ = fs::remove_file("
                 'self.root.join("locks").join(maintenance_lock));'
             ),
-            commit_digest_problem,
+            commit_remove_file_problem,
         ),
         (
             "maintenance-lock directory removal",
             transaction_body_hostile(
                 'let _ = fs::remove_dir_all(self.root.join("locks"));'
             ),
-            commit_digest_problem,
+            commit_remove_dir_all_problem,
         ),
         (
             "deferred static maintenance-lock split",
@@ -23984,7 +31670,7 @@ impl BranchRepository {
                     "::std::sync::atomic::AtomicU64::new(0);\n"
                 ),
             ),
-            commit_digest_problem,
+            accepted_head_digest_problem,
         ),
     )
     for hostile_label, hostile_sources, expected_problem in maintenance_hostiles:
@@ -24162,11 +31848,14 @@ impl BranchRepository {
             fail("checker CROSS-05 local-fs hostile did not alter its positive source")
         hostile_sources = dict(cross05_production_sources)
         hostile_sources[relative] = local_fs_shadow
-        if cross05_fixture_authority_problem(
-            hostile_sources["crates/sley-store/src/lib.rs"],
-            hostile_sources["crates/sley-txn/src/repository.rs"],
-            hostile_sources["crates/sley-repo/src/refs.rs"],
-        ) is None:
+        if (
+            cross05_fixture_authority_problem(
+                hostile_sources["crates/sley-store/src/lib.rs"],
+                hostile_sources["crates/sley-txn/src/repository.rs"],
+                hostile_sources["crates/sley-repo/src/refs.rs"],
+            )
+            is None
+        ):
             fail("checker self-test accepted test-local fs authority shadow")
 
     for relative, authority_name in (
@@ -24182,11 +31871,14 @@ impl BranchRepository {
         )
         if hostile_sources[relative] == cross05_production_sources[relative]:
             fail("checker fixture-shadow hostile did not alter its positive source")
-        if cross05_fixture_authority_problem(
-            hostile_sources["crates/sley-store/src/lib.rs"],
-            hostile_sources["crates/sley-txn/src/repository.rs"],
-            hostile_sources["crates/sley-repo/src/refs.rs"],
-        ) is None:
+        if (
+            cross05_fixture_authority_problem(
+                hostile_sources["crates/sley-store/src/lib.rs"],
+                hostile_sources["crates/sley-txn/src/repository.rs"],
+                hostile_sources["crates/sley-repo/src/refs.rs"],
+            )
+            is None
+        ):
             fail(
                 "checker self-test accepted test-local production-type shadow: "
                 f"{authority_name}"
@@ -24194,10 +31886,7 @@ impl BranchRepository {
 
     for replacement in (
         '::std::fs::create_dir_all(&path).expect("reuse temp dir");',
-        (
-            '::std::os::unix::fs::symlink("/tmp", &path)'
-            '.expect("symlink temp dir");'
-        ),
+        ('::std::os::unix::fs::symlink("/tmp", &path).expect("symlink temp dir");'),
     ):
         hostile_store = cross05_production_sources[
             "crates/sley-store/src/lib.rs"
@@ -24206,15 +31895,16 @@ impl BranchRepository {
             replacement,
             1,
         )
-        if hostile_store == cross05_production_sources[
-            "crates/sley-store/src/lib.rs"
-        ]:
+        if hostile_store == cross05_production_sources["crates/sley-store/src/lib.rs"]:
             fail("checker store-freshness hostile did not alter its positive source")
-        if cross05_fixture_authority_problem(
-            hostile_store,
-            cross05_production_sources["crates/sley-txn/src/repository.rs"],
-            cross05_production_sources["crates/sley-repo/src/refs.rs"],
-        ) is None:
+        if (
+            cross05_fixture_authority_problem(
+                hostile_store,
+                cross05_production_sources["crates/sley-txn/src/repository.rs"],
+                cross05_production_sources["crates/sley-repo/src/refs.rs"],
+            )
+            is None
+        ):
             fail("checker self-test accepted reused or symlinked store root")
 
     txn_root_body = rust_named_function_raw_body(
@@ -24849,6 +32539,50 @@ mod tests {
     if owner_package_non_source_record_problem(missing_owner_non_source) is None:
         fail("checker self-test accepted an incomplete owner non-source inventory")
 
+    exact_crate_doc_include = '#![doc = include_str!("../README.md")]\n'
+    if (
+        owner_source_external_authority_problem(
+            exact_crate_doc_include + "pub struct Owner;",
+            "crates/sley-store/src/lib.rs",
+        )
+        is not None
+    ):
+        fail("checker self-test rejected the exact hashed crate README doc include")
+    for hostile_doc_include, relative in (
+        (
+            "#![forbid(unsafe_code)]\npub struct Owner;",
+            "crates/sley-store/src/lib.rs",
+        ),
+        (
+            exact_crate_doc_include + "fn module_item() {}",
+            "crates/sley-txn/src/repository.rs",
+        ),
+        (
+            exact_crate_doc_include + exact_crate_doc_include + "pub struct Owner;",
+            "crates/sley-store/src/lib.rs",
+        ),
+        (
+            '#![doc = include_str!("../OTHER.md")]\npub struct Owner;',
+            "crates/sley-store/src/lib.rs",
+        ),
+        (
+            '#[doc = include_str!("../README.md")]\npub struct Owner;',
+            "crates/sley-store/src/lib.rs",
+        ),
+        (
+            'fn owner() { #![doc = include_str!("../README.md")] }',
+            "crates/sley-store/src/lib.rs",
+        ),
+    ):
+        if (
+            owner_source_external_authority_problem(
+                hostile_doc_include,
+                relative,
+            )
+            is None
+        ):
+            fail("checker self-test accepted a misplaced README doc include")
+
     for hostile_owner_source in (
         '#[cfg(test)] mod tests { include!("../test_authority.rs"); }',
         'const BYTES: &[u8] = include_bytes!("../README.md");',
@@ -24862,12 +32596,19 @@ mod tests {
             'inject!("test_authority.inc"); }'
         ),
     ):
-        if owner_source_external_authority_problem(hostile_owner_source) is None:
+        if (
+            owner_source_external_authority_problem(
+                hostile_owner_source,
+                "crates/sley-txn/src/repository.rs",
+            )
+            is None
+        ):
             fail("checker self-test accepted owner external source authority")
     if (
         owner_source_external_authority_problem(
             '// include!("../test_authority.rs");\n'
-            'const NOTE: &str = "env!(\\"OUT_DIR\\")";'
+            'const NOTE: &str = "env!(\\"OUT_DIR\\")";',
+            "crates/sley-txn/src/repository.rs",
         )
         is not None
     ):
@@ -24981,24 +32722,24 @@ impl BranchRepository {{
         hostile[relative] = hostile[relative].replace(old, new, 1)
         hook_gate_hostiles.append(hostile)
     extra_feature_gate = dict(exact_hook_gate_sources)
-    extra_feature_gate["crates/sley-txn/src/repository.rs"] = (
-        extra_feature_gate["crates/sley-txn/src/repository.rs"].replace(
-            "fn recover_with_maintenance_and_limits(&self) {",
-            "fn recover_with_maintenance_and_limits(&self) {"
-            '#[cfg(any(test, feature = "s20-530-test-hooks"))] '
-            "return Err(expected_error());",
-            1,
-        )
+    extra_feature_gate["crates/sley-txn/src/repository.rs"] = extra_feature_gate[
+        "crates/sley-txn/src/repository.rs"
+    ].replace(
+        "fn recover_with_maintenance_and_limits(&self) {",
+        "fn recover_with_maintenance_and_limits(&self) {"
+        '#[cfg(any(test, feature = "s20-530-test-hooks"))] '
+        "return Err(expected_error());",
+        1,
     )
     hook_gate_hostiles.append(extra_feature_gate)
     extra_ref_gate = dict(exact_hook_gate_sources)
-    extra_ref_gate["crates/sley-repo/src/refs.rs"] = (
-        extra_ref_gate["crates/sley-repo/src/refs.rs"].replace(
-            "fn recover_refs_with_maintenance_and_limits(&self) {",
-            "fn recover_refs_with_maintenance_and_limits(&self) {"
-            "#[cfg(test)] return Err(expected_error());",
-            1,
-        )
+    extra_ref_gate["crates/sley-repo/src/refs.rs"] = extra_ref_gate[
+        "crates/sley-repo/src/refs.rs"
+    ].replace(
+        "fn recover_refs_with_maintenance_and_limits(&self) {",
+        "fn recover_refs_with_maintenance_and_limits(&self) {"
+        "#[cfg(test)] return Err(expected_error());",
+        1,
     )
     hook_gate_hostiles.append(extra_ref_gate)
     for hostile in hook_gate_hostiles:
@@ -25160,9 +32901,7 @@ mod tests {
 
     if recovery_provenance_metadata_problem() is not None:
         fail("checker self-test rejected exact recovery provenance metadata")
-    provenance_hostiles: list[
-        dict[tuple[str, str | None], RecoveryProvenanceSpec]
-    ] = []
+    provenance_hostiles: list[dict[tuple[str, str | None], RecoveryProvenanceSpec]] = []
     missing_provenance = dict(RECOVERY_PROVENANCE_SPECS)
     missing_provenance.pop(RECOVERY_PROVENANCE_CASE_IDS[-1])
     provenance_hostiles.append(missing_provenance)
@@ -25185,9 +32924,7 @@ mod tests {
     missing_provenance_fact[("ANC-05", None)] = missing_provenance_fact[
         ("ANC-05", None)
     ]._replace(
-        required_facts=missing_provenance_fact[("ANC-05", None)].required_facts[
-            :-1
-        ]
+        required_facts=missing_provenance_fact[("ANC-05", None)].required_facts[:-1]
     )
     provenance_hostiles.append(missing_provenance_fact)
     wrong_provenance_canary = dict(RECOVERY_PROVENANCE_SPECS)
@@ -25281,20 +33018,20 @@ mod tests {
     missing_multifault_renderer = dict(MULTIFAULT_FIXTURE_RENDER_SPECS)
     missing_multifault_renderer.pop(next(iter(missing_multifault_renderer)))
     reflexive_multifault_renderer = dict(MULTIFAULT_FIXTURE_RENDER_SPECS)
-    reflexive_multifault_renderer[
-        ("primary", "primary_three_symlink_paths_exact")
-    ] = DirectAssertionRender(
-        "eq",
-        "m2_primary_paths.len()",
-        "m2_primary_paths.len()",
+    reflexive_multifault_renderer[("primary", "primary_three_symlink_paths_exact")] = (
+        DirectAssertionRender(
+            "eq",
+            "m2_primary_paths.len()",
+            "m2_primary_paths.len()",
+        )
     )
     wrong_side_multifault_renderer = dict(MULTIFAULT_FIXTURE_RENDER_SPECS)
-    wrong_side_multifault_renderer[
-        ("primary", "primary_three_symlink_paths_exact")
-    ] = DirectAssertionRender(
-        "eq",
-        "m2_secondary_paths.len()",
-        "3_usize",
+    wrong_side_multifault_renderer[("primary", "primary_three_symlink_paths_exact")] = (
+        DirectAssertionRender(
+            "eq",
+            "m2_secondary_paths.len()",
+            "3_usize",
+        )
     )
     for hostile_renderer in (
         missing_multifault_renderer,
@@ -25554,10 +33291,13 @@ mod tests {
             f"{recovery_ancestry_plan_digest_expected_body(relative)}"
             "}\n}\n"
         )
-        if recovery_ancestry_plan_digest_helper_problem(
-            digest_fixture,
-            relative,
-        ) is not None:
+        if (
+            recovery_ancestry_plan_digest_helper_problem(
+                digest_fixture,
+                relative,
+            )
+            is not None
+        ):
             fail("checker self-test rejected an exact independent plan digest helper")
         for hostile_digest in (
             digest_fixture.replace(
@@ -25573,10 +33313,13 @@ mod tests {
                 "hasher.update(right.as_bytes());",
             ),
         ):
-            if recovery_ancestry_plan_digest_helper_problem(
-                hostile_digest,
-                relative,
-            ) is None:
+            if (
+                recovery_ancestry_plan_digest_helper_problem(
+                    hostile_digest,
+                    relative,
+                )
+                is None
+            ):
                 fail("checker self-test accepted a hostile plan digest helper")
 
     def owned_entry_body(row_id: str, subcase_id: str) -> tuple[str, str]:
@@ -25619,11 +33362,11 @@ mod tests {
     owned_hostiles = (
         "\n".join(
             (
-                "let expected_result = \"REF_IO\";",
+                'let expected_result = "REF_IO";',
                 "let owned_stage_removed = false;",
                 "let preserved = true;",
                 "let no_mutation = true;",
-                "::core::assert_eq!(expected_result, \"REF_IO\");",
+                '::core::assert_eq!(expected_result, "REF_IO");',
                 "::core::assert!(!owned_stage_removed);",
                 "::core::assert!(preserved);",
                 "::core::assert!(no_mutation);",
@@ -26035,9 +33778,7 @@ mod tests {
         cycle_bindings = cycle_entry["m2_operation_bindings"]
         assert isinstance(cycle_bindings, dict)
         provenance = cycle_bindings["cycle_provenance_window"]
-        activation = cycle_bindings[
-            "secondary_baseline_and_primary_activation_window"
-        ]
+        activation = cycle_bindings["secondary_baseline_and_primary_activation_window"]
         operation_1_post = cycle_bindings["operation_1_post_observation_window"]
         repair = cycle_bindings["repair_window"]
         install = cycle_bindings["cycle_plan_install"]
@@ -26050,7 +33791,9 @@ mod tests {
         assert isinstance(operation_1, str)
 
         def exact_cycle_statement(statements: list[object], token: str) -> str:
-            matches = [str(statement) for statement in statements if token in str(statement)]
+            matches = [
+                str(statement) for statement in statements if token in str(statement)
+            ]
             if len(matches) != 1:
                 fail(
                     "checker self-test cannot isolate cycle hostile target "
@@ -26086,8 +33829,7 @@ mod tests {
             cycle_body.replace(left_parent_assertion, "", 1),
             cycle_body.replace(
                 right_binding,
-                "let m2_cycle_right_transaction_id = "
-                "m2_cycle_left_transaction_id;",
+                "let m2_cycle_right_transaction_id = m2_cycle_left_transaction_id;",
                 1,
             ),
             cycle_body.replace(
@@ -26112,8 +33854,7 @@ mod tests {
             ),
             cycle_body.replace(
                 operation_1,
-                "let m2_result_1 = "
-                "::core::result::Result::Err(expected_error());",
+                "let m2_result_1 = ::core::result::Result::Err(expected_error());",
                 1,
             ),
             cycle_body.replace(install, f"{install}\n{install}", 1),
@@ -26132,10 +33873,14 @@ mod tests {
                     1,
                 )
             )
-        if cycle_spec.cycle_epochs is not None and cycle_spec.cycle_epochs.primary_fault_node in {
-            "RIGHT_OBJECT",
-            "DEPTH_ONE_RIGHT_ANCESTOR_OBJECT",
-        }:
+        if (
+            cycle_spec.cycle_epochs is not None
+            and cycle_spec.cycle_epochs.primary_fault_node
+            in {
+                "RIGHT_OBJECT",
+                "DEPTH_ONE_RIGHT_ANCESTOR_OBJECT",
+            }
+        ):
             primary_object_binding = exact_cycle_statement(
                 provenance,
                 "let m2_cycle_right_changed_object_id =",
@@ -26153,7 +33898,7 @@ mod tests {
                 (
                     cycle_body.replace(
                         first_repair,
-                        "::std::fs::write(&m2_primary_path, b\"forged\").unwrap();",
+                        '::std::fs::write(&m2_primary_path, b"forged").unwrap();',
                         1,
                     ),
                     cycle_body.replace(str(activation[-1]), "", 1).replace(
@@ -26228,7 +33973,7 @@ mod tests {
         ),
         cycle_body.replace(
             cycle_operation_2,
-            "::std::fs::write(&m2_primary_path, b\"hidden\").unwrap();\n"
+            '::std::fs::write(&m2_primary_path, b"hidden").unwrap();\n'
             f"{cycle_operation_2}",
             1,
         ),
@@ -26530,6 +34275,34 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
 
     if problem := limit_profile_metadata_problem():
         fail(f"checker self-test rejected exact limit profiles: {problem}")
+    if problem := limit_runtime_case_metadata_problem():
+        fail(f"checker self-test rejected exact limit runtime cases: {problem}")
+    hostile_runtime_cases = dict(LIMIT_RUNTIME_CASE_SPECS)
+    runtime_key = ("LIMIT-01", "object_leaf_entries")
+    hostile_runtime_cases[runtime_key] = hostile_runtime_cases[runtime_key]._replace(
+        plus_one_cardinality=4
+    )
+    if (
+        limit_runtime_case_metadata_problem(
+            hostile_runtime_cases,
+            limit_runtime_case_specs_sha256(hostile_runtime_cases),
+        )
+        is None
+    ):
+        fail("checker self-test accepted an N/N+2 limit runtime case")
+    hostile_runtime_sites = dict(LIMIT_RUNTIME_CASE_SPECS)
+    repeated_key = ("LIMIT-03", "origin_record_bytes")
+    hostile_runtime_sites[repeated_key] = hostile_runtime_sites[repeated_key]._replace(
+        event_ids=("ref.visible_origin_read",)
+    )
+    if (
+        limit_runtime_case_metadata_problem(
+            hostile_runtime_sites,
+            limit_runtime_case_specs_sha256(hostile_runtime_sites),
+        )
+        is None
+    ):
+        fail("checker self-test accepted incomplete dual-site runtime coverage")
     if problem := limit_event_metadata_problem():
         fail(f"checker self-test rejected exact limit events: {problem}")
 
@@ -26542,12 +34315,8 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
         return result
 
     object_fanout_event = LIMIT_EVENT_SPECS["object.scan_fanout"]
-    zero_charge = (
-        (*object_fanout_event.charges[0][:-1], "0_u64"),
-    )
-    caller_charge = (
-        (*object_fanout_event.charges[0][:-1], "caller_delta"),
-    )
+    zero_charge = ((*object_fanout_event.charges[0][:-1], "0_u64"),)
+    caller_charge = ((*object_fanout_event.charges[0][:-1], "caller_delta"),)
     accepted_receipt = LIMIT_EVENT_SPECS["accepted.receipt_read"]
     actual_receipt = LIMIT_EVENT_SPECS["branch.actual_receipt_read"]
     cached_fact = LIMIT_EVENT_SPECS["branch.cached_fact_use"]
@@ -26729,10 +34498,7 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
             is None
         ):
             fail("checker self-test accepted semantically hostile limit events")
-    if (
-        limit_event_metadata_problem(hostile_limit_event_specs[0])
-        is None
-    ):
+    if limit_event_metadata_problem(hostile_limit_event_specs[0]) is None:
         fail("checker self-test accepted a stale limit-event authority digest")
 
     def synthetic_limit_event_sources() -> dict[str, str]:
@@ -26757,11 +34523,2066 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
                     + "\n}"
                 )
             result[relative] = "\n".join(owner_items)
+        for relative in limit_production_source_paths():
+            result.setdefault(relative, "")
+        synthetic_enums = {
+            STORE_LIMIT_SOURCE: "enum StoreErrorCode { StoreIo }\n",
+            TXN_LIMIT_SOURCE: (
+                "enum TransactionErrorCode { ResourceLimit }\n"
+                "enum RecoveryAncestryError { LimitExceeded, Verification(()) }\n"
+            ),
+            REF_LIMIT_SOURCE: ("enum BranchErrorCode { BranchResourceLimit }\n"),
+        }
+        for relative, declarations in synthetic_enums.items():
+            result[relative] = declarations + result[relative]
+        for relative, fragments in LIMIT_ALLOWED_INNER_CFG_ATTRIBUTES.items():
+            result[relative] = "\n".join(fragments) + "\n" + result[relative]
+        for relative, record in LIMIT_ALLOWED_SHARED_STATE.items():
+            result[relative] = (
+                record["import"]
+                + "\n"
+                + record["declaration"]
+                + "\n"
+                + record["signature"]
+                + " {\n"
+                + record["body"]
+                + "\n}\n"
+                + result[relative]
+            )
+        for relative, count in LIMIT_ALLOWED_PROCESS_ID_COUNTS.items():
+            present = len(
+                tuple(
+                    re.finditer(
+                        LIMIT_ALLOWED_PROCESS_ID_PATTERN,
+                        rust_code_projection(result[relative]),
+                    )
+                )
+            )
+            if present > count:
+                fail("checker synthetic process-id authority exceeds its contract")
+            process_helpers = "\n".join(
+                f"fn exact_stage_process_id_{index}() {{ "
+                "let _ = ::std::process::id(); }"
+                for index in range(count - present)
+            )
+            result[relative] = process_helpers + "\n" + result[relative]
         return result
 
     exact_limit_event_sources = synthetic_limit_event_sources()
     if problem := limit_events_problem(exact_limit_event_sources):
         fail(f"checker self-test rejected exact limit event windows: {problem}")
+
+    synthetic_object_window = " ".join(
+        limit_event_expected_statements(object_fanout_event)
+    )
+    synthetic_object_terminal_window = " ".join(
+        limit_event_expected_statements(LIMIT_EVENT_SPECS["object.retain_stage"])
+    )
+    for cfg_predicate in ("test", "debug_assertions"):
+        cfg_hostile_sources = dict(exact_limit_event_sources)
+        cfg_hostile_sources[STORE_LIMIT_SOURCE] = cfg_hostile_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            synthetic_object_window,
+            f"if cfg!({cfg_predicate}) {{ {synthetic_object_window} }};",
+            1,
+        )
+        if (
+            cfg_hostile_sources[STORE_LIMIT_SOURCE]
+            == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        ):
+            fail(f"checker cfg!({cfg_predicate}) limit hostile did not alter source")
+        if limit_events_problem(cfg_hostile_sources) is None:
+            fail(
+                "checker self-test accepted a full-registry limit event under "
+                f"cfg!({cfg_predicate})"
+            )
+    for cfg_predicate in ("test", "debug_assertions"):
+        alias_hostile_sources = dict(exact_limit_event_sources)
+        alias_hostile_sources[STORE_LIMIT_SOURCE] = (
+            f"const LIMIT_WINDOW_ENABLED: bool = cfg!({cfg_predicate});\n"
+            + alias_hostile_sources[STORE_LIMIT_SOURCE].replace(
+                synthetic_object_window,
+                f"if LIMIT_WINDOW_ENABLED {{ {synthetic_object_window} }};",
+                1,
+            )
+        )
+        if limit_events_problem(alias_hostile_sources) is None:
+            fail(
+                "checker self-test accepted a crate-constant limit alias under "
+                f"cfg!({cfg_predicate})"
+            )
+    helper_alias_sources = dict(exact_limit_event_sources)
+    helper_alias_sources[STORE_LIMIT_SOURCE] = (
+        "fn limit_window_enabled() -> bool { cfg!(test) }\n"
+        + helper_alias_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            f"if limit_window_enabled() {{ {synthetic_object_window} }};",
+            1,
+        )
+    )
+    if limit_events_problem(helper_alias_sources) is None:
+        fail("checker self-test accepted a cfg!-backed limit helper alias")
+    cross_module_alias_sources = dict(exact_limit_event_sources)
+    cross_module_alias_sources["crates/sley-txn/src/codec.rs"] = (
+        "pub(crate) const LIMIT_WINDOW_ENABLED: bool = cfg!(test);"
+    )
+    txn_event = LIMIT_EVENT_SPECS["txn.receipt_scan_fanout"]
+    synthetic_txn_window = " ".join(limit_event_expected_statements(txn_event))
+    cross_module_alias_sources[TXN_LIMIT_SOURCE] = cross_module_alias_sources[
+        TXN_LIMIT_SOURCE
+    ].replace(
+        synthetic_txn_window,
+        f"if crate::codec::LIMIT_WINDOW_ENABLED {{ {synthetic_txn_window} }};",
+        1,
+    )
+    if limit_events_problem(cross_module_alias_sources) is None:
+        fail("checker self-test accepted a cross-module cfg! limit alias")
+    dual_cfg_alias_sources = dict(exact_limit_event_sources)
+    dual_cfg_alias_sources[STORE_LIMIT_SOURCE] = (
+        "#[cfg(test)]\nconst LIMIT_WINDOW_ENABLED: bool = true;\n"
+        "#[cfg(not(test))]\nconst LIMIT_WINDOW_ENABLED: bool = false;\n"
+        + dual_cfg_alias_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            f"if LIMIT_WINDOW_ENABLED {{ {synthetic_object_window} }};",
+            1,
+        )
+    )
+    if limit_events_problem(dual_cfg_alias_sources) is None:
+        fail("checker self-test accepted a dual-cfg limit alias")
+    for cfg_attribute in (
+        "#[cfg(debug_assertions)]",
+        '#[cfg(feature = "bypass")]',
+        "#[cfg_attr(debug_assertions, cfg(any()))]",
+    ):
+        attributed_hostile_sources = dict(exact_limit_event_sources)
+        attributed_hostile_sources[STORE_LIMIT_SOURCE] = attributed_hostile_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            synthetic_object_window,
+            f"{cfg_attribute} if live {{ {synthetic_object_window} }};",
+            1,
+        )
+        if limit_events_problem(attributed_hostile_sources) is None:
+            fail(
+                "checker self-test accepted an attributed full-registry limit event: "
+                f"{cfg_attribute}"
+            )
+    profile_oracle_payloads = (
+        (
+            "debug-assert",
+            "let mut limit_window_enabled = false; "
+            "debug_assert!({ limit_window_enabled = true; true });",
+        ),
+        (
+            "qualified-debug-assert-eq",
+            "let mut limit_window_enabled = false; "
+            "::core::debug_assert_eq!({ limit_window_enabled = true; 1 }, 1);",
+        ),
+        (
+            "qualified-debug-assert-ne",
+            "let mut limit_window_enabled = false; "
+            "::std::debug_assert_ne!({ limit_window_enabled = true; 1 }, 0);",
+        ),
+        (
+            "caught-overflow",
+            "let limit_window_enabled = ::std::panic::catch_unwind(|| { "
+            "let value = ::std::hint::black_box(u8::MAX); let _ = value + 1; "
+            "}).is_err();",
+        ),
+        (
+            "threaded-overflow",
+            "let limit_window_enabled = ::std::thread::spawn(|| { "
+            "let value = ::std::hint::black_box(u8::MAX); let _ = value + 1; "
+            "}).join().is_err();",
+        ),
+        (
+            "runtime-environment",
+            "let limit_window_enabled = "
+            '::std::env::var_os("SLEY_LIMIT_WINDOW").is_some();',
+        ),
+        (
+            "compile-environment",
+            'let limit_window_enabled = option_env!("SLEY_LIMIT_WINDOW").is_some();',
+        ),
+        (
+            "process-environment",
+            "let limit_window_enabled = "
+            '::std::process::Command::new("true").status().is_ok();',
+        ),
+    )
+    for hostile_label, oracle in profile_oracle_payloads:
+        oracle_hostile_sources = dict(exact_limit_event_sources)
+        oracle_hostile_sources[STORE_LIMIT_SOURCE] = oracle_hostile_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            synthetic_object_window,
+            f"{oracle} if limit_window_enabled {{ {synthetic_object_window} }};",
+            1,
+        )
+        if limit_events_problem(oracle_hostile_sources) is None:
+            fail(
+                "checker self-test accepted a profile-oracle limit event: "
+                f"{hostile_label}"
+            )
+    aliased_oracle_payloads = (
+        (
+            "braced-env-alias",
+            "use ::std::{env as profile};",
+            "let limit_window_enabled = "
+            'profile::var_os("SLEY_LIMIT_WINDOW").is_some();',
+            "limit_window_enabled",
+        ),
+        (
+            "process-module-alias",
+            "use ::std::process as runner;",
+            'let limit_window_enabled = runner::Command::new("true").status().is_ok();',
+            "limit_window_enabled",
+        ),
+        (
+            "braced-command-alias",
+            "use ::std::{process::{Command as Runner}};",
+            'let limit_window_enabled = Runner::new("true").status().is_ok();',
+            "limit_window_enabled",
+        ),
+        (
+            "cfg-macro-alias",
+            "use ::core::cfg as enabled;",
+            "",
+            "enabled!(test)",
+        ),
+        (
+            "debug-macro-alias",
+            "use ::core::debug_assert as gate;",
+            "let mut limit_window_enabled = false; "
+            "gate!({ limit_window_enabled = true; true });",
+            "limit_window_enabled",
+        ),
+        (
+            "environment-macro-alias",
+            "use ::core::option_env as profile_env;",
+            'let limit_window_enabled = profile_env!("SLEY_LIMIT_WINDOW").is_some();',
+            "limit_window_enabled",
+        ),
+    )
+    for hostile_label, import_item, oracle, condition in aliased_oracle_payloads:
+        alias_oracle_sources = dict(exact_limit_event_sources)
+        alias_oracle_sources[STORE_LIMIT_SOURCE] = (
+            import_item
+            + "\n"
+            + alias_oracle_sources[STORE_LIMIT_SOURCE].replace(
+                synthetic_object_window,
+                f"{oracle} if {condition} {{ {synthetic_object_window} }};",
+                1,
+            )
+        )
+        if limit_events_problem(alias_oracle_sources) is None:
+            fail(
+                "checker self-test accepted an aliased profile-oracle limit event: "
+                f"{hostile_label}"
+            )
+    for process_id_replacement in (
+        "0_u32",
+        "::std::process::id(); let _extra_process_id = ::std::process::id()",
+    ):
+        process_id_hostile_sources = dict(exact_limit_event_sources)
+        process_id_hostile_sources[STORE_LIMIT_SOURCE] = process_id_hostile_sources[
+            STORE_LIMIT_SOURCE
+        ].replace("::std::process::id()", process_id_replacement, 1)
+        if limit_events_problem(process_id_hostile_sources) is None:
+            fail("checker self-test accepted altered direct process-id authority")
+    missing_authority_source = dict(exact_limit_event_sources)
+    missing_authority_source.pop("crates/sley-id/src/lib.rs")
+    if limit_events_problem(missing_authority_source) is None:
+        fail("checker self-test accepted an incomplete local dependency closure")
+    extra_authority_source = dict(exact_limit_event_sources)
+    extra_authority_source["crates/forged/src/lib.rs"] = ""
+    if limit_events_problem(extra_authority_source) is None:
+        fail("checker self-test accepted an expanded local dependency closure")
+    cross_crate_profile_sources = dict(exact_limit_event_sources)
+    cross_crate_profile_sources["crates/sley-id/src/lib.rs"] = (
+        "pub fn limit_window_enabled() -> bool { cfg!(debug_assertions) }"
+    )
+    cross_crate_profile_sources[STORE_LIMIT_SOURCE] = cross_crate_profile_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "if ::sley_id::limit_window_enabled() { " + synthetic_object_window + " };",
+        1,
+    )
+    if limit_events_problem(cross_crate_profile_sources) is None:
+        fail("checker self-test accepted a local-dependency profile oracle")
+    for constant_label, initializer in (
+        ("profile-oracle", "cfg!(debug_assertions)"),
+        ("constant-false", "false"),
+    ):
+        cross_crate_constant_sources = dict(exact_limit_event_sources)
+        cross_crate_constant_sources["crates/sley-id/src/lib.rs"] = (
+            f"pub const LIMITS_ENABLED: bool = {initializer};"
+        )
+        cross_crate_constant_sources[STORE_LIMIT_SOURCE] = cross_crate_constant_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            synthetic_object_window,
+            "if ::sley_id::LIMITS_ENABLED { " + synthetic_object_window + " };",
+            1,
+        )
+        if (
+            cross_crate_constant_sources[STORE_LIMIT_SOURCE]
+            == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+            or cross_crate_constant_sources["crates/sley-id/src/lib.rs"]
+            == exact_limit_event_sources["crates/sley-id/src/lib.rs"]
+        ):
+            fail(
+                f"checker cross-crate constant hostile did not mutate: {constant_label}"
+            )
+        if limit_events_problem(cross_crate_constant_sources) is None:
+            fail(
+                "checker self-test accepted a cross-crate qualified constant: "
+                f"{constant_label}"
+            )
+    lowercase_constant_sources = dict(exact_limit_event_sources)
+    lowercase_constant_sources["crates/sley-id/src/lib.rs"] = (
+        "#[allow(non_upper_case_globals)] pub const limits_enabled: bool = false;"
+    )
+    lowercase_constant_sources[STORE_LIMIT_SOURCE] = lowercase_constant_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "if ::sley_id::limits_enabled { " + synthetic_object_window + " };",
+        1,
+    )
+    if (
+        lowercase_constant_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        or lowercase_constant_sources["crates/sley-id/src/lib.rs"]
+        == exact_limit_event_sources["crates/sley-id/src/lib.rs"]
+    ):
+        fail("checker lowercase qualified-constant hostile did not mutate")
+    if limit_events_problem(lowercase_constant_sources) is None:
+        fail("checker self-test accepted a lowercase qualified constant")
+
+    unicode_identifier = "\u03bb"
+    unicode_constant_sources = dict(exact_limit_event_sources)
+    unicode_constant_sources["crates/sley-id/src/lib.rs"] = (
+        "#![allow(uncommon_codepoints, non_upper_case_globals)] "
+        f"pub const {unicode_identifier}: bool = false;"
+    )
+    unicode_constant_sources[STORE_LIMIT_SOURCE] = unicode_constant_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        f"if ::sley_id::{unicode_identifier} {{ {synthetic_object_window} }};",
+        1,
+    )
+    if (
+        unicode_constant_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        or unicode_constant_sources["crates/sley-id/src/lib.rs"]
+        == exact_limit_event_sources["crates/sley-id/src/lib.rs"]
+        or all(
+            ord(character) < 128
+            for source in unicode_constant_sources.values()
+            for character in source
+        )
+    ):
+        fail("checker Unicode qualified-constant hostile did not mutate")
+    unicode_problem = limit_compile_time_authority_problem(unicode_constant_sources)
+    if unicode_problem is None or "non-ASCII normal-build code" not in unicode_problem:
+        fail("checker self-test did not close the Unicode identifier grammar")
+    if limit_events_problem(unicode_constant_sources) is None:
+        fail("checker self-test accepted a Unicode qualified constant")
+
+    decoy_enum_sources = dict(exact_limit_event_sources)
+    decoy_enum_sources["crates/sley-id/src/lib.rs"] = (
+        "pub struct Gate; impl Gate { pub const OFF: bool = false; } "
+        "mod decoy { enum Gate { OFF } }"
+    )
+    decoy_enum_sources[STORE_LIMIT_SOURCE] = decoy_enum_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "if ::sley_id::Gate::OFF { " + synthetic_object_window + " };",
+        1,
+    )
+    if (
+        decoy_enum_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        or decoy_enum_sources["crates/sley-id/src/lib.rs"]
+        == exact_limit_event_sources["crates/sley-id/src/lib.rs"]
+    ):
+        fail("checker decoy-enum qualified-value hostile did not mutate")
+    if limit_events_problem(decoy_enum_sources) is None:
+        fail("checker self-test accepted a basename-only decoy enum authority")
+
+    sibling_enum_sources = dict(exact_limit_event_sources)
+    sibling_enum_sources["crates/sley-id/src/lib.rs"] = (
+        "pub mod first { pub struct Gate; "
+        "impl Gate { pub const OFF: bool = false; } } "
+        "mod second { enum Gate { OFF } }"
+    )
+    sibling_enum_sources[STORE_LIMIT_SOURCE] = sibling_enum_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "if ::sley_id::first::Gate::OFF { " + synthetic_object_window + " };",
+        1,
+    )
+    if (
+        sibling_enum_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        or sibling_enum_sources["crates/sley-id/src/lib.rs"]
+        == exact_limit_event_sources["crates/sley-id/src/lib.rs"]
+    ):
+        fail("checker sibling-enum qualified-value hostile did not mutate")
+    if limit_events_problem(sibling_enum_sources) is None:
+        fail("checker self-test accepted sibling-module enum authority")
+
+    shadowed_std_sources = dict(exact_limit_event_sources)
+    shadowed_std_owner = shadowed_std_sources[STORE_LIMIT_SOURCE].replace(
+        synthetic_object_window,
+        "use crate::evil as std; if std::cmp::Ordering::Equal { "
+        + synthetic_object_window
+        + " };",
+        1,
+    )
+    if shadowed_std_owner == exact_limit_event_sources[STORE_LIMIT_SOURCE]:
+        fail("checker shadowed-std event-window hostile did not mutate")
+    shadowed_std_sources[STORE_LIMIT_SOURCE] = (
+        "mod evil { pub mod cmp { pub struct Ordering; "
+        "impl Ordering { pub const Equal: bool = false; } } }\n" + shadowed_std_owner
+    )
+    if limit_events_problem(shadowed_std_sources) is None:
+        fail("checker self-test accepted a shadowed standard enum path")
+
+    external_trait_hostiles = (
+        (
+            "module-external-EvilJoin",
+            "use evil_trait_crate::EvilJoin;\n",
+            'if self.root.join("child").is_dir() { ' + synthetic_object_window + " };",
+        ),
+        (
+            "block-external-EvilGet",
+            "",
+            "use evil_trait_crate::EvilGet; "
+            "let values: Vec<u8> = Vec::new(); "
+            "if values.get(0).is_none() { " + synthetic_object_window + " };",
+        ),
+        (
+            "local-reexport-external-EvilJoin",
+            "mod extension_bridge { pub use evil_trait_crate::EvilJoin; }\n"
+            "use extension_bridge::EvilJoin;\n",
+            'if self.root.join("child").is_dir() { ' + synthetic_object_window + " };",
+        ),
+    )
+    for hostile_label, prefix, replacement in external_trait_hostiles:
+        external_trait_sources = dict(exact_limit_event_sources)
+        owner = external_trait_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            replacement,
+            1,
+        )
+        external_trait_sources[STORE_LIMIT_SOURCE] = prefix + owner
+        if (
+            owner == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+            or external_trait_sources[STORE_LIMIT_SOURCE]
+            == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        ):
+            fail(
+                "checker external extension-trait hostile did not mutate: "
+                f"{hostile_label}"
+            )
+        external_problem = limit_compile_time_authority_problem(external_trait_sources)
+        if (
+            external_problem is None
+            or "unapproved external control import" not in external_problem
+        ):
+            fail(
+                "checker self-test did not reject external trait authority: "
+                f"{hostile_label}"
+            )
+        if limit_events_problem(external_trait_sources) is None:
+            fail(
+                "checker self-test accepted external extension-trait authority: "
+                f"{hostile_label}"
+            )
+    extern_crate_hostiles = (
+        (
+            "crate-root-alias",
+            "extern crate evil_trait_crate as extension_bridge;\n"
+            "use crate::extension_bridge::EvilJoin;\n",
+            'if self.root.join("child").is_dir() { ' + synthetic_object_window + " };",
+        ),
+        (
+            "nested-module-alias",
+            "mod extension_bridge { extern crate evil_trait_crate as evil; "
+            "pub use self::evil::EvilGet; }\n"
+            "use extension_bridge::EvilGet;\n",
+            "let values: Vec<u8> = Vec::new(); "
+            "if values.get(0).is_none() { " + synthetic_object_window + " };",
+        ),
+    )
+    for hostile_label, prefix, replacement in extern_crate_hostiles:
+        extern_crate_sources = dict(exact_limit_event_sources)
+        owner = extern_crate_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            replacement,
+            1,
+        )
+        extern_crate_sources[STORE_LIMIT_SOURCE] = prefix + owner
+        extern_problem = limit_compile_time_authority_problem(extern_crate_sources)
+        if (
+            owner == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+            or extern_problem is None
+            or "forbidden extern-crate authority" not in extern_problem
+        ):
+            fail(
+                "checker self-test did not reject extern-crate alias authority: "
+                f"{hostile_label}"
+            )
+        if limit_events_problem(extern_crate_sources) is None:
+            fail(
+                "checker self-test accepted extern-crate alias authority: "
+                f"{hostile_label}"
+            )
+
+    function_macro_sources = dict(exact_limit_event_sources)
+    function_macro_sources[STORE_LIMIT_SOURCE] = function_macro_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "evil_trait_crate::inject_evil_join!(); " + synthetic_object_window,
+        1,
+    )
+    function_macro_problem = limit_compile_time_authority_problem(
+        function_macro_sources
+    )
+    if (
+        function_macro_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+        or function_macro_problem is None
+        or "unapproved function macro" not in function_macro_problem
+    ):
+        fail("checker self-test did not reject a function-scope external macro")
+    if limit_events_problem(function_macro_sources) is None:
+        fail("checker self-test accepted a function-scope external macro")
+
+    object_owner_signature = "fn recover_staged_with_limits(&self)"
+    attribute_hostiles = (
+        (
+            "direct-external-attribute",
+            "",
+            "#[evil_trait_crate::rewrite]\n" + object_owner_signature,
+        ),
+        (
+            "aliased-external-attribute",
+            "use evil_trait_crate::rewrite;\n",
+            "#[rewrite]\n" + object_owner_signature,
+        ),
+    )
+    for hostile_label, prefix, replacement in attribute_hostiles:
+        attribute_sources = dict(exact_limit_event_sources)
+        owner = attribute_sources[STORE_LIMIT_SOURCE].replace(
+            object_owner_signature,
+            replacement,
+            1,
+        )
+        attribute_sources[STORE_LIMIT_SOURCE] = prefix + owner
+        if owner == exact_limit_event_sources[STORE_LIMIT_SOURCE]:
+            fail(
+                f"checker procedural-attribute hostile did not mutate: {hostile_label}"
+            )
+        attribute_problem = limit_compile_time_authority_problem(attribute_sources)
+        if attribute_problem is None:
+            fail(
+                "checker self-test did not reject procedural attribute authority: "
+                f"{hostile_label}"
+            )
+        if limit_events_problem(attribute_sources) is None:
+            fail(
+                "checker self-test accepted procedural attribute authority: "
+                f"{hostile_label}"
+            )
+
+    inert_attribute_sources = dict(exact_limit_event_sources)
+    inert_attribute_sources[STORE_LIMIT_SOURCE] = inert_attribute_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        object_owner_signature,
+        "#[inline]\n" + object_owner_signature,
+        1,
+    )
+    if problem := limit_events_problem(inert_attribute_sources):
+        fail(f"checker self-test rejected an inert owner attribute: {problem}")
+    inert_owner_bodies = limit_event_owner_body_manifest(inert_attribute_sources)
+    exact_owner_key = limit_event_owner_body_key(object_fanout_event)
+    if inert_owner_bodies[exact_owner_key]["attribute_chain_sha256"] == (
+        hashlib.sha256(b"").hexdigest()
+    ):
+        fail("checker self-test did not bind an inert owner attribute chain")
+
+    unrelated_dependency_sources = dict(exact_limit_event_sources)
+    unrelated_dependency_sources["crates/sley-id/src/lib.rs"] = (
+        "pub fn unrelated_future_dependency_work(input: bool) -> bool { !input }"
+    )
+    if problem := limit_events_problem(unrelated_dependency_sources):
+        fail(f"checker self-test rejected unrelated future dependency code: {problem}")
+    dependency_shared_state_path = "crates/sley-check/src/cfg.rs"
+    dependency_atomic_sources = dict(exact_limit_event_sources)
+    dependency_atomic_sources[dependency_shared_state_path] += (
+        "\nuse ::core::sync::atomic::{AtomicBool, Ordering};\n"
+        "static DEPENDENCY_GATE: AtomicBool = AtomicBool::new(false);\n"
+        "pub fn dependency_gate() -> bool { "
+        "DEPENDENCY_GATE.load(Ordering::SeqCst) }\n"
+    )
+    if limit_events_problem(dependency_atomic_sources) is None:
+        fail("checker self-test accepted shared state in a non-owner dependency")
+    dependency_test_setter_sources = dict(exact_limit_event_sources)
+    dependency_test_setter_sources[dependency_shared_state_path] += (
+        "\nuse ::core::sync::atomic::{AtomicBool, Ordering};\n"
+        "static DEPENDENCY_GATE: AtomicBool = AtomicBool::new(false);\n"
+        "#[cfg(test)] fn enable_dependency_gate() { "
+        "DEPENDENCY_GATE.store(true, Ordering::SeqCst); }\n"
+        "pub fn dependency_gate() -> bool { "
+        "DEPENDENCY_GATE.load(Ordering::SeqCst) }\n"
+    )
+    if limit_events_problem(dependency_test_setter_sources) is None:
+        fail("checker self-test accepted a test-seeded shared-state dependency gate")
+    module_item_macro_payloads = (
+        (
+            "split-token-static-once",
+            "macro_rules! declare_gate { "
+            "($kw:tt,$name:ident,$ty:ty,$value:expr) => "
+            "{$kw $name:$ty=$value;}; } "
+            "declare_gate!(static,DEPENDENCY_GATE,::std::sync::Once,"
+            "::std::sync::Once::new()); "
+            "pub fn seed(){DEPENDENCY_GATE.call_once(||{});} "
+            "pub fn gate()->bool{let mut first=false;"
+            "DEPENDENCY_GATE.call_once(||first=true);first}",
+        ),
+        (
+            "macro-emitted-external-module",
+            "macro_rules! declare_module { ($name:ident) => { mod $name; }; } "
+            "declare_module!(hidden_authority);",
+        ),
+        (
+            "macro-emitted-include",
+            "macro_rules! declare_include { ($path:literal) => { "
+            'include!($path); }; } declare_include!("hidden_authority.rs");',
+        ),
+        (
+            "aliased-external-state-macro",
+            "use evil::state_item as frozen_items; frozen_items!(DEPENDENCY_GATE);",
+        ),
+        (
+            "macro-emitted-cfg-oracle",
+            "macro_rules! invoke_profile { ($m:ident,$p:ident) => "
+            "{ $m!($p) }; } const HIDDEN_PROFILE: bool = "
+            "invoke_profile!(cfg,test);",
+        ),
+    )
+    for hostile_label, payload in module_item_macro_payloads:
+        macro_hostile_sources = dict(exact_limit_event_sources)
+        macro_hostile_sources[dependency_shared_state_path] += "\n" + payload + "\n"
+        if (
+            macro_hostile_sources[dependency_shared_state_path]
+            == exact_limit_event_sources[dependency_shared_state_path]
+        ):
+            fail(f"checker module/item macro hostile did not mutate: {hostile_label}")
+        if limit_events_problem(macro_hostile_sources) is None:
+            fail(
+                "checker self-test accepted normal-build module/item macro authority: "
+                f"{hostile_label}"
+            )
+    atomic_gate_sources = dict(exact_limit_event_sources)
+    atomic_gate_sources[STORE_LIMIT_SOURCE] = (
+        "use ::core::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};\n"
+        "static LIMIT_WINDOW_ENABLED: AtomicBool = AtomicBool::new(false);\n"
+        "#[cfg(test)] fn enable_limit_window_for_test() { "
+        "LIMIT_WINDOW_ENABLED.store(true, AtomicOrdering::SeqCst); }\n"
+        + atomic_gate_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            "if LIMIT_WINDOW_ENABLED.load(AtomicOrdering::SeqCst) { "
+            + synthetic_object_window
+            + " };",
+            1,
+        )
+    )
+    if limit_events_problem(atomic_gate_sources) is None:
+        fail("checker self-test accepted a cfg(test)-seeded atomic limit gate")
+    stage_load_sources = dict(exact_limit_event_sources)
+    stage_load_sources[TXN_LIMIT_SOURCE] += (
+        "\nfn stage_gate() -> bool { STAGE_COUNTER.load(Ordering::Relaxed) > 0 }"
+    )
+    if limit_events_problem(stage_load_sources) is None:
+        fail("checker self-test accepted a stage-counter load limit gate")
+    moved_stage_operation_sources = dict(exact_limit_event_sources)
+    stage_record = LIMIT_ALLOWED_SHARED_STATE[TXN_LIMIT_SOURCE]
+    moved_stage_operation_sources[TXN_LIMIT_SOURCE] = moved_stage_operation_sources[
+        TXN_LIMIT_SOURCE
+    ].replace(stage_record["operation"], "let token = 0_u64;", 1)
+    moved_stage_operation_sources[TXN_LIMIT_SOURCE] += (
+        "\nfn decoy_stage_counter_use() { " + stage_record["operation"] + " }"
+    )
+    if limit_events_problem(moved_stage_operation_sources) is None:
+        fail("checker self-test accepted a moved stage-counter operation")
+
+    def require_stage_authority_hostile(
+        label: str,
+        replacement: str,
+        *,
+        target: str,
+        suffix: str = "",
+    ) -> None:
+        hostile_sources = dict(exact_limit_event_sources)
+        hostile_sources[TXN_LIMIT_SOURCE] = hostile_sources[TXN_LIMIT_SOURCE].replace(
+            target, replacement, 1
+        )
+        hostile_sources[TXN_LIMIT_SOURCE] += suffix
+        if (
+            hostile_sources[TXN_LIMIT_SOURCE]
+            == exact_limit_event_sources[TXN_LIMIT_SOURCE]
+        ):
+            fail(f"checker stage-authority hostile did not mutate: {label}")
+        if limit_events_problem(hostile_sources) is None:
+            fail(f"checker self-test accepted stage authority hostile: {label}")
+
+    stage_declaration = stage_record["declaration"]
+    stage_operation = stage_record["operation"]
+    require_stage_authority_hostile(
+        "public-declaration",
+        f"pub(crate) {stage_declaration}",
+        target=stage_declaration,
+    )
+    require_stage_authority_hostile(
+        "attributed-declaration",
+        f"#[allow(dead_code)]\n{stage_declaration}",
+        target=stage_declaration,
+    )
+    require_stage_authority_hostile(
+        "unreachable-operation",
+        f"if false {{ {stage_operation} let _ = token; }} let token = 0_u64;",
+        target=stage_operation,
+    )
+    require_stage_authority_hostile(
+        "nested-closure-operation",
+        "let token = (|| { " + stage_operation + " token })();",
+        target=stage_operation,
+    )
+    require_stage_authority_hostile(
+        "direct-operation-decoy",
+        stage_operation + " let _decoy = token; let token = 0_u64;",
+        target=stage_operation,
+    )
+    require_stage_authority_hostile(
+        "moved-process-id",
+        "0_u32",
+        target="std::process::id()",
+        suffix=("\nfn decoy_process_id() -> u32 { std::process::id() }\n"),
+    )
+    stage_test_reference_payloads = (
+        (
+            "direct-child-module",
+            "#[cfg(test)] mod stage_seed { fn seed() { "
+            "super::STAGE_COUNTER.store(1, "
+            "::std::sync::atomic::Ordering::Relaxed); } }",
+        ),
+        (
+            "super-glob",
+            "#[cfg(test)] mod stage_seed { use super::*; fn seed() { "
+            "let _ = STAGE_COUNTER.load("
+            "::std::sync::atomic::Ordering::Relaxed); } }",
+        ),
+        (
+            "explicit-alias",
+            "#[cfg(test)] mod stage_seed { "
+            "use super::STAGE_COUNTER as COUNTER; fn seed() { "
+            "COUNTER.store(1, ::std::sync::atomic::Ordering::Relaxed); } }",
+        ),
+        (
+            "helper-hidden-setter",
+            "#[cfg(test)] fn seed_stage(counter: &AtomicU64) { "
+            "counter.store(1, Ordering::Relaxed); } "
+            "#[cfg(test)] fn call_seed_stage() { seed_stage(&STAGE_COUNTER); }",
+        ),
+    )
+    for hostile_label, payload in stage_test_reference_payloads:
+        stage_test_sources = dict(exact_limit_event_sources)
+        stage_test_sources[TXN_LIMIT_SOURCE] += "\n" + payload + "\n"
+        if (
+            stage_test_sources[TXN_LIMIT_SOURCE]
+            == exact_limit_event_sources[TXN_LIMIT_SOURCE]
+        ):
+            fail(
+                f"checker test stage-reference hostile did not mutate: {hostile_label}"
+            )
+        if limit_events_problem(stage_test_sources) is None:
+            fail(
+                "checker self-test accepted a test-only production stage-counter "
+                f"reference: {hostile_label}"
+            )
+    shared_state_payloads = (
+        (
+            "custom-wrapper-static",
+            "struct Wrapper(bool); static PROFILE: Wrapper = Wrapper(false);",
+        ),
+        (
+            "unsafe-cell-static",
+            "static PROFILE: ::core::cell::UnsafeCell<bool> = "
+            "::core::cell::UnsafeCell::new(false);",
+        ),
+        (
+            "mutex-static",
+            "static PROFILE: ::std::sync::Mutex<bool> = "
+            "::std::sync::Mutex::new(false);",
+        ),
+        (
+            "cell-static",
+            "static PROFILE: ::core::cell::Cell<bool> = "
+            "::core::cell::Cell::new(false);",
+        ),
+    )
+    for hostile_label, shared_state in shared_state_payloads:
+        shared_state_sources = dict(exact_limit_event_sources)
+        shared_state_sources[STORE_LIMIT_SOURCE] = (
+            shared_state + "\n" + shared_state_sources[STORE_LIMIT_SOURCE]
+        )
+        if limit_events_problem(shared_state_sources) is None:
+            fail(
+                "checker self-test accepted normal-build shared-state authority: "
+                f"{hostile_label}"
+            )
+
+    exact_owner_bodies = limit_event_owner_body_manifest(exact_limit_event_sources)
+    expected_owner_keys = tuple(
+        dict.fromkeys(
+            limit_event_owner_body_key(spec) for spec in LIMIT_EVENT_SPECS.values()
+        )
+    )
+    if tuple(exact_owner_bodies) != expected_owner_keys:
+        fail("checker self-test lost exact limit-event owner-body coverage")
+    exact_control_ancestries = limit_event_control_ancestry_manifest(
+        exact_limit_event_sources
+    )
+    if tuple(exact_control_ancestries) != tuple(LIMIT_EVENT_SPECS):
+        fail("checker self-test lost exact limit-event control-ancestry coverage")
+    if problem := limit_event_control_ancestry_problem(exact_control_ancestries):
+        fail(f"checker self-test rejected exact limit control ancestry: {problem}")
+    statically_selected_windows = (
+        (
+            synthetic_object_window,
+            f"if true {{ {synthetic_object_window} }};",
+        ),
+        (
+            synthetic_object_terminal_window,
+            f"loop {{ {synthetic_object_terminal_window} break; }}",
+        ),
+        (
+            synthetic_object_terminal_window,
+            "match false { false => { "
+            + synthetic_object_terminal_window
+            + " }, true => {} }",
+        ),
+    )
+    for target, replacement in statically_selected_windows:
+        selected_sources = dict(exact_limit_event_sources)
+        selected_sources[STORE_LIMIT_SOURCE] = selected_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            target,
+            replacement,
+            1,
+        )
+        selected_ancestry = limit_event_control_ancestry_manifest(selected_sources)
+        if problem := limit_event_control_ancestry_problem(selected_ancestry):
+            fail(
+                "checker self-test rejected a statically selected limit edge: "
+                f"{problem}"
+            )
+    resolver_record = {
+        "source": STORE_LIMIT_SOURCE,
+        "owner": "<crate>",
+        "function": "resolver_probe",
+        "signature": (
+            "fn resolver_probe(fake: Fake, error: io::Error, byte: u8, path: &Path)"
+        ),
+        "signature_sha256": "0" * 64,
+        "body": "",
+        "body_sha256": "0" * 64,
+        "attribute_chain_sha256": hashlib.sha256(b"").hexdigest(),
+        "constants_json": "{}",
+        "module_use_bindings_json": json.dumps(
+            {
+                "fs": ["std::fs"],
+                "io": ["std::io"],
+                "Path": ["std::path::Path"],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    }
+    fake_method_expressions = (
+        "fake.kind()",
+        "fake.len()",
+        "fake.map(|value| value)",
+        "fake.file_name()",
+        "fake.is_ascii_digit()",
+        "fake.iter().all(|value| value)",
+        "Fake::file_name(path)",
+    )
+    for expression in fake_method_expressions:
+        resolutions = limit_control_resolved_authority(
+            expression,
+            {},
+            resolver_record,
+            0,
+        )
+        if not any(
+            resolution.get("classification") == "UNRESOLVED"
+            for resolution in resolutions
+        ):
+            fail(f"checker self-test accepted fake method authority: {expression}")
+    fake_factory_signature = "fn make_fake() -> Fake"
+    fake_factory = {
+        **resolver_record,
+        "function": "make_fake",
+        "signature": fake_factory_signature,
+        "signature_sha256": hashlib.sha256(
+            fake_factory_signature.encode("utf-8")
+        ).hexdigest(),
+        "body": "Fake",
+        "body_sha256": hashlib.sha256(b"Fake").hexdigest(),
+    }
+    fake_result_method = limit_control_resolved_authority(
+        "make_fake().map_err(|_| 0)",
+        {"make_fake": (fake_factory,)},
+        resolver_record,
+        0,
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in fake_result_method
+    ):
+        fail("checker self-test accepted map_err on a non-Result local call")
+    for expression in (
+        "error.kind()",
+        "byte.is_ascii_digit()",
+        "Path::file_name(path)",
+    ):
+        resolutions = limit_control_resolved_authority(
+            expression,
+            {},
+            resolver_record,
+            0,
+        )
+        if not resolutions or any(
+            resolution.get("classification") == "UNRESOLVED"
+            for resolution in resolutions
+        ):
+            fail(f"checker self-test rejected typed method authority: {expression}")
+    for source_expression, expect_unresolved in (
+        ("fs::symlink_metadata(path)", False),
+        ("fake_result()", True),
+    ):
+        pattern_record = dict(resolver_record)
+        pattern_record["pattern_bindings_json"] = json.dumps(
+            {
+                "error": {
+                    "pattern": "Err(error)",
+                    "expression": source_expression,
+                    "header_sha256": "1" * 64,
+                }
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        resolutions = limit_control_resolved_authority(
+            "error.kind()",
+            {},
+            pattern_record,
+            0,
+        )
+        unresolved = any(
+            resolution.get("classification") == "UNRESOLVED"
+            for resolution in resolutions
+        )
+        if unresolved != expect_unresolved:
+            fail("checker self-test mishandled pattern-bound io::Error authority")
+
+    def resolver_callable(
+        source: str,
+        owner: str,
+        function: str,
+        signature: str,
+        body: str = "true",
+    ) -> dict[str, str]:
+        return {
+            "source": source,
+            "owner": owner,
+            "function": function,
+            "signature": signature,
+            "signature_sha256": hashlib.sha256(signature.encode("utf-8")).hexdigest(),
+            "body": body,
+            "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            "attribute_chain_sha256": hashlib.sha256(b"").hexdigest(),
+            "constants_json": "{}",
+            "module_use_bindings_json": resolver_record["module_use_bindings_json"],
+        }
+
+    evil_get = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "implEvilGetforbool",
+        "get",
+        "fn get(&self) -> bool",
+        'Path::new("/outside-owned-root").exists()',
+    )
+    get_probe_body = "let safe = false; if safe.get() {}"
+    get_probe = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "get_probe",
+        "fn get_probe()",
+        get_probe_body,
+    )
+    get_probe["struct_fields_json"] = "{}"
+    get_resolutions = limit_control_resolved_authority(
+        "safe.get()",
+        {"get": (evil_get,)},
+        get_probe,
+        get_probe_body.index("safe.get()"),
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in get_resolutions
+    ):
+        fail("checker self-test accepted an extension-trait get method")
+
+    evil_join = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "implEvilJoinforPathBuf",
+        "join",
+        "fn join(&self, _child: &str) -> PathBuf",
+        'PathBuf::from("/outside-owned-root")',
+    )
+    join_probe_body = 'if self.root.join("child").is_dir() {}'
+    join_probe = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "implJoinProbe",
+        "join_probe",
+        "fn join_probe(&self)",
+        join_probe_body,
+    )
+    join_probe["struct_fields_json"] = json.dumps(
+        {"JoinProbe": {"root": "PathBuf"}},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    join_resolutions = limit_control_resolved_authority(
+        'self.root.join("child")',
+        {"join": (evil_join,)},
+        join_probe,
+        join_probe_body.index("self.root.join"),
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in join_resolutions
+    ):
+        fail("checker self-test accepted an extension-trait PathBuf::join method")
+
+    trait_default_fixture = """
+trait EvilGet {
+    fn get(&self, _index: usize) -> Option<&u8> { None }
+}
+impl EvilGet for Vec<u8> {}
+trait EvilJoin {
+    fn join(&self, _child: &str) -> PathBuf {
+        PathBuf::from("/outside-owned-root")
+    }
+}
+impl EvilJoin for PathBuf {}
+"""
+    if (
+        rust_named_function_raw_body(trait_default_fixture, "get", "trait:EvilGet")
+        is None
+        or rust_named_function_raw_body(trait_default_fixture, "join", "trait:EvilJoin")
+        is None
+    ):
+        fail("checker self-test failed to inventory trait-default method owners")
+    default_get = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "trait:EvilGet",
+        "get",
+        "fn get(&self, _index: usize) -> Option<&u8>",
+        "None",
+    )
+    default_get_probe = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "default_get_probe",
+        "fn default_get_probe(values: &[u8])",
+        "values.get(0);",
+    )
+    default_get_resolutions = limit_control_resolved_authority(
+        "values.get(0)",
+        {"get": (default_get,)},
+        default_get_probe,
+        0,
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in default_get_resolutions
+    ):
+        fail("checker self-test accepted a collection-compatible default get method")
+    default_join = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "trait:EvilJoin",
+        "join",
+        "fn join(&self, _child: &str) -> PathBuf",
+        'PathBuf::from("/outside-owned-root")',
+    )
+    default_join_resolutions = limit_control_resolved_authority(
+        'self.root.join("child")',
+        {"join": (default_join,)},
+        join_probe,
+        join_probe_body.index("self.root.join"),
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in default_join_resolutions
+    ):
+        fail("checker self-test accepted a default-trait PathBuf::join method")
+
+    external_get_probe = dict(default_get_probe)
+    external_get_probe["module_use_bindings_json"] = json.dumps(
+        {"EvilGet": ["evil_trait_crate::EvilGet"]},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    external_get_probe["local_use_roots_json"] = "[]"
+    external_get_resolutions = limit_control_resolved_authority(
+        "values.get(0)",
+        {},
+        external_get_probe,
+        0,
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in external_get_resolutions
+    ):
+        fail("checker self-test accepted an imported external EvilGet trait")
+
+    external_join_body = (
+        'use evil_trait_crate::EvilJoin; if self.root.join("child").is_dir() {}'
+    )
+    external_join_probe = dict(join_probe)
+    external_join_probe["body"] = external_join_body
+    external_join_probe["body_sha256"] = hashlib.sha256(
+        external_join_body.encode("utf-8")
+    ).hexdigest()
+    external_join_probe["local_use_roots_json"] = "[]"
+    external_join_resolutions = limit_control_resolved_authority(
+        'self.root.join("child")',
+        {},
+        external_join_probe,
+        external_join_body.index("self.root.join"),
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in external_join_resolutions
+    ):
+        fail("checker self-test accepted a block-imported external EvilJoin trait")
+
+    local_hex = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "is_lower_hex",
+        "fn is_lower_hex(byte: u8) -> bool",
+    )
+    other_crate_hex = resolver_callable(
+        "crates/sley-id/src/lib.rs",
+        "<crate>",
+        "is_lower_hex",
+        "fn is_lower_hex(byte: u8) -> bool",
+    )
+    local_hex_resolution = limit_control_resolved_authority(
+        "is_lower_hex(byte)",
+        {"is_lower_hex": (local_hex, other_crate_hex)},
+        resolver_record,
+        0,
+    )
+    if any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in local_hex_resolution
+    ):
+        fail(
+            "checker self-test rejected a source-local callback with a remote duplicate"
+        )
+    ambiguous_hex_resolution = limit_control_resolved_authority(
+        "is_lower_hex(byte)",
+        {"is_lower_hex": (local_hex, dict(local_hex))},
+        resolver_record,
+        0,
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in ambiguous_hex_resolution
+    ):
+        fail("checker self-test accepted an ambiguous source-local callback")
+    callback_record = dict(resolver_record)
+    callback_record["signature"] = (
+        "fn resolver_probe(path: &Path, values: Vec<u8>, callback: fn(u8) -> bool)"
+    )
+    function_pointer_resolution = limit_control_resolved_authority(
+        "values.iter().all(callback)",
+        {},
+        callback_record,
+        0,
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in function_pointer_resolution
+    ):
+        fail("checker self-test accepted a function-pointer callback")
+    ufcs_resolution = limit_control_resolved_authority(
+        "path.file_name().and_then(std::ffi::OsStr::to_str)",
+        {},
+        callback_record,
+        0,
+    )
+    if not ufcs_resolution or any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in ufcs_resolution
+    ):
+        fail("checker self-test rejected an exact standard UFCS callback")
+    generic_gate = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "gate",
+        "fn gate<T>(value: T) -> bool",
+    )
+    trait_gate = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "impl Gate for Fake",
+        "gate",
+        "fn gate(value: u8) -> bool",
+    )
+    for gate in (generic_gate, trait_gate):
+        resolutions = limit_control_resolved_authority(
+            "gate(byte)",
+            {"gate": (gate,)},
+            resolver_record,
+            0,
+        )
+        if not any(
+            resolution.get("classification") == "UNRESOLVED"
+            for resolution in resolutions
+        ):
+            fail("checker self-test accepted generic or trait callable authority")
+
+    bound_path_callee = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "bound_path",
+        "fn bound_path(root: &Path) -> PathBuf",
+        "root.to_path_buf()",
+    )
+    bound_path_caller = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "bound_path_caller",
+        "fn bound_path_caller(path: &Path)",
+        "bound_path(path)",
+    )
+    bound_path_site = limit_control_call_sites("bound_path(path)")[0]
+    bound_path_record, bound_path_bindings, bound_path_problem = (
+        limit_control_bound_local_call(
+            bound_path_site,
+            bound_path_callee,
+            bound_path_caller,
+            {"bound_path": (bound_path_callee,)},
+        )
+    )
+    if (
+        bound_path_problem is not None
+        or bound_path_record is None
+        or not bound_path_bindings
+        or "argument_authority_sha256" not in bound_path_bindings[0]
+    ):
+        fail("checker self-test lost positional caller argument authority")
+    bound_path_values, _bound_path_calls = limit_control_value_authority(
+        "root",
+        {"bound_path": (bound_path_callee,)},
+        bound_path_record,
+        0,
+        {},
+    )
+    if not any(
+        value.get("classification") == "CONCRETE_PARAMETER"
+        and value.get("identifier") == "path"
+        for value in bound_path_values
+    ):
+        fail("checker self-test did not propagate caller path provenance")
+    hidden_path_site = limit_control_call_sites("bound_path(hidden_path())")[0]
+    if (
+        limit_control_bound_local_call(
+            hidden_path_site,
+            bound_path_callee,
+            bound_path_caller,
+            {"bound_path": (bound_path_callee,)},
+        )[2]
+        is None
+    ):
+        fail("checker self-test accepted unresolved caller argument provenance")
+
+    mutable_gate_body = "let mut safe = false; safe = hidden_gate(); if gate(safe) { }"
+    mutable_gate_record = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "mutable_gate_probe",
+        "fn mutable_gate_probe()",
+        mutable_gate_body,
+    )
+    bool_gate = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "gate",
+        "fn gate(value: bool) -> bool",
+        "value",
+    )
+    mutable_gate_values, mutable_gate_calls = limit_control_value_authority(
+        "gate(safe)",
+        {"gate": (bool_gate,)},
+        mutable_gate_record,
+        mutable_gate_body.find("if gate"),
+        {},
+    )
+    if not any(
+        item.get("classification") == "UNRESOLVED"
+        for item in [*mutable_gate_values, *mutable_gate_calls]
+    ):
+        fail("checker self-test accepted a reassigned control binding")
+
+    for hostile_prefix, label in (
+        (
+            "let is_lower_hex = |_byte| false; ",
+            "local callback shadow",
+        ),
+        (
+            "use evil as is_lower_hex; ",
+            "block-local callback import",
+        ),
+    ):
+        callback_body = hostile_prefix + "values.iter().all(is_lower_hex)"
+        callback_shadow_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "<crate>",
+            "callback_shadow_probe",
+            "fn callback_shadow_probe(values: Vec<u8>) -> bool",
+            callback_body,
+        )
+        callback_shadow_resolution = limit_control_resolved_authority(
+            callback_body[len(hostile_prefix) :],
+            {"is_lower_hex": (local_hex,)},
+            callback_shadow_record,
+            len(hostile_prefix),
+        )
+        if not any(
+            resolution.get("classification") == "UNRESOLVED"
+            for resolution in callback_shadow_resolution
+        ):
+            fail(f"checker self-test accepted {label}")
+
+    fs_shadow_body = "use fake_fs as fs; fs::read_dir(path)"
+    fs_shadow_record = resolver_callable(
+        STORE_LIMIT_SOURCE,
+        "<crate>",
+        "fs_shadow_probe",
+        "fn fs_shadow_probe(path: &Path)",
+        fs_shadow_body,
+    )
+    fs_shadow_resolution = limit_control_resolved_authority(
+        "fs::read_dir(path)",
+        {},
+        fs_shadow_record,
+        fs_shadow_body.find("fs::read_dir"),
+    )
+    if not any(
+        resolution.get("classification") == "UNRESOLVED"
+        for resolution in fs_shadow_resolution
+    ):
+        fail("checker self-test accepted a block-local fs alias")
+
+    collection_prefix = (
+        'let mut pending = vec![self.root.join("objects")]; '
+        "while let Some(item) = pending.pop() { "
+        'pending.push(self.root.join("child"));'
+    )
+    collection_suffix = " }"
+    collection_scopes: list[dict[str, object]] = [
+        {"header": "while let Some(item) = pending.pop()"}
+    ]
+    for extra_push, expect_unresolved in (("", False), (" pending.push(path);", True)):
+        collection_body = collection_prefix + extra_push + collection_suffix
+        collection_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "implObjectStore",
+            "collection_probe",
+            "fn collection_probe(&self, path: &Path)",
+            collection_body,
+        )
+        collection_record["struct_fields_json"] = json.dumps(
+            {"ObjectStore": {"root": "PathBuf"}},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        collections = limit_control_collection_manifest(
+            collection_body,
+            (
+                collection_body.find("pending.push"),
+                collection_body.find("pending.push") + 1,
+            ),
+            collection_scopes,
+            {},
+            collection_record,
+        )
+        unresolved = not collections or any(
+            collection.get("unresolved") != [] for collection in collections
+        )
+        if unresolved != expect_unresolved:
+            fail("checker self-test mishandled recovery worklist path provenance")
+    collection_hostile_bodies = (
+        "let mut pending = vec![path.to_path_buf()]; "
+        "while let Some(item) = pending.pop() { "
+        'pending.push(self.root.join("child")); }',
+        'let mut pending = vec![self.root.join("objects")]; '
+        "let alias = &mut pending; while let Some(item) = pending.pop() { "
+        'pending.push(self.root.join("child")); }',
+        'let mut pending = vec![self.root.join("objects")]; '
+        'pending[0] = self.root.join("other"); '
+        "while let Some(item) = pending.pop() { "
+        'pending.push(self.root.join("child")); }',
+        'let mut pending = vec![self.root.join("objects")]; '
+        "while let Some(item) = pending.pop() { "
+        'Vec::push(&mut pending, self.root.join("child")); '
+        'pending.push(self.root.join("child")); }',
+        'use fake_fs as fs; let mut pending = vec![self.root.join("objects")]; '
+        "while let Some(directory) = pending.pop() { "
+        "for entry in fs::read_dir(&directory)? { let entry = entry?; "
+        "pending.push(entry.path()); } }",
+    )
+    for collection_body in collection_hostile_bodies:
+        collection_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "implObjectStore",
+            "collection_hostile_probe",
+            "fn collection_hostile_probe(&self, path: &Path)",
+            collection_body,
+        )
+        collection_record["struct_fields_json"] = json.dumps(
+            {"ObjectStore": {"root": "PathBuf"}},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        collections = limit_control_collection_manifest(
+            collection_body,
+            (
+                collection_body.find("pending.push"),
+                collection_body.find("pending.push") + 1,
+            ),
+            [{"header": "while let Some(item) = pending.pop()"}],
+            {},
+            collection_record,
+        )
+        if not collections or all(
+            collection.get("unresolved") == [] for collection in collections
+        ):
+            fail("checker self-test accepted a hostile recovery worklist")
+
+    for guard, expect_unresolved in (
+        ("if depth < 2", False),
+        ("if hidden_gate()", True),
+    ):
+        exit_body = f"{guard} {{ continue; }} let charged = true;"
+        exit_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "<crate>",
+            "exit_probe",
+            "fn exit_probe(depth: usize)",
+            exit_body,
+        )
+        event_start = exit_body.find("let charged")
+        exits = limit_event_dominating_exit_manifest(
+            exit_body,
+            (event_start, event_start + 1),
+            {},
+            exit_record,
+        )
+        unresolved = not exits or any(
+            item.get("classification") == "UNRESOLVED"
+            for exit_record_item in exits
+            for field in ("resolved_values", "resolved_authority")
+            for item in exit_record_item.get(field, [])
+            if isinstance(item, dict)
+        )
+        if unresolved != expect_unresolved:
+            fail("checker self-test mishandled an early-exit dominator")
+    for hostile_body in (
+        "if outer { if hidden_gate() { continue; } } let charged = true;",
+        "match outer { true => { if hidden_gate() { return; } }, false => {} } "
+        "let charged = true;",
+        "hidden_gate()?; let charged = true;",
+        "if outer { hidden_gate()?; } let charged = true;",
+    ):
+        hostile_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "<crate>",
+            "exit_hostile_probe",
+            "fn exit_hostile_probe(outer: bool)",
+            hostile_body,
+        )
+        event_start = hostile_body.find("let charged")
+        exits = limit_event_dominating_exit_manifest(
+            hostile_body,
+            (event_start, event_start + 1),
+            {},
+            hostile_record,
+        )
+        if not any(
+            item.get("classification") == "UNRESOLVED"
+            for exit_record_item in exits
+            for field in ("resolved_values", "resolved_authority")
+            for item in exit_record_item.get(field, [])
+            if isinstance(item, dict)
+        ):
+            fail("checker self-test accepted nested or fallible early-exit authority")
+    for detached_body in (
+        "let callback = || { return; }; let charged = true;",
+        "let callback = || { hidden_gate()?; }; let charged = true;",
+    ):
+        detached_record = resolver_callable(
+            STORE_LIMIT_SOURCE,
+            "<crate>",
+            "detached_exit_probe",
+            "fn detached_exit_probe()",
+            detached_body,
+        )
+        event_start = detached_body.find("let charged")
+        if limit_event_dominating_exit_manifest(
+            detached_body,
+            (event_start, event_start + 1),
+            {},
+            detached_record,
+        ):
+            fail("checker self-test mistook a closure-local exit for owner flow")
+    exact_shared_state = limit_shared_state_authority_manifest(
+        exact_limit_event_sources
+    )
+    if tuple(exact_shared_state) != (
+        "production_source_paths",
+        "production_source_paths_sha256",
+        "complete_source_scan",
+        "allowed_channels",
+    ):
+        fail("checker self-test lost exact limit shared-state coverage")
+    complete_source_scan = exact_shared_state["complete_source_scan"]
+    if (
+        not isinstance(complete_source_scan, list)
+        or tuple(record.get("source") for record in complete_source_scan)
+        != limit_production_source_paths()
+        or any(
+            not isinstance(record.get("occurrences"), list)
+            for record in complete_source_scan
+        )
+        or tuple(exact_shared_state["allowed_channels"])
+        != tuple(LIMIT_ALLOWED_SHARED_STATE)
+    ):
+        fail("checker self-test lost complete limit shared-state source inventory")
+    store_entry_sources = dict(exact_limit_event_sources)
+    store_entry_sources[STORE_LIMIT_SOURCE] = store_entry_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        "impl ObjectStore {",
+        "impl ObjectStore { fn recover_staged(&self) { "
+        "self.recover_staged_with_limits(); }",
+        1,
+    )
+    store_event_specs = {
+        event_id: spec
+        for event_id, spec in LIMIT_EVENT_SPECS.items()
+        if spec.site == tuple(STORE_RECOVERY_CORE)
+    }
+    exact_store_entry_paths = limit_event_entry_call_path_manifest(
+        store_entry_sources,
+        store_event_specs,
+    )
+    if any(record["unresolved"] for record in exact_store_entry_paths.values()):
+        fail("checker self-test rejected an exact recovery entry-call path")
+
+    reverse_edge = frozenset({(STORE_RECOVERY_ROOT, STORE_RECOVERY_CORE)})
+    reverse_exact_source = (
+        "struct ObjectStore; impl ObjectStore { "
+        "fn recover_staged(&self) { self.recover_staged_with_limits(); } "
+        "fn recover_staged_with_limits(&self) {} }"
+    )
+
+    def reverse_probe_sources(source: str) -> dict[str, str]:
+        result = dict(exact_limit_event_sources)
+        result[STORE_LIMIT_SOURCE] = source
+        return result
+
+    reverse_exact_sources = reverse_probe_sources(reverse_exact_source)
+    reverse_exact_index = limit_local_callable_index(reverse_exact_sources)
+    reverse_exact = limit_event_reverse_caller_inventory(
+        reverse_exact_sources,
+        reverse_exact_index,
+        reverse_edge,
+    )[":".join(STORE_RECOVERY_CORE)]
+    if reverse_exact["unresolved"] != []:
+        fail("checker self-test rejected an exact reverse caller edge")
+    reverse_hostile_sources = (
+        (
+            "struct ObjectStore; impl ObjectStore { "
+            "fn recover_staged(&self) { let invoke = "
+            "ObjectStore::recover_staged_with_limits; invoke(self); } "
+            "fn recover_staged_with_limits(&self) {} }"
+        ),
+        (
+            "macro_rules! invoke_recovery { ($owner:expr) => { "
+            "$owner.recover_staged_with_limits(); } } "
+            "struct ObjectStore; impl ObjectStore { "
+            "fn recover_staged(&self) { invoke_recovery!(self); } "
+            "fn recover_staged_with_limits(&self) {} }"
+        ),
+        (
+            "struct Fake; impl Fake { fn recover_staged_with_limits(&self) {} } "
+            + reverse_exact_source
+        ),
+        (
+            "struct ObjectStore; impl ObjectStore { "
+            "fn recover_staged(&self, other: &ObjectStore) { "
+            "other.recover_staged_with_limits(); } "
+            "fn recover_staged_with_limits(&self) {} }"
+        ),
+    )
+    for reverse_hostile_source in reverse_hostile_sources:
+        reverse_hostile_source_set = reverse_probe_sources(reverse_hostile_source)
+        reverse_hostile_index = limit_local_callable_index(reverse_hostile_source_set)
+        reverse_hostile = limit_event_reverse_caller_inventory(
+            reverse_hostile_source_set,
+            reverse_hostile_index,
+            reverse_edge,
+        )[":".join(STORE_RECOVERY_CORE)]
+        if reverse_hostile["unresolved"] == []:
+            fail(
+                "checker self-test accepted hidden or ambiguous reverse caller authority"
+            )
+
+    ufcs_source = (
+        "struct ObjectStore; impl ObjectStore { "
+        "fn recover_staged(&self) { "
+        "ObjectStore::recover_staged_with_limits(self); } "
+        "fn recover_staged_with_limits(&self) {} }"
+    )
+    ufcs_sources = reverse_probe_sources(ufcs_source)
+    ufcs_index = limit_local_callable_index(ufcs_sources)
+    ufcs_caller = limit_control_item_record(STORE_RECOVERY_ROOT, ufcs_index)
+    if ufcs_caller is None or not limit_control_callsite_record(
+        STORE_RECOVERY_ROOT,
+        STORE_RECOVERY_CORE,
+        ufcs_caller,
+        ufcs_index,
+    ).get("unresolved"):
+        fail("checker self-test accepted UFCS replacement of a frozen method edge")
+    caller_path_hostiles = (
+        "if caller_gate { self.recover_staged_with_limits(); }",
+        "if false { return; } self.recover_staged_with_limits();",
+        "preflight()?; self.recover_staged_with_limits();",
+    )
+    exact_store_call = "self.recover_staged_with_limits();"
+    for hostile_call in caller_path_hostiles:
+        caller_hostile_sources = dict(store_entry_sources)
+        caller_hostile_sources[STORE_LIMIT_SOURCE] = caller_hostile_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(exact_store_call, hostile_call, 1)
+        hostile_entry_paths = limit_event_entry_call_path_manifest(
+            caller_hostile_sources,
+            store_event_specs,
+        )
+        if hostile_entry_paths == exact_store_entry_paths:
+            fail("checker self-test missed a caller-level limit entry-path gate")
+        if all(
+            callsite.get("unresolved") == []
+            and callsite.get("dominating_scopes") == []
+            and callsite.get("dominating_exits") == []
+            and callsite.get("preceding_question_mark_count") == 0
+            and callsite.get("preceding_early_exit_tokens") == []
+            for record in hostile_entry_paths.values()
+            for path in record["call_paths"]
+            for callsite in path["callsites"][:1]
+        ):
+            fail("checker self-test accepted a caller-level limit entry-path gate")
+    for extra_caller in (
+        "fn alternate_recovery(&self) { self.recover_staged_with_limits(); }",
+        "fn alternate_recovery(&self, other: &ObjectStore) { "
+        "other.recover_staged_with_limits(); }",
+    ):
+        extra_caller_sources = dict(store_entry_sources)
+        extra_caller_sources[STORE_LIMIT_SOURCE] = extra_caller_sources[
+            STORE_LIMIT_SOURCE
+        ].replace(
+            "impl ObjectStore {",
+            "impl ObjectStore { " + extra_caller,
+            1,
+        )
+        extra_caller_paths = limit_event_entry_call_path_manifest(
+            extra_caller_sources,
+            store_event_specs,
+        )
+        if all(
+            caller_record.get("unresolved") == []
+            for record in extra_caller_paths.values()
+            for caller_record in record["reverse_callers"].values()
+        ):
+            fail("checker self-test accepted an extra normal-build limit caller")
+    control_ancestry_hostiles: list[tuple[str, dict[str, str]]] = []
+    liveness_payloads = (
+        (
+            "module constant false predicate",
+            "const LIMITS_ENABLED: bool = false;\n",
+            f"if LIMITS_ENABLED {{ {synthetic_object_window} }};",
+        ),
+        (
+            "local false predicate",
+            "",
+            f"let gate = false; if gate {{ {synthetic_object_window} }};",
+        ),
+        (
+            "literal-derived Unicode string predicate",
+            "",
+            'let gate = "\u03bb"; if gate.is_empty() { '
+            + synthetic_object_window
+            + " };",
+        ),
+        (
+            "numeric false predicate",
+            "",
+            f"if 0_u8 == 1_u8 {{ {synthetic_object_window} }};",
+        ),
+        (
+            "zero-input false helper predicate",
+            "fn frozen_gate() -> bool { false }\n",
+            f"if frozen_gate() {{ {synthetic_object_window} }};",
+        ),
+        (
+            "zero-input false while predicate",
+            "fn frozen_gate() -> bool { false }\n",
+            f"while frozen_gate() {{ {synthetic_object_terminal_window} break; }}",
+            synthetic_object_terminal_window,
+        ),
+        (
+            "derived-false match predicate",
+            "",
+            "let gate = false; match gate { true => { "
+            + synthetic_object_terminal_window
+            + " }, false => {} }",
+            synthetic_object_terminal_window,
+        ),
+        (
+            "empty numeric iteration predicate",
+            "",
+            f"for _item in 0_u8..0_u8 {{ {synthetic_object_terminal_window} }}",
+            synthetic_object_terminal_window,
+        ),
+        (
+            "statically taken dominating exit",
+            "",
+            f"if true {{ return; }}; {synthetic_object_terminal_window}",
+            synthetic_object_terminal_window,
+        ),
+        (
+            "literal-derived dominating exit",
+            "",
+            "let gate = true; if gate { return; }; " + synthetic_object_terminal_window,
+            synthetic_object_terminal_window,
+        ),
+    )
+    for liveness_payload in liveness_payloads:
+        hostile_label, prefix, replacement, *targets = liveness_payload
+        target = targets[0] if targets else synthetic_object_window
+        liveness_sources = dict(exact_limit_event_sources)
+        owner = liveness_sources[STORE_LIMIT_SOURCE].replace(
+            target,
+            replacement,
+            1,
+        )
+        liveness_sources[STORE_LIMIT_SOURCE] = prefix + owner
+        if owner == exact_limit_event_sources[STORE_LIMIT_SOURCE]:
+            fail(f"checker edge-liveness hostile did not mutate: {hostile_label}")
+        control_ancestry_hostiles.append((hostile_label, liveness_sources))
+
+    diverging_owner_macro_sources = dict(exact_limit_event_sources)
+    diverging_owner_macro_sources[STORE_LIMIT_SOURCE] = diverging_owner_macro_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "unreachable!(); " + synthetic_object_window,
+        1,
+    )
+    if (
+        diverging_owner_macro_sources[STORE_LIMIT_SOURCE]
+        == exact_limit_event_sources[STORE_LIMIT_SOURCE]
+    ):
+        fail("checker diverging owner-macro hostile did not mutate")
+    control_ancestry_hostiles.append(
+        ("diverging owner function macro", diverging_owner_macro_sources)
+    )
+
+    direct_sentinel_sources = dict(exact_limit_event_sources)
+    direct_sentinel_sources[STORE_LIMIT_SOURCE] = direct_sentinel_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        'if ::std::path::Path::new(".enable-limits").exists() { '
+        + synthetic_object_window
+        + " };",
+        1,
+    )
+    control_ancestry_hostiles.append(
+        ("direct filesystem sentinel", direct_sentinel_sources)
+    )
+    dependency_sentinel_sources = dict(exact_limit_event_sources)
+    dependency_sentinel_sources["crates/sley-id/src/lib.rs"] = (
+        "pub fn limit_window_enabled() -> bool { "
+        '::std::path::Path::new(".enable-limits").exists() }'
+    )
+    dependency_sentinel_sources[STORE_LIMIT_SOURCE] = dependency_sentinel_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        synthetic_object_window,
+        "if ::sley_id::limit_window_enabled() { " + synthetic_object_window + " };",
+        1,
+    )
+    control_ancestry_hostiles.append(
+        ("dependency-hidden filesystem sentinel", dependency_sentinel_sources)
+    )
+    codec_sentinel_sources = dict(exact_limit_event_sources)
+    codec_sentinel_sources["crates/sley-txn/src/codec.rs"] = (
+        "pub(crate) fn limit_window_enabled() -> bool { "
+        '::std::path::Path::new(".enable-limits").exists() }'
+    )
+    codec_sentinel_sources[TXN_LIMIT_SOURCE] = codec_sentinel_sources[
+        TXN_LIMIT_SOURCE
+    ].replace(
+        synthetic_txn_window,
+        "if crate::codec::limit_window_enabled() { " + synthetic_txn_window + " };",
+        1,
+    )
+    control_ancestry_hostiles.append(
+        ("module-hidden filesystem sentinel", codec_sentinel_sources)
+    )
+    function_pointer_sources = dict(exact_limit_event_sources)
+    function_pointer_sources[STORE_LIMIT_SOURCE] = (
+        "fn normal_gate() -> bool { true }\n"
+        + function_pointer_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            "let gate: fn() -> bool = normal_gate; if gate() { "
+            + synthetic_object_window
+            + " };",
+            1,
+        )
+    )
+    control_ancestry_hostiles.append(
+        ("unresolved function-pointer predicate", function_pointer_sources)
+    )
+    trait_predicate_sources = dict(exact_limit_event_sources)
+    trait_predicate_sources[STORE_LIMIT_SOURCE] = (
+        "trait Gate { fn enabled(&self) -> bool; } "
+        "struct RuntimeGate; impl Gate for RuntimeGate { "
+        "fn enabled(&self) -> bool { true } }\n"
+        + trait_predicate_sources[STORE_LIMIT_SOURCE].replace(
+            synthetic_object_window,
+            "if RuntimeGate.enabled() { " + synthetic_object_window + " };",
+            1,
+        )
+    )
+    control_ancestry_hostiles.append(
+        ("unresolved trait predicate", trait_predicate_sources)
+    )
+    for hostile_label, hostile_sources in control_ancestry_hostiles:
+        hostile_ancestry = limit_event_control_ancestry_manifest(hostile_sources)
+        if hostile_ancestry == exact_control_ancestries:
+            fail(
+                "checker self-test missed a limit control-ancestry substitution: "
+                f"{hostile_label}"
+            )
+        if limit_event_control_ancestry_problem(hostile_ancestry) is None:
+            fail(
+                "checker self-test accepted unresolved limit control authority: "
+                f"{hostile_label}"
+            )
+    synthetic_limit_rows: dict[str, object] = {}
+    synthetic_limit_test_bodies: dict[str, dict[str, str]] = {}
+    for row_id, defaults in LIMIT_DEFAULTS.items():
+        subcases: dict[str, object] = {}
+        for subcase_id, (relative, _constant, _value) in defaults.items():
+            test = f"observe_{row_id.lower().replace('-', '_')}_{subcase_id}"
+            subcases[subcase_id] = {"tests": [test]}
+            synthetic_limit_test_bodies[test] = {
+                "source": relative,
+                "qualified_test": f"tests::{test}",
+                "body_sha256": hashlib.sha256(test.encode("utf-8")).hexdigest(),
+            }
+        synthetic_limit_rows[row_id] = {"subcases": subcases}
+    synthetic_limit_helper_sources: dict[str, str] = {}
+    for relative in {spec.owner_source for spec in LIMIT_RUNTIME_CASE_SPECS.values()}:
+        comparison_helpers: dict[str, str] = {}
+        test_helpers: set[str] = set(LIMIT_RUNTIME_PROBE_HELPERS)
+        for runtime_spec in LIMIT_RUNTIME_CASE_SPECS.values():
+            if runtime_spec.owner_source != relative:
+                continue
+            test_helpers.add(runtime_spec.setup_helper)
+            profile = limit_profile_map()[runtime_spec.profile_constructor]
+            comparison_helper = profile["helper"]
+            helper_body = profile["helper_body"]
+            if not isinstance(comparison_helper, str) or not isinstance(
+                helper_body, str
+            ):
+                fail("checker synthetic limit helper metadata differs")
+            comparison_helpers[comparison_helper] = (
+                limit_runtime_instrumented_helper_body(helper_body)
+            )
+        source_items = [
+            f"fn {helper}(value: u64, limit: u64) {{ {body} }}"
+            for helper, body in sorted(comparison_helpers.items())
+        ]
+        test_items = [
+            f"fn {helper}() {{ let reviewed_helper = {json.dumps(helper)}; }}"
+            for helper in sorted(test_helpers)
+        ]
+        synthetic_limit_helper_sources[relative] = (
+            "\n".join(source_items)
+            + "\n#[cfg(test)]\nmod tests {\n"
+            + "\n".join(test_items)
+            + "\n}"
+        )
+    if problem := limit_runtime_probe_binding_problem(synthetic_limit_helper_sources):
+        fail(f"checker self-test rejected exact limit probe binding: {problem}")
+    exact_runtime_helpers = limit_runtime_helper_body_manifest(
+        synthetic_limit_helper_sources
+    )
+    exact_runtime_cases = limit_runtime_case_manifest(
+        synthetic_limit_rows,
+        synthetic_limit_test_bodies,
+        exact_runtime_helpers,
+    )
+    exact_site_proofs = limit_runtime_site_proof_manifest(
+        exact_runtime_cases,
+        exact_owner_bodies,
+    )
+    if len(exact_runtime_cases) != 37 or len(exact_site_proofs) != 5:
+        fail("checker self-test lost exact 37-case/5-dual-site limit review binding")
+    hostile_probe_sources = dict(synthetic_limit_helper_sources)
+    hostile_probe_sources[STORE_LIMIT_SOURCE] = hostile_probe_sources[
+        STORE_LIMIT_SOURCE
+    ].replace("tests::record_s20_530_limit_probe", "tests::forged_limit_probe", 1)
+    if limit_runtime_probe_binding_problem(hostile_probe_sources) is None:
+        fail("checker self-test accepted a forged limit probe binding")
+    post_guard_probe_sources = dict(synthetic_limit_helper_sources)
+    object_profile = limit_profile_map()["object_recovery_limits"]
+    object_helper_body = object_profile["helper_body"]
+    if not isinstance(object_helper_body, str):
+        fail("checker post-guard limit probe control lacks a helper body")
+    pre_guard_body = limit_runtime_instrumented_helper_body(object_helper_body)
+    post_guard_body = object_helper_body.replace(
+        "Ok(())",
+        LIMIT_RUNTIME_PROBE_STATEMENT + "Ok(())",
+        1,
+    )
+    post_guard_probe_sources[STORE_LIMIT_SOURCE] = post_guard_probe_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(pre_guard_body, post_guard_body, 1)
+    if (
+        post_guard_probe_sources[STORE_LIMIT_SOURCE]
+        == synthetic_limit_helper_sources[STORE_LIMIT_SOURCE]
+    ):
+        fail("checker post-guard limit probe control did not alter its source")
+    if limit_runtime_probe_binding_problem(post_guard_probe_sources) is None:
+        fail("checker self-test accepted a post-guard limit probe binding")
+    hostile_helper_sources = dict(synthetic_limit_helper_sources)
+    hostile_helper_sources[STORE_LIMIT_SOURCE] = hostile_helper_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        'let reviewed_helper = "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture";',
+        'let reviewed_helper = "substituted";',
+        1,
+    )
+    if (
+        limit_runtime_helper_body_manifest(hostile_helper_sources)
+        == exact_runtime_helpers
+    ):
+        fail("checker self-test missed a limit helper-body substitution")
+    exact_observations = limit_event_observation_manifest(
+        synthetic_limit_rows,
+        synthetic_limit_test_bodies,
+        exact_owner_bodies,
+    )
+    if (
+        tuple(exact_observations) != tuple(LIMIT_EVENT_SPECS)
+        or sum(
+            len(record["charged_limit_tests"]) for record in exact_observations.values()
+        )
+        != 42
+    ):
+        fail("checker self-test lost exact 30-event/42-charge runtime observations")
+    altered_owner_sources = dict(exact_limit_event_sources)
+    altered_owner_sources[STORE_LIMIT_SOURCE] = altered_owner_sources[
+        STORE_LIMIT_SOURCE
+    ].replace(
+        "pending_directories.push(fanout_path);",
+        "pending_directories.push(fanout_path); let changed_owner_body = true;",
+        1,
+    )
+    altered_owner_bodies = limit_event_owner_body_manifest(altered_owner_sources)
+    if altered_owner_bodies == exact_owner_bodies:
+        fail("checker self-test missed a limit-event owner-body substitution")
+    altered_field_observations = dict(LIMIT_FIELD_RUNTIME_OBSERVATIONS)
+    altered_field_observations["object_recovery_limits::fanout_directories"] = (
+        "LIMIT-01",
+        "object_leaf_entries",
+    )
+    if (
+        limit_event_observation_manifest(
+            synthetic_limit_rows,
+            synthetic_limit_test_bodies,
+            exact_owner_bodies,
+            field_observations=altered_field_observations,
+        )
+        == exact_observations
+    ):
+        fail("checker self-test missed limit-event row/subcase aliasing")
+    altered_limit_rows = dict(synthetic_limit_rows)
+    altered_limit_rows["LIMIT-01"] = dict(altered_limit_rows["LIMIT-01"])
+    altered_limit_rows["LIMIT-01"]["subcases"] = dict(
+        altered_limit_rows["LIMIT-01"]["subcases"]
+    )
+    altered_limit_subcase = dict(
+        altered_limit_rows["LIMIT-01"]["subcases"]["object_fanout_directories"]
+    )
+    altered_limit_subcase["tests"] = [
+        synthetic_limit_rows["LIMIT-01"]["subcases"]["object_leaf_entries"]["tests"][0]
+    ]
+    altered_limit_rows["LIMIT-01"]["subcases"]["object_fanout_directories"] = (
+        altered_limit_subcase
+    )
+    if (
+        limit_event_observation_manifest(
+            altered_limit_rows,
+            synthetic_limit_test_bodies,
+            exact_owner_bodies,
+        )
+        == exact_observations
+    ):
+        fail("checker self-test missed a limit-event mapped-test substitution")
 
     exact_object_event_source = (
         "impl ObjectStore { fn recover_staged_with_limits(&self) {\n"
@@ -26773,14 +36594,51 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
     exact_guard = object_statements[3]
     exact_commit = object_statements[4]
     exact_sink = object_statements[5]
+    object_delta = object_fanout_event.charges[0][3]
+    exact_checked_add = f".checked_add({object_delta})"
+    object_window = "\n".join(object_statements)
+
+    def object_event_source(payload: str) -> str:
+        return (
+            "impl ObjectStore { fn recover_staged_with_limits(&self) {\n"
+            + payload
+            + "\n} }"
+        )
+
+    rustfmt_object_window = object_window.replace(
+        "limits.fanout_directories)?;",
+        "limits.fanout_directories,\n)?;",
+    )
+    for nested_exact_source in (
+        object_event_source(f"for entry in entries {{\n{rustfmt_object_window}\n}}"),
+        object_event_source(f"if live {{\n{object_window}\n}}"),
+        object_event_source(f"match tag {{ _ => {{\n{object_window}\n}} }}"),
+    ):
+        if limit_event_window_problem(nested_exact_source, object_fanout_event):
+            fail("checker self-test rejected an executable nested limit window")
+    if normalize_limit_event_tokens("call(value,)") != normalize_limit_event_tokens(
+        "call(value)"
+    ):
+        fail("checker self-test rejected an optional call trailing comma")
+    if normalize_limit_event_tokens("(value,)") == normalize_limit_event_tokens(
+        "(value)"
+    ):
+        fail("checker self-test erased a tuple trailing comma")
+
     hostile_object_event_sources = (
         exact_object_event_source.replace(
             exact_add,
             "let next_object_fanout_directories = "
-            "usage.fanout_directories + one;",
+            f"usage.fanout_directories + {object_delta};",
         ),
-        exact_object_event_source.replace(".checked_add(one)", ".saturating_add(one)"),
-        exact_object_event_source.replace(".checked_add(one)", ".wrapping_add(one)"),
+        exact_object_event_source.replace(
+            exact_checked_add,
+            f".saturating_add({object_delta})",
+        ),
+        exact_object_event_source.replace(
+            exact_checked_add,
+            f".wrapping_add({object_delta})",
+        ),
         exact_object_event_source.replace(
             exact_guard,
             "ensure_object_recovery_limit(usage.fanout_directories, "
@@ -26802,10 +36660,47 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
             exact_guard,
             f"let decoy = 0_u64;\n{exact_guard}",
         ),
+        object_event_source(
+            "\n".join(object_statements[:3])
+            + "\nif live {\n"
+            + "\n".join(object_statements[3:])
+            + "\n}"
+        ),
+        object_event_source(
+            f"if live {{\n{object_window}\n}} else {{\n{object_window}\n}}"
+        ),
+        object_event_source(
+            "\n".join(object_statements[:-1]) + "\n}\nfn detached() {\n" + exact_sink
+        ),
+        object_event_source(f"let _future = async {{\n{object_window}\n}};"),
+        object_event_source(f"const _: () = {{\n{object_window}\n}};"),
+        object_event_source(f"let _closure = || loop {{\n{object_window}\n}};"),
+        object_event_source(f"let _closure = || if true {{\n{object_window}\n}};"),
+        object_event_source(f"if false {{\n{object_window}\n}}"),
+        object_event_source(f"if cfg!(test) {{\n{object_window}\n}}"),
+        object_event_source(f"if cfg!(debug_assertions) {{\n{object_window}\n}}"),
+        object_event_source(f"if true {{}} else {{\n{object_window}\n}}"),
+        object_event_source(
+            f"match 0 {{ _ if false => {{\n{object_window}\n}}, _ => {{}} }}"
+        ),
+        object_event_source(
+            f"match true {{ false => {{\n{object_window}\n}}, true => {{}} }}"
+        ),
+        object_event_source("if true || (|| {\n" + object_window + "\ntrue })() {}"),
+        object_event_source(f"fn detached() {{\n{object_window}\n}}"),
+        object_event_source(f"let _closure = || {{\n{object_window}\n}};"),
     )
-    for hostile_source in hostile_object_event_sources:
+    for hostile_index, hostile_source in enumerate(hostile_object_event_sources):
+        if hostile_source == exact_object_event_source:
+            fail(
+                "checker self-test limit-window negative control did not mutate: "
+                f"{hostile_index}"
+            )
         if limit_event_window_problem(hostile_source, object_fanout_event) is None:
-            fail("checker self-test accepted a reordered or bypassed limit window")
+            fail(
+                "checker self-test accepted a reordered or bypassed limit window: "
+                f"{hostile_index}"
+            )
 
     unmetered_sink_sources = dict(exact_limit_event_sources)
     unmetered_sink_sources[STORE_LIMIT_SOURCE] = unmetered_sink_sources[
@@ -26876,25 +36771,16 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
             '::core::assert_eq!(limit_plus_one_error.symbol(), "STORE_IO");'
         ),
         "no_partial_report": "::core::assert!(plus_one_result.is_err());",
+        "frozen_default": (
+            "::core::assert_eq!(OBJECT_RECOVERY_MAX_LEAF_ENTRIES, 524_288);"
+        ),
     }
     limit_body = "\n".join(
-        (
-            "let exact_owner_root = exact_store.root();",
-            "let plus_one_owner_root = plus_one_store.root();",
-            "::core::assert_ne!(exact_owner_root, plus_one_owner_root);",
-            "let plus_one_owner_tree_before_snapshot = "
-            "crate::tests::exact_tree_snapshot(plus_one_owner_root);",
-            "let exact_result = exact_store.recover_staged_with_limits(exact_limits);",
-            limit_semantic["exact_limit_success"],
-            "let plus_one_result = "
-            "plus_one_store.recover_staged_with_limits(plus_one_limits);",
-            limit_semantic["no_partial_report"],
-            "let limit_plus_one_error = plus_one_result.expect_err("
-            '"expected limit-plus-one error");',
-            "let plus_one_owner_tree_after_snapshot = "
-            "crate::tests::exact_tree_snapshot(plus_one_owner_root);",
-            limit_semantic["no_mutation"],
-            limit_semantic["limit_plus_one_code"],
+        limit_runtime_expected_statements(
+            "crates/sley-store/src/lib.rs",
+            "LIMIT-01",
+            "object_leaf_entries",
+            limit_semantic,
         )
     )
     if (
@@ -26935,6 +36821,63 @@ fn ensure_limit(value: u64, limit: u64) -> Result<(), ()> {
             "restore_owner_tree();\n"
             "let plus_one_owner_tree_after_snapshot = "
             "crate::tests::exact_tree_snapshot(plus_one_owner_root);",
+        ),
+        limit_body.replace(
+            "exact_limits.leaf_entries = injected_limit;",
+            "exact_limits.final_objects = injected_limit;",
+            1,
+        ),
+        limit_body.replace(
+            "exact_limits.leaf_entries = injected_limit;\n"
+            "plus_one_limits.leaf_entries = injected_limit;",
+            "",
+            1,
+        ),
+        limit_body.replace(
+            "::core::assert_ne!(injected_limit, default_limits.fanout_directories);",
+            "",
+            1,
+        ),
+        limit_body.replace(
+            "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(3_u64)",
+            "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(2_u64)",
+            1,
+        ),
+        limit_body.replace(
+            "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(3_u64)",
+            "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(4_u64)",
+            1,
+        ),
+        limit_body.replace(
+            "::core::assert_eq!(plus_one_runtime_observation.scanned_peak, "
+            "injected_limit);",
+            "::core::assert!(::core::cmp::min("
+            "plus_one_runtime_observation.scanned_peak, injected_limit) "
+            "<= injected_limit);",
+            1,
+        ),
+        limit_body.replace(
+            "::core::assert_eq!(exact_runtime_observation.scanned_peak, "
+            "injected_limit);",
+            "::core::assert_eq!(exact_runtime_observation.scanned_peak, 0_u64);",
+            1,
+        ),
+        limit_body.replace(
+            "::core::assert_eq!(exact_runtime_observation.retained_peak, "
+            "injected_limit);",
+            "::core::assert!(exact_runtime_observation.retained_peak "
+            "< injected_limit);",
+            1,
+        ),
+        limit_body.replace(
+            "begin_s20_530_limit_probe(exact_owner_root,",
+            "begin_s20_530_limit_probe(plus_one_owner_root,",
+            1,
+        ),
+        limit_body.replace(
+            "prepare_s20_530_limit_01_object_leaf_entries_limit_fixture(2_u64)",
+            "prepare_decoy_limit_fixture(2_u64)",
+            1,
         ),
     )
     for hostile_body in hostile_limit_bodies:
@@ -27246,6 +37189,44 @@ pub struct TransactionRepository;
             == trait_impl_surface_before
         ):
             fail(f"checker self-test missed a {label} trait impl")
+
+    generic_trait_impl = """
+impl<F> PublicTrait for F
+where
+    F: Fn() -> Result<u8, Error>,
+{
+    fn x(&self) {}
+}
+"""
+    generic_trait_surface = complete_public_surface(
+        trait_impl_fixture + generic_trait_impl
+    )
+    if not any(token.startswith("trait-impl:") for token in generic_trait_surface):
+        fail("checker self-test missed a generic where-clause trait impl")
+    if generic_trait_surface == complete_public_surface(
+        trait_impl_fixture
+        + generic_trait_impl.replace("fn x(&self) {}", "fn x(&self) -> u8 { 0 }")
+    ):
+        fail("checker self-test missed a generic trait-impl member change")
+    cfg_test_generic = "#[cfg(test)]\n" + generic_trait_impl + "\npub struct Later;\n"
+    for projection in (
+        unconditional_rust(cfg_test_generic),
+        normal_build_rust(cfg_test_generic),
+    ):
+        if "impl<F>" in projection or "fn x" in projection:
+            fail("checker self-test leaked a cfg(test) generic impl")
+        if "pub struct Later" not in projection:
+            fail("checker self-test masked the item after a cfg generic impl")
+    cfg_feature_generic = (
+        '#[cfg(feature = "checker-hostile")]\n'
+        + generic_trait_impl
+        + "\npub struct Later;\n"
+    )
+    unconditional_generic = unconditional_rust(cfg_feature_generic)
+    if "impl<F>" in unconditional_generic or "fn x" in unconditional_generic:
+        fail("checker self-test leaked a cfg(feature) generic impl")
+    if "pub struct Later" not in unconditional_generic:
+        fail("checker self-test lost the item after a cfg(feature) generic impl")
 
     same_line_trait_impl = trait_impl_fixture + (
         "impl PublicTrait for TransactionRepository { fn x(&self) {} fn y(&self) {} }"
@@ -27574,9 +37555,19 @@ fn install() { impl PublicTrait for TransactionRepository { fn x(&self) {} } }
     for fixture in (
         "make_public_api!();",
         "macro_rules! make_public_api { () => { pub struct Hidden; } }",
+        "make_public_api ! ();",
+        "make_public_api /* gap */ ! /* gap */ ();",
+        "macro_rules ! make_public_api { () => { pub struct Hidden; } }",
     ):
         if generated_api_authority_problem(fixture) is None:
             fail("checker self-test accepted generated item authority")
+    if (
+        generated_api_authority_problem(
+            "fn ordinary(value: bool) { if !value { return; } }"
+        )
+        is not None
+    ):
+        fail("checker self-test treated ordinary unary not as macro authority")
 
     field_first = """
 pub struct First { pub value: u8, }

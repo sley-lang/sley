@@ -1061,23 +1061,23 @@
     "matrix_rows": 100,
     "dependency_direction": "sley-repo -> sley-txn -> sley-store",
     "implementation_complete": false,
-    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v1.json",
-    "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v2.json",
+    "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
-        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+        "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+        "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
       },
       "ariadne": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
-        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+        "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+        "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
       },
       "vulcan": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
-        "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+        "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+        "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
       }
     }
   },

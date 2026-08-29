@@ -1,0 +1,65 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v2",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Repair contradictory checker authority, bind exact runtime limit observations, and require complete control-ancestry and test-to-production shared-state review before S20-530 implementation closeout.",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "0ba5e237a056cbe4e2282ed53552f5a7427ee0e1f67df5fdf0c27474c42618f4",
+    "adr_sha256": "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7",
+    "checker_sha256": "859cdd1738bacef6665ee4882a6326f60da04a0ba4a658f9789477f92e6cb6ee",
+    "checker_contract_sha256": "9a57322768d4d54fd6afdf25d294a10fb3b8f682b9f9d78567d1bdd84e7211da",
+    "runner_sha256": "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+  },
+  "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "git diff --check": "PASS",
+    "validation runner isolated self-test": "PASS_CLEAN_ENVIRONMENT",
+    "checker adversarial negative controls": "PASS",
+    "limit runtime binder hostile controls": "PASS_37_CASES_42_MEMBERSHIPS_5_DUAL_SITE",
+    "cargo test -p sley-txn recovery_ancestry_test_hook::tests --locked": "PASS_7_OF_7",
+    "cargo check -p sley-txn --features s20-530-test-hooks --locked": "PASS_EXPECTED_DEAD_CODE_WARNINGS"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": false,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+      "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+      "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "f578eb8ee722f273d2d0795e346fe73eaa66c6afbe62c6fce3654423af5c2195",
+      "evidence_payload_sha256": "2abc98d8c324c7996c3de7f27558c0fc7f3f75cf8c1d3e456d04557a367e0f06"
+    }
+  }
+}
