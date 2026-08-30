@@ -296,7 +296,7 @@ gate.
 The local v5 contract bytes settled on 2026-08-30 with these identities:
 
 - contract set: `de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d`;
-- review payload: `4f55cd2d086b05376aaf4a22a767ab73540a3b5405d52b4c8a68122526597c62`;
+- review payload: `58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56`;
 - specification: `3d6c15c2b07de12fe77dd25fc342788530a98a3b5ad031d02e522362a1e8dadc`;
 - ADR: `f0af44d97c523a5b3b1baa5a3bf3464f804d37310126f372479f2fe486c4a102`;
 - runner: `56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0`;
@@ -305,9 +305,9 @@ The local v5 contract bytes settled on 2026-08-30 with these identities:
 
 The non-authoritative review packet is
 `machineresearch/sley-2.0/s20-530-v5-contract-freeze-review-packet.json`.
-It is not freeze evidence and carries no review verdicts. Fresh Nabu, Ariadne,
-and Vulcan calls remain pending exact operator authorization for provider-backed
-specialist work.
+It is not freeze evidence and carries no review verdicts. The operator
+explicitly authorized fresh provider-backed Nabu, Ariadne, and Vulcan reviews
+after the local review target settled.
 
 Local validation passed the 71-case registry and all 232 fixture-plan metadata,
 checker syntax and Python formatting/lint, runner self-controls, the 50-file

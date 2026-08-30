@@ -61,7 +61,7 @@
     "mode": "WRITE_LOCAL",
     "deploy": false,
     "external_runtime_mutation": false,
-    "provider_call": false,
+    "provider_call": true,
     "publication": false,
     "push": false,
     "spend": false,
