@@ -97,6 +97,8 @@ struct RefRecoveryUsage {
 }
 
 fn ensure_ref_recovery_limit(value: u64, limit: u64) -> Result<(), BranchError> {
+    #[cfg(test)]
+    tests::record_s20_530_limit_probe(value, limit);
     if value > limit {
         return Err(branch_error(BranchErrorCode::BranchResourceLimit));
     }
@@ -3291,6 +3293,231 @@ mod tests {
             source = ::std::error::Error::source(current);
         }
         chain
+    }
+
+    struct S20LimitFixtureObservation {
+        _temp: TempDir,
+        cardinality: u64,
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        target_usage: u64,
+    }
+
+    struct S20LimitRuntimeObservation {
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        injected_limit: u64,
+        fixture_cardinality: u64,
+        scanned_peak: u64,
+        retained_peak: u64,
+        rejected_target_usage: ::core::option::Option<u64>,
+    }
+
+    struct S20ActiveLimitProbe {
+        qualified_field: &'static str,
+        event_sites: ::std::vec::Vec<&'static str>,
+        injected_limit: u64,
+        fixture_cardinality: u64,
+        scanned_peak: u64,
+        retained_peak: u64,
+        rejected_target_usage: ::core::option::Option<u64>,
+    }
+
+    struct S20LimitProbe;
+
+    ::std::thread_local! {
+        static S20_LIMIT_FIXTURE_CARDINALITIES: ::std::cell::RefCell<
+            ::std::vec::Vec<(::std::path::PathBuf, u64)>,
+        > = const { ::std::cell::RefCell::new(::std::vec::Vec::new()) };
+        static S20_ACTIVE_LIMIT_PROBE: ::std::cell::RefCell<
+            ::core::option::Option<S20ActiveLimitProbe>,
+        > = const { ::std::cell::RefCell::new(::core::option::Option::None) };
+    }
+
+    fn register_s20_530_limit_fixture(root: &::std::path::Path, cardinality: u64) {
+        S20_LIMIT_FIXTURE_CARDINALITIES.with(|registry| {
+            registry
+                .borrow_mut()
+                .push((root.to_path_buf(), cardinality));
+        });
+    }
+
+    fn begin_s20_530_limit_probe(
+        owner_root: &::std::path::Path,
+        qualified_field: &'static str,
+        injected_limit: u64,
+        event_sites: &[&'static str],
+    ) -> S20LimitProbe {
+        let fixture_cardinality = S20_LIMIT_FIXTURE_CARDINALITIES.with(|registry| {
+            registry
+                .borrow()
+                .iter()
+                .find(|(root, _)| root == owner_root)
+                .map(|(_, cardinality)| *cardinality)
+                .expect("limit probe owner root is registered")
+        });
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let previous = active.borrow_mut().replace(S20ActiveLimitProbe {
+                qualified_field,
+                event_sites: event_sites.to_vec(),
+                injected_limit,
+                fixture_cardinality,
+                scanned_peak: 0,
+                retained_peak: 0,
+                rejected_target_usage: ::core::option::Option::None,
+            });
+            assert!(previous.is_none(), "limit probes are not nested");
+        });
+        S20LimitProbe
+    }
+
+    pub(crate) fn record_s20_530_limit_probe(value: u64, limit: u64) {
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let mut active = active.borrow_mut();
+            let ::core::option::Option::Some(probe) = active.as_mut() else {
+                return;
+            };
+            if limit != probe.injected_limit {
+                return;
+            }
+            if value > limit {
+                probe.rejected_target_usage = ::core::option::Option::Some(value);
+            } else {
+                probe.scanned_peak = probe.scanned_peak.max(value);
+                probe.retained_peak = probe.retained_peak.max(value);
+            }
+        });
+    }
+
+    fn finish_s20_530_limit_probe(probe: S20LimitProbe) -> S20LimitRuntimeObservation {
+        let S20LimitProbe = probe;
+        S20_ACTIVE_LIMIT_PROBE.with(|active| {
+            let state = active.borrow_mut().take().expect("limit probe is active");
+            S20LimitRuntimeObservation {
+                qualified_field: state.qualified_field,
+                event_sites: state.event_sites,
+                injected_limit: state.injected_limit,
+                fixture_cardinality: state.fixture_cardinality,
+                scanned_peak: state.scanned_peak,
+                retained_peak: state.retained_peak,
+                rejected_target_usage: state.rejected_target_usage,
+            }
+        })
+    }
+
+    fn prepare_s20_530_limit_03_origin_fanout_directories_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::BranchRepository,
+        super::RepositoryMaintenanceGuard,
+        S20LimitFixtureObservation,
+    ) {
+        let temp = TempDir::new("limit03-origin-fanout");
+        let repository = super::BranchRepository::new(&temp.path);
+        register_s20_530_limit_fixture(repository.root(), cardinality);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        repository
+            .recover_refs_with_maintenance(&maintenance)
+            .expect("settle ref-recovery layout");
+        let first_level = repository.branches_dir().join("00");
+        ::std::fs::create_dir(&first_level).expect("limit fixture first-level origin fanout");
+        for index in 0..cardinality.saturating_sub(1) {
+            ::std::fs::create_dir(first_level.join(::std::format!("{index:02x}")))
+                .expect("limit fixture second-level origin fanout");
+        }
+        let observation = S20LimitFixtureObservation {
+            _temp: temp,
+            cardinality,
+            qualified_field: "ref_recovery_limits::origin_fanout_directories",
+            event_sites: ::std::vec!["ref.origin_scan_fanout"],
+            target_usage: cardinality,
+        };
+        (repository, maintenance, observation)
+    }
+
+    #[test]
+    fn limit03_origin_fanout_directories_exact_and_plus_one() {
+        let (exact_branch_repository, exact_maintenance, exact_fixture_observation) = prepare_s20_530_limit_03_origin_fanout_directories_limit_fixture(2_u64);
+        let (plus_one_branch_repository, plus_one_maintenance, plus_one_fixture_observation) = prepare_s20_530_limit_03_origin_fanout_directories_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "ref_recovery_limits::origin_fanout_directories");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "ref_recovery_limits::origin_fanout_directories");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["ref.origin_scan_fanout"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["ref.origin_scan_fanout"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES, 65_792);
+        let default_limits = ref_recovery_limits();
+        let mut exact_limits = ref_recovery_limits();
+        let mut plus_one_limits = ref_recovery_limits();
+        exact_limits.origin_fanout_directories = injected_limit;
+        plus_one_limits.origin_fanout_directories = injected_limit;
+        ::core::assert_eq!(default_limits.origin_fanout_directories, ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES);
+        ::core::assert_eq!(exact_limits.origin_fanout_directories, injected_limit);
+        ::core::assert_eq!(plus_one_limits.origin_fanout_directories, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.origin_leaf_entries);
+        ::core::assert_eq!(exact_limits.origin_leaf_entries, default_limits.origin_leaf_entries);
+        ::core::assert_eq!(plus_one_limits.origin_leaf_entries, default_limits.origin_leaf_entries);
+        ::core::assert_ne!(injected_limit, default_limits.final_origins);
+        ::core::assert_eq!(exact_limits.final_origins, default_limits.final_origins);
+        ::core::assert_eq!(plus_one_limits.final_origins, default_limits.final_origins);
+        ::core::assert_ne!(injected_limit, default_limits.origin_stages);
+        ::core::assert_eq!(exact_limits.origin_stages, default_limits.origin_stages);
+        ::core::assert_eq!(plus_one_limits.origin_stages, default_limits.origin_stages);
+        ::core::assert_ne!(injected_limit, default_limits.origin_record_bytes);
+        ::core::assert_eq!(exact_limits.origin_record_bytes, default_limits.origin_record_bytes);
+        ::core::assert_eq!(plus_one_limits.origin_record_bytes, default_limits.origin_record_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.ref_fanout_directories);
+        ::core::assert_eq!(exact_limits.ref_fanout_directories, default_limits.ref_fanout_directories);
+        ::core::assert_eq!(plus_one_limits.ref_fanout_directories, default_limits.ref_fanout_directories);
+        ::core::assert_ne!(injected_limit, default_limits.ref_leaf_entries);
+        ::core::assert_eq!(exact_limits.ref_leaf_entries, default_limits.ref_leaf_entries);
+        ::core::assert_eq!(plus_one_limits.ref_leaf_entries, default_limits.ref_leaf_entries);
+        ::core::assert_ne!(injected_limit, default_limits.ref_stages);
+        ::core::assert_eq!(exact_limits.ref_stages, default_limits.ref_stages);
+        ::core::assert_eq!(plus_one_limits.ref_stages, default_limits.ref_stages);
+        ::core::assert_ne!(injected_limit, default_limits.visible_ref_record_bytes);
+        ::core::assert_eq!(exact_limits.visible_ref_record_bytes, default_limits.visible_ref_record_bytes);
+        ::core::assert_eq!(plus_one_limits.visible_ref_record_bytes, default_limits.visible_ref_record_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.orphan_origins);
+        ::core::assert_eq!(exact_limits.orphan_origins, default_limits.orphan_origins);
+        ::core::assert_eq!(plus_one_limits.orphan_origins, default_limits.orphan_origins);
+        ::core::assert_ne!(injected_limit, default_limits.visible_branches);
+        ::core::assert_eq!(exact_limits.visible_branches, default_limits.visible_branches);
+        ::core::assert_eq!(plus_one_limits.visible_branches, default_limits.visible_branches);
+        let exact_owner_root = exact_branch_repository.root();
+        let plus_one_owner_root = plus_one_branch_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "ref_recovery_limits::origin_fanout_directories", injected_limit, &["ref.origin_scan_fanout"]);
+        let exact_result = exact_branch_repository.recover_refs_with_maintenance_and_limits(&exact_maintenance, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "ref_recovery_limits::origin_fanout_directories");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["ref.origin_scan_fanout"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "ref_recovery_limits::origin_fanout_directories", injected_limit, &["ref.origin_scan_fanout"]);
+        let plus_one_result = plus_one_branch_repository.recover_refs_with_maintenance_and_limits(&plus_one_maintenance, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert_eq!(limit_plus_one_error.code(), "BRANCH_RESOURCE_LIMIT");
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "ref_recovery_limits::origin_fanout_directories");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["ref.origin_scan_fanout"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
     }
 
     #[allow(dead_code)]
