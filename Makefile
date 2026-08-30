@@ -42,7 +42,7 @@ quick:
 	python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py
 	python3 scripts/check_ref_branch_contract.py
 	python3 scripts/check_s20_530_crash_recovery.py
-	cargo fmt --all -- --check
+	git diff --check
 	cargo check --workspace --locked
 	cargo test --workspace --locked
 

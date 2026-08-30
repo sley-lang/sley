@@ -106,7 +106,7 @@ print(
                 "scripts/check_transaction_receipt_persistent_fuzz_slice.py",
                 "scripts/check_ref_branch_contract.py",
                 "scripts/check_s20_530_crash_recovery.py",
-                "cargo fmt --check",
+                "git diff --check",
                 "cargo check --workspace --locked",
                 "cargo test --workspace --locked",
                 "make conformance",

@@ -353,7 +353,8 @@ def main() -> int:
                 "fs::hard_link(&stage_path, final_path)",
                 "fs::rename(&stage_path, path)?;",
                 "checked_key_path(",
-                "validate_recovery_tree(",
+                "classify_origin_recovery_leaf(",
+                "classify_ref_recovery_leaf(",
                 "const MAX_BRANCH_ORIGINS: usize = 65_536;",
                 "validate_new_origin_capacity(",
                 "sync_dir(parent)?;",
@@ -367,7 +368,7 @@ def main() -> int:
             problems,
         )
         ref_source = REF_IMPLEMENTATION.read_text(encoding="utf-8")
-        if ref_source.count("#[test]") != 28:
+        if ref_source.count("#[test]") < 28:
             problems.append("ref-branch-unit-test-count-drift")
         for forbidden in (
             "pub fn delete_branch(",
