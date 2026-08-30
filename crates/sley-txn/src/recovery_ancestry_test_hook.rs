@@ -274,6 +274,32 @@ pub fn install(
         return None;
     }
     let owner_root = maintenance.repository_root().to_path_buf();
+    install_at_owner_root(owner_root, epochs, left, right)
+}
+
+/// Installs one exact same-thread ref-owner plan when the caller already owns
+/// the enclosing repository maintenance guard.
+#[doc(hidden)]
+#[must_use]
+pub fn install_for_ref_owner_test(
+    repository: &TransactionRepository,
+    epochs: RecoveryAncestryTestEpochs,
+    left: TransactionId,
+    right: TransactionId,
+) -> Option<RecoveryAncestryTestPlanIdentity> {
+    if left == right {
+        return None;
+    }
+    let owner_root = ::std::fs::canonicalize(repository.root()).ok()?;
+    install_at_owner_root(owner_root, epochs, left, right)
+}
+
+fn install_at_owner_root(
+    owner_root: PathBuf,
+    epochs: RecoveryAncestryTestEpochs,
+    left: TransactionId,
+    right: TransactionId,
+) -> Option<RecoveryAncestryTestPlanIdentity> {
     let epoch_budget = epochs.count();
     let digest = plan_digest(&owner_root, epoch_budget, left, right);
     HOOK_STATE.with(|slot| {

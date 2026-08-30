@@ -12,6 +12,14 @@ pub mod recovery_ancestry_test_hook;
 #[doc(hidden)]
 pub mod recovery_path_read_test_hook;
 
+/// Returns the exact feature name that exposes the S20-530 test hooks.
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+#[doc(hidden)]
+#[must_use]
+pub const fn s20_530_test_hook_feature_name() -> &'static str {
+    "s20-530-test-hooks"
+}
+
 pub use codec::{
     ChangedBinding, CommitMetadata, ImportedTransaction, ImportedTransactionReceipt,
     ObjectManifestEntry, TransactionCodecError, TransactionErrorCode, TransactionKind,
