@@ -1467,10 +1467,7 @@ impl BranchRepository {
             .collect::<r#Vec<_>>();
         let ancestry_report = self
             .transactions
-            .verify_branch_recovery_ancestries_with_maintenance(
-                maintenance,
-                &ancestry_requests,
-            )
+            .verify_branch_recovery_ancestries_with_maintenance(maintenance, &ancestry_requests)
             .map_err(map_recovery_ancestry_error)?;
 
         let removed_branch_stages = remove_planned_origin_stages(&origin_plan.removal_plan)?;
@@ -2559,16 +2556,10 @@ fn remove_file_if_exists(path: &Path) -> Result<(), BranchError> {
     }
 }
 
-fn map_recovery_ancestry_error(
-    error: RecoveryAncestryError,
-) -> BranchError {
+fn map_recovery_ancestry_error(error: RecoveryAncestryError) -> BranchError {
     match error {
-        RecoveryAncestryError::Cycle => {
-            branch_error(BranchErrorCode::BranchAncestryCycle)
-        }
-        RecoveryAncestryError::LimitExceeded => {
-            branch_error(BranchErrorCode::BranchResourceLimit)
-        }
+        RecoveryAncestryError::Cycle => branch_error(BranchErrorCode::BranchAncestryCycle),
+        RecoveryAncestryError::LimitExceeded => branch_error(BranchErrorCode::BranchResourceLimit),
         RecoveryAncestryError::ClaimMismatch { claim_index: 0, .. } => {
             branch_error(BranchErrorCode::BranchOriginMismatch)
         }
@@ -7008,7 +6999,10 @@ mod tests {
         let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(error.code(), "BRANCH_ANCESTRY_CYCLE");
         ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)));
-        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::refs::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         let (cycle_observations, plan_consumption_counts) = consumed_l_r_l_cycle_observations(&transaction_repository, &maintenance, plan_identity, &provenance);
         provenance.plan_consumption_counts = plan_consumption_counts;
         let pointer_after_snapshot = exact_path_snapshot(&pointer_path);

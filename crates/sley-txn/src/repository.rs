@@ -4686,7 +4686,10 @@ mod tests {
         let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
         ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
-        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::repository::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         let deep_missing_after_snapshot = exact_optional_path_snapshot(&deep_missing_path);
         let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
         ::core::assert_eq!(("pointer_bytes_unchanged", pointer_before_snapshot.2.as_slice()), ("pointer_bytes_unchanged", pointer_after_snapshot.2.as_slice()));
@@ -7333,7 +7336,10 @@ mod tests {
         let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(error.code(), "TXN_PARENT_SHAPE");
         ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
-        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::repository::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         let cycle_observations =
             consume_l_r_l_cycle_observations(&repository, &maintenance, plan, &provenance);
         let pointer_after_snapshot = exact_path_snapshot(&pointer_path);

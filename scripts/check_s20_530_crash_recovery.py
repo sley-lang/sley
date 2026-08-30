@@ -72,7 +72,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v2.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v3.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -85,7 +85,7 @@ FROZEN_RUNNER_SHA256 = (
     "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "9a57322768d4d54fd6afdf25d294a10fb3b8f682b9f9d78567d1bdd84e7211da"
+    "9b7f7526fbbcf4e60e08a481d691d2432756f4cafdb9e4f48058ff653bf62ab1"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -1521,13 +1521,13 @@ def corruption_fixture_fact_assertion(
         if corruption_fixture_is_absent(spec):
             return tagged_fixture_eq(
                 fact,
-                "fault_after_snapshot",
+                "fault_after_snapshot.clone()",
                 "::core::option::Option::None",
             )
         return tagged_fixture_ne(
             fact,
-            "fault_before_snapshot",
-            "fault_after_snapshot",
+            "fault_before_snapshot.clone()",
+            "fault_after_snapshot.clone()",
         )
     if fact == "selector_effect":
         if spec.corrupter_class in {
@@ -2519,10 +2519,10 @@ CROSS_05_PRODUCTION_BODY_SHA256 = {
         "38326eff20fdd78780a3df8293d8bc39b8b1e8b466c8b74fa282499c0e1e7fcd"
     ),
     "crates/sley-txn/src/repository.rs:implTransactionRepository:validate_maintenance": (
-        "472770f1ba96123f7bb34c9fa851a8eec8845541a001af4e11a2dbf891fede60"
+        "47d12a3fa31f1f53ec472114e6e99b90ae503f91d0ce615daff09befaba79486"
     ),
     "crates/sley-txn/src/repository.rs:implTransactionRepository:validate_exclusive_maintenance": (
-        "bc06f4c511244aa1dc253deac9ea6e9ff31b56a1a462ace589ec295c1e12e43c"
+        "128aa6f346f7e496c7ca3fdae3f1d81c91d1f6178fd110b6aa131eef28557db4"
     ),
     "crates/sley-repo/src/refs.rs:implBranchRepository:acquire_shared_maintenance": (
         "96fecf938de9f90bc7a99a1992f93f05908a76dedb3dccce4cfaf8d4c0432981"
@@ -2540,10 +2540,10 @@ CROSS_05_PRODUCTION_BODY_SHA256 = {
         "e12073756a10c37f3d074c1ec7a96fc637ef57151286d5850afffd1f1ab3f41f"
     ),
     "crates/sley-repo/src/refs.rs:implBranchRepository:validate_maintenance": (
-        "cb566d358e87b967f09c89c0d8ec9e08ab68fb609716a2b03d4168f1b05aa7b8"
+        "ff15a8b69c980366f206323b7ebea6ac69c7c8395261d927731c27166fe37214"
     ),
     "crates/sley-repo/src/refs.rs:implBranchRepository:validate_exclusive_maintenance": (
-        "b8499eaddfe1b300f990e29d40c7dc39f456d95bdd98fecccfe67fc807a8e269"
+        "d24fa49ed6e7f07f31495ddf3a4b329a18ee08e91cd98419dcff216648273c22"
     ),
     "crates/sley-repo/src/gc.rs:<crate>:recover_gc_witness": (
         "0ec1cbf8356281063466f45012e52a03c4e799e16caceb8f70d12768d1637a63"
@@ -4895,33 +4895,34 @@ def recovery_provenance_fact_assertion(
         ),
         "durable_left_parent_is_right": (
             "provenance.durable_left_parents.as_slice()",
-            "[provenance.right_identity]",
+            "[provenance.right_identity].as_slice()",
         ),
         "durable_right_parent_is_genesis": (
             "provenance.durable_right_parents.as_slice()",
-            "[provenance.genesis_identity]",
+            "[provenance.genesis_identity].as_slice()",
         ),
         "logical_left_parent_is_right": (
             "provenance.logical_left_parents.as_slice()",
-            "[provenance.right_identity]",
+            "[provenance.right_identity].as_slice()",
         ),
         "logical_right_parent_is_left": (
             "provenance.logical_right_parents.as_slice()",
-            "[provenance.left_identity]",
+            "[provenance.left_identity].as_slice()",
         ),
         "observed_left_durable_and_logical_edges": (
             "cycle_observations[0].clone()",
-            "(provenance.left_identity, vec![provenance.right_identity], "
-            "vec![provenance.right_identity])",
+            "(provenance.left_identity, ::std::vec![provenance.right_identity], "
+            "::std::vec![provenance.right_identity])",
         ),
         "observed_right_durable_and_logical_edges": (
             "cycle_observations[1].clone()",
-            "(provenance.right_identity, vec![provenance.genesis_identity], "
-            "vec![provenance.left_identity])",
+            "(provenance.right_identity, ::std::vec![provenance.genesis_identity], "
+            "::std::vec![provenance.left_identity])",
         ),
         "plan_consumed_exactly_once_per_node": (
             "provenance.plan_consumption_counts.as_slice()",
-            "[(provenance.left_identity, 1_u64), (provenance.right_identity, 1_u64)]",
+            "[(provenance.left_identity, 1_u64), "
+            "(provenance.right_identity, 1_u64)].as_slice()",
         ),
         "plan_installed_on_owner_repository": (
             "provenance.plan_owner_root.as_path()",
@@ -4961,9 +4962,9 @@ def recovery_provenance_fact_assertion(
         ),
         "durable_graph_acyclic": (
             "provenance.durable_left_parents.as_slice() == "
-            "[provenance.right_identity] && "
+            "[provenance.right_identity].as_slice() && "
             "provenance.durable_right_parents.as_slice() == "
-            "[provenance.genesis_identity]"
+            "[provenance.genesis_identity].as_slice()"
         ),
         "maintenance_same_root_exclusive": (
             "maintenance.is_exclusive() && maintenance.covers(owner_root)"
@@ -5969,9 +5970,11 @@ PREFLIGHT_CANARY_FIXTURE_ASSERTIONS = {
         '::core::assert_eq!(gc_witness_before_snapshot.2, b"SLEYGC01X".to_vec());'
     ),
     ("COR-08", "symlink", "gc_witness"): (
-        "::core::assert_eq!(gc_witness_before_snapshot.3, "
-        "::core::option::Option::Some(::std::path::PathBuf::from("
-        '"gc-witness-target")));'
+        "::core::assert_eq!(\n"
+        "            gc_witness_before_snapshot.3,\n"
+        "            ::core::option::Option::Some(::std::path::PathBuf::from("
+        '"gc-witness-target"))\n'
+        "        );"
     ),
     ("COR-08", "non_regular", "gc_witness"): (
         "::core::assert_eq!(gc_witness_before_snapshot.1 & 0o170000, 0o140000);"
@@ -6131,7 +6134,7 @@ PUBLIC_API_BASELINE_SHA256 = {
     "crates/sley-txn/src/codec.rs": "aea91ca2f14a15c7fbe9e99c78ed0020011be846ce9cea2d035a22189ece6a56",
     "crates/sley-txn/src/lib.rs": "aa24a7671a4c658e3ddb1ea2e9e0c2c1d6a80cd8169c739ed89f772e5a6acbcc",
     "crates/sley-txn/src/maintenance.rs": "3449b0b047d7f77d65dbe5cd2077f33b08e7da3c50efff198968cbba2cb6d272",
-    "crates/sley-txn/src/repository.rs": "29c4cb16a9a03396d167e2b5368fc717e361815713a8a561292cdd173df3a982",
+    "crates/sley-txn/src/repository.rs": "4aa3ad9c88074f96aba8f019f8e937fa7b8b5af61145dedb8922867365d057c0",
     "crates/sley-repo/src/gc.rs": "0204cff3b173e4c3f413dde47078ac831904b17b686a994860290eaf8ee3173a",
     "crates/sley-repo/src/lib.rs": "99bd04a3fe216262a5a6ad62cf48e156f2ef8adedffdfb2409b7177dccd3be8a",
     "crates/sley-repo/src/refs.rs": "0d3eec2c881154542563abf14ce4cc541905ed111dc8cc52e0d94ec10b87f56e",
@@ -6142,6 +6145,10 @@ PUBLIC_API_ALLOWED_ADDITIONS = {
         "function:implObjectStore:pubfnbounded_object_len(&self,object_id:ObjectId)->Result<u64>",
     ),
     "crates/sley-txn/src/repository.rs": (
+        "attribute:item:<crate>:enum:RecoveryAncestryError:e1af248d16270e1671fe5a4304f5ce0a145fcac336dcd2295a76c85c47eed9f4",
+        "attribute:item:<crate>:struct:RecoveryAncestryHeadReport:e1af248d16270e1671fe5a4304f5ce0a145fcac336dcd2295a76c85c47eed9f4",
+        "attribute:item:<crate>:struct:RecoveryAncestryReport:e1af248d16270e1671fe5a4304f5ce0a145fcac336dcd2295a76c85c47eed9f4",
+        "attribute:item:<crate>:struct:RecoveryWorkUsage:e1af248d16270e1671fe5a4304f5ce0a145fcac336dcd2295a76c85c47eed9f4",
         "field:<crate>:RecoveryAncestryHeadReport:head_transaction_id:TransactionId",
         "field:<crate>:RecoveryAncestryHeadReport:verified_transactions:u64",
         "field:<crate>:RecoveryAncestryHeadReport:work:RecoveryWorkUsage",
@@ -6155,8 +6162,6 @@ PUBLIC_API_ALLOWED_ADDITIONS = {
         "field:<crate>:RecoveryWorkUsage:receipt_bytes:u64",
         "function:implRecoveryAncestryRequest:pubfnwith_claims(first_claim:RecoveryRevisionClaim,head_claim:RecoveryRevisionClaim,)->Self",
         "function:implRecoveryRevisionClaim:pubfnnew(transaction_id:TransactionId,workspace_id:WorkspaceId,state_root:StateRoot,schema_epoch_id:SchemaEpochId,policy_root_id:PolicyRootId,dependency_roots:Vec<StateRoot>,)->Self",
-        "function:implTransactionRepository:pubfnacquire_exclusive_maintenance(&self)->Result<RepositoryMaintenanceGuard,CommitError>",
-        "function:implTransactionRepository:pubfnrecover_with_maintenance(&self,maintenance:&RepositoryMaintenanceGuard,)->Result<RecoveryReport,CommitError>",
         "function:implTransactionRepository:pubfnverify_branch_recovery_ancestries_with_maintenance(&self,maintenance:&RepositoryMaintenanceGuard,requests:&[RecoveryAncestryRequest],)->Result<RecoveryAncestryReport,RecoveryAncestryError>",
         "item:<crate>:enum:RecoveryAncestryError",
         "item:<crate>:struct:RecoveryAncestryHeadReport",
@@ -6169,10 +6174,7 @@ PUBLIC_API_ALLOWED_ADDITIONS = {
         "trait-impl-member:<crate>:implfmt::DisplayforRecoveryAncestryError:fn:fnfmt(&self,formatter:&mutfmt::Formatter<'_>)->fmt::Result",
         "trait-impl-member:<crate>:implstd::error::ErrorforRecoveryAncestryError:fn:fnsource(&self)->Option<&(dynstd::error::Error+'static)>",
     ),
-    "crates/sley-repo/src/gc.rs": (
-        "function:<crate>:pubfnrecover_gc_witness(store:&ObjectStore,maintenance:&RepositoryMaintenanceGuard,)->Result<GcWitnessRecoveryStatus,GcError>",
-        "item:<crate>:enum:GcWitnessRecoveryStatus",
-    ),
+    "crates/sley-repo/src/gc.rs": ("item:<crate>:enum:GcWitnessRecoveryStatus",),
     "crates/sley-repo/src/refs.rs": (
         "field:<crate>:RefRecoveryReport:verified_ancestry_transactions:u64",
         "function:implBranchRepository:pubfnrecover_refs_with_maintenance(&self,maintenance:&RepositoryMaintenanceGuard,)->Result<RefRecoveryReport,BranchError>",
@@ -6742,85 +6744,85 @@ GC_RECOVERY_TEST_AUTHORITIES = (
         "GCW-01",
         None,
         "gcw01_empty_witness_recovers_incomplete",
-        "a6e08fe41cb9585e8348894879acd6df994c67201e9d1d3f87e8f696795e399d",
+        "0e3e1ab357658057bc564b18acd8f7715a2228367917fd0e27b82aa051dfbe79",
     ),
     (
         "GCW-02",
         None,
         "gcw02_half_prefix_recovers_incomplete",
-        "4e132ffaf04e72f8122b58340c7a0f360c04944aa69f027865d577183454e3c0",
+        "38279de46de9a1821b75f0010b484c4ac806d47d4abcd47c5261afc2e7df45fd",
     ),
     (
         "GCW-03",
         None,
         "gcw03_exact_unsynced_witness_recovers_exact",
-        "a10682f873b24a2079920f896a63cb64a393ac602337341eade21cf78ed5f4aa",
+        "66c92b562f48d4c4e3bd8d3e1214f02b91df6b384c668396ad2ebad2cc82ef37",
     ),
     (
         "GCW-04",
         None,
         "gcw04_file_synced_witness_recovers_exact",
-        "25f6f5df1c9acaeb2c057054d3ea19ef5fa66d561ef1047bd4f72f9792473443",
+        "1fff5b12b66af3642bde5e07854b81166b9cd08ab240858fb7a637be9654f834",
     ),
     (
         "GCW-05",
         None,
         "gcw05_removed_witness_retry_reports_absent",
-        "db1069842d2257fda33cd84222457d8c6c0f2f490c000cb59f28f821da7221ad",
+        "a58ecfa9de04f46b6cbd9a6b920a4538ac0101b82c0e023db17a0c3c46fb49f2",
     ),
     (
         "GCW-06",
         None,
         "gcw06_recovery_waits_for_live_collection",
-        "e1cf60a805e098274461aae67e26e56013ee623f0235647d25dce6c4536753d3",
+        "3110b2e205d5cc051ffdb5853f32bf9563b9e892c244f4425b01777389309676",
     ),
     (
         "GUARD-05",
         None,
         "guard05_same_root_shared_preserves_witness",
-        "07b69818c6bc70cce3f1a094a33af8803937bc69f13413202cafd75976ff6210",
+        "0517b69f1c1f4172f9b8e2c52fc381ec2a2988a53ded2a489c24e778df910f78",
     ),
     (
         "GUARD-06",
         None,
         "guard06_wrong_root_exclusive_preserves_both_roots",
-        "00922763110051405d8e93f69388044b618774737dc48d217a400de8d114d678",
+        "149e35fb01c7e56d045ab32d5e420ae9b08b84058d489352d3290cd1a255b7a8",
     ),
     (
         "COR-08",
         "non_prefix_bytes",
         "cor08_wrong_magic_preserves_witness",
-        "e5a1c4c628516a04369abcdd9a5e719cbfc56a9cd2dff67705ac852c8b9cfb92",
+        "216c821b75243ca5bb0c54c81bfc6781881201724eef9f5c44c502a6994ebfd5",
     ),
     (
         "COR-08",
         "oversize",
         "cor08_oversize_witness_preserves_witness",
-        "10511bb674bc75a69c7400ad9cbec37251ef73aae325d541e1f9547becc8a655",
+        "3a1a2cba9548bb7731701a50859e162c2a46db64a108d84d5205b5b9d73075de",
     ),
     (
         "COR-08",
         "symlink",
         "cor08_relative_symlink_preserves_witness",
-        "960e9c911eca69618e1d367d97a0efded370caaa805b2f4f6a52a0bb20af9243",
+        "0adc719271f8ae1629e225546a1f45b669bba954b8434bce5650807246d7cd5f",
     ),
     (
         "COR-08",
         "non_regular",
         "cor08_unix_socket_preserves_witness",
-        "945abef399a48e02d5e3f4200381b9ea71caa2f03199ef8c335a6ffdf0bbda1b",
+        "49fc1aa4fd8b230645a6d5a0b3613f04063013cb8f5adf955a14d70f54865b4b",
     ),
     (
         "GC-01",
         "multi_candidate_prefix",
         "injected_delete_failure_retry_is_idempotent",
-        "2890fa80659ee4b8c323587282f11c8074ebb94bab24cf7f68cadf23523050e5",
+        "fb661926cfad83389f0bf304293fe2b436e4486effcea42626147a089a1a3dff",
     ),
     (
         "GC-02",
         "multi_candidate_prefix",
         "injected_sync_failure_retry_redurabilizes_absent_object",
-        "d504c7e3c3bf5a7510a09d62fbb726c58d495d1778638e0a0fe5e813815ff8af",
+        "d0ba619c3f12418536f5362a7212221041df8618ca8dde37bf15cd84eb8e31fe",
     ),
 )
 
@@ -8856,7 +8858,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v2":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v3":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -9251,6 +9253,7 @@ def require_implementation(
             "source",
             "owner",
             "function",
+            "attribute_chain_sha256",
             "body_sha256",
         ):
             fail(f"limit-event owner-body review fields differ for {key}")
@@ -10230,6 +10233,10 @@ let parents = recovery_ancestry_test_hook::substitute_verified_parents(
     revision,
 );
 """,
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+use crate::recovery_ancestry_test_hook;
+""",
 )
 
 
@@ -10367,6 +10374,13 @@ let _recovery_ancestry_operation =
         S20_530_TEST_HOOK_FEATURE_GATE,
         S20_530_ALLOWED_FEATURE_GATED_ITEMS[4],
     ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "<crate>",
+        "<module>",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[5],
+    ),
 )
 S20_530_RECOVERY_ANCESTRY_PROTECTED_FUNCTIONS = frozenset(
     (spec.path, spec.owner, spec.function)
@@ -10469,7 +10483,7 @@ def recovery_ancestry_hook_gate_problem(sources: dict[str, str]) -> str | None:
     )
     actual = recovery_ancestry_hook_gate_record(sources)
     if actual != expected:
-        return f"seven-site raw gate inventory differs: expected {expected!r}, found {actual!r}"
+        return f"eight-site raw gate inventory differs: expected {expected!r}, found {actual!r}"
     return None
 
 
@@ -12244,12 +12258,8 @@ def ref_recovery_ancestry_binding_problem(source: str) -> str | None:
     )
     expected_map_body = """
 match error {
-    RecoveryAncestryError::Cycle => {
-        branch_error(BranchErrorCode::BranchAncestryCycle)
-    }
-    RecoveryAncestryError::LimitExceeded => {
-        branch_error(BranchErrorCode::BranchResourceLimit)
-    }
+    RecoveryAncestryError::Cycle => branch_error(BranchErrorCode::BranchAncestryCycle),
+    RecoveryAncestryError::LimitExceeded => branch_error(BranchErrorCode::BranchResourceLimit),
     RecoveryAncestryError::ClaimMismatch { claim_index: 0, .. } => {
         branch_error(BranchErrorCode::BranchOriginMismatch)
     }
@@ -12268,7 +12278,7 @@ match error {
         "private",
     )
     expected_signature = (
-        "fn map_recovery_ancestry_error(error: RecoveryAncestryError,) -> BranchError"
+        "fn map_recovery_ancestry_error(error: RecoveryAncestryError) -> BranchError"
     )
     if (
         len(signatures) != 1
@@ -12314,10 +12324,7 @@ let ancestry_requests = visible
     expected_verifier = """
 let ancestry_report = self
     .transactions
-    .verify_branch_recovery_ancestries_with_maintenance(
-        maintenance,
-        &ancestry_requests,
-    )
+    .verify_branch_recovery_ancestries_with_maintenance(maintenance, &ancestry_requests)
     .map_err(map_recovery_ancestry_error)?;
 """
     expected_preflight = """
@@ -16159,11 +16166,16 @@ def exact_error_source_assertion_problem(
         return "source-chain assertion is not exact two-operand assert_eq!"
     expected_literal = json.dumps(list(expected))
     expected_literal_normalized = normalize_rust_tokens(expected_literal)
+    expected_literals = {expected_literal_normalized}
+    if not expected:
+        expected_literals.add(normalize_rust_tokens("Vec::<String>::new()"))
     expected_call = normalize_rust_tokens(
         f"{error_source_helper_path(relative)}(&error)"
     )
     normalized = tuple(normalize_rust_tokens(operand) for operand in operands)
-    if set(normalized) != {expected_literal_normalized, expected_call}:
+    if not any(
+        set(normalized) == {literal, expected_call} for literal in expected_literals
+    ):
         return "source-chain assertion does not compare the exact direct helper output"
     return None
 
@@ -16437,7 +16449,7 @@ let changed = after_by_path
     .iter()
     .filter_map(|(path, after_snapshot)| match before_by_path.get(path) {
         ::core::option::Option::Some(before_snapshot)
-            if *before_snapshot != after_snapshot =>
+            if *before_snapshot != *after_snapshot =>
         {
             ::core::option::Option::Some(path.clone())
         }
@@ -27806,7 +27818,7 @@ def owned_entry_after_statements(
             (f"::core::assert_eq!(operation_delta.1, {owned_entry_empty_path_vec()});"),
             (
                 f"::core::assert_eq!(operation_delta.2, "
-                f"{owned_entry_path_vec(owned_entry_operation_delta_removed_paths(row_id, subcase_id))});"
+                f"{owned_entry_empty_path_vec() if subcase_id != 'owned_stage' else owned_entry_path_vec(owned_entry_operation_delta_removed_paths(row_id, subcase_id))});"
             ),
         )
     )
@@ -30642,16 +30654,10 @@ struct RefRecordPreflight {
     visible: Vec<RecoveryVisibleBranch>,
     orphan_origins: Vec<OrphanBranchOrigin>,
 }
-fn map_recovery_ancestry_error(
-    error: RecoveryAncestryError,
-) -> BranchError {
+fn map_recovery_ancestry_error(error: RecoveryAncestryError) -> BranchError {
     match error {
-        RecoveryAncestryError::Cycle => {
-            branch_error(BranchErrorCode::BranchAncestryCycle)
-        }
-        RecoveryAncestryError::LimitExceeded => {
-            branch_error(BranchErrorCode::BranchResourceLimit)
-        }
+        RecoveryAncestryError::Cycle => branch_error(BranchErrorCode::BranchAncestryCycle),
+        RecoveryAncestryError::LimitExceeded => branch_error(BranchErrorCode::BranchResourceLimit),
         RecoveryAncestryError::ClaimMismatch { claim_index: 0, .. } => {
             branch_error(BranchErrorCode::BranchOriginMismatch)
         }
@@ -30845,10 +30851,7 @@ impl BranchRepository {
             .collect::<Vec<_>>();
         let ancestry_report = self
             .transactions
-            .verify_branch_recovery_ancestries_with_maintenance(
-                maintenance,
-                &ancestry_requests,
-            )
+            .verify_branch_recovery_ancestries_with_maintenance(maintenance, &ancestry_requests)
             .map_err(map_recovery_ancestry_error)?;
         Ok(RefRecoveryReport {
             orphan_origins: record_preflight.orphan_origins,
@@ -30908,7 +30911,7 @@ impl BranchRepository {
             1,
         ),
         ref_ancestry_fixture.replace("claim_index: 1", "claim_index: 0", 1),
-        ref_ancestry_fixture.replace("&ancestry_requests,", "&[],", 1),
+        ref_ancestry_fixture.replace("&ancestry_requests)", "&[])", 1),
         ref_ancestry_fixture.replace(
             "ancestry_report.verified_transactions",
             "visible.len() as u64",
@@ -31306,8 +31309,8 @@ let gc_resumed = ::std::fs::File::try_lock(&gc_probe).is_ok();
         ),
         (
             "wrong-gcw03-status",
-            "assert_eq!(status, GcWitnessRecoveryStatus::RemovedExact);",
-            "assert_eq!(status, GcWitnessRecoveryStatus::RemovedIncomplete);",
+            "status == GcWitnessRecoveryStatus::RemovedExact && !witness.exists();",
+            "status == GcWitnessRecoveryStatus::RemovedIncomplete && !witness.exists();",
         ),
         (
             "noop-inventory-leaf-sync",
@@ -31402,12 +31405,6 @@ fn initialize_repository_maintenance(
         fail("checker self-test accepted same-crate maintenance trampoline authority")
 
     evolving_sources = dict(cross05_production_sources)
-    evolving_sources["crates/sley-txn/src/repository.rs"] += r"""
-pub struct RecoveryAncestryRequest {
-    first_claim: RecoveryRevisionClaim,
-    head_claim: RecoveryRevisionClaim,
-}
-"""
     evolving_ref_source = evolving_sources["crates/sley-repo/src/refs.rs"]
     evolving_ref_module = exact_test_module_range(
         evolving_ref_source,
@@ -32128,9 +32125,9 @@ impl BranchRepository {
                 f"{hostile_label}"
             )
 
-    txn_normal = normal_cross05_sources["crates/sley-txn/src/repository.rs"]
+    txn_source = cross05_production_sources["crates/sley-txn/src/repository.rs"]
     commit_core = rust_named_function_raw_body(
-        txn_normal, "commit_inner", "implTransactionRepository"
+        txn_source, "commit_inner", "implTransactionRepository"
     )
     if commit_core is None:
         fail("checker CROSS-05 core hostile cannot isolate commit_inner")
@@ -32141,10 +32138,8 @@ impl BranchRepository {
         1,
     )
     late_validation_sources = dict(cross05_production_sources)
-    late_validation_sources["crates/sley-txn/src/repository.rs"] = (
-        cross05_production_sources["crates/sley-txn/src/repository.rs"].replace(
-            commit_core, late_validation_core, 1
-        )
+    late_validation_sources["crates/sley-txn/src/repository.rs"] = txn_source.replace(
+        commit_core, late_validation_core, 1
     )
     if (
         late_validation_core == commit_core
@@ -32674,6 +32669,7 @@ mod tests {
     exact_hook_gate_sources = {
         "crates/sley-txn/src/lib.rs": hook_items[0],
         "crates/sley-txn/src/repository.rs": f"""\
+{hook_items[5]}
 struct TransactionRepository;
 impl TransactionRepository {{
     fn recover_with_maintenance_and_limits(&self) {{ {hook_items[1]} }}
@@ -32693,7 +32689,7 @@ impl BranchRepository {{
 """,
     }
     if recovery_ancestry_hook_gate_problem(exact_hook_gate_sources) is not None:
-        fail("checker self-test rejected exact seven-site recovery hook gates")
+        fail("checker self-test rejected exact eight-site recovery hook gates")
 
     hook_gate_hostiles: list[dict[str, str]] = []
     for relative, old, new in (

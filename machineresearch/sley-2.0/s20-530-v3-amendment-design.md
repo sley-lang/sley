@@ -34,9 +34,12 @@ The following changes are in scope:
 
 1. Accept the exact feature-gated `recovery_ancestry_test_hook` import and bind
    it in the recovery-ancestry hook-gate inventory.
-2. Admit the three exact `#[derive(Debug)]` surface tokens required by
+2. Admit the four exact `#[derive(Debug)]` surface tokens required by
    `RecoveryAncestryError`, `RecoveryAncestryHeadReport`, and
-   `RecoveryAncestryReport`.
+   `RecoveryAncestryReport`, and `RecoveryWorkUsage`. Remove the two stale
+   allowed-addition entries for maintenance functions that already exist in the
+   public-surface baseline anchor, plus the stale GC function token whose frozen
+   signature does not exist.
 3. Canonize a typed empty source-chain value so frozen empty-chain assertions
    compile on the pinned Rust toolchain.
 4. Refresh the 14 exact GC recovery test-body digests after their source bodies

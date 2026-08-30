@@ -1833,7 +1833,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
@@ -1872,7 +1875,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
@@ -1910,7 +1916,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
@@ -1944,7 +1953,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
@@ -1969,7 +1981,10 @@ mod tests {
         let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
         let gc_witness_before_kind = gc_witness_before_snapshot.0;
         ::core::assert_eq!(gc_witness_before_kind, "symlink");
-        ::core::assert_eq!(gc_witness_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("gc-witness-target")));
+        ::core::assert_eq!(
+            gc_witness_before_snapshot.3,
+            ::core::option::Option::Some(::std::path::PathBuf::from("gc-witness-target"))
+        );
         let result = super::recover_gc_witness(&store, &maintenance);
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected recovery error");
@@ -1985,7 +2000,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
@@ -2021,7 +2039,10 @@ mod tests {
                 source: ::core::option::Option::None
             }
         ));
-        ::core::assert_eq!(crate::gc::tests::exact_error_source_chain(&error), Vec::<String>::new());
+        ::core::assert_eq!(
+            crate::gc::tests::exact_error_source_chain(&error),
+            Vec::<String>::new()
+        );
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(gc_witness_before_snapshot, gc_witness_after_snapshot);
         ::core::assert_eq!(gc_witness_before_kind, gc_witness_after_kind);
