@@ -5044,6 +5044,30 @@ mod tests {
         ));
     }
 
+    fn assert_cor06_receipt_nested_candidate_result_plan(plan: &CorruptionFixturePlan) {
+        ::core::assert_eq!(plan.row_id, "COR-06");
+        ::core::assert_eq!(plan.group_id, "receipt_digest");
+        ::core::assert_eq!(plan.target_role, "ACCEPTED_REVISION");
+        ::core::assert_eq!(plan.artifact_role, "revision_receipt");
+        ::core::assert_eq!(plan.identity_recipe, "accepted_pointer_transaction_id");
+        ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
+        ::core::assert_eq!(plan.corrupter_class, "receipt_nested_candidate_result");
+        ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
+        ::core::assert_eq!(plan.leaf_id, plan.selector);
+        ::core::assert!(plan.distinct_from_roles.is_empty());
+        ::core::assert!(matches!(
+            plan.selector,
+            "candidate_result_candidate_result_format_version"
+                | "candidate_result_candidate_result_profile_invalid"
+                | "candidate_result_candidate_result_phase_shape"
+                | "candidate_result_candidate_result_decision_phase_mismatch"
+                | "candidate_result_candidate_result_diagnostic_invalid"
+                | "candidate_result_candidate_result_set_invalid"
+                | "candidate_result_candidate_result_candidate_id_shape"
+                | "candidate_result_candidate_result_root_shape"
+        ));
+    }
+
     fn assert_cor06_receipt_envelope_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-06");
         ::core::assert_eq!(plan.group_id, "receipt_digest");
@@ -5089,6 +5113,9 @@ mod tests {
             }
             "receipt_nested_candidate" => {
                 assert_cor06_receipt_nested_candidate_plan(plan)
+            }
+            "receipt_nested_candidate_result" => {
+                assert_cor06_receipt_nested_candidate_result_plan(plan)
             }
             "receipt_envelope" => assert_cor06_receipt_envelope_plan(plan),
             class => ::core::panic!("unsupported COR-06 visible corrupter class: {class}"),
@@ -5752,6 +5779,165 @@ mod tests {
         );
         let mut record = receipt.record;
         record.stored_candidate = Some(corrupted_candidate);
+        let corrupted_receipt = v5_receipt_stored_bytes(&record);
+        write_corruption_file(fault_path, &corrupted_receipt);
+    }
+
+    fn v5_candidate_result_record_fields(
+        result: &sley_policy::ImportedCandidateResult,
+    ) -> Vec<(u32, Vec<u8>)> {
+        let mut cursor = sley_scb1::ScbValueCursor::new(&result.preimage).unwrap();
+        ::core::assert_eq!(cursor.read_exact_bytes(8).unwrap(), b"SLEYCRS1");
+        ::core::assert_eq!(cursor.read_uvar(64).unwrap(), 1);
+        let record = cursor.read_sized_payload().unwrap();
+        cursor.check_finished().unwrap();
+        v5_scb_record_fields(record)
+    }
+
+    fn v5_candidate_result_stored_bytes_from_record(record: &[u8]) -> Vec<u8> {
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(b"SLEYCRS1");
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(1));
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(record.len() as u64));
+        preimage.extend_from_slice(record);
+        let result_id = sley_id::CandidateResultId::derive(&preimage);
+        preimage.extend_from_slice(result_id.as_bytes());
+        preimage
+    }
+
+    fn v5_candidate_result_decision_phase_mismatch(
+        fields: &mut [(u32, Vec<u8>)],
+    ) {
+        v5_replace_record_field(fields, 6, sley_scb1::encode_uvar(9));
+        let phases = v5_scb_list_elements(&fields[6].1);
+        ::core::assert_eq!(phases.len(), 14);
+        let phases = phases
+            .into_iter()
+            .enumerate()
+            .map(|(index, phase)| {
+                let phase_tag = index + 1;
+                let mut phase_fields = v5_scb_record_fields(&phase);
+                if phase_tag == 5 {
+                    v5_replace_record_field(
+                        &mut phase_fields,
+                        2,
+                        sley_scb1::encode_uvar(2),
+                    );
+                    v5_replace_record_field(
+                        &mut phase_fields,
+                        4,
+                        sley_scb1::encode_union(1, &sley_scb1::encode_uvar(9)).unwrap(),
+                    );
+                } else if phase_tag > 5 {
+                    v5_replace_record_field(
+                        &mut phase_fields,
+                        2,
+                        sley_scb1::encode_uvar(3),
+                    );
+                    v5_replace_record_field(
+                        &mut phase_fields,
+                        3,
+                        sley_scb1::encode_union(0, &[]).unwrap(),
+                    );
+                    v5_replace_record_field(
+                        &mut phase_fields,
+                        4,
+                        sley_scb1::encode_union(0, &[]).unwrap(),
+                    );
+                }
+                sley_scb1::encode_record(&phase_fields).unwrap()
+            })
+            .collect::<Vec<_>>();
+        v5_replace_record_field(fields, 7, sley_scb1::encode_list(&phases).unwrap());
+    }
+
+    fn v5_candidate_result_corruption(
+        result: &sley_policy::ImportedCandidateResult,
+        selector: &str,
+    ) -> Vec<u8> {
+        let mut fields = v5_candidate_result_record_fields(result);
+        match selector {
+            "candidate_result_candidate_result_format_version" => {
+                v5_replace_record_field(&mut fields, 1, sley_scb1::encode_uvar(2));
+            }
+            "candidate_result_candidate_result_profile_invalid" => {
+                let mut profile = fields[3].1.clone();
+                profile[0] ^= 1;
+                v5_replace_record_field(&mut fields, 4, profile);
+            }
+            "candidate_result_candidate_result_phase_shape" => {
+                v5_replace_record_field(
+                    &mut fields,
+                    7,
+                    sley_scb1::encode_list(&[]).unwrap(),
+                );
+            }
+            "candidate_result_candidate_result_decision_phase_mismatch" => {
+                v5_candidate_result_decision_phase_mismatch(&mut fields);
+            }
+            "candidate_result_candidate_result_diagnostic_invalid" => {
+                let diagnostic = sley_scb1::encode_record(&[
+                    (1, sley_scb1::encode_uvar(14)),
+                    (2, sley_scb1::encode_uvar(1)),
+                    (3, sley_scb1::encode_union(0, &[]).unwrap()),
+                    (4, sley_scb1::encode_text("X").unwrap()),
+                    (5, sley_scb1::encode_uvar(1)),
+                    (6, sley_scb1::encode_union(0, &[]).unwrap()),
+                ])
+                .unwrap();
+                v5_replace_record_field(
+                    &mut fields,
+                    8,
+                    sley_scb1::encode_list(&[diagnostic]).unwrap(),
+                );
+            }
+            "candidate_result_candidate_result_set_invalid" => {
+                let duplicate = [0x55_u8; 32].to_vec();
+                v5_replace_record_field(
+                    &mut fields,
+                    9,
+                    sley_scb1::encode_list(&[duplicate.clone(), duplicate]).unwrap(),
+                );
+            }
+            "candidate_result_candidate_result_candidate_id_shape" => {
+                v5_replace_record_field(
+                    &mut fields,
+                    3,
+                    sley_scb1::encode_union(0, &[]).unwrap(),
+                );
+            }
+            "candidate_result_candidate_result_root_shape" => {
+                v5_replace_record_field(
+                    &mut fields,
+                    12,
+                    sley_scb1::encode_union(0, &[]).unwrap(),
+                );
+            }
+            selector => {
+                ::core::panic!("unsupported nested candidate-result selector: {selector}")
+            }
+        }
+        let record = sley_scb1::encode_record(&fields).unwrap();
+        v5_candidate_result_stored_bytes_from_record(&record)
+    }
+
+    fn apply_receipt_nested_candidate_result_corruption(
+        _fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+        fault_path: &Path,
+    ) {
+        assert_cor06_receipt_nested_candidate_result_plan(fixture_plan);
+        let receipt_bytes = fs::read(fault_path).unwrap();
+        let receipt = import_transaction_receipt(&receipt_bytes).unwrap();
+        let corrupted_result = v5_candidate_result_corruption(
+            receipt
+                .candidate_result
+                .as_ref()
+                .expect("ordinary candidate-result carrier"),
+            fixture_plan.selector,
+        );
+        let mut record = receipt.record;
+        record.stored_candidate_result = Some(corrupted_result);
         let corrupted_receipt = v5_receipt_stored_bytes(&record);
         write_corruption_file(fault_path, &corrupted_receipt);
     }
@@ -9478,6 +9664,550 @@ mod tests {
         let head_stage_after_kind = head_stage_after_snapshot.0;
         ::core::assert_eq!(error.code(), "MUTATION_CANDIDATE_VALIDATION_PROFILE");
         ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::Candidate(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_format_version() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-format-version");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_format_version", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_format_version", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_FORMAT_VERSION"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_FORMAT_VERSION");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_profile_invalid() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-profile-invalid");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_profile_invalid", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_profile_invalid", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_PROFILE_INVALID"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_PROFILE_INVALID");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_phase_shape() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-phase-shape");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_phase_shape", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_phase_shape", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_PHASE_SHAPE"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_PHASE_SHAPE");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_decision_phase_mismatch() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-decision-phase-mismatch");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_decision_phase_mismatch", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_decision_phase_mismatch", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_DECISION_PHASE_MISMATCH"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_DECISION_PHASE_MISMATCH");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_diagnostic_invalid() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-diagnostic-invalid");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_diagnostic_invalid", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_diagnostic_invalid", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_DIAGNOSTIC_INVALID"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_DIAGNOSTIC_INVALID");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_set_invalid() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-set-invalid");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_set_invalid", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_set_invalid", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_SET_INVALID"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_SET_INVALID");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_candidate_id_shape() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-candidate-id-shape");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_candidate_id_shape", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_candidate_id_shape", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_CANDIDATE_ID_SHAPE"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_CANDIDATE_ID_SHAPE");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_receipt_digest__candidate_result_candidate_result_root_shape() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-candidate-result-candidate-result-root-shape");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "candidate_result_candidate_result_root_shape", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_root_shape", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_candidate_result_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "CANDIDATE_RESULT_ROOT_SHAPE"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "CANDIDATE_RESULT_ROOT_SHAPE");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Codec(crate::codec::TransactionCodecError::CandidateResult(_))));
         ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["TransactionCodecError"]);
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
