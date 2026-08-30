@@ -37,7 +37,8 @@ SOURCE_MARKERS = (
     "fn traverse_roots",
     "fn traverse_objects",
     "GcDecision::PartialDeleteFailure",
-    "DeleteFault::AfterDeleteBeforeSync",
+    "GcDurabilityCut::Gc01BeforeSecondCandidateDelete",
+    "GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync",
 )
 FORBIDDEN_SOURCE_MARKERS = (
     "SystemTime",
