@@ -1061,24 +1061,24 @@
     "matrix_rows": 100,
     "dependency_direction": "sley-repo -> sley-txn -> sley-store",
     "implementation_complete": false,
-    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v4.json",
-    "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v5.json",
+    "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
     "freeze_commit": "dd04bf97d774ca532c65c4c8ced1b4d0211da625",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
-        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
+        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
       },
       "ariadne": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
-        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
+        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
       },
       "vulcan": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
-        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
+        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
       }
     }
   },
