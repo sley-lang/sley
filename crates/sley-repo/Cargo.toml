@@ -18,6 +18,7 @@ sley-txn = { path = "../sley-txn" }
 [dev-dependencies]
 sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }
+sley-ssmc = { path = "../sley-ssmc" }
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
 
 [lints]

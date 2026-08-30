@@ -222,6 +222,7 @@ dependencies = [
  "sley-policy",
  "sley-scb1",
  "sley-schema",
+ "sley-ssmc",
  "sley-state-root",
  "sley-store",
  "sley-txn",
