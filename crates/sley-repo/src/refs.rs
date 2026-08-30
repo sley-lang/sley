@@ -5602,6 +5602,7 @@ mod tests {
         ::core::assert_eq!(plan.group_id, "target_transaction");
         let expected_leaf_id = match plan.selector {
             "state_root_scb_digest_mismatch" => "target_state_root_scb_digest_mismatch",
+            "state_schema_epoch_mismatch" => "target_state_schema_epoch_mismatch",
             selector => ::core::panic!("unsupported nested state-root selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
@@ -5619,6 +5620,10 @@ mod tests {
         ::core::assert_eq!(plan.group_id, "target_transaction");
         let expected_leaf_id = match plan.selector {
             "policy_root_scb_digest_mismatch" => "target_policy_root_scb_digest_mismatch",
+            "policy_policy_root_version_unsupported" => {
+                "target_policy_policy_root_version_unsupported"
+            }
+            "policy_schema_epoch_mismatch" => "target_policy_schema_epoch_mismatch",
             selector => ::core::panic!("unsupported nested policy-root selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
@@ -6031,18 +6036,83 @@ mod tests {
         receipt_field_tag: u64,
     ) {
         let mut bytes = ::std::fs::read(fault_path).unwrap();
-        let (_length_range, receipt_payload_range) = receipt_envelope_ranges(&bytes);
+        let nested_range = receipt_nested_bytes_range(&bytes, receipt_field_tag);
+        ::core::assert!(nested_range.len() > 32);
+        bytes[nested_range.end - 1] ^= 1;
+        reseal_receipt_envelope(&mut bytes);
+        write_visible_revision_fixture_file(fault_path, &bytes);
+    }
+
+    fn receipt_nested_bytes_range(
+        bytes: &[u8],
+        receipt_field_tag: u64,
+    ) -> ::core::ops::Range<::core::primitive::usize> {
+        let (_length_range, receipt_payload_range) = receipt_envelope_ranges(bytes);
         let (_tag_range, nested_wrapper_range) =
             receipt_record_field_ranges(&bytes[receipt_payload_range.clone()], receipt_field_tag);
         let nested_wrapper_start = receipt_payload_range.start + nested_wrapper_range.start;
         let nested_wrapper_end = receipt_payload_range.start + nested_wrapper_range.end;
         let nested_range = sized_payload_range(&bytes[nested_wrapper_start..nested_wrapper_end]);
-        let nested_start = nested_wrapper_start + nested_range.start;
-        let nested_end = nested_wrapper_start + nested_range.end;
-        ::core::assert!(nested_end - nested_start > 32);
-        bytes[nested_end - 1] ^= 1;
-        reseal_receipt_envelope(&mut bytes);
-        write_visible_revision_fixture_file(fault_path, &bytes);
+        nested_wrapper_start + nested_range.start..nested_wrapper_start + nested_range.end
+    }
+
+    fn schema_root_envelope_ranges(
+        bytes: &[u8],
+    ) -> (
+        ::core::ops::Range<::core::primitive::usize>,
+        ::core::ops::Range<::core::primitive::usize>,
+    ) {
+        let trailer_start = bytes.len().checked_sub(32).unwrap();
+        let mut cursor = ::sley_scb1::ScbValueCursor::new(&bytes[..trailer_start]).unwrap();
+        ::core::assert_eq!(cursor.read_exact_bytes(8).unwrap(), b"SLEYSCB1");
+        ::core::assert_eq!(cursor.read_uvar(64).unwrap(), 1);
+        cursor.read_uvar(32).unwrap();
+        let epoch_start = cursor.position();
+        cursor.read_exact_bytes(32).unwrap();
+        let epoch_end = cursor.position();
+        let payload = cursor.read_sized_payload().unwrap();
+        let payload_end = cursor.position();
+        let payload_start = payload_end.checked_sub(payload.len()).unwrap();
+        cursor.check_finished().unwrap();
+        (epoch_start..epoch_end, payload_start..payload_end)
+    }
+
+    fn reseal_state_root_envelope(bytes: &mut [u8]) {
+        let trailer_start = bytes.len().checked_sub(32).unwrap();
+        let state_root = StateRoot::derive(&bytes[..trailer_start]);
+        bytes[trailer_start..].copy_from_slice(state_root.as_bytes());
+    }
+
+    fn reseal_policy_root_envelope(bytes: &mut [u8]) {
+        let trailer_start = bytes.len().checked_sub(32).unwrap();
+        let policy_root = PolicyRootId::derive(&bytes[..trailer_start]);
+        bytes[trailer_start..].copy_from_slice(policy_root.as_bytes());
+    }
+
+    fn apply_schema_root_epoch_corruption(
+        bytes: &mut [u8],
+        nested_range: ::core::ops::Range<::core::primitive::usize>,
+        reseal: fn(&mut [u8]),
+    ) {
+        let (epoch_range, payload_range) =
+            schema_root_envelope_ranges(&bytes[nested_range.clone()]);
+        let (_tag_range, payload_epoch_range) = receipt_record_field_ranges(
+            &bytes[nested_range.start + payload_range.start
+                ..nested_range.start + payload_range.end],
+            2,
+        );
+        ::core::assert_eq!(epoch_range.len(), 32);
+        ::core::assert_eq!(payload_epoch_range.len(), 32);
+        let envelope_epoch_start = nested_range.start + epoch_range.start;
+        let payload_epoch_start =
+            nested_range.start + payload_range.start + payload_epoch_range.start;
+        ::core::assert_eq!(
+            &bytes[envelope_epoch_start..envelope_epoch_start + 32],
+            &bytes[payload_epoch_start..payload_epoch_start + 32],
+        );
+        bytes[envelope_epoch_start] ^= 1;
+        bytes[payload_epoch_start] ^= 1;
+        reseal(&mut bytes[nested_range]);
     }
 
     fn apply_receipt_nested_state_root_corruption(
@@ -6054,6 +6124,17 @@ mod tests {
         match fixture_plan.selector {
             "state_root_scb_digest_mismatch" => {
                 apply_receipt_nested_digest_corruption(fault_path, 6);
+            }
+            "state_schema_epoch_mismatch" => {
+                let mut bytes = ::std::fs::read(fault_path).unwrap();
+                let nested_range = receipt_nested_bytes_range(&bytes, 6);
+                apply_schema_root_epoch_corruption(
+                    &mut bytes,
+                    nested_range,
+                    reseal_state_root_envelope,
+                );
+                reseal_receipt_envelope(&mut bytes);
+                write_visible_revision_fixture_file(fault_path, &bytes);
             }
             selector => ::core::panic!("unsupported nested state-root selector: {selector}"),
         }
@@ -6068,6 +6149,36 @@ mod tests {
         match fixture_plan.selector {
             "policy_root_scb_digest_mismatch" => {
                 apply_receipt_nested_digest_corruption(fault_path, 7);
+            }
+            "policy_policy_root_version_unsupported" => {
+                let mut bytes = ::std::fs::read(fault_path).unwrap();
+                let nested_range = receipt_nested_bytes_range(&bytes, 7);
+                let (_epoch_range, payload_range) =
+                    schema_root_envelope_ranges(&bytes[nested_range.clone()]);
+                let (_tag_range, version_range) = receipt_record_field_ranges(
+                    &bytes[nested_range.start + payload_range.start
+                        ..nested_range.start + payload_range.end],
+                    3,
+                );
+                ::core::assert_eq!(version_range.len(), 1);
+                let version_offset =
+                    nested_range.start + payload_range.start + version_range.start;
+                ::core::assert_eq!(bytes[version_offset], 1);
+                bytes[version_offset] = 2;
+                reseal_policy_root_envelope(&mut bytes[nested_range]);
+                reseal_receipt_envelope(&mut bytes);
+                write_visible_revision_fixture_file(fault_path, &bytes);
+            }
+            "policy_schema_epoch_mismatch" => {
+                let mut bytes = ::std::fs::read(fault_path).unwrap();
+                let nested_range = receipt_nested_bytes_range(&bytes, 7);
+                apply_schema_root_epoch_corruption(
+                    &mut bytes,
+                    nested_range,
+                    reseal_policy_root_envelope,
+                );
+                reseal_receipt_envelope(&mut bytes);
+                write_visible_revision_fixture_file(fault_path, &bytes);
             }
             selector => ::core::panic!("unsupported nested policy-root selector: {selector}"),
         }
@@ -8462,6 +8573,199 @@ mod tests {
         let ref_stage_after_kind = ref_stage_after_snapshot.0;
         ::core::assert_eq!(error.code(), "SCB_DIGEST_MISMATCH");
         ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::PolicyRoot(::sley_policy::PolicyRootError::Scb(_))))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_snapshot, origin_stage_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_snapshot, ref_stage_after_snapshot);
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+    }
+
+
+    #[test]
+    fn cor07_target_transaction_target_state_schema_epoch_mismatch() {
+        let fixture = Fixture::new("s20-530-cor-07-target-transaction-target-state-schema-epoch-mismatch");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_schema_epoch_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_schema_epoch_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_state_root_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::StateRoot(::sley_state_root::StateRootError::Schema(_))))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "SCHEMA_EPOCH_MISMATCH"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_ne!(("origin_head_ids_distinct", fixture_direct.origin_identity), ("origin_head_ids_distinct", fixture_direct.head_identity));
+        ::core::assert_ne!(("origin_head_receipt_paths_distinct", fixture_direct.origin_receipt_path.as_path()), ("origin_head_receipt_paths_distinct", fixture_direct.head_receipt_path.as_path()));
+        ::core::assert_eq!(("fault_path_equals_selected_role_path", fault_path.as_path()), ("fault_path_equals_selected_role_path", fixture_direct.selected_role_path.as_path()));
+        ::core::assert_ne!(("fault_path_differs_from_other_role_path", fault_path.as_path()), ("fault_path_differs_from_other_role_path", fixture_direct.other_role_path.as_path()));
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let origin_stage_path = fixture_observation.origin_stage_path.clone();
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        let ref_stage_path = fixture_observation.ref_stage_path.clone();
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "SCHEMA_EPOCH_MISMATCH");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::StateRoot(::sley_state_root::StateRootError::Schema(_))))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_snapshot, origin_stage_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_snapshot, ref_stage_after_snapshot);
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+    }
+
+    #[test]
+    fn cor07_target_transaction_target_policy_policy_root_version_unsupported() {
+        let fixture = Fixture::new("s20-530-cor-07-target-transaction-target-policy-policy-root-version-unsupported");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_version_unsupported", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_version_unsupported", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_policy_root_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::PolicyRoot(::sley_policy::PolicyRootError::PolicyRoot(_))))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "POLICY_ROOT_VERSION_UNSUPPORTED"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_ne!(("origin_head_ids_distinct", fixture_direct.origin_identity), ("origin_head_ids_distinct", fixture_direct.head_identity));
+        ::core::assert_ne!(("origin_head_receipt_paths_distinct", fixture_direct.origin_receipt_path.as_path()), ("origin_head_receipt_paths_distinct", fixture_direct.head_receipt_path.as_path()));
+        ::core::assert_eq!(("fault_path_equals_selected_role_path", fault_path.as_path()), ("fault_path_equals_selected_role_path", fixture_direct.selected_role_path.as_path()));
+        ::core::assert_ne!(("fault_path_differs_from_other_role_path", fault_path.as_path()), ("fault_path_differs_from_other_role_path", fixture_direct.other_role_path.as_path()));
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let origin_stage_path = fixture_observation.origin_stage_path.clone();
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        let ref_stage_path = fixture_observation.ref_stage_path.clone();
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "POLICY_ROOT_VERSION_UNSUPPORTED");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::PolicyRoot(::sley_policy::PolicyRootError::PolicyRoot(_))))));
+        ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "TransactionCodecError"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_snapshot, origin_stage_after_snapshot);
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_snapshot, ref_stage_after_snapshot);
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+    }
+
+    #[test]
+    fn cor07_target_transaction_target_policy_schema_epoch_mismatch() {
+        let fixture = Fixture::new("s20-530-cor-07-target-transaction-target-policy-schema-epoch-mismatch");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_schema_epoch_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_schema_epoch_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_nested_policy_root_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = import_transaction_receipt_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::PolicyRoot(::sley_policy::PolicyRootError::Schema(_))))));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "SCHEMA_EPOCH_MISMATCH"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_ne!(("origin_head_ids_distinct", fixture_direct.origin_identity), ("origin_head_ids_distinct", fixture_direct.head_identity));
+        ::core::assert_ne!(("origin_head_receipt_paths_distinct", fixture_direct.origin_receipt_path.as_path()), ("origin_head_receipt_paths_distinct", fixture_direct.head_receipt_path.as_path()));
+        ::core::assert_eq!(("fault_path_equals_selected_role_path", fault_path.as_path()), ("fault_path_equals_selected_role_path", fixture_direct.selected_role_path.as_path()));
+        ::core::assert_ne!(("fault_path_differs_from_other_role_path", fault_path.as_path()), ("fault_path_differs_from_other_role_path", fixture_direct.other_role_path.as_path()));
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let origin_stage_path = fixture_observation.origin_stage_path.clone();
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        let ref_stage_path = fixture_observation.ref_stage_path.clone();
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "SCHEMA_EPOCH_MISMATCH");
+        ::core::assert!(::core::matches!(&error, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::PolicyRoot(::sley_policy::PolicyRootError::Schema(_))))));
         ::core::assert_eq!(crate::refs::tests::exact_error_source_chain(&error), ["CommitError", "TransactionCodecError"]);
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(origin_stage_before_snapshot, origin_stage_after_snapshot);
