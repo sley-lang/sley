@@ -6293,6 +6293,1198 @@ mod tests {
         (repository, maintenance, requests, observation)
     }
 
+    fn s20_530_branch_limits_with(field: &str, value: u64) -> super::BranchRecoveryLimits {
+        let mut limits = branch_recovery_limits();
+        match field {
+            "per_pointer.ancestry_transactions" => {
+                limits.per_pointer.ancestry_transactions = value;
+            }
+            "per_pointer.receipt_bytes" => limits.per_pointer.receipt_bytes = value,
+            "per_pointer.binding_visits" => limits.per_pointer.binding_visits = value,
+            "per_pointer.object_verifications" => {
+                limits.per_pointer.object_verifications = value;
+            }
+            "per_pointer.object_bytes" => limits.per_pointer.object_bytes = value,
+            "union.ancestry_transactions" => limits.union.ancestry_transactions = value,
+            "union.receipt_bytes" => limits.union.receipt_bytes = value,
+            "union.binding_visits" => limits.union.binding_visits = value,
+            "union.object_verifications" => limits.union.object_verifications = value,
+            "union.object_bytes" => limits.union.object_bytes = value,
+            other => ::core::panic!("unknown branch limit field: {other}"),
+        }
+        limits
+    }
+
+    fn s20_530_branch_requests_for_fixture(
+        repository: &super::TransactionRepository,
+        genesis_transaction_id: TransactionId,
+        head_transaction_id: TransactionId,
+        request_count: usize,
+    ) -> ::std::vec::Vec<super::RecoveryAncestryRequest> {
+        (0..request_count)
+            .map(|_| {
+                super::RecoveryAncestryRequest::with_claims(
+                    claim_for(repository, genesis_transaction_id),
+                    claim_for(repository, head_transaction_id),
+                )
+            })
+            .collect()
+    }
+
+    fn s20_530_measure_branch_total(
+        repository: &super::TransactionRepository,
+        maintenance: &super::RepositoryMaintenanceGuard,
+        requests: &[super::RecoveryAncestryRequest],
+        field: &str,
+    ) -> u64 {
+        let limits = s20_530_branch_limits_with(field, S20_LIMIT_MEASUREMENT_SENTINEL);
+        let probe = begin_s20_530_limit_probe(
+            repository.root(),
+            "s20-530-measurement",
+            S20_LIMIT_MEASUREMENT_SENTINEL,
+            &["s20-530-measurement"],
+        );
+        let result = repository.verify_recovery_ancestries_with_limits(
+            maintenance,
+            requests,
+            limits,
+        );
+        let observation = finish_s20_530_limit_probe(probe);
+        ::core::assert!(result.is_ok(), "branch measurement must succeed");
+        observation.scanned_peak
+    }
+
+    fn s20_530_measure_branch_rejection(
+        repository: &super::TransactionRepository,
+        maintenance: &super::RepositoryMaintenanceGuard,
+        requests: &[super::RecoveryAncestryRequest],
+        field: &str,
+        limit: u64,
+    ) -> u64 {
+        let limits = s20_530_branch_limits_with(field, limit);
+        let probe = begin_s20_530_limit_probe(
+            repository.root(),
+            "s20-530-measurement",
+            limit,
+            &["s20-530-measurement"],
+        );
+        let _ = repository.verify_recovery_ancestries_with_limits(
+            maintenance,
+            requests,
+            limits,
+        );
+        let observation = finish_s20_530_limit_probe(probe);
+        observation
+            .rejected_target_usage
+            .expect("plus-one branch fixture must exceed the exact limit")
+    }
+
+    fn prepare_s20_530_limit_03_branch_work_fixture(
+        label: &str,
+        cardinality: u64,
+        field: &'static str,
+        qualified_field: &'static str,
+        event_sites: &[&'static str],
+        per_pointer: bool,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        let fixture = s20_530_accepted_chain(label, cardinality);
+        let repository = fixture.repository.clone();
+        let head_transaction_id = repository
+            .accepted_head()
+            .expect("branch limit fixture head")
+            .transaction_id();
+        let request_count = if per_pointer { 2 } else { 1 };
+        let requests = s20_530_branch_requests_for_fixture(
+            &repository,
+            fixture.genesis_transaction_id,
+            head_transaction_id,
+            request_count,
+        );
+        register_s20_530_limit_fixture(repository.root(), cardinality);
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let target_usage = if cardinality == 2 {
+            s20_530_measure_branch_total(&repository, &maintenance, &requests, field)
+        } else {
+            let baseline = s20_530_accepted_chain(
+                &::std::format!("{label}-baseline"),
+                2,
+            );
+            let baseline_repository = baseline.repository.clone();
+            let baseline_head = baseline_repository
+                .accepted_head()
+                .expect("branch limit baseline head")
+                .transaction_id();
+            let baseline_requests = s20_530_branch_requests_for_fixture(
+                &baseline_repository,
+                baseline.genesis_transaction_id,
+                baseline_head,
+                request_count,
+            );
+            register_s20_530_limit_fixture(baseline_repository.root(), 2);
+            let baseline_maintenance = baseline_repository
+                .acquire_exclusive_maintenance()
+                .unwrap();
+            let baseline_total = s20_530_measure_branch_total(
+                &baseline_repository,
+                &baseline_maintenance,
+                &baseline_requests,
+                field,
+            );
+            drop(baseline_maintenance);
+            s20_530_measure_branch_rejection(
+                &repository,
+                &maintenance,
+                &requests,
+                field,
+                baseline_total,
+            )
+        };
+        let observation = S20LimitFixtureObservation {
+            _temp: ::core::option::Option::None,
+            _fixture: ::core::option::Option::Some(::std::boxed::Box::new(fixture)),
+            cardinality,
+            qualified_field,
+            event_sites: event_sites.to_vec(),
+            target_usage,
+        };
+        (repository, maintenance, requests, observation)
+    }
+
+    fn prepare_s20_530_limit_03_branch_ancestry_per_pointer_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-ancestry-per-pointer",
+            cardinality,
+            "per_pointer.ancestry_transactions",
+            "branch_recovery_limits::per_pointer.ancestry_transactions",
+            &["branch.ancestry_node"],
+            true,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_receipt_bytes_per_pointer_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-receipt-bytes-per-pointer",
+            cardinality,
+            "per_pointer.receipt_bytes",
+            "branch_recovery_limits::per_pointer.receipt_bytes",
+            &["branch.actual_receipt_read", "branch.cached_fact_use"],
+            true,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_binding_visits_per_pointer_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-binding-visits-per-pointer",
+            cardinality,
+            "per_pointer.binding_visits",
+            "branch_recovery_limits::per_pointer.binding_visits",
+            &["branch.actual_binding_visit", "branch.cached_fact_use"],
+            true,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_object_verifications_per_pointer_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-object-verifications-per-pointer",
+            cardinality,
+            "per_pointer.object_verifications",
+            "branch_recovery_limits::per_pointer.object_verifications",
+            &["branch.actual_object_read", "branch.cached_fact_use"],
+            true,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_object_bytes_per_pointer_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-object-bytes-per-pointer",
+            cardinality,
+            "per_pointer.object_bytes",
+            "branch_recovery_limits::per_pointer.object_bytes",
+            &["branch.actual_object_read", "branch.cached_fact_use"],
+            true,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_ancestry_union_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-ancestry-union",
+            cardinality,
+            "union.ancestry_transactions",
+            "branch_recovery_limits::union.ancestry_transactions",
+            &["branch.ancestry_node"],
+            false,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_receipt_bytes_union_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-receipt-bytes-union",
+            cardinality,
+            "union.receipt_bytes",
+            "branch_recovery_limits::union.receipt_bytes",
+            &["branch.actual_receipt_read"],
+            false,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_binding_visits_union_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-binding-visits-union",
+            cardinality,
+            "union.binding_visits",
+            "branch_recovery_limits::union.binding_visits",
+            &["branch.actual_binding_visit"],
+            false,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_object_verifications_union_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-object-verifications-union",
+            cardinality,
+            "union.object_verifications",
+            "branch_recovery_limits::union.object_verifications",
+            &["branch.actual_object_read"],
+            false,
+        )
+    }
+
+    fn prepare_s20_530_limit_03_branch_object_bytes_union_limit_fixture(
+        cardinality: u64,
+    ) -> (
+        super::TransactionRepository,
+        super::RepositoryMaintenanceGuard,
+        ::std::vec::Vec<super::RecoveryAncestryRequest>,
+        S20LimitFixtureObservation,
+    ) {
+        prepare_s20_530_limit_03_branch_work_fixture(
+            "limit03-branch-object-bytes-union",
+            cardinality,
+            "union.object_bytes",
+            "branch_recovery_limits::union.object_bytes",
+            &["branch.actual_object_read"],
+            false,
+        )
+    }
+
+    #[test]
+    fn limit03_branch_ancestry_per_pointer_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_ancestry_per_pointer_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_ancestry_per_pointer_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.ancestry_transactions");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.ancestry_transactions");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_ANCESTRY_PER_POINTER);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_ANCESTRY_PER_POINTER, 65_536);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.per_pointer.ancestry_transactions = injected_limit;
+        plus_one_limits.per_pointer.ancestry_transactions = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(default_limits.per_pointer.ancestry_transactions, BRANCH_RECOVERY_MAX_ANCESTRY_PER_POINTER);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, injected_limit);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::per_pointer.ancestry_transactions", injected_limit, &["branch.ancestry_node"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.ancestry_transactions");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::per_pointer.ancestry_transactions", injected_limit, &["branch.ancestry_node"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.ancestry_transactions");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_receipt_bytes_per_pointer_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_receipt_bytes_per_pointer_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_receipt_bytes_per_pointer_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.receipt_bytes");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.receipt_bytes");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_RECEIPT_BYTES_PER_POINTER);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_RECEIPT_BYTES_PER_POINTER, 1_073_741_824);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.per_pointer.receipt_bytes = injected_limit;
+        plus_one_limits.per_pointer.receipt_bytes = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(default_limits.per_pointer.receipt_bytes, BRANCH_RECOVERY_MAX_RECEIPT_BYTES_PER_POINTER);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, injected_limit);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::per_pointer.receipt_bytes", injected_limit, &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.receipt_bytes");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::per_pointer.receipt_bytes", injected_limit, &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.receipt_bytes");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_receipt_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_binding_visits_per_pointer_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_binding_visits_per_pointer_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_binding_visits_per_pointer_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.binding_visits");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.binding_visits");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_BINDING_VISITS_PER_POINTER);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_BINDING_VISITS_PER_POINTER, 4_194_304);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.per_pointer.binding_visits = injected_limit;
+        plus_one_limits.per_pointer.binding_visits = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(default_limits.per_pointer.binding_visits, BRANCH_RECOVERY_MAX_BINDING_VISITS_PER_POINTER);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, injected_limit);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::per_pointer.binding_visits", injected_limit, &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.binding_visits");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::per_pointer.binding_visits", injected_limit, &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.binding_visits");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_binding_visit","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_object_verifications_per_pointer_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_object_verifications_per_pointer_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_object_verifications_per_pointer_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.object_verifications");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.object_verifications");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_OBJECT_VERIFICATIONS_PER_POINTER);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_OBJECT_VERIFICATIONS_PER_POINTER, 2_097_152);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.per_pointer.object_verifications = injected_limit;
+        plus_one_limits.per_pointer.object_verifications = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(default_limits.per_pointer.object_verifications, BRANCH_RECOVERY_MAX_OBJECT_VERIFICATIONS_PER_POINTER);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, injected_limit);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::per_pointer.object_verifications", injected_limit, &["branch.actual_object_read","branch.cached_fact_use"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.object_verifications");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::per_pointer.object_verifications", injected_limit, &["branch.actual_object_read","branch.cached_fact_use"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.object_verifications");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_object_bytes_per_pointer_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_object_bytes_per_pointer_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_object_bytes_per_pointer_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.object_bytes");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::per_pointer.object_bytes");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_OBJECT_BYTES_PER_POINTER);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_OBJECT_BYTES_PER_POINTER, 1_073_741_824);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.per_pointer.object_bytes = injected_limit;
+        plus_one_limits.per_pointer.object_bytes = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(default_limits.per_pointer.object_bytes, BRANCH_RECOVERY_MAX_OBJECT_BYTES_PER_POINTER);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, injected_limit);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::per_pointer.object_bytes", injected_limit, &["branch.actual_object_read","branch.cached_fact_use"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.object_bytes");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::per_pointer.object_bytes", injected_limit, &["branch.actual_object_read","branch.cached_fact_use"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::per_pointer.object_bytes");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read","branch.cached_fact_use"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_ancestry_union_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_ancestry_union_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_ancestry_union_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::union.ancestry_transactions");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::union.ancestry_transactions");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_UNION_ANCESTRY);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_UNION_ANCESTRY, 262_144);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.union.ancestry_transactions = injected_limit;
+        plus_one_limits.union.ancestry_transactions = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(default_limits.union.ancestry_transactions, BRANCH_RECOVERY_MAX_UNION_ANCESTRY);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, injected_limit);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::union.ancestry_transactions", injected_limit, &["branch.ancestry_node"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::union.ancestry_transactions");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::union.ancestry_transactions", injected_limit, &["branch.ancestry_node"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::union.ancestry_transactions");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.ancestry_node"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_receipt_bytes_union_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_receipt_bytes_union_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_receipt_bytes_union_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::union.receipt_bytes");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::union.receipt_bytes");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_receipt_read"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_receipt_read"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_UNION_RECEIPT_BYTES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_UNION_RECEIPT_BYTES, 4_294_967_296);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.union.receipt_bytes = injected_limit;
+        plus_one_limits.union.receipt_bytes = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(default_limits.union.receipt_bytes, BRANCH_RECOVERY_MAX_UNION_RECEIPT_BYTES);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, injected_limit);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::union.receipt_bytes", injected_limit, &["branch.actual_receipt_read"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::union.receipt_bytes");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_receipt_read"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::union.receipt_bytes", injected_limit, &["branch.actual_receipt_read"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::union.receipt_bytes");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_receipt_read"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_binding_visits_union_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_binding_visits_union_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_binding_visits_union_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::union.binding_visits");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::union.binding_visits");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_binding_visit"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_binding_visit"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_UNION_BINDING_VISITS);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_UNION_BINDING_VISITS, 16_777_216);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.union.binding_visits = injected_limit;
+        plus_one_limits.union.binding_visits = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(default_limits.union.binding_visits, BRANCH_RECOVERY_MAX_UNION_BINDING_VISITS);
+        ::core::assert_eq!(exact_limits.union.binding_visits, injected_limit);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::union.binding_visits", injected_limit, &["branch.actual_binding_visit"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::union.binding_visits");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_binding_visit"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::union.binding_visits", injected_limit, &["branch.actual_binding_visit"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::union.binding_visits");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_binding_visit"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_object_verifications_union_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_object_verifications_union_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_object_verifications_union_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::union.object_verifications");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::union.object_verifications");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_UNION_OBJECT_VERIFICATIONS);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_UNION_OBJECT_VERIFICATIONS, 8_388_608);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.union.object_verifications = injected_limit;
+        plus_one_limits.union.object_verifications = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(default_limits.union.object_verifications, BRANCH_RECOVERY_MAX_UNION_OBJECT_VERIFICATIONS);
+        ::core::assert_eq!(exact_limits.union.object_verifications, injected_limit);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, injected_limit);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_bytes);
+        ::core::assert_eq!(exact_limits.union.object_bytes, default_limits.union.object_bytes);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, default_limits.union.object_bytes);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::union.object_verifications", injected_limit, &["branch.actual_object_read"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::union.object_verifications");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::union.object_verifications", injected_limit, &["branch.actual_object_read"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::union.object_verifications");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
+    #[test]
+    fn limit03_branch_object_bytes_union_exact_and_plus_one() {
+        let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_object_bytes_union_limit_fixture(2_u64);
+        let (plus_one_repository, plus_one_maintenance, plus_one_requests, plus_one_fixture_observation) = prepare_s20_530_limit_03_branch_object_bytes_union_limit_fixture(3_u64);
+        ::core::assert_eq!(exact_fixture_observation.cardinality, 2_u64);
+        ::core::assert_eq!(plus_one_fixture_observation.cardinality, 3_u64);
+        ::core::assert_eq!(exact_fixture_observation.qualified_field, "branch_recovery_limits::union.object_bytes");
+        ::core::assert_eq!(plus_one_fixture_observation.qualified_field, "branch_recovery_limits::union.object_bytes");
+        ::core::assert_eq!(exact_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(plus_one_fixture_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        let injected_limit = exact_fixture_observation.target_usage;
+        ::core::assert!(injected_limit > 0_u64);
+        ::core::assert!(injected_limit < BRANCH_RECOVERY_MAX_UNION_OBJECT_BYTES);
+        ::core::assert!(plus_one_fixture_observation.target_usage > injected_limit);
+        ::core::assert_eq!(super::BRANCH_RECOVERY_MAX_UNION_OBJECT_BYTES, 4_294_967_296);
+        let default_limits = branch_recovery_limits();
+        let mut exact_limits = branch_recovery_limits();
+        let mut plus_one_limits = branch_recovery_limits();
+        exact_limits.union.object_bytes = injected_limit;
+        plus_one_limits.union.object_bytes = injected_limit;
+        ::core::assert_ne!(injected_limit, default_limits.max_requests);
+        ::core::assert_eq!(exact_limits.max_requests, default_limits.max_requests);
+        ::core::assert_eq!(plus_one_limits.max_requests, default_limits.max_requests);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.per_pointer.ancestry_transactions, default_limits.per_pointer.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.receipt_bytes, default_limits.per_pointer.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(exact_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_eq!(plus_one_limits.per_pointer.binding_visits, default_limits.per_pointer.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(exact_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_verifications, default_limits.per_pointer.object_verifications);
+        ::core::assert_ne!(injected_limit, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(exact_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_eq!(plus_one_limits.per_pointer.object_bytes, default_limits.per_pointer.object_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(exact_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_eq!(plus_one_limits.union.ancestry_transactions, default_limits.union.ancestry_transactions);
+        ::core::assert_ne!(injected_limit, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(exact_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_eq!(plus_one_limits.union.receipt_bytes, default_limits.union.receipt_bytes);
+        ::core::assert_ne!(injected_limit, default_limits.union.binding_visits);
+        ::core::assert_eq!(exact_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_eq!(plus_one_limits.union.binding_visits, default_limits.union.binding_visits);
+        ::core::assert_ne!(injected_limit, default_limits.union.object_verifications);
+        ::core::assert_eq!(exact_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(plus_one_limits.union.object_verifications, default_limits.union.object_verifications);
+        ::core::assert_eq!(default_limits.union.object_bytes, BRANCH_RECOVERY_MAX_UNION_OBJECT_BYTES);
+        ::core::assert_eq!(exact_limits.union.object_bytes, injected_limit);
+        ::core::assert_eq!(plus_one_limits.union.object_bytes, injected_limit);
+        let exact_owner_root = exact_repository.root();
+        let plus_one_owner_root = plus_one_repository.root();
+        ::core::assert_ne!(exact_owner_root, plus_one_owner_root);
+        let plus_one_owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "branch_recovery_limits::union.object_bytes", injected_limit, &["branch.actual_object_read"]);
+        let exact_result = exact_repository.verify_recovery_ancestries_with_limits(&exact_maintenance, &exact_requests, exact_limits);
+        let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);
+        ::core::assert!(exact_result.is_ok());
+        ::core::assert_eq!(exact_runtime_observation.qualified_field, "branch_recovery_limits::union.object_bytes");
+        ::core::assert_eq!(exact_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(exact_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.fixture_cardinality, exact_fixture_observation.cardinality);
+        ::core::assert_eq!(exact_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(exact_runtime_observation.rejected_target_usage, ::core::option::Option::None);
+        let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "branch_recovery_limits::union.object_bytes", injected_limit, &["branch.actual_object_read"]);
+        let plus_one_result = plus_one_repository.verify_recovery_ancestries_with_limits(&plus_one_maintenance, &plus_one_requests, plus_one_limits);
+        let plus_one_runtime_observation = finish_s20_530_limit_probe(plus_one_probe);
+        ::core::assert!(plus_one_result.is_err());
+        let limit_plus_one_error = plus_one_result.expect_err("expected limit-plus-one error");
+        let plus_one_owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(plus_one_owner_root);
+        ::core::assert_eq!(plus_one_owner_tree_before_snapshot, plus_one_owner_tree_after_snapshot);
+        ::core::assert!(::core::matches!(&limit_plus_one_error, super::RecoveryAncestryError::LimitExceeded));
+        ::core::assert_eq!(plus_one_runtime_observation.qualified_field, "branch_recovery_limits::union.object_bytes");
+        ::core::assert_eq!(plus_one_runtime_observation.event_sites.as_slice(), &["branch.actual_object_read"]);
+        ::core::assert_eq!(plus_one_runtime_observation.injected_limit, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.fixture_cardinality, plus_one_fixture_observation.cardinality);
+        ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
+        ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+    }
+
     #[test]
     fn limit03_branch_requests_exact_and_plus_one() {
         let (exact_repository, exact_maintenance, exact_requests, exact_fixture_observation) = prepare_s20_530_limit_03_branch_requests_limit_fixture(2_u64);
