@@ -4659,6 +4659,7 @@ mod tests {
         control_path: PathBuf,
         control_is_object: bool,
         target_identity: TransactionId,
+        pristine_bytes: Vec<u8>,
         object_stage_path: PathBuf,
         receipt_stage_path: PathBuf,
         head_stage_path: PathBuf,
@@ -4760,6 +4761,30 @@ mod tests {
         ::core::assert_eq!(plan.probe_class, "verify_absent_revision_receipt");
         ::core::assert_eq!(plan.selector, "repository_recovery_receipt_incomplete");
         ::core::assert!(plan.distinct_from_roles.is_empty());
+    }
+
+    fn assert_cor06_accepted_pointer_plan(plan: &CorruptionFixturePlan) {
+        ::core::assert_eq!(plan.row_id, "COR-06");
+        ::core::assert_eq!(plan.group_id, "head_checksum");
+        ::core::assert_eq!(plan.target_role, "ACCEPTED_POINTER");
+        ::core::assert_eq!(plan.artifact_role, "accepted_pointer");
+        ::core::assert_eq!(plan.identity_recipe, "transaction_repository_owner_root");
+        ::core::assert_eq!(plan.path_recipe, "accepted_pointer_path");
+        ::core::assert_eq!(plan.probe_class, "decode_accepted_pointer_error");
+        ::core::assert!(plan.distinct_from_roles.is_empty());
+        match (plan.corrupter_class, plan.leaf_id, plan.selector) {
+            (
+                "accepted_pointer_shape",
+                "head_shape_before_receipt_missing",
+                "head_shape_before_receipt_missing",
+            )
+            | (
+                "accepted_pointer_checksum",
+                "head_checksum_before_receipt_corrupt",
+                "head_checksum_before_receipt_corrupt",
+            ) => {}
+            other => ::core::panic!("unsupported COR-06 accepted pointer plan: {other:?}"),
+        }
     }
 
     fn assert_cor06_visible_revision_plan(plan: &CorruptionFixturePlan) {
@@ -4884,6 +4909,32 @@ mod tests {
             control_path,
             control_is_object: object_artifact,
             target_identity: accepted_identity,
+            pristine_bytes: accepted_pointer_bytes,
+            object_stage_path,
+            receipt_stage_path,
+            head_stage_path,
+        }
+    }
+
+    fn prepare_accepted_head_pointer_corruption_fixture(
+        fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+    ) -> CorruptionFixtureObservation {
+        assert_cor06_accepted_pointer_plan(fixture_plan);
+        let fault_path = fixture.repository.head_path();
+        let pristine_bytes = fs::read(&fault_path).unwrap();
+        let target_identity = decode_head(&pristine_bytes).unwrap();
+        let control_path = corruption_receipt_path(fixture.path(), target_identity);
+        let receipt = import_transaction_receipt(&fs::read(&control_path).unwrap()).unwrap();
+        let accepted_object_id = receipt.record.object_manifest[0].object_id;
+        let (object_stage_path, receipt_stage_path, head_stage_path) =
+            plant_corruption_canaries(fixture, accepted_object_id, &control_path);
+        CorruptionFixtureObservation {
+            fault_path,
+            control_path,
+            control_is_object: false,
+            target_identity,
+            pristine_bytes,
             object_stage_path,
             receipt_stage_path,
             head_stage_path,
@@ -4902,6 +4953,20 @@ mod tests {
             decode_head(&fs::read(fixture.repository.head_path()).unwrap()).unwrap();
         CorruptionFixtureDirect {
             pointer_target_identity,
+            expected_fault_path: fixture_observation.fault_path.clone(),
+        }
+    }
+
+    fn observe_accepted_head_pointer_corruption_fixture(
+        _fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        fault_path: &Path,
+        control_path: &Path,
+    ) -> CorruptionFixtureDirect {
+        ::core::assert_eq!(fault_path, fixture_observation.fault_path);
+        ::core::assert_eq!(control_path, fixture_observation.control_path);
+        CorruptionFixtureDirect {
+            pointer_target_identity: fixture_observation.target_identity,
             expected_fault_path: fixture_observation.fault_path.clone(),
         }
     }
@@ -4999,6 +5064,28 @@ mod tests {
         sync_dir(fault_path.parent().unwrap()).unwrap();
     }
 
+    fn apply_accepted_pointer_shape_corruption(
+        _fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+        fault_path: &Path,
+    ) {
+        assert_cor06_accepted_pointer_plan(fixture_plan);
+        let mut bytes = fs::read(fault_path).unwrap();
+        bytes[0] ^= 1;
+        write_corruption_file(fault_path, &bytes);
+    }
+
+    fn apply_accepted_pointer_checksum_corruption(
+        _fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+        fault_path: &Path,
+    ) {
+        assert_cor06_accepted_pointer_plan(fixture_plan);
+        let mut bytes = fs::read(fault_path).unwrap();
+        *bytes.last_mut().expect("accepted pointer checksum byte") ^= 1;
+        write_corruption_file(fault_path, &bytes);
+    }
+
     fn path_bound_receipt_read_injection(
         _fixture: &Fixture,
         fixture_observation: &CorruptionFixtureObservation,
@@ -5071,6 +5158,16 @@ mod tests {
             fault_path,
         )
         .map(|_| ())
+    }
+
+    fn decode_accepted_pointer_error(
+        _fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        fault_path: &Path,
+    ) -> Result<TransactionId, CommitError> {
+        ::core::assert_eq!(fault_path, fixture_observation.fault_path);
+        let bytes = fs::read(fault_path).map_err(CommitError::Io)?;
+        decode_head(&bytes)
     }
 
     fn probe_untargeted_corruption_control(
@@ -5561,6 +5658,140 @@ mod tests {
         let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
         let head_stage_after_kind = head_stage_after_snapshot.0;
         ::core::assert_eq!(error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain::<0>(&error), [] as [&'static str; 0]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_head_checksum__head_shape_before_receipt_missing() {
+        let fixture = Fixture::new("s20-530-cor-06-head-checksum-head-shape-before-receipt-missing");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "head_checksum", "head_shape_before_receipt_missing", "ACCEPTED_POINTER", "accepted_pointer", "transaction_repository_owner_root", "accepted_pointer_path", "accepted_pointer_shape", "decode_accepted_pointer_error", "head_shape_before_receipt_missing", &[]);
+        let fixture_observation = prepare_accepted_head_pointer_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_accepted_pointer_shape_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_accepted_head_pointer_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = decode_accepted_pointer_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("pointer_path_from_owner", fault_path.as_path()), ("pointer_path_from_owner", owner_root.join("heads").join("accepted").as_path()));
+        ::core::assert_eq!(("pointer_kind", fault_after_kind), ("pointer_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_eq!(("pointer_pristine_bytes", fault_before_bytes.as_slice()), ("pointer_pristine_bytes", fixture_observation.pristine_bytes.as_slice()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Transaction(_)));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_receipt_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "REF_HEAD_CORRUPT");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain::<0>(&error), [] as [&'static str; 0]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_head_checksum__head_checksum_before_receipt_corrupt() {
+        let fixture = Fixture::new("s20-530-cor-06-head-checksum-head-checksum-before-receipt-corrupt");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt", "ACCEPTED_POINTER", "accepted_pointer", "transaction_repository_owner_root", "accepted_pointer_path", "accepted_pointer_checksum", "decode_accepted_pointer_error", "head_checksum_before_receipt_corrupt", &[]);
+        let fixture_observation = prepare_accepted_head_pointer_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_accepted_pointer_checksum_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_accepted_head_pointer_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = decode_accepted_pointer_error(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("pointer_path_from_owner", fault_path.as_path()), ("pointer_path_from_owner", owner_root.join("heads").join("accepted").as_path()));
+        ::core::assert_eq!(("pointer_kind", fault_after_kind), ("pointer_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_eq!(("pointer_pristine_bytes", fault_before_bytes.as_slice()), ("pointer_pristine_bytes", fixture_observation.pristine_bytes.as_slice()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Transaction(_)));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_receipt_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "REF_HEAD_CORRUPT");
         ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
         ::core::assert_eq!(crate::repository::tests::exact_error_source_chain::<0>(&error), [] as [&'static str; 0]);
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
