@@ -1,6 +1,6 @@
 # S20-530 v5 semantic amendment design
 
-Status: AUTHORIZED FOR LOCAL REFREEZE, EXECUTION IN PROGRESS
+Status: CONTRACT FROZEN, IMPLEMENTATION PENDING, MONOLITHIC NEGATIVE-CONTROL RUNTIME DEFERRED
 
 Owner: Codex orchestrator
 
@@ -16,8 +16,10 @@ removes one recovery-unreachable SCB label case.
 
 The operator authorized the local v5 refreeze on 2026-08-30 after lifting the
 paused checkpoint. That authorization covers local checker, specification,
-ADR, runner, private test, and freeze-evidence work. It does not authorize
-provider calls, publication, push, deployment, or external runtime mutation.
+ADR, runner, private test, and freeze-evidence work. After the local review
+target settled, the operator separately authorized the provider-backed Nabu,
+Ariadne, and Vulcan handoffs. Publication, push, deployment, spend, trading,
+and external runtime mutation remain unauthorized.
 
 ## Current evidence
 
@@ -317,6 +319,23 @@ positive and hostile controls, all three changed ANC-04 exact bodies, the
 `sley-repo` tests. The full checker negative-control corpus was stopped after
 8 minutes 27 seconds while CPU-active in an unrelated production-source parser;
 the relevant bounded controls above completed successfully.
+
+Fresh Nabu, Ariadne, and Vulcan reviews each returned
+`PASS_CONTRACT_FREEZE` bound to contract set
+`de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d`
+and evidence payload
+`58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56`.
+The immutable v5 evidence was added in commit
+`d152598425c3dff4ff2e893195f77936bf0b2327`.
+
+The isolated freeze-evidence binding function passed after evidence creation
+and reproduced the exact contract set and all three review objects. A second
+monolithic checker attempt was interrupted after 2 hours 49 minutes at 99.9%
+CPU. It was still inside the CROSS-05 hostile negative control, repeatedly
+projecting Rust source through `rust_code_mask`. The run emitted no contract
+failure, but it did not terminate and is not recorded as PASS. That entrypoint
+remains deferred as validation-runtime debt; the bounded contract controls,
+crate suites, and review bindings remain the current Tier 2 evidence.
 
 ## Refreeze sequence after explicit authorization
 

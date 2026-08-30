@@ -1063,7 +1063,7 @@
     "implementation_complete": false,
     "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v5.json",
     "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
-    "freeze_commit": "dd04bf97d774ca532c65c4c8ced1b4d0211da625",
+    "freeze_commit": "d152598425c3dff4ff2e893195f77936bf0b2327",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
