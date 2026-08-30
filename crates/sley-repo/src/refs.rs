@@ -3267,32 +3267,40 @@ mod tests {
         (added, changed, removed)
     }
 
-    fn exact_error_source_chain(
+    fn exact_error_source_chain<const N: ::core::primitive::usize>(
         error: &(dyn ::std::error::Error + 'static),
-    ) -> ::std::vec::Vec<::std::string::String> {
+    ) -> [&'static str; N] {
         let mut chain = ::std::vec::Vec::new();
         let mut source = ::std::error::Error::source(error);
         while let ::core::option::Option::Some(current) = source {
             let label = if current.is::<::sley_txn::CommitError>() {
-                ::std::string::String::from("CommitError")
+                "CommitError"
             } else if current.is::<::sley_txn::TransactionCodecError>() {
-                ::std::string::String::from("TransactionCodecError")
+                "TransactionCodecError"
             } else if current.is::<::sley_store::StoreError>() {
-                ::std::string::String::from("StoreError")
+                "StoreError"
             } else if let ::core::option::Option::Some(io_error) =
                 current.downcast_ref::<::std::io::Error>()
             {
-                ::std::format!("io::Error({:?})", io_error.kind())
+                match io_error.kind() {
+                    ::std::io::ErrorKind::Other => "io::Error(Other)",
+                    kind => ::core::panic!("unexpected exact I/O error source kind: {kind:?}"),
+                }
             } else {
-                ::std::format!(
-                    "unknown({})",
-                    ::std::any::type_name_of_val(current),
+                ::core::panic!(
+                    "unexpected exact error source type: {}",
+                    ::std::any::type_name_of_val(current)
                 )
             };
             chain.push(label);
             source = ::std::error::Error::source(current);
         }
-        chain
+        chain.try_into().unwrap_or_else(|chain: ::std::vec::Vec<_>| {
+            ::core::panic!(
+                "expected {N} exact error source labels, observed {}",
+                chain.len()
+            )
+        })
     }
 
     struct S20LimitFixtureObservation {
@@ -5321,6 +5329,170 @@ mod tests {
         let digest = ReceiptId::derive(&bytes[..preimage_len]);
         bytes[preimage_len..].copy_from_slice(digest.as_bytes());
         bytes
+    }
+
+    type RefCodecOriginObservation = (
+        TransactionId,
+        TransactionId,
+        ::std::collections::BTreeSet<TransactionId>,
+    );
+
+    struct RefNestedCodecOriginFixture {
+        m2_primary_locator: ::std::string::String,
+        m2_primary_nested_state_root_bytes: ::std::vec::Vec<u8>,
+        m2_primary_path: ::std::path::PathBuf,
+        m2_pristine_nested_state_root_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_observation: ExactPathSnapshot,
+        m2_ref_head_receipt_path: ::std::path::PathBuf,
+        m2_secondary_head_transaction_id: TransactionId,
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: RefCodecOriginObservation,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_origin_transaction_id: TransactionId,
+        m2_secondary_reachable_transaction_ids:
+            ::std::collections::BTreeSet<TransactionId>,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    fn prepare_ref_nested_codec_origin_fixture(
+        fixture: &Fixture,
+    ) -> RefNestedCodecOriginFixture {
+        let origin_source = Fixture::new("anc06-codec-origin-source");
+        ::core::assert_eq!(
+            origin_source.genesis_transaction_id,
+            fixture.genesis_transaction_id
+        );
+        let origin_transaction_id = origin_source.commit_child(82);
+        import_fixture_revisions(&origin_source, fixture);
+        let head_transaction_id = fixture.commit_child(83);
+        let branch_name = "anc06-codec-origin";
+        fixture
+            .branches
+            .create_branch(branch_name, origin_transaction_id)
+            .unwrap();
+        let resolved_origin = fixture.branches.resolve_branch(branch_name).unwrap();
+        let parsed_name = BranchName::parse(branch_name).unwrap();
+        let head_revision = fixture
+            .transactions
+            .verified_revision(head_transaction_id)
+            .unwrap();
+        let replacement_ref = build_branch_ref(&ref_record(
+            &parsed_name,
+            resolved_origin.origin.digest,
+            &head_revision,
+        ))
+        .unwrap();
+        let ref_path = fixture.branches.checked_ref_path(&parsed_name).unwrap();
+        ::std::fs::write(&ref_path, &replacement_ref.stored_bytes).unwrap();
+        ::std::fs::File::open(&ref_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(ref_path.parent().unwrap()).unwrap();
+
+        let m2_primary_path =
+            transaction_receipt_path(fixture.path(), head_transaction_id);
+        let m2_pristine_primary_bytes = ::std::fs::read(&m2_primary_path).unwrap();
+        let imported = ::sley_txn::import_transaction_receipt(&m2_pristine_primary_bytes)
+            .expect("multifault pristine ref-head receipt");
+        let m2_pristine_nested_state_root_bytes = imported.record.stored_state_root.clone();
+        let nested_offsets = m2_pristine_primary_bytes
+            .windows(m2_pristine_nested_state_root_bytes.len())
+            .enumerate()
+            .filter_map(|(offset, window)| {
+                (window == m2_pristine_nested_state_root_bytes.as_slice()).then_some(offset)
+            })
+            .collect::<::std::vec::Vec<_>>();
+        ::core::assert_eq!(nested_offsets.len(), 1);
+        let nested_start = nested_offsets[0];
+        let nested_end = nested_start
+            .checked_add(m2_pristine_nested_state_root_bytes.len())
+            .unwrap();
+        let m2_pristine_primary_observation = exact_path_snapshot(&m2_primary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(fixture.path());
+        let corrupted = corrupt_nested_receipt(
+            &imported,
+            &m2_pristine_nested_state_root_bytes,
+        );
+        let m2_primary_nested_state_root_bytes = corrupted[nested_start..nested_end].to_vec();
+        ::std::fs::write(&m2_primary_path, corrupted).unwrap();
+        ::std::fs::File::open(&m2_primary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_secondary_reachable_transaction_ids =
+            ::std::collections::BTreeSet::from([
+                fixture.genesis_transaction_id,
+                head_transaction_id,
+            ]);
+        let m2_secondary_only_observation = (
+            origin_transaction_id,
+            head_transaction_id,
+            m2_secondary_reachable_transaction_ids.clone(),
+        );
+        RefNestedCodecOriginFixture {
+            m2_primary_locator: m2_primary_path.display().to_string(),
+            m2_primary_nested_state_root_bytes,
+            m2_primary_path: m2_primary_path.clone(),
+            m2_pristine_nested_state_root_bytes,
+            m2_pristine_primary_bytes,
+            m2_pristine_primary_observation,
+            m2_ref_head_receipt_path: m2_primary_path,
+            m2_secondary_head_transaction_id: head_transaction_id,
+            m2_secondary_locator: ::std::format!(
+                "origin-relation:{origin_transaction_id:?}:{head_transaction_id:?}"
+            ),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_origin_transaction_id: origin_transaction_id,
+            m2_secondary_reachable_transaction_ids,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
+    fn observe_ref_nested_codec_origin_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &RefNestedCodecOriginFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_ref_nested_codec_origin_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &RefNestedCodecOriginFixture,
+    ) -> RefCodecOriginObservation {
+        m2_fixture.m2_secondary_only_observation.clone()
+    }
+
+    fn import_transaction_receipt_error(
+        _fixture: &Fixture,
+        m2_fixture: &RefNestedCodecOriginFixture,
+    ) -> ::core::result::Result<
+        ::sley_txn::ImportedTransactionReceipt,
+        ::sley_txn::TransactionCodecError,
+    > {
+        let bytes = ::std::fs::read(&m2_fixture.m2_primary_path).unwrap();
+        ::sley_txn::import_transaction_receipt(&bytes)
+    }
+
+    fn probe_branch_origin_ancestry(
+        _fixture: &Fixture,
+        m2_fixture: &RefNestedCodecOriginFixture,
+    ) -> ::core::result::Result<(), super::BranchError> {
+        if m2_fixture
+            .m2_secondary_reachable_transaction_ids
+            .contains(&m2_fixture.m2_secondary_origin_transaction_id)
+        {
+            ::core::result::Result::Ok(())
+        } else {
+            ::core::result::Result::Err(super::branch_error(
+                super::BranchErrorCode::BranchOriginMismatch,
+            ))
+        }
     }
 
     fn namespace_body() -> EntityBodyValue {
@@ -8189,6 +8361,98 @@ mod tests {
     }
 
     #[test]
+    fn anc06_ref_nested_codec_before_claim_mismatch() {
+        let fixture = Fixture::new("s20-530-m2-anc-06-ref-nested-codec-before-claim-mismatch");
+        let transaction_repository: &::sley_txn::TransactionRepository = &fixture.transactions;
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_ref_nested_codec_origin_fixture(&fixture);
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_primary_nested_state_root_bytes = m2_fixture.m2_primary_nested_state_root_bytes.clone();
+        let m2_primary_path = m2_fixture.m2_primary_path.clone();
+        let m2_pristine_nested_state_root_bytes = m2_fixture.m2_pristine_nested_state_root_bytes.clone();
+        let m2_pristine_primary_bytes = m2_fixture.m2_pristine_primary_bytes.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_ref_head_receipt_path = m2_fixture.m2_ref_head_receipt_path.clone();
+        let m2_secondary_head_transaction_id = m2_fixture.m2_secondary_head_transaction_id.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_origin_transaction_id = m2_fixture.m2_secondary_origin_transaction_id.clone();
+        let m2_secondary_reachable_transaction_ids = m2_fixture.m2_secondary_reachable_transaction_ids.clone();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_receipt_path_from_ref_head", m2_primary_path.as_path()), ("primary_receipt_path_from_ref_head", m2_ref_head_receipt_path.as_path()));
+        ::core::assert_ne!(("primary_nested_state_root_corruption_present", m2_primary_nested_state_root_bytes.as_slice()), ("primary_nested_state_root_corruption_present", m2_pristine_nested_state_root_bytes.as_slice()));
+        ::core::assert_ne!(("secondary_origin_head_distinct", m2_secondary_origin_transaction_id), ("secondary_origin_head_distinct", m2_secondary_head_transaction_id));
+        ::core::assert!(!m2_secondary_reachable_transaction_ids.contains(&m2_secondary_origin_transaction_id), "secondary_origin_not_reachable_from_head");
+        ::core::assert_ne!(("artifact_vs_origin_relation", m2_primary_locator.as_str()), ("artifact_vs_origin_relation", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = import_transaction_receipt_error(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = probe_branch_origin_ancestry(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_branch_origin_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_branch_origin_mismatch", "BRANCH_ORIGIN_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = branch_repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_ref_nested_codec_origin_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_ref_nested_codec_origin_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "SCB_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Transaction(::sley_txn::CommitError::Codec(::sley_txn::TransactionCodecError::StateRoot(::sley_state_root::StateRootError::Scb(_))))), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", ["CommitError", "TransactionCodecError"]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_ref_nested_codec_origin_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = branch_repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_ref_nested_codec_origin_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_ref_nested_codec_origin_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
+    }
+
+    #[test]
     fn anc06_partial_ref_nested_codec_deep_ancestor_fails_closed() {
         let fixture = Fixture::new("anc06-codec");
         let deep_transaction_id = fixture.commit_child(61);
@@ -8452,7 +8716,7 @@ mod tests {
         ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)));
         ::core::assert_eq!(
             crate::refs::tests::exact_error_source_chain(&error),
-            Vec::<String>::new()
+            [] as [&str; 0]
         );
         let (cycle_observations, plan_consumption_counts) = consumed_l_r_l_cycle_observations(&transaction_repository, &maintenance, plan_identity, &provenance);
         provenance.plan_consumption_counts = plan_consumption_counts;
