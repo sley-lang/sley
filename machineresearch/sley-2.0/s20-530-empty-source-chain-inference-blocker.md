@@ -1,15 +1,23 @@
 # S20-530 empty source-chain inference blocker
 
-Status: deferred contract-shape blocker at `91c8e14e6549a694d0200c46451f1e40f96bd10f`.
+Status: deferred contract-shape blocker, expanded for COR-06 at
+`84f088194decc82a6bb28568688bb9c3ed27b570`.
 
 ## Scope
 
-This note records why twelve frozen COR-07 leaves with empty direct error
-source chains cannot be implemented against the S20-530 v4 exact assertion
-contract without another explicit refreeze. It does not reopen or modify the
-v4 checker.
+This note records why sixteen frozen COR-06 and COR-07 leaves with empty
+direct error source chains cannot be implemented against the S20-530 v4 exact
+assertion contract without another explicit refreeze. It does not reopen or
+modify the v4 checker.
 
-The affected non-multifault leaves are:
+The affected COR-06 leaves are:
+
+- `head_checksum/head_shape_before_receipt_missing`
+- `head_checksum/head_checksum_before_receipt_corrupt`
+- `receipt_missing/repository_recovery_receipt_incomplete`
+- `manifest_length/repository_txn_object_inventory_mismatch`
+
+The affected non-multifault COR-07 leaves are:
 
 - `origin_format/branch_record_field_shape`
 - `ref_format/ref_name_invalid`
@@ -83,6 +91,11 @@ because `[&str; _]` has no `PartialEq<Vec<String>>` implementation. The labeled
 tuple form used by the multifault assertions compiles, but the checker rejects
 it for these direct semantic assertions.
 
+The COR-06 fixture plans use different corruption and direct-probe helpers,
+but their semantic tail freezes the same untyped empty direct source-chain
+assertion. This note makes no additional claim about whether another fixture
+constraint would also block an individual leaf.
+
 ## Decision
 
 No test-side implementation can satisfy both Rust type checking and the
@@ -90,10 +103,11 @@ frozen direct source-chain assertion rule for these twelve leaves. Changing
 the helper return type would also violate the frozen helper body and would
 disturb the already-compiling nonempty-chain assertions.
 
-These leaves stay deferred. A future separately authorized S20-530 refreeze
-can resolve the blocker by freezing a typed zero-length array assertion, a
-labeled tuple assertion, or a compatible non-generic source-chain helper.
-Development continues on v4-compatible leaves with nonempty source chains.
+These sixteen leaves stay deferred. A future separately authorized S20-530
+refreeze can resolve the blocker by freezing a typed zero-length array
+assertion, a labeled tuple assertion, or a compatible non-generic source-chain
+helper. Development continues on v4-compatible leaves with nonempty source
+chains.
 
 ## Frozen v4 identity
 
