@@ -1,6 +1,7 @@
 # Sley 2.0 development checkpoint
 
-Status: RESUMED, V5 CONTRACT FROZEN, IMPLEMENTATION IN PROGRESS
+Status: RESUMED, V5 CONTRACT FROZEN, MAPPED CORRUPTION COMPLETE,
+BROADER IMPLEMENTATION IN PROGRESS
 
 Owner: Codex orchestrator
 
@@ -17,7 +18,8 @@ Checkpoint date: 2026-08-30, America/New_York
 - Freeze-checkpoint commit: `e757b2a`
 - Mapped-test implementation commits:
   `4f485ce`, `1f71818`, `68428f3`, `ab04689`, `65abb3b`, `4cb55e5`,
-  `6cd997e`, and `a46c447`
+  `6cd997e`, `a46c447`, `2fe3252`, `4463960`, `dd8843f`, `506d150`,
+  `312ad22`, `baaaa66`, `91d00f6`, and `7c622a3`
 - Nothing was pushed, deployed, published, or executed against an external
   runtime.
 - Provider-backed Council calls were limited to the explicitly authorized
@@ -41,12 +43,10 @@ decoder-before-semantic precedence for two candidate cases.
 
 Candidate and state-root carrier prototypes reached all eight exact nested
 errors through direct transaction-receipt import and repository recovery.
-The mapped COR-06/COR-07 Rust frontier now contains 157 of 232 exact tests:
-33 of 73 COR-06 leaves and 124 of 159 COR-07 leaves. The newly complete COR-06
-groups are head checksum, object missing, object digest, root, policy, receipt
-missing, and manifest length. Receipt digest now contains its host-I/O case and
-all seven receipt-envelope SCB cases. Seventy-five mapped leaves remain: 40
-COR-06 receipt-digest leaves and 35 COR-07 leaves.
+The mapped COR-06/COR-07 Rust implementation is now complete at 232 of 232
+exact tests: 73 of 73 COR-06 leaves and 159 of 159 COR-07 leaves. This closes
+the prior 75-leaf frontier, including all 40 nested COR-06 receipt-digest leaves
+and all 35 remaining COR-07 visible-revision and ref-owner leaves.
 
 Remaining implementation work also includes helper-body manifests, dual-site
 proof manifests, limit-event control ancestry and public-root call paths, and
@@ -84,21 +84,28 @@ No v4 review was reused.
 
 ## Validation evidence
 
-Validation tier: Tier 2 contract refreeze, with one monolithic runtime debt.
+Validation tier: Tier 2 mapped-corruption closeout, with one monolithic runtime
+debt.
 
-- `cargo test -p sley-txn`: PASS, 154 active and 1 ignored.
-- `cargo test -p sley-repo`: PASS, 244 active.
+- `cargo test -p sley-txn`: PASS, 194 active and 1 ignored.
+- `cargo test -p sley-repo`: PASS, 279 active.
 - Candidate and state-root carrier recovery prototypes: PASS, 8 exact errors.
 - Frozen test-authority inventory: PASS, 50 files.
 - Grouped and fixture metadata: PASS, 73 COR-06, 159 COR-07, 232 fixtures.
 - Typed empty source-chain positive and hostile controls: PASS.
 - Transaction and ref exact source-helper bodies: PASS.
 - Checker-rendered fixture, error, source-chain, no-mutation, canary, and
-  control-flow bindings for 31 newly added COR-06 leaves: PASS.
+  control-flow bindings for all 232 mapped corruption leaves: PASS through
+  bounded inventory and group runs.
+- COR-06 mapped implementation: PASS, 73 of 73 exact tests.
+- COR-07 mapped implementation: PASS, 159 of 159 exact tests.
 - COR-06 root group: PASS, 9 of 9 exact mapped tests.
 - COR-06 policy group: PASS, 8 of 8 exact mapped tests.
 - COR-06 receipt-envelope slice: PASS, 7 of 7 exact mapped tests.
-- T54 high-confidence secret scan: PASS, 352 files and no findings.
+- T52 local lock and dependency inventory: PASS; release SBOM and
+  operator-approved root license remain deferred to the release boundary.
+- T54 high-confidence secret scan: PASS, 352 files, 8,854,504 candidate bytes,
+  and no findings.
 - ANC-04 exact mapped-body bindings: PASS, 121, 89, and 124 statements.
 - COR-07 ref-digest rendered body: PASS, 122 statements.
 - Checker and runner Python syntax, Ruff format, and Ruff lint: PASS.
@@ -116,18 +123,18 @@ validation-runtime debt under the validation economy rule.
 ## Exact resume point
 
 1. Treat the v5 evidence and contract-set bytes as immutable.
-2. Continue the remaining S20-530 mapped grouped-test implementation from the
-   75-leaf frontier, using the v5 checker authority rather than historical v4
-   inventories. The next bounded COR-06 slice is the 40 nested receipt-digest
-   leaves; COR-07 has 35 leaves remaining.
-3. Use targeted crate tests and checker-owned render/binding controls as the
-   inner loop.
-4. Keep the monolithic checker runtime debt separate from semantic failures;
+2. Treat mapped corruption implementation as closed at 232 of 232. Do not
+   reopen those test bodies unless a frozen contract input changes.
+3. Continue with the remaining helper-body manifests, dual-site proof
+   manifests, limit-event control ancestry, public-root call paths, and
+   shared-state authority evidence.
+4. Use targeted crate tests and checker-owned render/binding controls as the
+   inner loop. Do not use the monolithic checker as a debugging command.
+5. Keep the monolithic checker runtime debt separate from semantic failures;
    do not claim the full entrypoint passed unless it terminates successfully.
-5. Complete the helper-body, dual-site, limit ancestry, public-root call-path,
-   and shared-state evidence obligations before setting
+6. Complete the remaining proof obligations before setting
    `implementation_complete` to true.
-6. Run `make v1` only at the release boundary or under explicit operator
+7. Run `make v1` only at the release boundary or under explicit operator
    direction.
 
 The completion estimate has already been supplied in this thread. Do not issue
