@@ -3312,7 +3312,8 @@ mod tests {
     use sley_id::{CandidateNonce, ObjectId, WorkspaceId};
     use sley_mutate::{
         BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObjectRecord,
-        ExpectedIdentityAbsent, ImportedCandidate, MutationClass, MutationOperation,
+        ExactEntityVersion, ExpectedIdentityAbsent, ImportedCandidate, MutationClass,
+        MutationOperation,
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
         build_entity_object, full_validation_profile_id,
         value::{EntityBodyValue, EntityIdSet, NamespaceBody},
@@ -3373,6 +3374,7 @@ mod tests {
                 1_000, 1_000, 1_000, 100, 100, 100,
             ))
             .mutation_class(MutationClass::CreateEntity)
+            .mutation_class(MutationClass::DeleteEntityBinding)
             .build()
             .unwrap();
             let policy = PolicyRootBuilder::new(workspace_id)
@@ -4158,6 +4160,68 @@ mod tests {
             .unwrap()
     }
 
+    fn delete_entity_on_head(
+        fixture: &Fixture,
+        entity_id: EntityId,
+        object_id: ObjectId,
+        nonce_byte: u8,
+    ) -> CommitOutput {
+        let head = fixture.repository.accepted_head().unwrap();
+        let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+        let state_root = head.state_root();
+        let policy_root = head.policy_root();
+        let summary = build_capability_summary_projection(
+            fixture.principal_id,
+            state_root.record.workspace_id,
+            policy_root.root(),
+            state_root.root,
+            &[],
+        )
+        .unwrap();
+        let candidate = build_candidate(&CandidateRecord {
+            format_version: 1,
+            workspace_id: state_root.record.workspace_id,
+            base_transaction_id: head.transaction_id(),
+            base_root: state_root.root,
+            schema_epoch_id: state_root.record.schema_epoch_id,
+            policy_root_id: policy_root.root(),
+            principal_id: fixture.principal_id,
+            capability_summary_digest: summary.digest(),
+            operations: ::std::vec![MutationOperation {
+                ordinal: 0,
+                class: MutationClass::DeleteEntityBinding,
+                target_kind: 3,
+                target_entity: entity_id,
+                field_tag: None,
+                payload: MutationPayload::DeleteEntityBinding,
+                precondition_ordinal: 0,
+            }],
+            preconditions: ::std::vec![BoundPrecondition {
+                operation_ordinal: 0,
+                requirement: PreimageRequirement::ExactEntityVersion,
+                payload: PreconditionPayload::ExactEntityVersion(ExactEntityVersion {
+                    entity_id,
+                    object_id,
+                }),
+            }],
+            validation_profile_id: full_validation_profile_id().unwrap(),
+            candidate_nonce: nonce,
+            expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+        })
+        .unwrap();
+        fixture
+            .repository
+            .commit(CommitInput::new(
+                head.transaction_id(),
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .unwrap()
+    }
+
     fn corrupt_nested_state_root_digest_in_receipt(pristine: &[u8]) -> Vec<u8> {
         let imported = import_transaction_receipt(pristine)
             .expect("multifault canary pristine receipt");
@@ -4195,6 +4259,7 @@ mod tests {
     #[derive(Clone, Debug, Eq, PartialEq)]
     struct MappedRecoveryAncestryRequest {
         claims: ::std::vec::Vec<MappedRecoveryRevisionClaim>,
+        head_claim: MappedRecoveryRevisionClaim,
     }
 
     #[derive(Clone)]
@@ -4267,6 +4332,30 @@ mod tests {
         m2_primary_nested_state_root_bytes: ::std::vec::Vec<u8>,
     }
 
+    struct VerifierNestedStoreCycleFixture {
+        m2_primary_object_id: ObjectId,
+        m2_primary_path: ::std::path::PathBuf,
+        m2_schema_epoch_id: SchemaEpochId,
+        m2_secondary_locator: ::std::string::String,
+        requests: MappedRecoveryAncestryRequests,
+        m2_arguments_1: ::std::sync::Arc<[MappedRecoveryAncestryRequest]>,
+        m2_arguments_2: ::std::sync::Arc<[MappedRecoveryAncestryRequest]>,
+    }
+
+    struct VerifierNestedStoreCyclePrimaryActivation {
+        m2_primary_locator: ::std::string::String,
+        m2_primary_object_bytes: ::std::vec::Vec<u8>,
+    }
+
+    #[derive(Debug)]
+    struct MappedStoreProbeError(::sley_store::StoreError);
+
+    impl MappedStoreProbeError {
+        fn code(&self) -> &'static str {
+            self.0.code().symbol()
+        }
+    }
+
     struct MappedRecoveryCycleEdges([(TransactionId, TransactionId); 2]);
 
     impl MappedRecoveryCycleEdges {
@@ -4300,16 +4389,19 @@ mod tests {
         );
         let projection: ::std::sync::Arc<[MappedRecoveryAncestryRequest]> =
             ::std::sync::Arc::from(
-                ::std::vec![MappedRecoveryAncestryRequest {
-                    claims: ::std::vec![
+            ::std::vec![MappedRecoveryAncestryRequest {
+                claims: ::std::vec![
                         MappedRecoveryRevisionClaim {
                             transaction_id: unreachable_first_claim,
                         },
                         MappedRecoveryRevisionClaim {
-                            transaction_id: request_head,
-                        },
-                    ],
-                }]
+                        transaction_id: request_head,
+                    },
+                ],
+                head_claim: MappedRecoveryRevisionClaim {
+                    transaction_id: request_head,
+                },
+            }]
                 .into_boxed_slice(),
             );
         let requests = MappedRecoveryAncestryRequests {
@@ -4383,6 +4475,63 @@ mod tests {
         }
     }
 
+    fn prepare_verifier_nested_store_cycle_fixture(
+        fixture: &Fixture,
+    ) -> VerifierNestedStoreCycleFixture {
+        let right = commit_on_head(fixture, 80).transaction_id();
+        let right_revision = fixture.repository.verified_revision(right).unwrap();
+        let right_changes = right_revision
+            .receipt()
+            .transaction
+            .record
+            .changed_entity_bindings
+            .iter()
+            .filter_map(|binding| binding.postimage.map(|postimage| (binding.entity_id, postimage)))
+            .collect::<::std::vec::Vec<_>>();
+        ::core::assert_eq!(right_changes.len(), 1);
+        let (right_entity_id, right_object_id) = right_changes[0];
+        let m2_schema_epoch_id = right_revision.receipt().state_root.record.schema_epoch_id;
+        let left = delete_entity_on_head(fixture, right_entity_id, right_object_id, 81)
+            .transaction_id();
+        let production = ::std::sync::Arc::from(
+            ::std::vec![RecoveryAncestryRequest::with_claims(
+                claim_for(&fixture.repository, fixture.genesis_transaction_id),
+                claim_for(&fixture.repository, left),
+            )]
+            .into_boxed_slice(),
+        );
+        let projection: ::std::sync::Arc<[MappedRecoveryAncestryRequest]> =
+            ::std::sync::Arc::from(
+                ::std::vec![MappedRecoveryAncestryRequest {
+                    claims: ::std::vec![
+                        MappedRecoveryRevisionClaim {
+                            transaction_id: fixture.genesis_transaction_id,
+                        },
+                        MappedRecoveryRevisionClaim {
+                            transaction_id: left,
+                        },
+                    ],
+                    head_claim: MappedRecoveryRevisionClaim {
+                        transaction_id: left,
+                    },
+                }]
+                .into_boxed_slice(),
+            );
+        let requests = MappedRecoveryAncestryRequests {
+            production,
+            projection: projection.clone(),
+        };
+        VerifierNestedStoreCycleFixture {
+            m2_primary_object_id: right_object_id,
+            m2_primary_path: fixture.repository.object_store.object_path(right_object_id),
+            m2_schema_epoch_id,
+            m2_secondary_locator: ::std::format!("logical-cycle:{left:?}:{right:?}"),
+            requests,
+            m2_arguments_1: projection.clone(),
+            m2_arguments_2: projection,
+        }
+    }
+
     fn activate_accepted_nested_codec_cycle_fixture_primary(
         _fixture: &Fixture,
         _m2_fixture: &AcceptedNestedCodecCycleFixture,
@@ -4428,6 +4577,53 @@ mod tests {
         m2_fixture.m2_secondary_locator.clone()
     }
 
+    fn activate_verifier_nested_store_cycle_fixture_primary(
+        _fixture: &Fixture,
+        _m2_fixture: &VerifierNestedStoreCycleFixture,
+        m2_primary_path: &::std::path::Path,
+    ) -> VerifierNestedStoreCyclePrimaryActivation {
+        let mut m2_primary_object_bytes = ::std::fs::read(m2_primary_path).unwrap();
+        *m2_primary_object_bytes
+            .last_mut()
+            .expect("multifault object digest byte") ^= 1;
+        ::std::fs::write(m2_primary_path, &m2_primary_object_bytes).unwrap();
+        ::std::fs::File::open(m2_primary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        VerifierNestedStoreCyclePrimaryActivation {
+            m2_primary_locator: m2_primary_path.display().to_string(),
+            m2_primary_object_bytes,
+        }
+    }
+
+    fn observe_verifier_nested_store_cycle_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &VerifierNestedStoreCycleFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_verifier_nested_store_cycle_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &VerifierNestedStoreCycleFixture,
+    ) -> ::std::string::String {
+        m2_fixture.m2_secondary_locator.clone()
+    }
+
+    fn object_store_read_error(
+        fixture: &Fixture,
+        m2_fixture: &VerifierNestedStoreCycleFixture,
+    ) -> ::core::result::Result<::std::vec::Vec<u8>, MappedStoreProbeError> {
+        let verifier = super::entity_verifier(m2_fixture.m2_schema_epoch_id);
+        fixture
+            .repository
+            .object_store
+            .read(m2_fixture.m2_primary_object_id, &verifier)
+            .map_err(MappedStoreProbeError)
+    }
+
     fn observe_verifier_nested_codec_claim_fixture_primary(
         _fixture: &Fixture,
         m2_fixture: &VerifierNestedCodecClaimFixture,
@@ -4466,6 +4662,134 @@ mod tests {
                 claim_index: 0,
             })
         }
+    }
+
+    #[test]
+    fn anc04_verifier_nested_store_before_cycle() {
+        let fixture = Fixture::new("s20-530-m2-anc-04-verifier-nested-store-before-cycle");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_verifier_nested_store_cycle_fixture(&fixture);
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let requests = m2_fixture.requests.clone();
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let m2_cycle_left_transaction_id = requests[0].head_claim.transaction_id;
+        let m2_cycle_left_verified_revision = repository.verified_revision_with_maintenance(&maintenance, m2_cycle_left_transaction_id).unwrap();
+        let m2_secondary_cycle_entry_transaction_id = requests[0].head_claim.transaction_id;
+        let m2_cycle_left_parent_transaction_ids = m2_cycle_left_verified_revision.receipt().transaction.record.parent_transaction_ids.clone();
+        ::core::assert_eq!(("m2_cycle_left_has_one_parent", m2_cycle_left_parent_transaction_ids.len()), ("m2_cycle_left_has_one_parent", 1_usize));
+        let m2_cycle_right_transaction_id = m2_cycle_left_parent_transaction_ids[0];
+        let m2_cycle_right_verified_revision = repository.verified_revision_with_maintenance(&maintenance, m2_cycle_right_transaction_id).unwrap();
+        let m2_cycle_right_parent_transaction_ids = m2_cycle_right_verified_revision.receipt().transaction.record.parent_transaction_ids.clone();
+        ::core::assert_eq!(("m2_cycle_right_has_one_parent", m2_cycle_right_parent_transaction_ids.len()), ("m2_cycle_right_has_one_parent", 1_usize));
+        let m2_cycle_genesis_transaction_id = m2_cycle_right_parent_transaction_ids[0];
+        let m2_cycle_genesis_verified_revision = repository.verified_revision_with_maintenance(&maintenance, m2_cycle_genesis_transaction_id).unwrap();
+        ::core::assert!(m2_cycle_genesis_verified_revision.receipt().transaction.record.parent_transaction_ids.is_empty(), "m2_cycle_genesis_has_no_parents");
+        ::core::assert_eq!(("m2_cycle_genesis_kind", m2_cycle_genesis_verified_revision.receipt().transaction.record.transaction_kind), ("m2_cycle_genesis_kind", super::TransactionKind::TrustedGenesis));
+        ::core::assert_ne!(("m2_cycle_left_right_distinct_durable", m2_cycle_left_transaction_id), ("m2_cycle_left_right_distinct_durable", m2_cycle_right_transaction_id));
+        ::core::assert_ne!(("m2_cycle_left_genesis_distinct_durable", m2_cycle_left_transaction_id), ("m2_cycle_left_genesis_distinct_durable", m2_cycle_genesis_transaction_id));
+        ::core::assert_ne!(("m2_cycle_right_genesis_distinct_durable", m2_cycle_right_transaction_id), ("m2_cycle_right_genesis_distinct_durable", m2_cycle_genesis_transaction_id));
+        let m2_cycle_right_changed_object_ids = m2_cycle_right_verified_revision.receipt().transaction.record.changed_entity_bindings.iter().filter_map(|binding| binding.postimage).collect::<::std::vec::Vec<_>>();
+        ::core::assert_eq!(("m2_cycle_right_has_one_changed_postimage", m2_cycle_right_changed_object_ids.len()), ("m2_cycle_right_has_one_changed_postimage", 1_usize));
+        let m2_cycle_right_changed_object_id = m2_cycle_right_changed_object_ids[0];
+        ::core::assert!(m2_cycle_right_verified_revision.receipt().record.object_manifest.iter().any(|entry| entry.object_id == m2_cycle_right_changed_object_id), "m2_cycle_right_manifest_contains_changed_postimage");
+        let m2_cycle_left_changed_object_ids = m2_cycle_left_verified_revision.receipt().transaction.record.changed_entity_bindings.iter().filter_map(|binding| binding.postimage).collect::<::std::vec::Vec<_>>();
+        ::core::assert!(!m2_cycle_left_changed_object_ids.contains(&m2_cycle_right_changed_object_id), "m2_cycle_left_excludes_right_changed_postimage");
+        let m2_primary_object_id = m2_cycle_right_changed_object_id;
+        let m2_primary_path = repository.object_store.object_path(m2_primary_object_id);
+        let m2_pristine_primary_bytes = ::std::fs::read(&m2_primary_path).unwrap();
+        let m2_pristine_primary_object_bytes = m2_pristine_primary_bytes.clone();
+        let m2_primary_fault_transaction_id = ::core::option::Option::Some(m2_cycle_right_transaction_id);
+        let m2_primary_fault_node: ::core::option::Option<&'static str> = ::core::option::Option::Some("right_object");
+        let m2_cycle_expected_plan_digest = crate::repository::tests::expected_recovery_ancestry_test_plan_digest(owner_root, crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::Two, m2_cycle_left_transaction_id, m2_cycle_right_transaction_id);
+        ::core::assert_eq!(("m2_cycle_entry_is_left", m2_secondary_cycle_entry_transaction_id), ("m2_cycle_entry_is_left", m2_cycle_left_transaction_id));
+        ::core::assert_ne!(("m2_cycle_left_right_distinct", m2_cycle_left_transaction_id), ("m2_cycle_left_right_distinct", m2_cycle_right_transaction_id));
+        ::core::assert_eq!(("m2_cycle_primary_origin_contract", m2_primary_fault_transaction_id), ("m2_cycle_primary_origin_contract", ::core::option::Option::Some(m2_cycle_right_transaction_id)));
+        ::core::assert_eq!(("m2_cycle_primary_fault_node", m2_primary_fault_node), ("m2_cycle_primary_fault_node", ::core::option::Option::Some("right_object")));
+        let m2_cycle_plan_identity = crate::recovery_ancestry_test_hook::install(repository, &maintenance, crate::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs::Two, m2_cycle_left_transaction_id, m2_cycle_right_transaction_id).unwrap();
+        ::core::assert_eq!(("m2_cycle_plan_owner_root", m2_cycle_plan_identity.owner_root()), ("m2_cycle_plan_owner_root", owner_root));
+        ::core::assert_eq!(("m2_cycle_plan_digest", m2_cycle_plan_identity.digest()), ("m2_cycle_plan_digest", m2_cycle_expected_plan_digest));
+        let m2_secondary_cycle_descriptor = [(m2_cycle_left_transaction_id, m2_cycle_right_transaction_id), (m2_cycle_right_transaction_id, m2_cycle_left_transaction_id)];
+        let m2_secondary_logical_edges = m2_secondary_cycle_descriptor.to_vec();
+        let m2_secondary_only_owner_tree = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_pristine_primary_observation = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_only_observation = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        let m2_primary_activation = activate_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture, &m2_primary_path);
+        let m2_primary_locator = m2_primary_activation.m2_primary_locator.clone();
+        let m2_primary_object_bytes = m2_primary_activation.m2_primary_object_bytes.clone();
+        ::core::assert_eq!(("primary_object_identity_from_cycle_right", m2_primary_object_id), ("primary_object_identity_from_cycle_right", m2_cycle_right_changed_object_id));
+        ::core::assert_ne!(("primary_object_bytes_corrupt", m2_primary_object_bytes.as_slice()), ("primary_object_bytes_corrupt", m2_pristine_primary_object_bytes.as_slice()));
+        ::core::assert_eq!(("secondary_logical_cycle_l_r_l", m2_secondary_logical_edges.as_slice()), ("secondary_logical_cycle_l_r_l", [(m2_cycle_left_transaction_id, m2_cycle_right_transaction_id), (m2_cycle_right_transaction_id, m2_cycle_left_transaction_id)]));
+        ::core::assert_eq!(("secondary_verifier_cycle", m2_secondary_cycle_entry_transaction_id), ("secondary_verifier_cycle", requests[0].head_claim.transaction_id));
+        ::core::assert_ne!(("artifact_vs_logical_graph", m2_primary_locator.as_str()), ("artifact_vs_logical_graph", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = object_store_read_error(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", match &m2_error_1 { super::RecoveryAncestryError::Verification(inner) => inner.code(), _ => "", }), ("m2_operation_1_code", "SCB_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::RecoveryAncestryError::Verification(super::CommitError::Store(_))), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", ["CommitError", "StoreError"]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = repository.verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_verifier_nested_store_cycle_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_fields", ::core::mem::discriminant(&m2_error_2)), ("m2_operation_2_fields", ::core::mem::discriminant(&super::RecoveryAncestryError::Cycle)));
+        ::core::assert!(::core::matches!(&m2_error_2, super::RecoveryAncestryError::Cycle), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
+        let m2_cycle_drain = crate::recovery_ancestry_test_hook::take(repository, &maintenance, m2_cycle_plan_identity).unwrap();
+        ::core::assert_eq!(("m2_cycle_epoch_budget", m2_cycle_drain.epoch_budget()), ("m2_cycle_epoch_budget", 2_u64));
+        ::core::assert_eq!(("m2_cycle_operation_1_claims", m2_cycle_drain.operation_1().claims()), ("m2_cycle_operation_1_claims", 1_u64));
+        ::core::assert_eq!(("m2_cycle_operation_1_edge_counts", m2_cycle_drain.operation_1().edge_counts()), ("m2_cycle_operation_1_edge_counts", (1_u64, 0_u64)));
+        ::core::assert_eq!(("m2_cycle_operation_2_claims", m2_cycle_drain.operation_2().claims()), ("m2_cycle_operation_2_claims", 1_u64));
+        ::core::assert_eq!(("m2_cycle_operation_2_edge_counts", m2_cycle_drain.operation_2().edge_counts()), ("m2_cycle_operation_2_edge_counts", (1_u64, 1_u64)));
+        ::core::assert_eq!(("m2_cycle_epochs_exhausted", m2_cycle_drain.remaining_epochs()), ("m2_cycle_epochs_exhausted", 0_u64));
     }
 
     #[test]
