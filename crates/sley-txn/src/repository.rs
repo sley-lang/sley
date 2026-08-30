@@ -4139,6 +4139,7 @@ mod tests {
             {
                 match io_error.kind() {
                     ::std::io::ErrorKind::Other => "io::Error(Other)",
+                    ::std::io::ErrorKind::NotFound => "io::Error(NotFound)",
                     kind => ::core::panic!("unexpected exact I/O error source kind: {kind:?}"),
                 }
             } else {
@@ -5530,7 +5531,7 @@ mod tests {
         m2_fixture.m2_secondary_locator.clone()
     }
 
-    fn object_store_read_error(
+    fn probe_anc04_nested_store_error(
         fixture: &Fixture,
         m2_fixture: &VerifierNestedStoreCycleFixture,
     ) -> ::core::result::Result<::std::vec::Vec<u8>, MappedStoreProbeError> {
@@ -5556,7 +5557,7 @@ mod tests {
         m2_fixture.m2_secondary_request.clone()
     }
 
-    fn import_transaction_receipt_error<FixtureType: NestedReceiptMultifaultFixture>(
+    fn probe_anc04_nested_receipt_error<FixtureType: NestedReceiptMultifaultFixture>(
         _fixture: &Fixture,
         m2_fixture: &FixtureType,
     ) -> ::core::result::Result<ImportedTransactionReceipt, TransactionCodecError> {
@@ -5642,7 +5643,7 @@ mod tests {
         ::core::assert_eq!(("secondary_verifier_cycle", m2_secondary_cycle_entry_transaction_id), ("secondary_verifier_cycle", requests[0].head_claim.transaction_id));
         ::core::assert_ne!(("artifact_vs_logical_graph", m2_primary_locator.as_str()), ("artifact_vs_logical_graph", m2_secondary_locator.as_str()));
         let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let m2_primary_probe_result = object_store_read_error(&fixture, &m2_fixture);
+        let m2_primary_probe_result = probe_anc04_nested_store_error(&fixture, &m2_fixture);
         let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
         let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
@@ -5697,7 +5698,7 @@ mod tests {
         let m2_secondary_after_2 = observe_verifier_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_fields", ::core::mem::discriminant(&m2_error_2)), ("m2_operation_2_fields", ::core::mem::discriminant(&super::RecoveryAncestryError::Cycle)));
         ::core::assert!(::core::matches!(&m2_error_2, super::RecoveryAncestryError::Cycle), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -5767,7 +5768,7 @@ mod tests {
         ::core::assert_eq!(("secondary_accepted_ancestry_cycle", m2_secondary_cycle_entry_transaction_id), ("secondary_accepted_ancestry_cycle", m2_accepted_transaction_id));
         ::core::assert_ne!(("artifact_vs_logical_graph", m2_primary_locator.as_str()), ("artifact_vs_logical_graph", m2_secondary_locator.as_str()));
         let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let m2_primary_probe_result = import_transaction_receipt_error(&fixture, &m2_fixture);
+        let m2_primary_probe_result = probe_anc04_nested_receipt_error(&fixture, &m2_fixture);
         let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
         let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
@@ -5822,7 +5823,7 @@ mod tests {
         let m2_secondary_after_2 = observe_accepted_nested_codec_cycle_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "TXN_PARENT_SHAPE"));
         ::core::assert!(::core::matches!(&m2_error_2, super::CommitError::Transaction(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -5865,7 +5866,7 @@ mod tests {
         ::core::assert_eq!(("secondary_claim_indices_zero", (m2_secondary_request_index, m2_secondary_claim_index)), ("secondary_claim_indices_zero", (0_u64, 0_u64)));
         ::core::assert_ne!(("artifact_vs_request_claim", m2_primary_locator.as_str()), ("artifact_vs_request_claim", m2_secondary_locator.as_str()));
         let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let m2_primary_probe_result = import_transaction_receipt_error(&fixture, &m2_fixture);
+        let m2_primary_probe_result = probe_anc04_nested_receipt_error(&fixture, &m2_fixture);
         let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
         let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
@@ -5922,7 +5923,7 @@ mod tests {
         let m2_secondary_after_2 = observe_verifier_nested_codec_claim_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_fields", match &m2_error_2 { super::RecoveryAncestryError::ClaimMismatch { request_index, claim_index } => (*request_index, *claim_index), _ => (::core::primitive::u64::MAX, ::core::primitive::u64::MAX), }), ("m2_operation_2_fields", (0_u64, 0_u64)));
         ::core::assert!(::core::matches!(&m2_error_2, super::RecoveryAncestryError::ClaimMismatch { request_index: 0, claim_index: 0 }), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);

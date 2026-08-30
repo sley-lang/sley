@@ -291,6 +291,33 @@ No v4 PASS review may be reused as a v5 review. Provider-backed specialist
 calls require explicit operator authorization under the current Greyforge
 gate.
 
+## Settled local review target
+
+The local v5 contract bytes settled on 2026-08-30 with these identities:
+
+- contract set: `de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d`;
+- review payload: `4f55cd2d086b05376aaf4a22a767ab73540a3b5405d52b4c8a68122526597c62`;
+- specification: `3d6c15c2b07de12fe77dd25fc342788530a98a3b5ad031d02e522362a1e8dadc`;
+- ADR: `f0af44d97c523a5b3b1baa5a3bf3464f804d37310126f372479f2fe486c4a102`;
+- runner: `56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0`;
+- checker raw: `7f4abef51e602f252bdd00847b5bcf229d12c15af3d8bc6244b08a1a970e4ee6`;
+- checker self-contract: `622d1b683d318b76ae77a1eb6cc70ba8aa77d07e368089ed754ba1ea23ad4022`.
+
+The non-authoritative review packet is
+`machineresearch/sley-2.0/s20-530-v5-contract-freeze-review-packet.json`.
+It is not freeze evidence and carries no review verdicts. Fresh Nabu, Ariadne,
+and Vulcan calls remain pending exact operator authorization for provider-backed
+specialist work.
+
+Local validation passed the 71-case registry and all 232 fixture-plan metadata,
+checker syntax and Python formatting/lint, runner self-controls, the 50-file
+frozen test-authority inventory, exact source-helper bodies, typed empty-chain
+positive and hostile controls, all three changed ANC-04 exact bodies, the
+122-statement COR-07 ref-digest rendering, 123 active `sley-txn` tests, and 244
+`sley-repo` tests. The full checker negative-control corpus was stopped after
+8 minutes 27 seconds while CPU-active in an unrelated production-source parser;
+the relevant bounded controls above completed successfully.
+
 ## Refreeze sequence after explicit authorization
 
 1. Prototype the three typed-candidate carriers and five nested state-root

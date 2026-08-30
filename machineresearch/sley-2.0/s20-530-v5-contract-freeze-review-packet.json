@@ -1,0 +1,71 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v5",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Resolve the ANC-04 and COR-06 helper-identity collision, freeze owner-specific typed empty Error::source assertions, preserve NotFound in transaction and ref source helpers, repair the COR-07 ref-digest cycle operand, bind visible SCB errors to production-reachable candidate and state-root carriers, remove the recovery-unreachable receipt label case, and record decoder-first candidate error precedence without changing production recovery semantics, matrix rows, limit events, public APIs, or repository remote state.",
+  "design": "machineresearch/sley-2.0/s20-530-v5-semantic-amendment-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "3d6c15c2b07de12fe77dd25fc342788530a98a3b5ad031d02e522362a1e8dadc",
+    "adr_sha256": "f0af44d97c523a5b3b1baa5a3bf3464f804d37310126f372479f2fe486c4a102",
+    "checker_sha256": "7f4abef51e602f252bdd00847b5bcf229d12c15af3d8bc6244b08a1a970e4ee6",
+    "checker_contract_sha256": "622d1b683d318b76ae77a1eb6cc70ba8aa77d07e368089ed754ba1ea23ad4022",
+    "runner_sha256": "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
+  },
+  "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "git diff --check": "PASS",
+    "frozen test-authority inventory": "PASS_50_FILES",
+    "Git local authority exact bytes": "PASS_262_BYTES_SHA256_60A6634E7D762DB7E6234808360610FADECB39653DC4729DA19C2E87EB5053EA",
+    "grouped and fixture registry metadata": "PASS_73_COR06_159_COR07_232_FIXTURES",
+    "multifault registry metadata and specification binding": "PASS_15_CASES",
+    "multifault direct fixture renderers": "PASS_43_SIDE_FACTS",
+    "typed empty source-chain positive and hostile controls": "PASS_TXN_REFS_ARRAY_STORE_GC_VEC",
+    "transaction and ref exact source-helper bodies": "PASS_NOTFOUND_AND_OTHER",
+    "ANC-04 exact mapped body bindings": "PASS_121_89_124_STATEMENTS",
+    "COR-07 ref-digest checker-rendered body": "PASS_122_STATEMENTS",
+    "candidate and state-root carrier recovery prototypes": "PASS_8_EXACT_NESTED_ERRORS",
+    "cargo test -p sley-txn": "PASS_123_IGNORED_1",
+    "cargo test -p sley-repo": "PASS_244",
+    "frozen contract self-integrity": "PASS"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "resolved_findings": [
+    "anc04_cor06_probe_helper_identity_collision",
+    "typed_empty_error_source_chain_inference",
+    "not_found_error_source_observation",
+    "cor07_ref_digest_array_slice_shape",
+    "visible_scb_production_carrier_alignment",
+    "candidate_decoder_before_semantic_precedence"
+  ],
+  "deferred_semantic_findings": [
+    "remaining_s20_530_mapped_test_implementation",
+    "implementation_helper_body_manifests",
+    "dual_site_proof_manifests",
+    "limit_canary_and_non_unit_peak_semantics"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": false,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false
+}

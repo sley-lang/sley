@@ -178,8 +178,8 @@ def mapped_tests(
             )
             owners[used[-1]] = contract.crate_for_source(owner)
             qualified[used[-1]] = exact_qualified
-    if len(used) != 422:
-        stop(f"matrix test map has {len(used)} tests instead of 422")
+    if len(used) != 419:
+        stop(f"matrix test map has {len(used)} tests instead of 419")
     body_manifest = contract.mapped_test_body_manifest(used, sources, qualified)
     recorded_body_manifest = test_plan.get("mapped_test_bodies")
     if (

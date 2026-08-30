@@ -817,25 +817,33 @@ The `COR-06` and `COR-07` values in that compact table identify the public
 namespace anchor only. Each namespace contains an exact ordered `cases` object
 whose leaves preserve every applicable concrete owner error, variant path, and
 `Error::source` chain. The eight `COR-06` namespace leaf counts are exactly
-`2, 1, 54, 4, 8, 1, 3, 1`, for 74 leaf tests. The eight `COR-07` namespace leaf
-counts are exactly `2, 1, 5, 1, 2, 1, 72, 77`, for 161 leaf tests.
+`2, 1, 48, 9, 8, 1, 3, 1`, for 73 leaf tests. The eight `COR-07` namespace leaf
+counts are exactly `2, 1, 5, 1, 2, 1, 71, 76`, for 159 leaf tests.
 
-The normalized visible-revision authority has exactly 72 transaction cases.
+The normalized visible-revision authority has exactly 71 transaction cases.
 It includes both state-root and policy-root digest variants, only the host
 `commit.io` case for `TXN_IO`, and only nested `commit.codec.transaction` for
 `TXN_RESOURCE_LIMIT`. Recovery-owned guard and limit failures are not repeated.
-`COR-07/target_transaction` wraps all 72 cases as
+`COR-07/target_transaction` wraps all 71 cases as
 `branch.transaction.<commit variant>` with `CommitError` prepended to the
-source chain. The first 72 leaves of
+source chain. The first 71 leaves of
 `COR-07/origin_ancestry_binding` apply the same transformation to the origin
 target. Its final five leaves are ref-owned origin and ancestry failures. The
 complete ref-owned authority contains 17 cases, including distinct semantic
 `REF_IO` and host-I/O `REF_IO` variants.
 
+Visible SCB errors are bound to the nested carrier that can expose them through
+production receipt import. Contract, epoch, field-order, map-order, and
+duplicate-map corruptions use `commit.codec.state_root.scb`. Boolean, UTF-8,
+and noncanonical-float corruptions use `commit.codec.candidate`. The
+recovery-unreachable outer-receipt `SCB_LABEL_NOT_NFC` case is absent. Imported
+candidate descriptor-unknown and payload-kind corruptions preserve their
+selectors but expect the decoder-first `SCB_UNION_INVALID` result.
+
 The checker owns one immutable `CORRUPTION_FIXTURE_SPECS` registry in the exact
-235-leaf order. Its SHA-256 is
-`13673f0bf720ded52f5d12651d4d60c7fc7ff8e579d5e2539e5893aa5f80b027`.
-The registry contains 216 visible-revision plans, two accepted-head-pointer
+232-leaf order. Its SHA-256 is
+`f337ac7a3355e614ad2fd513b9bbe50af922de70ded9ffaa2cc8f4f93f58bb2c`.
+The registry contains 213 visible-revision plans, two accepted-head-pointer
 plans, and 17 ref-owner plans. Every key is exactly
 `(row_id, group_id, leaf_id)`, and every value contains this closed data-only
 schema:
@@ -864,10 +872,10 @@ assertion windows. `GROUPED_ERROR_SPECS` and grouped recovery-operation
 ownership are derived from this registry, rather than maintained as parallel
 fixture authority.
 
-The 72 visible-revision plans use exactly these corrupter classes before being
-instantiated for accepted, branch-head, and branch-origin roles: 21 receipt
-envelope, 13 nested transaction, 11 nested candidate, eight nested candidate
-result, four nested state-root, eight nested policy-root, one semantic manifest,
+The 71 visible-revision plans use exactly these corrupter classes before being
+instantiated for accepted, branch-head, and branch-origin roles: 12 receipt
+envelope, 13 nested transaction, 14 nested candidate, eight nested candidate
+result, nine nested state-root, eight nested policy-root, one semantic manifest,
 one absent receipt, one path-bound receipt host-I/O, two object-byte, one absent
 object, and one path-bound object host-I/O plan. The branch-head identity is
 decoded from the visible ref record. The branch-origin identity is decoded from
@@ -1128,7 +1136,7 @@ The checker removes only syntax items gated by exact `#[cfg(test)]` when
 scanning production Rust; a test-only item never truncates later production
 source.
 
-The exact map contains 422 unique Rust tests after grouped error leaves are
+The exact map contains 419 unique Rust tests after grouped error leaves are
 expanded. The test plan also records, in mapped-test order, each source path,
 Cargo-qualified test name, and raw brace-delimited body SHA-256. Its canonical
 `mapped_test_bodies_sha256` is copied into closeout evidence and is part of the
@@ -1495,7 +1503,7 @@ no-outside-root claim is limited to this cooperating local threat model.
 
 The checker owns one immutable `MULTIFAULT_OVERLAY_REGISTRY` in the exact
 15-case order. Its SHA-256 is
-`03d20a96006078feee03f3ce0edc22d619d948de984daf739a99d1b9f8479fdd`.
+`edb29339c3a1c4ff2349312d54c536bdef935944d6293b006fa99b9710369827`.
 The first nine records cover the non-grouped ANC, owned-entry, and limit
 precedence cases. The final six records cover the grouped `COR-06` and
 `COR-07` leaves. Every record fixes one owner source, recovery operation,

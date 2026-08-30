@@ -72,20 +72,20 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v4.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v5.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "d96dd7f9c63b1948ad086ee17d2e8423f0e3db38870c680b9b31d7739dbb17c1"
-FROZEN_ADR_SHA256 = "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7"
+FROZEN_SPEC_SHA256 = "3d6c15c2b07de12fe77dd25fc342788530a98a3b5ad031d02e522362a1e8dadc"
+FROZEN_ADR_SHA256 = "f0af44d97c523a5b3b1baa5a3bf3464f804d37310126f372479f2fe486c4a102"
 FROZEN_RUNNER_SHA256 = (
-    "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+    "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "4941f73a60f1e80807d517cd49ffe53109edc845e24c6933ebdd58ad9e010752"
+    "622d1b683d318b76ae77a1eb6cc70ba8aa77d07e368089ed754ba1ea23ad4022"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -369,6 +369,36 @@ def visible_revision_case_specs() -> tuple[tuple[str, str, str, tuple[str, ...]]
                     ("TransactionCodecError",),
                 )
             )
+        elif code == "SCB_LABEL_NOT_NFC":
+            continue
+        elif code in {
+            "SCB_CONTRACT_UNKNOWN",
+            "SCB_EPOCH_MISMATCH",
+            "SCB_FIELD_ORDER",
+            "SCB_MAP_ORDER",
+            "SCB_MAP_DUPLICATE",
+        }:
+            cases.append(
+                (
+                    f"state_root_{lowered}",
+                    code,
+                    "commit.codec.state_root.scb",
+                    ("TransactionCodecError",),
+                )
+            )
+        elif code in {
+            "SCB_BOOL_INVALID",
+            "SCB_UTF8_INVALID",
+            "SCB_FLOAT_NON_CANONICAL",
+        }:
+            cases.append(
+                (
+                    f"candidate_{lowered}",
+                    code,
+                    "commit.codec.candidate",
+                    ("TransactionCodecError",),
+                )
+            )
         elif code.startswith("SCB_"):
             cases.append(
                 (
@@ -387,10 +417,19 @@ def visible_revision_case_specs() -> tuple[tuple[str, str, str, tuple[str, ...]]
                 chain = ("StoreError",)
             cases.append((f"object_{lowered}", code, "commit.store", chain))
         elif code.startswith("MUTATION_CANDIDATE_"):
+            expected_code = (
+                "SCB_UNION_INVALID"
+                if code
+                in {
+                    "MUTATION_CANDIDATE_DESCRIPTOR_UNKNOWN",
+                    "MUTATION_CANDIDATE_PAYLOAD_KIND",
+                }
+                else code
+            )
             cases.append(
                 (
                     f"candidate_{lowered}",
-                    code,
+                    expected_code,
                     "commit.codec.candidate",
                     ("TransactionCodecError",),
                 )
@@ -658,7 +697,7 @@ GROUPED_ERROR_CASES = {
     },
 }
 GROUPED_ERROR_CASES_SHA256 = (
-    "b351c5d8aa77aad31e188907493b1ba7741c83ba287ee20b249c3671a4ca9e7a"
+    "d6d5c2d853c372a750e6e9d05dfa6a46e9cc994d577f3b11971c898337c5173f"
 )
 
 
@@ -709,11 +748,11 @@ class CorruptionFixtureSpec(NamedTuple):
 
 
 VISIBLE_REVISION_FIXTURE_CLASS_COUNTS = {
-    "receipt_envelope": 21,
+    "receipt_envelope": 12,
     "receipt_nested_transaction": 13,
-    "receipt_nested_candidate": 11,
+    "receipt_nested_candidate": 14,
     "receipt_nested_candidate_result": 8,
-    "receipt_nested_state_root": 4,
+    "receipt_nested_state_root": 9,
     "receipt_nested_policy_root": 8,
     "receipt_semantic_manifest": 1,
     "receipt_absent": 1,
@@ -1277,7 +1316,7 @@ def corruption_fixture_specs_sha256(
 
 
 CORRUPTION_FIXTURE_SPECS_SHA256 = (
-    "13673f0bf720ded52f5d12651d4d60c7fc7ff8e579d5e2539e5893aa5f80b027"
+    "f337ac7a3355e614ad2fd513b9bbe50af922de70ded9ffaa2cc8f4f93f58bb2c"
 )
 
 
@@ -5251,7 +5290,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "closed_test_graph_right_transaction_id",
                 "role_receipt_path",
                 "receipt_nested_state_root",
-                "import_transaction_receipt_error",
+                "probe_anc04_nested_receipt_error",
                 "primary_receipt_path_from_cycle_right",
                 "primary_nested_state_root_corruption_present",
                 "primary_probe_scb_digest_mismatch",
@@ -5298,7 +5337,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "requests_0_head_transaction_id",
                 "role_receipt_path",
                 "receipt_nested_state_root",
-                "import_transaction_receipt_error",
+                "probe_anc04_nested_receipt_error",
                 "primary_receipt_path_from_request_head",
                 "primary_nested_state_root_corruption_present",
                 "primary_probe_scb_digest_mismatch",
@@ -5341,7 +5380,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "closed_test_graph_right_selected_changed_object",
                 "role_changed_object_path",
                 "object_bytes",
-                "object_store_read_error",
+                "probe_anc04_nested_store_error",
                 "primary_object_identity_from_cycle_right",
                 "primary_object_bytes_corrupt",
                 "primary_probe_scb_digest_mismatch",
@@ -5904,7 +5943,7 @@ def multifault_overlay_registry_sha256(
 
 
 MULTIFAULT_OVERLAY_REGISTRY_SHA256 = (
-    "03d20a96006078feee03f3ce0edc22d619d948de984daf739a99d1b9f8479fdd"
+    "edb29339c3a1c4ff2349312d54c536bdef935944d6293b006fa99b9710369827"
 )
 GROUPED_MULTIFAULT_SECONDARY_FIXTURE_KEYS = {
     ("COR-06", "head_checksum", "head_shape_before_receipt_missing"): (
@@ -6114,7 +6153,7 @@ FROZEN_TEST_AUTHORITY_FIXED_PATHS = (
 )
 FROZEN_TEST_AUTHORITY_FILE_COUNT = 50
 FROZEN_TEST_AUTHORITY_SET_SHA256 = (
-    "dfd732fbbfcf4abc19f1b2330b05d633f5abfde844b494eba4877ab9adfea3d8"
+    "b39212cc958ec9ce670c25fd543f5e3fdfa8c63772e8dac23f6f55a08eb04da1"
 )
 BUILTIN_DERIVES = frozenset(
     {
@@ -8044,7 +8083,7 @@ def tier_2_command_contract_problem(spec: str) -> str | None:
 def corruption_fixture_spec_digest_problem(spec: str) -> str | None:
     matches = re.findall(
         r"The checker owns one immutable `CORRUPTION_FIXTURE_SPECS` registry "
-        r"in the exact\s+235-leaf order\. Its SHA-256 is\s+"
+        r"in the exact\s+232-leaf order\. Its SHA-256 is\s+"
         r"`([0-9a-f]{64})`\.",
         spec,
     )
@@ -8858,7 +8897,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v4":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v5":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -9169,8 +9208,8 @@ def require_implementation(
                     entry,
                     ("immediate_state_verified", "recovery_result_verified"),
                 )
-    if len(used_tests) != 422:
-        fail(f"closeout test map has {len(used_tests)} mapped tests instead of 422")
+    if len(used_tests) != 419:
+        fail(f"closeout test map has {len(used_tests)} mapped tests instead of 419")
     expected_test_bodies = mapped_test_body_manifest(
         used_tests,
         sources,
@@ -15205,10 +15244,10 @@ def grouped_error_metadata_problem(
     ):
         return "grouped error rows/order differ"
     expected_group_counts = {
-        "COR-06": (2, 1, 54, 4, 8, 1, 3, 1),
-        "COR-07": (2, 1, 5, 1, 2, 1, 72, 77),
+        "COR-06": (2, 1, 48, 9, 8, 1, 3, 1),
+        "COR-07": (2, 1, 5, 1, 2, 1, 71, 76),
     }
-    expected_totals = {"COR-06": 74, "COR-07": 161}
+    expected_totals = {"COR-06": 73, "COR-07": 159}
     flattened_keys: list[tuple[str, str, str]] = []
     for row_id, groups in grouped_cases.items():
         if not isinstance(groups, dict) or tuple(groups) != EVIDENCE_FAMILIES[row_id]:
@@ -15239,16 +15278,25 @@ def grouped_error_metadata_problem(
         if len(local_leaf_ids) != len(set(local_leaf_ids)):
             return f"{row_id} grouped error leaf identities are not unique"
     if (
-        len(VISIBLE_REVISION_CASES) != 72
-        or len({case[0] for case in VISIBLE_REVISION_CASES}) != 72
+        len(VISIBLE_REVISION_CASES) != 71
+        or len({case[0] for case in VISIBLE_REVISION_CASES}) != 71
     ):
-        return "visible-revision preservation authority is not 72 unique cases"
+        return "visible-revision preservation authority is not 71 unique cases"
     visible_names = {case[0] for case in VISIBLE_REVISION_CASES}
-    for forbidden in ("semantic_txn_io", "recovery_txn_resource_limit"):
+    for forbidden in (
+        "semantic_txn_io",
+        "recovery_txn_resource_limit",
+        "receipt_scb_label_not_nfc",
+    ):
         if forbidden in visible_names:
             return f"visible-revision authority retains recovery-owned case {forbidden}"
     for required in (
         "state_root_scb_digest_mismatch",
+        "state_root_scb_contract_unknown",
+        "state_root_scb_epoch_mismatch",
+        "candidate_scb_bool_invalid",
+        "candidate_scb_utf8_invalid",
+        "candidate_scb_float_non_canonical",
         "policy_root_scb_digest_mismatch",
         "host_txn_io",
         "codec_txn_resource_limit",
@@ -15272,10 +15320,10 @@ def grouped_error_metadata_problem(
         if grouped_cases["COR-07"][group_id] != expected:
             return f"COR-07 exact ref-owner group differs: {group_id}"
     target_cases = grouped_cases["COR-07"]["target_transaction"]
-    origin_cases = grouped_cases["COR-07"]["origin_ancestry_binding"][:72]
+    origin_cases = grouped_cases["COR-07"]["origin_ancestry_binding"][:71]
     expected_target = branch_wrapped_visible_cases("target")
     expected_origin = branch_wrapped_visible_cases("origin")
-    origin_tail = grouped_cases["COR-07"]["origin_ancestry_binding"][72:]
+    origin_tail = grouped_cases["COR-07"]["origin_ancestry_binding"][71:]
     if (
         target_cases != expected_target
         or origin_cases != expected_origin
@@ -15339,8 +15387,8 @@ def corruption_fixture_metadata_problem(
     )
     if not isinstance(specs, dict) or tuple(specs) != expected_keys:
         return "corruption fixture keys/order differ"
-    if len(specs) != 235:
-        return "corruption fixture authority is not exactly 235 leaves"
+    if len(specs) != 232:
+        return "corruption fixture authority is not exactly 232 leaves"
     if any(not isinstance(spec, CorruptionFixtureSpec) for spec in specs.values()):
         return "corruption fixture authority contains a malformed spec"
     expected_specs = corruption_fixture_specs()
@@ -15375,7 +15423,7 @@ def corruption_fixture_metadata_problem(
         for family in ("visible_revision", "accepted_head_pointer", "ref_owner")
     }
     if family_counts != {
-        "visible_revision": 216,
+        "visible_revision": 213,
         "accepted_head_pointer": 2,
         "ref_owner": 17,
     }:
@@ -15397,7 +15445,7 @@ def corruption_fixture_metadata_problem(
     visible_by_selector_role = {
         (spec.selector, spec.target_role): spec for spec in visible_specs
     }
-    if len(visible_by_selector_role) != 216:
+    if len(visible_by_selector_role) != 213:
         return "visible-revision selector/role identities are not unique"
     for visible_case in VISIBLE_REVISION_CASES:
         selector = visible_case[0]
@@ -15582,8 +15630,8 @@ def corruption_fixture_plan_metadata_problem() -> str | None:
         helper_roots.update(
             (spec.owner_source, helper) for helper in rendered.helper_ids
         )
-    if len(plan_digests) != 235 or len(set(plan_digests)) != 235:
-        return "corruption fixture plan digests are not exactly 235 unique values"
+    if len(plan_digests) != 232 or len(set(plan_digests)) != 232:
+        return "corruption fixture plan digests are not exactly 232 unique values"
     if len(helper_roots) != 77:
         return "corruption fixture helper-root authority is not exactly 77 functions"
     return None
@@ -16157,6 +16205,34 @@ def error_source_helper_path(relative: str) -> str:
     fail(f"error source-chain evidence has no helper path for {relative}")
 
 
+def error_source_helper_call(
+    relative: str,
+    error_name: str,
+    expected: tuple[str, ...],
+) -> str:
+    helper = error_source_helper_path(relative)
+    if not expected and relative in {
+        "crates/sley-txn/src/repository.rs",
+        "crates/sley-repo/src/refs.rs",
+    }:
+        return f"{helper}::<0>(&{error_name})"
+    return f"{helper}(&{error_name})"
+
+
+def error_source_expected_literal(
+    relative: str,
+    expected: tuple[str, ...],
+) -> str:
+    if expected:
+        return json.dumps(list(expected))
+    if relative in {
+        "crates/sley-txn/src/repository.rs",
+        "crates/sley-repo/src/refs.rs",
+    }:
+        return "[] as [&'static str; 0]"
+    return "Vec::<String>::new()"
+
+
 def exact_error_source_assertion_problem(
     assertion: object,
     relative: str,
@@ -16167,18 +16243,14 @@ def exact_error_source_assertion_problem(
     operands = exact_assert_eq_operands(assertion)
     if operands is None:
         return "source-chain assertion is not exact two-operand assert_eq!"
-    expected_literal = json.dumps(list(expected))
-    expected_literal_normalized = normalize_rust_tokens(expected_literal)
-    expected_literals = {expected_literal_normalized}
-    if not expected:
-        expected_literals.add(normalize_rust_tokens("Vec::<String>::new()"))
+    expected_literal_normalized = normalize_rust_tokens(
+        error_source_expected_literal(relative, expected)
+    )
     expected_call = normalize_rust_tokens(
-        f"{error_source_helper_path(relative)}(&error)"
+        error_source_helper_call(relative, "error", expected)
     )
     normalized = tuple(normalize_rust_tokens(operand) for operand in operands)
-    if not any(
-        set(normalized) == {literal, expected_call} for literal in expected_literals
-    ):
+    if set(normalized) != {expected_literal_normalized, expected_call}:
         return "source-chain assertion does not compare the exact direct helper output"
     return None
 
@@ -16223,6 +16295,7 @@ while let ::core::option::Option::Some(current) = source {{
     {{
         match io_error.kind() {{
             ::std::io::ErrorKind::Other => "io::Error(Other)",
+            ::std::io::ErrorKind::NotFound => "io::Error(NotFound)",
             kind => ::core::panic!(
                 "unexpected exact I/O error source kind: {{kind:?}}"
             ),
@@ -18221,8 +18294,8 @@ def multifault_authority_assertions(
         )
     source_chain = tagged_fixture_eq(
         f"m2_operation_{ordinal}_source_chain",
-        f"{error_source_helper_path(relative)}(&{error_name})",
-        json.dumps(list(authority.source_chain)),
+        error_source_helper_call(relative, error_name, authority.source_chain),
+        error_source_expected_literal(relative, authority.source_chain),
     )
     return code_or_fields, variant, source_chain
 
@@ -18636,7 +18709,8 @@ def multifault_probe_assertion(
             fact,
             "m2_secondary_cycle_descriptor.as_slice()",
             "[(m2_cycle_left_transaction_id, m2_cycle_right_transaction_id), "
-            "(m2_cycle_right_transaction_id, m2_cycle_left_transaction_id)]",
+            "(m2_cycle_right_transaction_id, m2_cycle_left_transaction_id)]"
+            ".as_slice()",
         )
     error_name = f"m2_{side}_probe_error"
     if authority.kind == "code":
@@ -29824,7 +29898,7 @@ def require_checker_negative_controls() -> None:
 
     exact_fixture_digest_spec = (
         "The checker owns one immutable `CORRUPTION_FIXTURE_SPECS` registry "
-        "in the exact\n235-leaf order. Its SHA-256 is\n"
+        "in the exact\n232-leaf order. Its SHA-256 is\n"
         f"`{CORRUPTION_FIXTURE_SPECS_SHA256}`.\n"
     )
     if corruption_fixture_spec_digest_problem(exact_fixture_digest_spec) is not None:
@@ -33229,6 +33303,39 @@ mod tests {
             is None
         ):
             fail("checker self-test accepted a truncated or reordered source chain")
+
+    for relative in (txn_owner, repo_owner):
+        typed_empty_source = (
+            "::core::assert_eq!("
+            f"{error_source_helper_path(relative)}::<0>(&error), "
+            "[] as [&'static str; 0]);"
+        )
+        if exact_error_source_assertion_problem(typed_empty_source, relative, ()):
+            fail("checker self-test rejected a typed empty array source chain")
+        for hostile_empty_source in (
+            typed_empty_source.replace("::<0>", ""),
+            typed_empty_source.replace("[] as [&'static str; 0]", "[]"),
+            typed_empty_source.replace("::<0>", "::<1>"),
+        ):
+            if not exact_error_source_assertion_problem(
+                hostile_empty_source, relative, ()
+            ):
+                fail("checker self-test accepted an untyped empty array source chain")
+
+    for relative in (store_owner, gc_owner):
+        vector_empty_source = (
+            "::core::assert_eq!("
+            f"{error_source_helper_path(relative)}(&error), "
+            "Vec::<String>::new());"
+        )
+        if exact_error_source_assertion_problem(vector_empty_source, relative, ()):
+            fail("checker self-test rejected an empty vector source chain")
+        if not exact_error_source_assertion_problem(
+            vector_empty_source.replace("Vec::<String>::new()", "[]"),
+            relative,
+            (),
+        ):
+            fail("checker self-test accepted an array for a vector source chain")
 
     vector_helper_signature = (
         "fn exact_error_source_chain("

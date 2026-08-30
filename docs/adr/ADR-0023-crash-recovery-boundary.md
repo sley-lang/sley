@@ -46,23 +46,30 @@ scanning excludes individual exact `#[cfg(test)]` items without discarding
 later production code.
 
 `COR-06` and `COR-07` keep their eight public labels as namespaces but expand
-to 74 and 161 exact error-preservation leaves. The leaves preserve concrete
-owner codes, variant paths, and complete `Error::source` chains. All 72
+to 73 and 159 exact error-preservation leaves. The leaves preserve concrete
+owner codes, variant paths, and complete `Error::source` chains. All 71
 transaction-visible revision errors are independently wrapped for both the ref
 target and origin ancestry lanes, while 17 ref-owned cases remain distinct.
-The complete matrix map therefore contains 422 unique mapped Rust tests rather
+The complete matrix map therefore contains 419 unique mapped Rust tests rather
 than one anchor test per namespace.
 
-One generated 235-key corruption-fixture registry owns the concrete stimulus
+The visible-revision authority binds each SCB result to a production-reachable
+nested carrier. State-root structure owns contract, epoch, field-order,
+map-order, and duplicate-map faults; typed candidates own Boolean, UTF-8, and
+noncanonical-float faults. The unreachable outer-receipt label-normalization
+leaf is removed, and decoder-first candidate descriptor and payload faults
+expect `SCB_UNION_INVALID`.
+
+One generated 232-key corruption-fixture registry owns the concrete stimulus
 for every grouped leaf. It derives grouped error tuples and recovery-operation
 ownership, and freezes the owner source, target role, artifact and identity
 recipes, path recipe, closed corrupter and probe classes, selector, direct
-witness facts, and any role that must be distinct. The 72 visible-revision
+witness facts, and any role that must be distinct. The 71 visible-revision
 recipes are generated once and instantiated for accepted, branch-head, and
 branch-origin roles. This avoids three copied grammars while still requiring
 head and origin IDs, receipt paths, and role-specific object paths to differ.
 Two accepted-head-pointer recipes and 17 explicit ref-owner recipes complete
-the 235 leaves. Evidence records the registry-derived plan digest and direct
+the 232 leaves. Evidence records the registry-derived plan digest and direct
 fixture assertions; test helpers may return observations but never expected
 codes, roles, booleans, or usage.
 

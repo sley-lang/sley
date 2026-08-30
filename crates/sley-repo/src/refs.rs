@@ -3356,6 +3356,7 @@ mod tests {
             {
                 match io_error.kind() {
                     ::std::io::ErrorKind::Other => "io::Error(Other)",
+                    ::std::io::ErrorKind::NotFound => "io::Error(NotFound)",
                     kind => ::core::panic!("unexpected exact I/O error source kind: {kind:?}"),
                 }
             } else {
@@ -8815,7 +8816,7 @@ mod tests {
         let m2_secondary_after_1 = observe_grouped_origin_format_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "BRANCH_RECORD_FORMAT_VERSION"));
         ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
-        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", []));
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_1, m2_after_1);
         ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
         ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
@@ -8847,7 +8848,7 @@ mod tests {
         let m2_secondary_after_2 = observe_grouped_origin_format_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -8908,7 +8909,7 @@ mod tests {
         let m2_secondary_after_1 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "BRANCH_RECORD_DIGEST_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
-        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", []));
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_1, m2_after_1);
         ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
         ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
@@ -8940,7 +8941,7 @@ mod tests {
         let m2_secondary_after_2 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -9000,7 +9001,7 @@ mod tests {
         let m2_secondary_after_1 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "REF_FORMAT_VERSION"));
         ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
-        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", []));
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_1, m2_after_1);
         ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
         ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
@@ -9032,7 +9033,7 @@ mod tests {
         let m2_secondary_after_2 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_TARGET_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -19863,7 +19864,7 @@ mod tests {
         let m2_secondary_after_2 = observe_ref_nested_store_cycle_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ANCESTRY_CYCLE"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
@@ -19963,7 +19964,7 @@ mod tests {
         let m2_secondary_after_2 = observe_ref_nested_codec_origin_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
-        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
         ::core::assert_eq!(m2_before_2, m2_after_2);
         ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
         ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
