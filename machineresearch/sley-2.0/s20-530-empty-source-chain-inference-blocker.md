@@ -99,7 +99,7 @@ constraint would also block an individual leaf.
 ## Decision
 
 No test-side implementation can satisfy both Rust type checking and the
-frozen direct source-chain assertion rule for these twelve leaves. Changing
+frozen direct source-chain assertion rule for these sixteen leaves. Changing
 the helper return type would also violate the frozen helper body and would
 disturb the already-compiling nonempty-chain assertions.
 

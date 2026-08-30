@@ -1,31 +1,34 @@
 # S20-530 receipt SCB variant blocker
 
-Status: deferred carrier-and-variant blocker at
-`8b6f933896d39b3d44e0cfc0041fc6f832e7b8ee`.
+Status: deferred carrier-and-variant blocker, expanded to every visible role at
+`dacdc7ac513bc123cc8e199405d02d7c0a6f5918`.
 
 ## Scope
 
-This note records why nine frozen COR-07 `target_transaction` leaves cannot
-produce the required top-level `TransactionCodecError::Scb` variant from the
-current transaction receipt wire format. It does not reopen or modify the v4
-checker, and it does not authorize a production wire-format change.
+This note records why nine normalized corruption cases, instantiated as 27
+frozen COR-06 and COR-07 leaves, cannot produce the required top-level
+`TransactionCodecError::Scb` variant from the current transaction receipt wire
+format. It does not reopen or modify the v4 checker, and it does not authorize
+a production wire-format change.
 
-The affected leaves are:
+Each normalized case is instantiated for the accepted revision, branch-head
+revision, and branch-origin revision. The affected selectors are:
 
-- `target_receipt_scb_contract_unknown`
-- `target_receipt_scb_epoch_mismatch`
-- `target_receipt_scb_bool_invalid`
-- `target_receipt_scb_utf8_invalid`
-- `target_receipt_scb_label_not_nfc`
-- `target_receipt_scb_float_non_canonical`
-- `target_receipt_scb_field_order`
-- `target_receipt_scb_map_order`
-- `target_receipt_scb_map_duplicate`
+- `receipt_scb_contract_unknown`
+- `receipt_scb_epoch_mismatch`
+- `receipt_scb_bool_invalid`
+- `receipt_scb_utf8_invalid`
+- `receipt_scb_label_not_nfc`
+- `receipt_scb_float_non_canonical`
+- `receipt_scb_field_order`
+- `receipt_scb_map_order`
+- `receipt_scb_map_duplicate`
 
-Every frozen leaf requires the result variant
-`branch.transaction.commit.codec.scb` and the direct source chain
-`CommitError`, `TransactionCodecError`. The frozen fixture also classifies
-each corruption as `receipt_envelope`.
+Every frozen leaf requires its role-specific top-level SCB variant:
+`commit.codec.scb` for COR-06 or
+`branch.transaction.commit.codec.scb` for COR-07. The frozen fixtures classify
+every corruption as `receipt_envelope` and preserve the corresponding direct
+source chain.
 
 ## Current receipt carrier
 
@@ -48,10 +51,12 @@ receipt record also has no boolean, UTF-8 string, label, or floating-point
 field, and it contains no map value. Its record fields are decoded before the
 nested byte fields are imported.
 
-Twelve compatible outer receipt cases are implemented and pass at the status
-commit: magic invalid, version unsupported, digest mismatch, trailing bytes,
-varint non-minimal, integer overflow, length overflow, field missing, field
-unknown, field duplicate, union invalid, and resource limit.
+Twelve compatible outer receipt cases are implemented and pass for both
+COR-07 branch roles at the status commit: magic invalid, version unsupported,
+digest mismatch, trailing bytes, varint non-minimal, integer overflow, length
+overflow, field missing, field unknown, field duplicate, union invalid, and
+resource limit. Their accepted-role COR-06 instances remain behind the
+separate helper-arity collision.
 
 ## Carrier and variant mismatch
 
@@ -79,7 +84,7 @@ implementation.
 
 ## Decision
 
-These nine leaves stay deferred. Implementing them honestly requires a
+These 27 leaves stay deferred. Implementing them honestly requires a
 separately authorized S20-530 refreeze that changes the expected variant and
 fixture carrier, removes an unreachable leaf, or deliberately revises the
 production receipt format and error-ownership contract. Development continues

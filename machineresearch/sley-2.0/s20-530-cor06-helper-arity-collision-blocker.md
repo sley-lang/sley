@@ -74,6 +74,12 @@ These 68 leaves stay deferred. A future separately authorized S20-530 refreeze
 can assign distinct COR-06 probe names, move one helper set behind a namespace,
 or deliberately revise both frozen call sites and helper bodies together.
 
+The smallest current amendment candidate is to rename the two ANC-04 primary
+probe helpers and their checker-owned multifault helper IDs, following the
+same narrow strategy used for ANC-06 in v4. That changes three existing ANC-04
+mapped bodies instead of changing 68 COR-06 fixture records. This is a design
+observation only and does not authorize the rename.
+
 Development continues on v4-compatible leaves with collision-free probe names.
 No production codec or object-store behavior is changed to work around this
 test-module namespace conflict.

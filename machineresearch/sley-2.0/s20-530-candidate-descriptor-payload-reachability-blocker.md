@@ -1,25 +1,31 @@
 # S20-530 candidate descriptor and payload reachability blocker
 
-Status: deferred decoder-before-semantic blocker at
-`f8841071dda29b26f373a3840bc0c5eebe732a95`.
+Status: deferred decoder-before-semantic blocker, expanded to every visible
+role at `dacdc7ac513bc123cc8e199405d02d7c0a6f5918`.
 
 ## Scope
 
-This note records why the final two frozen COR-07
+This note records why six frozen COR-06 and COR-07
 `receipt_nested_candidate` leaves cannot produce their required semantic
 candidate codes from imported candidate bytes under the current mutation
 codec. It does not reopen or modify the S20-530 v4 checker, and it does not
 authorize a production codec change.
 
-The affected leaves are:
+The two normalized cases are instantiated for all three visible revision
+roles:
 
-- `target_candidate_mutation_candidate_descriptor_unknown`
-- `target_candidate_mutation_candidate_payload_kind`
+- `COR-06/receipt_digest/candidate_mutation_candidate_descriptor_unknown`
+- `COR-06/receipt_digest/candidate_mutation_candidate_payload_kind`
+- `COR-07/target_transaction/target_candidate_mutation_candidate_descriptor_unknown`
+- `COR-07/target_transaction/target_candidate_mutation_candidate_payload_kind`
+- `COR-07/origin_ancestry_binding/origin_candidate_mutation_candidate_descriptor_unknown`
+- `COR-07/origin_ancestry_binding/origin_candidate_mutation_candidate_payload_kind`
 
-The frozen leaves require `MUTATION_CANDIDATE_DESCRIPTOR_UNKNOWN` and
-`MUTATION_CANDIDATE_PAYLOAD_KIND`, respectively. Both require the result
-variant `branch.transaction.commit.codec.candidate` and the direct source
-chain `CommitError`, `TransactionCodecError`.
+The frozen cases require `MUTATION_CANDIDATE_DESCRIPTOR_UNKNOWN` and
+`MUTATION_CANDIDATE_PAYLOAD_KIND`, respectively. The accepted role requires
+the result variant `commit.codec.candidate`; the branch roles wrap that as
+`branch.transaction.commit.codec.candidate`. All six preserve their current
+role-specific direct source chains.
 
 ## Current decode and validation order
 
@@ -70,11 +76,11 @@ production import path required by the frozen fixture plan.
 
 ## Decision
 
-These two leaves stay deferred. Resolving them requires a separately
+These six leaves stay deferred. Resolving them requires a separately
 authorized production decision to make candidate decoding less semantic and
 leave descriptor or payload ownership to `CandidateRecord::validate`, to map
 the decoder failures to the semantic candidate codes, or to refreeze the
-S20-530 leaves with the reachable SCB result.
+S20-530 cases with the reachable `SCB_UNION_INVALID` result.
 
 Development continues on v4-compatible leaves without weakening strict
 candidate decoding or changing production error ownership for test-only
