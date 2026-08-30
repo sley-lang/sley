@@ -1,6 +1,6 @@
 # Sley 2.0 development checkpoint
 
-Status: RESUMED, V5 CONTRACT FROZEN, IMPLEMENTATION PENDING
+Status: RESUMED, V5 CONTRACT FROZEN, IMPLEMENTATION IN PROGRESS
 
 Owner: Codex orchestrator
 
@@ -14,6 +14,10 @@ Checkpoint date: 2026-08-30, America/New_York
   `d152598425c3dff4ff2e893195f77936bf0b2327`
 - Contract-preparation commits:
   `7937a50`, `68c1982`, and `792a86b`
+- Freeze-checkpoint commit: `e757b2a`
+- Mapped-test implementation commits:
+  `4f485ce`, `1f71818`, `68428f3`, `ab04689`, `65abb3b`, `4cb55e5`,
+  `6cd997e`, and `a46c447`
 - Nothing was pushed, deployed, published, or executed against an external
   runtime.
 - Provider-backed Council calls were limited to the explicitly authorized
@@ -37,9 +41,16 @@ decoder-before-semantic precedence for two candidate cases.
 
 Candidate and state-root carrier prototypes reached all eight exact nested
 errors through direct transaction-receipt import and repository recovery.
-Remaining implementation work includes the mapped grouped-test frontier,
-helper-body manifests, dual-site proof manifests, limit-event control ancestry
-and public-root call paths, and complete shared-state authority evidence.
+The mapped COR-06/COR-07 Rust frontier now contains 157 of 232 exact tests:
+33 of 73 COR-06 leaves and 124 of 159 COR-07 leaves. The newly complete COR-06
+groups are head checksum, object missing, object digest, root, policy, receipt
+missing, and manifest length. Receipt digest now contains its host-I/O case and
+all seven receipt-envelope SCB cases. Seventy-five mapped leaves remain: 40
+COR-06 receipt-digest leaves and 35 COR-07 leaves.
+
+Remaining implementation work also includes helper-body manifests, dual-site
+proof manifests, limit-event control ancestry and public-root call paths, and
+complete shared-state authority evidence.
 
 ## Frozen v5 identities
 
@@ -75,13 +86,19 @@ No v4 review was reused.
 
 Validation tier: Tier 2 contract refreeze, with one monolithic runtime debt.
 
-- `cargo test -p sley-txn`: PASS, 123 active and 1 ignored.
+- `cargo test -p sley-txn`: PASS, 154 active and 1 ignored.
 - `cargo test -p sley-repo`: PASS, 244 active.
 - Candidate and state-root carrier recovery prototypes: PASS, 8 exact errors.
 - Frozen test-authority inventory: PASS, 50 files.
 - Grouped and fixture metadata: PASS, 73 COR-06, 159 COR-07, 232 fixtures.
 - Typed empty source-chain positive and hostile controls: PASS.
 - Transaction and ref exact source-helper bodies: PASS.
+- Checker-rendered fixture, error, source-chain, no-mutation, canary, and
+  control-flow bindings for 31 newly added COR-06 leaves: PASS.
+- COR-06 root group: PASS, 9 of 9 exact mapped tests.
+- COR-06 policy group: PASS, 8 of 8 exact mapped tests.
+- COR-06 receipt-envelope slice: PASS, 7 of 7 exact mapped tests.
+- T54 high-confidence secret scan: PASS, 352 files and no findings.
 - ANC-04 exact mapped-body bindings: PASS, 121, 89, and 124 statements.
 - COR-07 ref-digest rendered body: PASS, 122 statements.
 - Checker and runner Python syntax, Ruff format, and Ruff lint: PASS.
@@ -99,8 +116,10 @@ validation-runtime debt under the validation economy rule.
 ## Exact resume point
 
 1. Treat the v5 evidence and contract-set bytes as immutable.
-2. Begin the remaining S20-530 mapped grouped-test implementation from the v5
-   checker authority, not the historical v4 inventories.
+2. Continue the remaining S20-530 mapped grouped-test implementation from the
+   75-leaf frontier, using the v5 checker authority rather than historical v4
+   inventories. The next bounded COR-06 slice is the 40 nested receipt-digest
+   leaves; COR-07 has 35 leaves remaining.
 3. Use targeted crate tests and checker-owned render/binding controls as the
    inner loop.
 4. Keep the monolithic checker runtime debt separate from semantic failures;
