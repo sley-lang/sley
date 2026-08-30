@@ -5466,6 +5466,30 @@ mod tests {
         m2_arguments_2: (),
     }
 
+    type GroupedRefTargetSecondaryObservation = (
+        TransactionId,
+        TransactionId,
+        TransactionId,
+    );
+
+    struct GroupedRefFormatTargetMismatchFixture {
+        m2_branch_ref_path: ::std::path::PathBuf,
+        m2_primary_carrier_path: ::std::path::PathBuf,
+        m2_primary_path: ::std::path::PathBuf,
+        m2_primary_ref_format_version: u32,
+        m2_pristine_primary_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_observation: ExactPathSnapshot,
+        m2_secondary_carrier_path: ::std::path::PathBuf,
+        m2_secondary_only_observation: GroupedRefTargetSecondaryObservation,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_ref_target_transaction_id: TransactionId,
+        m2_secondary_verified_claim_transaction_id: TransactionId,
+        m2_secondary_verified_head_transaction_id: TransactionId,
+        m2_supported_ref_format_version: u32,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
     trait BranchOriginAncestryFixture {
         fn secondary_origin_transaction_id(&self) -> TransactionId;
 
@@ -5523,6 +5547,36 @@ mod tests {
     impl BranchRecordProbeFixture for GroupedOriginDigestNonancestorFixture {
         fn primary_branch_record_path(&self) -> &::std::path::Path {
             &self.m2_primary_path
+        }
+    }
+
+    trait BranchRefProbeFixture {
+        fn primary_branch_ref_path(&self) -> &::std::path::Path;
+    }
+
+    impl BranchRefProbeFixture for GroupedRefFormatTargetMismatchFixture {
+        fn primary_branch_ref_path(&self) -> &::std::path::Path {
+            &self.m2_primary_path
+        }
+    }
+
+    trait RefTargetBindingFixture {
+        fn ref_target_transaction_id(&self) -> TransactionId;
+        fn verified_claim_transaction_id(&self) -> TransactionId;
+        fn verified_head_transaction_id(&self) -> TransactionId;
+    }
+
+    impl RefTargetBindingFixture for GroupedRefFormatTargetMismatchFixture {
+        fn ref_target_transaction_id(&self) -> TransactionId {
+            self.m2_secondary_ref_target_transaction_id
+        }
+
+        fn verified_claim_transaction_id(&self) -> TransactionId {
+            self.m2_secondary_verified_claim_transaction_id
+        }
+
+        fn verified_head_transaction_id(&self) -> TransactionId {
+            self.m2_secondary_verified_head_transaction_id
         }
     }
 
@@ -5840,6 +5894,80 @@ mod tests {
         }
     }
 
+    fn prepare_grouped_ref_format_target_mismatch_fixture(
+        fixture: &Fixture,
+    ) -> GroupedRefFormatTargetMismatchFixture {
+        let head_transaction_id = fixture.commit_child(88);
+        let claim_transaction_id = fixture.commit_child(89);
+        let branch_name = "cor07-ref-format";
+        fixture
+            .branches
+            .create_branch(branch_name, fixture.genesis_transaction_id)
+            .unwrap();
+        let resolved_origin = fixture.branches.resolve_branch(branch_name).unwrap();
+        let parsed_name = BranchName::parse(branch_name).unwrap();
+        let head_revision = fixture
+            .transactions
+            .verified_revision(head_transaction_id)
+            .unwrap();
+        let claim_revision = fixture
+            .transactions
+            .verified_revision(claim_transaction_id)
+            .unwrap();
+        let mut mismatched_record = ref_record(
+            &parsed_name,
+            resolved_origin.origin.digest,
+            &head_revision,
+        );
+        mismatched_record.head_state_root = claim_revision.state_root().root;
+        let mismatched_ref = build_branch_ref(&mismatched_record).unwrap();
+        let m2_primary_path = fixture.branches.checked_ref_path(&parsed_name).unwrap();
+        ::std::fs::write(&m2_primary_path, &mismatched_ref.stored_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+
+        let m2_pristine_primary_bytes = ::std::fs::read(&m2_primary_path).unwrap();
+        let m2_pristine_primary_observation = exact_path_snapshot(&m2_primary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(fixture.path());
+        let m2_secondary_only_observation = (
+            head_transaction_id,
+            claim_transaction_id,
+            head_transaction_id,
+        );
+
+        let mut corrupted = m2_pristine_primary_bytes.clone();
+        let payload = payload_offset(&corrupted);
+        corrupted[payload + 3] = 2;
+        rehash(&mut corrupted, REF_DIGEST_DOMAIN);
+        ::std::fs::write(&m2_primary_path, corrupted).unwrap();
+        ::std::fs::File::open(&m2_primary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+
+        GroupedRefFormatTargetMismatchFixture {
+            m2_branch_ref_path: m2_primary_path.clone(),
+            m2_primary_carrier_path: m2_primary_path.clone(),
+            m2_primary_path: m2_primary_path.clone(),
+            m2_primary_ref_format_version: 2,
+            m2_pristine_primary_bytes,
+            m2_pristine_primary_observation,
+            m2_secondary_carrier_path: m2_primary_path,
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_ref_target_transaction_id: head_transaction_id,
+            m2_secondary_verified_claim_transaction_id: claim_transaction_id,
+            m2_secondary_verified_head_transaction_id: head_transaction_id,
+            m2_supported_ref_format_version: RECORD_VERSION,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
     fn observe_ref_nested_codec_origin_fixture_primary(
         _fixture: &Fixture,
         m2_fixture: &RefNestedCodecOriginFixture,
@@ -5916,6 +6044,46 @@ mod tests {
         let bytes = ::std::fs::read(m2_fixture.primary_branch_record_path())
             .map_err(super::BranchError::Io)?;
         import_branch_record(&bytes)
+    }
+
+    fn observe_grouped_ref_format_target_mismatch_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedRefFormatTargetMismatchFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_grouped_ref_format_target_mismatch_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedRefFormatTargetMismatchFixture,
+    ) -> GroupedRefTargetSecondaryObservation {
+        m2_fixture.m2_secondary_only_observation
+    }
+
+    fn import_branch_ref_error<T: BranchRefProbeFixture>(
+        _fixture: &Fixture,
+        m2_fixture: &T,
+    ) -> ::core::result::Result<ImportedBranchRef, super::BranchError> {
+        let bytes = ::std::fs::read(m2_fixture.primary_branch_ref_path())
+            .map_err(super::BranchError::Io)?;
+        import_branch_ref(&bytes)
+    }
+
+    fn probe_ref_target_binding<T: RefTargetBindingFixture>(
+        _fixture: &Fixture,
+        m2_fixture: &T,
+    ) -> ::core::result::Result<(), super::BranchError> {
+        if m2_fixture.ref_target_transaction_id()
+            == m2_fixture.verified_head_transaction_id()
+            && m2_fixture.ref_target_transaction_id()
+                != m2_fixture.verified_claim_transaction_id()
+        {
+            ::core::result::Result::Err(super::branch_error(
+                super::BranchErrorCode::RefTargetMismatch,
+            ))
+        } else {
+            ::core::result::Result::Ok(())
+        }
     }
 
     #[test]
@@ -6097,6 +6265,98 @@ mod tests {
         let m2_primary_after_2 = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
         let m2_secondary_after_2 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
+    }
+
+    #[test]
+    fn cor07_ref_format_ref_format_version() {
+        let fixture = Fixture::new("s20-530-m2-cor-07-ref-format-ref-format-version");
+        let transaction_repository: &::sley_txn::TransactionRepository = &fixture.transactions;
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_grouped_ref_format_target_mismatch_fixture(&fixture);
+        let m2_branch_ref_path = m2_fixture.m2_branch_ref_path.clone();
+        let m2_primary_carrier_path = m2_fixture.m2_primary_carrier_path.clone();
+        let m2_primary_path = m2_fixture.m2_primary_path.clone();
+        let m2_primary_ref_format_version = m2_fixture.m2_primary_ref_format_version.clone();
+        let m2_pristine_primary_bytes = m2_fixture.m2_pristine_primary_bytes.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_carrier_path = m2_fixture.m2_secondary_carrier_path.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_ref_target_transaction_id = m2_fixture.m2_secondary_ref_target_transaction_id.clone();
+        let m2_secondary_verified_claim_transaction_id = m2_fixture.m2_secondary_verified_claim_transaction_id.clone();
+        let m2_secondary_verified_head_transaction_id = m2_fixture.m2_secondary_verified_head_transaction_id.clone();
+        let m2_supported_ref_format_version = m2_fixture.m2_supported_ref_format_version.clone();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_ref_path_from_branch", m2_primary_path.as_path()), ("primary_ref_path_from_branch", m2_branch_ref_path.as_path()));
+        ::core::assert_ne!(("primary_ref_version_corrupt", m2_primary_ref_format_version), ("primary_ref_version_corrupt", m2_supported_ref_format_version));
+        ::core::assert_eq!(("secondary_ref_targets_verified_head", m2_secondary_ref_target_transaction_id), ("secondary_ref_targets_verified_head", m2_secondary_verified_head_transaction_id));
+        ::core::assert_ne!(("secondary_target_claim_mismatch", m2_secondary_ref_target_transaction_id), ("secondary_target_claim_mismatch", m2_secondary_verified_claim_transaction_id));
+        ::core::assert_eq!(("same_carrier_ref_semantics", m2_primary_carrier_path.as_path()), ("same_carrier_ref_semantics", m2_secondary_carrier_path.as_path()));
+        let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = import_branch_ref_error(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_ref_format", m2_primary_probe_error.code()), ("primary_probe_ref_format", "REF_FORMAT_VERSION"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = probe_ref_target_binding(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_ref_target_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_ref_target_mismatch", "REF_TARGET_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = branch_repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_grouped_ref_format_target_mismatch_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_grouped_ref_format_target_mismatch_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "REF_FORMAT_VERSION"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", []));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_grouped_ref_format_target_mismatch_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = branch_repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_grouped_ref_format_target_mismatch_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_grouped_ref_format_target_mismatch_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_grouped_ref_format_target_mismatch_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_TARGET_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
         ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
         ::core::assert_eq!(m2_before_2, m2_after_2);
