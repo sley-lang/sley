@@ -3302,6 +3302,7 @@ mod tests {
         chain
     }
 
+    #[allow(dead_code)]
     fn expected_recovery_ancestry_test_plan_digest(
         owner_root: &::std::path::Path,
         epochs: ::sley_txn::recovery_ancestry_test_hook::RecoveryAncestryTestEpochs,
@@ -5942,7 +5943,6 @@ mod tests {
     fn rlay01_branches_v1_create_retry_reaches_sync_hook() {
         let fixture = Fixture::new("rlay01");
         let branch_repository = super::BranchRepository::new(fixture.path());
-        let genesis_transaction_id = fixture.genesis_transaction_id;
         let owner_root = branch_repository.root();
         let primary_path = owner_root.join("branches").join("v1");
         let secondary_path = owner_root.join("refs").join("v1");
