@@ -4145,6 +4145,437 @@ mod tests {
         );
     }
 
+    struct CorruptionFixturePlan {
+        row_id: &'static str,
+        group_id: &'static str,
+        leaf_id: &'static str,
+        target_role: &'static str,
+        artifact_role: &'static str,
+        identity_recipe: &'static str,
+        path_recipe: &'static str,
+        corrupter_class: &'static str,
+        probe_class: &'static str,
+        selector: &'static str,
+        distinct_from_roles: &'static [&'static str],
+    }
+
+    impl CorruptionFixturePlan {
+        #[allow(clippy::too_many_arguments)]
+        const fn new(
+            row_id: &'static str,
+            group_id: &'static str,
+            leaf_id: &'static str,
+            target_role: &'static str,
+            artifact_role: &'static str,
+            identity_recipe: &'static str,
+            path_recipe: &'static str,
+            corrupter_class: &'static str,
+            probe_class: &'static str,
+            selector: &'static str,
+            distinct_from_roles: &'static [&'static str],
+        ) -> Self {
+            Self {
+                row_id,
+                group_id,
+                leaf_id,
+                target_role,
+                artifact_role,
+                identity_recipe,
+                path_recipe,
+                corrupter_class,
+                probe_class,
+                selector,
+                distinct_from_roles,
+            }
+        }
+    }
+
+    struct CorruptionFixtureObservation {
+        fault_path: PathBuf,
+        control_path: PathBuf,
+        control_is_object: bool,
+        target_identity: TransactionId,
+        object_stage_path: PathBuf,
+        receipt_stage_path: PathBuf,
+        head_stage_path: PathBuf,
+    }
+
+    struct CorruptionFixtureDirect {
+        pointer_target_identity: TransactionId,
+        expected_fault_path: PathBuf,
+    }
+
+    fn assert_cor06_receipt_host_io_plan(plan: &CorruptionFixturePlan) {
+        ::core::assert_eq!(plan.row_id, "COR-06");
+        ::core::assert_eq!(plan.group_id, "receipt_digest");
+        ::core::assert_eq!(plan.leaf_id, "host_txn_io");
+        ::core::assert_eq!(plan.target_role, "ACCEPTED_REVISION");
+        ::core::assert_eq!(plan.artifact_role, "revision_receipt");
+        ::core::assert_eq!(plan.identity_recipe, "accepted_pointer_transaction_id");
+        ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
+        ::core::assert_eq!(plan.corrupter_class, "receipt_host_io");
+        ::core::assert_eq!(plan.probe_class, "path_bound_receipt_read_injection");
+        ::core::assert_eq!(plan.selector, "host_txn_io");
+        ::core::assert!(plan.distinct_from_roles.is_empty());
+    }
+
+    fn assert_cor06_object_host_io_plan(plan: &CorruptionFixturePlan) {
+        ::core::assert_eq!(plan.row_id, "COR-06");
+        ::core::assert_eq!(plan.group_id, "object_digest");
+        ::core::assert_eq!(plan.leaf_id, "object_store_io");
+        ::core::assert_eq!(plan.target_role, "ACCEPTED_REVISION");
+        ::core::assert_eq!(plan.artifact_role, "revision_object");
+        ::core::assert_eq!(plan.identity_recipe, "accepted_pointer_transaction_id");
+        ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
+        ::core::assert_eq!(plan.corrupter_class, "object_host_io");
+        ::core::assert_eq!(plan.probe_class, "path_bound_object_read_injection");
+        ::core::assert_eq!(plan.selector, "object_store_io");
+        ::core::assert!(plan.distinct_from_roles.is_empty());
+    }
+
+    fn assert_cor06_visible_revision_plan(plan: &CorruptionFixturePlan) {
+        match plan.corrupter_class {
+            "receipt_host_io" => assert_cor06_receipt_host_io_plan(plan),
+            "object_host_io" => assert_cor06_object_host_io_plan(plan),
+            class => ::core::panic!("unsupported COR-06 visible corrupter class: {class}"),
+        }
+    }
+
+    fn copy_corruption_tree(source: &Path, destination: &Path) {
+        fs::create_dir_all(destination).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let destination_path = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_corruption_tree(&entry.path(), &destination_path);
+            } else {
+                fs::copy(entry.path(), destination_path).unwrap();
+            }
+        }
+    }
+
+    fn corruption_receipt_path(root: &Path, transaction_id: TransactionId) -> PathBuf {
+        let hex = hex_id(transaction_id.as_bytes());
+        root.join("transactions")
+            .join("v1")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(format!("{hex}.receipt.scb1"))
+    }
+
+    fn write_corruption_file(path: &Path, bytes: &[u8]) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, bytes).unwrap();
+        File::open(path).unwrap().sync_all().unwrap();
+        sync_dir(path.parent().unwrap()).unwrap();
+    }
+
+    fn plant_corruption_canaries(
+        fixture: &Fixture,
+        accepted_object_id: ObjectId,
+        accepted_receipt_path: &Path,
+    ) -> (PathBuf, PathBuf, PathBuf) {
+        let object_path = ObjectStore::new(fixture.path()).object_path(accepted_object_id);
+        let object_hex = hex_id(accepted_object_id.as_bytes());
+        let object_stage_path = object_path.parent().unwrap().join(format!(
+            ".sley-store-stage-{object_hex}{:08x}{:08x}.tmp",
+            ::std::process::id(),
+            0xc6_u32,
+        ));
+        write_corruption_file(&object_stage_path, b"s20-530-object-stage-canary");
+
+        let (receipt_stage_path, mut receipt_stage) =
+            reserve_stage(accepted_receipt_path.parent().unwrap(), RECEIPT_STAGE_PREFIX).unwrap();
+        receipt_stage
+            .write_all(b"s20-530-receipt-stage-canary")
+            .unwrap();
+        receipt_stage.sync_all().unwrap();
+        sync_dir(receipt_stage_path.parent().unwrap()).unwrap();
+
+        let heads = fixture.path().join("heads");
+        let (head_stage_path, mut head_stage) = reserve_stage(&heads, HEAD_STAGE_PREFIX).unwrap();
+        head_stage.write_all(b"s20-530-head-stage-canary").unwrap();
+        head_stage.sync_all().unwrap();
+        sync_dir(&heads).unwrap();
+        (object_stage_path, receipt_stage_path, head_stage_path)
+    }
+
+    fn prepare_visible_revision_corruption_fixture(
+        fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+    ) -> CorruptionFixtureObservation {
+        assert_cor06_visible_revision_plan(fixture_plan);
+        let source = Fixture::new("cor06-visible-revision-source");
+        ::core::assert_eq!(source.genesis_transaction_id, fixture.genesis_transaction_id);
+        let accepted_identity = commit_on_head(&source, 0xc5).transaction_id();
+        let accepted = source
+            .repository
+            .verified_revision(accepted_identity)
+            .unwrap();
+        let parent = source
+            .repository
+            .verified_revision(source.genesis_transaction_id)
+            .unwrap();
+        for relative in [Path::new("transactions/v1"), Path::new("objects/scb1")] {
+            copy_corruption_tree(
+                &source.temp.path.join(relative),
+                &fixture.temp.path.join(relative),
+            );
+        }
+        let accepted_pointer_bytes = fs::read(source.repository.head_path()).unwrap();
+        write_corruption_file(&fixture.repository.head_path(), &accepted_pointer_bytes);
+        let accepted_object_id = accepted.receipt().record.object_manifest[0].object_id;
+        let parent_object_id = parent.receipt().record.object_manifest[0].object_id;
+        let object_store = ObjectStore::new(fixture.path());
+        let object_artifact = fixture_plan.path_recipe == "role_changed_object_path";
+        let (fault_path, control_path) = if object_artifact {
+            (
+                object_store.object_path(accepted_object_id),
+                object_store.object_path(parent_object_id),
+            )
+        } else {
+            (
+                corruption_receipt_path(fixture.path(), accepted_identity),
+                corruption_receipt_path(fixture.path(), fixture.genesis_transaction_id),
+            )
+        };
+        let (object_stage_path, receipt_stage_path, head_stage_path) =
+            plant_corruption_canaries(
+                fixture,
+                accepted_object_id,
+                &corruption_receipt_path(fixture.path(), accepted_identity),
+            );
+        CorruptionFixtureObservation {
+            fault_path,
+            control_path,
+            control_is_object: object_artifact,
+            target_identity: accepted_identity,
+            object_stage_path,
+            receipt_stage_path,
+            head_stage_path,
+        }
+    }
+
+    fn observe_visible_revision_corruption_fixture(
+        fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        fault_path: &Path,
+        control_path: &Path,
+    ) -> CorruptionFixtureDirect {
+        ::core::assert_eq!(fault_path, fixture_observation.fault_path);
+        ::core::assert_eq!(control_path, fixture_observation.control_path);
+        let pointer_target_identity =
+            decode_head(&fs::read(fixture.repository.head_path()).unwrap()).unwrap();
+        CorruptionFixtureDirect {
+            pointer_target_identity,
+            expected_fault_path: fixture_observation.fault_path.clone(),
+        }
+    }
+
+    fn apply_receipt_host_io_corruption(
+        _fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+        fault_path: &Path,
+    ) {
+        assert_cor06_receipt_host_io_plan(fixture_plan);
+        let mut bytes = fs::read(fault_path).unwrap();
+        *bytes.last_mut().expect("accepted receipt byte") ^= 1;
+        write_corruption_file(fault_path, &bytes);
+        recovery_path_read_test_hook::install(RecoveryPathReadKind::Receipt, fault_path, 2);
+    }
+
+    fn apply_object_host_io_corruption(
+        _fixture: &Fixture,
+        fixture_plan: &CorruptionFixturePlan,
+        fault_path: &Path,
+    ) {
+        assert_cor06_object_host_io_plan(fixture_plan);
+        let mut bytes = fs::read(fault_path).unwrap();
+        *bytes.last_mut().expect("accepted object byte") ^= 1;
+        write_corruption_file(fault_path, &bytes);
+        recovery_path_read_test_hook::install(RecoveryPathReadKind::Object, fault_path, 2);
+    }
+
+    fn path_bound_receipt_read_injection(
+        _fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        fault_path: &Path,
+    ) -> Result<(), CommitError> {
+        ::core::assert_eq!(fault_path, fixture_observation.fault_path);
+        recovery_path_read_test_hook::inject(RecoveryPathReadKind::Receipt, fault_path)
+            .map_err(CommitError::Io)
+    }
+
+    fn path_bound_object_read_injection(
+        _fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        fault_path: &Path,
+    ) -> Result<(), CommitError> {
+        ::core::assert_eq!(fault_path, fixture_observation.fault_path);
+        recovery_path_read_test_hook::inject(RecoveryPathReadKind::Object, fault_path)
+            .map_err(StoreError::io)
+            .map_err(CommitError::Store)
+    }
+
+    fn probe_untargeted_corruption_control(
+        _fixture: &Fixture,
+        fixture_observation: &CorruptionFixtureObservation,
+        control_path: &Path,
+    ) -> Result<(), CommitError> {
+        ::core::assert_eq!(control_path, fixture_observation.control_path);
+        let read_kind = if fixture_observation.control_is_object {
+            RecoveryPathReadKind::Object
+        } else {
+            RecoveryPathReadKind::Receipt
+        };
+        recovery_path_read_test_hook::inject(read_kind, control_path)
+            .map_err(CommitError::Io)?;
+        let bytes = fs::read(control_path).map_err(CommitError::Io)?;
+        if fixture_observation.control_is_object {
+            Ok(())
+        } else {
+            import_transaction_receipt(&bytes)
+                .map(|_| ())
+                .map_err(CommitError::Codec)
+        }
+    }
+
+    #[test]
+    fn cor06_receipt_digest__host_txn_io() {
+        let fixture = Fixture::new("s20-530-cor-06-receipt-digest-host-txn-io");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "receipt_digest", "host_txn_io", "ACCEPTED_REVISION", "revision_receipt", "accepted_pointer_transaction_id", "role_receipt_path", "receipt_host_io", "path_bound_receipt_read_injection", "host_txn_io", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_receipt_host_io_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = path_bound_receipt_read_injection(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Io(_)));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "TXN_IO"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "TXN_IO");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Io(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["io::Error(Other)"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
+    #[test]
+    fn cor06_object_digest__object_store_io() {
+        let fixture = Fixture::new("s20-530-cor-06-object-digest-object-store-io");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let fixture_plan = CorruptionFixturePlan::new("COR-06", "object_digest", "object_store_io", "ACCEPTED_REVISION", "revision_object", "accepted_pointer_transaction_id", "role_changed_object_path", "object_host_io", "path_bound_object_read_injection", "object_store_io", &[]);
+        let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
+        let fault_path = fixture_observation.fault_path.clone();
+        let control_path = fixture_observation.control_path.clone();
+        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        apply_object_host_io_corruption(&fixture, &fixture_plan, &fault_path);
+        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
+        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
+        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
+        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
+        let fixture_direct = observe_visible_revision_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
+        let fixture_probe_result = path_bound_object_read_injection(&fixture, &fixture_observation, &fault_path);
+        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
+        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
+        ::core::assert_eq!(("target_identity_from_pointer", fixture_observation.target_identity), ("target_identity_from_pointer", fixture_direct.pointer_target_identity));
+        ::core::assert_eq!(("artifact_path_from_target", fault_path.as_path()), ("artifact_path_from_target", fixture_direct.expected_fault_path.as_path()));
+        ::core::assert_eq!(("artifact_kind", fault_after_kind), ("artifact_kind", ::core::option::Option::Some("regular")));
+        ::core::assert_ne!(("artifact_bytes_or_absence", fault_before_snapshot.clone()), ("artifact_bytes_or_absence", fault_after_snapshot.clone()));
+        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
+        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Store(_)));
+        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "STORE_IO"));
+        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_control");
+        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
+        let object_stage_path = fixture_observation.object_stage_path.clone();
+        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_before_kind = object_stage_before_snapshot.0;
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
+        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
+        ::core::assert_eq!(receipt_stage_before_kind, "regular");
+        let head_stage_path = fixture_observation.head_stage_path.clone();
+        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_before_kind = head_stage_before_snapshot.0;
+        ::core::assert_eq!(head_stage_before_kind, "regular");
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
+        let object_stage_after_kind = object_stage_after_snapshot.0;
+        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
+        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
+        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
+        let head_stage_after_kind = head_stage_after_snapshot.0;
+        ::core::assert_eq!(error.code(), "STORE_IO");
+        ::core::assert!(::core::matches!(&error, super::CommitError::Store(_)));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["StoreError", "io::Error(Other)"]);
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
+        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
+        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
+        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+    }
+
     fn claim_for(
         repository: &super::TransactionRepository,
         transaction_id: TransactionId,
