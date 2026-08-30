@@ -6747,7 +6747,7 @@ mod tests {
     }
 
     #[test]
-    fn anc06_ref_nested_codec_before_claim_mismatch_fails_closed() {
+    fn anc06_partial_ref_nested_codec_deep_ancestor_fails_closed() {
         let fixture = Fixture::new("anc06-codec");
         let deep_transaction_id = fixture.commit_child(61);
         let parent_transaction_id = fixture.commit_child(62);
@@ -6774,7 +6774,7 @@ mod tests {
     }
 
     #[test]
-    fn anc06_ref_nested_store_before_cycle_fails_closed() {
+    fn anc06_partial_ref_nested_store_deep_ancestor_fails_closed() {
         let fixture = Fixture::new("anc06-store");
         let deep_transaction_id = fixture.commit_child(61);
         let parent_transaction_id = fixture.commit_child(62);
@@ -7012,8 +7012,8 @@ mod tests {
         let (cycle_observations, plan_consumption_counts) = consumed_l_r_l_cycle_observations(&transaction_repository, &maintenance, plan_identity, &provenance);
         provenance.plan_consumption_counts = plan_consumption_counts;
         let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
-        ::core::assert_eq!(("observed_left_durable_and_logical_edges", cycle_observations[0].clone()), ("observed_left_durable_and_logical_edges", (provenance.left_identity, vec![provenance.right_identity], vec![provenance.right_identity])));
-        ::core::assert_eq!(("observed_right_durable_and_logical_edges", cycle_observations[1].clone()), ("observed_right_durable_and_logical_edges", (provenance.right_identity, vec![provenance.genesis_identity], vec![provenance.left_identity])));
+        ::core::assert_eq!(("observed_left_durable_and_logical_edges", cycle_observations[0].clone()), ("observed_left_durable_and_logical_edges", (provenance.left_identity, ::std::vec![provenance.right_identity], ::std::vec![provenance.right_identity])));
+        ::core::assert_eq!(("observed_right_durable_and_logical_edges", cycle_observations[1].clone()), ("observed_right_durable_and_logical_edges", (provenance.right_identity, ::std::vec![provenance.genesis_identity], ::std::vec![provenance.left_identity])));
         ::core::assert_eq!(("plan_consumed_exactly_once_per_node", provenance.plan_consumption_counts.as_slice()), ("plan_consumed_exactly_once_per_node", [(provenance.left_identity, 1_u64), (provenance.right_identity, 1_u64)].as_slice()));
         ::core::assert_eq!(("pointer_bytes_unchanged", pointer_before_snapshot.2.as_slice()), ("pointer_bytes_unchanged", pointer_after_snapshot.2.as_slice()));
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
