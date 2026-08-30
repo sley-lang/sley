@@ -3372,6 +3372,194 @@ mod tests {
         (added, changed, removed)
     }
 
+    fn plant_non_regular_socket(
+        path: &::std::path::Path,
+        replace: bool,
+    ) -> ::std::os::unix::net::UnixDatagram {
+        if replace {
+            ::std::fs::remove_file(path).unwrap();
+        } else {
+            ::core::assert!(::core::matches!(
+                ::std::fs::symlink_metadata(path),
+                ::core::result::Result::Err(error)
+                    if error.kind() == ::std::io::ErrorKind::NotFound
+            ));
+        }
+        static NEXT: ::std::sync::atomic::AtomicU64 =
+            ::std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+        let staging = ::std::env::temp_dir().join(::std::format!(
+            "s2nr-{}-{sequence:016x}",
+            ::std::process::id()
+        ));
+        ::core::assert!(
+            ::std::os::unix::ffi::OsStrExt::as_bytes(staging.as_os_str()).len() < 108
+        );
+        let socket = ::std::os::unix::net::UnixDatagram::bind(&staging).unwrap();
+        ::std::fs::rename(&staging, path).unwrap();
+        socket
+    }
+
+    struct OriginRecoverySymlinkRefFixture {
+        m2_branch_ref_path: ::std::path::PathBuf,
+        m2_primary_locator: ::std::string::String,
+        m2_primary_parent_paths: ::std::vec::Vec<::std::path::PathBuf>,
+        m2_primary_path_kinds: ::std::vec::Vec<&'static str>,
+        m2_primary_paths: ::std::vec::Vec<::std::path::PathBuf>,
+        m2_primary_regular_canary_path: ::std::path::PathBuf,
+        m2_pristine_primary_observation: [ExactOptionalPathSnapshot; 3],
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_ref_computed_digest: [u8; 32],
+        m2_secondary_ref_recorded_digest: [u8; 32],
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    impl BranchRefProbeFixture for OriginRecoverySymlinkRefFixture {
+        fn primary_branch_ref_path(&self) -> &::std::path::Path {
+            &self.m2_secondary_path
+        }
+    }
+
+    fn observe_origin_recovery_symlink_ref_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &OriginRecoverySymlinkRefFixture,
+    ) -> [ExactOptionalPathSnapshot; 3] {
+        ::core::array::from_fn(|index| {
+            exact_optional_path_snapshot(&m2_fixture.m2_primary_paths[index])
+        })
+    }
+
+    fn observe_origin_recovery_symlink_ref_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &OriginRecoverySymlinkRefFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn exact_symlink_metadata_set(
+        _fixture: &Fixture,
+        m2_fixture: &OriginRecoverySymlinkRefFixture,
+    ) -> ::core::result::Result<(), ::std::io::Error> {
+        for path in &m2_fixture.m2_primary_paths {
+            let metadata = ::std::fs::symlink_metadata(path)?;
+            if !metadata.file_type().is_symlink() {
+                return ::core::result::Result::Err(::std::io::Error::other(
+                    "owned-entry multifault path is not a symlink",
+                ));
+            }
+        }
+        ::core::result::Result::Err(::std::io::Error::other(
+            "owned-entry multifault symlink set",
+        ))
+    }
+
+    fn prepare_origin_recovery_symlink_ref_fixture(
+        fixture: &Fixture,
+    ) -> OriginRecoverySymlinkRefFixture {
+        let branch_name = "m2-cor04-secondary";
+        fixture
+            .branches
+            .create_branch(branch_name, fixture.genesis_transaction_id)
+            .unwrap();
+        let parsed_name = BranchName::parse(branch_name).unwrap();
+        let owner_root = fixture.branches.root();
+        let m2_secondary_path = fixture.branches.checked_ref_path(&parsed_name).unwrap();
+
+        let m2_primary_regular_canary_path = owner_root
+            .join("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp");
+        ::std::fs::create_dir_all(m2_primary_regular_canary_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &m2_primary_regular_canary_path,
+            b"S20-530:COR-04:origin_stage",
+        )
+        .unwrap();
+
+        let m2_primary_paths = ::std::vec![
+            owner_root.join("branches/v1/fd"),
+            owner_root.join(
+                "branches/v1/fe/00/.sley-branch-stage-2-2222222222222222.tmp",
+            ),
+            owner_root.join(
+                "branches/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.branch.scb1",
+            ),
+        ];
+        for path in &m2_primary_paths {
+            ::std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        }
+        let m2_primary_parent_paths = m2_primary_paths
+            .iter()
+            .map(|path| path.parent().unwrap().to_path_buf())
+            .collect::<::std::vec::Vec<_>>();
+        let m2_pristine_primary_observation = ::core::array::from_fn(|index| {
+            exact_optional_path_snapshot(&m2_primary_paths[index])
+        });
+
+        let mut reference_bytes = ::std::fs::read(&m2_secondary_path).unwrap();
+        let prefix_len = reference_bytes.len().checked_sub(32).unwrap();
+        let m2_secondary_ref_computed_digest =
+            super::digest(super::REF_DIGEST_DOMAIN, &reference_bytes[..prefix_len]);
+        *reference_bytes.last_mut().unwrap() ^= 1;
+        let m2_secondary_ref_recorded_digest = reference_bytes[prefix_len..]
+            .try_into()
+            .unwrap();
+        ::std::fs::write(&m2_secondary_path, &reference_bytes).unwrap();
+        ::std::fs::File::open(&m2_secondary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_secondary_path.parent().unwrap()).unwrap();
+        let m2_secondary_only_observation = exact_path_snapshot(&m2_secondary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(owner_root);
+
+        let targets = [
+            "../../../../s20-530-cor-04-fanout_symlink",
+            "../../../../s20-530-cor-04-stage_symlink",
+            "../../../../s20-530-cor-04-final_symlink",
+        ];
+        for (path, target) in m2_primary_paths.iter().zip(targets) {
+            ::std::os::unix::fs::symlink(target, path).unwrap();
+        }
+        for parent in &m2_primary_parent_paths {
+            super::sync_dir(parent).unwrap();
+        }
+        let m2_primary_path_kinds = m2_primary_paths
+            .iter()
+            .map(|path| {
+                if ::std::fs::symlink_metadata(path)
+                    .unwrap()
+                    .file_type()
+                    .is_symlink()
+                {
+                    "symlink"
+                } else {
+                    "other"
+                }
+            })
+            .collect::<::std::vec::Vec<_>>();
+
+        OriginRecoverySymlinkRefFixture {
+            m2_branch_ref_path: m2_secondary_path.clone(),
+            m2_primary_locator: "origin-recovery-symlink-set".to_owned(),
+            m2_primary_parent_paths,
+            m2_primary_path_kinds,
+            m2_primary_paths,
+            m2_primary_regular_canary_path,
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_ref_computed_digest,
+            m2_secondary_ref_recorded_digest,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
     fn exact_error_source_chain<const N: ::core::primitive::usize>(
         error: &(dyn ::std::error::Error + 'static),
     ) -> [&'static str; N] {
@@ -23795,5 +23983,1269 @@ mod tests {
         ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
         ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
         ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)), "production_core_binding");
+    }
+
+    #[test]
+    fn cor04_owned_stage_removed_and_synced() {
+        let fixture = Fixture::new("s20-530-cor-04-owned-stage");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let owned_stage_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-0000000000000001.tmp");
+        let owned_stage_path = owner_root.join(&owned_stage_relative_path);
+        ::core::assert_eq!(owned_stage_path.strip_prefix(owner_root).unwrap(), owned_stage_relative_path);
+        ::std::fs::create_dir_all(owned_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&owned_stage_path, "S20-530:COR-04:owned_stage".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let owned_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&owned_stage_path);
+        let owned_stage_before_kind = owned_stage_before_snapshot.0;
+        ::core::assert_eq!(owned_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(owned_stage_before_snapshot.2, "S20-530:COR-04:owned_stage".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec![::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-0000000000000001.tmp")]);
+        let owned_stage_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&owned_stage_path);
+        ::core::assert_eq!(owned_stage_after_snapshot, ::core::option::Option::None);
+        ::core::assert_eq!(report.removed_branch_stages, 1);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_prefix_suffix_lookalikes_preserved() {
+        let fixture = Fixture::new("s20-530-cor-04-prefix-suffix-lookalikes");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let prefix_lookalike_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-0000000000000001");
+        let prefix_lookalike_path = owner_root.join(&prefix_lookalike_relative_path);
+        ::core::assert_eq!(prefix_lookalike_path.strip_prefix(owner_root).unwrap(), prefix_lookalike_relative_path);
+        let suffix_lookalike_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/foreign-stage-1-0000000000000001.tmp");
+        let suffix_lookalike_path = owner_root.join(&suffix_lookalike_relative_path);
+        ::core::assert_eq!(suffix_lookalike_path.strip_prefix(owner_root).unwrap(), suffix_lookalike_relative_path);
+        ::std::fs::create_dir_all(prefix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&prefix_lookalike_path, "S20-530:COR-04:prefix_lookalike".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(suffix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&suffix_lookalike_path, "S20-530:COR-04:suffix_lookalike".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-0000000000000001"),::std::path::PathBuf::from("branches/v1/10/20/foreign-stage-1-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_before_snapshot = crate::refs::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_before_kind = prefix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.2, "S20-530:COR-04:prefix_lookalike".as_bytes().to_vec());
+        let suffix_lookalike_before_snapshot = crate::refs::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_before_kind = suffix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.2, "S20-530:COR-04:suffix_lookalike".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_after_snapshot = crate::refs::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_after_kind = prefix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(prefix_lookalike_after_snapshot, prefix_lookalike_before_snapshot);
+        let suffix_lookalike_after_snapshot = crate::refs::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_after_kind = suffix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(suffix_lookalike_after_snapshot, suffix_lookalike_before_snapshot);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_pid_decimal_grammar_preserved() {
+        let fixture = Fixture::new("s20-530-cor-04-pid-decimal-grammar");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let pid_zero_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-0-0000000000000001.tmp");
+        let pid_zero_path = owner_root.join(&pid_zero_relative_path);
+        ::core::assert_eq!(pid_zero_path.strip_prefix(owner_root).unwrap(), pid_zero_relative_path);
+        let pid_leading_zero_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-01-0000000000000001.tmp");
+        let pid_leading_zero_path = owner_root.join(&pid_leading_zero_relative_path);
+        ::core::assert_eq!(pid_leading_zero_path.strip_prefix(owner_root).unwrap(), pid_leading_zero_relative_path);
+        let pid_overflow_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-4294967296-0000000000000001.tmp");
+        let pid_overflow_path = owner_root.join(&pid_overflow_relative_path);
+        ::core::assert_eq!(pid_overflow_path.strip_prefix(owner_root).unwrap(), pid_overflow_relative_path);
+        let pid_nondigit_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-one-0000000000000001.tmp");
+        let pid_nondigit_path = owner_root.join(&pid_nondigit_relative_path);
+        ::core::assert_eq!(pid_nondigit_path.strip_prefix(owner_root).unwrap(), pid_nondigit_relative_path);
+        ::std::fs::create_dir_all(pid_zero_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_zero_path, "S20-530:COR-04:pid_zero".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_leading_zero_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_leading_zero_path, "S20-530:COR-04:pid_leading_zero".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_overflow_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_overflow_path, "S20-530:COR-04:pid_overflow".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_nondigit_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_nondigit_path, "S20-530:COR-04:pid_nondigit".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-0-0000000000000001.tmp"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-01-0000000000000001.tmp"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-4294967296-0000000000000001.tmp"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-one-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let pid_zero_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_before_kind = pid_zero_before_snapshot.0;
+        ::core::assert_eq!(pid_zero_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_zero_before_snapshot.2, "S20-530:COR-04:pid_zero".as_bytes().to_vec());
+        let pid_leading_zero_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_leading_zero_path);
+        let pid_leading_zero_before_kind = pid_leading_zero_before_snapshot.0;
+        ::core::assert_eq!(pid_leading_zero_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_leading_zero_before_snapshot.2, "S20-530:COR-04:pid_leading_zero".as_bytes().to_vec());
+        let pid_overflow_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_overflow_path);
+        let pid_overflow_before_kind = pid_overflow_before_snapshot.0;
+        ::core::assert_eq!(pid_overflow_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_overflow_before_snapshot.2, "S20-530:COR-04:pid_overflow".as_bytes().to_vec());
+        let pid_nondigit_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_nondigit_path);
+        let pid_nondigit_before_kind = pid_nondigit_before_snapshot.0;
+        ::core::assert_eq!(pid_nondigit_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_nondigit_before_snapshot.2, "S20-530:COR-04:pid_nondigit".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let pid_zero_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_after_kind = pid_zero_after_snapshot.0;
+        ::core::assert_eq!(pid_zero_after_snapshot, pid_zero_before_snapshot);
+        let pid_leading_zero_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_leading_zero_path);
+        let pid_leading_zero_after_kind = pid_leading_zero_after_snapshot.0;
+        ::core::assert_eq!(pid_leading_zero_after_snapshot, pid_leading_zero_before_snapshot);
+        let pid_overflow_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_overflow_path);
+        let pid_overflow_after_kind = pid_overflow_after_snapshot.0;
+        ::core::assert_eq!(pid_overflow_after_snapshot, pid_overflow_before_snapshot);
+        let pid_nondigit_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_nondigit_path);
+        let pid_nondigit_after_kind = pid_nondigit_after_snapshot.0;
+        ::core::assert_eq!(pid_nondigit_after_snapshot, pid_nondigit_before_snapshot);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_token_case_width_preserved() {
+        let fixture = Fixture::new("s20-530-cor-04-token-case-width");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let token_uppercase_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-000000000000000A.tmp");
+        let token_uppercase_path = owner_root.join(&token_uppercase_relative_path);
+        ::core::assert_eq!(token_uppercase_path.strip_prefix(owner_root).unwrap(), token_uppercase_relative_path);
+        let token_short_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-000000000000001.tmp");
+        let token_short_path = owner_root.join(&token_short_relative_path);
+        ::core::assert_eq!(token_short_path.strip_prefix(owner_root).unwrap(), token_short_relative_path);
+        let token_long_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-00000000000000001.tmp");
+        let token_long_path = owner_root.join(&token_long_relative_path);
+        ::core::assert_eq!(token_long_path.strip_prefix(owner_root).unwrap(), token_long_relative_path);
+        ::std::fs::create_dir_all(token_uppercase_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_uppercase_path, "S20-530:COR-04:token_uppercase".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(token_short_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_short_path, "S20-530:COR-04:token_short".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(token_long_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_long_path, "S20-530:COR-04:token_long".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-00000000000000001.tmp"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-000000000000000A.tmp"),::std::path::PathBuf::from("branches/v1/10/20/.sley-branch-stage-1-000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let token_uppercase_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_uppercase_path);
+        let token_uppercase_before_kind = token_uppercase_before_snapshot.0;
+        ::core::assert_eq!(token_uppercase_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_uppercase_before_snapshot.2, "S20-530:COR-04:token_uppercase".as_bytes().to_vec());
+        let token_short_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_short_path);
+        let token_short_before_kind = token_short_before_snapshot.0;
+        ::core::assert_eq!(token_short_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_short_before_snapshot.2, "S20-530:COR-04:token_short".as_bytes().to_vec());
+        let token_long_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_long_path);
+        let token_long_before_kind = token_long_before_snapshot.0;
+        ::core::assert_eq!(token_long_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_long_before_snapshot.2, "S20-530:COR-04:token_long".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let token_uppercase_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_uppercase_path);
+        let token_uppercase_after_kind = token_uppercase_after_snapshot.0;
+        ::core::assert_eq!(token_uppercase_after_snapshot, token_uppercase_before_snapshot);
+        let token_short_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_short_path);
+        let token_short_after_kind = token_short_after_snapshot.0;
+        ::core::assert_eq!(token_short_after_snapshot, token_short_before_snapshot);
+        let token_long_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_long_path);
+        let token_long_after_kind = token_long_after_snapshot.0;
+        ::core::assert_eq!(token_long_after_snapshot, token_long_before_snapshot);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_fanout_case_shape_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-04-fanout-case-shape");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_relative_path = ::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp");
+        let origin_stage_path = owner_root.join(&origin_stage_relative_path);
+        ::core::assert_eq!(origin_stage_path.strip_prefix(owner_root).unwrap(), origin_stage_relative_path);
+        let malformed_fanout_relative_path = ::std::path::PathBuf::from("branches/v1/f");
+        let malformed_fanout_path = owner_root.join(&malformed_fanout_relative_path);
+        ::core::assert_eq!(malformed_fanout_path.strip_prefix(owner_root).unwrap(), malformed_fanout_relative_path);
+        let uppercase_fanout_relative_path = ::std::path::PathBuf::from("branches/v1/FE");
+        let uppercase_fanout_path = owner_root.join(&uppercase_fanout_relative_path);
+        ::core::assert_eq!(uppercase_fanout_path.strip_prefix(owner_root).unwrap(), uppercase_fanout_relative_path);
+        ::std::fs::create_dir_all(origin_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&origin_stage_path, "S20-530:COR-04:origin_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(&malformed_fanout_path).unwrap();
+        ::std::fs::create_dir_all(&uppercase_fanout_path).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/00"),::std::path::PathBuf::from("branches/v1/00/00"),::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("branches/v1/FE"),::std::path::PathBuf::from("branches/v1/f")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(origin_stage_before_snapshot.2, "S20-530:COR-04:origin_stage".as_bytes().to_vec());
+        let malformed_fanout_before_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_before_kind = malformed_fanout_before_snapshot.0;
+        ::core::assert_eq!(malformed_fanout_before_snapshot.0, "directory");
+        let uppercase_fanout_before_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_before_kind = uppercase_fanout_before_snapshot.0;
+        ::core::assert_eq!(uppercase_fanout_before_snapshot.0, "directory");
+        ::core::assert!(origin_stage_relative_path < malformed_fanout_relative_path);
+        ::core::assert!(origin_stage_relative_path < uppercase_fanout_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        ::core::assert_eq!(origin_stage_after_snapshot, origin_stage_before_snapshot);
+        let malformed_fanout_after_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_after_kind = malformed_fanout_after_snapshot.0;
+        ::core::assert_eq!(malformed_fanout_after_snapshot, malformed_fanout_before_snapshot);
+        let uppercase_fanout_after_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_after_kind = uppercase_fanout_after_snapshot.0;
+        ::core::assert_eq!(uppercase_fanout_after_snapshot, uppercase_fanout_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor04_final_name_fanout_binding_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-04-final-name-fanout-binding");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_relative_path = ::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp");
+        let origin_stage_path = owner_root.join(&origin_stage_relative_path);
+        ::core::assert_eq!(origin_stage_path.strip_prefix(owner_root).unwrap(), origin_stage_relative_path);
+        let malformed_final_name_relative_path = ::std::path::PathBuf::from("branches/v1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.branch.scb1");
+        let malformed_final_name_path = owner_root.join(&malformed_final_name_relative_path);
+        ::core::assert_eq!(malformed_final_name_path.strip_prefix(owner_root).unwrap(), malformed_final_name_relative_path);
+        let uppercase_final_name_relative_path = ::std::path::PathBuf::from("branches/v1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.branch.scb1");
+        let uppercase_final_name_path = owner_root.join(&uppercase_final_name_relative_path);
+        ::core::assert_eq!(uppercase_final_name_path.strip_prefix(owner_root).unwrap(), uppercase_final_name_relative_path);
+        let final_fanout_mismatch_relative_path = ::std::path::PathBuf::from("branches/v1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.branch.scb1");
+        let final_fanout_mismatch_path = owner_root.join(&final_fanout_mismatch_relative_path);
+        ::core::assert_eq!(final_fanout_mismatch_path.strip_prefix(owner_root).unwrap(), final_fanout_mismatch_relative_path);
+        ::std::fs::create_dir_all(origin_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&origin_stage_path, "S20-530:COR-04:origin_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(malformed_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&malformed_final_name_path, "S20-530:COR-04:malformed_final_name".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(uppercase_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&uppercase_final_name_path, "S20-530:COR-04:uppercase_final_name".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(final_fanout_mismatch_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&final_fanout_mismatch_path, "S20-530:COR-04:final_fanout_mismatch".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/00"),::std::path::PathBuf::from("branches/v1/00/00"),::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("branches/v1/fd"),::std::path::PathBuf::from("branches/v1/fd/00"),::std::path::PathBuf::from("branches/v1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.branch.scb1"),::std::path::PathBuf::from("branches/v1/fe"),::std::path::PathBuf::from("branches/v1/fe/00"),::std::path::PathBuf::from("branches/v1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.branch.scb1"),::std::path::PathBuf::from("branches/v1/ff"),::std::path::PathBuf::from("branches/v1/ff/00"),::std::path::PathBuf::from("branches/v1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.branch.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(origin_stage_before_snapshot.2, "S20-530:COR-04:origin_stage".as_bytes().to_vec());
+        let malformed_final_name_before_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_before_kind = malformed_final_name_before_snapshot.0;
+        ::core::assert_eq!(malformed_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(malformed_final_name_before_snapshot.2, "S20-530:COR-04:malformed_final_name".as_bytes().to_vec());
+        let uppercase_final_name_before_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_before_kind = uppercase_final_name_before_snapshot.0;
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.2, "S20-530:COR-04:uppercase_final_name".as_bytes().to_vec());
+        let final_fanout_mismatch_before_snapshot = crate::refs::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_before_kind = final_fanout_mismatch_before_snapshot.0;
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.0, "regular");
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.2, "S20-530:COR-04:final_fanout_mismatch".as_bytes().to_vec());
+        ::core::assert!(origin_stage_relative_path < malformed_final_name_relative_path);
+        ::core::assert!(origin_stage_relative_path < uppercase_final_name_relative_path);
+        ::core::assert!(origin_stage_relative_path < final_fanout_mismatch_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        ::core::assert_eq!(origin_stage_after_snapshot, origin_stage_before_snapshot);
+        let malformed_final_name_after_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_after_kind = malformed_final_name_after_snapshot.0;
+        ::core::assert_eq!(malformed_final_name_after_snapshot, malformed_final_name_before_snapshot);
+        let uppercase_final_name_after_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_after_kind = uppercase_final_name_after_snapshot.0;
+        ::core::assert_eq!(uppercase_final_name_after_snapshot, uppercase_final_name_before_snapshot);
+        let final_fanout_mismatch_after_snapshot = crate::refs::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_after_kind = final_fanout_mismatch_after_snapshot.0;
+        ::core::assert_eq!(final_fanout_mismatch_after_snapshot, final_fanout_mismatch_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor04_unknown_ascii_regular_preserved() {
+        let fixture = Fixture::new("s20-530-cor-04-unknown-ascii-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let unknown_ascii_regular_relative_path = ::std::path::PathBuf::from("branches/v1/10/20/unknown-owned-entry.keep");
+        let unknown_ascii_regular_path = owner_root.join(&unknown_ascii_regular_relative_path);
+        ::core::assert_eq!(unknown_ascii_regular_path.strip_prefix(owner_root).unwrap(), unknown_ascii_regular_relative_path);
+        ::std::fs::create_dir_all(unknown_ascii_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&unknown_ascii_regular_path, "S20-530:COR-04:unknown_ascii_regular".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20/unknown-owned-entry.keep")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_before_kind = unknown_ascii_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.2, "S20-530:COR-04:unknown_ascii_regular".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_after_kind = unknown_ascii_regular_after_snapshot.0;
+        ::core::assert_eq!(unknown_ascii_regular_after_snapshot, unknown_ascii_regular_before_snapshot);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_unknown_non_utf8_regular_preserved() {
+        let fixture = Fixture::new("s20-530-cor-04-unknown-non-utf8-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let unknown_non_utf8_regular_relative_path = ::std::path::PathBuf::from("branches/v1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]));
+        let unknown_non_utf8_regular_path = owner_root.join(&unknown_non_utf8_regular_relative_path);
+        ::core::assert_eq!(unknown_non_utf8_regular_path.strip_prefix(owner_root).unwrap(), unknown_non_utf8_regular_relative_path);
+        ::std::fs::create_dir_all(unknown_non_utf8_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&unknown_non_utf8_regular_path, "S20-530:COR-04:unknown_non_utf8_regular".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/10"),::std::path::PathBuf::from("branches/v1/10/20"),::std::path::PathBuf::from("branches/v1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]))]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_before_kind = unknown_non_utf8_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.2, "S20-530:COR-04:unknown_non_utf8_regular".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_after_kind = unknown_non_utf8_regular_after_snapshot.0;
+        ::core::assert_eq!(unknown_non_utf8_regular_after_snapshot, unknown_non_utf8_regular_before_snapshot);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+    }
+
+    #[test]
+    fn cor04_non_regular_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-04-non-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let origin_stage_relative_path = ::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp");
+        let origin_stage_path = owner_root.join(&origin_stage_relative_path);
+        ::core::assert_eq!(origin_stage_path.strip_prefix(owner_root).unwrap(), origin_stage_relative_path);
+        let fanout_non_regular_relative_path = ::std::path::PathBuf::from("branches/v1/fd");
+        let fanout_non_regular_path = owner_root.join(&fanout_non_regular_relative_path);
+        ::core::assert_eq!(fanout_non_regular_path.strip_prefix(owner_root).unwrap(), fanout_non_regular_relative_path);
+        let stage_non_regular_relative_path = ::std::path::PathBuf::from("branches/v1/fe/00/.sley-branch-stage-2-2222222222222222.tmp");
+        let stage_non_regular_path = owner_root.join(&stage_non_regular_relative_path);
+        ::core::assert_eq!(stage_non_regular_path.strip_prefix(owner_root).unwrap(), stage_non_regular_relative_path);
+        let final_non_regular_relative_path = ::std::path::PathBuf::from("branches/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.branch.scb1");
+        let final_non_regular_path = owner_root.join(&final_non_regular_relative_path);
+        ::core::assert_eq!(final_non_regular_path.strip_prefix(owner_root).unwrap(), final_non_regular_relative_path);
+        ::std::fs::create_dir_all(origin_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&origin_stage_path, "S20-530:COR-04:origin_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(fanout_non_regular_path.parent().unwrap()).unwrap();
+        let _fanout_non_regular_socket = plant_non_regular_socket(&fanout_non_regular_path, false);
+        ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
+        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path, false);
+        ::std::fs::create_dir_all(final_non_regular_path.parent().unwrap()).unwrap();
+        let _final_non_regular_socket = plant_non_regular_socket(&final_non_regular_path, false);
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("branches/v1/00"),::std::path::PathBuf::from("branches/v1/00/00"),::std::path::PathBuf::from("branches/v1/00/00/.sley-branch-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("branches/v1/fd"),::std::path::PathBuf::from("branches/v1/fe"),::std::path::PathBuf::from("branches/v1/fe/00"),::std::path::PathBuf::from("branches/v1/fe/00/.sley-branch-stage-2-2222222222222222.tmp"),::std::path::PathBuf::from("branches/v1/ff"),::std::path::PathBuf::from("branches/v1/ff/00"),::std::path::PathBuf::from("branches/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.branch.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_before_kind = origin_stage_before_snapshot.0;
+        ::core::assert_eq!(origin_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(origin_stage_before_snapshot.2, "S20-530:COR-04:origin_stage".as_bytes().to_vec());
+        let fanout_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_before_kind = fanout_non_regular_before_snapshot.0;
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let stage_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_before_kind = stage_non_regular_before_snapshot.0;
+        ::core::assert_eq!(stage_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(stage_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let final_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_before_kind = final_non_regular_before_snapshot.0;
+        ::core::assert_eq!(final_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(final_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        ::core::assert!(origin_stage_relative_path < fanout_non_regular_relative_path);
+        ::core::assert!(origin_stage_relative_path < stage_non_regular_relative_path);
+        ::core::assert!(origin_stage_relative_path < final_non_regular_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let origin_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&origin_stage_path);
+        let origin_stage_after_kind = origin_stage_after_snapshot.0;
+        ::core::assert_eq!(origin_stage_after_snapshot, origin_stage_before_snapshot);
+        let fanout_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_after_kind = fanout_non_regular_after_snapshot.0;
+        ::core::assert_eq!(fanout_non_regular_after_snapshot, fanout_non_regular_before_snapshot);
+        let stage_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_after_kind = stage_non_regular_after_snapshot.0;
+        ::core::assert_eq!(stage_non_regular_after_snapshot, stage_non_regular_before_snapshot);
+        let final_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_after_kind = final_non_regular_after_snapshot.0;
+        ::core::assert_eq!(final_non_regular_after_snapshot, final_non_regular_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(origin_stage_before_kind, origin_stage_after_kind);
+        ::core::assert_eq!(origin_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor05_owned_stage_removed_and_synced() {
+        let fixture = Fixture::new("s20-530-cor-05-owned-stage");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let owned_stage_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-0000000000000001.tmp");
+        let owned_stage_path = owner_root.join(&owned_stage_relative_path);
+        ::core::assert_eq!(owned_stage_path.strip_prefix(owner_root).unwrap(), owned_stage_relative_path);
+        ::std::fs::create_dir_all(owned_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&owned_stage_path, "S20-530:COR-05:owned_stage".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let owned_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&owned_stage_path);
+        let owned_stage_before_kind = owned_stage_before_snapshot.0;
+        ::core::assert_eq!(owned_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(owned_stage_before_snapshot.2, "S20-530:COR-05:owned_stage".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec![::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-0000000000000001.tmp")]);
+        let owned_stage_after_snapshot = crate::refs::tests::exact_optional_path_snapshot(&owned_stage_path);
+        ::core::assert_eq!(owned_stage_after_snapshot, ::core::option::Option::None);
+        ::core::assert_eq!(report.removed_ref_stages, 1);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_prefix_suffix_lookalikes_preserved() {
+        let fixture = Fixture::new("s20-530-cor-05-prefix-suffix-lookalikes");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let prefix_lookalike_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-0000000000000001");
+        let prefix_lookalike_path = owner_root.join(&prefix_lookalike_relative_path);
+        ::core::assert_eq!(prefix_lookalike_path.strip_prefix(owner_root).unwrap(), prefix_lookalike_relative_path);
+        let suffix_lookalike_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/foreign-stage-1-0000000000000001.tmp");
+        let suffix_lookalike_path = owner_root.join(&suffix_lookalike_relative_path);
+        ::core::assert_eq!(suffix_lookalike_path.strip_prefix(owner_root).unwrap(), suffix_lookalike_relative_path);
+        ::std::fs::create_dir_all(prefix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&prefix_lookalike_path, "S20-530:COR-05:prefix_lookalike".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(suffix_lookalike_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&suffix_lookalike_path, "S20-530:COR-05:suffix_lookalike".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-0000000000000001"),::std::path::PathBuf::from("refs/v1/10/20/foreign-stage-1-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_before_snapshot = crate::refs::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_before_kind = prefix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.2, "S20-530:COR-05:prefix_lookalike".as_bytes().to_vec());
+        let suffix_lookalike_before_snapshot = crate::refs::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_before_kind = suffix_lookalike_before_snapshot.0;
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.0, "regular");
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.2, "S20-530:COR-05:suffix_lookalike".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_after_snapshot = crate::refs::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let prefix_lookalike_after_kind = prefix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(prefix_lookalike_after_snapshot, prefix_lookalike_before_snapshot);
+        let suffix_lookalike_after_snapshot = crate::refs::tests::exact_path_snapshot(&suffix_lookalike_path);
+        let suffix_lookalike_after_kind = suffix_lookalike_after_snapshot.0;
+        ::core::assert_eq!(suffix_lookalike_after_snapshot, suffix_lookalike_before_snapshot);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_pid_decimal_grammar_preserved() {
+        let fixture = Fixture::new("s20-530-cor-05-pid-decimal-grammar");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let pid_zero_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-0-0000000000000001.tmp");
+        let pid_zero_path = owner_root.join(&pid_zero_relative_path);
+        ::core::assert_eq!(pid_zero_path.strip_prefix(owner_root).unwrap(), pid_zero_relative_path);
+        let pid_leading_zero_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-01-0000000000000001.tmp");
+        let pid_leading_zero_path = owner_root.join(&pid_leading_zero_relative_path);
+        ::core::assert_eq!(pid_leading_zero_path.strip_prefix(owner_root).unwrap(), pid_leading_zero_relative_path);
+        let pid_overflow_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-4294967296-0000000000000001.tmp");
+        let pid_overflow_path = owner_root.join(&pid_overflow_relative_path);
+        ::core::assert_eq!(pid_overflow_path.strip_prefix(owner_root).unwrap(), pid_overflow_relative_path);
+        let pid_nondigit_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-one-0000000000000001.tmp");
+        let pid_nondigit_path = owner_root.join(&pid_nondigit_relative_path);
+        ::core::assert_eq!(pid_nondigit_path.strip_prefix(owner_root).unwrap(), pid_nondigit_relative_path);
+        ::std::fs::create_dir_all(pid_zero_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_zero_path, "S20-530:COR-05:pid_zero".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_leading_zero_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_leading_zero_path, "S20-530:COR-05:pid_leading_zero".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_overflow_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_overflow_path, "S20-530:COR-05:pid_overflow".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(pid_nondigit_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&pid_nondigit_path, "S20-530:COR-05:pid_nondigit".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-0-0000000000000001.tmp"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-01-0000000000000001.tmp"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-4294967296-0000000000000001.tmp"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-one-0000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let pid_zero_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_before_kind = pid_zero_before_snapshot.0;
+        ::core::assert_eq!(pid_zero_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_zero_before_snapshot.2, "S20-530:COR-05:pid_zero".as_bytes().to_vec());
+        let pid_leading_zero_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_leading_zero_path);
+        let pid_leading_zero_before_kind = pid_leading_zero_before_snapshot.0;
+        ::core::assert_eq!(pid_leading_zero_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_leading_zero_before_snapshot.2, "S20-530:COR-05:pid_leading_zero".as_bytes().to_vec());
+        let pid_overflow_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_overflow_path);
+        let pid_overflow_before_kind = pid_overflow_before_snapshot.0;
+        ::core::assert_eq!(pid_overflow_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_overflow_before_snapshot.2, "S20-530:COR-05:pid_overflow".as_bytes().to_vec());
+        let pid_nondigit_before_snapshot = crate::refs::tests::exact_path_snapshot(&pid_nondigit_path);
+        let pid_nondigit_before_kind = pid_nondigit_before_snapshot.0;
+        ::core::assert_eq!(pid_nondigit_before_snapshot.0, "regular");
+        ::core::assert_eq!(pid_nondigit_before_snapshot.2, "S20-530:COR-05:pid_nondigit".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let pid_zero_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_zero_path);
+        let pid_zero_after_kind = pid_zero_after_snapshot.0;
+        ::core::assert_eq!(pid_zero_after_snapshot, pid_zero_before_snapshot);
+        let pid_leading_zero_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_leading_zero_path);
+        let pid_leading_zero_after_kind = pid_leading_zero_after_snapshot.0;
+        ::core::assert_eq!(pid_leading_zero_after_snapshot, pid_leading_zero_before_snapshot);
+        let pid_overflow_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_overflow_path);
+        let pid_overflow_after_kind = pid_overflow_after_snapshot.0;
+        ::core::assert_eq!(pid_overflow_after_snapshot, pid_overflow_before_snapshot);
+        let pid_nondigit_after_snapshot = crate::refs::tests::exact_path_snapshot(&pid_nondigit_path);
+        let pid_nondigit_after_kind = pid_nondigit_after_snapshot.0;
+        ::core::assert_eq!(pid_nondigit_after_snapshot, pid_nondigit_before_snapshot);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_token_case_width_preserved() {
+        let fixture = Fixture::new("s20-530-cor-05-token-case-width");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let token_uppercase_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-000000000000000A.tmp");
+        let token_uppercase_path = owner_root.join(&token_uppercase_relative_path);
+        ::core::assert_eq!(token_uppercase_path.strip_prefix(owner_root).unwrap(), token_uppercase_relative_path);
+        let token_short_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-000000000000001.tmp");
+        let token_short_path = owner_root.join(&token_short_relative_path);
+        ::core::assert_eq!(token_short_path.strip_prefix(owner_root).unwrap(), token_short_relative_path);
+        let token_long_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-00000000000000001.tmp");
+        let token_long_path = owner_root.join(&token_long_relative_path);
+        ::core::assert_eq!(token_long_path.strip_prefix(owner_root).unwrap(), token_long_relative_path);
+        ::std::fs::create_dir_all(token_uppercase_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_uppercase_path, "S20-530:COR-05:token_uppercase".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(token_short_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_short_path, "S20-530:COR-05:token_short".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(token_long_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&token_long_path, "S20-530:COR-05:token_long".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-00000000000000001.tmp"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-000000000000000A.tmp"),::std::path::PathBuf::from("refs/v1/10/20/.sley-ref-stage-1-000000000000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let token_uppercase_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_uppercase_path);
+        let token_uppercase_before_kind = token_uppercase_before_snapshot.0;
+        ::core::assert_eq!(token_uppercase_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_uppercase_before_snapshot.2, "S20-530:COR-05:token_uppercase".as_bytes().to_vec());
+        let token_short_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_short_path);
+        let token_short_before_kind = token_short_before_snapshot.0;
+        ::core::assert_eq!(token_short_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_short_before_snapshot.2, "S20-530:COR-05:token_short".as_bytes().to_vec());
+        let token_long_before_snapshot = crate::refs::tests::exact_path_snapshot(&token_long_path);
+        let token_long_before_kind = token_long_before_snapshot.0;
+        ::core::assert_eq!(token_long_before_snapshot.0, "regular");
+        ::core::assert_eq!(token_long_before_snapshot.2, "S20-530:COR-05:token_long".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let token_uppercase_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_uppercase_path);
+        let token_uppercase_after_kind = token_uppercase_after_snapshot.0;
+        ::core::assert_eq!(token_uppercase_after_snapshot, token_uppercase_before_snapshot);
+        let token_short_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_short_path);
+        let token_short_after_kind = token_short_after_snapshot.0;
+        ::core::assert_eq!(token_short_after_snapshot, token_short_before_snapshot);
+        let token_long_after_snapshot = crate::refs::tests::exact_path_snapshot(&token_long_path);
+        let token_long_after_kind = token_long_after_snapshot.0;
+        ::core::assert_eq!(token_long_after_snapshot, token_long_before_snapshot);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_fanout_case_shape_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-05-fanout-case-shape");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let ref_stage_relative_path = ::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp");
+        let ref_stage_path = owner_root.join(&ref_stage_relative_path);
+        ::core::assert_eq!(ref_stage_path.strip_prefix(owner_root).unwrap(), ref_stage_relative_path);
+        let malformed_fanout_relative_path = ::std::path::PathBuf::from("refs/v1/f");
+        let malformed_fanout_path = owner_root.join(&malformed_fanout_relative_path);
+        ::core::assert_eq!(malformed_fanout_path.strip_prefix(owner_root).unwrap(), malformed_fanout_relative_path);
+        let uppercase_fanout_relative_path = ::std::path::PathBuf::from("refs/v1/FE");
+        let uppercase_fanout_path = owner_root.join(&uppercase_fanout_relative_path);
+        ::core::assert_eq!(uppercase_fanout_path.strip_prefix(owner_root).unwrap(), uppercase_fanout_relative_path);
+        ::std::fs::create_dir_all(ref_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&ref_stage_path, "S20-530:COR-05:ref_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(&malformed_fanout_path).unwrap();
+        ::std::fs::create_dir_all(&uppercase_fanout_path).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/00"),::std::path::PathBuf::from("refs/v1/00/00"),::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("refs/v1/FE"),::std::path::PathBuf::from("refs/v1/f")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(ref_stage_before_snapshot.2, "S20-530:COR-05:ref_stage".as_bytes().to_vec());
+        let malformed_fanout_before_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_before_kind = malformed_fanout_before_snapshot.0;
+        ::core::assert_eq!(malformed_fanout_before_snapshot.0, "directory");
+        let uppercase_fanout_before_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_before_kind = uppercase_fanout_before_snapshot.0;
+        ::core::assert_eq!(uppercase_fanout_before_snapshot.0, "directory");
+        ::core::assert!(ref_stage_relative_path < malformed_fanout_relative_path);
+        ::core::assert!(ref_stage_relative_path < uppercase_fanout_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(ref_stage_after_snapshot, ref_stage_before_snapshot);
+        let malformed_fanout_after_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_after_kind = malformed_fanout_after_snapshot.0;
+        ::core::assert_eq!(malformed_fanout_after_snapshot, malformed_fanout_before_snapshot);
+        let uppercase_fanout_after_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_after_kind = uppercase_fanout_after_snapshot.0;
+        ::core::assert_eq!(uppercase_fanout_after_snapshot, uppercase_fanout_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor05_final_name_fanout_binding_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-05-final-name-fanout-binding");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let ref_stage_relative_path = ::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp");
+        let ref_stage_path = owner_root.join(&ref_stage_relative_path);
+        ::core::assert_eq!(ref_stage_path.strip_prefix(owner_root).unwrap(), ref_stage_relative_path);
+        let malformed_final_name_relative_path = ::std::path::PathBuf::from("refs/v1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.ref.scb1");
+        let malformed_final_name_path = owner_root.join(&malformed_final_name_relative_path);
+        ::core::assert_eq!(malformed_final_name_path.strip_prefix(owner_root).unwrap(), malformed_final_name_relative_path);
+        let uppercase_final_name_relative_path = ::std::path::PathBuf::from("refs/v1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.ref.scb1");
+        let uppercase_final_name_path = owner_root.join(&uppercase_final_name_relative_path);
+        ::core::assert_eq!(uppercase_final_name_path.strip_prefix(owner_root).unwrap(), uppercase_final_name_relative_path);
+        let final_fanout_mismatch_relative_path = ::std::path::PathBuf::from("refs/v1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.ref.scb1");
+        let final_fanout_mismatch_path = owner_root.join(&final_fanout_mismatch_relative_path);
+        ::core::assert_eq!(final_fanout_mismatch_path.strip_prefix(owner_root).unwrap(), final_fanout_mismatch_relative_path);
+        ::std::fs::create_dir_all(ref_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&ref_stage_path, "S20-530:COR-05:ref_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(malformed_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&malformed_final_name_path, "S20-530:COR-05:malformed_final_name".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(uppercase_final_name_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&uppercase_final_name_path, "S20-530:COR-05:uppercase_final_name".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(final_fanout_mismatch_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&final_fanout_mismatch_path, "S20-530:COR-05:final_fanout_mismatch".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/00"),::std::path::PathBuf::from("refs/v1/00/00"),::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("refs/v1/fd"),::std::path::PathBuf::from("refs/v1/fd/00"),::std::path::PathBuf::from("refs/v1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.ref.scb1"),::std::path::PathBuf::from("refs/v1/fe"),::std::path::PathBuf::from("refs/v1/fe/00"),::std::path::PathBuf::from("refs/v1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.ref.scb1"),::std::path::PathBuf::from("refs/v1/ff"),::std::path::PathBuf::from("refs/v1/ff/00"),::std::path::PathBuf::from("refs/v1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.ref.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(ref_stage_before_snapshot.2, "S20-530:COR-05:ref_stage".as_bytes().to_vec());
+        let malformed_final_name_before_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_before_kind = malformed_final_name_before_snapshot.0;
+        ::core::assert_eq!(malformed_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(malformed_final_name_before_snapshot.2, "S20-530:COR-05:malformed_final_name".as_bytes().to_vec());
+        let uppercase_final_name_before_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_before_kind = uppercase_final_name_before_snapshot.0;
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.0, "regular");
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.2, "S20-530:COR-05:uppercase_final_name".as_bytes().to_vec());
+        let final_fanout_mismatch_before_snapshot = crate::refs::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_before_kind = final_fanout_mismatch_before_snapshot.0;
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.0, "regular");
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.2, "S20-530:COR-05:final_fanout_mismatch".as_bytes().to_vec());
+        ::core::assert!(ref_stage_relative_path < malformed_final_name_relative_path);
+        ::core::assert!(ref_stage_relative_path < uppercase_final_name_relative_path);
+        ::core::assert!(ref_stage_relative_path < final_fanout_mismatch_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(ref_stage_after_snapshot, ref_stage_before_snapshot);
+        let malformed_final_name_after_snapshot = crate::refs::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_after_kind = malformed_final_name_after_snapshot.0;
+        ::core::assert_eq!(malformed_final_name_after_snapshot, malformed_final_name_before_snapshot);
+        let uppercase_final_name_after_snapshot = crate::refs::tests::exact_path_snapshot(&uppercase_final_name_path);
+        let uppercase_final_name_after_kind = uppercase_final_name_after_snapshot.0;
+        ::core::assert_eq!(uppercase_final_name_after_snapshot, uppercase_final_name_before_snapshot);
+        let final_fanout_mismatch_after_snapshot = crate::refs::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        let final_fanout_mismatch_after_kind = final_fanout_mismatch_after_snapshot.0;
+        ::core::assert_eq!(final_fanout_mismatch_after_snapshot, final_fanout_mismatch_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor05_unknown_ascii_regular_preserved() {
+        let fixture = Fixture::new("s20-530-cor-05-unknown-ascii-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let unknown_ascii_regular_relative_path = ::std::path::PathBuf::from("refs/v1/10/20/unknown-owned-entry.keep");
+        let unknown_ascii_regular_path = owner_root.join(&unknown_ascii_regular_relative_path);
+        ::core::assert_eq!(unknown_ascii_regular_path.strip_prefix(owner_root).unwrap(), unknown_ascii_regular_relative_path);
+        ::std::fs::create_dir_all(unknown_ascii_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&unknown_ascii_regular_path, "S20-530:COR-05:unknown_ascii_regular".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20/unknown-owned-entry.keep")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_before_kind = unknown_ascii_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.2, "S20-530:COR-05:unknown_ascii_regular".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let unknown_ascii_regular_after_kind = unknown_ascii_regular_after_snapshot.0;
+        ::core::assert_eq!(unknown_ascii_regular_after_snapshot, unknown_ascii_regular_before_snapshot);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_unknown_non_utf8_regular_preserved() {
+        let fixture = Fixture::new("s20-530-cor-05-unknown-non-utf8-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let unknown_non_utf8_regular_relative_path = ::std::path::PathBuf::from("refs/v1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]));
+        let unknown_non_utf8_regular_path = owner_root.join(&unknown_non_utf8_regular_relative_path);
+        ::core::assert_eq!(unknown_non_utf8_regular_path.strip_prefix(owner_root).unwrap(), unknown_non_utf8_regular_relative_path);
+        ::std::fs::create_dir_all(unknown_non_utf8_regular_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&unknown_non_utf8_regular_path, "S20-530:COR-05:unknown_non_utf8_regular".as_bytes()).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/10"),::std::path::PathBuf::from("refs/v1/10/20"),::std::path::PathBuf::from("refs/v1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]))]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_before_kind = unknown_non_utf8_regular_before_snapshot.0;
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.0, "regular");
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.2, "S20-530:COR-05:unknown_non_utf8_regular".as_bytes().to_vec());
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_ok());
+        let report = result.expect("expected owned-entry recovery success");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let unknown_non_utf8_regular_after_kind = unknown_non_utf8_regular_after_snapshot.0;
+        ::core::assert_eq!(unknown_non_utf8_regular_after_snapshot, unknown_non_utf8_regular_before_snapshot);
+        ::core::assert_eq!(report.removed_ref_stages, 0);
+        ::core::assert_eq!(report.removed_branch_stages, 0);
+    }
+
+    #[test]
+    fn cor05_symlink_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-05-symlink");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let ref_stage_relative_path = ::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp");
+        let ref_stage_path = owner_root.join(&ref_stage_relative_path);
+        ::core::assert_eq!(ref_stage_path.strip_prefix(owner_root).unwrap(), ref_stage_relative_path);
+        let fanout_symlink_relative_path = ::std::path::PathBuf::from("refs/v1/fd");
+        let fanout_symlink_path = owner_root.join(&fanout_symlink_relative_path);
+        ::core::assert_eq!(fanout_symlink_path.strip_prefix(owner_root).unwrap(), fanout_symlink_relative_path);
+        let stage_symlink_relative_path = ::std::path::PathBuf::from("refs/v1/fe/00/.sley-ref-stage-2-2222222222222222.tmp");
+        let stage_symlink_path = owner_root.join(&stage_symlink_relative_path);
+        ::core::assert_eq!(stage_symlink_path.strip_prefix(owner_root).unwrap(), stage_symlink_relative_path);
+        let final_symlink_relative_path = ::std::path::PathBuf::from("refs/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.ref.scb1");
+        let final_symlink_path = owner_root.join(&final_symlink_relative_path);
+        ::core::assert_eq!(final_symlink_path.strip_prefix(owner_root).unwrap(), final_symlink_relative_path);
+        ::std::fs::create_dir_all(ref_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&ref_stage_path, "S20-530:COR-05:ref_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(fanout_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-05-fanout_symlink", &fanout_symlink_path).unwrap();
+        ::std::fs::create_dir_all(stage_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-05-stage_symlink", &stage_symlink_path).unwrap();
+        ::std::fs::create_dir_all(final_symlink_path.parent().unwrap()).unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-05-final_symlink", &final_symlink_path).unwrap();
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/00"),::std::path::PathBuf::from("refs/v1/00/00"),::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("refs/v1/fd"),::std::path::PathBuf::from("refs/v1/fe"),::std::path::PathBuf::from("refs/v1/fe/00"),::std::path::PathBuf::from("refs/v1/fe/00/.sley-ref-stage-2-2222222222222222.tmp"),::std::path::PathBuf::from("refs/v1/ff"),::std::path::PathBuf::from("refs/v1/ff/00"),::std::path::PathBuf::from("refs/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.ref.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(ref_stage_before_snapshot.2, "S20-530:COR-05:ref_stage".as_bytes().to_vec());
+        let fanout_symlink_before_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_symlink_path);
+        let fanout_symlink_before_kind = fanout_symlink_before_snapshot.0;
+        ::core::assert_eq!(fanout_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(fanout_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-05-fanout_symlink")));
+        let stage_symlink_before_snapshot = crate::refs::tests::exact_path_snapshot(&stage_symlink_path);
+        let stage_symlink_before_kind = stage_symlink_before_snapshot.0;
+        ::core::assert_eq!(stage_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(stage_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-05-stage_symlink")));
+        let final_symlink_before_snapshot = crate::refs::tests::exact_path_snapshot(&final_symlink_path);
+        let final_symlink_before_kind = final_symlink_before_snapshot.0;
+        ::core::assert_eq!(final_symlink_before_snapshot.0, "symlink");
+        ::core::assert_eq!(final_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-05-final_symlink")));
+        ::core::assert!(ref_stage_relative_path < fanout_symlink_relative_path);
+        ::core::assert!(ref_stage_relative_path < stage_symlink_relative_path);
+        ::core::assert!(ref_stage_relative_path < final_symlink_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(ref_stage_after_snapshot, ref_stage_before_snapshot);
+        let fanout_symlink_after_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_symlink_path);
+        let fanout_symlink_after_kind = fanout_symlink_after_snapshot.0;
+        ::core::assert_eq!(fanout_symlink_after_snapshot, fanout_symlink_before_snapshot);
+        let stage_symlink_after_snapshot = crate::refs::tests::exact_path_snapshot(&stage_symlink_path);
+        let stage_symlink_after_kind = stage_symlink_after_snapshot.0;
+        ::core::assert_eq!(stage_symlink_after_snapshot, stage_symlink_before_snapshot);
+        let final_symlink_after_snapshot = crate::refs::tests::exact_path_snapshot(&final_symlink_path);
+        let final_symlink_after_kind = final_symlink_after_snapshot.0;
+        ::core::assert_eq!(final_symlink_after_snapshot, final_symlink_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor05_non_regular_fails_closed() {
+        let fixture = Fixture::new("s20-530-cor-05-non-regular");
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        branch_repository.ensure_layout().unwrap();
+        let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();
+        ::core::mem::drop(refs_layout_lock);
+        let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
+        let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let ref_stage_relative_path = ::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp");
+        let ref_stage_path = owner_root.join(&ref_stage_relative_path);
+        ::core::assert_eq!(ref_stage_path.strip_prefix(owner_root).unwrap(), ref_stage_relative_path);
+        let fanout_non_regular_relative_path = ::std::path::PathBuf::from("refs/v1/fd");
+        let fanout_non_regular_path = owner_root.join(&fanout_non_regular_relative_path);
+        ::core::assert_eq!(fanout_non_regular_path.strip_prefix(owner_root).unwrap(), fanout_non_regular_relative_path);
+        let stage_non_regular_relative_path = ::std::path::PathBuf::from("refs/v1/fe/00/.sley-ref-stage-2-2222222222222222.tmp");
+        let stage_non_regular_path = owner_root.join(&stage_non_regular_relative_path);
+        ::core::assert_eq!(stage_non_regular_path.strip_prefix(owner_root).unwrap(), stage_non_regular_relative_path);
+        let final_non_regular_relative_path = ::std::path::PathBuf::from("refs/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.ref.scb1");
+        let final_non_regular_path = owner_root.join(&final_non_regular_relative_path);
+        ::core::assert_eq!(final_non_regular_path.strip_prefix(owner_root).unwrap(), final_non_regular_relative_path);
+        ::std::fs::create_dir_all(ref_stage_path.parent().unwrap()).unwrap();
+        ::std::fs::write(&ref_stage_path, "S20-530:COR-05:ref_stage".as_bytes()).unwrap();
+        ::std::fs::create_dir_all(fanout_non_regular_path.parent().unwrap()).unwrap();
+        let _fanout_non_regular_socket = plant_non_regular_socket(&fanout_non_regular_path, false);
+        ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
+        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path, false);
+        ::std::fs::create_dir_all(final_non_regular_path.parent().unwrap()).unwrap();
+        let _final_non_regular_socket = plant_non_regular_socket(&final_non_regular_path, false);
+        let owner_tree_before_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let fixture_delta = crate::refs::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("refs/v1/00"),::std::path::PathBuf::from("refs/v1/00/00"),::std::path::PathBuf::from("refs/v1/00/00/.sley-ref-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("refs/v1/fd"),::std::path::PathBuf::from("refs/v1/fe"),::std::path::PathBuf::from("refs/v1/fe/00"),::std::path::PathBuf::from("refs/v1/fe/00/.sley-ref-stage-2-2222222222222222.tmp"),::std::path::PathBuf::from("refs/v1/ff"),::std::path::PathBuf::from("refs/v1/ff/00"),::std::path::PathBuf::from("refs/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.ref.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_before_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_before_kind = ref_stage_before_snapshot.0;
+        ::core::assert_eq!(ref_stage_before_snapshot.0, "regular");
+        ::core::assert_eq!(ref_stage_before_snapshot.2, "S20-530:COR-05:ref_stage".as_bytes().to_vec());
+        let fanout_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_before_kind = fanout_non_regular_before_snapshot.0;
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(fanout_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let stage_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_before_kind = stage_non_regular_before_snapshot.0;
+        ::core::assert_eq!(stage_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(stage_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        let final_non_regular_before_snapshot = crate::refs::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_before_kind = final_non_regular_before_snapshot.0;
+        ::core::assert_eq!(final_non_regular_before_snapshot.0, "non_regular");
+        ::core::assert_eq!(final_non_regular_before_snapshot.1 & 0o170000, 0o140000);
+        ::core::assert!(ref_stage_relative_path < fanout_non_regular_relative_path);
+        ::core::assert!(ref_stage_relative_path < stage_non_regular_relative_path);
+        ::core::assert!(ref_stage_relative_path < final_non_regular_relative_path);
+        let result = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected owned-entry recovery error");
+        let owner_tree_after_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let operation_delta = crate::refs::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let ref_stage_after_snapshot = crate::refs::tests::exact_path_snapshot(&ref_stage_path);
+        let ref_stage_after_kind = ref_stage_after_snapshot.0;
+        ::core::assert_eq!(ref_stage_after_snapshot, ref_stage_before_snapshot);
+        let fanout_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_after_kind = fanout_non_regular_after_snapshot.0;
+        ::core::assert_eq!(fanout_non_regular_after_snapshot, fanout_non_regular_before_snapshot);
+        let stage_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_after_kind = stage_non_regular_after_snapshot.0;
+        ::core::assert_eq!(stage_non_regular_after_snapshot, stage_non_regular_before_snapshot);
+        let final_non_regular_after_snapshot = crate::refs::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_after_kind = final_non_regular_after_snapshot.0;
+        ::core::assert_eq!(final_non_regular_after_snapshot, final_non_regular_before_snapshot);
+        ::core::assert_eq!(error.code(), "REF_IO");
+        ::core::assert!(::core::matches!((&error), super::BranchError::Branch(_)));
+        ::core::assert_eq!(ref_stage_before_kind, ref_stage_after_kind);
+        ::core::assert_eq!(ref_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+    }
+
+    #[test]
+    fn cor04_symlink_fails_closed() {
+        let fixture = Fixture::new("s20-530-m2-cor-04-symlink");
+        let transaction_repository: &::sley_txn::TransactionRepository = &fixture.transactions;
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_origin_recovery_symlink_ref_fixture(&fixture);
+        let m2_branch_ref_path = m2_fixture.m2_branch_ref_path.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_primary_parent_paths = m2_fixture.m2_primary_parent_paths.clone();
+        let m2_primary_path_kinds = m2_fixture.m2_primary_path_kinds.clone();
+        let m2_primary_paths = m2_fixture.m2_primary_paths.clone();
+        let m2_primary_regular_canary_path = m2_fixture.m2_primary_regular_canary_path.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_ref_computed_digest = m2_fixture.m2_secondary_ref_computed_digest.clone();
+        let m2_secondary_ref_recorded_digest = m2_fixture.m2_secondary_ref_recorded_digest.clone();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_three_symlink_paths_exact", m2_primary_paths.len()), ("primary_three_symlink_paths_exact", 3_usize));
+        ::core::assert_eq!(("primary_three_symlinks_non_followed", m2_primary_path_kinds.as_slice()), ("primary_three_symlinks_non_followed", &["symlink", "symlink", "symlink"][..]));
+        ::core::assert!(!m2_primary_paths.contains(&m2_primary_regular_canary_path), "primary_regular_canary_excluded");
+        ::core::assert_eq!(("secondary_ref_path_from_branch", m2_secondary_path.as_path()), ("secondary_ref_path_from_branch", m2_branch_ref_path.as_path()));
+        ::core::assert_ne!(("secondary_ref_digest_corrupt", m2_secondary_ref_computed_digest), ("secondary_ref_digest_corrupt", m2_secondary_ref_recorded_digest));
+        ::core::assert_ne!(("primary_path_set_disjoint_from_secondary_path", m2_primary_locator.as_str()), ("primary_path_set_disjoint_from_secondary_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = exact_symlink_metadata_set(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = import_branch_ref_error_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_ref_digest_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_ref_digest_mismatch", "REF_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_owned_entry_canary_before_snapshot = crate::refs::tests::exact_path_snapshot(&m2_primary_regular_canary_path);
+        let m2_owned_entry_canary_before_kind = m2_owned_entry_canary_before_snapshot.0;
+        let m2_receiver_identity_1 = branch_repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_origin_recovery_symlink_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_origin_recovery_symlink_ref_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_origin_recovery_symlink_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_origin_recovery_symlink_ref_fixture_secondary(&fixture, &m2_fixture);
+        let m2_owned_entry_canary_after_snapshot = crate::refs::tests::exact_path_snapshot(&m2_primary_regular_canary_path);
+        let m2_owned_entry_canary_after_kind = m2_owned_entry_canary_after_snapshot.0;
+        ::core::assert_eq!(m2_owned_entry_canary_before_snapshot, m2_owned_entry_canary_after_snapshot);
+        ::core::assert_eq!(m2_owned_entry_canary_before_kind, m2_owned_entry_canary_after_kind);
+        ::core::assert_eq!(m2_owned_entry_canary_before_kind, "regular");
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "REF_IO"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::remove_file(&m2_primary_paths[0]).unwrap();
+        ::std::fs::remove_file(&m2_primary_paths[1]).unwrap();
+        ::std::fs::remove_file(&m2_primary_paths[2]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[0]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[1]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[2]).unwrap();
+        let m2_primary_after_repair = observe_origin_recovery_symlink_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_origin_recovery_symlink_ref_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = branch_repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_origin_recovery_symlink_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_origin_recovery_symlink_ref_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_origin_recovery_symlink_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_origin_recovery_symlink_ref_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 }

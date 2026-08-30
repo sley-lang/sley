@@ -1094,6 +1094,34 @@ mod tests {
         (added, changed, removed)
     }
 
+    fn plant_non_regular_socket(
+        path: &::std::path::Path,
+        replace: bool,
+    ) -> ::std::os::unix::net::UnixDatagram {
+        if replace {
+            ::std::fs::remove_file(path).unwrap();
+        } else {
+            ::core::assert!(::core::matches!(
+                ::std::fs::symlink_metadata(path),
+                ::core::result::Result::Err(error)
+                    if error.kind() == ::std::io::ErrorKind::NotFound
+            ));
+        }
+        static NEXT: ::std::sync::atomic::AtomicU64 =
+            ::std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+        let staging = ::std::env::temp_dir().join(::std::format!(
+            "s2nr-{}-{sequence:016x}",
+            ::std::process::id()
+        ));
+        ::core::assert!(
+            ::std::os::unix::ffi::OsStrExt::as_bytes(staging.as_os_str()).len() < 108
+        );
+        let socket = ::std::os::unix::net::UnixDatagram::bind(&staging).unwrap();
+        ::std::fs::rename(&staging, path).unwrap();
+        socket
+    }
+
     #[allow(dead_code)]
     fn exact_error_source_chain(
         error: &(dyn ::std::error::Error + 'static),
@@ -2706,72 +2734,29 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let owned_stage_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        let owned_stage_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let owned_stage_path = owner_root.join(&owned_stage_relative_path);
-        ::core::assert_eq!(
-            owned_stage_path.strip_prefix(owner_root).unwrap(),
-            owned_stage_relative_path
-        );
+        ::core::assert_eq!(owned_stage_path.strip_prefix(owner_root).unwrap(), owned_stage_relative_path);
         ::std::fs::create_dir_all(owned_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&owned_stage_path, "S20-530:COR-01:owned_stage".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let owned_stage_before_snapshot = crate::tests::exact_path_snapshot(&owned_stage_path);
         let owned_stage_before_kind = owned_stage_before_snapshot.0;
         ::core::assert_eq!(owned_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            owned_stage_before_snapshot.2,
-            "S20-530:COR-01:owned_stage".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(owned_stage_before_snapshot.2, "S20-530:COR-01:owned_stage".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec![::std::path::PathBuf::from(
-                "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-            )]
-        );
-        let owned_stage_after_snapshot =
-            crate::tests::exact_optional_path_snapshot(&owned_stage_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec![::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp")]);
+        let owned_stage_after_snapshot = crate::tests::exact_optional_path_snapshot(&owned_stage_path);
         ::core::assert_eq!(owned_stage_after_snapshot, ::core::option::Option::None);
         ::core::assert_eq!(report.len(), 1);
         ::core::assert_eq!(report[0].code, "RECOVERY_STAGED_OBJECT");
@@ -2785,112 +2770,43 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let prefix_lookalike_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001",
-        );
+        let prefix_lookalike_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001");
         let prefix_lookalike_path = owner_root.join(&prefix_lookalike_relative_path);
-        ::core::assert_eq!(
-            prefix_lookalike_path.strip_prefix(owner_root).unwrap(),
-            prefix_lookalike_relative_path
-        );
-        let suffix_lookalike_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        ::core::assert_eq!(prefix_lookalike_path.strip_prefix(owner_root).unwrap(), prefix_lookalike_relative_path);
+        let suffix_lookalike_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let suffix_lookalike_path = owner_root.join(&suffix_lookalike_relative_path);
-        ::core::assert_eq!(
-            suffix_lookalike_path.strip_prefix(owner_root).unwrap(),
-            suffix_lookalike_relative_path
-        );
+        ::core::assert_eq!(suffix_lookalike_path.strip_prefix(owner_root).unwrap(), suffix_lookalike_relative_path);
         ::std::fs::create_dir_all(prefix_lookalike_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &prefix_lookalike_path,
-            "S20-530:COR-01:prefix_lookalike".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&prefix_lookalike_path, "S20-530:COR-01:prefix_lookalike".as_bytes()).unwrap();
         ::std::fs::create_dir_all(suffix_lookalike_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &suffix_lookalike_path,
-            "S20-530:COR-01:suffix_lookalike".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&suffix_lookalike_path, "S20-530:COR-01:suffix_lookalike".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let prefix_lookalike_before_snapshot =
-            crate::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001"),::std::path::PathBuf::from("objects/scb1/10/20/foreign-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_before_snapshot = crate::tests::exact_path_snapshot(&prefix_lookalike_path);
         let prefix_lookalike_before_kind = prefix_lookalike_before_snapshot.0;
         ::core::assert_eq!(prefix_lookalike_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            prefix_lookalike_before_snapshot.2,
-            "S20-530:COR-01:prefix_lookalike".as_bytes().to_vec()
-        );
-        let suffix_lookalike_before_snapshot =
-            crate::tests::exact_path_snapshot(&suffix_lookalike_path);
+        ::core::assert_eq!(prefix_lookalike_before_snapshot.2, "S20-530:COR-01:prefix_lookalike".as_bytes().to_vec());
+        let suffix_lookalike_before_snapshot = crate::tests::exact_path_snapshot(&suffix_lookalike_path);
         let suffix_lookalike_before_kind = suffix_lookalike_before_snapshot.0;
         ::core::assert_eq!(suffix_lookalike_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            suffix_lookalike_before_snapshot.2,
-            "S20-530:COR-01:suffix_lookalike".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(suffix_lookalike_before_snapshot.2, "S20-530:COR-01:suffix_lookalike".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let prefix_lookalike_after_snapshot =
-            crate::tests::exact_path_snapshot(&prefix_lookalike_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let prefix_lookalike_after_snapshot = crate::tests::exact_path_snapshot(&prefix_lookalike_path);
         let prefix_lookalike_after_kind = prefix_lookalike_after_snapshot.0;
-        ::core::assert_eq!(
-            prefix_lookalike_after_snapshot,
-            prefix_lookalike_before_snapshot
-        );
-        let suffix_lookalike_after_snapshot =
-            crate::tests::exact_path_snapshot(&suffix_lookalike_path);
+        ::core::assert_eq!(prefix_lookalike_after_snapshot, prefix_lookalike_before_snapshot);
+        let suffix_lookalike_after_snapshot = crate::tests::exact_path_snapshot(&suffix_lookalike_path);
         let suffix_lookalike_after_kind = suffix_lookalike_after_snapshot.0;
-        ::core::assert_eq!(
-            suffix_lookalike_after_snapshot,
-            suffix_lookalike_before_snapshot
-        );
+        ::core::assert_eq!(suffix_lookalike_after_snapshot, suffix_lookalike_before_snapshot);
         ::core::assert!(report.is_empty());
     }
 
@@ -2901,143 +2817,55 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_id_uppercase_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp",
-        );
+        let object_id_uppercase_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp");
         let object_id_uppercase_path = owner_root.join(&object_id_uppercase_relative_path);
-        ::core::assert_eq!(
-            object_id_uppercase_path.strip_prefix(owner_root).unwrap(),
-            object_id_uppercase_relative_path
-        );
-        let object_id_short_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        ::core::assert_eq!(object_id_uppercase_path.strip_prefix(owner_root).unwrap(), object_id_uppercase_relative_path);
+        let object_id_short_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let object_id_short_path = owner_root.join(&object_id_short_relative_path);
-        ::core::assert_eq!(
-            object_id_short_path.strip_prefix(owner_root).unwrap(),
-            object_id_short_relative_path
-        );
-        let object_id_long_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        ::core::assert_eq!(object_id_short_path.strip_prefix(owner_root).unwrap(), object_id_short_relative_path);
+        let object_id_long_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let object_id_long_path = owner_root.join(&object_id_long_relative_path);
-        ::core::assert_eq!(
-            object_id_long_path.strip_prefix(owner_root).unwrap(),
-            object_id_long_relative_path
-        );
+        ::core::assert_eq!(object_id_long_path.strip_prefix(owner_root).unwrap(), object_id_long_relative_path);
         ::std::fs::create_dir_all(object_id_uppercase_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &object_id_uppercase_path,
-            "S20-530:COR-01:object_id_uppercase".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&object_id_uppercase_path, "S20-530:COR-01:object_id_uppercase".as_bytes()).unwrap();
         ::std::fs::create_dir_all(object_id_short_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &object_id_short_path,
-            "S20-530:COR-01:object_id_short".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&object_id_short_path, "S20-530:COR-01:object_id_short".as_bytes()).unwrap();
         ::std::fs::create_dir_all(object_id_long_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &object_id_long_path,
-            "S20-530:COR-01:object_id_long".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&object_id_long_path, "S20-530:COR-01:object_id_long".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let object_id_uppercase_before_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_uppercase_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333A0000000100000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let object_id_uppercase_before_snapshot = crate::tests::exact_path_snapshot(&object_id_uppercase_path);
         let object_id_uppercase_before_kind = object_id_uppercase_before_snapshot.0;
         ::core::assert_eq!(object_id_uppercase_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_id_uppercase_before_snapshot.2,
-            "S20-530:COR-01:object_id_uppercase".as_bytes().to_vec()
-        );
-        let object_id_short_before_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_short_path);
+        ::core::assert_eq!(object_id_uppercase_before_snapshot.2, "S20-530:COR-01:object_id_uppercase".as_bytes().to_vec());
+        let object_id_short_before_snapshot = crate::tests::exact_path_snapshot(&object_id_short_path);
         let object_id_short_before_kind = object_id_short_before_snapshot.0;
         ::core::assert_eq!(object_id_short_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_id_short_before_snapshot.2,
-            "S20-530:COR-01:object_id_short".as_bytes().to_vec()
-        );
-        let object_id_long_before_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_long_path);
+        ::core::assert_eq!(object_id_short_before_snapshot.2, "S20-530:COR-01:object_id_short".as_bytes().to_vec());
+        let object_id_long_before_snapshot = crate::tests::exact_path_snapshot(&object_id_long_path);
         let object_id_long_before_kind = object_id_long_before_snapshot.0;
         ::core::assert_eq!(object_id_long_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_id_long_before_snapshot.2,
-            "S20-530:COR-01:object_id_long".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(object_id_long_before_snapshot.2, "S20-530:COR-01:object_id_long".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let object_id_uppercase_after_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_uppercase_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let object_id_uppercase_after_snapshot = crate::tests::exact_path_snapshot(&object_id_uppercase_path);
         let object_id_uppercase_after_kind = object_id_uppercase_after_snapshot.0;
-        ::core::assert_eq!(
-            object_id_uppercase_after_snapshot,
-            object_id_uppercase_before_snapshot
-        );
-        let object_id_short_after_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_short_path);
+        ::core::assert_eq!(object_id_uppercase_after_snapshot, object_id_uppercase_before_snapshot);
+        let object_id_short_after_snapshot = crate::tests::exact_path_snapshot(&object_id_short_path);
         let object_id_short_after_kind = object_id_short_after_snapshot.0;
-        ::core::assert_eq!(
-            object_id_short_after_snapshot,
-            object_id_short_before_snapshot
-        );
+        ::core::assert_eq!(object_id_short_after_snapshot, object_id_short_before_snapshot);
         let object_id_long_after_snapshot = crate::tests::exact_path_snapshot(&object_id_long_path);
         let object_id_long_after_kind = object_id_long_after_snapshot.0;
-        ::core::assert_eq!(
-            object_id_long_after_snapshot,
-            object_id_long_before_snapshot
-        );
+        ::core::assert_eq!(object_id_long_after_snapshot, object_id_long_before_snapshot);
         ::core::assert!(report.is_empty());
     }
 
@@ -3048,132 +2876,55 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let pid_zero_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp",
-        );
+        let pid_zero_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp");
         let pid_zero_path = owner_root.join(&pid_zero_relative_path);
-        ::core::assert_eq!(
-            pid_zero_path.strip_prefix(owner_root).unwrap(),
-            pid_zero_relative_path
-        );
-        let pid_uppercase_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp",
-        );
+        ::core::assert_eq!(pid_zero_path.strip_prefix(owner_root).unwrap(), pid_zero_relative_path);
+        let pid_uppercase_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp");
         let pid_uppercase_path = owner_root.join(&pid_uppercase_relative_path);
-        ::core::assert_eq!(
-            pid_uppercase_path.strip_prefix(owner_root).unwrap(),
-            pid_uppercase_relative_path
-        );
-        let pid_short_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp",
-        );
+        ::core::assert_eq!(pid_uppercase_path.strip_prefix(owner_root).unwrap(), pid_uppercase_relative_path);
+        let pid_short_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp");
         let pid_short_path = owner_root.join(&pid_short_relative_path);
-        ::core::assert_eq!(
-            pid_short_path.strip_prefix(owner_root).unwrap(),
-            pid_short_relative_path
-        );
-        let pid_long_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp",
-        );
+        ::core::assert_eq!(pid_short_path.strip_prefix(owner_root).unwrap(), pid_short_relative_path);
+        let pid_long_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp");
         let pid_long_path = owner_root.join(&pid_long_relative_path);
-        ::core::assert_eq!(
-            pid_long_path.strip_prefix(owner_root).unwrap(),
-            pid_long_relative_path
-        );
+        ::core::assert_eq!(pid_long_path.strip_prefix(owner_root).unwrap(), pid_long_relative_path);
         ::std::fs::create_dir_all(pid_zero_path.parent().unwrap()).unwrap();
         ::std::fs::write(&pid_zero_path, "S20-530:COR-01:pid_zero".as_bytes()).unwrap();
         ::std::fs::create_dir_all(pid_uppercase_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &pid_uppercase_path,
-            "S20-530:COR-01:pid_uppercase".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&pid_uppercase_path, "S20-530:COR-01:pid_uppercase".as_bytes()).unwrap();
         ::std::fs::create_dir_all(pid_short_path.parent().unwrap()).unwrap();
         ::std::fs::write(&pid_short_path, "S20-530:COR-01:pid_short".as_bytes()).unwrap();
         ::std::fs::create_dir_all(pid_long_path.parent().unwrap()).unwrap();
         ::std::fs::write(&pid_long_path, "S20-530:COR-01:pid_long".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000000000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000000100000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000A00000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000100000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let pid_zero_before_snapshot = crate::tests::exact_path_snapshot(&pid_zero_path);
         let pid_zero_before_kind = pid_zero_before_snapshot.0;
         ::core::assert_eq!(pid_zero_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            pid_zero_before_snapshot.2,
-            "S20-530:COR-01:pid_zero".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(pid_zero_before_snapshot.2, "S20-530:COR-01:pid_zero".as_bytes().to_vec());
         let pid_uppercase_before_snapshot = crate::tests::exact_path_snapshot(&pid_uppercase_path);
         let pid_uppercase_before_kind = pid_uppercase_before_snapshot.0;
         ::core::assert_eq!(pid_uppercase_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            pid_uppercase_before_snapshot.2,
-            "S20-530:COR-01:pid_uppercase".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(pid_uppercase_before_snapshot.2, "S20-530:COR-01:pid_uppercase".as_bytes().to_vec());
         let pid_short_before_snapshot = crate::tests::exact_path_snapshot(&pid_short_path);
         let pid_short_before_kind = pid_short_before_snapshot.0;
         ::core::assert_eq!(pid_short_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            pid_short_before_snapshot.2,
-            "S20-530:COR-01:pid_short".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(pid_short_before_snapshot.2, "S20-530:COR-01:pid_short".as_bytes().to_vec());
         let pid_long_before_snapshot = crate::tests::exact_path_snapshot(&pid_long_path);
         let pid_long_before_kind = pid_long_before_snapshot.0;
         ::core::assert_eq!(pid_long_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            pid_long_before_snapshot.2,
-            "S20-530:COR-01:pid_long".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(pid_long_before_snapshot.2, "S20-530:COR-01:pid_long".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let pid_zero_after_snapshot = crate::tests::exact_path_snapshot(&pid_zero_path);
         let pid_zero_after_kind = pid_zero_after_snapshot.0;
         ::core::assert_eq!(pid_zero_after_snapshot, pid_zero_before_snapshot);
@@ -3196,124 +2947,49 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let counter_uppercase_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp",
-        );
+        let counter_uppercase_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp");
         let counter_uppercase_path = owner_root.join(&counter_uppercase_relative_path);
-        ::core::assert_eq!(
-            counter_uppercase_path.strip_prefix(owner_root).unwrap(),
-            counter_uppercase_relative_path
-        );
-        let counter_short_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp",
-        );
+        ::core::assert_eq!(counter_uppercase_path.strip_prefix(owner_root).unwrap(), counter_uppercase_relative_path);
+        let counter_short_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp");
         let counter_short_path = owner_root.join(&counter_short_relative_path);
-        ::core::assert_eq!(
-            counter_short_path.strip_prefix(owner_root).unwrap(),
-            counter_short_relative_path
-        );
-        let counter_long_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp",
-        );
+        ::core::assert_eq!(counter_short_path.strip_prefix(owner_root).unwrap(), counter_short_relative_path);
+        let counter_long_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp");
         let counter_long_path = owner_root.join(&counter_long_relative_path);
-        ::core::assert_eq!(
-            counter_long_path.strip_prefix(owner_root).unwrap(),
-            counter_long_relative_path
-        );
+        ::core::assert_eq!(counter_long_path.strip_prefix(owner_root).unwrap(), counter_long_relative_path);
         ::std::fs::create_dir_all(counter_uppercase_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &counter_uppercase_path,
-            "S20-530:COR-01:counter_uppercase".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&counter_uppercase_path, "S20-530:COR-01:counter_uppercase".as_bytes()).unwrap();
         ::std::fs::create_dir_all(counter_short_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &counter_short_path,
-            "S20-530:COR-01:counter_short".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&counter_short_path, "S20-530:COR-01:counter_short".as_bytes()).unwrap();
         ::std::fs::create_dir_all(counter_long_path.parent().unwrap()).unwrap();
         ::std::fs::write(&counter_long_path, "S20-530:COR-01:counter_long".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp"
-                ),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let counter_uppercase_before_snapshot =
-            crate::tests::exact_path_snapshot(&counter_uppercase_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-102033333333333333333333333333333333333333333333333333333333333300000001000000001.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000000A.tmp"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-1020333333333333333333333333333333333333333333333333333333333333000000010000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let counter_uppercase_before_snapshot = crate::tests::exact_path_snapshot(&counter_uppercase_path);
         let counter_uppercase_before_kind = counter_uppercase_before_snapshot.0;
         ::core::assert_eq!(counter_uppercase_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            counter_uppercase_before_snapshot.2,
-            "S20-530:COR-01:counter_uppercase".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(counter_uppercase_before_snapshot.2, "S20-530:COR-01:counter_uppercase".as_bytes().to_vec());
         let counter_short_before_snapshot = crate::tests::exact_path_snapshot(&counter_short_path);
         let counter_short_before_kind = counter_short_before_snapshot.0;
         ::core::assert_eq!(counter_short_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            counter_short_before_snapshot.2,
-            "S20-530:COR-01:counter_short".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(counter_short_before_snapshot.2, "S20-530:COR-01:counter_short".as_bytes().to_vec());
         let counter_long_before_snapshot = crate::tests::exact_path_snapshot(&counter_long_path);
         let counter_long_before_kind = counter_long_before_snapshot.0;
         ::core::assert_eq!(counter_long_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            counter_long_before_snapshot.2,
-            "S20-530:COR-01:counter_long".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(counter_long_before_snapshot.2, "S20-530:COR-01:counter_long".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let counter_uppercase_after_snapshot =
-            crate::tests::exact_path_snapshot(&counter_uppercase_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let counter_uppercase_after_snapshot = crate::tests::exact_path_snapshot(&counter_uppercase_path);
         let counter_uppercase_after_kind = counter_uppercase_after_snapshot.0;
-        ::core::assert_eq!(
-            counter_uppercase_after_snapshot,
-            counter_uppercase_before_snapshot
-        );
+        ::core::assert_eq!(counter_uppercase_after_snapshot, counter_uppercase_before_snapshot);
         let counter_short_after_snapshot = crate::tests::exact_path_snapshot(&counter_short_path);
         let counter_short_after_kind = counter_short_after_snapshot.0;
         ::core::assert_eq!(counter_short_after_snapshot, counter_short_before_snapshot);
@@ -3330,85 +3006,31 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_id_fanout_mismatch_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp",
-        );
-        let object_id_fanout_mismatch_path =
-            owner_root.join(&object_id_fanout_mismatch_relative_path);
-        ::core::assert_eq!(
-            object_id_fanout_mismatch_path
-                .strip_prefix(owner_root)
-                .unwrap(),
-            object_id_fanout_mismatch_relative_path
-        );
+        let object_id_fanout_mismatch_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp");
+        let object_id_fanout_mismatch_path = owner_root.join(&object_id_fanout_mismatch_relative_path);
+        ::core::assert_eq!(object_id_fanout_mismatch_path.strip_prefix(owner_root).unwrap(), object_id_fanout_mismatch_relative_path);
         ::std::fs::create_dir_all(object_id_fanout_mismatch_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &object_id_fanout_mismatch_path,
-            "S20-530:COR-01:object_id_fanout_mismatch".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&object_id_fanout_mismatch_path, "S20-530:COR-01:object_id_fanout_mismatch".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let object_id_fanout_mismatch_before_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/.sley-store-stage-ffff6666666666666666666666666666666666666666666666666666666666660000000100000001.tmp")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let object_id_fanout_mismatch_before_snapshot = crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
         let object_id_fanout_mismatch_before_kind = object_id_fanout_mismatch_before_snapshot.0;
         ::core::assert_eq!(object_id_fanout_mismatch_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_id_fanout_mismatch_before_snapshot.2,
-            "S20-530:COR-01:object_id_fanout_mismatch"
-                .as_bytes()
-                .to_vec()
-        );
+        ::core::assert_eq!(object_id_fanout_mismatch_before_snapshot.2, "S20-530:COR-01:object_id_fanout_mismatch".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let object_id_fanout_mismatch_after_snapshot =
-            crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let object_id_fanout_mismatch_after_snapshot = crate::tests::exact_path_snapshot(&object_id_fanout_mismatch_path);
         let object_id_fanout_mismatch_after_kind = object_id_fanout_mismatch_after_snapshot.0;
-        ::core::assert_eq!(
-            object_id_fanout_mismatch_after_snapshot,
-            object_id_fanout_mismatch_before_snapshot
-        );
+        ::core::assert_eq!(object_id_fanout_mismatch_after_snapshot, object_id_fanout_mismatch_before_snapshot);
         ::core::assert!(report.is_empty());
     }
 
@@ -3419,70 +3041,32 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_stage_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
-        );
+        let object_stage_relative_path = ::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp");
         let object_stage_path = owner_root.join(&object_stage_relative_path);
-        ::core::assert_eq!(
-            object_stage_path.strip_prefix(owner_root).unwrap(),
-            object_stage_relative_path
-        );
+        ::core::assert_eq!(object_stage_path.strip_prefix(owner_root).unwrap(), object_stage_relative_path);
         let malformed_fanout_relative_path = ::std::path::PathBuf::from("objects/scb1/f");
         let malformed_fanout_path = owner_root.join(&malformed_fanout_relative_path);
-        ::core::assert_eq!(
-            malformed_fanout_path.strip_prefix(owner_root).unwrap(),
-            malformed_fanout_relative_path
-        );
+        ::core::assert_eq!(malformed_fanout_path.strip_prefix(owner_root).unwrap(), malformed_fanout_relative_path);
         let uppercase_fanout_relative_path = ::std::path::PathBuf::from("objects/scb1/FE");
         let uppercase_fanout_path = owner_root.join(&uppercase_fanout_relative_path);
-        ::core::assert_eq!(
-            uppercase_fanout_path.strip_prefix(owner_root).unwrap(),
-            uppercase_fanout_relative_path
-        );
+        ::core::assert_eq!(uppercase_fanout_path.strip_prefix(owner_root).unwrap(), uppercase_fanout_relative_path);
         ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(&malformed_fanout_path).unwrap();
         ::std::fs::create_dir_all(&uppercase_fanout_path).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/00"),
-                ::std::path::PathBuf::from("objects/scb1/00/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/FE"),
-                ::std::path::PathBuf::from("objects/scb1/f")
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/00"),::std::path::PathBuf::from("objects/scb1/00/00"),::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"),::std::path::PathBuf::from("objects/scb1/FE"),::std::path::PathBuf::from("objects/scb1/f")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_before_kind = object_stage_before_snapshot.0;
         ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_stage_before_snapshot.2,
-            "S20-530:COR-01:object_stage".as_bytes().to_vec()
-        );
-        let malformed_fanout_before_snapshot =
-            crate::tests::exact_path_snapshot(&malformed_fanout_path);
+        ::core::assert_eq!(object_stage_before_snapshot.2, "S20-530:COR-01:object_stage".as_bytes().to_vec());
+        let malformed_fanout_before_snapshot = crate::tests::exact_path_snapshot(&malformed_fanout_path);
         let malformed_fanout_before_kind = malformed_fanout_before_snapshot.0;
         ::core::assert_eq!(malformed_fanout_before_snapshot.0, "directory");
-        let uppercase_fanout_before_snapshot =
-            crate::tests::exact_path_snapshot(&uppercase_fanout_path);
+        let uppercase_fanout_before_snapshot = crate::tests::exact_path_snapshot(&uppercase_fanout_path);
         let uppercase_fanout_before_kind = uppercase_fanout_before_snapshot.0;
         ::core::assert_eq!(uppercase_fanout_before_snapshot.0, "directory");
         ::core::assert!(object_stage_relative_path < malformed_fanout_relative_path);
@@ -3491,40 +3075,23 @@ mod tests {
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected owned-entry recovery error");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_after_kind = object_stage_after_snapshot.0;
         ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
-        let malformed_fanout_after_snapshot =
-            crate::tests::exact_path_snapshot(&malformed_fanout_path);
+        let malformed_fanout_after_snapshot = crate::tests::exact_path_snapshot(&malformed_fanout_path);
         let malformed_fanout_after_kind = malformed_fanout_after_snapshot.0;
-        ::core::assert_eq!(
-            malformed_fanout_after_snapshot,
-            malformed_fanout_before_snapshot
-        );
-        let uppercase_fanout_after_snapshot =
-            crate::tests::exact_path_snapshot(&uppercase_fanout_path);
+        ::core::assert_eq!(malformed_fanout_after_snapshot, malformed_fanout_before_snapshot);
+        let uppercase_fanout_after_snapshot = crate::tests::exact_path_snapshot(&uppercase_fanout_path);
         let uppercase_fanout_after_kind = uppercase_fanout_after_snapshot.0;
-        ::core::assert_eq!(
-            uppercase_fanout_after_snapshot,
-            uppercase_fanout_before_snapshot
-        );
+        ::core::assert_eq!(uppercase_fanout_after_snapshot, uppercase_fanout_before_snapshot);
         ::core::assert_eq!(error.symbol(), "STORE_IO");
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
     }
 
     #[test]
@@ -3534,129 +3101,47 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_stage_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
-        );
+        let object_stage_relative_path = ::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp");
         let object_stage_path = owner_root.join(&object_stage_relative_path);
-        ::core::assert_eq!(
-            object_stage_path.strip_prefix(owner_root).unwrap(),
-            object_stage_relative_path
-        );
-        let malformed_final_name_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1",
-        );
+        ::core::assert_eq!(object_stage_path.strip_prefix(owner_root).unwrap(), object_stage_relative_path);
+        let malformed_final_name_relative_path = ::std::path::PathBuf::from("objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1");
         let malformed_final_name_path = owner_root.join(&malformed_final_name_relative_path);
-        ::core::assert_eq!(
-            malformed_final_name_path.strip_prefix(owner_root).unwrap(),
-            malformed_final_name_relative_path
-        );
-        let uppercase_final_name_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1",
-        );
+        ::core::assert_eq!(malformed_final_name_path.strip_prefix(owner_root).unwrap(), malformed_final_name_relative_path);
+        let uppercase_final_name_relative_path = ::std::path::PathBuf::from("objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1");
         let uppercase_final_name_path = owner_root.join(&uppercase_final_name_relative_path);
-        ::core::assert_eq!(
-            uppercase_final_name_path.strip_prefix(owner_root).unwrap(),
-            uppercase_final_name_relative_path
-        );
-        let final_fanout_mismatch_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1",
-        );
+        ::core::assert_eq!(uppercase_final_name_path.strip_prefix(owner_root).unwrap(), uppercase_final_name_relative_path);
+        let final_fanout_mismatch_relative_path = ::std::path::PathBuf::from("objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1");
         let final_fanout_mismatch_path = owner_root.join(&final_fanout_mismatch_relative_path);
-        ::core::assert_eq!(
-            final_fanout_mismatch_path.strip_prefix(owner_root).unwrap(),
-            final_fanout_mismatch_relative_path
-        );
+        ::core::assert_eq!(final_fanout_mismatch_path.strip_prefix(owner_root).unwrap(), final_fanout_mismatch_relative_path);
         ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(malformed_final_name_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &malformed_final_name_path,
-            "S20-530:COR-01:malformed_final_name".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&malformed_final_name_path, "S20-530:COR-01:malformed_final_name".as_bytes()).unwrap();
         ::std::fs::create_dir_all(uppercase_final_name_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &uppercase_final_name_path,
-            "S20-530:COR-01:uppercase_final_name".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&uppercase_final_name_path, "S20-530:COR-01:uppercase_final_name".as_bytes()).unwrap();
         ::std::fs::create_dir_all(final_fanout_mismatch_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &final_fanout_mismatch_path,
-            "S20-530:COR-01:final_fanout_mismatch".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&final_fanout_mismatch_path, "S20-530:COR-01:final_fanout_mismatch".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/00"),
-                ::std::path::PathBuf::from("objects/scb1/00/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/fd"),
-                ::std::path::PathBuf::from("objects/scb1/fd/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/fe"),
-                ::std::path::PathBuf::from("objects/scb1/fe/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/ff"),
-                ::std::path::PathBuf::from("objects/scb1/ff/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/00"),::std::path::PathBuf::from("objects/scb1/00/00"),::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"),::std::path::PathBuf::from("objects/scb1/fd"),::std::path::PathBuf::from("objects/scb1/fd/00"),::std::path::PathBuf::from("objects/scb1/fd/00/gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg.scb1"),::std::path::PathBuf::from("objects/scb1/fe"),::std::path::PathBuf::from("objects/scb1/fe/00"),::std::path::PathBuf::from("objects/scb1/fe/00/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.scb1"),::std::path::PathBuf::from("objects/scb1/ff"),::std::path::PathBuf::from("objects/scb1/ff/00"),::std::path::PathBuf::from("objects/scb1/ff/00/ffff666666666666666666666666666666666666666666666666666666666666.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_before_kind = object_stage_before_snapshot.0;
         ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_stage_before_snapshot.2,
-            "S20-530:COR-01:object_stage".as_bytes().to_vec()
-        );
-        let malformed_final_name_before_snapshot =
-            crate::tests::exact_path_snapshot(&malformed_final_name_path);
+        ::core::assert_eq!(object_stage_before_snapshot.2, "S20-530:COR-01:object_stage".as_bytes().to_vec());
+        let malformed_final_name_before_snapshot = crate::tests::exact_path_snapshot(&malformed_final_name_path);
         let malformed_final_name_before_kind = malformed_final_name_before_snapshot.0;
         ::core::assert_eq!(malformed_final_name_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            malformed_final_name_before_snapshot.2,
-            "S20-530:COR-01:malformed_final_name".as_bytes().to_vec()
-        );
-        let uppercase_final_name_before_snapshot =
-            crate::tests::exact_path_snapshot(&uppercase_final_name_path);
+        ::core::assert_eq!(malformed_final_name_before_snapshot.2, "S20-530:COR-01:malformed_final_name".as_bytes().to_vec());
+        let uppercase_final_name_before_snapshot = crate::tests::exact_path_snapshot(&uppercase_final_name_path);
         let uppercase_final_name_before_kind = uppercase_final_name_before_snapshot.0;
         ::core::assert_eq!(uppercase_final_name_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            uppercase_final_name_before_snapshot.2,
-            "S20-530:COR-01:uppercase_final_name".as_bytes().to_vec()
-        );
-        let final_fanout_mismatch_before_snapshot =
-            crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        ::core::assert_eq!(uppercase_final_name_before_snapshot.2, "S20-530:COR-01:uppercase_final_name".as_bytes().to_vec());
+        let final_fanout_mismatch_before_snapshot = crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
         let final_fanout_mismatch_before_kind = final_fanout_mismatch_before_snapshot.0;
         ::core::assert_eq!(final_fanout_mismatch_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            final_fanout_mismatch_before_snapshot.2,
-            "S20-530:COR-01:final_fanout_mismatch".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(final_fanout_mismatch_before_snapshot.2, "S20-530:COR-01:final_fanout_mismatch".as_bytes().to_vec());
         ::core::assert!(object_stage_relative_path < malformed_final_name_relative_path);
         ::core::assert!(object_stage_relative_path < uppercase_final_name_relative_path);
         ::core::assert!(object_stage_relative_path < final_fanout_mismatch_relative_path);
@@ -3664,47 +3149,26 @@ mod tests {
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected owned-entry recovery error");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_after_kind = object_stage_after_snapshot.0;
         ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
-        let malformed_final_name_after_snapshot =
-            crate::tests::exact_path_snapshot(&malformed_final_name_path);
+        let malformed_final_name_after_snapshot = crate::tests::exact_path_snapshot(&malformed_final_name_path);
         let malformed_final_name_after_kind = malformed_final_name_after_snapshot.0;
-        ::core::assert_eq!(
-            malformed_final_name_after_snapshot,
-            malformed_final_name_before_snapshot
-        );
-        let uppercase_final_name_after_snapshot =
-            crate::tests::exact_path_snapshot(&uppercase_final_name_path);
+        ::core::assert_eq!(malformed_final_name_after_snapshot, malformed_final_name_before_snapshot);
+        let uppercase_final_name_after_snapshot = crate::tests::exact_path_snapshot(&uppercase_final_name_path);
         let uppercase_final_name_after_kind = uppercase_final_name_after_snapshot.0;
-        ::core::assert_eq!(
-            uppercase_final_name_after_snapshot,
-            uppercase_final_name_before_snapshot
-        );
-        let final_fanout_mismatch_after_snapshot =
-            crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
+        ::core::assert_eq!(uppercase_final_name_after_snapshot, uppercase_final_name_before_snapshot);
+        let final_fanout_mismatch_after_snapshot = crate::tests::exact_path_snapshot(&final_fanout_mismatch_path);
         let final_fanout_mismatch_after_kind = final_fanout_mismatch_after_snapshot.0;
-        ::core::assert_eq!(
-            final_fanout_mismatch_after_snapshot,
-            final_fanout_mismatch_before_snapshot
-        );
+        ::core::assert_eq!(final_fanout_mismatch_after_snapshot, final_fanout_mismatch_before_snapshot);
         ::core::assert_eq!(error.symbol(), "STORE_IO");
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
     }
 
     #[test]
@@ -3714,77 +3178,31 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let unknown_ascii_regular_relative_path =
-            ::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep");
+        let unknown_ascii_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep");
         let unknown_ascii_regular_path = owner_root.join(&unknown_ascii_regular_relative_path);
-        ::core::assert_eq!(
-            unknown_ascii_regular_path.strip_prefix(owner_root).unwrap(),
-            unknown_ascii_regular_relative_path
-        );
+        ::core::assert_eq!(unknown_ascii_regular_path.strip_prefix(owner_root).unwrap(), unknown_ascii_regular_relative_path);
         ::std::fs::create_dir_all(unknown_ascii_regular_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &unknown_ascii_regular_path,
-            "S20-530:COR-01:unknown_ascii_regular".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&unknown_ascii_regular_path, "S20-530:COR-01:unknown_ascii_regular".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep")
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let unknown_ascii_regular_before_snapshot =
-            crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20/unknown-owned-entry.keep")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_before_snapshot = crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
         let unknown_ascii_regular_before_kind = unknown_ascii_regular_before_snapshot.0;
         ::core::assert_eq!(unknown_ascii_regular_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            unknown_ascii_regular_before_snapshot.2,
-            "S20-530:COR-01:unknown_ascii_regular".as_bytes().to_vec()
-        );
+        ::core::assert_eq!(unknown_ascii_regular_before_snapshot.2, "S20-530:COR-01:unknown_ascii_regular".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let unknown_ascii_regular_after_snapshot =
-            crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_ascii_regular_after_snapshot = crate::tests::exact_path_snapshot(&unknown_ascii_regular_path);
         let unknown_ascii_regular_after_kind = unknown_ascii_regular_after_snapshot.0;
-        ::core::assert_eq!(
-            unknown_ascii_regular_after_snapshot,
-            unknown_ascii_regular_before_snapshot
-        );
+        ::core::assert_eq!(unknown_ascii_regular_after_snapshot, unknown_ascii_regular_before_snapshot);
         ::core::assert!(report.is_empty());
     }
 
@@ -3795,92 +3213,31 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let unknown_non_utf8_regular_relative_path =
-            ::std::path::PathBuf::from("objects/scb1/10/20").join(
-                <::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![
-                    117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121
-                ]),
-            );
-        let unknown_non_utf8_regular_path =
-            owner_root.join(&unknown_non_utf8_regular_relative_path);
-        ::core::assert_eq!(
-            unknown_non_utf8_regular_path
-                .strip_prefix(owner_root)
-                .unwrap(),
-            unknown_non_utf8_regular_relative_path
-        );
+        let unknown_non_utf8_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]));
+        let unknown_non_utf8_regular_path = owner_root.join(&unknown_non_utf8_regular_relative_path);
+        ::core::assert_eq!(unknown_non_utf8_regular_path.strip_prefix(owner_root).unwrap(), unknown_non_utf8_regular_relative_path);
         ::std::fs::create_dir_all(unknown_non_utf8_regular_path.parent().unwrap()).unwrap();
-        ::std::fs::write(
-            &unknown_non_utf8_regular_path,
-            "S20-530:COR-01:unknown_non_utf8_regular".as_bytes(),
-        )
-        .unwrap();
+        ::std::fs::write(&unknown_non_utf8_regular_path, "S20-530:COR-01:unknown_non_utf8_regular".as_bytes()).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/10"),
-                ::std::path::PathBuf::from("objects/scb1/10/20"),
-                ::std::path::PathBuf::from("objects/scb1/10/20").join(
-                    <::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(
-                        ::std::vec![
-                            117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121
-                        ]
-                    )
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let unknown_non_utf8_regular_before_snapshot =
-            crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/10"),::std::path::PathBuf::from("objects/scb1/10/20"),::std::path::PathBuf::from("objects/scb1/10/20").join(<::std::ffi::OsString as ::std::os::unix::ffi::OsStringExt>::from_vec(::std::vec![117, 110, 107, 110, 111, 119, 110, 45, 255, 45, 101, 110, 116, 114, 121]))]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_before_snapshot = crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
         let unknown_non_utf8_regular_before_kind = unknown_non_utf8_regular_before_snapshot.0;
         ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            unknown_non_utf8_regular_before_snapshot.2,
-            "S20-530:COR-01:unknown_non_utf8_regular"
-                .as_bytes()
-                .to_vec()
-        );
+        ::core::assert_eq!(unknown_non_utf8_regular_before_snapshot.2, "S20-530:COR-01:unknown_non_utf8_regular".as_bytes().to_vec());
         let result = store.recover_staged();
         ::core::assert!(result.is_ok());
         let report = result.expect("expected owned-entry recovery success");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        let unknown_non_utf8_regular_after_snapshot =
-            crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        let unknown_non_utf8_regular_after_snapshot = crate::tests::exact_path_snapshot(&unknown_non_utf8_regular_path);
         let unknown_non_utf8_regular_after_kind = unknown_non_utf8_regular_after_snapshot.0;
-        ::core::assert_eq!(
-            unknown_non_utf8_regular_after_snapshot,
-            unknown_non_utf8_regular_before_snapshot
-        );
+        ::core::assert_eq!(unknown_non_utf8_regular_after_snapshot, unknown_non_utf8_regular_before_snapshot);
         ::core::assert!(report.is_empty());
     }
 
@@ -3891,127 +3248,47 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_stage_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
-        );
+        let object_stage_relative_path = ::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp");
         let object_stage_path = owner_root.join(&object_stage_relative_path);
-        ::core::assert_eq!(
-            object_stage_path.strip_prefix(owner_root).unwrap(),
-            object_stage_relative_path
-        );
+        ::core::assert_eq!(object_stage_path.strip_prefix(owner_root).unwrap(), object_stage_relative_path);
         let fanout_symlink_relative_path = ::std::path::PathBuf::from("objects/scb1/fd");
         let fanout_symlink_path = owner_root.join(&fanout_symlink_relative_path);
-        ::core::assert_eq!(
-            fanout_symlink_path.strip_prefix(owner_root).unwrap(),
-            fanout_symlink_relative_path
-        );
-        let stage_symlink_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        ::core::assert_eq!(fanout_symlink_path.strip_prefix(owner_root).unwrap(), fanout_symlink_relative_path);
+        let stage_symlink_relative_path = ::std::path::PathBuf::from("objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let stage_symlink_path = owner_root.join(&stage_symlink_relative_path);
-        ::core::assert_eq!(
-            stage_symlink_path.strip_prefix(owner_root).unwrap(),
-            stage_symlink_relative_path
-        );
-        let final_symlink_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1",
-        );
+        ::core::assert_eq!(stage_symlink_path.strip_prefix(owner_root).unwrap(), stage_symlink_relative_path);
+        let final_symlink_relative_path = ::std::path::PathBuf::from("objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1");
         let final_symlink_path = owner_root.join(&final_symlink_relative_path);
-        ::core::assert_eq!(
-            final_symlink_path.strip_prefix(owner_root).unwrap(),
-            final_symlink_relative_path
-        );
+        ::core::assert_eq!(final_symlink_path.strip_prefix(owner_root).unwrap(), final_symlink_relative_path);
         ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(fanout_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink(
-            "../../../../s20-530-cor-01-fanout_symlink",
-            &fanout_symlink_path,
-        )
-        .unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-01-fanout_symlink", &fanout_symlink_path).unwrap();
         ::std::fs::create_dir_all(stage_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink(
-            "../../../../s20-530-cor-01-stage_symlink",
-            &stage_symlink_path,
-        )
-        .unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-01-stage_symlink", &stage_symlink_path).unwrap();
         ::std::fs::create_dir_all(final_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink(
-            "../../../../s20-530-cor-01-final_symlink",
-            &final_symlink_path,
-        )
-        .unwrap();
+        ::std::os::unix::fs::symlink("../../../../s20-530-cor-01-final_symlink", &final_symlink_path).unwrap();
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/00"),
-                ::std::path::PathBuf::from("objects/scb1/00/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/fd"),
-                ::std::path::PathBuf::from("objects/scb1/fe"),
-                ::std::path::PathBuf::from("objects/scb1/fe/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/ff"),
-                ::std::path::PathBuf::from("objects/scb1/ff/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/00"),::std::path::PathBuf::from("objects/scb1/00/00"),::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"),::std::path::PathBuf::from("objects/scb1/fd"),::std::path::PathBuf::from("objects/scb1/fe"),::std::path::PathBuf::from("objects/scb1/fe/00"),::std::path::PathBuf::from("objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"),::std::path::PathBuf::from("objects/scb1/ff"),::std::path::PathBuf::from("objects/scb1/ff/00"),::std::path::PathBuf::from("objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_before_kind = object_stage_before_snapshot.0;
         ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_stage_before_snapshot.2,
-            "S20-530:COR-01:object_stage".as_bytes().to_vec()
-        );
-        let fanout_symlink_before_snapshot =
-            crate::tests::exact_path_snapshot(&fanout_symlink_path);
+        ::core::assert_eq!(object_stage_before_snapshot.2, "S20-530:COR-01:object_stage".as_bytes().to_vec());
+        let fanout_symlink_before_snapshot = crate::tests::exact_path_snapshot(&fanout_symlink_path);
         let fanout_symlink_before_kind = fanout_symlink_before_snapshot.0;
         ::core::assert_eq!(fanout_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(
-            fanout_symlink_before_snapshot.3,
-            ::core::option::Option::Some(::std::path::PathBuf::from(
-                "../../../../s20-530-cor-01-fanout_symlink"
-            ))
-        );
+        ::core::assert_eq!(fanout_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-01-fanout_symlink")));
         let stage_symlink_before_snapshot = crate::tests::exact_path_snapshot(&stage_symlink_path);
         let stage_symlink_before_kind = stage_symlink_before_snapshot.0;
         ::core::assert_eq!(stage_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(
-            stage_symlink_before_snapshot.3,
-            ::core::option::Option::Some(::std::path::PathBuf::from(
-                "../../../../s20-530-cor-01-stage_symlink"
-            ))
-        );
+        ::core::assert_eq!(stage_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-01-stage_symlink")));
         let final_symlink_before_snapshot = crate::tests::exact_path_snapshot(&final_symlink_path);
         let final_symlink_before_kind = final_symlink_before_snapshot.0;
         ::core::assert_eq!(final_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(
-            final_symlink_before_snapshot.3,
-            ::core::option::Option::Some(::std::path::PathBuf::from(
-                "../../../../s20-530-cor-01-final_symlink"
-            ))
-        );
+        ::core::assert_eq!(final_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-01-final_symlink")));
         ::core::assert!(object_stage_relative_path < fanout_symlink_relative_path);
         ::core::assert!(object_stage_relative_path < stage_symlink_relative_path);
         ::core::assert!(object_stage_relative_path < final_symlink_relative_path);
@@ -4019,31 +3296,16 @@ mod tests {
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected owned-entry recovery error");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_after_kind = object_stage_after_snapshot.0;
         ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
         let fanout_symlink_after_snapshot = crate::tests::exact_path_snapshot(&fanout_symlink_path);
         let fanout_symlink_after_kind = fanout_symlink_after_snapshot.0;
-        ::core::assert_eq!(
-            fanout_symlink_after_snapshot,
-            fanout_symlink_before_snapshot
-        );
+        ::core::assert_eq!(fanout_symlink_after_snapshot, fanout_symlink_before_snapshot);
         let stage_symlink_after_snapshot = crate::tests::exact_path_snapshot(&stage_symlink_path);
         let stage_symlink_after_kind = stage_symlink_after_snapshot.0;
         ::core::assert_eq!(stage_symlink_after_snapshot, stage_symlink_before_snapshot);
@@ -4051,6 +3313,9 @@ mod tests {
         let final_symlink_after_kind = final_symlink_after_snapshot.0;
         ::core::assert_eq!(final_symlink_after_snapshot, final_symlink_before_snapshot);
         ::core::assert_eq!(error.symbol(), "STORE_IO");
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
     }
 
     #[test]
@@ -4060,105 +3325,44 @@ mod tests {
         let owner_root = store.root();
         ::core::assert_eq!(owner_root, temp.path());
         let fresh_owner_tree_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let object_stage_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp",
-        );
+        let object_stage_relative_path = ::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp");
         let object_stage_path = owner_root.join(&object_stage_relative_path);
-        ::core::assert_eq!(
-            object_stage_path.strip_prefix(owner_root).unwrap(),
-            object_stage_relative_path
-        );
+        ::core::assert_eq!(object_stage_path.strip_prefix(owner_root).unwrap(), object_stage_relative_path);
         let fanout_non_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/fd");
         let fanout_non_regular_path = owner_root.join(&fanout_non_regular_relative_path);
-        ::core::assert_eq!(
-            fanout_non_regular_path.strip_prefix(owner_root).unwrap(),
-            fanout_non_regular_relative_path
-        );
-        let stage_non_regular_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp",
-        );
+        ::core::assert_eq!(fanout_non_regular_path.strip_prefix(owner_root).unwrap(), fanout_non_regular_relative_path);
+        let stage_non_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp");
         let stage_non_regular_path = owner_root.join(&stage_non_regular_relative_path);
-        ::core::assert_eq!(
-            stage_non_regular_path.strip_prefix(owner_root).unwrap(),
-            stage_non_regular_relative_path
-        );
-        let final_non_regular_relative_path = ::std::path::PathBuf::from(
-            "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1",
-        );
+        ::core::assert_eq!(stage_non_regular_path.strip_prefix(owner_root).unwrap(), stage_non_regular_relative_path);
+        let final_non_regular_relative_path = ::std::path::PathBuf::from("objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1");
         let final_non_regular_path = owner_root.join(&final_non_regular_relative_path);
-        ::core::assert_eq!(
-            final_non_regular_path.strip_prefix(owner_root).unwrap(),
-            final_non_regular_relative_path
-        );
+        ::core::assert_eq!(final_non_regular_path.strip_prefix(owner_root).unwrap(), final_non_regular_relative_path);
         ::std::fs::create_dir_all(object_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&object_stage_path, "S20-530:COR-01:object_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(fanout_non_regular_path.parent().unwrap()).unwrap();
-        let _fanout_non_regular_socket =
-            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("fanout-sock")).unwrap();
-        ::std::fs::rename(temp.path().join("fanout-sock"), &fanout_non_regular_path).unwrap();
+        let _fanout_non_regular_socket = plant_non_regular_socket(&fanout_non_regular_path, false);
         ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
-        let _stage_non_regular_socket =
-            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("stage-sock")).unwrap();
-        ::std::fs::rename(temp.path().join("stage-sock"), &stage_non_regular_path).unwrap();
+        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path, false);
         ::std::fs::create_dir_all(final_non_regular_path.parent().unwrap()).unwrap();
-        let _final_non_regular_socket =
-            ::std::os::unix::net::UnixDatagram::bind(temp.path().join("final-sock")).unwrap();
-        ::std::fs::rename(temp.path().join("final-sock"), &final_non_regular_path).unwrap();
+        let _final_non_regular_socket = plant_non_regular_socket(&final_non_regular_path, false);
         let owner_tree_before_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::tests::exact_tree_delta_paths(
-            &fresh_owner_tree_snapshot,
-            &owner_tree_before_snapshot,
-        );
-        ::core::assert_eq!(
-            fixture_delta.0,
-            ::std::vec![
-                ::std::path::PathBuf::from("objects"),
-                ::std::path::PathBuf::from("objects/scb1"),
-                ::std::path::PathBuf::from("objects/scb1/00"),
-                ::std::path::PathBuf::from("objects/scb1/00/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/fd"),
-                ::std::path::PathBuf::from("objects/scb1/fe"),
-                ::std::path::PathBuf::from("objects/scb1/fe/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"
-                ),
-                ::std::path::PathBuf::from("objects/scb1/ff"),
-                ::std::path::PathBuf::from("objects/scb1/ff/00"),
-                ::std::path::PathBuf::from(
-                    "objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1"
-                )
-            ]
-        );
-        ::core::assert_eq!(
-            fixture_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            fixture_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let fixture_delta = crate::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
+        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("objects"),::std::path::PathBuf::from("objects/scb1"),::std::path::PathBuf::from("objects/scb1/00"),::std::path::PathBuf::from("objects/scb1/00/00"),::std::path::PathBuf::from("objects/scb1/00/00/.sley-store-stage-00004444444444444444444444444444444444444444444444444444444444440000000100000000.tmp"),::std::path::PathBuf::from("objects/scb1/fd"),::std::path::PathBuf::from("objects/scb1/fe"),::std::path::PathBuf::from("objects/scb1/fe/00"),::std::path::PathBuf::from("objects/scb1/fe/00/.sley-store-stage-10203333333333333333333333333333333333333333333333333333333333330000000100000001.tmp"),::std::path::PathBuf::from("objects/scb1/ff"),::std::path::PathBuf::from("objects/scb1/ff/00"),::std::path::PathBuf::from("objects/scb1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.scb1")]);
+        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_before_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_before_kind = object_stage_before_snapshot.0;
         ::core::assert_eq!(object_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(
-            object_stage_before_snapshot.2,
-            "S20-530:COR-01:object_stage".as_bytes().to_vec()
-        );
-        let fanout_non_regular_before_snapshot =
-            crate::tests::exact_path_snapshot(&fanout_non_regular_path);
+        ::core::assert_eq!(object_stage_before_snapshot.2, "S20-530:COR-01:object_stage".as_bytes().to_vec());
+        let fanout_non_regular_before_snapshot = crate::tests::exact_path_snapshot(&fanout_non_regular_path);
         let fanout_non_regular_before_kind = fanout_non_regular_before_snapshot.0;
         ::core::assert_eq!(fanout_non_regular_before_snapshot.0, "non_regular");
         ::core::assert_eq!(fanout_non_regular_before_snapshot.1 & 0o170000, 0o140000);
-        let stage_non_regular_before_snapshot =
-            crate::tests::exact_path_snapshot(&stage_non_regular_path);
+        let stage_non_regular_before_snapshot = crate::tests::exact_path_snapshot(&stage_non_regular_path);
         let stage_non_regular_before_kind = stage_non_regular_before_snapshot.0;
         ::core::assert_eq!(stage_non_regular_before_snapshot.0, "non_regular");
         ::core::assert_eq!(stage_non_regular_before_snapshot.1 & 0o170000, 0o140000);
-        let final_non_regular_before_snapshot =
-            crate::tests::exact_path_snapshot(&final_non_regular_path);
+        let final_non_regular_before_snapshot = crate::tests::exact_path_snapshot(&final_non_regular_path);
         let final_non_regular_before_kind = final_non_regular_before_snapshot.0;
         ::core::assert_eq!(final_non_regular_before_snapshot.0, "non_regular");
         ::core::assert_eq!(final_non_regular_before_snapshot.1 & 0o170000, 0o140000);
@@ -4169,47 +3373,26 @@ mod tests {
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected owned-entry recovery error");
         let owner_tree_after_snapshot = crate::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::tests::exact_tree_delta_paths(
-            &owner_tree_before_snapshot,
-            &owner_tree_after_snapshot,
-        );
-        ::core::assert_eq!(
-            operation_delta.0,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.1,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
-        ::core::assert_eq!(
-            operation_delta.2,
-            ::std::vec::Vec::<::std::path::PathBuf>::new()
-        );
+        let operation_delta = crate::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
+        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
+        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
         let object_stage_after_snapshot = crate::tests::exact_path_snapshot(&object_stage_path);
         let object_stage_after_kind = object_stage_after_snapshot.0;
         ::core::assert_eq!(object_stage_after_snapshot, object_stage_before_snapshot);
-        let fanout_non_regular_after_snapshot =
-            crate::tests::exact_path_snapshot(&fanout_non_regular_path);
+        let fanout_non_regular_after_snapshot = crate::tests::exact_path_snapshot(&fanout_non_regular_path);
         let fanout_non_regular_after_kind = fanout_non_regular_after_snapshot.0;
-        ::core::assert_eq!(
-            fanout_non_regular_after_snapshot,
-            fanout_non_regular_before_snapshot
-        );
-        let stage_non_regular_after_snapshot =
-            crate::tests::exact_path_snapshot(&stage_non_regular_path);
+        ::core::assert_eq!(fanout_non_regular_after_snapshot, fanout_non_regular_before_snapshot);
+        let stage_non_regular_after_snapshot = crate::tests::exact_path_snapshot(&stage_non_regular_path);
         let stage_non_regular_after_kind = stage_non_regular_after_snapshot.0;
-        ::core::assert_eq!(
-            stage_non_regular_after_snapshot,
-            stage_non_regular_before_snapshot
-        );
-        let final_non_regular_after_snapshot =
-            crate::tests::exact_path_snapshot(&final_non_regular_path);
+        ::core::assert_eq!(stage_non_regular_after_snapshot, stage_non_regular_before_snapshot);
+        let final_non_regular_after_snapshot = crate::tests::exact_path_snapshot(&final_non_regular_path);
         let final_non_regular_after_kind = final_non_regular_after_snapshot.0;
-        ::core::assert_eq!(
-            final_non_regular_after_snapshot,
-            final_non_regular_before_snapshot
-        );
+        ::core::assert_eq!(final_non_regular_after_snapshot, final_non_regular_before_snapshot);
         ::core::assert_eq!(error.symbol(), "STORE_IO");
+        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
+        ::core::assert_eq!(object_stage_before_kind, "regular");
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
     }
 
     #[test]

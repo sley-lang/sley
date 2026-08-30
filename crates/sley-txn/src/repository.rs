@@ -12783,16 +12783,30 @@ mod tests {
     ///
     /// Bound at a short staging path and renamed into place: fixture roots under
     /// the temp dir routinely exceed `SUN_LEN` (108 bytes), which `bind` rejects.
-    /// Any pre-existing entry at `path` is replaced.
+    /// A pre-existing entry is replaced only when `replace` is true.
     fn plant_non_regular_socket(
         path: &::std::path::Path,
+        replace: bool,
     ) -> ::std::os::unix::net::UnixDatagram {
-        let _ = ::std::fs::remove_file(path);
-        let sequence = TEMP_DIR_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+        if replace {
+            ::std::fs::remove_file(path).unwrap();
+        } else {
+            ::core::assert!(::core::matches!(
+                ::std::fs::symlink_metadata(path),
+                ::core::result::Result::Err(error)
+                    if error.kind() == ::std::io::ErrorKind::NotFound
+            ));
+        }
+        static NEXT: ::std::sync::atomic::AtomicU64 =
+            ::std::sync::atomic::AtomicU64::new(0);
+        let sequence = NEXT.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
         let staging = ::std::env::temp_dir().join(::std::format!(
-            "sley-txn-nr-{}-{sequence:016x}",
+            "s2nr-{}-{sequence:016x}",
             ::std::process::id()
         ));
+        ::core::assert!(
+            ::std::os::unix::ffi::OsStrExt::as_bytes(staging.as_os_str()).len() < 108
+        );
         let socket = ::std::os::unix::net::UnixDatagram::bind(&staging).unwrap();
         ::std::fs::rename(&staging, path).unwrap();
         socket
@@ -12800,8 +12814,164 @@ mod tests {
 
     /// Plants a symlink, replacing any pre-existing entry at `path`.
     fn plant_symlink_entry(target: &str, path: &::std::path::Path) {
-        let _ = ::std::fs::remove_file(path);
+        ::std::fs::remove_file(path).unwrap();
         ::std::os::unix::fs::symlink(target, path).unwrap();
+    }
+
+    struct ReceiptRecoverySymlinkPointerFixture {
+        m2_owner_accepted_pointer_path: ::std::path::PathBuf,
+        m2_primary_locator: ::std::string::String,
+        m2_primary_parent_paths: ::std::vec::Vec<::std::path::PathBuf>,
+        m2_primary_path_kinds: ::std::vec::Vec<&'static str>,
+        m2_primary_paths: ::std::vec::Vec<::std::path::PathBuf>,
+        m2_primary_regular_canary_path: ::std::path::PathBuf,
+        m2_pristine_primary_observation: [ExactOptionalPathSnapshot; 3],
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_pointer_computed_checksum: [u8; 32],
+        m2_secondary_pointer_recorded_checksum: [u8; 32],
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    fn observe_receipt_recovery_symlink_pointer_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &ReceiptRecoverySymlinkPointerFixture,
+    ) -> [ExactOptionalPathSnapshot; 3] {
+        ::core::array::from_fn(|index| {
+            exact_optional_path_snapshot(&m2_fixture.m2_primary_paths[index])
+        })
+    }
+
+    fn observe_receipt_recovery_symlink_pointer_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &ReceiptRecoverySymlinkPointerFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn exact_symlink_metadata_set(
+        _fixture: &Fixture,
+        m2_fixture: &ReceiptRecoverySymlinkPointerFixture,
+    ) -> ::core::result::Result<(), ::std::io::Error> {
+        for path in &m2_fixture.m2_primary_paths {
+            let metadata = ::std::fs::symlink_metadata(path)?;
+            if !metadata.file_type().is_symlink() {
+                return ::core::result::Result::Err(::std::io::Error::other(
+                    "owned-entry multifault path is not a symlink",
+                ));
+            }
+        }
+        ::core::result::Result::Err(::std::io::Error::other(
+            "owned-entry multifault symlink set",
+        ))
+    }
+
+    fn decode_accepted_pointer_error_m2(
+        _fixture: &Fixture,
+        m2_fixture: &ReceiptRecoverySymlinkPointerFixture,
+    ) -> ::core::result::Result<TransactionId, super::CommitError> {
+        super::decode_head(&::std::fs::read(&m2_fixture.m2_secondary_path)?)
+    }
+
+    fn prepare_receipt_recovery_symlink_pointer_fixture(
+        fixture: &Fixture,
+    ) -> ReceiptRecoverySymlinkPointerFixture {
+        let owner_root = fixture.repository.root();
+        let m2_primary_regular_canary_path = owner_root
+            .join("transactions/v1/00/00/.sley-txn-stage-1-0000000000000000.tmp");
+        ::std::fs::create_dir_all(m2_primary_regular_canary_path.parent().unwrap()).unwrap();
+        ::std::fs::write(
+            &m2_primary_regular_canary_path,
+            b"S20-530:COR-02:receipt_stage",
+        )
+        .unwrap();
+
+        let m2_primary_paths = ::std::vec![
+            owner_root.join("transactions/v1/fd"),
+            owner_root.join(
+                "transactions/v1/fe/00/.sley-txn-stage-2-2222222222222222.tmp",
+            ),
+            owner_root.join(
+                "transactions/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.receipt.scb1",
+            ),
+        ];
+        for path in &m2_primary_paths {
+            ::std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        }
+        let m2_primary_parent_paths = m2_primary_paths
+            .iter()
+            .map(|path| path.parent().unwrap().to_path_buf())
+            .collect::<::std::vec::Vec<_>>();
+        let m2_pristine_primary_observation = ::core::array::from_fn(|index| {
+            exact_optional_path_snapshot(&m2_primary_paths[index])
+        });
+
+        let m2_secondary_path = fixture.repository.head_path();
+        let mut pointer_bytes = ::std::fs::read(&m2_secondary_path).unwrap();
+        let prefix_len = pointer_bytes.len().checked_sub(32).unwrap();
+        let mut hasher = ::blake3::Hasher::new();
+        hasher.update(super::HEAD_CHECKSUM_DOMAIN);
+        hasher.update(&pointer_bytes[..prefix_len]);
+        let m2_secondary_pointer_computed_checksum = *hasher.finalize().as_bytes();
+        *pointer_bytes.last_mut().unwrap() ^= 1;
+        let m2_secondary_pointer_recorded_checksum = pointer_bytes[prefix_len..]
+            .try_into()
+            .unwrap();
+        ::std::fs::write(&m2_secondary_path, &pointer_bytes).unwrap();
+        ::std::fs::File::open(&m2_secondary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_secondary_path.parent().unwrap()).unwrap();
+        let m2_secondary_only_observation = exact_path_snapshot(&m2_secondary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(owner_root);
+
+        let targets = [
+            "../../../../s20-530-cor-02-fanout_symlink",
+            "../../../../s20-530-cor-02-stage_symlink",
+            "../../../../s20-530-cor-02-final_symlink",
+        ];
+        for (path, target) in m2_primary_paths.iter().zip(targets) {
+            ::std::os::unix::fs::symlink(target, path).unwrap();
+        }
+        for parent in &m2_primary_parent_paths {
+            super::sync_dir(parent).unwrap();
+        }
+        let m2_primary_path_kinds = m2_primary_paths
+            .iter()
+            .map(|path| {
+                if ::std::fs::symlink_metadata(path)
+                    .unwrap()
+                    .file_type()
+                    .is_symlink()
+                {
+                    "symlink"
+                } else {
+                    "other"
+                }
+            })
+            .collect::<::std::vec::Vec<_>>();
+
+        ReceiptRecoverySymlinkPointerFixture {
+            m2_owner_accepted_pointer_path: m2_secondary_path.clone(),
+            m2_primary_locator: "receipt-recovery-symlink-set".to_owned(),
+            m2_primary_parent_paths,
+            m2_primary_path_kinds,
+            m2_primary_paths,
+            m2_primary_regular_canary_path,
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_pointer_computed_checksum,
+            m2_secondary_pointer_recorded_checksum,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
     }
 
     #[test]
@@ -13246,81 +13416,103 @@ mod tests {
 
     #[test]
     fn cor02_symlink() {
-        let fixture = Fixture::new("s20-530-cor-02-symlink");
+        let fixture = Fixture::new("s20-530-m2-cor-02-symlink");
         let repository: &super::TransactionRepository = &fixture.repository;
         let owner_root = repository.root();
         ::core::assert_eq!(owner_root, fixture.path());
-        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
-        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let receipt_stage_relative_path = ::std::path::PathBuf::from("transactions/v1/00/00/.sley-txn-stage-1-0000000000000000.tmp");
-        let receipt_stage_path = owner_root.join(&receipt_stage_relative_path);
-        ::core::assert_eq!(receipt_stage_path.strip_prefix(owner_root).unwrap(), receipt_stage_relative_path);
-        let fanout_symlink_relative_path = ::std::path::PathBuf::from("transactions/v1/fd");
-        let fanout_symlink_path = owner_root.join(&fanout_symlink_relative_path);
-        ::core::assert_eq!(fanout_symlink_path.strip_prefix(owner_root).unwrap(), fanout_symlink_relative_path);
-        let stage_symlink_relative_path = ::std::path::PathBuf::from("transactions/v1/fe/00/.sley-txn-stage-2-2222222222222222.tmp");
-        let stage_symlink_path = owner_root.join(&stage_symlink_relative_path);
-        ::core::assert_eq!(stage_symlink_path.strip_prefix(owner_root).unwrap(), stage_symlink_relative_path);
-        let final_symlink_relative_path = ::std::path::PathBuf::from("transactions/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.receipt.scb1");
-        let final_symlink_path = owner_root.join(&final_symlink_relative_path);
-        ::core::assert_eq!(final_symlink_path.strip_prefix(owner_root).unwrap(), final_symlink_relative_path);
-        ::std::fs::create_dir_all(receipt_stage_path.parent().unwrap()).unwrap();
-        ::std::fs::write(&receipt_stage_path, "S20-530:COR-02:receipt_stage".as_bytes()).unwrap();
-        ::std::fs::create_dir_all(fanout_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink("../../../../s20-530-cor-02-fanout_symlink", &fanout_symlink_path).unwrap();
-        ::std::fs::create_dir_all(stage_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink("../../../../s20-530-cor-02-stage_symlink", &stage_symlink_path).unwrap();
-        ::std::fs::create_dir_all(final_symlink_path.parent().unwrap()).unwrap();
-        ::std::os::unix::fs::symlink("../../../../s20-530-cor-02-final_symlink", &final_symlink_path).unwrap();
-        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let fixture_delta = crate::repository::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
-        ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("transactions/v1/00"),::std::path::PathBuf::from("transactions/v1/00/00"),::std::path::PathBuf::from("transactions/v1/00/00/.sley-txn-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("transactions/v1/fd"),::std::path::PathBuf::from("transactions/v1/fe"),::std::path::PathBuf::from("transactions/v1/fe/00"),::std::path::PathBuf::from("transactions/v1/fe/00/.sley-txn-stage-2-2222222222222222.tmp"),::std::path::PathBuf::from("transactions/v1/ff"),::std::path::PathBuf::from("transactions/v1/ff/00"),::std::path::PathBuf::from("transactions/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.receipt.scb1")]);
-        ::core::assert_eq!(fixture_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
-        ::core::assert_eq!(fixture_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
-        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
-        ::core::assert_eq!(receipt_stage_before_snapshot.0, "regular");
-        ::core::assert_eq!(receipt_stage_before_snapshot.2, "S20-530:COR-02:receipt_stage".as_bytes().to_vec());
-        let fanout_symlink_before_snapshot = crate::repository::tests::exact_path_snapshot(&fanout_symlink_path);
-        let fanout_symlink_before_kind = fanout_symlink_before_snapshot.0;
-        ::core::assert_eq!(fanout_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(fanout_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-02-fanout_symlink")));
-        let stage_symlink_before_snapshot = crate::repository::tests::exact_path_snapshot(&stage_symlink_path);
-        let stage_symlink_before_kind = stage_symlink_before_snapshot.0;
-        ::core::assert_eq!(stage_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(stage_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-02-stage_symlink")));
-        let final_symlink_before_snapshot = crate::repository::tests::exact_path_snapshot(&final_symlink_path);
-        let final_symlink_before_kind = final_symlink_before_snapshot.0;
-        ::core::assert_eq!(final_symlink_before_snapshot.0, "symlink");
-        ::core::assert_eq!(final_symlink_before_snapshot.3, ::core::option::Option::Some(::std::path::PathBuf::from("../../../../s20-530-cor-02-final_symlink")));
-        ::core::assert!(receipt_stage_relative_path < fanout_symlink_relative_path);
-        ::core::assert!(receipt_stage_relative_path < stage_symlink_relative_path);
-        ::core::assert!(receipt_stage_relative_path < final_symlink_relative_path);
-        let result = repository.recover_with_maintenance(&maintenance);
-        ::core::assert!(result.is_err());
-        let error = result.expect_err("expected owned-entry recovery error");
-        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let operation_delta = crate::repository::tests::exact_tree_delta_paths(&owner_tree_before_snapshot, &owner_tree_after_snapshot);
-        ::core::assert_eq!(operation_delta.0, ::std::vec::Vec::<::std::path::PathBuf>::new());
-        ::core::assert_eq!(operation_delta.1, ::std::vec::Vec::<::std::path::PathBuf>::new());
-        ::core::assert_eq!(operation_delta.2, ::std::vec::Vec::<::std::path::PathBuf>::new());
-        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
-        ::core::assert_eq!(receipt_stage_after_snapshot, receipt_stage_before_snapshot);
-        let fanout_symlink_after_snapshot = crate::repository::tests::exact_path_snapshot(&fanout_symlink_path);
-        let fanout_symlink_after_kind = fanout_symlink_after_snapshot.0;
-        ::core::assert_eq!(fanout_symlink_after_snapshot, fanout_symlink_before_snapshot);
-        let stage_symlink_after_snapshot = crate::repository::tests::exact_path_snapshot(&stage_symlink_path);
-        let stage_symlink_after_kind = stage_symlink_after_snapshot.0;
-        ::core::assert_eq!(stage_symlink_after_snapshot, stage_symlink_before_snapshot);
-        let final_symlink_after_snapshot = crate::repository::tests::exact_path_snapshot(&final_symlink_path);
-        let final_symlink_after_kind = final_symlink_after_snapshot.0;
-        ::core::assert_eq!(final_symlink_after_snapshot, final_symlink_before_snapshot);
-        ::core::assert_eq!(error.code(), "TXN_IO");
-        ::core::assert!(::core::matches!((&error), super::CommitError::Transaction(_)));
-        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
-        ::core::assert_eq!(receipt_stage_before_kind, "regular");
-        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        let m2_fixture = prepare_receipt_recovery_symlink_pointer_fixture(&fixture);
+        let m2_owner_accepted_pointer_path = m2_fixture.m2_owner_accepted_pointer_path.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_primary_parent_paths = m2_fixture.m2_primary_parent_paths.clone();
+        let m2_primary_path_kinds = m2_fixture.m2_primary_path_kinds.clone();
+        let m2_primary_paths = m2_fixture.m2_primary_paths.clone();
+        let m2_primary_regular_canary_path = m2_fixture.m2_primary_regular_canary_path.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_pointer_computed_checksum = m2_fixture.m2_secondary_pointer_computed_checksum.clone();
+        let m2_secondary_pointer_recorded_checksum = m2_fixture.m2_secondary_pointer_recorded_checksum.clone();
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_three_symlink_paths_exact", m2_primary_paths.len()), ("primary_three_symlink_paths_exact", 3_usize));
+        ::core::assert_eq!(("primary_three_symlinks_non_followed", m2_primary_path_kinds.as_slice()), ("primary_three_symlinks_non_followed", &["symlink", "symlink", "symlink"][..]));
+        ::core::assert!(!m2_primary_paths.contains(&m2_primary_regular_canary_path), "primary_regular_canary_excluded");
+        ::core::assert_eq!(("secondary_pointer_path_from_owner", m2_secondary_path.as_path()), ("secondary_pointer_path_from_owner", m2_owner_accepted_pointer_path.as_path()));
+        ::core::assert_ne!(("secondary_pointer_checksum_corrupt", m2_secondary_pointer_computed_checksum), ("secondary_pointer_checksum_corrupt", m2_secondary_pointer_recorded_checksum));
+        ::core::assert_ne!(("primary_path_set_disjoint_from_secondary_path", m2_primary_locator.as_str()), ("primary_path_set_disjoint_from_secondary_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = exact_symlink_metadata_set(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = decode_accepted_pointer_error_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_ref_head_corrupt", m2_secondary_probe_error.code()), ("secondary_probe_ref_head_corrupt", "REF_HEAD_CORRUPT"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_owned_entry_canary_before_snapshot = crate::repository::tests::exact_path_snapshot(&m2_primary_regular_canary_path);
+        let m2_owned_entry_canary_before_kind = m2_owned_entry_canary_before_snapshot.0;
+        let m2_receiver_identity_1 = repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_receipt_recovery_symlink_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_receipt_recovery_symlink_pointer_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_receipt_recovery_symlink_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_receipt_recovery_symlink_pointer_fixture_secondary(&fixture, &m2_fixture);
+        let m2_owned_entry_canary_after_snapshot = crate::repository::tests::exact_path_snapshot(&m2_primary_regular_canary_path);
+        let m2_owned_entry_canary_after_kind = m2_owned_entry_canary_after_snapshot.0;
+        ::core::assert_eq!(m2_owned_entry_canary_before_snapshot, m2_owned_entry_canary_after_snapshot);
+        ::core::assert_eq!(m2_owned_entry_canary_before_kind, m2_owned_entry_canary_after_kind);
+        ::core::assert_eq!(m2_owned_entry_canary_before_kind, "regular");
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "TXN_IO"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::CommitError::Transaction(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::remove_file(&m2_primary_paths[0]).unwrap();
+        ::std::fs::remove_file(&m2_primary_paths[1]).unwrap();
+        ::std::fs::remove_file(&m2_primary_paths[2]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[0]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[1]).unwrap();
+        super::sync_dir(&m2_primary_parent_paths[2]).unwrap();
+        let m2_primary_after_repair = observe_receipt_recovery_symlink_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_receipt_recovery_symlink_pointer_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_receipt_recovery_symlink_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_receipt_recovery_symlink_pointer_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_receipt_recovery_symlink_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_receipt_recovery_symlink_pointer_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::CommitError::Transaction(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 
     #[test]
@@ -13346,11 +13538,11 @@ mod tests {
         ::std::fs::create_dir_all(receipt_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&receipt_stage_path, "S20-530:COR-02:receipt_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(fanout_non_regular_path.parent().unwrap()).unwrap();
-        let _fanout_non_regular_socket = plant_non_regular_socket(&fanout_non_regular_path);
+        let _fanout_non_regular_socket = plant_non_regular_socket(&fanout_non_regular_path, false);
         ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
-        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path);
+        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path, false);
         ::std::fs::create_dir_all(final_non_regular_path.parent().unwrap()).unwrap();
-        let _final_non_regular_socket = plant_non_regular_socket(&final_non_regular_path);
+        let _final_non_regular_socket = plant_non_regular_socket(&final_non_regular_path, false);
         let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
         let fixture_delta = crate::repository::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
         ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("transactions/v1/00"),::std::path::PathBuf::from("transactions/v1/00/00"),::std::path::PathBuf::from("transactions/v1/00/00/.sley-txn-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("transactions/v1/fd"),::std::path::PathBuf::from("transactions/v1/fe"),::std::path::PathBuf::from("transactions/v1/fe/00"),::std::path::PathBuf::from("transactions/v1/fe/00/.sley-txn-stage-2-2222222222222222.tmp"),::std::path::PathBuf::from("transactions/v1/ff"),::std::path::PathBuf::from("transactions/v1/ff/00"),::std::path::PathBuf::from("transactions/v1/ff/00/ff00777777777777777777777777777777777777777777777777777777777777.receipt.scb1")]);
@@ -13787,9 +13979,9 @@ mod tests {
         ::std::fs::create_dir_all(head_stage_path.parent().unwrap()).unwrap();
         ::std::fs::write(&head_stage_path, "S20-530:COR-03:head_stage".as_bytes()).unwrap();
         ::std::fs::create_dir_all(stage_non_regular_path.parent().unwrap()).unwrap();
-        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path);
+        let _stage_non_regular_socket = plant_non_regular_socket(&stage_non_regular_path, false);
         ::std::fs::create_dir_all(accepted_non_regular_path.parent().unwrap()).unwrap();
-        let _accepted_non_regular_socket = plant_non_regular_socket(&accepted_non_regular_path);
+        let _accepted_non_regular_socket = plant_non_regular_socket(&accepted_non_regular_path, true);
         let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
         let fixture_delta = crate::repository::tests::exact_tree_delta_paths(&fresh_owner_tree_snapshot, &owner_tree_before_snapshot);
         ::core::assert_eq!(fixture_delta.0, ::std::vec![::std::path::PathBuf::from("heads/.sley-head-stage-1-0000000000000000.tmp"),::std::path::PathBuf::from("heads/.sley-head-stage-2-0000000000000002.tmp")]);
