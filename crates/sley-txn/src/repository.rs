@@ -3333,21 +3333,22 @@ fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
 mod tests {
     use std::sync::{Arc, Barrier};
 
-    use sley_id::{CandidateNonce, ObjectId, WorkspaceId};
+    use sley_id::{CandidateId, CandidateNonce, ObjectId, WorkspaceId};
     use sley_mutate::{
         BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObjectRecord,
         ExactEntityVersion, ExpectedIdentityAbsent, ImportedCandidate, MutationClass,
         MutationOperation,
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
         build_entity_object, full_validation_profile_id,
-        value::{EntityBodyValue, EntityIdSet, NamespaceBody},
+        value::{ConstantBody, EntityBodyValue, EntityIdSet, NamespaceBody},
     };
     use sley_policy::{
         PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
         build_capability_summary_projection, conformance_registry as policy_registry,
     };
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
     use sley_state_root::{
-        StateRootBuilder, conformance_epoch_id as state_epoch_id,
+        StateRootBuilder, StateRootRecord, conformance_epoch_id as state_epoch_id,
         conformance_registry as state_registry,
     };
 
@@ -3542,6 +3543,468 @@ mod tests {
             expiry: CandidateExpiry::unix_millis(NOW + 1_000),
         })
         .unwrap()
+    }
+
+    fn constant_candidate_for(
+        workspace_id: WorkspaceId,
+        principal_id: PrincipalId,
+        base_transaction_id: TransactionId,
+        base_state: &AcceptedStateRoot,
+        policy: &AcceptedPolicyRoot,
+        nonce_byte: u8,
+        value: ConstValue,
+    ) -> ImportedCandidate {
+        let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+        let target = EntityId::derive(workspace_id, nonce, 9, 0);
+        let summary = build_capability_summary_projection(
+            principal_id,
+            workspace_id,
+            policy.root(),
+            base_state.root,
+            &[],
+        )
+        .unwrap();
+        build_candidate(&CandidateRecord {
+            format_version: 1,
+            workspace_id,
+            base_transaction_id,
+            base_root: base_state.root,
+            schema_epoch_id: base_state.record.schema_epoch_id,
+            policy_root_id: policy.root(),
+            principal_id,
+            capability_summary_digest: summary.digest(),
+            operations: vec![MutationOperation {
+                ordinal: 0,
+                class: MutationClass::CreateEntity,
+                target_kind: 9,
+                target_entity: target,
+                field_tag: None,
+                payload: MutationPayload::CreateEntity(EntityBodyValue::Constant(
+                    ConstantBody { value },
+                )),
+                precondition_ordinal: 0,
+            }],
+            preconditions: vec![BoundPrecondition {
+                operation_ordinal: 0,
+                requirement: PreimageRequirement::ExpectedIdentityAbsent,
+                payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                    entity_id: target,
+                }),
+            }],
+            validation_profile_id: full_validation_profile_id().unwrap(),
+            candidate_nonce: nonce,
+            expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+        })
+        .unwrap()
+    }
+
+    fn v5_reseal_candidate_byte(
+        pristine: &[u8],
+        offset: usize,
+        replacement: u8,
+    ) -> Vec<u8> {
+        let digest_offset = pristine.len().checked_sub(32).unwrap();
+        ::core::assert!(offset < digest_offset);
+        let mut corrupted = pristine.to_vec();
+        corrupted[offset] = replacement;
+        let candidate_id = CandidateId::derive(&corrupted[..digest_offset]);
+        corrupted[digest_offset..].copy_from_slice(candidate_id.as_bytes());
+        corrupted
+    }
+
+    fn v5_unique_subslice_offset(haystack: &[u8], needle: &[u8]) -> usize {
+        let offsets = haystack
+            .windows(needle.len())
+            .enumerate()
+            .filter_map(|(offset, window)| (window == needle).then_some(offset))
+            .collect::<Vec<_>>();
+        ::core::assert_eq!(offsets.len(), 1, "carrier bytes occur exactly once");
+        offsets[0]
+    }
+
+    fn v5_encode_option_bytes(value: Option<&[u8]>) -> Vec<u8> {
+        match value {
+            None => sley_scb1::encode_union(0, &[]).unwrap(),
+            Some(value) => {
+                let bytes = sley_scb1::encode_bytes(value).unwrap();
+                sley_scb1::encode_union(1, &bytes).unwrap()
+            }
+        }
+    }
+
+    fn v5_receipt_record_payload(record: &TransactionReceiptRecord) -> Vec<u8> {
+        let manifest = record
+            .object_manifest
+            .iter()
+            .map(|entry| {
+                sley_scb1::encode_record(&[
+                    (1, entry.object_id.as_bytes().to_vec()),
+                    (2, sley_scb1::encode_uvar(entry.stored_length)),
+                ])
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        sley_scb1::encode_record(&[
+            (1, sley_scb1::encode_uvar(u64::from(record.format_version))),
+            (2, record.transaction_id.as_bytes().to_vec()),
+            (3, sley_scb1::encode_bytes(&record.stored_transaction).unwrap()),
+            (4, v5_encode_option_bytes(record.stored_candidate.as_deref())),
+            (
+                5,
+                v5_encode_option_bytes(record.stored_candidate_result.as_deref()),
+            ),
+            (6, sley_scb1::encode_bytes(&record.stored_state_root).unwrap()),
+            (7, sley_scb1::encode_bytes(&record.stored_policy_root).unwrap()),
+            (8, sley_scb1::encode_list(&manifest).unwrap()),
+            (9, sley_scb1::encode_uvar(u64::from(record.durability_profile))),
+        ])
+        .unwrap()
+    }
+
+    fn v5_receipt_stored_bytes(record: &TransactionReceiptRecord) -> Vec<u8> {
+        let payload = v5_receipt_record_payload(record);
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(&crate::codec::RECEIPT_MAGIC);
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(1));
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(payload.len() as u64));
+        preimage.extend_from_slice(&payload);
+        let receipt_id = ReceiptId::derive(&preimage);
+        preimage.extend_from_slice(receipt_id.as_bytes());
+        preimage
+    }
+
+    fn v5_commit_candidate_and_assert_recovery_error(
+        fixture: &Fixture,
+        candidate: &ImportedCandidate,
+        corrupted_candidate: Vec<u8>,
+        expected_code: &str,
+    ) {
+        let output = fixture
+            .repository
+            .commit(CommitInput::new(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .unwrap();
+        let accepted = fixture.repository.accepted_head().unwrap();
+        let mut record = accepted.receipt().record.clone();
+        ::core::assert_eq!(
+            record.stored_candidate.as_deref(),
+            Some(candidate.stored_bytes.as_slice())
+        );
+        record.stored_candidate = Some(corrupted_candidate);
+        let corrupted_receipt = v5_receipt_stored_bytes(&record);
+        let direct = import_transaction_receipt(&corrupted_receipt)
+            .expect_err("candidate carrier must fail direct receipt import");
+        ::core::assert_eq!(direct.code(), expected_code);
+        ::core::assert!(::core::matches!(
+            &direct,
+            TransactionCodecError::Candidate(sley_mutate::CandidateError::Scb(_))
+        ));
+        let receipt_path = fixture.repository.receipt_path(output.transaction_id()).unwrap();
+        write_corruption_file(&receipt_path, &corrupted_receipt);
+        let error = fixture
+            .repository
+            .recover()
+            .expect_err("candidate carrier must fail recovery import");
+        ::core::assert_eq!(error.code(), expected_code);
+        ::core::assert!(::core::matches!(
+            &error,
+            CommitError::Codec(TransactionCodecError::Candidate(
+                sley_mutate::CandidateError::Scb(_)
+            ))
+        ));
+    }
+
+    fn v5_state_root_binding_bytes(
+        bindings: &[(EntityId, ObjectId)],
+        duplicate_first: bool,
+    ) -> Vec<u8> {
+        let mut rows = bindings
+            .iter()
+            .map(|(entity_id, object_id)| {
+                let mut row = Vec::new();
+                row.extend_from_slice(&sley_scb1::encode_uvar(32));
+                row.extend_from_slice(entity_id.as_bytes());
+                row.extend_from_slice(&sley_scb1::encode_uvar(32));
+                row.extend_from_slice(object_id.as_bytes());
+                row
+            })
+            .collect::<Vec<_>>();
+        if duplicate_first {
+            rows.insert(1, rows[0].clone());
+        }
+        let mut encoded = sley_scb1::encode_uvar(rows.len() as u64);
+        for row in rows {
+            encoded.extend_from_slice(&row);
+        }
+        encoded
+    }
+
+    fn v5_state_root_fields(record: &StateRootRecord) -> Vec<(u32, Vec<u8>)> {
+        let bindings = record
+            .entity_bindings
+            .iter()
+            .map(|(entity_id, object_id)| {
+                (entity_id.as_bytes().to_vec(), object_id.as_bytes().to_vec())
+            })
+            .collect::<Vec<_>>();
+        let entry_points = record
+            .entry_points
+            .iter()
+            .map(|value| value.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        let dependency_roots = record
+            .dependency_roots
+            .iter()
+            .map(|value| value.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        let flags = record
+            .interpretation_flags
+            .iter()
+            .map(|value| sley_scb1::encode_uvar(u64::from(*value)))
+            .collect::<Vec<_>>();
+        vec![
+            (1, record.workspace_id.as_bytes().to_vec()),
+            (2, record.schema_epoch_id.as_bytes().to_vec()),
+            (3, sley_scb1::encode_map(&bindings).unwrap()),
+            (4, sley_scb1::encode_list(&entry_points).unwrap()),
+            (5, sley_scb1::encode_list(&dependency_roots).unwrap()),
+            (6, record.contract_root.as_bytes().to_vec()),
+            (7, record.test_root.as_bytes().to_vec()),
+            (8, record.policy_root.as_bytes().to_vec()),
+            (9, sley_scb1::encode_list(&flags).unwrap()),
+        ]
+    }
+
+    fn v5_manual_record(fields: &[(u32, Vec<u8>)]) -> Vec<u8> {
+        let mut encoded = sley_scb1::encode_uvar(fields.len() as u64);
+        for (tag, value) in fields {
+            encoded.extend_from_slice(&sley_scb1::encode_uvar(u64::from(*tag)));
+            encoded.extend_from_slice(&sley_scb1::encode_uvar(value.len() as u64));
+            encoded.extend_from_slice(value);
+        }
+        encoded
+    }
+
+    fn v5_state_root_stored_bytes(
+        envelope_epoch: SchemaEpochId,
+        contract_tag: u32,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(b"SLEYSCB1");
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(1));
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(u64::from(contract_tag)));
+        preimage.extend_from_slice(envelope_epoch.as_bytes());
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(payload.len() as u64));
+        preimage.extend_from_slice(payload);
+        let root = StateRoot::derive(&preimage);
+        preimage.extend_from_slice(root.as_bytes());
+        preimage
+    }
+
+    fn v5_state_root_contract_unknown(record: &StateRootRecord) -> Vec<u8> {
+        let payload = sley_scb1::encode_record(&v5_state_root_fields(record)).unwrap();
+        v5_state_root_stored_bytes(record.schema_epoch_id, 161, &payload)
+    }
+
+    fn v5_state_root_epoch_mismatch(record: &StateRootRecord) -> Vec<u8> {
+        let mut fields = v5_state_root_fields(record);
+        fields[1].1 = vec![0x6d; 32];
+        let payload = sley_scb1::encode_record(&fields).unwrap();
+        v5_state_root_stored_bytes(record.schema_epoch_id, 160, &payload)
+    }
+
+    fn v5_state_root_field_order(record: &StateRootRecord) -> Vec<u8> {
+        let mut fields = v5_state_root_fields(record);
+        fields.swap(0, 1);
+        let payload = v5_manual_record(&fields);
+        v5_state_root_stored_bytes(record.schema_epoch_id, 160, &payload)
+    }
+
+    fn v5_state_root_map_order(record: &StateRootRecord) -> Vec<u8> {
+        let mut fields = v5_state_root_fields(record);
+        let mut bindings = record.entity_bindings.clone();
+        ::core::assert!(bindings.len() >= 2);
+        bindings.reverse();
+        fields[2].1 = v5_state_root_binding_bytes(&bindings, false);
+        let payload = sley_scb1::encode_record(&fields).unwrap();
+        v5_state_root_stored_bytes(record.schema_epoch_id, 160, &payload)
+    }
+
+    fn v5_state_root_map_duplicate(record: &StateRootRecord) -> Vec<u8> {
+        let mut fields = v5_state_root_fields(record);
+        ::core::assert!(record.entity_bindings.len() >= 2);
+        fields[2].1 = v5_state_root_binding_bytes(&record.entity_bindings, true);
+        let payload = sley_scb1::encode_record(&fields).unwrap();
+        v5_state_root_stored_bytes(record.schema_epoch_id, 160, &payload)
+    }
+
+    fn v5_assert_state_root_carrier(
+        label: &str,
+        expected_code: &str,
+        corruptor: fn(&StateRootRecord) -> Vec<u8>,
+    ) {
+        let fixture = Fixture::new(label);
+        let output = commit_on_head(&fixture, 0xd4);
+        let accepted = fixture.repository.accepted_head().unwrap();
+        let mut record = accepted.receipt().record.clone();
+        record.stored_state_root = corruptor(&accepted.state_root().record);
+        let corrupted_receipt = v5_receipt_stored_bytes(&record);
+        let direct = import_transaction_receipt(&corrupted_receipt)
+            .expect_err("state-root carrier must fail direct receipt import");
+        ::core::assert_eq!(direct.code(), expected_code);
+        ::core::assert!(::core::matches!(
+            &direct,
+            TransactionCodecError::StateRoot(sley_state_root::StateRootError::Scb(_))
+        ));
+        let receipt_path = fixture.repository.receipt_path(output.transaction_id()).unwrap();
+        write_corruption_file(&receipt_path, &corrupted_receipt);
+        let error = fixture
+            .repository
+            .recover()
+            .expect_err("state-root carrier must fail recovery import");
+        ::core::assert_eq!(error.code(), expected_code);
+        ::core::assert!(::core::matches!(
+            &error,
+            CommitError::Codec(TransactionCodecError::StateRoot(
+                sley_state_root::StateRootError::Scb(_)
+            ))
+        ));
+    }
+
+    #[test]
+    fn v5_candidate_scb_carriers_reach_recovery_import() {
+        let bool_fixture = Fixture::new("v5-candidate-bool-carrier");
+        let bool_head = bool_fixture.repository.accepted_head().unwrap();
+        let bool_true = constant_candidate_for(
+            bool_head.state_root().record.workspace_id,
+            bool_fixture.principal_id,
+            bool_head.transaction_id(),
+            bool_head.state_root(),
+            bool_head.policy_root(),
+            0xd1,
+            ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        );
+        let bool_false = constant_candidate_for(
+            bool_head.state_root().record.workspace_id,
+            bool_fixture.principal_id,
+            bool_head.transaction_id(),
+            bool_head.state_root(),
+            bool_head.policy_root(),
+            0xd1,
+            ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(false),
+            },
+        );
+        let digest_offset = bool_true.stored_bytes.len() - 32;
+        let changed = bool_true.stored_bytes[..digest_offset]
+            .iter()
+            .zip(&bool_false.stored_bytes[..digest_offset])
+            .enumerate()
+            .filter_map(|(offset, (left, right))| (left != right).then_some(offset))
+            .collect::<Vec<_>>();
+        ::core::assert_eq!(changed.len(), 1, "Bool carrier has one value byte");
+        let bool_corrupted = v5_reseal_candidate_byte(&bool_true.stored_bytes, changed[0], 2);
+        v5_commit_candidate_and_assert_recovery_error(
+            &bool_fixture,
+            &bool_true,
+            bool_corrupted,
+            "SCB_BOOL_INVALID",
+        );
+
+        let text_fixture = Fixture::new("v5-candidate-text-carrier");
+        let text_head = text_fixture.repository.accepted_head().unwrap();
+        let marker = "s20-530-v5-text-carrier-unique";
+        let text_candidate = constant_candidate_for(
+            text_head.state_root().record.workspace_id,
+            text_fixture.principal_id,
+            text_head.transaction_id(),
+            text_head.state_root(),
+            text_head.policy_root(),
+            0xd2,
+            ConstValue {
+                value_type: TypeExpr::Text,
+                data: ConstData::Text(marker.to_owned()),
+            },
+        );
+        let text_offset =
+            v5_unique_subslice_offset(&text_candidate.stored_bytes, marker.as_bytes());
+        let text_corrupted =
+            v5_reseal_candidate_byte(&text_candidate.stored_bytes, text_offset, 0x80);
+        v5_commit_candidate_and_assert_recovery_error(
+            &text_fixture,
+            &text_candidate,
+            text_corrupted,
+            "SCB_UTF8_INVALID",
+        );
+
+        let float_fixture = Fixture::new("v5-candidate-float-carrier");
+        let float_head = float_fixture.repository.accepted_head().unwrap();
+        let float_candidate = constant_candidate_for(
+            float_head.state_root().record.workspace_id,
+            float_fixture.principal_id,
+            float_head.transaction_id(),
+            float_head.state_root(),
+            float_head.policy_root(),
+            0xd3,
+            ConstValue {
+                value_type: TypeExpr::F32,
+                data: ConstData::F32Bits(0x7fc0_0000),
+            },
+        );
+        let float_offset =
+            v5_unique_subslice_offset(&float_candidate.stored_bytes, &[0x7f, 0xc0, 0, 0]);
+        let float_corrupted =
+            v5_reseal_candidate_byte(&float_candidate.stored_bytes, float_offset + 3, 1);
+        v5_commit_candidate_and_assert_recovery_error(
+            &float_fixture,
+            &float_candidate,
+            float_corrupted,
+            "SCB_FLOAT_NON_CANONICAL",
+        );
+    }
+
+    #[test]
+    fn v5_state_root_scb_carriers_reach_recovery_import() {
+        for (label, code, corruptor) in [
+            (
+                "v5-state-root-contract-carrier",
+                "SCB_CONTRACT_UNKNOWN",
+                v5_state_root_contract_unknown as fn(&StateRootRecord) -> Vec<u8>,
+            ),
+            (
+                "v5-state-root-epoch-carrier",
+                "SCB_EPOCH_MISMATCH",
+                v5_state_root_epoch_mismatch,
+            ),
+            (
+                "v5-state-root-field-order-carrier",
+                "SCB_FIELD_ORDER",
+                v5_state_root_field_order,
+            ),
+            (
+                "v5-state-root-map-order-carrier",
+                "SCB_MAP_ORDER",
+                v5_state_root_map_order,
+            ),
+            (
+                "v5-state-root-map-duplicate-carrier",
+                "SCB_MAP_DUPLICATE",
+                v5_state_root_map_duplicate,
+            ),
+        ] {
+            v5_assert_state_root_carrier(label, code, corruptor);
+        }
     }
 
     type ExactPathSnapshot = (&'static str, u32, ::std::vec::Vec<u8>, ::core::option::Option<::std::path::PathBuf>);

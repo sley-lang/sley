@@ -1,6 +1,6 @@
 # S20-530 v5 semantic amendment design
 
-Status: PROPOSED, NOT AUTHORIZED FOR REFREEZE
+Status: AUTHORIZED FOR LOCAL REFREEZE, EXECUTION IN PROGRESS
 
 Owner: Codex orchestrator
 
@@ -14,10 +14,10 @@ behavior. This proposal repairs Rust call and assertion shapes, aligns visible
 revision cases with carriers the production codecs actually expose, and
 removes one recovery-unreachable SCB label case.
 
-This document is a design artifact only. It does not authorize editing the v4
-checker, specification, ADR, runner, freeze evidence, or machine-summary
-bindings. It does not authorize provider calls, publication, push, deployment,
-or external runtime mutation.
+The operator authorized the local v5 refreeze on 2026-08-30 after lifting the
+paused checkpoint. That authorization covers local checker, specification,
+ADR, runner, private test, and freeze-evidence work. It does not authorize
+provider calls, publication, push, deployment, or external runtime mutation.
 
 ## Current evidence
 
@@ -48,8 +48,8 @@ infer completion from the absence of checker output.
 | Finding | Confidence | Basis |
 |---|---|---|
 | helper-name, empty-array, NotFound, and array-shape amendments | high | direct compiler failures and exact checker renderings |
-| state-root carrier changes | high | production decoder order plus existing state-root corruption helpers and unit tests |
-| candidate Bool, UTF-8, and float carrier changes | moderate | codec types and error paths are present; an accepted typed-candidate fixture still needs an end-to-end prototype |
+| state-root carrier changes | high | exact contract, epoch, field-order, map-order, and duplicate-map mutations reach the proposed nested errors through direct receipt import and repository recovery |
+| candidate Bool, UTF-8, and float carrier changes | high | accepted typed candidates reach the proposed nested errors through direct receipt import and repository recovery |
 | removal of visible `SCB_LABEL_NOT_NFC` | high | label decoding exists only in entity-object metadata, while fixed-path object corruption loses first to digest or substitution checks |
 | candidate descriptor and payload result correction | high | decoder resolves descriptors and payload ownership before semantic candidate validation |
 
@@ -226,8 +226,10 @@ unimplemented under v4.
 v5 changes no production module, public API, wire format, error enum, recovery
 operation, storage layout, lock protocol, limit, or failure precedence. The
 only Rust source changes inside crates are private test helpers and mapped
-tests. The production projection must remain byte-identical after exact test
-and test-hook exclusions.
+tests. A dev-only `sley-ssmc` dependency lets the transaction crate build real
+typed candidate fixtures without altering its production dependency graph.
+The production projection must remain byte-identical after exact test and
+test-hook exclusions.
 
 ## Rejected alternatives
 
@@ -260,8 +262,8 @@ and test-hook exclusions.
   S20-530 imported-corruption expectations change.
 - The local Git authority bytes and no-network controls remain unchanged.
 - v4 evidence remains immutable historical evidence.
-- The v4 checker remains byte-identical until explicit operator authorization
-  starts the v5 refreeze.
+- The v4 checker remained byte-identical until the operator authorized the v5
+  refreeze on 2026-08-30.
 
 ## Required contract and evidence updates after authorization
 
@@ -292,8 +294,11 @@ gate.
 ## Refreeze sequence after explicit authorization
 
 1. Prototype the three typed-candidate carriers and five nested state-root
-   corruptions in disposable local tests. Require exact production error codes
-   before editing contract authority.
+   corruptions in local tests. Require exact production error codes before
+   editing contract authority. Completed: both direct transaction-receipt
+   import and repository recovery returned the exact proposed nested errors in
+   `v5_candidate_scb_carriers_reach_recovery_import` and
+   `v5_state_root_scb_carriers_reach_recovery_import`.
 2. Apply Amendments A through F to the checker, specification, ADR, runner, and
    private test helpers as one unsettled local change set.
 3. Recompute the grouped, fixture, and multifault registries, then update

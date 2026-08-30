@@ -18,5 +18,8 @@ sley-scb1 = { path = "../sley-scb1" }
 sley-state-root = { path = "../sley-state-root" }
 sley-store = { path = "../sley-store" }
 
+[dev-dependencies]
+sley-ssmc = { path = "../sley-ssmc" }
+
 [lints]
 workspace = true

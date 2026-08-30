@@ -280,6 +280,7 @@ dependencies = [
  "sley-mutate",
  "sley-policy",
  "sley-scb1",
+ "sley-ssmc",
  "sley-state-root",
  "sley-store",
 ]
