@@ -4147,6 +4147,110 @@ mod tests {
             .unwrap()
     }
 
+    fn corrupt_nested_state_root_digest_in_receipt(pristine: &[u8]) -> Vec<u8> {
+        let imported = import_transaction_receipt(pristine)
+            .expect("multifault canary pristine receipt");
+        let nested = imported.record.stored_state_root;
+        let offsets = pristine
+            .windows(nested.len())
+            .enumerate()
+            .filter_map(|(offset, window)| (window == nested.as_slice()).then_some(offset))
+            .collect::<Vec<_>>();
+        ::core::assert_eq!(offsets.len(), 1, "nested state root occurs exactly once");
+        let mut corrupted = pristine.to_vec();
+        let outer_digest_offset = corrupted
+            .len()
+            .checked_sub(32)
+            .expect("receipt has outer digest");
+        let nested_digest_byte = offsets[0]
+            .checked_add(nested.len())
+            .and_then(|end| end.checked_sub(1))
+            .expect("nested state-root digest byte");
+        ::core::assert!(nested_digest_byte < outer_digest_offset);
+        corrupted[nested_digest_byte] ^= 1;
+        let receipt_id = ReceiptId::derive(&corrupted[..outer_digest_offset]);
+        corrupted[outer_digest_offset..].copy_from_slice(receipt_id.as_bytes());
+        let error = import_transaction_receipt(&corrupted)
+            .expect_err("nested state-root corruption must fail import");
+        ::core::assert_eq!(error.code(), "SCB_DIGEST_MISMATCH");
+        corrupted
+    }
+
+    #[test]
+    fn anc04_canary_verifier_nested_codec_precedes_claim_mismatch() {
+        let fixture = Fixture::new("anc04-codec-claim-canary");
+        let first = commit_on_head(&fixture, 74).transaction_id();
+        let unreachable = commit_on_head(&fixture, 75).transaction_id();
+        let repository = &fixture.repository;
+        let requests = [RecoveryAncestryRequest::with_claims(
+            claim_for(repository, unreachable),
+            claim_for(repository, first),
+        )];
+        let receipt_path = repository.receipt_path_readonly(first).unwrap();
+        let pristine_receipt = ::std::fs::read(&receipt_path).unwrap();
+        let pristine_owner_tree = exact_tree_snapshot(repository.root());
+        let corrupted_receipt =
+            corrupt_nested_state_root_digest_in_receipt(&pristine_receipt);
+        ::std::fs::write(&receipt_path, &corrupted_receipt).unwrap();
+        ::std::fs::File::open(&receipt_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(receipt_path.parent().unwrap()).unwrap();
+
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        let primary_before = exact_tree_snapshot(repository.root());
+        let primary_result = repository
+            .verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests);
+        let primary_error = primary_result.expect_err("expected nested codec error");
+        let primary_after = exact_tree_snapshot(repository.root());
+        ::core::assert_eq!(primary_before, primary_after);
+        ::core::assert_eq!(
+            match &primary_error {
+                super::RecoveryAncestryError::Verification(inner) => inner.code(),
+                _ => "",
+            },
+            "SCB_DIGEST_MISMATCH"
+        );
+        ::core::assert!(::core::matches!(
+            &primary_error,
+            super::RecoveryAncestryError::Verification(super::CommitError::Codec(
+                crate::codec::TransactionCodecError::StateRoot(
+                    ::sley_state_root::StateRootError::Scb(_)
+                )
+            ))
+        ));
+        ::core::assert_eq!(
+            exact_error_source_chain(&primary_error),
+            ["CommitError", "TransactionCodecError"]
+        );
+
+        ::std::fs::write(&receipt_path, &pristine_receipt).unwrap();
+        ::std::fs::File::open(&receipt_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(receipt_path.parent().unwrap()).unwrap();
+        ::core::assert_eq!(
+            exact_tree_snapshot(repository.root()),
+            pristine_owner_tree
+        );
+
+        let secondary_before = exact_tree_snapshot(repository.root());
+        let secondary_result = repository
+            .verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests);
+        let secondary_error = secondary_result.expect_err("expected claim mismatch");
+        let secondary_after = exact_tree_snapshot(repository.root());
+        ::core::assert_eq!(secondary_before, secondary_after);
+        ::core::assert!(::core::matches!(
+            secondary_error,
+            super::RecoveryAncestryError::ClaimMismatch {
+                request_index: 0,
+                claim_index: 0,
+            }
+        ));
+    }
+
     #[test]
     fn transaction_durability_cut_selection_installs_and_clears() {
         let transaction_id = TransactionId::from_bytes([3; 32]);
