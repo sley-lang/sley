@@ -11,6 +11,8 @@ pub enum RecoveryPathReadKind {
     Receipt,
     /// An immutable entity-object read.
     Object,
+    /// A canonical branch-owner record read.
+    Ref,
 }
 
 struct RecoveryPathReadPlan {
