@@ -11,8 +11,9 @@ Decision date: 2026-08-30, America/New_York
 Refreeze the S20-530 checker for one newly proven helper-identity collision
 between the completed ANC-06 multifault cases and the unmerged COR-07
 visible-revision cases. The amendment changes two ANC-06 test-helper names and
-no recovery result, error precedence, matrix row, limit event, or production
-API.
+refreshes three stale test-only anchors exposed by the authoritative checker.
+It changes no recovery result, error precedence, matrix row, limit event, or
+production API.
 
 The v4 freeze does not claim S20-530 implementation completion. It does not
 authorize publication, push, deployment, provider use, or external runtime
@@ -54,6 +55,10 @@ unsatisfiable under the current stable-Rust and direct-test constraints.
 Both reviews were read-only and bound to this narrow helper-identity decision.
 Fresh final-contract reviews remain required after the v4 digests settle.
 
+The first final-contract review set was invalidated before commit when the full
+checker exposed three additional v3 test-only anchors. Those records are not
+reused under the expanded payload.
+
 ## Amendment
 
 Rename only the two ANC-06 primary probe helper IDs:
@@ -66,6 +71,42 @@ Rename only the two ANC-06 primary probe helper IDs:
 The checker-owned `MULTIFAULT_OVERLAY_REGISTRY` is the rendering authority for
 both mapped bodies. The matching private Rust helper definitions change in the
 same freeze change set. COR-07 retains its generic three-argument helper IDs.
+
+## Full-checker anchor refresh
+
+The first v4 full-checker run stopped on the transaction fixture body digest.
+A complete comparison found exactly two changed CROSS-05 fixture bodies:
+
+| Frozen test-only body | v3 digest | v4 digest |
+|---|---|---|
+| `crates/sley-txn/src/repository.rs:mod:tests/implFixture:new` | `991462b2f2512c8fbed633d9d80a43cfad4043f64c59340215c72545607d4675` | `d4107101b213badb80419bbe24d79d1260297dd0c19aa341a292d94eae48db0e` |
+| `crates/sley-repo/src/refs.rs:mod:tests/implFixture:new_with_workspace` | `ad76afbfe9bacbc9fc672da61f1e69af17f51c0f0be547788d0013f555762091` | `f63ae230c20058f2ff971578ef1aa6dae1fd408152cd5fa86ce299bf03c408d7` |
+
+Both body changes are the already-committed test-fixture grant of
+`DeleteEntityBinding`, required to build the accepted and ref store-cycle
+canaries. The public repositories and production policy paths are unchanged.
+
+The same audit found that the frozen error-source helper contract still
+required `Vec<String>` in every owner. Frozen multifault tagged assertions use
+different fixed array lengths, so transaction and ref owners require the
+already-implemented const-generic return type `[&'static str; N]`. v4 accepts
+that exact signature and body only in `sley-txn` and `sley-repo`; store and GC
+retain their v3 `Vec<String>` authority.
+
+## Git local authority correction
+
+The adversarial self-test then rejected the repository's exact local Git
+configuration because v3 freezes the former origin URL
+`https://github.com/GreyforgeLabs/sley2.git`. The current `.git/config` and
+`machineresearch/sley-2.0/01-legacy-freeze-and-authority.md` both name
+`https://github.com/GreyforgeLabs/sley.git`.
+
+v4 changes only that URL literal in `GIT_LOCAL_CONFIG_BYTES`. The core, fetch,
+and branch settings remain byte-identical. This correction performs no fetch,
+push, publication, or other network action, and it does not rewrite the
+operator's current remote. The adversarial controls must also reject the former
+`sley2.git` bytes explicitly, in addition to retaining the include/helper,
+exclude, attributes, permission, and stale-record rejection cases.
 
 ## Rejected alternatives
 
@@ -96,6 +137,12 @@ closeout blockers and require their own bounded decisions.
   changes with it.
 - The ADR, runner, and their frozen hashes remain unchanged.
 - The five ANC-04 and ANC-06 runtime precedence outcomes remain unchanged.
+- CROSS-05 accepts only the two refreshed test-fixture body digests above.
+- Error-source helper relaxation is limited to the exact const-generic
+  transaction and ref implementations; store and GC remain unchanged.
+- Git local authority changes only the frozen origin URL from `sley2.git` to
+  the current `sley.git`; all other config bytes and all no-network gates remain
+  unchanged.
 - v3 evidence remains in Git as historical audit evidence.
 - The checker is not edited after the v4 freeze commit. Any later checker
   change requires a new refreeze and fresh specialist reviews.
@@ -108,13 +155,16 @@ The v4 change must refresh:
 2. the matching embedded registry digest in the specification and
    `FROZEN_SPEC_SHA256`;
 3. the two ANC-06 rendered multifault plan digests and mapped body bindings;
-4. source-bound helper, mapped-test, and source-set manifests produced during
+4. the two CROSS-05 test-fixture body digests and the transaction/ref exact
+   error-source helper contract;
+5. source-bound helper, mapped-test, and source-set manifests produced during
    closeout;
-5. the checker raw SHA-256 and self-masked contract SHA-256;
-6. the contract-set SHA-256;
-7. a new v4 freeze-evidence path, exact evidence contract identity, and
+6. the exact Git local-authority bytes and their negative controls;
+7. the checker raw SHA-256 and self-masked contract SHA-256;
+8. the contract-set SHA-256;
+9. a new v4 freeze-evidence path, exact evidence contract identity, and
    evidence payload digest;
-8. the matching machine-summary freeze path, contract-set digest, and reviews.
+10. the matching machine-summary freeze path, contract-set digest, and reviews.
 
 Implementation and closeout manifests that do not yet exist remain absent or
 explicitly deferred. No v3 manifest or review may retain PASS status under v4
@@ -124,6 +174,9 @@ unless it is regenerated and rebound to the final v4 source and contract set.
 
 1. Obtain Nabu architecture and Vulcan checker-safety review of this design.
 2. Rename the two checker registry helper IDs and the two private Rust helpers.
+   Refresh the two exact fixture body digests and the transaction/ref
+   const-generic error-source helper authority. Correct the one frozen Git
+   origin URL literal.
 3. Update the embedded specification digest, then re-render and validate both
    exact ANC-06 mapped bodies.
 4. Run checker syntax, format, lint, adversarial self-tests, and targeted
@@ -131,8 +184,9 @@ unless it is regenerated and rebound to the final v4 source and contract set.
 5. Run the affected `sley-repo` runtime tests and the full crate suite.
 6. Create v4 freeze evidence with fresh Nabu, Ariadne, and Vulcan reviews bound
    to the final contract-set and evidence-payload digests.
-7. Update machine-summary bindings, run the Tier 2 contract check, and commit
-   the freeze as one coherent change set.
+7. Update machine-summary bindings, run the full Tier 2 contract check, and
+   replace every pre-expansion review with a fresh final-payload review before
+   committing the freeze as one coherent change set.
 8. Record the freeze commit in a follow-up checkpoint commit.
 
 The full release gate remains deferred because this is a bounded contract

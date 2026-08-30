@@ -1495,7 +1495,7 @@ no-outside-root claim is limited to this cooperating local threat model.
 
 The checker owns one immutable `MULTIFAULT_OVERLAY_REGISTRY` in the exact
 15-case order. Its SHA-256 is
-`0caa3e7939dab9255fcf7b0f4c65a6c20d72f3923c2c42c06f21a996647de80a`.
+`03d20a96006078feee03f3ce0edc22d619d948de984daf739a99d1b9f8479fdd`.
 The first nine records cover the non-grouped ANC, owned-entry, and limit
 precedence cases. The final six records cover the grouped `COR-06` and
 `COR-07` leaves. Every record fixes one owner source, recovery operation,

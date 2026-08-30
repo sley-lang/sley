@@ -1061,24 +1061,24 @@
     "matrix_rows": 100,
     "dependency_direction": "sley-repo -> sley-txn -> sley-store",
     "implementation_complete": false,
-    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v3.json",
-    "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
-    "freeze_commit": "2ae85303b45320de6cba0e28f05af39e3ad62d69",
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v4.json",
+    "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+    "freeze_commit": "PENDING_V4_FREEZE_COMMIT",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
-        "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
       },
       "ariadne": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
-        "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
       },
       "vulcan": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
-        "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+        "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+        "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
       }
     }
   },

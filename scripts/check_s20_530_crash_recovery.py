@@ -41,7 +41,7 @@ GIT_LOCAL_CONFIG_BYTES = (
     b"\tbare = false\n"
     b"\tlogallrefupdates = true\n"
     b'[remote "origin"]\n'
-    b"\turl = https://github.com/GreyforgeLabs/sley2.git\n"
+    b"\turl = https://github.com/GreyforgeLabs/sley.git\n"
     b"\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
     b'[branch "main"]\n'
     b"\tremote = origin\n"
@@ -72,20 +72,20 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v3.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v4.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "0ba5e237a056cbe4e2282ed53552f5a7427ee0e1f67df5fdf0c27474c42618f4"
+FROZEN_SPEC_SHA256 = "d96dd7f9c63b1948ad086ee17d2e8423f0e3db38870c680b9b31d7739dbb17c1"
 FROZEN_ADR_SHA256 = "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7"
 FROZEN_RUNNER_SHA256 = (
     "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "9b7f7526fbbcf4e60e08a481d691d2432756f4cafdb9e4f48058ff653bf62ab1"
+    "4941f73a60f1e80807d517cd49ffe53109edc845e24c6933ebdd58ad9e010752"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -2125,7 +2125,7 @@ CROSS_05_TEST_FUNCTION_BODY_SHA256 = {
         "307fcd0dd4db156fe2884db6f538c23e410c11c26560fc0cddc709d7425977fc"
     ),
     "crates/sley-txn/src/repository.rs:mod:tests/implFixture:new": (
-        "991462b2f2512c8fbed633d9d80a43cfad4043f64c59340215c72545607d4675"
+        "d4107101b213badb80419bbe24d79d1260297dd0c19aa341a292d94eae48db0e"
     ),
     "crates/sley-txn/src/repository.rs:mod:tests/implFixture:path": (
         "faf603683a014cf1e2c9a338436247bf524734baf08f20f107232bdafbf4873f"
@@ -2143,7 +2143,7 @@ CROSS_05_TEST_FUNCTION_BODY_SHA256 = {
         "18e42afbcabdf37ed0d0d75274b83f77fe29ef79606d4763f6905da7b4dad3b6"
     ),
     "crates/sley-repo/src/refs.rs:mod:tests/implFixture:new_with_workspace": (
-        "ad76afbfe9bacbc9fc672da61f1e69af17f51c0f0be547788d0013f555762091"
+        "f63ae230c20058f2ff971578ef1aa6dae1fd408152cd5fa86ce299bf03c408d7"
     ),
     "crates/sley-repo/src/refs.rs:mod:tests/implFixture:path": (
         "faf603683a014cf1e2c9a338436247bf524734baf08f20f107232bdafbf4873f"
@@ -5388,7 +5388,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "decoded_ref_head_transaction_id",
                 "role_receipt_path",
                 "receipt_nested_state_root",
-                "import_transaction_receipt_error",
+                "probe_ref_nested_codec_origin_receipt_error",
                 "primary_receipt_path_from_ref_head",
                 "primary_nested_state_root_corruption_present",
                 "primary_probe_scb_digest_mismatch",
@@ -5428,7 +5428,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "ref_head_depth_one_right_selected_changed_object",
                 "role_changed_object_path",
                 "object_bytes",
-                "object_store_read_error",
+                "probe_ref_nested_store_cycle_object_error",
                 "primary_object_identity_from_depth_one_cycle_right",
                 "primary_object_bytes_corrupt",
                 "primary_probe_scb_digest_mismatch",
@@ -5904,7 +5904,7 @@ def multifault_overlay_registry_sha256(
 
 
 MULTIFAULT_OVERLAY_REGISTRY_SHA256 = (
-    "0caa3e7939dab9255fcf7b0f4c65a6c20d72f3923c2c42c06f21a996647de80a"
+    "03d20a96006078feee03f3ce0edc22d619d948de984daf739a99d1b9f8479fdd"
 )
 GROUPED_MULTIFAULT_SECONDARY_FIXTURE_KEYS = {
     ("COR-06", "head_checksum", "head_shape_before_receipt_missing"): (
@@ -8858,7 +8858,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v3":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v4":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -11536,7 +11536,8 @@ def rust_direct_function_signature(
         fail(f"unknown Rust method visibility {visibility!r}")
     matches = direct_code_matches(
         body,
-        rf"(?m)^[ \t]*{prefix}[ \t]+{re.escape(function_name)}\s*\(",
+        rf"(?m)^[ \t]*{prefix}[ \t]+{re.escape(function_name)}"
+        r"(?:\s*<[^>{};]*>)?\s*\(",
     )
     signatures: list[str] = []
     for match in matches:
@@ -16145,6 +16146,8 @@ def exact_error_result_assertion_problem(
 
 
 def error_source_helper_path(relative: str) -> str:
+    if relative == "crates/sley-store/src/lib.rs":
+        return "crate::tests::exact_error_source_chain"
     if relative == "crates/sley-txn/src/repository.rs":
         return "crate::repository::tests::exact_error_source_chain"
     if relative == "crates/sley-repo/src/refs.rs":
@@ -16181,7 +16184,10 @@ def exact_error_source_assertion_problem(
 
 
 def error_source_helper_expected_body(relative: str) -> str:
-    if relative == "crates/sley-repo/src/gc.rs":
+    if relative in {
+        "crates/sley-store/src/lib.rs",
+        "crates/sley-repo/src/gc.rs",
+    }:
         return """\
 let mut chain = ::std::vec::Vec::new();
 let mut source = ::std::error::Error::source(error);
@@ -16207,26 +16213,58 @@ let mut chain = ::std::vec::Vec::new();
 let mut source = ::std::error::Error::source(error);
 while let ::core::option::Option::Some(current) = source {{
     let label = if current.is::<{commit}>() {{
-        ::std::string::String::from("CommitError")
+        "CommitError"
     }} else if current.is::<{codec}>() {{
-        ::std::string::String::from("TransactionCodecError")
+        "TransactionCodecError"
     }} else if current.is::<::sley_store::StoreError>() {{
-        ::std::string::String::from("StoreError")
+        "StoreError"
     }} else if let ::core::option::Option::Some(io_error) =
         current.downcast_ref::<::std::io::Error>()
     {{
-        ::std::format!("io::Error({{:?}})", io_error.kind())
+        match io_error.kind() {{
+            ::std::io::ErrorKind::Other => "io::Error(Other)",
+            kind => ::core::panic!(
+                "unexpected exact I/O error source kind: {{kind:?}}"
+            ),
+        }}
     }} else {{
-        ::std::format!(
-            "unknown({{}})",
-            ::std::any::type_name_of_val(current),
+        ::core::panic!(
+            "unexpected exact error source type: {{}}",
+            ::std::any::type_name_of_val(current)
         )
     }};
     chain.push(label);
     source = ::std::error::Error::source(current);
 }}
-chain
+chain.try_into().unwrap_or_else(|chain: ::std::vec::Vec<_>| {{
+    ::core::panic!(
+        "expected {{N}} exact error source labels, observed {{}}",
+        chain.len()
+    )
+}})
 """
+
+
+def error_source_helper_expected_signature(relative: str) -> str:
+    if relative in {
+        "crates/sley-txn/src/repository.rs",
+        "crates/sley-repo/src/refs.rs",
+    }:
+        return (
+            "fn exact_error_source_chain<const N: ::core::primitive::usize>("
+            "error: &(dyn ::std::error::Error + 'static),"
+            ") -> [&'static str; N]"
+        )
+    if relative in {
+        "crates/sley-store/src/lib.rs",
+        "crates/sley-repo/src/gc.rs",
+    }:
+        return (
+            "fn exact_error_source_chain("
+            "error: &(dyn ::std::error::Error + 'static),"
+            ") -> ::std::vec::Vec<::std::string::String>"
+        )
+    fail(f"error source-chain helper has no closed owner for {relative}")
 
 
 def error_source_helper_problem(source: str, relative: str) -> str | None:
@@ -16239,11 +16277,7 @@ def error_source_helper_problem(source: str, relative: str) -> str | None:
     signatures = rust_direct_function_signature(
         module_projection, "exact_error_source_chain", "private"
     )
-    expected_signature = (
-        "fn exact_error_source_chain("
-        "error: &(dyn ::std::error::Error + 'static),"
-        ") -> ::std::vec::Vec<::std::string::String>"
-    )
+    expected_signature = error_source_helper_expected_signature(relative)
     if len(signatures) != 1 or normalize_rust_tokens(signatures[0]) != (
         normalize_rust_tokens(expected_signature)
     ):
@@ -32864,6 +32898,7 @@ mod tests {
         ):
             fail("checker self-test accepted floating semantic evidence")
 
+    store_owner = "crates/sley-store/src/lib.rs"
     txn_owner = "crates/sley-txn/src/repository.rs"
     repo_owner = "crates/sley-repo/src/refs.rs"
     gc_owner = "crates/sley-repo/src/gc.rs"
@@ -33195,12 +33230,18 @@ mod tests {
         ):
             fail("checker self-test accepted a truncated or reordered source chain")
 
-    helper_signature = (
+    vector_helper_signature = (
         "fn exact_error_source_chain("
         "error: &(dyn ::std::error::Error + 'static),"
         ") -> ::std::vec::Vec<::std::string::String>"
     )
-    for relative in (txn_owner, repo_owner, gc_owner):
+    array_helper_signature = (
+        "fn exact_error_source_chain<const N: ::core::primitive::usize>("
+        "error: &(dyn ::std::error::Error + 'static),"
+        ") -> [&'static str; N]"
+    )
+    for relative in (store_owner, txn_owner, repo_owner, gc_owner):
+        helper_signature = error_source_helper_expected_signature(relative)
         helper_fixture = (
             "#[cfg(test)]\nmod tests {\n"
             f"{helper_signature} {{\n"
@@ -33215,6 +33256,18 @@ mod tests {
         )
         if error_source_helper_problem(hostile_helper, relative) is None:
             fail("checker self-test accepted a truncated Error::source helper")
+        wrong_signature = (
+            vector_helper_signature
+            if helper_signature == array_helper_signature
+            else array_helper_signature
+        )
+        wrong_owner_helper = helper_fixture.replace(
+            helper_signature,
+            wrong_signature,
+            1,
+        )
+        if error_source_helper_problem(wrong_owner_helper, relative) is None:
+            fail("checker self-test accepted a wrong-owner Error::source signature")
 
     snapshot_fixture = (
         "#[cfg(test)]\nmod tests {\n"
@@ -37729,6 +37782,15 @@ pub struct Claim {
             fail("checker self-test rejected exact safe Git local authority")
         if git_local_authority_record_problem(authority_record) is not None:
             fail("checker self-test rejected the Git local-authority record")
+
+        former_config = GIT_LOCAL_CONFIG_BYTES.replace(
+            b"https://github.com/GreyforgeLabs/sley.git",
+            b"https://github.com/GreyforgeLabs/sley2.git",
+        )
+        config_path.write_bytes(former_config)
+        if inspect_git_local_authority(authority_root)[1] is None:
+            fail("checker self-test accepted the former Git origin authority")
+        config_path.write_bytes(GIT_LOCAL_CONFIG_BYTES)
 
         sentinel = authority_root / "sentinel"
         fsmonitor = authority_root / "fsmonitor"

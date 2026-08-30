@@ -5626,7 +5626,7 @@ mod tests {
         m2_fixture.m2_secondary_only_observation.clone()
     }
 
-    fn import_transaction_receipt_error(
+    fn probe_ref_nested_codec_origin_receipt_error(
         _fixture: &Fixture,
         m2_fixture: &RefNestedCodecOriginFixture,
     ) -> ::core::result::Result<
@@ -5688,7 +5688,7 @@ mod tests {
         m2_fixture.m2_secondary_locator.clone()
     }
 
-    fn object_store_read_error(
+    fn probe_ref_nested_store_cycle_object_error(
         fixture: &Fixture,
         m2_fixture: &RefNestedStoreCycleFixture,
     ) -> ::core::result::Result<::std::vec::Vec<u8>, MappedStoreProbeError> {
@@ -8630,7 +8630,8 @@ mod tests {
         ::core::assert_eq!(("secondary_branch_ancestry_cycle", m2_secondary_cycle_entry_transaction_id), ("secondary_branch_ancestry_cycle", m2_branch_head_transaction_id));
         ::core::assert_ne!(("artifact_vs_logical_graph", m2_primary_locator.as_str()), ("artifact_vs_logical_graph", m2_secondary_locator.as_str()));
         let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let m2_primary_probe_result = object_store_read_error(&fixture, &m2_fixture);
+        let m2_primary_probe_result =
+            probe_ref_nested_store_cycle_object_error(&fixture, &m2_fixture);
         let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
         let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
@@ -8726,7 +8727,8 @@ mod tests {
         ::core::assert!(!m2_secondary_reachable_transaction_ids.contains(&m2_secondary_origin_transaction_id), "secondary_origin_not_reachable_from_head");
         ::core::assert_ne!(("artifact_vs_origin_relation", m2_primary_locator.as_str()), ("artifact_vs_origin_relation", m2_secondary_locator.as_str()));
         let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let m2_primary_probe_result = import_transaction_receipt_error(&fixture, &m2_fixture);
+        let m2_primary_probe_result =
+            probe_ref_nested_codec_origin_receipt_error(&fixture, &m2_fixture);
         let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
         let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
         ::core::assert_eq!(("primary_probe_scb_digest_mismatch", m2_primary_probe_error.code()), ("primary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
