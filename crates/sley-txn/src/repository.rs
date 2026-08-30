@@ -32,6 +32,8 @@ use crate::maintenance::{
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+use crate::recovery_path_read_test_hook::{self, RecoveryPathReadKind};
 
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
 const HEAD_VERSION: u64 = 1;
@@ -1154,6 +1156,12 @@ impl TransactionRepository {
                 ensure_transaction_recovery_limit(next_accepted_object_bytes, limits.object_bytes)?;
                 usage.object_verifications = next_accepted_object_verifications;
                 usage.object_bytes = next_accepted_object_bytes;
+                #[cfg(any(test, feature = "s20-530-test-hooks"))]
+                recovery_path_read_test_hook::inject(
+                    RecoveryPathReadKind::Object,
+                    &self.object_store.object_path(object_id),
+                )
+                .map_err(StoreError::io)?;
                 let object = self.object_store.read(object_id, verifier)?;
 
                 let imported =
@@ -1578,6 +1586,14 @@ impl TransactionRepository {
                     union_usage.object_bytes = next_union_object_bytes;
                     current_cache_work.object_verifications = next_cached_object_verifications;
                     current_cache_work.object_bytes = next_cached_object_bytes;
+                    #[cfg(any(test, feature = "s20-530-test-hooks"))]
+                    recovery_path_read_test_hook::inject(
+                        RecoveryPathReadKind::Object,
+                        &self.object_store.object_path(object_id),
+                    )
+                    .map_err(StoreError::io)
+                    .map_err(CommitError::from)
+                    .map_err(RecoveryAncestryError::Verification)?;
                     let object = self
                         .object_store
                         .read(object_id, verifier)
@@ -1727,6 +1743,8 @@ impl TransactionRepository {
         &self,
         path: &Path,
     ) -> Result<ImportedTransactionReceipt, CommitError> {
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        recovery_path_read_test_hook::inject(RecoveryPathReadKind::Receipt, path)?;
         let bytes = bounded_read(path, MAX_STANDALONE_BYTES)?;
         Ok(import_transaction_receipt(&bytes)?)
     }
@@ -1998,6 +2016,12 @@ impl TransactionRepository {
             .entity_bindings
             .iter()
             .map(|(entity_id, object_id)| {
+                #[cfg(any(test, feature = "s20-530-test-hooks"))]
+                recovery_path_read_test_hook::inject(
+                    RecoveryPathReadKind::Object,
+                    &self.object_store.object_path(*object_id),
+                )
+                .map_err(StoreError::io)?;
                 let bytes = self.object_store.read(*object_id, &verifier)?;
                 let object = import_entity_object(root.record.schema_epoch_id, &bytes)
                     .map_err(TransactionCodecError::Scb)?;

@@ -8,6 +8,9 @@ mod repository;
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 #[doc(hidden)]
 pub mod recovery_ancestry_test_hook;
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+#[doc(hidden)]
+pub mod recovery_path_read_test_hook;
 
 pub use codec::{
     ChangedBinding, CommitMetadata, ImportedTransaction, ImportedTransactionReceipt,
