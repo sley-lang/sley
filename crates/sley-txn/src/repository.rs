@@ -150,6 +150,8 @@ fn ensure_transaction_recovery_limit(value: u64, limit: u64) -> Result<(), Commi
 }
 
 fn ensure_ancestry_recovery_limit(value: u64, limit: u64) -> Result<(), RecoveryAncestryError> {
+    #[cfg(test)]
+    tests::record_s20_530_limit_probe(value, limit);
     if value > limit {
         return Err(RecoveryAncestryError::LimitExceeded);
     }
