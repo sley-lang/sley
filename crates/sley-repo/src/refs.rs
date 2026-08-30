@@ -5446,6 +5446,26 @@ mod tests {
         m2_arguments_2: (),
     }
 
+    struct GroupedOriginDigestNonancestorFixture {
+        m2_branch_origin_path: ::std::path::PathBuf,
+        m2_primary_carrier_path: ::std::path::PathBuf,
+        m2_primary_origin_computed_digest: [u8; DIGEST_LEN],
+        m2_primary_origin_record_digest: [u8; DIGEST_LEN],
+        m2_primary_path: ::std::path::PathBuf,
+        m2_pristine_primary_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_observation: ExactPathSnapshot,
+        m2_secondary_canonical_origin_record_bytes: ::std::vec::Vec<u8>,
+        m2_secondary_carrier_path: ::std::path::PathBuf,
+        m2_secondary_only_observation: GroupedOriginFormatSecondaryObservation,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_origin_record_bytes: ::std::vec::Vec<u8>,
+        m2_secondary_origin_transaction_id: TransactionId,
+        m2_secondary_reachable_transaction_ids:
+            ::std::collections::BTreeSet<TransactionId>,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
     trait BranchOriginAncestryFixture {
         fn secondary_origin_transaction_id(&self) -> TransactionId;
 
@@ -5475,6 +5495,34 @@ mod tests {
             &self,
         ) -> &::std::collections::BTreeSet<TransactionId> {
             &self.m2_secondary_reachable_transaction_ids
+        }
+    }
+
+    impl BranchOriginAncestryFixture for GroupedOriginDigestNonancestorFixture {
+        fn secondary_origin_transaction_id(&self) -> TransactionId {
+            self.m2_secondary_origin_transaction_id
+        }
+
+        fn secondary_reachable_transaction_ids(
+            &self,
+        ) -> &::std::collections::BTreeSet<TransactionId> {
+            &self.m2_secondary_reachable_transaction_ids
+        }
+    }
+
+    trait BranchRecordProbeFixture {
+        fn primary_branch_record_path(&self) -> &::std::path::Path;
+    }
+
+    impl BranchRecordProbeFixture for GroupedOriginFormatNonancestorFixture {
+        fn primary_branch_record_path(&self) -> &::std::path::Path {
+            &self.m2_primary_path
+        }
+    }
+
+    impl BranchRecordProbeFixture for GroupedOriginDigestNonancestorFixture {
+        fn primary_branch_record_path(&self) -> &::std::path::Path {
+            &self.m2_primary_path
         }
     }
 
@@ -5752,6 +5800,46 @@ mod tests {
         }
     }
 
+    fn prepare_grouped_origin_digest_nonancestor_fixture(
+        fixture: &Fixture,
+    ) -> GroupedOriginDigestNonancestorFixture {
+        let base = prepare_grouped_origin_format_nonancestor_fixture(fixture);
+        let mut corrupted = base.m2_pristine_primary_bytes.clone();
+        let preimage_len = corrupted.len() - DIGEST_LEN;
+        let m2_primary_origin_computed_digest =
+            digest(BRANCH_DIGEST_DOMAIN, &corrupted[..preimage_len]);
+        *corrupted.last_mut().unwrap() ^= 1;
+        let mut m2_primary_origin_record_digest = [0_u8; DIGEST_LEN];
+        m2_primary_origin_record_digest.copy_from_slice(&corrupted[preimage_len..]);
+        ::std::fs::write(&base.m2_primary_path, corrupted).unwrap();
+        ::std::fs::File::open(&base.m2_primary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(base.m2_primary_path.parent().unwrap()).unwrap();
+
+        GroupedOriginDigestNonancestorFixture {
+            m2_branch_origin_path: base.m2_branch_origin_path,
+            m2_primary_carrier_path: base.m2_primary_carrier_path,
+            m2_primary_origin_computed_digest,
+            m2_primary_origin_record_digest,
+            m2_primary_path: base.m2_primary_path,
+            m2_pristine_primary_bytes: base.m2_pristine_primary_bytes,
+            m2_pristine_primary_observation: base.m2_pristine_primary_observation,
+            m2_secondary_canonical_origin_record_bytes:
+                base.m2_secondary_canonical_origin_record_bytes,
+            m2_secondary_carrier_path: base.m2_secondary_carrier_path,
+            m2_secondary_only_observation: base.m2_secondary_only_observation,
+            m2_secondary_only_owner_tree: base.m2_secondary_only_owner_tree,
+            m2_secondary_origin_record_bytes: base.m2_secondary_origin_record_bytes,
+            m2_secondary_origin_transaction_id: base.m2_secondary_origin_transaction_id,
+            m2_secondary_reachable_transaction_ids:
+                base.m2_secondary_reachable_transaction_ids,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
     fn observe_ref_nested_codec_origin_fixture_primary(
         _fixture: &Fixture,
         m2_fixture: &RefNestedCodecOriginFixture,
@@ -5807,11 +5895,26 @@ mod tests {
         m2_fixture.m2_secondary_only_observation.clone()
     }
 
-    fn import_branch_record_error(
+    fn observe_grouped_origin_digest_nonancestor_fixture_primary(
         _fixture: &Fixture,
-        m2_fixture: &GroupedOriginFormatNonancestorFixture,
+        m2_fixture: &GroupedOriginDigestNonancestorFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_grouped_origin_digest_nonancestor_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedOriginDigestNonancestorFixture,
+    ) -> GroupedOriginFormatSecondaryObservation {
+        m2_fixture.m2_secondary_only_observation.clone()
+    }
+
+    fn import_branch_record_error<T: BranchRecordProbeFixture>(
+        _fixture: &Fixture,
+        m2_fixture: &T,
     ) -> ::core::result::Result<ImportedBranchRecord, super::BranchError> {
-        let bytes = ::std::fs::read(&m2_fixture.m2_primary_path).map_err(super::BranchError::Io)?;
+        let bytes = ::std::fs::read(m2_fixture.primary_branch_record_path())
+            .map_err(super::BranchError::Io)?;
         import_branch_record(&bytes)
     }
 
@@ -5900,6 +6003,99 @@ mod tests {
         let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
         let m2_primary_after_2 = observe_grouped_origin_format_nonancestor_fixture_primary(&fixture, &m2_fixture);
         let m2_secondary_after_2 = observe_grouped_origin_format_nonancestor_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
+    }
+
+    #[test]
+    fn cor07_origin_digest_branch_record_digest_mismatch() {
+        let fixture = Fixture::new("s20-530-m2-cor-07-origin-digest-branch-record-digest-mismatch");
+        let transaction_repository: &::sley_txn::TransactionRepository = &fixture.transactions;
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_grouped_origin_digest_nonancestor_fixture(&fixture);
+        let m2_branch_origin_path = m2_fixture.m2_branch_origin_path.clone();
+        let m2_primary_carrier_path = m2_fixture.m2_primary_carrier_path.clone();
+        let m2_primary_origin_computed_digest = m2_fixture.m2_primary_origin_computed_digest.clone();
+        let m2_primary_origin_record_digest = m2_fixture.m2_primary_origin_record_digest.clone();
+        let m2_primary_path = m2_fixture.m2_primary_path.clone();
+        let m2_pristine_primary_bytes = m2_fixture.m2_pristine_primary_bytes.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_canonical_origin_record_bytes = m2_fixture.m2_secondary_canonical_origin_record_bytes.clone();
+        let m2_secondary_carrier_path = m2_fixture.m2_secondary_carrier_path.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_origin_record_bytes = m2_fixture.m2_secondary_origin_record_bytes.clone();
+        let m2_secondary_origin_transaction_id = m2_fixture.m2_secondary_origin_transaction_id.clone();
+        let m2_secondary_reachable_transaction_ids = m2_fixture.m2_secondary_reachable_transaction_ids.clone();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_origin_path_from_branch", m2_primary_path.as_path()), ("primary_origin_path_from_branch", m2_branch_origin_path.as_path()));
+        ::core::assert_ne!(("primary_origin_digest_corrupt", m2_primary_origin_computed_digest), ("primary_origin_digest_corrupt", m2_primary_origin_record_digest));
+        ::core::assert_eq!(("secondary_nonancestor_origin_canonical", m2_secondary_origin_record_bytes.as_slice()), ("secondary_nonancestor_origin_canonical", m2_secondary_canonical_origin_record_bytes.as_slice()));
+        ::core::assert!(!m2_secondary_reachable_transaction_ids.contains(&m2_secondary_origin_transaction_id), "secondary_origin_not_reachable_from_head");
+        ::core::assert_eq!(("same_carrier_origin_semantics", m2_primary_carrier_path.as_path()), ("same_carrier_origin_semantics", m2_secondary_carrier_path.as_path()));
+        let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = import_branch_record_error(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_branch_record_digest", m2_primary_probe_error.code()), ("primary_probe_branch_record_digest", "BRANCH_RECORD_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = probe_branch_origin_ancestry(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_branch_origin_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_branch_origin_mismatch", "BRANCH_ORIGIN_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = branch_repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "BRANCH_RECORD_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_1)), ("m2_operation_1_source_chain", []));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = branch_repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = branch_repository.recover_refs_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_grouped_origin_digest_nonancestor_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_grouped_origin_digest_nonancestor_fixture_secondary(&fixture, &m2_fixture);
         ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "BRANCH_ORIGIN_MISMATCH"));
         ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
         ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", []));
