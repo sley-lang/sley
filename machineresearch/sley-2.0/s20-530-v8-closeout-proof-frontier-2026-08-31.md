@@ -1,6 +1,6 @@
 # S20-530 v8 closeout proof frontier
 
-Status: ACTIVE CONTRACT BLOCKER ANALYSIS
+Status: RESOLVED BY SETTLED V8 HYBRID DESIGN
 
 Owner: Codex orchestrator
 
@@ -192,11 +192,24 @@ Dropping the proof layers, accepting arbitrary unresolved records, weakening
 runtime observations, or changing production solely to satisfy the incomplete
 resolver are rejected.
 
-## Review and authority gate
+## Settled design ruling
 
-Fresh Nabu, Ariadne, and Vulcan contract reviews are required before selecting
-or implementing the entry/control ruling. Those handoffs are provider-backed
-and require current operator approval. No v7 review may be reused.
+Clean Nabu, Ariadne, and Vulcan handoffs selected and approved a tightly
+defined hybrid. The checker retains every successful static proof and permits
+exact manual-review dispositions only for the complete checker-generated
+unresolved inventory. The full schemas, partition rule, independent
+reconciliation, hostile controls, trusted local receipt requirement, Council
+session hashes, and implementation order are recorded in
+`s20-530-v8-hybrid-proof-path-amendment-design.md`.
+
+The clean verdicts are:
+
+- Ariadne: `PASS_V8_SLEY_CONTRACT_REPAIRED`;
+- Nabu: `PASS_V8_ARCHITECTURE`;
+- Vulcan: `PASS_V8_SECURITY_DESIGN`.
+
+No v7 review may be reused. Fresh final-byte reviews remain required after the
+checker, spec, ADR, ledgers, reconciler, and v8 evidence settle.
 
 The deterministic `forge council route` resolver incorrectly classified this
 task as WebForge/Seshat after matching the word `resolver`. That route was
@@ -208,12 +221,8 @@ discarded without dispatch. The authoritative local Council matrix confirms:
 - Codex remains orchestrator and file owner;
 - Hermes is unnecessary unless orchestration is explicitly delegated.
 
-All three eventual handoffs are read-only. Their inputs are this frontier
-packet, the v8 helper design, the frozen v7 checker/specification/ADR/evidence,
-and current production sources. They own no paths. Each must return an exact
-architecture or contract verdict, required hostile validation, blocking
-findings, and the evidence digests that a settled v8 review must bind. All work
-returns to Codex for integration.
+All three completed handoffs were read-only and owned no paths. Codex remains
+the orchestrator and sole owner of the settled repository changes.
 
 The full `make v1` gate remains deferred because no release boundary has been
 reached. The monolithic v7 checker remains unsuitable as a development probe
@@ -224,8 +233,9 @@ until its measured scanner debt is addressed.
 At this frontier:
 
 - overall Sley 2.0 completion: 44%, moderate confidence;
-- active S20-530 completion: 82%, moderate confidence.
+- active S20-530 completion: 80%, moderate confidence.
 
-The S20-530 estimate decreased from the helper-only prototype estimate because
-the complete entry and control frontiers prove a larger contract-refreeze
-scope. This is a confidence correction, not lost implementation work.
+The settled estimate is the median of the orchestrator and clean independent
+Ariadne, Nabu, and Vulcan estimates. The larger refreeze scope is now designed,
+but checker implementation, independent reconciliation, hostile validation,
+receipt binding, v8 evidence, and final-byte reviews remain.

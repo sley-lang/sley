@@ -1,6 +1,6 @@
 # S20-530 v8 helper-manifest attribute-chain amendment design
 
-Status: ACTIVE DESIGN - EXPANDED REVIEW REQUIRED
+Status: INCORPORATED INTO SETTLED V8 HYBRID DESIGN
 
 Owner: Codex orchestrator
 
@@ -30,11 +30,13 @@ and a measured quadratic scanner hotspot. The complete evidence and required
 architecture ruling are recorded in
 `s20-530-v8-closeout-proof-frontier-2026-08-31.md`.
 
-Do not request a helper-only v8 freeze review. The final v8 design must include
-the exact 14-site gate registry and scanner ruling, then obtain explicit Nabu,
-Ariadne, and Vulcan direction on the entry/control boundary before checker
-implementation. The existing helper producer prototype remains valid and may
-be reused inside that settled design.
+Do not request a helper-only v8 freeze review. Clean Nabu, Ariadne, and Vulcan
+rulings selected the tightly defined hybrid recorded in
+`s20-530-v8-hybrid-proof-path-amendment-design.md`. The final v8 change must
+include the exact 14-site gate registry, positional scanner parity, complete
+pre-exception entry and control inventories, exact exception ledgers,
+independent reconciliation, and trusted local review receipts. The existing
+helper producer prototype remains valid inside that settled design.
 
 ## Current evidence
 
@@ -125,10 +127,11 @@ amendment, including:
 5. fresh Nabu, Ariadne, and Vulcan `PASS_CONTRACT_FREEZE` reviews bound to the
    settled v8 contract set and evidence payload.
 
-The matrix, specification, ADR, and runner bytes may remain unchanged if final
-review confirms that their current language and behavior already govern the
-amendment. No v7 review may be reused. The v7 checker, evidence, reviews, and
-freeze anchor remain immutable historical authority.
+The matrix and runner may remain unchanged. The specification and ADR must be
+narrowly amended because their current absolute static-resolution language
+does not authorize the settled exact manual-review proof path. No v7 review may
+be reused. The v7 checker, evidence, reviews, and freeze anchor remain
+immutable historical authority.
 
 ## Production boundary
 
@@ -175,9 +178,10 @@ freeze evidence, and machine-summary bindings.
    self-integrity, and commit one coherent freeze change set.
 7. Record the exact freeze commit in a follow-up checkpoint commit.
 
-Provider-backed specialist reviews require current operator authority. If that
-authority is not available, stop after the committed design and report the
-review gate rather than claiming a v8 freeze.
+Standing Council invocation authority covered the completed design handoffs.
+Fresh final-byte freeze and implementation reviews remain mandatory and must
+be verified through the trusted local session-receipt path defined by the
+settled hybrid design.
 
 ## Prototype validation
 
