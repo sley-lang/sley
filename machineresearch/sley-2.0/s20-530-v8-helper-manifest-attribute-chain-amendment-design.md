@@ -164,6 +164,32 @@ Provider-backed specialist reviews require current operator authority. If that
 authority is not available, stop after the committed design and report the
 review gate rather than claiming a v8 freeze.
 
+## Prototype validation
+
+The exact Amendment A producer change and Amendment B controls were applied
+temporarily to the v7 checker without changing v7 evidence. The bounded
+prototype produced these results:
+
+- Python compilation: `PASS`;
+- Ruff lint: `PASS`;
+- Ruff format: initial line-wrapping failure, corrected with `ruff format`,
+  authoritative rerun `PASS`;
+- `git diff --check`: `PASS`;
+- helper-manifest shape: `PASS_50_RECORDS_5_FIELDS`;
+- attribute-only mutation binding: `PASS`;
+- raw helper-body stability across that attribute mutation: `PASS`.
+
+The bounded dynamic probe completed in less than one second. It used the
+checker-owned runtime-case registry, profile map, instrumentation transform,
+helper owner rules, manifest producer, and body-key function. It therefore
+tested the actual candidate producer against the same exact synthetic helper
+inventory used by the checker self-contract.
+
+The prototype checker edit was then removed so the committed repository keeps
+the immutable v7 checker bytes until a reviewed v8 freeze can be created. The
+monolithic checker and full release gate were not run for this design-only
+prototype. Final v8 evidence must rerun the settled applicable checks.
+
 ## Acceptance
 
 The v8 refreeze is acceptable only when:
