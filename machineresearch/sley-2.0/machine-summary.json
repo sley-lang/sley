@@ -1061,24 +1061,24 @@
     "matrix_rows": 100,
     "dependency_direction": "sley-repo -> sley-txn -> sley-store",
     "implementation_complete": false,
-    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v6.json",
-    "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v7.json",
+    "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
     "freeze_commit": "98079e6c2cac7d8de81de20f276340ca9fd060d0",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
-        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+        "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+        "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
       },
       "ariadne": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
-        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+        "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+        "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
       },
       "vulcan": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
-        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+        "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+        "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
       }
     }
   },

@@ -91,6 +91,16 @@ the 232 leaves. Evidence records the registry-derived plan digest and direct
 fixture assertions; test helpers may return observations but never expected
 codes, roles, booleans, or usage.
 
+Grouped M2 probe calls have a separate private helper identity from their
+direct corruption-leaf probes. The leaf registry continues to name the
+three-argument diagnostic helpers that bind an observation and exact fault
+path. A closed 11-record grouped adapter registry selects seven private
+two-argument helpers that accept only the owner fixture and grouped M2 fixture.
+The checker freezes each adapter's key, side, owner, exact signature, call
+arity, and normal-build exclusion. This prevents Rust helper-name collisions
+without weakening leaf probe authority. The ref-digest cycle's secondary side
+continues to use its checker-owned cycle descriptor and has no direct adapter.
+
 The 62 non-GC durability rows use six closed retry protocols:
 `H1_R1`, `H1_R2`, `H1_O1`, `H1_R1_O1`, `H2_O1`, and `H2_R1`. Only 14 `H2`
 rows invoke the same fault helper and selector payload twice. Every row binds

@@ -1546,6 +1546,20 @@ primary-only repair class, and both operation profiles. Grouped overlays bind
 their primary and secondary roles, paths, corrupters, and probes back to exact
 `CORRUPTION_FIXTURE_SPECS` records.
 
+The six grouped leaves preserve those fixture probes as direct-leaf authority.
+Their M2 windows select two-argument test adapters through one separate closed
+`GROUPED_M2_PROBE_ADAPTER_REGISTRY` with 11 exact key-and-side records and
+SHA-256
+`c5b1f1cb81b733d64d4a2667beaa52383b484fb81e8c62315d68c759f04b1e70`.
+The 11 records use seven distinct private helpers: three transaction-owner
+adapters for grouped pointer, absent-receipt, and receipt-digest probes, plus
+four ref-owner adapters for origin import, origin ancestry, ref import, and ref
+target binding. Every rendered direct M2 probe supplies exactly `&fixture` and
+`&m2_fixture`. A grouped adapter cannot reuse the corresponding legacy
+three-argument leaf helper, cross owners, or survive the normal build. The
+`COR-07/ref_digest/ref_digest_mismatch` secondary side has no adapter because
+its closed cycle descriptor replaces a direct probe call.
+
 Four cycle overlays additionally carry one typed `CycleEpochContract` with
 `epoch_budget`, `operation_1_claims`, `operation_1_edge_counts`,
 `operation_2_claims`, `operation_2_edge_counts`, and `primary_fault_node`.

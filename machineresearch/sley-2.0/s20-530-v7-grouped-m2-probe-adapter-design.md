@@ -1,6 +1,6 @@
 # S20-530 v7 grouped M2 probe-adapter amendment design
 
-Status: V7 FREEZE CANDIDATE
+Status: V7 CONTRACT FROZEN
 
 Owner: Codex orchestrator
 

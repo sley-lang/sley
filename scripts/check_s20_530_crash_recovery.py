@@ -72,20 +72,20 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v6.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v7.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "6099b5dae41fedbe2cfc9bf78f0f7ad751f15961d3aaab371da2b5ff9f1aa5d5"
-FROZEN_ADR_SHA256 = "c145f8603b19cc755e470cbc24cf62067fc3f410305ae20f507f4a14d6a7b211"
+FROZEN_SPEC_SHA256 = "9ee07a0a71042706c23ab27ff8c131164a722a2b54da2f67f0757f1b86bce06e"
+FROZEN_ADR_SHA256 = "495bddba2eb368ba63bb739cd98b23cd6c3fe370d125d049863051b7f1041e98"
 FROZEN_RUNNER_SHA256 = (
     "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "247c44dd326850b2205817fb233661dd1286f05f8ab29464787db25ef6d8a8de"
+    "a080f4b555b982d1516425138593c968dbba3a11e15c991b153350abeac03d1b"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -5892,6 +5892,142 @@ MULTIFAULT_CASES = frozenset(
 GROUPED_MULTIFAULT_CASES = frozenset(
     key for key in MULTIFAULT_OVERLAY_KEYS if key[2] is not None
 )
+GROUPED_M2_PROBE_ADAPTER_REGISTRY: tuple[tuple[MultifaultKey, str, str], ...] = (
+    (
+        ("COR-06", "head_checksum", "head_shape_before_receipt_missing"),
+        "primary",
+        "decode_grouped_accepted_pointer_error_m2",
+    ),
+    (
+        ("COR-06", "head_checksum", "head_shape_before_receipt_missing"),
+        "secondary",
+        "verify_grouped_absent_revision_receipt_m2",
+    ),
+    (
+        ("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt"),
+        "primary",
+        "decode_grouped_accepted_pointer_error_m2",
+    ),
+    (
+        ("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt"),
+        "secondary",
+        "import_grouped_transaction_receipt_error_m2",
+    ),
+    (
+        ("COR-07", "origin_format", "branch_record_format_version"),
+        "primary",
+        "import_branch_record_error_m2",
+    ),
+    (
+        ("COR-07", "origin_format", "branch_record_format_version"),
+        "secondary",
+        "probe_branch_origin_ancestry_m2",
+    ),
+    (
+        ("COR-07", "origin_digest", "branch_record_digest_mismatch"),
+        "primary",
+        "import_branch_record_error_m2",
+    ),
+    (
+        ("COR-07", "origin_digest", "branch_record_digest_mismatch"),
+        "secondary",
+        "probe_branch_origin_ancestry_m2",
+    ),
+    (
+        ("COR-07", "ref_format", "ref_format_version"),
+        "primary",
+        "import_branch_ref_error_m2",
+    ),
+    (
+        ("COR-07", "ref_format", "ref_format_version"),
+        "secondary",
+        "probe_ref_target_binding_m2",
+    ),
+    (
+        ("COR-07", "ref_digest", "ref_digest_mismatch"),
+        "primary",
+        "import_branch_ref_error_m2",
+    ),
+)
+
+
+def grouped_m2_probe_adapter_record(
+    key: MultifaultKey,
+    side: str,
+    adapter: str,
+) -> tuple[object, ...]:
+    return (key, side, adapter)
+
+
+def grouped_m2_probe_adapter_registry_sha256(
+    registry: tuple[tuple[MultifaultKey, str, str], ...] = (
+        GROUPED_M2_PROBE_ADAPTER_REGISTRY
+    ),
+) -> str:
+    return canonical_json_sha256(
+        (
+            "sley-s20-530-grouped-m2-probe-adapter-registry-v1",
+            tuple(
+                grouped_m2_probe_adapter_record(key, side, adapter)
+                for key, side, adapter in registry
+            ),
+        )
+    )
+
+
+GROUPED_M2_PROBE_ADAPTER_REGISTRY_SHA256 = (
+    "c5b1f1cb81b733d64d4a2667beaa52383b484fb81e8c62315d68c759f04b1e70"
+)
+GROUPED_M2_PROBE_ADAPTERS = {
+    (key, side): adapter for key, side, adapter in GROUPED_M2_PROBE_ADAPTER_REGISTRY
+}
+GROUPED_M2_PROBE_ADAPTER_SIGNATURES = {
+    "decode_grouped_accepted_pointer_error_m2": (
+        TXN_PROVENANCE_SOURCE,
+        "fn decode_grouped_accepted_pointer_error_m2<"
+        "T: GroupedAcceptedPointerProbeFixture,>("
+        "_fixture: &Fixture, m2_fixture: &T,) "
+        "-> ::core::result::Result<TransactionId, CommitError>",
+    ),
+    "verify_grouped_absent_revision_receipt_m2": (
+        TXN_PROVENANCE_SOURCE,
+        "fn verify_grouped_absent_revision_receipt_m2("
+        "_fixture: &Fixture, "
+        "m2_fixture: &GroupedHeadShapeReceiptMissingFixture,) "
+        "-> ::core::result::Result<(), CommitError>",
+    ),
+    "import_grouped_transaction_receipt_error_m2": (
+        TXN_PROVENANCE_SOURCE,
+        "fn import_grouped_transaction_receipt_error_m2("
+        "_fixture: &Fixture, "
+        "m2_fixture: &GroupedHeadChecksumReceiptDigestFixture,) "
+        "-> ::core::result::Result<(), CommitError>",
+    ),
+    "import_branch_record_error_m2": (
+        REF_PROVENANCE_SOURCE,
+        "fn import_branch_record_error_m2<T: BranchRecordProbeFixture>("
+        "_fixture: &Fixture, m2_fixture: &T,) "
+        "-> ::core::result::Result<ImportedBranchRecord, super::BranchError>",
+    ),
+    "probe_branch_origin_ancestry_m2": (
+        REF_PROVENANCE_SOURCE,
+        "fn probe_branch_origin_ancestry_m2<T: BranchOriginAncestryFixture>("
+        "_fixture: &Fixture, m2_fixture: &T,) "
+        "-> ::core::result::Result<(), super::BranchError>",
+    ),
+    "import_branch_ref_error_m2": (
+        REF_PROVENANCE_SOURCE,
+        "fn import_branch_ref_error_m2<T: BranchRefProbeFixture>("
+        "_fixture: &Fixture, m2_fixture: &T,) "
+        "-> ::core::result::Result<ImportedBranchRef, super::BranchError>",
+    ),
+    "probe_ref_target_binding_m2": (
+        REF_PROVENANCE_SOURCE,
+        "fn probe_ref_target_binding_m2<T: RefTargetBindingFixture>("
+        "_fixture: &Fixture, m2_fixture: &T,) "
+        "-> ::core::result::Result<(), super::BranchError>",
+    ),
+}
 MULTIFAULT_EVIDENCE_FIELDS = MULTIFAULT_M2_EVIDENCE_FIELDS
 MULTIFAULT_ASSERTION_FIELDS = (
     "primary_fixture",
@@ -5951,6 +6087,98 @@ def multifault_overlay_registry_sha256(
 MULTIFAULT_OVERLAY_REGISTRY_SHA256 = (
     "96010eb8aced871125be613d7ce192c0d97419ed600723522e23d5234fd300a0"
 )
+
+
+def grouped_m2_probe_adapter_metadata_problem(
+    registry: object = GROUPED_M2_PROBE_ADAPTER_REGISTRY,
+    expected_digest: object = GROUPED_M2_PROBE_ADAPTER_REGISTRY_SHA256,
+) -> str | None:
+    expected = (
+        (
+            ("COR-06", "head_checksum", "head_shape_before_receipt_missing"),
+            "primary",
+            "decode_grouped_accepted_pointer_error_m2",
+        ),
+        (
+            ("COR-06", "head_checksum", "head_shape_before_receipt_missing"),
+            "secondary",
+            "verify_grouped_absent_revision_receipt_m2",
+        ),
+        (
+            ("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt"),
+            "primary",
+            "decode_grouped_accepted_pointer_error_m2",
+        ),
+        (
+            ("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt"),
+            "secondary",
+            "import_grouped_transaction_receipt_error_m2",
+        ),
+        (
+            ("COR-07", "origin_format", "branch_record_format_version"),
+            "primary",
+            "import_branch_record_error_m2",
+        ),
+        (
+            ("COR-07", "origin_format", "branch_record_format_version"),
+            "secondary",
+            "probe_branch_origin_ancestry_m2",
+        ),
+        (
+            ("COR-07", "origin_digest", "branch_record_digest_mismatch"),
+            "primary",
+            "import_branch_record_error_m2",
+        ),
+        (
+            ("COR-07", "origin_digest", "branch_record_digest_mismatch"),
+            "secondary",
+            "probe_branch_origin_ancestry_m2",
+        ),
+        (
+            ("COR-07", "ref_format", "ref_format_version"),
+            "primary",
+            "import_branch_ref_error_m2",
+        ),
+        (
+            ("COR-07", "ref_format", "ref_format_version"),
+            "secondary",
+            "probe_ref_target_binding_m2",
+        ),
+        (
+            ("COR-07", "ref_digest", "ref_digest_mismatch"),
+            "primary",
+            "import_branch_ref_error_m2",
+        ),
+    )
+    if not isinstance(registry, tuple) or registry != expected:
+        return "registry differs from the exact 11 key-side adapter records"
+    if any(
+        not isinstance(key, tuple)
+        or len(key) != 3
+        or key not in GROUPED_MULTIFAULT_CASES
+        or side not in {"primary", "secondary"}
+        or not isinstance(adapter, str)
+        or not re.fullmatch(RUST_IDENTIFIER, adapter)
+        for key, side, adapter in registry
+    ):
+        return "registry contains a malformed adapter record"
+    identities = tuple((key, side) for key, side, _adapter in registry)
+    if len(identities) != len(set(identities)):
+        return "registry contains a duplicate key-side identity"
+    cycle_secondary = (
+        ("COR-07", "ref_digest", "ref_digest_mismatch"),
+        "secondary",
+    )
+    if cycle_secondary in identities:
+        return "cycle secondary side gains direct adapter authority"
+    if (
+        not isinstance(expected_digest, str)
+        or grouped_m2_probe_adapter_registry_sha256(registry) != expected_digest
+    ):
+        return "registry digest differs"
+    return None
+
+
 GROUPED_MULTIFAULT_SECONDARY_FIXTURE_KEYS = {
     ("COR-06", "head_checksum", "head_shape_before_receipt_missing"): (
         "COR-06",
@@ -8154,6 +8382,20 @@ def multifault_overlay_spec_digest_problem(spec: str) -> str | None:
     return None
 
 
+def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
+    matches = re.findall(
+        r"Their M2 windows select two-argument test adapters through one "
+        r"separate closed\s+`GROUPED_M2_PROBE_ADAPTER_REGISTRY` with 11 "
+        r"exact key-and-side records and\s+SHA-256\s+`([0-9a-f]{64})`\.",
+        spec,
+    )
+    if len(matches) != 1:
+        return "cannot isolate one exact grouped M2 probe-adapter registry digest"
+    if matches[0] != GROUPED_M2_PROBE_ADAPTER_REGISTRY_SHA256:
+        return "specification grouped M2 probe-adapter registry digest differs"
+    return None
+
+
 def require_contract(spec: str, adr: str) -> None:
     require_git_source_authority()
     require_owned_entry_v6_controls()
@@ -8172,6 +8414,8 @@ def require_contract(spec: str, adr: str) -> None:
     if problem := recovery_provenance_spec_digest_problem(spec):
         fail(problem)
     if problem := multifault_overlay_spec_digest_problem(spec):
+        fail(problem)
+    if problem := grouped_m2_probe_adapter_spec_digest_problem(spec):
         fail(problem)
     for marker in (
         "The dependency direction remains `sley-repo -> sley-txn -> sley-store`",
@@ -8917,7 +9161,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v6":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v7":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -9051,6 +9295,8 @@ def require_implementation(
     require_error_source_helpers(sources)
     require_snapshot_helpers(sources)
     require_owned_entry_fixture_helpers(sources)
+    if problem := grouped_m2_probe_adapter_source_problem(sources):
+        fail(f"grouped M2 probe-adapter source authority differs: {problem}")
     used_tests: list[str] = []
     test_owners: dict[str, str] = {}
     qualified_tests: dict[str, str] = {}
@@ -15949,6 +16195,10 @@ def require_evidence_metadata() -> None:
         fail(f"grouped corruption fixture plan metadata differs: {problem}")
     if problem := multifault_overlay_metadata_problem():
         fail(f"multifault overlay metadata differs: {problem}")
+    if problem := grouped_m2_probe_adapter_metadata_problem():
+        fail(f"grouped M2 probe-adapter metadata differs: {problem}")
+    if problem := grouped_m2_probe_adapter_render_problem():
+        fail(f"grouped M2 probe-adapter rendering differs: {problem}")
     if problem := multifault_fixture_renderer_metadata_problem():
         fail(f"multifault fixture renderer metadata differs: {problem}")
     if problem := recovery_success_metadata_problem():
@@ -18200,25 +18450,88 @@ def multifault_fixture_input_identifiers(
 
 
 def multifault_probe_window(
+    key: MultifaultKey,
     spec: MultifaultOverlaySpec,
     side: str,
+    adapters: dict[tuple[MultifaultKey, str], str] | None = None,
 ) -> list[str]:
     tree = snapshot_helper_path(spec.owner_source, "exact_tree_snapshot")
     overlay = spec.primary if side == "primary" else spec.secondary
+    selected_adapters = GROUPED_M2_PROBE_ADAPTERS if adapters is None else adapters
+    probe = selected_adapters.get((key, side), overlay.probe_class)
     statements = [f"let m2_{side}_probe_before = {tree}(owner_root);"]
     if side == "secondary" and spec.cycle_epochs is not None:
         pass
     else:
         statements.extend(
             (
-                f"let m2_{side}_probe_result = {overlay.probe_class}("
-                "&fixture, &m2_fixture);",
+                f"let m2_{side}_probe_result = {probe}(&fixture, &m2_fixture);",
                 f"let m2_{side}_probe_error = m2_{side}_probe_result"
                 f'.expect_err("expected {side} multifault probe error");',
             )
         )
     statements.append(f"let m2_{side}_probe_after = {tree}(owner_root);")
     return statements
+
+
+def grouped_m2_probe_adapter_call_problem(
+    key: MultifaultKey,
+    side: str,
+    window: object,
+    registry: tuple[tuple[MultifaultKey, str, str], ...] = (
+        GROUPED_M2_PROBE_ADAPTER_REGISTRY
+    ),
+) -> str | None:
+    adapters = {
+        (item_key, item_side): adapter for item_key, item_side, adapter in registry
+    }
+    if len(adapters) != len(registry):
+        return "adapter records collapse to duplicate key-side identities"
+    if key not in MULTIFAULT_OVERLAYS or side not in {"primary", "secondary"}:
+        return "probe window identity is outside the closed multifault domain"
+    if not isinstance(window, list) or any(
+        not isinstance(item, str) for item in window
+    ):
+        return "probe window is not one exact statement list"
+    spec = MULTIFAULT_OVERLAYS[key]
+    overlay = spec.primary if side == "primary" else spec.secondary
+    if side == "secondary" and spec.cycle_epochs is not None:
+        if len(window) != 2 or any("_probe_result =" in item for item in window):
+            return "cycle secondary side emits a direct probe"
+        if (key, side) in adapters:
+            return "cycle secondary side has an adapter"
+        return None
+    selected = adapters.get((key, side), overlay.probe_class)
+    expected_call = f"let m2_{side}_probe_result = {selected}(&fixture, &m2_fixture);"
+    calls = tuple(item for item in window if "_probe_result =" in item)
+    if calls != (expected_call,):
+        return "adapter call identity or exact two-argument shape differs"
+    if key in GROUPED_MULTIFAULT_CASES:
+        if (key, side) not in adapters:
+            return "grouped side lacks one adapter"
+        if selected == overlay.probe_class:
+            return "grouped side reuses its leaf probe as an adapter"
+    elif (key, side) in adapters:
+        return "non-grouped side gains grouped adapter authority"
+    return None
+
+
+def grouped_m2_probe_adapter_render_problem(
+    registry: tuple[tuple[MultifaultKey, str, str], ...] = (
+        GROUPED_M2_PROBE_ADAPTER_REGISTRY
+    ),
+) -> str | None:
+    adapters = {(key, side): adapter for key, side, adapter in registry}
+    if len(adapters) != len(registry):
+        return "adapter records collapse to duplicate key-side identities"
+    for key, spec in MULTIFAULT_OVERLAY_REGISTRY:
+        for side in ("primary", "secondary"):
+            window = multifault_probe_window(key, spec, side, adapters)
+            if problem := grouped_m2_probe_adapter_call_problem(
+                key, side, window, registry
+            ):
+                return f"{key!r} {side} {problem}"
+    return None
 
 
 def multifault_observation_window(
@@ -18312,8 +18625,8 @@ def multifault_operation_bindings(
         "secondary_baseline_and_primary_activation_window": (
             multifault_secondary_baseline_and_primary_activation_window(key, spec)
         ),
-        "primary_probe_window": multifault_probe_window(spec, "primary"),
-        "secondary_probe_window": multifault_probe_window(spec, "secondary"),
+        "primary_probe_window": multifault_probe_window(key, spec, "primary"),
+        "secondary_probe_window": multifault_probe_window(key, spec, "secondary"),
         "operation_1_pre_observation_window": multifault_observation_window(
             spec, 1, "before"
         ),
@@ -29824,6 +30137,58 @@ def exact_test_module_range(source: str, mask: list[bool]) -> tuple[int, int] | 
     return ranges[0] if len(ranges) == 1 else None
 
 
+def grouped_m2_probe_adapter_source_problem(
+    sources: object,
+    signatures: object = GROUPED_M2_PROBE_ADAPTER_SIGNATURES,
+) -> str | None:
+    expected_adapters = {
+        adapter for _key, _side, adapter in GROUPED_M2_PROBE_ADAPTER_REGISTRY
+    }
+    if not isinstance(signatures, dict) or set(signatures) != expected_adapters:
+        return "adapter signature authority differs from the registry identities"
+    if not isinstance(sources, dict):
+        return "adapter sources are not one source mapping"
+    module_projections: dict[str, str] = {}
+    non_test_projections: dict[str, str] = {}
+    for adapter, authority in signatures.items():
+        if (
+            not isinstance(adapter, str)
+            or not isinstance(authority, tuple)
+            or len(authority) != 2
+            or not all(isinstance(value, str) and value for value in authority)
+        ):
+            return "adapter signature authority contains a malformed record"
+        owner, expected_signature = authority
+        source = sources.get(owner)
+        if not isinstance(source, str):
+            return f"{adapter} owner source is absent"
+        if owner not in module_projections:
+            mask = rust_code_mask(source)
+            module_range = exact_test_module_range(source, mask)
+            if module_range is None:
+                return f"{owner} lacks one exact cfg(test) module"
+            opening, closing = module_range
+            module_projections[owner] = rust_code_projection(
+                source[opening + 1 : closing]
+            )
+            non_test_projections[owner] = "".join(
+                character if mask[index] and not opening <= index <= closing else " "
+                for index, character in enumerate(source)
+            )
+        found = rust_direct_function_signature(
+            module_projections[owner], adapter, "private"
+        )
+        if len(found) != 1 or normalize_rust_tokens(found[0]) != (
+            normalize_rust_tokens(expected_signature)
+        ):
+            return (
+                f"{owner} {adapter} identity, owner, or two-argument signature differs"
+            )
+        if re.search(rf"\b{re.escape(adapter)}\b", non_test_projections[owner]):
+            return f"{owner} {adapter} survives the normal build"
+    return None
+
+
 def rust_function_body_opening(
     source: str,
     mask: list[bool],
@@ -30959,6 +31324,27 @@ def require_checker_negative_controls() -> None:
     )
     if multifault_overlay_spec_digest_problem(stale_multifault_digest_spec) is None:
         fail("checker self-test accepted a stale multifault-overlay spec digest")
+
+    exact_grouped_adapter_digest_spec = (
+        "Their M2 windows select two-argument test adapters through one "
+        "separate closed\n`GROUPED_M2_PROBE_ADAPTER_REGISTRY` with 11 exact "
+        "key-and-side records and\nSHA-256\n"
+        f"`{GROUPED_M2_PROBE_ADAPTER_REGISTRY_SHA256}`.\n"
+    )
+    if (
+        grouped_m2_probe_adapter_spec_digest_problem(exact_grouped_adapter_digest_spec)
+        is not None
+    ):
+        fail("checker self-test rejected the exact grouped adapter spec digest")
+    stale_grouped_adapter_digest_spec = exact_grouped_adapter_digest_spec.replace(
+        GROUPED_M2_PROBE_ADAPTER_REGISTRY_SHA256,
+        "0" * 64,
+    )
+    if (
+        grouped_m2_probe_adapter_spec_digest_problem(stale_grouped_adapter_digest_spec)
+        is None
+    ):
+        fail("checker self-test accepted a stale grouped adapter spec digest")
 
     if strict_json_object(b'{"outer":{"value":1}}', "exact-json") != {
         "outer": {"value": 1}
@@ -34121,6 +34507,92 @@ mod tests {
             fail("checker self-test accepted hostile multifault overlay metadata")
     if multifault_overlay_metadata_problem(expected_digest="0" * 64) is None:
         fail("checker self-test accepted stale multifault overlay digest")
+
+    if grouped_m2_probe_adapter_metadata_problem() is not None:
+        fail("checker self-test rejected exact grouped M2 probe adapters")
+    if grouped_m2_probe_adapter_render_problem() is not None:
+        fail("checker self-test rejected exact grouped M2 probe rendering")
+    adapter_hostiles: list[tuple[tuple[MultifaultKey, str, str], ...]] = [
+        GROUPED_M2_PROBE_ADAPTER_REGISTRY[:-1],
+        (
+            GROUPED_M2_PROBE_ADAPTER_REGISTRY[1],
+            GROUPED_M2_PROBE_ADAPTER_REGISTRY[0],
+            *GROUPED_M2_PROBE_ADAPTER_REGISTRY[2:],
+        ),
+        (
+            *GROUPED_M2_PROBE_ADAPTER_REGISTRY,
+            GROUPED_M2_PROBE_ADAPTER_REGISTRY[0],
+        ),
+    ]
+    legacy_adapter = list(GROUPED_M2_PROBE_ADAPTER_REGISTRY)
+    legacy_key, legacy_side, _legacy_name = legacy_adapter[0]
+    legacy_adapter[0] = (
+        legacy_key,
+        legacy_side,
+        MULTIFAULT_OVERLAYS[legacy_key].primary.probe_class,
+    )
+    adapter_hostiles.append(tuple(legacy_adapter))
+    cross_owner_adapter = list(GROUPED_M2_PROBE_ADAPTER_REGISTRY)
+    cross_key, cross_side, _cross_name = cross_owner_adapter[0]
+    cross_owner_adapter[0] = (
+        cross_key,
+        cross_side,
+        "import_branch_record_error_m2",
+    )
+    adapter_hostiles.append(tuple(cross_owner_adapter))
+    adapter_hostiles.append(
+        (
+            *GROUPED_M2_PROBE_ADAPTER_REGISTRY,
+            (
+                ("COR-07", "ref_digest", "ref_digest_mismatch"),
+                "secondary",
+                "probe_production_ancestry_core_m2",
+            ),
+        )
+    )
+    for hostile in adapter_hostiles:
+        if (
+            grouped_m2_probe_adapter_metadata_problem(
+                hostile,
+                grouped_m2_probe_adapter_registry_sha256(hostile),
+            )
+            is None
+        ):
+            fail("checker self-test accepted hostile grouped M2 probe adapters")
+    if grouped_m2_probe_adapter_metadata_problem(expected_digest="0" * 64) is None:
+        fail("checker self-test accepted stale grouped M2 probe-adapter digest")
+
+    adapter_key = (
+        "COR-06",
+        "head_checksum",
+        "head_shape_before_receipt_missing",
+    )
+    adapter_window = multifault_probe_window(
+        adapter_key,
+        MULTIFAULT_OVERLAYS[adapter_key],
+        "primary",
+    )
+    exact_adapter_call = adapter_window[1]
+    legacy_call = exact_adapter_call.replace(
+        "decode_grouped_accepted_pointer_error_m2",
+        "decode_accepted_pointer_error",
+    )
+    three_argument_call = exact_adapter_call.replace(
+        "&fixture, &m2_fixture",
+        "&fixture, &m2_fixture, &m2_primary_path",
+    )
+    for hostile_call in (legacy_call, three_argument_call):
+        hostile_window = list(adapter_window)
+        hostile_window[1] = hostile_call
+        if (
+            grouped_m2_probe_adapter_call_problem(
+                adapter_key,
+                "primary",
+                hostile_window,
+            )
+            is None
+        ):
+            fail("checker self-test accepted hostile grouped M2 probe call")
 
     if multifault_fixture_renderer_metadata_problem() is not None:
         fail("checker self-test rejected exact multifault fixture renderers")
