@@ -198,6 +198,23 @@ Fresh Nabu, Ariadne, and Vulcan contract reviews are required before selecting
 or implementing the entry/control ruling. Those handoffs are provider-backed
 and require current operator approval. No v7 review may be reused.
 
+The deterministic `forge council route` resolver incorrectly classified this
+task as WebForge/Seshat after matching the word `resolver`. That route was
+discarded without dispatch. The authoritative local Council matrix confirms:
+
+- Nabu owns the architecture choice and exception-boundary design;
+- Ariadne owns Sley-domain consistency and contract fit;
+- Vulcan owns checker soundness, hostile controls, and security posture;
+- Codex remains orchestrator and file owner;
+- Hermes is unnecessary unless orchestration is explicitly delegated.
+
+All three eventual handoffs are read-only. Their inputs are this frontier
+packet, the v8 helper design, the frozen v7 checker/specification/ADR/evidence,
+and current production sources. They own no paths. Each must return an exact
+architecture or contract verdict, required hostile validation, blocking
+findings, and the evidence digests that a settled v8 review must bind. All work
+returns to Codex for integration.
+
 The full `make v1` gate remains deferred because no release boundary has been
 reached. The monolithic v7 checker remains unsuitable as a development probe
 until its measured scanner debt is addressed.
