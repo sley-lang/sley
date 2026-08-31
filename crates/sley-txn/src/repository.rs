@@ -12547,6 +12547,8 @@ mod tests {
         object_stage_path: PathBuf,
         receipt_stage_path: PathBuf,
         head_stage_path: PathBuf,
+        genesis_claim: RecoveryRevisionClaim,
+        head_claim: RecoveryRevisionClaim,
     }
 
     fn plant_guard_canaries(root: &Path, tag: u8) -> (PathBuf, PathBuf, PathBuf, Vec<u8>) {
@@ -12574,6 +12576,8 @@ mod tests {
         let head = commit_on_head(fixture, nonce).transaction_id();
         let root = repository.root().to_path_buf();
         let authority_target_identity = repository.accepted_head().unwrap().transaction_id();
+        let genesis_claim = claim_for(repository, fixture.genesis_transaction_id);
+        let head_claim = claim_for(repository, head);
         let direct_target_receipt_path = repository.receipt_path(head).unwrap();
         let expected_direct_target_receipt_path =
             repository.receipt_path(authority_target_identity).unwrap();
@@ -12608,6 +12612,8 @@ mod tests {
             object_stage_path,
             receipt_stage_path,
             head_stage_path,
+            genesis_claim,
+            head_claim,
         }
     }
 
@@ -12667,6 +12673,48 @@ mod tests {
         ::core::assert_eq!(("owner_object_stage_unchanged", owner_object_stage_before_snapshot), ("owner_object_stage_unchanged", owner_object_stage_after_snapshot));
         ::core::assert_eq!(("owner_receipt_stage_unchanged", owner_receipt_stage_before_snapshot), ("owner_receipt_stage_unchanged", owner_receipt_stage_after_snapshot));
         ::core::assert_eq!(("owner_head_stage_unchanged", owner_head_stage_before_snapshot), ("owner_head_stage_unchanged", owner_head_stage_after_snapshot));
+    }
+
+    #[test]
+    fn guard01_ancestry_verifier_same_root_shared_fails_closed() {
+        let fixture = Fixture::new("guard01-anc");
+        let topology = guard_topology(&fixture, 72, 0xa2);
+        let provenance = topology.provenance;
+        let repository = fixture.repository.clone();
+        let owner_root = repository.root();
+        let canonical_owner_root = ::std::fs::canonicalize(owner_root).unwrap();
+        let loser_probe_error = repository.accepted_head().unwrap_err();
+        let authority_pointer_before_snapshot = exact_path_snapshot(&topology.pointer_path);
+        let direct_target_receipt_before_snapshot =
+            exact_optional_path_snapshot(&topology.direct_target_receipt_path);
+        let requests = [RecoveryAncestryRequest::with_claims(
+            topology.genesis_claim,
+            topology.head_claim,
+        )];
+        let maintenance = repository.acquire_shared_maintenance().unwrap();
+        ::core::assert!(::std::fs::symlink_metadata(owner_root).unwrap().is_dir() && !::std::fs::symlink_metadata(owner_root).unwrap().file_type().is_symlink(), "owner_root_real");
+        ::core::assert_eq!(("canonical_owner_root", canonical_owner_root.as_path()), ("canonical_owner_root", ::std::fs::canonicalize(owner_root).unwrap().as_path()));
+        ::core::assert_eq!(("maintenance_root_equals_canonical_owner", maintenance.repository_root()), ("maintenance_root_equals_canonical_owner", canonical_owner_root.as_path()));
+        ::core::assert!(!maintenance.is_exclusive(), "maintenance_is_shared");
+        ::core::assert!(maintenance.covers(owner_root), "maintenance_covers_owner");
+        ::core::assert_eq!(("direct_target_identity_from_authority", provenance.direct_target_identity), ("direct_target_identity_from_authority", provenance.authority_target_identity));
+        ::core::assert_eq!(("direct_target_receipt_path", provenance.direct_target_receipt_path.as_path()), ("direct_target_receipt_path", provenance.expected_direct_target_receipt_path.as_path()));
+        ::core::assert!(direct_target_receipt_before_snapshot.is_none(), "direct_target_receipt_absent");
+        ::core::assert!(::core::matches!(&loser_probe_error, super::CommitError::Transaction(_)), "loser_probe_variant");
+        ::core::assert_eq!(("loser_probe_code", loser_probe_error.code()), ("loser_probe_code", "RECOVERY_RECEIPT_INCOMPLETE"));
+        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let result = repository
+            .verify_branch_recovery_ancestries_with_maintenance(&maintenance, &requests);
+        ::core::assert!(result.is_err());
+        let error = result.expect_err("expected recovery error");
+        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(match &error { super::RecoveryAncestryError::Verification(inner) => inner.code(), _ => "", }, "TXN_IO");
+        ::core::assert!(::core::matches!(&error, super::RecoveryAncestryError::Verification(super::CommitError::Io(_))));
+        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain(&error), ["CommitError", "io::Error(Other)"]);
+        let authority_pointer_after_snapshot = exact_path_snapshot(&topology.pointer_path);
+        ::core::assert_eq!(("authority_pointer_unchanged", authority_pointer_before_snapshot), ("authority_pointer_unchanged", authority_pointer_after_snapshot));
+        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
+        ::core::assert_eq!(("owner_tree_unchanged", owner_tree_before_snapshot), ("owner_tree_unchanged", owner_tree_after_snapshot));
     }
 
 
