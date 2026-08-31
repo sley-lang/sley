@@ -17313,7 +17313,7 @@ mod tests {
         ::core::assert_eq!(("pointer_decodes_left", provenance.pointer_identity), ("pointer_decodes_left", provenance.left_identity));
         ::core::assert_eq!(("durable_left_parent_is_right", provenance.durable_left_parents.as_slice()), ("durable_left_parent_is_right", [provenance.right_identity].as_slice()));
         ::core::assert_eq!(("durable_right_parent_is_genesis", provenance.durable_right_parents.as_slice()), ("durable_right_parent_is_genesis", [provenance.genesis_identity].as_slice()));
-        ::core::assert!(provenance.durable_left_parents.as_slice() == [provenance.right_identity] && provenance.durable_right_parents.as_slice() == [provenance.genesis_identity], "durable_graph_acyclic");
+        ::core::assert!(provenance.durable_left_parents.as_slice() == [provenance.right_identity].as_slice() && provenance.durable_right_parents.as_slice() == [provenance.genesis_identity].as_slice(), "durable_graph_acyclic");
         ::core::assert!(maintenance.is_exclusive() && maintenance.covers(owner_root), "maintenance_same_root_exclusive");
         ::core::assert_eq!(("plan_installed_on_owner_repository", provenance.plan_owner_root.as_path()), ("plan_installed_on_owner_repository", canonical_owner_root.as_path()));
         ::core::assert_eq!(("logical_left_parent_is_right", provenance.logical_left_parents.as_slice()), ("logical_left_parent_is_right", [provenance.right_identity].as_slice()));
