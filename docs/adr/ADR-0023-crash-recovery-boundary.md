@@ -45,6 +45,24 @@ ignored, and `should_panic` functions cannot supply evidence. Production
 scanning excludes individual exact `#[cfg(test)]` items without discarding
 later production code.
 
+Owned-entry evidence derives `expected_result`, `owned_stage_removed`,
+`preserved`, and `no_mutation` from exact recovery outcomes, tree deltas,
+reports, path snapshots, and cleanup canaries. It does not introduce shadow
+locals named after those plan fields. Forty-eight subcases use one exact
+five-sequence owned-entry body. `COR-02/symlink` and `COR-04/symlink` use their
+exact two-operation multifault bodies as the sole body authority and bind the
+same owned-entry facts to the precedence winner and first-operation snapshots.
+Their secondary probes use distinct M2 helper identities, and their classified
+winner variants carry exact empty `Error::source` chains.
+
+Test-only non-regular fixtures bind a Unix datagram socket at one guarded short
+path under the system temporary directory and rename the inode into the final
+owner path. Direct final-path socket binds are not evidence. COR-03 explicitly
+replaces the trusted-genesis `heads/accepted` entry and records it as changed.
+COR-04 and COR-05 establish canonical refs layout and `locks/refs.lock` before
+their fresh baseline so production layout creation is not misreported as
+recovery mutation.
+
 `COR-06` and `COR-07` keep their eight public labels as namespaces but expand
 to 73 and 159 exact error-preservation leaves. The leaves preserve concrete
 owner codes, variant paths, and complete `Error::source` chains. All 71

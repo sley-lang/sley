@@ -1,6 +1,6 @@
 # S20-530 v6 owned-entry amendment design
 
-Status: ACTIVE DESIGN, REFREEZE PENDING
+Status: V6 FREEZE CANDIDATE
 
 Owner: Codex orchestrator
 
@@ -71,7 +71,7 @@ Additional current-source probes found four coupled defects:
 
 - `COR-02/symlink` and `COR-04/symlink` are each required to satisfy both the
   exact owned-entry body and the different exact multifault statement plan.
-- All 20 fatal owned-entry subcases omit all four direct assertions required by
+- All 18 fatal owned-entry subcases omit all four direct assertions required by
   `require_preflight_canary_evidence`: canary snapshots, canary kinds, expected
   canary kind, and owner-tree snapshots.
 - The frozen fatal variants are `CommitError::Io` for COR-02 and COR-03 and
@@ -84,6 +84,19 @@ Additional current-source probes found four coupled defects:
   operation delta. COR-03's trusted genesis already owns `heads/accepted`, so
   its symlink and non-regular fixtures must replace that existing entry and
   record a changed path rather than an added path.
+
+Runtime preparation found one additional M2 helper-identity collision. The
+two owned-entry multifault plans render two-argument probes named
+`decode_accepted_pointer_error` and `import_branch_ref_error`, while both owner
+modules already define different three-argument corruption probes under those
+names. v6 assigns the owned-entry probes the unique identities
+`decode_accepted_pointer_error_m2` and `import_branch_ref_error_m2`.
+
+The same runtime probes confirmed that the corrected classified variants have
+empty `Error::source` chains. The v5 M2 winner authorities incorrectly paired
+the classified `CommitError::Transaction` and `BranchError::Branch` variants
+with `io::Error(Other)` source labels, even though those enum variants own only
+stable error codes. v6 freezes empty source chains for those two winners.
 
 ## Amendment A: use concrete owned-entry semantic evidence
 
@@ -223,7 +236,7 @@ through F, including at least:
 1. the owned-entry renderer and semantic-validator self-contract;
 2. the three exact non-regular helper bodies and source anchors;
 3. the two owned-entry multifault winner authorities and
-   `MULTIFAULT_OVERLAY_REGISTRY_SHA256`;
+   unique secondary-probe identities and `MULTIFAULT_OVERLAY_REGISTRY_SHA256`;
 4. all affected mapped-body and helper-body manifests;
 5. the specification and ADR descriptions of owned-entry and M2 evidence;
 6. frozen checker raw, checker self-contract, specification, ADR, runner if

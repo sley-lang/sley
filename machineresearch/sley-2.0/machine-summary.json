@@ -1061,24 +1061,24 @@
     "matrix_rows": 100,
     "dependency_direction": "sley-repo -> sley-txn -> sley-store",
     "implementation_complete": false,
-    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v5.json",
-    "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
+    "contract_freeze_evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v6.json",
+    "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
     "freeze_commit": "d152598425c3dff4ff2e893195f77936bf0b2327",
     "contract_reviews": {
       "nabu": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
-        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
+        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
       },
       "ariadne": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
-        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
+        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
       },
       "vulcan": {
         "result": "PASS_CONTRACT_FREEZE",
-        "contract_set_sha256": "de921bbe2efda26d77c2d7476a8d30556b4a6ec5e077e83541990f189255c08d",
-        "evidence_payload_sha256": "58476201512efd1b310bcfbc51d408b87d5d1eb22681ef1e80041eca0a421f56"
+        "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+        "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
       }
     }
   },

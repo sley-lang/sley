@@ -72,20 +72,20 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v5.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v6.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "3d6c15c2b07de12fe77dd25fc342788530a98a3b5ad031d02e522362a1e8dadc"
-FROZEN_ADR_SHA256 = "f0af44d97c523a5b3b1baa5a3bf3464f804d37310126f372479f2fe486c4a102"
+FROZEN_SPEC_SHA256 = "6099b5dae41fedbe2cfc9bf78f0f7ad751f15961d3aaab371da2b5ff9f1aa5d5"
+FROZEN_ADR_SHA256 = "c145f8603b19cc755e470cbc24cf62067fc3f410305ae20f507f4a14d6a7b211"
 FROZEN_RUNNER_SHA256 = (
     "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "622d1b683d318b76ae77a1eb6cc70ba8aa77d07e368089ed754ba1ea23ad4022"
+    "247c44dd326850b2205817fb233661dd1286f05f8ab29464787db25ef6d8a8de"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -5169,6 +5169,7 @@ MULTIFAULT_M2_EVIDENCE_FIELDS = (
     "m2_repair_assertions",
     "m2_cycle_epoch_assertions",
     "m2_snapshot_assertions",
+    "m2_owned_entry_canary_assertions",
 )
 M2_OPERATION_BINDING_FIELDS = (
     "fresh_fixture",
@@ -5235,6 +5236,11 @@ M2_SNAPSHOT_ASSERTION_FIELDS = (
     "operation_2_tree_unchanged",
     "operation_2_primary_unchanged",
     "operation_2_secondary_unchanged",
+)
+M2_OWNED_ENTRY_CANARY_ASSERTION_FIELDS = (
+    "snapshot_unchanged",
+    "kind_unchanged",
+    "expected_kind",
 )
 PREFLIGHT_CANARY_EVIDENCE_FIELDS = (
     "cleanup_canary_hashes",
@@ -5524,13 +5530,13 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "transaction_repository_owner_root",
                 "accepted_pointer_path",
                 "accepted_pointer_checksum",
-                "decode_accepted_pointer_error",
+                "decode_accepted_pointer_error_m2",
                 "secondary_pointer_path_from_owner",
                 "secondary_pointer_checksum_corrupt",
                 "secondary_probe_ref_head_corrupt",
             ),
             "primary_path_set_disjoint_from_secondary_path",
-            code_error_authority("TXN_IO", "commit.io", ("io::Error(Other)",)),
+            code_error_authority("TXN_IO", "commit.transaction"),
             code_error_authority("REF_HEAD_CORRUPT", "commit.transaction"),
             "unlink_all_three_exact_symlinks_sync_distinct_parents",
             "production_call",
@@ -5596,13 +5602,13 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "selected_branch_name",
                 "branch_ref_path",
                 "ref_digest_rewrite",
-                "import_branch_ref_error",
+                "import_branch_ref_error_m2",
                 "secondary_ref_path_from_branch",
                 "secondary_ref_digest_corrupt",
                 "secondary_probe_ref_digest_mismatch",
             ),
             "primary_path_set_disjoint_from_secondary_path",
-            code_error_authority("REF_IO", "branch.io", ("io::Error(Other)",)),
+            code_error_authority("REF_IO", "branch.branch"),
             code_error_authority("REF_DIGEST_MISMATCH", "branch.branch"),
             "unlink_all_three_exact_symlinks_sync_distinct_parents",
             "production_call",
@@ -5943,7 +5949,7 @@ def multifault_overlay_registry_sha256(
 
 
 MULTIFAULT_OVERLAY_REGISTRY_SHA256 = (
-    "edb29339c3a1c4ff2349312d54c536bdef935944d6293b006fa99b9710369827"
+    "96010eb8aced871125be613d7ce192c0d97419ed600723522e23d5234fd300a0"
 )
 GROUPED_MULTIFAULT_SECONDARY_FIXTURE_KEYS = {
     ("COR-06", "head_checksum", "head_shape_before_receipt_missing"): (
@@ -6236,6 +6242,7 @@ PUBLIC_API_BODY_EXCLUSIONS = {
 }
 
 OWNED_ENTRY_FAMILIES = frozenset({"COR-01", "COR-02", "COR-03", "COR-04", "COR-05"})
+OWNED_ENTRY_MULTIFAULT_CASES = frozenset({("COR-02", "symlink"), ("COR-04", "symlink")})
 GC_PARTIAL_REPORT_ROWS = frozenset({"GC-01", "GC-02"})
 OWNED_ENTRY_ERROR_CODES = {
     "COR-01": "STORE_IO",
@@ -6286,7 +6293,13 @@ OWNED_ENTRY_ROW_CONTRACTS = {
         "receiver": "branch_repository",
         "root": "branch_repository.root()",
         "base": ("branches", "v1"),
-        "baseline_directories": (),
+        "baseline_directories": (
+            ("branches",),
+            ("branches", "v1"),
+            ("refs",),
+            ("refs", "v1"),
+            ("locks",),
+        ),
         "stage_prefix": ".sley-branch-stage-",
         "final_suffix": ".branch.scb1",
         "report_field": "removed_branch_stages",
@@ -6297,7 +6310,13 @@ OWNED_ENTRY_ROW_CONTRACTS = {
         "receiver": "branch_repository",
         "root": "branch_repository.root()",
         "base": ("refs", "v1"),
-        "baseline_directories": (),
+        "baseline_directories": (
+            ("branches",),
+            ("branches", "v1"),
+            ("refs",),
+            ("refs", "v1"),
+            ("locks",),
+        ),
         "stage_prefix": ".sley-ref-stage-",
         "final_suffix": ".ref.scb1",
         "report_field": "removed_ref_stages",
@@ -8137,6 +8156,7 @@ def multifault_overlay_spec_digest_problem(spec: str) -> str | None:
 
 def require_contract(spec: str, adr: str) -> None:
     require_git_source_authority()
+    require_owned_entry_v6_controls()
     require_checker_negative_controls()
     require_runner_self_controls()
     require_native_lib_harness_contract()
@@ -8897,7 +8917,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v5":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v6":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -9030,6 +9050,7 @@ def require_implementation(
     require_test_only_durability_cut_authority(sources, row_map)
     require_error_source_helpers(sources)
     require_snapshot_helpers(sources)
+    require_owned_entry_fixture_helpers(sources)
     used_tests: list[str] = []
     test_owners: dict[str, str] = {}
     qualified_tests: dict[str, str] = {}
@@ -9068,7 +9089,10 @@ def require_implementation(
                         owner,
                         sources[owner],
                     )
-                    if subcase_id in OWNED_ENTRY_FATAL_SUBCASES:
+                    if (
+                        subcase_id in OWNED_ENTRY_FATAL_SUBCASES
+                        and (row_id, subcase_id) not in OWNED_ENTRY_MULTIFAULT_CASES
+                    ):
                         require_preflight_canary_evidence(row_id, subcase_id, subcase)
                 elif row_id in GC_PARTIAL_REPORT_ROWS:
                     require_gc_partial_report_evidence(row_id, subcase_id, subcase)
@@ -15652,11 +15676,10 @@ def multifault_expected_winner_authority(
         code, variant, chain = error_case_spec(row_id, subcase_id)
         return code_error_authority(code, variant, chain)
     if row_id in OWNED_ENTRY_ERROR_CODES:
-        variant = "commit.io" if row_id == "COR-02" else "branch.io"
+        variant = "commit.transaction" if row_id == "COR-02" else "branch.branch"
         return code_error_authority(
             OWNED_ENTRY_ERROR_CODES[row_id],
             variant,
-            ("io::Error(Other)",),
         )
     limit_authority = {
         ("LIMIT-02", "final_receipts"): code_error_authority(
@@ -16658,6 +16681,92 @@ def require_snapshot_helpers(sources: dict[str, str]) -> None:
             relative,
         ):
             fail(f"{relative} recovery-ancestry plan digest helper differs: {problem}")
+
+
+def owned_entry_non_regular_helper_expected_body() -> str:
+    return """\
+if replace {
+    ::std::fs::remove_file(path).unwrap();
+} else {
+    ::core::assert!(::core::matches!(
+        ::std::fs::symlink_metadata(path),
+        ::core::result::Result::Err(error)
+            if error.kind() == ::std::io::ErrorKind::NotFound
+    ));
+}
+static NEXT: ::std::sync::atomic::AtomicU64 =
+    ::std::sync::atomic::AtomicU64::new(0);
+let sequence = NEXT.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
+let staging = ::std::env::temp_dir().join(::std::format!(
+    "s2nr-{}-{sequence:016x}",
+    ::std::process::id()
+));
+::core::assert!(
+    ::std::os::unix::ffi::OsStrExt::as_bytes(staging.as_os_str()).len() < 108
+);
+let socket = ::std::os::unix::net::UnixDatagram::bind(&staging).unwrap();
+::std::fs::rename(&staging, path).unwrap();
+socket
+"""
+
+
+def owned_entry_fixture_helper_problem(source: str, relative: str) -> str | None:
+    mask = rust_code_mask(source)
+    module_range = exact_test_module_range(source, mask)
+    if module_range is None:
+        return "lacks one exact cfg(test) module"
+    opening, closing = module_range
+    module_projection = rust_code_projection(source[opening + 1 : closing])
+    signature = (
+        "fn plant_non_regular_socket("
+        "path: &::std::path::Path, replace: bool,"
+        ") -> ::std::os::unix::net::UnixDatagram"
+    )
+    signatures = rust_direct_function_signature(
+        module_projection, "plant_non_regular_socket", "private"
+    )
+    if len(signatures) != 1 or normalize_rust_tokens(signatures[0]) != (
+        normalize_rust_tokens(signature)
+    ):
+        return "short-socket helper signature differs"
+    body = rust_named_function_raw_body(source, "plant_non_regular_socket", "mod:tests")
+    if body is None or normalize_rust_tokens(body) != normalize_rust_tokens(
+        owned_entry_non_regular_helper_expected_body()
+    ):
+        return "short-socket helper body differs"
+    if relative == "crates/sley-txn/src/repository.rs":
+        symlink_signature = (
+            "fn plant_symlink_entry(target: &str, path: &::std::path::Path)"
+        )
+        symlink_signatures = rust_direct_function_signature(
+            module_projection, "plant_symlink_entry", "private"
+        )
+        if len(symlink_signatures) != 1 or normalize_rust_tokens(
+            symlink_signatures[0]
+        ) != normalize_rust_tokens(symlink_signature):
+            return "replacement-symlink helper signature differs"
+        symlink_body = rust_named_function_raw_body(
+            source, "plant_symlink_entry", "mod:tests"
+        )
+        expected_symlink_body = """\
+::std::fs::remove_file(path).unwrap();
+::std::os::unix::fs::symlink(target, path).unwrap();
+"""
+        if symlink_body is None or normalize_rust_tokens(
+            symlink_body
+        ) != normalize_rust_tokens(expected_symlink_body):
+            return "replacement-symlink helper body differs"
+    return None
+
+
+def require_owned_entry_fixture_helpers(sources: dict[str, str]) -> None:
+    for relative in (
+        "crates/sley-store/src/lib.rs",
+        "crates/sley-txn/src/repository.rs",
+        "crates/sley-repo/src/refs.rs",
+    ):
+        if problem := owned_entry_fixture_helper_problem(sources[relative], relative):
+            fail(f"{relative} owned-entry fixture helper differs: {problem}")
 
 
 def top_level_let_statement_ranges(
@@ -18466,6 +18575,66 @@ def multifault_snapshot_assertions() -> dict[str, str]:
     }
 
 
+def multifault_owned_entry_canary_assertions(
+    key: MultifaultKey,
+) -> dict[str, str]:
+    if (key[0], key[1]) not in OWNED_ENTRY_MULTIFAULT_CASES or key[2] is not None:
+        return {}
+    return {
+        "snapshot_unchanged": (
+            "::core::assert_eq!(m2_owned_entry_canary_before_snapshot, "
+            "m2_owned_entry_canary_after_snapshot);"
+        ),
+        "kind_unchanged": (
+            "::core::assert_eq!(m2_owned_entry_canary_before_kind, "
+            "m2_owned_entry_canary_after_kind);"
+        ),
+        "expected_kind": (
+            '::core::assert_eq!(m2_owned_entry_canary_before_kind, "regular");'
+        ),
+    }
+
+
+def multifault_owned_entry_canary_before_statements(
+    key: MultifaultKey,
+    spec: MultifaultOverlaySpec,
+) -> tuple[str, ...]:
+    if not multifault_owned_entry_canary_assertions(key):
+        return ()
+    helper = snapshot_helper_path(spec.owner_source, "exact_path_snapshot")
+    return (
+        (
+            "let m2_owned_entry_canary_before_snapshot = "
+            f"{helper}(&m2_primary_regular_canary_path);"
+        ),
+        (
+            "let m2_owned_entry_canary_before_kind = "
+            "m2_owned_entry_canary_before_snapshot.0;"
+        ),
+    )
+
+
+def multifault_owned_entry_canary_after_statements(
+    key: MultifaultKey,
+    spec: MultifaultOverlaySpec,
+) -> tuple[str, ...]:
+    assertions = multifault_owned_entry_canary_assertions(key)
+    if not assertions:
+        return ()
+    helper = snapshot_helper_path(spec.owner_source, "exact_path_snapshot")
+    return (
+        (
+            "let m2_owned_entry_canary_after_snapshot = "
+            f"{helper}(&m2_primary_regular_canary_path);"
+        ),
+        (
+            "let m2_owned_entry_canary_after_kind = "
+            "m2_owned_entry_canary_after_snapshot.0;"
+        ),
+        *assertions.values(),
+    )
+
+
 def multifault_statement_plan(
     key: MultifaultKey,
     spec: MultifaultOverlaySpec | None = None,
@@ -18545,6 +18714,7 @@ def multifault_statement_plan(
         operation_2_post,
     ):
         assert isinstance(window, list)
+    statements.extend(multifault_owned_entry_canary_before_statements(key, selected))
     statements.extend(str(value) for value in operation_1_pre)
     statements.extend(
         (
@@ -18554,6 +18724,7 @@ def multifault_statement_plan(
         )
     )
     statements.extend(str(value) for value in operation_1_post)
+    statements.extend(multifault_owned_entry_canary_after_statements(key, selected))
     statements.extend(
         (
             results["operation_1_code_or_fields"],
@@ -18870,7 +19041,7 @@ MULTIFAULT_FIXTURE_RENDER_SPECS: dict[tuple[str, str], DirectAssertionRender] = 
     ): DirectAssertionRender(
         "eq",
         "m2_primary_path_kinds.as_slice()",
-        '["symlink", "symlink", "symlink"]',
+        '&["symlink", "symlink", "symlink"][..]',
     ),
     ("primary", "primary_two_final_origins_present"): DirectAssertionRender(
         "eq",
@@ -19135,6 +19306,7 @@ def multifault_plan_sha256(
         multifault_repair_assertions(spec),
         multifault_cycle_epoch_assertions(spec),
         multifault_snapshot_assertions(),
+        multifault_owned_entry_canary_assertions(key),
         tuple(
             normalize_rust_tokens(statement)
             for statement in multifault_statement_plan(key, spec)
@@ -19173,6 +19345,7 @@ def multifault_evidence_problem(
     expected_repairs = multifault_repair_assertions(spec)
     expected_cycle_epochs = multifault_cycle_epoch_assertions(spec)
     expected_snapshots = multifault_snapshot_assertions()
+    expected_owned_entry_canary = multifault_owned_entry_canary_assertions(key)
     exact_groups = (
         ("m2_operation_bindings", M2_OPERATION_BINDING_FIELDS, expected_bindings),
         ("m2_result_assertions", M2_RESULT_ASSERTION_FIELDS, expected_results),
@@ -19183,6 +19356,15 @@ def multifault_evidence_problem(
             expected_cycle_epochs,
         ),
         ("m2_snapshot_assertions", M2_SNAPSHOT_ASSERTION_FIELDS, expected_snapshots),
+        (
+            "m2_owned_entry_canary_assertions",
+            (
+                M2_OWNED_ENTRY_CANARY_ASSERTION_FIELDS
+                if expected_owned_entry_canary
+                else ()
+            ),
+            expected_owned_entry_canary,
+        ),
     )
     for field, order, expected in exact_groups:
         actual = entry.get(field)
@@ -19234,6 +19416,7 @@ def multifault_evidence_problem(
         expected_repairs,
         expected_cycle_epochs,
         expected_snapshots,
+        expected_owned_entry_canary,
     ):
         all_assertions.extend(mapping.values())
     if len(set(all_assertions)) != len(all_assertions):
@@ -27136,32 +27319,37 @@ def require_owned_entry_evidence(
     for field, value in expected.items():
         if not exact_json_scalar_equal(entry.get(field), value):
             fail(f"{row_id}/{subcase_id} {field} differs")
-    require_semantic_assertions(
-        f"{row_id}/{subcase_id}",
-        entry,
-        ("expected_result", "owned_stage_removed", "preserved", "no_mutation"),
-    )
-    require_exact_result_assertion(
-        f"{row_id}/{subcase_id}",
-        entry,
-        "expected_result",
-        expected["expected_result"],
-        require_projection=subcase_id in OWNED_ENTRY_FATAL_SUBCASES,
-    )
-    require_owned_entry_coverage(row_id, subcase_id, entry)
     tests = entry.get("tests")
     if not isinstance(tests, list) or len(tests) != 1 or not isinstance(tests[0], str):
         fail(f"{row_id}/{subcase_id} lacks one exact owned-entry test")
     definition = exact_test_definition(source, tests[0])
     if definition is None:
         fail(f"{row_id}/{subcase_id} cannot isolate its owned-entry test")
+    body = definition[0]
+    if (row_id, subcase_id) in OWNED_ENTRY_MULTIFAULT_CASES:
+        if problem := owned_entry_multifault_contract_problem(row_id, subcase_id):
+            fail(f"{row_id}/{subcase_id} owned-entry multifault differs: {problem}")
+        if problem := owned_entry_semantic_evidence_problem(
+            row_id, subcase_id, entry, relative, body
+        ):
+            fail(f"{row_id}/{subcase_id} owned-entry semantics differ: {problem}")
+        if problem := owned_entry_multifault_preflight_problem(
+            row_id, subcase_id, entry, body
+        ):
+            fail(f"{row_id}/{subcase_id} preflight cleanup canary differs: {problem}")
+        return
+    require_owned_entry_coverage(row_id, subcase_id, entry)
     if problem := owned_entry_operation_binding_problem(
-        definition[0],
+        body,
         relative,
         row_id,
         subcase_id,
     ):
         fail(f"{row_id}/{subcase_id} owned-entry binding differs: {problem}")
+    if problem := owned_entry_semantic_evidence_problem(
+        row_id, subcase_id, entry, relative, body
+    ):
+        fail(f"{row_id}/{subcase_id} owned-entry semantics differ: {problem}")
 
 
 def require_gc_partial_report_evidence(
@@ -27613,7 +27801,18 @@ def owned_entry_expected_added_paths(
             if parent not in baseline_set:
                 added.add(parent)
         added.add(parts)
+    if row_id == "COR-03" and subcase_id in {"symlink", "non_regular"}:
+        added.discard(("heads", "accepted"))
     return tuple(sorted(added, key=owned_entry_path_sort_key))
+
+
+def owned_entry_expected_changed_paths(
+    row_id: str,
+    subcase_id: str,
+) -> tuple[tuple[str | bytes, ...], ...]:
+    if row_id == "COR-03" and subcase_id in {"symlink", "non_regular"}:
+        return (("heads", "accepted"),)
+    return ()
 
 
 def owned_entry_fixture_fact_assertions(
@@ -27691,6 +27890,9 @@ def owned_entry_fresh_statements(
             "let branch_repository: &super::BranchRepository = &fixture.branches;",
             "let owner_root = branch_repository.root();",
             "::core::assert_eq!(owner_root, fixture.path());",
+            "branch_repository.ensure_layout().unwrap();",
+            "let refs_layout_lock = branch_repository.acquire_refs_lock().unwrap();",
+            "::core::mem::drop(refs_layout_lock);",
             (
                 "let maintenance: super::RepositoryMaintenanceGuard = "
                 "branch_repository"
@@ -27757,13 +27959,20 @@ def owned_entry_fixture_setup_statements(
             target = spec.get("target")
             if not isinstance(target, str):
                 fail("owned-entry symlink setup lacks an exact target")
-            statements.append(
-                f"::std::os::unix::fs::symlink({json.dumps(target)}, &{path}).unwrap();"
-            )
+            if row_id == "COR-03" and name == "accepted_symlink":
+                statements.append(
+                    f"plant_symlink_entry({json.dumps(target)}, &{path});"
+                )
+            else:
+                statements.append(
+                    f"::std::os::unix::fs::symlink({json.dumps(target)}, "
+                    f"&{path}).unwrap();"
+                )
         elif kind == "non_regular":
+            replace = row_id == "COR-03" and name == "accepted_non_regular"
             statements.append(
                 f"let _{name}_socket = "
-                f"::std::os::unix::net::UnixDatagram::bind(&{path}).unwrap();"
+                f"plant_non_regular_socket(&{path}, {str(replace).lower()});"
             )
         else:
             fail(f"owned-entry fixture setup kind differs: {kind}")
@@ -27800,6 +28009,12 @@ def owned_entry_before_statements(
     delta_helper = snapshot_helper_path(relative, "exact_tree_delta_paths")
     path_helper = snapshot_helper_path(relative, "exact_path_snapshot")
     added = owned_entry_path_vec(owned_entry_expected_added_paths(row_id, subcase_id))
+    changed_paths = owned_entry_expected_changed_paths(row_id, subcase_id)
+    changed = (
+        owned_entry_path_vec(changed_paths)
+        if changed_paths
+        else owned_entry_empty_path_vec()
+    )
     statements = [
         f"let owner_tree_before_snapshot = {tree_helper}(owner_root);",
         (
@@ -27808,7 +28023,7 @@ def owned_entry_before_statements(
             "&owner_tree_before_snapshot);"
         ),
         f"::core::assert_eq!(fixture_delta.0, {added});",
-        f"::core::assert_eq!(fixture_delta.1, {owned_entry_empty_path_vec()});",
+        f"::core::assert_eq!(fixture_delta.1, {changed});",
         f"::core::assert_eq!(fixture_delta.2, {owned_entry_empty_path_vec()});",
     ]
     specs = owned_entry_fixture_specs(row_id, subcase_id)
@@ -27854,7 +28069,9 @@ def owned_entry_operation_delta_removed_paths(
 def owned_entry_error_variant_assertion(row_id: str, relative: str) -> str | None:
     if row_id == "COR-01":
         return None
-    variant = "commit.io" if row_id in {"COR-02", "COR-03"} else "branch.io"
+    variant = (
+        "commit.transaction" if row_id in {"COR-02", "COR-03"} else "branch.branch"
+    )
     return (
         "::core::assert!(::core::matches!((&error), "
         f"{error_variant_pattern(relative, variant)}));"
@@ -27962,9 +28179,796 @@ def owned_entry_after_statements(
         variant = owned_entry_error_variant_assertion(row_id, relative)
         if variant is not None:
             statements.append(variant)
+        canary = owned_entry_fixture_specs(row_id, subcase_id)[0]["name"]
+        if not isinstance(canary, str):
+            fail("owned-entry canary name metadata differs")
+        statements.extend(
+            (
+                (f"::core::assert_eq!({canary}_before_kind, {canary}_after_kind);"),
+                f'::core::assert_eq!({canary}_before_kind, "regular");',
+                (
+                    "::core::assert_eq!(owner_tree_before_snapshot, "
+                    "owner_tree_after_snapshot);"
+                ),
+            )
+        )
     else:
         statements.extend(owned_entry_report_assertions(row_id, subcase_id))
     return tuple(statements)
+
+
+def owned_entry_semantic_assertion_map(
+    row_id: str,
+    subcase_id: str,
+    relative: str,
+) -> dict[str, str]:
+    if (row_id, subcase_id) in OWNED_ENTRY_MULTIFAULT_CASES:
+        key = (row_id, subcase_id, None)
+        spec = MULTIFAULT_OVERLAYS[key]
+        results = multifault_result_assertions(spec, relative)
+        primary = multifault_fixture_assertions("primary", spec.primary)
+        snapshots = multifault_snapshot_assertions()
+        return {
+            "expected_result": results["operation_1_code_or_fields"],
+            "owned_stage_removed": snapshots["operation_1_primary_unchanged"],
+            "preserved": primary["primary_three_symlinks_non_followed"],
+            "no_mutation": snapshots["operation_1_tree_unchanged"],
+        }
+
+    empty = owned_entry_empty_path_vec()
+    operation_delta = (
+        f"::core::assert_eq!(operation_delta.2, "
+        f"{owned_entry_path_vec(owned_entry_operation_delta_removed_paths(row_id, subcase_id))});"
+        if subcase_id == "owned_stage"
+        else f"::core::assert_eq!(operation_delta.2, {empty});"
+    )
+    if subcase_id in OWNED_ENTRY_FATAL_SUBCASES:
+        projection = "error.symbol()" if row_id == "COR-01" else "error.code()"
+        expected_result = (
+            f"::core::assert_eq!({projection}, "
+            f"{json.dumps(OWNED_ENTRY_ERROR_CODES[row_id])});"
+        )
+    else:
+        expected_result = owned_entry_report_assertions(row_id, subcase_id)[0]
+
+    if subcase_id == "owned_stage":
+        owned_stage_removed = (
+            "::core::assert_eq!(owned_stage_after_snapshot, "
+            "::core::option::Option::None);"
+        )
+        preserved = f"::core::assert_eq!(operation_delta.1, {empty});"
+        no_mutation = operation_delta
+    else:
+        first = owned_entry_fixture_specs(row_id, subcase_id)[0]["name"]
+        if not isinstance(first, str):
+            fail("owned-entry semantic fixture name differs")
+        owned_stage_removed = operation_delta
+        preserved = (
+            f"::core::assert_eq!({first}_after_snapshot, {first}_before_snapshot);"
+        )
+        no_mutation = (
+            "::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);"
+            if subcase_id in OWNED_ENTRY_FATAL_SUBCASES
+            else f"::core::assert_eq!(operation_delta.0, {empty});"
+        )
+    return {
+        "expected_result": expected_result,
+        "owned_stage_removed": owned_stage_removed,
+        "preserved": preserved,
+        "no_mutation": no_mutation,
+    }
+
+
+def owned_entry_direct_statement_plan(
+    row_id: str,
+    subcase_id: str,
+    relative: str,
+) -> tuple[str, ...]:
+    return (
+        *owned_entry_fresh_statements(row_id, subcase_id, relative),
+        *owned_entry_path_binding_statements(row_id, subcase_id),
+        *owned_entry_fixture_setup_statements(row_id, subcase_id),
+        *owned_entry_before_statements(row_id, subcase_id, relative),
+        *owned_entry_after_statements(row_id, subcase_id, relative),
+    )
+
+
+def owned_entry_assertion_statements(
+    statements: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        statement
+        for statement in statements
+        if ASSERTION_MACRO.match(statement) is not None
+    )
+
+
+def owned_entry_semantic_proof_groups(
+    row_id: str,
+    subcase_id: str,
+    relative: str,
+) -> dict[str, tuple[str, ...]]:
+    if (row_id, subcase_id) in OWNED_ENTRY_MULTIFAULT_CASES:
+        key = (row_id, subcase_id, None)
+        spec = MULTIFAULT_OVERLAYS[key]
+        return {
+            "outcome": tuple(multifault_result_assertions(spec, relative).values()),
+            "repair": tuple(multifault_repair_assertions(spec).values()),
+            "path_snapshot": tuple(multifault_snapshot_assertions().values()),
+            "canary": tuple(multifault_owned_entry_canary_assertions(key).values()),
+            "semantic": tuple(
+                owned_entry_semantic_assertion_map(
+                    row_id, subcase_id, relative
+                ).values()
+            ),
+        }
+
+    assertions = owned_entry_assertion_statements(
+        owned_entry_direct_statement_plan(row_id, subcase_id, relative)
+    )
+    outcome = tuple(
+        assertion
+        for assertion in assertions
+        if any(
+            token in assertion
+            for token in (
+                "result.is_ok()",
+                "result.is_err()",
+                "error.code()",
+                "error.symbol()",
+                "::core::matches!((&error)",
+            )
+        )
+    )
+    delta = tuple(
+        assertion
+        for assertion in assertions
+        if "fixture_delta." in assertion or "operation_delta." in assertion
+    )
+    report = tuple(
+        assertion
+        for assertion in assertions
+        if re.search(r"\breport(?:\.|\[|\.is_empty\(\))", assertion)
+    )
+    path_snapshot = tuple(
+        assertion
+        for assertion in assertions
+        if re.search(r"\b[a-z][a-z0-9_]*_(?:before|after)_snapshot\b", assertion)
+    )
+    canary = (
+        tuple(
+            owned_entry_preflight_entry(row_id, subcase_id, "\n".join(assertions))[
+                "cleanup_canary_assertions"
+            ].values()
+        )
+        if subcase_id in OWNED_ENTRY_FATAL_SUBCASES
+        else ()
+    )
+    if not outcome or not delta or not path_snapshot:
+        fail(f"{row_id}/{subcase_id} semantic proof inventory is incomplete")
+    if subcase_id in OWNED_ENTRY_FATAL_SUBCASES:
+        if report or len(canary) != 4:
+            fail(f"{row_id}/{subcase_id} fatal semantic proof inventory differs")
+    elif not report or canary:
+        fail(f"{row_id}/{subcase_id} success semantic proof inventory differs")
+    return {
+        "outcome": outcome,
+        "delta": delta,
+        "report": report,
+        "path_snapshot": path_snapshot,
+        "canary": canary,
+        "semantic": tuple(
+            owned_entry_semantic_assertion_map(row_id, subcase_id, relative).values()
+        ),
+    }
+
+
+def owned_entry_semantic_proof_assertions(
+    row_id: str,
+    subcase_id: str,
+    relative: str,
+) -> tuple[str, ...]:
+    assertions = tuple(
+        assertion
+        for group in owned_entry_semantic_proof_groups(
+            row_id, subcase_id, relative
+        ).values()
+        for assertion in group
+    )
+    return tuple(dict.fromkeys(assertions))
+
+
+def owned_entry_semantic_evidence_problem(
+    row_id: str,
+    subcase_id: str,
+    entry: dict[str, object],
+    relative: str,
+    body: str,
+) -> str | None:
+    expected = owned_entry_semantic_assertion_map(row_id, subcase_id, relative)
+    mapping = entry.get("semantic_assertions")
+    assertions = entry.get("assertions")
+    if not isinstance(mapping, dict) or tuple(mapping) != tuple(expected):
+        return "semantic assertion fields/order differ"
+    if not isinstance(assertions, list):
+        return "assertion list is missing"
+    body_assertions = {
+        normalize_rust_tokens(statement)
+        for _start, _end, statement in top_level_statement_ranges(body)
+        if ASSERTION_MACRO.match(statement) is not None
+    }
+    normalized = tuple(
+        normalize_rust_tokens(value)
+        for value in mapping.values()
+        if isinstance(value, str)
+    )
+    if len(normalized) != len(expected) or len(set(normalized)) != len(expected):
+        return "semantic assertions are missing or reused"
+    for field, frozen in expected.items():
+        assertion = mapping.get(field)
+        if (
+            not isinstance(assertion, str)
+            or assertion not in assertions
+            or normalize_rust_tokens(assertion) != normalize_rust_tokens(frozen)
+        ):
+            return f"semantic field {field} differs from concrete owned-entry proof"
+        if normalize_rust_tokens(assertion) not in body_assertions:
+            return f"semantic field {field} is absent from the mapped body"
+    for assertion in owned_entry_semantic_proof_assertions(
+        row_id, subcase_id, relative
+    ):
+        if assertion not in assertions:
+            return "concrete semantic proof is absent from the assertion list"
+        if normalize_rust_tokens(assertion) not in body_assertions:
+            return "concrete semantic proof is absent from the mapped body"
+    return None
+
+
+def owned_entry_multifault_contract_problem(
+    row_id: str,
+    subcase_id: str,
+) -> str | None:
+    key = (row_id, subcase_id, None)
+    if (row_id, subcase_id) not in OWNED_ENTRY_MULTIFAULT_CASES:
+        return "is not an owned-entry multifault case"
+    spec = MULTIFAULT_OVERLAYS.get(key)
+    if spec is None:
+        return "lacks its exact multifault overlay"
+    expected_helper = (
+        f"owned_entry_fixture_specs_{row_id.lower().replace('-', '_')}_{subcase_id}"
+    )
+    if spec.primary.identity_recipe != expected_helper:
+        return "primary fixture helper is not the exact owned-entry helper"
+    if spec.winner.code != OWNED_ENTRY_ERROR_CODES[row_id]:
+        return "multifault winner code differs from the owned-entry result"
+    expected_variant = "commit.transaction" if row_id == "COR-02" else "branch.branch"
+    if spec.winner.variant != expected_variant:
+        return "multifault winner variant differs from the owned-entry result"
+    if tuple(spec.primary.required_facts) != (
+        "primary_three_symlink_paths_exact",
+        "primary_three_symlinks_non_followed",
+        "primary_regular_canary_excluded",
+    ):
+        return "primary fixture facts do not bind the owned symlink set and canary"
+    return None
+
+
+def owned_entry_multifault_preflight_problem(
+    row_id: str,
+    subcase_id: str,
+    entry: dict[str, object],
+    body: str,
+) -> str | None:
+    key = (row_id, subcase_id, None)
+    canary = PREFLIGHT_CANARIES[row_id][0]
+    hashes = entry.get("cleanup_canary_hashes")
+    kinds = entry.get("cleanup_canary_kinds")
+    mapping = entry.get("cleanup_canary_assertions")
+    assertions = entry.get("assertions")
+    expected_hash_fields = (
+        f"{canary}_before_sha256",
+        f"{canary}_after_sha256",
+        "owner_tree_before_sha256",
+        "owner_tree_after_sha256",
+    )
+    if not isinstance(hashes, dict) or tuple(hashes) != expected_hash_fields:
+        return "cleanup-canary hash fields/order differ"
+    for before, after in (
+        (f"{canary}_before_sha256", f"{canary}_after_sha256"),
+        ("owner_tree_before_sha256", "owner_tree_after_sha256"),
+    ):
+        value = hashes.get(before)
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            or hashes.get(after) != value
+        ):
+            return f"{before} and {after} differ or are malformed"
+    expected_kind_fields = (f"{canary}_before_kind", f"{canary}_after_kind")
+    if (
+        not isinstance(kinds, dict)
+        or tuple(kinds) != expected_kind_fields
+        or any(kinds.get(field) != "regular" for field in expected_kind_fields)
+    ):
+        return "cleanup-canary kind fields/order or values differ"
+    canary_assertions = multifault_owned_entry_canary_assertions(key)
+    tree_assertion = multifault_snapshot_assertions()["operation_1_tree_unchanged"]
+    expected = {
+        f"{canary}_bytes": canary_assertions["snapshot_unchanged"],
+        f"{canary}_kind": canary_assertions["kind_unchanged"],
+        f"{canary}_expected_kind": canary_assertions["expected_kind"],
+        "owner_tree": tree_assertion,
+    }
+    if not isinstance(mapping, dict) or tuple(mapping) != tuple(expected):
+        return "cleanup-canary assertion fields/order differ"
+    if not isinstance(assertions, list):
+        return "assertion list is missing"
+    for field, frozen in expected.items():
+        assertion = mapping.get(field)
+        if (
+            not isinstance(assertion, str)
+            or assertion not in assertions
+            or normalize_rust_tokens(assertion) != normalize_rust_tokens(frozen)
+            or not exact_direct_statement_present(body, assertion)
+        ):
+            return f"cleanup-canary assertion {field} differs"
+    return None
+
+
+def owned_entry_preflight_entry(
+    row_id: str,
+    subcase_id: str,
+    body: str,
+) -> dict[str, object]:
+    canary = PREFLIGHT_CANARIES[row_id][0]
+    byte_assertion = (
+        f"::core::assert_eq!({canary}_after_snapshot, {canary}_before_snapshot);"
+    )
+    kind_assertion = f"::core::assert_eq!({canary}_before_kind, {canary}_after_kind);"
+    expected_kind_assertion = f'::core::assert_eq!({canary}_before_kind, "regular");'
+    tree_assertion = (
+        "::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);"
+    )
+    assertions = (
+        byte_assertion,
+        kind_assertion,
+        expected_kind_assertion,
+        tree_assertion,
+    )
+    if any(
+        not exact_direct_statement_present(body, assertion) for assertion in assertions
+    ):
+        fail(f"{row_id}/{subcase_id} exact preflight assertion is absent")
+    return {
+        "assertions": list(assertions),
+        "cleanup_canary_hashes": {
+            f"{canary}_before_sha256": "a" * 64,
+            f"{canary}_after_sha256": "a" * 64,
+            "owner_tree_before_sha256": "b" * 64,
+            "owner_tree_after_sha256": "b" * 64,
+        },
+        "cleanup_canary_kinds": {
+            f"{canary}_before_kind": "regular",
+            f"{canary}_after_kind": "regular",
+        },
+        "cleanup_canary_assertions": {
+            f"{canary}_bytes": byte_assertion,
+            f"{canary}_kind": kind_assertion,
+            f"{canary}_expected_kind": expected_kind_assertion,
+            "owner_tree": tree_assertion,
+        },
+    }
+
+
+def hostile_owned_entry_assertion(assertion: str) -> str:
+    hostile = assertion.replace("::core::assert", "::core::debug_assert", 1)
+    if hostile == assertion:
+        fail("checker hostile control target is not an assertion")
+    return hostile
+
+
+def owned_entry_hostile_body(
+    statements: tuple[str, ...],
+    assertion: str,
+    replacement: str | None,
+) -> str:
+    ordinals = tuple(
+        index for index, statement in enumerate(statements) if statement == assertion
+    )
+    if len(ordinals) != 1:
+        fail("checker hostile control target is not one unique statement")
+    ordinal = ordinals[0]
+    hostile = (
+        statements[:ordinal] + statements[ordinal + 1 :]
+        if replacement is None
+        else statements[:ordinal] + (replacement,) + statements[ordinal + 1 :]
+    )
+    return "\n".join(hostile)
+
+
+def owned_entry_hostile_assertions(
+    assertions: list[str],
+    assertion: str,
+    replacement: str | None,
+) -> list[str]:
+    ordinals = tuple(
+        index for index, candidate in enumerate(assertions) if candidate == assertion
+    )
+    if len(ordinals) != 1:
+        fail("checker hostile evidence target is not one unique assertion")
+    ordinal = ordinals[0]
+    return (
+        assertions[:ordinal] + assertions[ordinal + 1 :]
+        if replacement is None
+        else assertions[:ordinal] + [replacement] + assertions[ordinal + 1 :]
+    )
+
+
+def require_owned_entry_v6_controls() -> None:
+    direct_count = 0
+    fatal_count = 0
+    multifault_count = 0
+    for row_id in sorted(OWNED_ENTRY_FAMILIES):
+        relative = owned_entry_contract(row_id)["source"]
+        if not isinstance(relative, str):
+            fail("checker owned-entry source metadata differs")
+        for subcase_id in EVIDENCE_FAMILIES[row_id]:
+            if (row_id, subcase_id) in OWNED_ENTRY_MULTIFAULT_CASES:
+                key = (row_id, subcase_id, None)
+                spec = MULTIFAULT_OVERLAYS[key]
+                statements = multifault_statement_plan(key)
+                body = "\n".join(statements)
+                mapping = owned_entry_semantic_assertion_map(
+                    row_id, subcase_id, relative
+                )
+                canary_assertions = multifault_owned_entry_canary_assertions(key)
+                tree_assertion = multifault_snapshot_assertions()[
+                    "operation_1_tree_unchanged"
+                ]
+                canary = PREFLIGHT_CANARIES[row_id][0]
+                assertions = list(owned_entry_assertion_statements(statements))
+                entry: dict[str, object] = {
+                    "assertions": assertions,
+                    "semantic_assertions": mapping,
+                    "m2_operation_bindings": multifault_operation_bindings(key, spec),
+                    "cleanup_canary_hashes": {
+                        f"{canary}_before_sha256": "a" * 64,
+                        f"{canary}_after_sha256": "a" * 64,
+                        "owner_tree_before_sha256": "b" * 64,
+                        "owner_tree_after_sha256": "b" * 64,
+                    },
+                    "cleanup_canary_kinds": {
+                        f"{canary}_before_kind": "regular",
+                        f"{canary}_after_kind": "regular",
+                    },
+                    "cleanup_canary_assertions": {
+                        f"{canary}_bytes": canary_assertions["snapshot_unchanged"],
+                        f"{canary}_kind": canary_assertions["kind_unchanged"],
+                        f"{canary}_expected_kind": canary_assertions["expected_kind"],
+                        "owner_tree": tree_assertion,
+                    },
+                }
+                if problem := owned_entry_multifault_contract_problem(
+                    row_id, subcase_id
+                ):
+                    fail(
+                        f"checker self-test rejected owned-entry M2 contract: {problem}"
+                    )
+                if problem := owned_entry_semantic_evidence_problem(
+                    row_id, subcase_id, entry, relative, body
+                ):
+                    fail(
+                        f"checker self-test rejected owned-entry M2 semantics: {problem}"
+                    )
+                if problem := owned_entry_multifault_preflight_problem(
+                    row_id, subcase_id, entry, body
+                ):
+                    fail(f"checker self-test rejected owned-entry M2 canary: {problem}")
+                if problem := multifault_operation_binding_problem(
+                    body, row_id, subcase_id, entry
+                ):
+                    fail(f"checker self-test rejected exact M2 body: {problem}")
+
+                direct_statements = owned_entry_direct_statement_plan(
+                    row_id, subcase_id, relative
+                )
+                direct_body = "\n".join(direct_statements)
+                if (
+                    owned_entry_operation_binding_problem(
+                        body, relative, row_id, subcase_id
+                    )
+                    is None
+                ):
+                    fail("checker self-test let an M2 body bypass direct authority")
+                if (
+                    multifault_operation_binding_problem(
+                        direct_body, row_id, subcase_id, entry
+                    )
+                    is None
+                ):
+                    fail("checker self-test let a direct body bypass M2 authority")
+
+                proof_groups = owned_entry_semantic_proof_groups(
+                    row_id, subcase_id, relative
+                )
+                if any(not group for group in proof_groups.values()):
+                    fail("checker owned-entry M2 proof inventory is incomplete")
+                for assertion in owned_entry_semantic_proof_assertions(
+                    row_id, subcase_id, relative
+                ):
+                    changed = hostile_owned_entry_assertion(assertion)
+                    for replacement in (None, changed):
+                        hostile_body = owned_entry_hostile_body(
+                            statements, assertion, replacement
+                        )
+                        hostile_entry = dict(entry)
+                        hostile_entry["assertions"] = owned_entry_hostile_assertions(
+                            assertions, assertion, replacement
+                        )
+                        if (
+                            owned_entry_semantic_evidence_problem(
+                                row_id,
+                                subcase_id,
+                                hostile_entry,
+                                relative,
+                                hostile_body,
+                            )
+                            is None
+                        ):
+                            fail(
+                                "checker self-test accepted a hostile M2 semantic proof"
+                            )
+
+                for field, assertion in mapping.items():
+                    deleted = dict(entry)
+                    deleted["assertions"] = owned_entry_hostile_assertions(
+                        assertions, assertion, None
+                    )
+                    if (
+                        owned_entry_semantic_evidence_problem(
+                            row_id, subcase_id, deleted, relative, body
+                        )
+                        is None
+                    ):
+                        fail(
+                            f"checker self-test accepted missing M2 semantic field {field}"
+                        )
+                    changed_assertion = hostile_owned_entry_assertion(assertion)
+                    changed = dict(entry)
+                    changed_mapping = dict(mapping)
+                    changed_mapping[field] = changed_assertion
+                    changed["semantic_assertions"] = changed_mapping
+                    changed["assertions"] = owned_entry_hostile_assertions(
+                        assertions, assertion, changed_assertion
+                    )
+                    if (
+                        owned_entry_semantic_evidence_problem(
+                            row_id,
+                            subcase_id,
+                            changed,
+                            relative,
+                            owned_entry_hostile_body(
+                                statements, assertion, changed_assertion
+                            ),
+                        )
+                        is None
+                    ):
+                        fail(
+                            f"checker self-test accepted changed M2 semantic field {field}"
+                        )
+
+                canary_mapping = entry["cleanup_canary_assertions"]
+                if not isinstance(canary_mapping, dict):
+                    fail("checker owned-entry M2 canary map differs")
+                for field, assertion in canary_mapping.items():
+                    if not isinstance(assertion, str):
+                        fail("checker owned-entry M2 canary assertion differs")
+                    deleted = dict(entry)
+                    deleted["assertions"] = owned_entry_hostile_assertions(
+                        assertions, assertion, None
+                    )
+                    if (
+                        owned_entry_multifault_preflight_problem(
+                            row_id, subcase_id, deleted, body
+                        )
+                        is None
+                    ):
+                        fail(
+                            f"checker self-test accepted missing M2 canary field {field}"
+                        )
+                    changed_assertion = hostile_owned_entry_assertion(assertion)
+                    changed = dict(entry)
+                    changed_mapping = dict(canary_mapping)
+                    changed_mapping[field] = changed_assertion
+                    changed["cleanup_canary_assertions"] = changed_mapping
+                    changed["assertions"] = owned_entry_hostile_assertions(
+                        assertions, assertion, changed_assertion
+                    )
+                    if (
+                        owned_entry_multifault_preflight_problem(
+                            row_id,
+                            subcase_id,
+                            changed,
+                            owned_entry_hostile_body(
+                                statements, assertion, changed_assertion
+                            ),
+                        )
+                        is None
+                    ):
+                        fail(
+                            f"checker self-test accepted changed M2 canary field {field}"
+                        )
+                multifault_count += 1
+                continue
+
+            statements = owned_entry_direct_statement_plan(row_id, subcase_id, relative)
+            body = "\n".join(statements)
+            if problem := owned_entry_operation_binding_problem(
+                body, relative, row_id, subcase_id
+            ):
+                fail(f"checker self-test rejected exact owned-entry body: {problem}")
+            mapping = owned_entry_semantic_assertion_map(row_id, subcase_id, relative)
+            assertions = list(owned_entry_assertion_statements(statements))
+            entry = {
+                "assertions": assertions,
+                "semantic_assertions": mapping,
+            }
+            if problem := owned_entry_semantic_evidence_problem(
+                row_id, subcase_id, entry, relative, body
+            ):
+                fail(
+                    f"checker self-test rejected exact owned-entry semantics: {problem}"
+                )
+            direct_count += 1
+            fatal_entry: dict[str, object] | None = None
+            if subcase_id in OWNED_ENTRY_FATAL_SUBCASES:
+                fatal_entry = owned_entry_preflight_entry(row_id, subcase_id, body)
+                if problem := preflight_canary_problem(row_id, subcase_id, fatal_entry):
+                    fail(
+                        f"checker self-test rejected exact owned-entry canary: {problem}"
+                    )
+                fatal_count += 1
+
+            proof_groups = owned_entry_semantic_proof_groups(
+                row_id, subcase_id, relative
+            )
+            for assertion in owned_entry_semantic_proof_assertions(
+                row_id, subcase_id, relative
+            ):
+                changed = hostile_owned_entry_assertion(assertion)
+                for replacement in (None, changed):
+                    hostile_body = owned_entry_hostile_body(
+                        statements, assertion, replacement
+                    )
+                    hostile_entry = dict(entry)
+                    hostile_entry["assertions"] = owned_entry_hostile_assertions(
+                        assertions, assertion, replacement
+                    )
+                    if (
+                        owned_entry_semantic_evidence_problem(
+                            row_id,
+                            subcase_id,
+                            hostile_entry,
+                            relative,
+                            hostile_body,
+                        )
+                        is None
+                    ):
+                        fail(
+                            "checker self-test accepted a hostile direct semantic proof"
+                        )
+
+            for field, assertion in mapping.items():
+                deleted = dict(entry)
+                deleted["assertions"] = owned_entry_hostile_assertions(
+                    assertions, assertion, None
+                )
+                if (
+                    owned_entry_semantic_evidence_problem(
+                        row_id, subcase_id, deleted, relative, body
+                    )
+                    is None
+                ):
+                    fail(
+                        f"checker self-test accepted missing direct semantic field {field}"
+                    )
+                changed_assertion = hostile_owned_entry_assertion(assertion)
+                changed = dict(entry)
+                changed_mapping = dict(mapping)
+                changed_mapping[field] = changed_assertion
+                changed["semantic_assertions"] = changed_mapping
+                changed["assertions"] = owned_entry_hostile_assertions(
+                    assertions, assertion, changed_assertion
+                )
+                if (
+                    owned_entry_semantic_evidence_problem(
+                        row_id,
+                        subcase_id,
+                        changed,
+                        relative,
+                        owned_entry_hostile_body(
+                            statements, assertion, changed_assertion
+                        ),
+                    )
+                    is None
+                ):
+                    fail(
+                        f"checker self-test accepted changed direct semantic field {field}"
+                    )
+
+            if fatal_entry is not None:
+                canary_mapping = fatal_entry["cleanup_canary_assertions"]
+                canary_evidence = fatal_entry["assertions"]
+                if not isinstance(canary_mapping, dict) or not isinstance(
+                    canary_evidence, list
+                ):
+                    fail("checker direct canary self-test evidence differs")
+                for field, assertion in canary_mapping.items():
+                    if not isinstance(assertion, str):
+                        fail("checker direct canary assertion differs")
+                    deleted = dict(fatal_entry)
+                    deleted["assertions"] = owned_entry_hostile_assertions(
+                        canary_evidence, assertion, None
+                    )
+                    if preflight_canary_problem(row_id, subcase_id, deleted) is None:
+                        fail(
+                            f"checker self-test accepted missing direct canary field {field}"
+                        )
+                    changed_assertion = hostile_owned_entry_assertion(assertion)
+                    changed = dict(fatal_entry)
+                    changed_mapping = dict(canary_mapping)
+                    changed_mapping[field] = changed_assertion
+                    changed["cleanup_canary_assertions"] = changed_mapping
+                    changed["assertions"] = owned_entry_hostile_assertions(
+                        canary_evidence, assertion, changed_assertion
+                    )
+                    if preflight_canary_problem(row_id, subcase_id, changed) is None:
+                        fail(
+                            f"checker self-test accepted changed direct canary field {field}"
+                        )
+
+            if any(
+                not group
+                for name, group in proof_groups.items()
+                if name not in {"report", "canary"}
+            ):
+                fail("checker direct semantic proof inventory is incomplete")
+
+            if subcase_id == "non_regular":
+                setup = owned_entry_fixture_setup_statements(row_id, subcase_id)
+                if any("UnixDatagram::bind" in statement for statement in setup):
+                    fail("checker self-test binds a final owned-entry socket path")
+                if not any(
+                    "plant_non_regular_socket" in statement for statement in setup
+                ):
+                    fail("checker self-test lacks short-socket fixture calls")
+
+    if direct_count != 48 or multifault_count != 2 or fatal_count != 16:
+        fail("checker owned-entry v6 self-test inventory differs")
+
+    helper_body = owned_entry_non_regular_helper_expected_body()
+    helper_fixture = (
+        "#[cfg(test)]\nmod tests {\n"
+        "fn plant_non_regular_socket("
+        "path: &::std::path::Path, replace: bool,"
+        ") -> ::std::os::unix::net::UnixDatagram {\n"
+        f"{helper_body}"
+        "}\n"
+        "fn plant_symlink_entry(target: &str, path: &::std::path::Path) {\n"
+        "::std::fs::remove_file(path).unwrap();\n"
+        "::std::os::unix::fs::symlink(target, path).unwrap();\n"
+        "}\n}\n"
+    )
+    txn_owner = "crates/sley-txn/src/repository.rs"
+    if owned_entry_fixture_helper_problem(helper_fixture, txn_owner) is not None:
+        fail("checker self-test rejected exact owned-entry fixture helpers")
+    for hostile_helper in (
+        helper_fixture.replace(".len() < 108", ".len() < 8"),
+        helper_fixture.replace("if replace", "if true"),
+        helper_fixture.replace("::std::fs::rename(&staging, path).unwrap();", ""),
+    ):
+        if owned_entry_fixture_helper_problem(hostile_helper, txn_owner) is None:
+            fail("checker self-test accepted a hostile owned-entry fixture helper")
 
 
 def owned_entry_operation_binding_problem(
@@ -33756,6 +34760,9 @@ mod tests {
         repair_assertions = multifault_repair_assertions(selected_spec)
         cycle_epoch_assertions = multifault_cycle_epoch_assertions(selected_spec)
         snapshot_assertions = multifault_snapshot_assertions()
+        owned_entry_canary_assertions = multifault_owned_entry_canary_assertions(
+            selected_key
+        )
         assertions = [
             *primary_fixture.values(),
             *secondary_fixture.values(),
@@ -33766,6 +34773,7 @@ mod tests {
             *repair_assertions.values(),
             *cycle_epoch_assertions.values(),
             *snapshot_assertions.values(),
+            *owned_entry_canary_assertions.values(),
         ]
         entry: dict[str, object] = {
             "assertions": assertions,
@@ -33780,6 +34788,7 @@ mod tests {
             "m2_repair_assertions": repair_assertions,
             "m2_cycle_epoch_assertions": cycle_epoch_assertions,
             "m2_snapshot_assertions": snapshot_assertions,
+            "m2_owned_entry_canary_assertions": owned_entry_canary_assertions,
         }
         entry["multifault_plan_sha256"] = multifault_plan_sha256(
             selected_key,

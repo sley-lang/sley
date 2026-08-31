@@ -784,7 +784,26 @@ The grouped owned-entry subcases have exact internal coverage:
 Every owned-entry subcase records an ordered `coverage_assertions` object. Its
 keys are the exact cases above, or the subcase name itself for a single-case
 subcase, and each maps to a distinct in-body assertion containing that case
-name as a code token.
+name as a code token. `COR-02/symlink` and `COR-04/symlink` instead bind their
+three exact owned symlink paths and regular cleanup canary through the primary
+fixture facts of their checker-rendered multifault plan. They do not also claim
+a second, mutually exclusive owned-entry body.
+
+The other 48 owned-entry subcases use one exact five-sequence statement plan:
+fresh owner and baseline, owner-relative path bindings, fixture setup,
+pre-operation facts and the single production recovery call, then exact
+post-operation outcomes. Their four plan semantics are derived from concrete
+result, report, operation-delta, path-snapshot, and owner-tree assertions.
+Shadow locals named `expected_result`, `owned_stage_removed`, `preserved`, or
+`no_mutation` are not evidence and are rejected as unreviewed body authority.
+
+Every `non_regular` owned-entry fixture uses the checker-pinned
+`plant_non_regular_socket` test helper. The helper proves the destination is
+absent unless the case is the explicit COR-03 accepted-head replacement,
+binds at a unique system-temporary pathname shorter than 108 bytes, renames
+the live socket inode into the exact final fixture path, and returns the live
+socket handle. A direct `UnixDatagram::bind` against a final owner path is not
+valid evidence.
 
 `COR-07/origin_ancestry_binding` uses an origin and head whose six direct claim
 facts are each correct, while the origin transaction is not reachable from the
@@ -1113,6 +1132,18 @@ same preservation and no-mutation fields. The exact owner errors are
 `STORE_IO` for `COR-01`, `TXN_IO` for `COR-02` and `COR-03`, and `REF_IO` for
 `COR-04` and `COR-05`.
 
+Fatal transaction owned-entry cases bind `TXN_IO` through
+`CommitError::Transaction`. Fatal ref owned-entry cases bind `REF_IO` through
+`BranchError::Branch`. These narrow variants do not change independent host
+I/O cases that legitimately use `CommitError::Io` or `BranchError::Io`.
+The classified owned-entry variants have an exact empty `Error::source` chain;
+they do not retain an underlying host `io::Error` object.
+Every fatal case proves its regular cleanup canary's exact before and after
+snapshot, kind, expected kind, and owner tree. COR-04 and COR-05 establish the
+canonical refs directories and `locks/refs.lock` before the fresh baseline.
+COR-03 symlink and non-regular cases record trusted-genesis `heads/accepted`
+as a changed fixture path after explicit replacement, not as an added path.
+
 Every `COR-06` through `COR-08` and limit-family subcase records
 `no_mutation=true`. Each `COR-06` through `COR-08` subcase also records the
 exact table-bound `expected_result`, and that field's mapped assertion contains
@@ -1130,8 +1161,10 @@ The structural checker freezes a SHA-256 over all five cells of every matrix
 row, not only the IDs. It requires each mapped name to be one exact plain
 `#[test] fn` in the row's owning source file, rejects any other function attribute,
 rejects reuse of a test function across rows or subcases, and verifies every
-recorded assertion macro inside that exact function body. Semantic and coverage
-field names must appear as Rust code tokens, not only in a comment or string.
+recorded assertion macro inside that exact function body. Generic semantic and
+coverage field names must appear as Rust code tokens, not only in a comment or
+string. COR-01 through COR-05 use the purpose-built concrete owned-entry rules
+above instead of shadow semantic identifiers.
 The checker removes only syntax items gated by exact `#[cfg(test)]` when
 scanning production Rust; a test-only item never truncates later production
 source.
@@ -1503,7 +1536,7 @@ no-outside-root claim is limited to this cooperating local threat model.
 
 The checker owns one immutable `MULTIFAULT_OVERLAY_REGISTRY` in the exact
 15-case order. Its SHA-256 is
-`edb29339c3a1c4ff2349312d54c536bdef935944d6293b006fa99b9710369827`.
+`96010eb8aced871125be613d7ce192c0d97419ed600723522e23d5234fd300a0`.
 The first nine records cover the non-grouped ANC, owned-entry, and limit
 precedence cases. The final six records cover the grouped `COR-06` and
 `COR-07` leaves. Every record fixes one owner source, recovery operation,

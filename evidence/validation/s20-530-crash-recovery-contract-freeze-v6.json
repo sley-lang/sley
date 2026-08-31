@@ -1,0 +1,91 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v6",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Resolve the 50 COR-01 through COR-05 owned-entry semantic contradiction, select the exact multifault body for two overlapping M2 cases, make non-regular fixtures runnable through short socket staging paths, correct classified fatal variants and empty source chains, bind fatal cleanup canaries, correct fresh-layout and replacement deltas, and assign unique M2 probe helpers without changing production recovery behavior, matrix rows, limit events, public APIs, or repository remote state.",
+  "design": "machineresearch/sley-2.0/s20-530-v6-owned-entry-amendment-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "6099b5dae41fedbe2cfc9bf78f0f7ad751f15961d3aaab371da2b5ff9f1aa5d5",
+    "adr_sha256": "c145f8603b19cc755e470cbc24cf62067fc3f410305ae20f507f4a14d6a7b211",
+    "checker_sha256": "75e1f0acd015d166270ba41a7e08c8e97cf3cd003f7f61873300f7e169934596",
+    "checker_contract_sha256": "247c44dd326850b2205817fb233661dd1286f05f8ab29464787db25ef6d8a8de",
+    "runner_sha256": "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
+  },
+  "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py scripts/run_s20_530_validation.py": "PASS",
+    "git diff --check": "PASS",
+    "owned-entry v6 checker positive and hostile controls": "PASS_48_DIRECT_2_M2_EXHAUSTIVE_DELETE_CHANGE_AND_CROSS_AUTHORITY",
+    "owned-entry fixture helper bodies": "PASS_STORE_TXN_REFS",
+    "owned-entry mapped evidence rows": "PASS_50",
+    "owned-entry exact runtime families": "PASS_COR01_12_COR02_10_COR03_8_COR04_10_COR05_10",
+    "owned-entry production source prefixes": "PASS_BYTE_IDENTICAL_STORE_TXN_REFS",
+    "grouped and fixture registry metadata": "PASS_73_COR06_159_COR07_232_FIXTURES",
+    "multifault registry metadata and specification binding": "PASS_15_CASES",
+    "cargo check -p sley-store": "PASS",
+    "cargo check -p sley-txn": "PASS",
+    "cargo check -p sley-repo": "PASS",
+    "cargo test -p sley-store": "PASS_48",
+    "cargo test -p sley-txn": "PASS_194_IGNORED_1",
+    "cargo test -p sley-repo": "PASS_299",
+    "frozen contract self-integrity": "PASS"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "resolved_findings": [
+    "owned_entry_shadow_semantic_contradiction",
+    "owned_entry_m2_dual_body_authority",
+    "owned_entry_non_regular_socket_path_overflow",
+    "fatal_owned_entry_variant_mismatch",
+    "fatal_owned_entry_canary_omission",
+    "ref_layout_and_cor03_fixture_delta_mismatch",
+    "owned_entry_m2_probe_helper_identity_collision",
+    "owned_entry_m2_source_chain_mismatch"
+  ],
+  "deferred_semantic_findings": [
+    "remaining_s20_530_test_plan_and_closeout_evidence",
+    "implementation_helper_body_manifests",
+    "dual_site_proof_manifests",
+    "limit_canary_and_non_unit_peak_semantics"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": true,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+      "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+      "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "2b06b88c63fbf76c9d777a1f96566a3508bcb18104d3f28629aed287edf66a45",
+      "evidence_payload_sha256": "d619a8240ea78cdcd350f9b546f99f61ff6d40e6c74cd840982b054f239a83d0"
+    }
+  }
+}
