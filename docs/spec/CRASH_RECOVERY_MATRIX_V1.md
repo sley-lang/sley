@@ -1273,6 +1273,16 @@ alternates, modules, replace metadata, and shallow state rejected. That local
 authority is rebound before and after every Git command and included in the
 execution-profile digest.
 
+S20-530 v9 materializes each validated source snapshot with the exact
+`/usr/bin/git -c tar.umask=0022 archive --format=tar <validated-commit>`
+command. The command-scoped setting makes regular and executable archive
+members match Git-tree modes `0644` and `0755` without changing local or global
+Git configuration. Git archive arguments are recorded in the execution profile
+in exact order. The runner rejects an omitted, reordered, or changed setting,
+and rejects any extracted path-to-mode-and-SHA-256 map that differs from the
+validated commit descriptors. It does not repair or normalize archive member
+modes after extraction.
+
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the
 validation uid or validation gid that mutates and restores repository,
@@ -1296,7 +1306,7 @@ contract digest, the closeout source-set digest, validated commit, and the
 review-free closeout-evidence payload digest. A verdict from one phase, source
 set, commit, or evidence payload cannot satisfy another.
 
-Every v8 verdict also binds the reviewer role, phase, unique request nonce and
+Every v9 verdict also binds the reviewer role, phase, unique request nonce and
 canonical request digest, trusted local Council session ID and timestamp,
 session JSONL and trajectory SHA-256, the exact limit source and scanner
 digests, both exception-ledger digests, and the ordered exception-partition

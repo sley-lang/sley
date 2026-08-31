@@ -574,10 +574,14 @@ def materialize_snapshot(
     expected_inputs: dict[str, dict[str, str]],
     tools: Mapping[str, object],
 ) -> None:
+    if problem := contract.git_archive_arguments_problem(
+        contract.GIT_ARCHIVE_ARGUMENTS
+    ):
+        stop(problem)
     require_tool_targets({"git": tools["git"]}, "before Git archive")
     authority_before = contract.git_local_authority()
     result = subprocess.run(
-        (str(contract.GIT), "archive", "--format=tar", revision),
+        (str(contract.GIT), *contract.GIT_ARCHIVE_ARGUMENTS, revision),
         cwd=ROOT,
         check=False,
         stdout=subprocess.PIPE,
@@ -1366,6 +1370,18 @@ def run_in_fresh_runtime(
 
 
 def require_runner_negative_controls(runtime_parent: Path) -> None:
+    if problem := contract.git_archive_arguments_problem(
+        contract.GIT_ARCHIVE_ARGUMENTS
+    ):
+        stop(problem)
+    for hostile_arguments in (
+        ("archive", "--format=tar"),
+        ("-c", "tar.umask=0002", "archive", "--format=tar"),
+        ("archive", "-c", "tar.umask=0022", "--format=tar"),
+        ("-c", "tar.umask=0022", "archive", "--format=zip"),
+    ):
+        if contract.git_archive_arguments_problem(hostile_arguments) is None:
+            stop("runner self-test accepted hostile Git archive arguments")
     forbidden = dangerous_parent_environment_names(
         {"TMPDIR": "/attacker", "GIT_INDEX_FILE": "/attacker/index"}
     )
@@ -1714,6 +1730,17 @@ def require_runner_negative_controls(runtime_parent: Path) -> None:
             stop("runner self-test accepted a group-writable tool file")
 
 
+def require_git_archive_materialization_control(runtime_parent: Path) -> None:
+    revision, _tree = contract.current_git_revision()
+    inputs = contract.commit_input_hashes(revision)
+    git_tools = {"git": tool_record(contract.GIT)}
+    with tempfile.TemporaryDirectory(
+        prefix=".sley-s20-530-archive-control-", dir=runtime_parent
+    ) as temporary_root:
+        destination = Path(temporary_root) / "source"
+        materialize_snapshot(revision, destination, inputs, git_tools)
+
+
 def main() -> None:
     reject_dangerous_parent_environment()
     frozen_hashes = contract.require_frozen_contract_integrity()
@@ -1945,7 +1972,9 @@ def main() -> None:
 if __name__ == "__main__":
     if sys.argv[1:] == ["--self-test"]:
         reject_dangerous_parent_environment()
-        require_runner_negative_controls(trusted_runtime_parent())
+        runtime_parent = trusted_runtime_parent()
+        require_runner_negative_controls(runtime_parent)
+        require_git_archive_materialization_control(runtime_parent)
         print("S20-530 validation runner self-test: PASS")
     elif not sys.argv[1:]:
         main()

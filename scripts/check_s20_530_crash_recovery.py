@@ -37,6 +37,12 @@ GIT_ENVIRONMENT = {
     "PATH": "/usr/bin:/bin",
     "XDG_CONFIG_HOME": "/nonexistent",
 }
+GIT_ARCHIVE_ARGUMENTS = (
+    "-c",
+    "tar.umask=0022",
+    "archive",
+    "--format=tar",
+)
 GIT_LOCAL_AUTHORITY_CONTRACT = "s20-530-git-local-authority-v1"
 GIT_LOCAL_CONFIG_BYTES = (
     b"[core]\n"
@@ -76,7 +82,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v8.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v9.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -84,16 +90,16 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "77603b76106edef7414f664023be321b320d2da98e7ac06dacee61a198a7e25a"
-FROZEN_ADR_SHA256 = "cb43b545041c511623a3eab3056ea1dca6551078d06354d24f6b1930535ba9aa"
+FROZEN_SPEC_SHA256 = "4f94e25bdd30deb9a38f2aef48647e377829f6fc32e990ee25135a507cc105f1"
+FROZEN_ADR_SHA256 = "db53ff0f7f6a4a4b78d1834f3038045354669c6ad6545e9faa1a941df3636042"
 FROZEN_RUNNER_SHA256 = (
-    "12847734c044671b69c0ba6ca4355fdefc278b725b7d1fd28d6100a1b94aba6a"
+    "c59ed596133143f8f32123dc90b2e14443c87beea3eaf29a3e6be7743ade6a8c"
 )
 FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "fa3948a78af2de8230ef0418e527d3dcf1bd48cc7c22a16a0cf2aaf09135dd24"
+    "959e0d03f5ad9ba540e4d7a5d44174f51a296890afbe73d1b9e0cc817d3c21eb"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -7462,7 +7468,7 @@ TEST_LIST_COMMANDS = (
 TEST_LIST_CRATES = ("sley-store", "sley-txn", "sley-repo")
 ASSERTION_MACRO = re.compile(r"^\s*::core::(?:assert|assert_eq|assert_ne)\s*!\s*\(")
 EXECUTION_TRUST_BOUNDARY = (
-    "per-command-clean-git-archive-sanitized-env-linux-subreaper-host-tcb-v2"
+    "per-command-clean-git-archive-sanitized-env-linux-subreaper-host-tcb-v3"
 )
 EXECUTION_ASSUMPTIONS = (
     "the trusted OS dynamic loader and initial independently sanitized /usr/bin/python3 -I -B entry bytes are the pre-Python bootstrap TCB",
@@ -8028,6 +8034,18 @@ def git_text(*arguments: str) -> str:
     return git_bytes(*arguments).decode("utf-8", errors="strict").strip()
 
 
+def git_archive_arguments_problem(arguments: object) -> str | None:
+    expected = (
+        "-c",
+        "tar.umask=0022",
+        "archive",
+        "--format=tar",
+    )
+    if not isinstance(arguments, tuple) or arguments != expected:
+        return "Git archive arguments/order differ from the v9 mode contract"
+    return None
+
+
 def checker_contract_sha256() -> str:
     source = Path(__file__).resolve().read_text(encoding="utf-8")
     canonical, replacements = re.subn(
@@ -8443,6 +8461,8 @@ def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
 
 def require_contract(spec: str, adr: str) -> None:
     require_git_source_authority()
+    if problem := git_archive_arguments_problem(GIT_ARCHIVE_ARGUMENTS):
+        fail(problem)
     require_owned_entry_v6_controls()
     require_checker_negative_controls()
     require_runner_self_controls()
@@ -8494,6 +8514,8 @@ def require_contract(spec: str, adr: str) -> None:
         "pins the unreaped leader immediately with a pidfd",
         "processes saturated descendant sets in bounded batches",
         "three separated fresh empty-tree scans",
+        "git -c tar.umask=0022 archive --format=tar",
+        "Git archive arguments are recorded in the execution profile",
         "transaction_id: TransactionId",
         "first_claim: RecoveryRevisionClaim",
         "## 5. Closed recovery limits",
@@ -8575,6 +8597,8 @@ def require_contract(spec: str, adr: str) -> None:
         "actual owning-crate Cargo test list",
         "S20-530 v8 adopts one narrow hybrid proof path",
         "reconcile_s20_530_exception_ledgers.py` witness imports",
+        "S20-530 v9 repairs only the per-command Git archive mode contract",
+        "does not normalize modes after extraction",
     ):
         require_text(adr, marker, "crash-recovery ADR")
     if "\N{EM DASH}" in spec or "\N{EM DASH}" in adr:
@@ -9590,7 +9614,7 @@ def verify_review_receipts(phase: str) -> None:
     phase_contract = {
         "contract_freeze": (
             FREEZE_EVIDENCE,
-            "s20-530-crash-recovery-contract-freeze-v8",
+            "s20-530-crash-recovery-contract-freeze-v9",
             "PASS_CONTRACT_FROZEN",
             "PASS_CONTRACT_FREEZE",
         ),
@@ -9991,7 +10015,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v8":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v9":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -32148,6 +32172,7 @@ def execution_profile_payload(
         "trust_boundary": EXECUTION_TRUST_BOUNDARY,
         "assumptions": list(EXECUTION_ASSUMPTIONS),
         "source_snapshot": "fresh-exact-validated-commit-git-archive-per-command",
+        "git_archive_arguments": list(GIT_ARCHIVE_ARGUMENTS),
         "source_set_sha256": source_set_sha256,
         "validated_commit": validated_commit,
         "validated_tree": validated_tree,

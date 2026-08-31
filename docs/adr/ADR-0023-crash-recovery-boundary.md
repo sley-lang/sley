@@ -222,6 +222,19 @@ Tier 2 command. The immutable v7 contract and evidence remain historical
 authority for v7; v8 refreezes the amended specification, ADR, checker, runner,
 reconciler, partition ledgers, and fresh review receipts as one new contract.
 
+S20-530 v9 repairs only the per-command Git archive mode contract discovered
+during v8 closeout. The runner invokes exact command-scoped
+`/usr/bin/git -c tar.umask=0022 archive --format=tar <validated-commit>`, records
+the ordered archive arguments in the execution profile, and bumps the host
+trust-boundary identity to v3. It does not broaden `GIT_ENVIRONMENT`, mutate the
+fixed local Git configuration, or change other Git commands.
+It does not normalize modes after extraction. Omitted, wrong, or reordered archive settings
+and any extracted mode/byte map that differs from the Git-tree descriptors fail
+closed. The immutable v8 evidence
+remains historical authority for v8; v9 refreezes the specification, ADR,
+checker, runner, unchanged reconciler and exception partition, rebound test
+plan, and fresh contract-freeze receipts before closeout resumes.
+
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,
 specification, and frozen-evidence inputs. Only closeout outputs are excluded.
