@@ -154,6 +154,17 @@ to the frozen hashes. Final implementation reviews bind separately to the
 complete closeout source-set digest, validated commit, and review-free evidence
 payload digest.
 
+V8 review rows additionally carry the reviewer role, phase, unique request
+nonce and digest, trusted local Council session identity and timestamp, session
+JSONL and trajectory digests, and the frozen limit source, scanner, exception
+ledger, and partition digests. The review-free payload excludes the rows and
+their later verification record. The checker has a separate local verification
+mode that reads the role-owned OpenClaw session and trajectory through
+owner-checked, no-follow file descriptors, requires the exact canonical request
+and verdict markers, and emits the deterministic verification payload copied
+into evidence. This is trusted-host receipt verification, not an external
+signature or a stronger malicious-committer threat model.
+
 The test plan also records every mapped function's owning source,
 Cargo-qualified name, and raw brace-delimited body digest. Its canonical
 mapped-body digest is copied into closeout evidence before implementation

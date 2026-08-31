@@ -1880,6 +1880,7 @@ def main() -> None:
         "contract": "s20-530-crash-recovery-closeout-v1",
         "result": "PASS_CRASH_RECOVERY_MATRIX",
         "implementation_complete": True,
+        "contract_set_sha256": contract_set_sha256,
         "test_plan": str(TEST_PLAN.relative_to(ROOT)),
         "test_plan_sha256": contract.repository_file_sha256(TEST_PLAN),
         "mapped_test_bodies_sha256": mapped_test_bodies_sha256,
@@ -1902,6 +1903,7 @@ def main() -> None:
             "limit_shared_state_authority_sha256"
         ],
         "reviews": {},
+        "review_receipt_verification": {},
         "validation": {
             "workspace_inputs": inputs,
             "source_set_sha256": source_set,

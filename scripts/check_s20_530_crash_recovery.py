@@ -9,6 +9,7 @@ import io
 import json
 import math
 import os
+import pwd
 import re
 import stat
 import subprocess
@@ -75,7 +76,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v7.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v8.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -83,14 +84,16 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "9ee07a0a71042706c23ab27ff8c131164a722a2b54da2f67f0757f1b86bce06e"
-FROZEN_ADR_SHA256 = "495bddba2eb368ba63bb739cd98b23cd6c3fe370d125d049863051b7f1041e98"
+FROZEN_SPEC_SHA256 = "77603b76106edef7414f664023be321b320d2da98e7ac06dacee61a198a7e25a"
+FROZEN_ADR_SHA256 = "cb43b545041c511623a3eab3056ea1dca6551078d06354d24f6b1930535ba9aa"
 FROZEN_RUNNER_SHA256 = (
-    "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
+    "12847734c044671b69c0ba6ca4355fdefc278b725b7d1fd28d6100a1b94aba6a"
 )
-FROZEN_RECONCILER_SHA256 = "DRAFT"
+FROZEN_RECONCILER_SHA256 = (
+    "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
+)
 CHECKER_CONTRACT_SHA256 = (
-    "a080f4b555b982d1516425138593c968dbba3a11e15c991b153350abeac03d1b"
+    "fa3948a78af2de8230ef0418e527d3dcf1bd48cc7c22a16a0cf2aaf09135dd24"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -6343,6 +6346,7 @@ PUBLIC_API_SOURCE_PATHS = (
 )
 PUBLIC_API_TEST_ONLY_SOURCE_PATHS = (
     "crates/sley-txn/src/recovery_ancestry_test_hook.rs",
+    "crates/sley-txn/src/recovery_path_read_test_hook.rs",
 )
 CROSS_05_IMMUTABLE_LOCK_SOURCE_SHA256 = {
     "crates/sley-txn/src/maintenance.rs": (
@@ -7736,7 +7740,11 @@ def preflight_equality_proof_sha256(
 
 def review_payload_sha256(evidence: dict[str, object]) -> str:
     return canonical_json_sha256(
-        {key: value for key, value in evidence.items() if key != "reviews"}
+        {
+            key: value
+            for key, value in evidence.items()
+            if key not in {"reviews", "review_receipt_verification"}
+        }
     )
 
 
@@ -9087,6 +9095,240 @@ def require_native_lib_harness_contract() -> None:
         fail(f"workspace execution-input closure differs: {problem}")
 
 
+REVIEW_PHASE_BY_RESULT = {
+    "PASS_CONTRACT_FREEZE": "contract_freeze",
+    "PASS_IMPLEMENTATION": "implementation",
+}
+REVIEW_RECEIPT_RESULT = "PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS"
+REVIEW_RECEIPT_FILE_LIMIT_BYTES = 32 * 1024 * 1024
+
+
+def canonical_json_text(value: object) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def phase_review_field_order(result: str) -> tuple[str, ...]:
+    fields = (
+        "result",
+        "reviewer_role",
+        "phase",
+        "request_nonce",
+        "request_sha256",
+        "session_id",
+        "reviewed_at_utc",
+        "session_json_sha256",
+        "trajectory_sha256",
+        "contract_set_sha256",
+    )
+    if result == "PASS_IMPLEMENTATION":
+        fields += ("source_set_sha256", "validated_commit")
+    return fields + (
+        "limit_source_set_sha256",
+        "scanner_contract_sha256",
+        "entry_exception_ledger_sha256",
+        "control_exception_ledger_sha256",
+        "exception_partition_sha256",
+        "evidence_payload_sha256",
+    )
+
+
+def phase_review_request_payload(
+    reviewer: str,
+    result: str,
+    request_nonce: str,
+    contract_set_sha256: str,
+    evidence_payload_sha256: str,
+    source_set_sha256: str | None = None,
+    validated_commit: str | None = None,
+) -> dict[str, object]:
+    phase = REVIEW_PHASE_BY_RESULT[result]
+    payload: dict[str, object] = {
+        "contract": "s20-530-specialist-review-request-v1",
+        "reviewer_role": reviewer,
+        "phase": phase,
+        "request_nonce": request_nonce,
+        "contract_set_sha256": contract_set_sha256,
+    }
+    if result == "PASS_IMPLEMENTATION":
+        payload.update(
+            {
+                "source_set_sha256": source_set_sha256,
+                "validated_commit": validated_commit,
+            }
+        )
+    payload.update(
+        {
+            "limit_source_set_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "source_set_sha256"
+            ],
+            "scanner_contract_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "scanner_contract_sha256"
+            ],
+            "entry_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "entry_ledger_sha256"
+            ],
+            "control_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "control_ledger_sha256"
+            ],
+            "exception_partition_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256,
+            "evidence_payload_sha256": evidence_payload_sha256,
+        }
+    )
+    return payload
+
+
+def phase_review_verdict_payload(
+    reviewer: str,
+    result: str,
+    request_nonce: str,
+    request_sha256: str,
+    contract_set_sha256: str,
+    evidence_payload_sha256: str,
+    source_set_sha256: str | None = None,
+    validated_commit: str | None = None,
+) -> dict[str, object]:
+    request = phase_review_request_payload(
+        reviewer,
+        result,
+        request_nonce,
+        contract_set_sha256,
+        evidence_payload_sha256,
+        source_set_sha256,
+        validated_commit,
+    )
+    verdict = {"result": result}
+    for key, value in request.items():
+        if key == "contract":
+            continue
+        verdict[key] = value
+        if key == "request_nonce":
+            verdict["request_sha256"] = request_sha256
+    return verdict
+
+
+def phase_reviews_problem(
+    reviews: object,
+    result: str,
+    contract_set_sha256: str,
+    evidence_payload_sha256: str,
+    source_set_sha256: str | None = None,
+    validated_commit: str | None = None,
+) -> str | None:
+    phase = REVIEW_PHASE_BY_RESULT.get(result)
+    if phase is None:
+        return "review result is unknown"
+    if not isinstance(reviews, dict) or tuple(reviews) != REVIEWERS:
+        return f"{result} review owners/order differ"
+    if result == "PASS_IMPLEMENTATION":
+        if (
+            not isinstance(source_set_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", source_set_sha256) is None
+            or not isinstance(validated_commit, str)
+            or re.fullmatch(r"[0-9a-f]{40}", validated_commit) is None
+        ):
+            return "implementation review authority is malformed"
+    expected_keys = phase_review_field_order(result)
+    nonces: set[str] = set()
+    session_ids: set[str] = set()
+    for reviewer, verdict in reviews.items():
+        if not isinstance(verdict, dict) or tuple(verdict) != expected_keys:
+            return f"{reviewer} {result} review fields/order differ"
+        if verdict.get("result") != result:
+            return f"{reviewer} review is not exact {result}"
+        if verdict.get("reviewer_role") != reviewer:
+            return f"{reviewer} review role differs"
+        if verdict.get("phase") != phase:
+            return f"{reviewer} review phase differs"
+        request_nonce = verdict.get("request_nonce")
+        if (
+            not isinstance(request_nonce, str)
+            or re.fullmatch(r"[0-9a-f]{32}", request_nonce) is None
+            or request_nonce in nonces
+        ):
+            return f"{reviewer} review nonce is malformed or replayed"
+        nonces.add(request_nonce)
+        session_id = verdict.get("session_id")
+        session_phase = phase.replace("_", "-")
+        if (
+            not isinstance(session_id, str)
+            or re.fullmatch(
+                rf"forge-{reviewer}-s20-530-{session_phase}-"
+                r"[0-9]{8}T[0-9]{6}-[0-9a-f]{8}",
+                session_id,
+            )
+            is None
+            or session_id in session_ids
+        ):
+            return f"{reviewer} review session is malformed or replayed"
+        session_ids.add(session_id)
+        reviewed_at = verdict.get("reviewed_at_utc")
+        if (
+            not isinstance(reviewed_at, str)
+            or re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
+                r"[0-9]{2}(?:\.[0-9]{1,9})?Z",
+                reviewed_at,
+            )
+            is None
+        ):
+            return f"{reviewer} review timestamp is malformed"
+        for field in (
+            "request_sha256",
+            "session_json_sha256",
+            "trajectory_sha256",
+        ):
+            value = verdict.get(field)
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            ):
+                return f"{reviewer} {field} is malformed"
+        if verdict.get("contract_set_sha256") != contract_set_sha256:
+            return f"{reviewer} review is bound to a stale contract"
+        if verdict.get("evidence_payload_sha256") != evidence_payload_sha256:
+            return f"{reviewer} review is bound to stale evidence"
+        if result == "PASS_IMPLEMENTATION":
+            if verdict.get("source_set_sha256") != source_set_sha256:
+                return f"{reviewer} implementation review is bound to stale source"
+            if verdict.get("validated_commit") != validated_commit:
+                return f"{reviewer} implementation review commit differs"
+        frozen_bindings = {
+            "limit_source_set_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "source_set_sha256"
+            ],
+            "scanner_contract_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "scanner_contract_sha256"
+            ],
+            "entry_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "entry_ledger_sha256"
+            ],
+            "control_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                "control_ledger_sha256"
+            ],
+            "exception_partition_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256,
+        }
+        for field, expected in frozen_bindings.items():
+            if verdict.get(field) != expected:
+                return f"{reviewer} {field} differs"
+        request_payload = phase_review_request_payload(
+            reviewer,
+            result,
+            request_nonce,
+            contract_set_sha256,
+            evidence_payload_sha256,
+            source_set_sha256,
+            validated_commit,
+        )
+        if verdict.get("request_sha256") != canonical_json_sha256(request_payload):
+            return f"{reviewer} review request digest differs"
+    return None
+
+
 def require_phase_reviews(
     reviews: object,
     result: str,
@@ -9095,27 +9337,567 @@ def require_phase_reviews(
     source_set_sha256: str | None = None,
     validated_commit: str | None = None,
 ) -> dict[str, object]:
-    if not isinstance(reviews, dict) or tuple(reviews) != REVIEWERS:
-        fail(f"{result} review owners/order differ")
-    expected_keys = ("result", "contract_set_sha256")
-    if source_set_sha256 is not None:
-        expected_keys += ("source_set_sha256", "validated_commit")
-    expected_keys += ("evidence_payload_sha256",)
-    for reviewer, verdict in reviews.items():
-        if not isinstance(verdict, dict) or tuple(verdict) != expected_keys:
-            fail(f"{reviewer} {result} review fields/order differ")
-        if verdict.get("result") != result:
-            fail(f"{reviewer} review is not exact {result}")
-        if verdict.get("contract_set_sha256") != contract_set_sha256:
-            fail(f"{reviewer} review is bound to a stale contract")
-        if verdict.get("evidence_payload_sha256") != evidence_payload_sha256:
-            fail(f"{reviewer} review is bound to stale evidence")
-        if source_set_sha256 is not None:
-            if verdict.get("source_set_sha256") != source_set_sha256:
-                fail(f"{reviewer} implementation review is bound to stale source")
-            if verdict.get("validated_commit") != validated_commit:
-                fail(f"{reviewer} implementation review commit differs")
+    if problem := phase_reviews_problem(
+        reviews,
+        result,
+        contract_set_sha256,
+        evidence_payload_sha256,
+        source_set_sha256,
+        validated_commit,
+    ):
+        fail(problem)
+    assert isinstance(reviews, dict)
     return reviews
+
+
+def review_receipt_verification_payload(
+    phase: str,
+    evidence_path: Path,
+    reviews: dict[str, object],
+) -> dict[str, object]:
+    verified: dict[str, object] = {}
+    for reviewer, verdict in reviews.items():
+        assert isinstance(verdict, dict)
+        verified[reviewer] = {
+            "session_id": verdict["session_id"],
+            "reviewed_at_utc": verdict["reviewed_at_utc"],
+            "session_json_sha256": verdict["session_json_sha256"],
+            "trajectory_sha256": verdict["trajectory_sha256"],
+        }
+    return {
+        "command": (
+            "/usr/bin/python3 -I -B scripts/check_s20_530_crash_recovery.py "
+            f"--verify-review-receipts {phase}"
+        ),
+        "result": REVIEW_RECEIPT_RESULT,
+        "phase": phase,
+        "evidence": str(evidence_path.relative_to(ROOT)),
+        "review_receipts_sha256": canonical_json_sha256(reviews),
+        "verified_receipts": verified,
+    }
+
+
+def review_receipt_verification_problem(
+    recorded: object,
+    phase: str,
+    evidence_path: Path,
+    reviews: dict[str, object],
+) -> str | None:
+    payload = review_receipt_verification_payload(phase, evidence_path, reviews)
+    expected = {**payload, "payload_sha256": canonical_json_sha256(payload)}
+    if not isinstance(recorded, dict) or tuple(recorded) != tuple(expected):
+        return f"{phase} review-receipt verification fields/order differ"
+    if recorded != expected:
+        return f"{phase} review-receipt verification payload differs"
+    return None
+
+
+def require_review_receipt_verification(
+    recorded: object,
+    phase: str,
+    evidence_path: Path,
+    reviews: dict[str, object],
+) -> None:
+    if problem := review_receipt_verification_problem(
+        recorded, phase, evidence_path, reviews
+    ):
+        fail(problem)
+
+
+def read_bounded_authority_bytes(
+    directory_fd: int,
+    name: str,
+    label: str,
+    size_limit: int,
+) -> bytes:
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+        dir_fd=directory_fd,
+    )
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"{label} is not a regular file")
+        if before.st_uid != os.geteuid() or before.st_gid != os.getegid():
+            raise ValueError(f"{label} is not owned by the validation uid/gid")
+        if before.st_mode & stat.S_IWOTH:
+            raise ValueError(f"{label} is world-writable")
+        if before.st_size > size_limit:
+            raise ValueError(f"{label} exceeds the receipt size limit")
+        content = bytearray()
+        while True:
+            chunk = os.read(descriptor, size_limit + 1 - len(content))
+            if not chunk:
+                break
+            content.extend(chunk)
+            if len(content) > size_limit:
+                raise ValueError(f"{label} exceeds the receipt size limit")
+        after = os.fstat(descriptor)
+        identity_fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_size")
+        if any(
+            getattr(before, field) != getattr(after, field) for field in identity_fields
+        ):
+            raise ValueError(f"{label} changed while being read")
+        return bytes(content)
+    finally:
+        os.close(descriptor)
+
+
+def trusted_review_receipt_bytes(
+    reviewer: str,
+    session_id: str,
+) -> tuple[bytes, bytes]:
+    descriptor, _metadata = open_authority_directory(
+        Path(pwd.getpwuid(os.geteuid()).pw_dir), "review authority home"
+    )
+    try:
+        for component in (".openclaw", "agents", reviewer, "sessions"):
+            child, _metadata = open_authority_directory(
+                component,
+                f"review authority {component}",
+                directory_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = child
+        session = read_bounded_authority_bytes(
+            descriptor,
+            f"{session_id}.jsonl",
+            f"{reviewer} review session",
+            REVIEW_RECEIPT_FILE_LIMIT_BYTES,
+        )
+        trajectory = read_bounded_authority_bytes(
+            descriptor,
+            f"{session_id}.trajectory.jsonl",
+            f"{reviewer} review trajectory",
+            REVIEW_RECEIPT_FILE_LIMIT_BYTES,
+        )
+        return session, trajectory
+    finally:
+        os.close(descriptor)
+
+
+def review_message_text(message: object) -> str:
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "text":
+            text = part.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "\n".join(parts)
+
+
+def verify_trusted_review_session(
+    reviewer: str,
+    verdict: dict[str, object],
+    result: str,
+    contract_set_sha256: str,
+    evidence_payload_sha256: str,
+    source_set_sha256: str | None,
+    validated_commit: str | None,
+    trusted_bytes: tuple[bytes, bytes] | None = None,
+) -> None:
+    session_id = verdict["session_id"]
+    request_nonce = verdict["request_nonce"]
+    request_sha256 = verdict["request_sha256"]
+    assert isinstance(session_id, str)
+    assert isinstance(request_nonce, str)
+    assert isinstance(request_sha256, str)
+    session, trajectory = (
+        trusted_review_receipt_bytes(reviewer, session_id)
+        if trusted_bytes is None
+        else trusted_bytes
+    )
+    if hashlib.sha256(session).hexdigest() != verdict["session_json_sha256"]:
+        fail(f"{reviewer} trusted session digest differs")
+    if hashlib.sha256(trajectory).hexdigest() != verdict["trajectory_sha256"]:
+        fail(f"{reviewer} trusted trajectory digest differs")
+
+    request_payload = phase_review_request_payload(
+        reviewer,
+        result,
+        request_nonce,
+        contract_set_sha256,
+        evidence_payload_sha256,
+        source_set_sha256,
+        validated_commit,
+    )
+    if canonical_json_sha256(request_payload) != request_sha256:
+        fail(f"{reviewer} trusted request digest differs")
+    verdict_payload = phase_review_verdict_payload(
+        reviewer,
+        result,
+        request_nonce,
+        request_sha256,
+        contract_set_sha256,
+        evidence_payload_sha256,
+        source_set_sha256,
+        validated_commit,
+    )
+    request_marker = "S20_530_REVIEW_REQUEST_JSON=" + canonical_json_text(
+        request_payload
+    )
+    verdict_marker = "S20_530_REVIEW_VERDICT_JSON=" + canonical_json_text(
+        verdict_payload
+    )
+    request_occurrences = 0
+    verdict_occurrences = 0
+    verdict_timestamp: str | None = None
+    session_record_count = 0
+    for index, line in enumerate(session.splitlines(), start=1):
+        try:
+            item = strict_json_object(line, f"{reviewer} session line {index}")
+        except ValueError as error:
+            fail(str(error))
+        if item.get("type") == "session":
+            session_record_count += 1
+            if item.get("id") != session_id:
+                fail(f"{reviewer} trusted session identity differs")
+        if item.get("type") != "message":
+            continue
+        message = item.get("message")
+        if not isinstance(message, dict):
+            continue
+        text = review_message_text(message)
+        if message.get("role") == "user":
+            request_occurrences += text.count(request_marker)
+        elif message.get("role") == "assistant":
+            count = text.count(verdict_marker)
+            verdict_occurrences += count
+            if count:
+                timestamp = item.get("timestamp")
+                if not isinstance(timestamp, str):
+                    fail(f"{reviewer} verdict timestamp is absent")
+                verdict_timestamp = timestamp
+    if session_record_count != 1:
+        fail(f"{reviewer} trusted session header count differs")
+    if request_occurrences != 1:
+        fail(f"{reviewer} trusted request marker count differs")
+    if verdict_occurrences != 1:
+        fail(f"{reviewer} trusted verdict marker count differs")
+    if verdict_timestamp != verdict["reviewed_at_utc"]:
+        fail(f"{reviewer} trusted verdict timestamp differs")
+
+
+def verify_review_receipts(phase: str) -> None:
+    phase_contract = {
+        "contract_freeze": (
+            FREEZE_EVIDENCE,
+            "s20-530-crash-recovery-contract-freeze-v8",
+            "PASS_CONTRACT_FROZEN",
+            "PASS_CONTRACT_FREEZE",
+        ),
+        "implementation": (
+            CLOSEOUT_EVIDENCE,
+            "s20-530-crash-recovery-closeout-v1",
+            "PASS_CRASH_RECOVERY_MATRIX",
+            "PASS_IMPLEMENTATION",
+        ),
+    }.get(phase)
+    if phase_contract is None:
+        fail("review-receipt phase must be contract_freeze or implementation")
+    evidence_path, identity, evidence_result, review_result = phase_contract
+    evidence = load_json(evidence_path)
+    if (
+        evidence.get("contract") != identity
+        or evidence.get("result") != evidence_result
+    ):
+        fail(f"{phase} evidence identity/result differs")
+    hashes = require_frozen_contract_integrity()
+    contract_set_sha256 = canonical_json_sha256(hashes)
+    if evidence.get("contract_set_sha256") != contract_set_sha256:
+        fail(f"{phase} evidence contract-set digest differs")
+    payload_sha256 = review_payload_sha256(evidence)
+    source_set_sha256: str | None = None
+    validated_commit: str | None = None
+    if phase == "implementation":
+        validation = evidence.get("validation")
+        if not isinstance(validation, dict):
+            fail("implementation review validation payload is absent")
+        source_set_sha256 = validation.get("source_set_sha256")  # type: ignore[assignment]
+        validated_commit = validation.get("validated_commit")  # type: ignore[assignment]
+    reviews = require_phase_reviews(
+        evidence.get("reviews"),
+        review_result,
+        contract_set_sha256,
+        payload_sha256,
+        source_set_sha256,
+        validated_commit,
+    )
+    for reviewer, verdict in reviews.items():
+        assert isinstance(verdict, dict)
+        verify_trusted_review_session(
+            reviewer,
+            verdict,
+            review_result,
+            contract_set_sha256,
+            payload_sha256,
+            source_set_sha256,
+            validated_commit,
+        )
+    payload = review_receipt_verification_payload(phase, evidence_path, reviews)
+    recorded = evidence.get("review_receipt_verification")
+    if recorded not in (None, {}):
+        if problem := review_receipt_verification_problem(
+            recorded, phase, evidence_path, reviews
+        ):
+            fail(problem)
+    result = {**payload, "payload_sha256": canonical_json_sha256(payload)}
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+def synthetic_phase_reviews(
+    result: str,
+    contract_set_sha256: str,
+    evidence_payload_sha256: str,
+    source_set_sha256: str | None = None,
+    validated_commit: str | None = None,
+) -> dict[str, object]:
+    phase = REVIEW_PHASE_BY_RESULT[result]
+    session_phase = phase.replace("_", "-")
+    reviews: dict[str, object] = {}
+    for index, reviewer in enumerate(REVIEWERS, start=1):
+        nonce = f"{index:032x}"
+        request = phase_review_request_payload(
+            reviewer,
+            result,
+            nonce,
+            contract_set_sha256,
+            evidence_payload_sha256,
+            source_set_sha256,
+            validated_commit,
+        )
+        row: dict[str, object] = {
+            "result": result,
+            "reviewer_role": reviewer,
+            "phase": phase,
+            "request_nonce": nonce,
+            "request_sha256": canonical_json_sha256(request),
+            "session_id": (
+                f"forge-{reviewer}-s20-530-{session_phase}-"
+                f"20260831T00000{index}-{index:08x}"
+            ),
+            "reviewed_at_utc": f"2026-08-31T00:00:0{index}.000Z",
+            "session_json_sha256": f"{index + 3:x}" * 64,
+            "trajectory_sha256": f"{index + 6:x}" * 64,
+            "contract_set_sha256": contract_set_sha256,
+        }
+        if result == "PASS_IMPLEMENTATION":
+            row.update(
+                {
+                    "source_set_sha256": source_set_sha256,
+                    "validated_commit": validated_commit,
+                }
+            )
+        row.update(
+            {
+                "limit_source_set_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                    "source_set_sha256"
+                ],
+                "scanner_contract_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                    "scanner_contract_sha256"
+                ],
+                "entry_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                    "entry_ledger_sha256"
+                ],
+                "control_exception_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+                    "control_ledger_sha256"
+                ],
+                "exception_partition_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256,
+                "evidence_payload_sha256": evidence_payload_sha256,
+            }
+        )
+        reviews[reviewer] = row
+    return reviews
+
+
+def require_review_receipt_negative_controls() -> None:
+    contract_set_sha256 = "a" * 64
+    evidence_payload_sha256 = "b" * 64
+    source_set_sha256 = "c" * 64
+    validated_commit = "d" * 40
+    for result, source_set, revision in (
+        ("PASS_CONTRACT_FREEZE", None, None),
+        ("PASS_IMPLEMENTATION", source_set_sha256, validated_commit),
+    ):
+        reviews = synthetic_phase_reviews(
+            result,
+            contract_set_sha256,
+            evidence_payload_sha256,
+            source_set,
+            revision,
+        )
+        if problem := phase_reviews_problem(
+            reviews,
+            result,
+            contract_set_sha256,
+            evidence_payload_sha256,
+            source_set,
+            revision,
+        ):
+            fail(f"checker self-test rejected exact review receipts: {problem}")
+        hostile_reviews: list[dict[str, object]] = []
+        for field, value in (
+            ("request_sha256", "0" * 64),
+            ("reviewer_role", "vulcan"),
+            ("entry_exception_ledger_sha256", "0" * 64),
+        ):
+            hostile = json.loads(json.dumps(reviews))
+            assert isinstance(hostile, dict)
+            row = hostile["nabu"]
+            assert isinstance(row, dict)
+            row[field] = value
+            hostile_reviews.append(hostile)
+        replayed = json.loads(json.dumps(reviews))
+        assert isinstance(replayed, dict)
+        nabu = replayed["nabu"]
+        ariadne = replayed["ariadne"]
+        assert isinstance(nabu, dict) and isinstance(ariadne, dict)
+        ariadne["request_nonce"] = nabu["request_nonce"]
+        hostile_reviews.append(replayed)
+        missing = json.loads(json.dumps(reviews))
+        assert isinstance(missing, dict)
+        row = missing["nabu"]
+        assert isinstance(row, dict)
+        row.pop("trajectory_sha256")
+        hostile_reviews.append(missing)
+        for hostile in hostile_reviews:
+            if (
+                phase_reviews_problem(
+                    hostile,
+                    result,
+                    contract_set_sha256,
+                    evidence_payload_sha256,
+                    source_set,
+                    revision,
+                )
+                is None
+            ):
+                fail("checker self-test accepted hostile review receipts")
+
+        phase = REVIEW_PHASE_BY_RESULT[result]
+        evidence_path = (
+            FREEZE_EVIDENCE if result == "PASS_CONTRACT_FREEZE" else CLOSEOUT_EVIDENCE
+        )
+        payload = review_receipt_verification_payload(phase, evidence_path, reviews)
+        exact = {**payload, "payload_sha256": canonical_json_sha256(payload)}
+        if problem := review_receipt_verification_problem(
+            exact, phase, evidence_path, reviews
+        ):
+            fail(f"checker self-test rejected exact receipt verification: {problem}")
+        stale = dict(exact)
+        stale["payload_sha256"] = "0" * 64
+        if (
+            review_receipt_verification_problem(stale, phase, evidence_path, reviews)
+            is None
+        ):
+            fail("checker self-test accepted stale receipt verification")
+
+    reviews = synthetic_phase_reviews(
+        "PASS_CONTRACT_FREEZE",
+        contract_set_sha256,
+        evidence_payload_sha256,
+    )
+    row = reviews["nabu"]
+    assert isinstance(row, dict)
+    request = phase_review_request_payload(
+        "nabu",
+        "PASS_CONTRACT_FREEZE",
+        row["request_nonce"],  # type: ignore[arg-type]
+        contract_set_sha256,
+        evidence_payload_sha256,
+    )
+    verdict = phase_review_verdict_payload(
+        "nabu",
+        "PASS_CONTRACT_FREEZE",
+        row["request_nonce"],  # type: ignore[arg-type]
+        row["request_sha256"],  # type: ignore[arg-type]
+        contract_set_sha256,
+        evidence_payload_sha256,
+    )
+    request_marker = "S20_530_REVIEW_REQUEST_JSON=" + canonical_json_text(request)
+    verdict_marker = "S20_530_REVIEW_VERDICT_JSON=" + canonical_json_text(verdict)
+    exact_lines = (
+        {
+            "type": "session",
+            "id": row["session_id"],
+            "timestamp": "2026-08-31T00:00:00.000Z",
+        },
+        {
+            "type": "message",
+            "timestamp": "2026-08-31T00:00:00.500Z",
+            "message": {"role": "user", "content": request_marker},
+        },
+        {
+            "type": "message",
+            "timestamp": row["reviewed_at_utc"],
+            "message": {"role": "assistant", "content": verdict_marker},
+        },
+    )
+    session = (
+        "\n".join(canonical_json_text(line) for line in exact_lines) + "\n"
+    ).encode("utf-8")
+    trajectory = b'{"type":"trusted-trajectory-fixture"}\n'
+    row["session_json_sha256"] = hashlib.sha256(session).hexdigest()
+    row["trajectory_sha256"] = hashlib.sha256(trajectory).hexdigest()
+    verify_trusted_review_session(
+        "nabu",
+        row,
+        "PASS_CONTRACT_FREEZE",
+        contract_set_sha256,
+        evidence_payload_sha256,
+        None,
+        None,
+        (session, trajectory),
+    )
+
+    def expect_trusted_rejection(
+        hostile_row: dict[str, object],
+        hostile_session: bytes,
+        hostile_trajectory: bytes,
+    ) -> None:
+        with redirect_stderr(io.StringIO()):
+            try:
+                verify_trusted_review_session(
+                    "nabu",
+                    hostile_row,
+                    "PASS_CONTRACT_FREEZE",
+                    contract_set_sha256,
+                    evidence_payload_sha256,
+                    None,
+                    None,
+                    (hostile_session, hostile_trajectory),
+                )
+            except SystemExit:
+                return
+        fail("checker self-test accepted a hostile trusted review session")
+
+    stale_trajectory = dict(row)
+    stale_trajectory["trajectory_sha256"] = "0" * 64
+    expect_trusted_rejection(stale_trajectory, session, trajectory)
+    for old, new in (
+        (request_marker, "S20_530_REVIEW_REQUEST_JSON={}"),
+        (verdict_marker, "S20_530_REVIEW_VERDICT_JSON={}"),
+        (str(row["session_id"]), "forge-nabu-s20-530-contract-freeze-wrong"),
+    ):
+        encoded_old = canonical_json_text(old)[1:-1].encode("utf-8")
+        encoded_new = canonical_json_text(new)[1:-1].encode("utf-8")
+        hostile_session = session.replace(encoded_old, encoded_new, 1)
+        if hostile_session == session:
+            fail("checker self-test review-session mutation did not apply")
+        hostile_row = dict(row)
+        hostile_row["session_json_sha256"] = hashlib.sha256(hostile_session).hexdigest()
+        expect_trusted_rejection(hostile_row, hostile_session, trajectory)
+    stale_timestamp = dict(row)
+    stale_timestamp["reviewed_at_utc"] = "2026-08-31T00:00:09.000Z"
+    expect_trusted_rejection(stale_timestamp, session, trajectory)
 
 
 def require_freeze_anchor(package: dict[str, object], hashes: dict[str, str]) -> None:
@@ -9209,7 +9991,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v7":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v8":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -9230,6 +10012,12 @@ def require_freeze_evidence(
         "PASS_CONTRACT_FREEZE",
         contract_set_sha256,
         review_payload_sha256(evidence),
+    )
+    require_review_receipt_verification(
+        evidence.get("review_receipt_verification"),
+        "contract_freeze",
+        FREEZE_EVIDENCE,
+        reviews,
     )
     if evidence.get("implementation_complete") is not False:
         fail("contract-freeze evidence must not claim implementation")
@@ -9265,6 +10053,8 @@ def require_implementation(
         fail("closeout evidence is not PASS_CRASH_RECOVERY_MATRIX")
     if evidence.get("implementation_complete") is not True:
         fail("closeout evidence must claim exact completed implementation")
+    if evidence.get("contract_set_sha256") != contract_set_sha256:
+        fail("closeout evidence contract-set digest differs")
     test_plan = load_json(TEST_PLAN)
     if tuple(test_plan) != (
         "contract",
@@ -9810,6 +10600,12 @@ def require_implementation(
         review_payload_sha256(evidence),
         source_set_sha256,
         validated_commit,
+    )
+    require_review_receipt_verification(
+        evidence.get("review_receipt_verification"),
+        "implementation",
+        CLOSEOUT_EVIDENCE,
+        reviews,
     )
     if package.get("implementation_reviews") != reviews:
         fail("machine summary implementation reviews differ from closeout evidence")
@@ -32918,6 +33714,7 @@ def require_limit_operation_evidence(
 def require_checker_negative_controls() -> None:
     require_rust_scanner_positional_controls()
     require_limit_exception_ledger_negative_controls()
+    require_review_receipt_negative_controls()
 
     def test_module(items: str) -> str:
         return f"#[cfg(test)]\nmod tests {{\n{items}\n}}\n"
@@ -41528,4 +42325,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--verify-review-receipts":
+        verify_review_receipts(sys.argv[2])
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        fail(
+            "usage: check_s20_530_crash_recovery.py "
+            "[--verify-review-receipts contract_freeze|implementation]"
+        )

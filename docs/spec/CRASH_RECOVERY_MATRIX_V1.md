@@ -1296,6 +1296,18 @@ contract digest, the closeout source-set digest, validated commit, and the
 review-free closeout-evidence payload digest. A verdict from one phase, source
 set, commit, or evidence payload cannot satisfy another.
 
+Every v8 verdict also binds the reviewer role, phase, unique request nonce and
+canonical request digest, trusted local Council session ID and timestamp,
+session JSONL and trajectory SHA-256, the exact limit source and scanner
+digests, both exception-ledger digests, and the ordered exception-partition
+digest. The review-free payload excludes both the attached verdict rows and the
+subsequent local receipt-verification record. Before either evidence artifact is
+accepted, the checker-owned receipt command must find the exact request and
+verdict markers in the role-owned OpenClaw session, match both trusted file
+digests, and record one deterministic `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`
+payload. This local receipt is not an external signature and does not claim
+resistance to compromise of the trusted validation user or host.
+
 ## 7. Fault and result vocabulary
 
 Test-only injection selectors are closed enums local to the owning crate. Tests
