@@ -1,6 +1,6 @@
 # S20-530 v8 helper-manifest attribute-chain amendment design
 
-Status: ACTIVE DESIGN
+Status: ACTIVE DESIGN - EXPANDED REVIEW REQUIRED
 
 Owner: Codex orchestrator
 
@@ -20,6 +20,21 @@ API, matrix row, error, limit, limit event, runtime case, or evidence meaning.
 
 This design does not itself mutate the frozen v7 contract. Publication, push,
 deployment, spend, trading, and external runtime mutation remain unauthorized.
+
+## Post-design proof frontier
+
+The helper-manifest amendment is necessary but no longer sufficient for v8.
+Subsequent bounded proof-layer audits found incomplete feature-gate authority,
+entry-path resolver contradictions, control-ancestry resolver contradictions,
+and a measured quadratic scanner hotspot. The complete evidence and required
+architecture ruling are recorded in
+`s20-530-v8-closeout-proof-frontier-2026-08-31.md`.
+
+Do not request a helper-only v8 freeze review. The final v8 design must include
+the exact 14-site gate registry and scanner ruling, then obtain explicit Nabu,
+Ariadne, and Vulcan direction on the entry/control boundary before checker
+implementation. The existing helper producer prototype remains valid and may
+be reused inside that settled design.
 
 ## Current evidence
 
