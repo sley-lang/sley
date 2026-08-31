@@ -121,6 +121,33 @@ def load_test_plan() -> dict[str, object]:
     expected_contract = contract.canonical_json_sha256(frozen_hashes)
     if value.get("contract_set_sha256") != expected_contract:
         stop("test plan is bound to a stale S20-530 contract")
+    reconciler = contract.limit_exception_reconciler_manifest()
+    if value.get("limit_exception_reconciler") != reconciler:
+        stop("test plan exception-reconciler manifest differs")
+    reconciler_sha256 = contract.canonical_json_sha256(reconciler)
+    if value.get("limit_exception_reconciler_sha256") != reconciler_sha256:
+        stop("test plan exception-reconciler manifest digest differs")
+    for manifest_field, digest_field in (
+        (
+            "limit_event_control_ancestries",
+            "limit_event_control_ancestries_sha256",
+        ),
+        (
+            "limit_event_control_exception_ledger",
+            "limit_event_control_exception_ledger_sha256",
+        ),
+        ("limit_event_entry_call_paths", "limit_event_entry_call_paths_sha256"),
+        (
+            "limit_event_entry_exception_ledger",
+            "limit_event_entry_exception_ledger_sha256",
+        ),
+        ("limit_shared_state_authority", "limit_shared_state_authority_sha256"),
+    ):
+        manifest = value.get(manifest_field)
+        if not isinstance(manifest, dict):
+            stop(f"test plan {manifest_field} is not an object")
+        if value.get(digest_field) != contract.canonical_json_sha256(manifest):
+            stop(f"test plan {digest_field} differs")
     return value
 
 
@@ -1856,6 +1883,24 @@ def main() -> None:
         "test_plan": str(TEST_PLAN.relative_to(ROOT)),
         "test_plan_sha256": contract.repository_file_sha256(TEST_PLAN),
         "mapped_test_bodies_sha256": mapped_test_bodies_sha256,
+        "limit_event_control_ancestries_sha256": test_plan[
+            "limit_event_control_ancestries_sha256"
+        ],
+        "limit_event_control_exception_ledger_sha256": test_plan[
+            "limit_event_control_exception_ledger_sha256"
+        ],
+        "limit_event_entry_call_paths_sha256": test_plan[
+            "limit_event_entry_call_paths_sha256"
+        ],
+        "limit_event_entry_exception_ledger_sha256": test_plan[
+            "limit_event_entry_exception_ledger_sha256"
+        ],
+        "limit_exception_reconciler_sha256": test_plan[
+            "limit_exception_reconciler_sha256"
+        ],
+        "limit_shared_state_authority_sha256": test_plan[
+            "limit_shared_state_authority_sha256"
+        ],
         "reviews": {},
         "validation": {
             "workspace_inputs": inputs,

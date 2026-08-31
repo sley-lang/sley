@@ -562,6 +562,39 @@ separate exact runtime-observation manifest still binds every registered event
 to the mapped N and N+1 test that proves the event was reached and its charge
 was observed.
 
+S20-530 v8 uses one tightly defined hybrid for the entry-path and
+control-ancestry proof layers. The checker first generates the complete
+pre-exception inventory for all 30 governed events. Every resolved leaf remains
+`STATIC_PASS`. Only a generated unresolved leaf that exactly matches its
+ordered, digest-bound ledger record receives
+`UNRESOLVED_BY_V8_STATIC_RESOLVER` and
+`FINAL_SPECIALIST_REVIEW_REQUIRED`. That disposition is not a static pass,
+trust grant, ignored finding, reachability claim, or false-positive ruling.
+Missing, additional, duplicated, reordered, newly unresolved, newly resolved,
+or source-drifted leaves fail closed. Runtime observations, N and N+1 cases,
+public-root evidence, dual-site proofs, complete source scans, and fresh final
+Nabu, Ariadne, and Vulcan implementation reviews remain mandatory.
+
+The exact entry partition is 110 complete leaves: 90 static passes and 20
+manual-review exceptions across 13 events. The exact control partition is
+5,213 complete atoms: 3,547 static passes and 1,666 manual-review exceptions
+across 23 events. The checker freezes the complete v8 exception partition
+under one ordered fingerprint. Its SHA-256 is
+`5b475cc8c4c1f5abbab836d29fc28fe0270fa0eef58b73b6d01a1253f051c816`.
+The fingerprint binds the corrected 31-source closure, 14 feature-gated
+production occurrences plus the separate test-only reference site, positional
+scanner contract, complete manifests, complete inventories, static-pass sets,
+exception sets, ledger bytes, and all counts.
+
+The independent witness is
+`scripts/reconcile_s20_530_exception_ledgers.py`. It imports no checker module
+or resolver helper. From the serialized test-plan manifests, it independently
+reconstructs every structural leaf and atom, then verifies exact ordered union,
+disjointness, counts, event partitions, canonical record hashes, and top-level
+digests. Its path and bytes are part of the contract set, its exact manifest is
+bound in the test plan and closeout evidence, and its real-package invocation
+is a required Tier 2 command.
+
 Receipt verification derives paths only through the non-creating
 `receipt_path_readonly` authority. One exact private
 `recovery_receipt_metadata` helper uses `symlink_metadata`, maps `NotFound` to
@@ -1143,6 +1176,12 @@ snapshot, kind, expected kind, and owner tree. COR-04 and COR-05 establish the
 canonical refs directories and `locks/refs.lock` before the fresh baseline.
 COR-03 symlink and non-regular cases record trusted-genesis `heads/accepted`
 as a changed fixture path after explicit replacement, not as an added path.
+The legacy `cleanup_canary_hashes` keys ending in `before_sha256` and
+`after_sha256` are deterministic equality-proof bindings over the row,
+subcase, optional grouped leaf, subject, and exact mapped assertion. They are
+not claimed as hashes of runtime snapshot bytes. The checker recomputes each
+binding exactly; the executed Rust assertion proves the actual before/after
+snapshot equality.
 
 Every `COR-06` through `COR-08` and limit-family subcase records
 `no_mutation=true`. Each `COR-06` through `COR-08` subcase also records the
@@ -1536,7 +1575,7 @@ no-outside-root claim is limited to this cooperating local threat model.
 
 The checker owns one immutable `MULTIFAULT_OVERLAY_REGISTRY` in the exact
 15-case order. Its SHA-256 is
-`96010eb8aced871125be613d7ce192c0d97419ed600723522e23d5234fd300a0`.
+`5562e9b7f78039276284581cfd057708ed705edcc219e5375f5c993b783c78b3`.
 The first nine records cover the non-grouped ANC, owned-entry, and limit
 precedence cases. The final six records cover the grouped `COR-06` and
 `COR-07` leaves. Every record fixes one owner source, recovery operation,
@@ -1598,6 +1637,19 @@ again leave the tree and secondary state unchanged. A loser-exclusion assertion
 is not evidence of the loser. Limit cases may change only the selected private
 profile field from one to two between calls. The three-symlink cases must repair
 all three exact links and sync every distinct parent.
+
+For a multifault case, the matrix entry's base error semantics are an exact
+projection of operation one's M2 result and first unchanged-tree snapshot; the
+entry does not bind a second generic `error` or `result` authority outside the
+M2 window. Grouped multifault leaves likewise use their complete M2 fixture,
+probe, result, repair, and snapshot plan as the sole corruption proof and omit
+the mutually exclusive generic fixture and preflight blocks. The two limit
+multifault cases, `LIMIT-02/final_receipts` and `LIMIT-03/final_origins`, first
+complete their ordinary exact-limit success and limit-plus-one failure prefix.
+They then append one isolated M2 suffix over a fresh fixture: operation one
+proves the limit winner, raising only that selected limit from one to two
+exposes the corruption loser on operation two, and both calls preserve the
+whole owner tree and their direct fault observations.
 
 The evidence object appends the ordered fields
 `multifault_plan_sha256`, `primary_fixture_assertions`,
@@ -1671,6 +1723,7 @@ uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py
 uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py
 cargo test -p sley-mutate mutation_value_codec_adversarial --locked
 cargo test -p sley-adapter authorized_adapter_request_binding_confusion_fails_before_charge --locked
+python3 scripts/reconcile_s20_530_exception_ledgers.py evidence/validation/s20-530-crash-recovery-test-plan-v1.json
 cargo fmt --all -- --check
 ```
 

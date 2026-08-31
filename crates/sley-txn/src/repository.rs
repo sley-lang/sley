@@ -13070,8 +13070,8 @@ mod tests {
         ::core::assert_eq!(error.code(), "RECOVERY_RECEIPT_INCOMPLETE");
         ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
         ::core::assert_eq!(
-            crate::repository::tests::exact_error_source_chain(&error),
-            [] as [&str; 0]
+            crate::repository::tests::exact_error_source_chain::<0>(&error),
+            [] as [&'static str; 0]
         );
         let deep_missing_after_snapshot = exact_optional_path_snapshot(&deep_missing_path);
         let pointer_after_snapshot = exact_path_snapshot(&pointer_path);
@@ -14542,6 +14542,159 @@ mod tests {
         (repository, maintenance, observation)
     }
 
+    struct TransactionFinalReceiptsLimitPointerFixture {
+        m2_non_target_limit_fields_1: (u64, u64, u64, u64, u64),
+        m2_non_target_limit_fields_2: (u64, u64, u64, u64, u64),
+        m2_owner_accepted_pointer_path: ::std::path::PathBuf,
+        m2_primary_final_receipt_count: u64,
+        m2_primary_final_receipts_limit: u64,
+        m2_primary_locator: ::std::string::String,
+        m2_pristine_primary_observation: (u64, u64),
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_pointer_computed_checksum: [u8; 32],
+        m2_secondary_pointer_recorded_checksum: [u8; 32],
+        transaction_limits_1: TransactionRecoveryLimits,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    fn transaction_final_receipt_count(root: &::std::path::Path) -> u64 {
+        let mut count = 0_u64;
+        let first = ::std::fs::read_dir(root.join("transactions/v1")).unwrap();
+        for first_entry in first {
+            let first_path = first_entry.unwrap().path();
+            if !first_path.is_dir() {
+                continue;
+            }
+            for second_entry in ::std::fs::read_dir(first_path).unwrap() {
+                let second_path = second_entry.unwrap().path();
+                if !second_path.is_dir() {
+                    continue;
+                }
+                for entry in ::std::fs::read_dir(second_path).unwrap() {
+                    let path = entry.unwrap().path();
+                    if path
+                        .file_name()
+                        .and_then(::std::ffi::OsStr::to_str)
+                        .is_some_and(|name| name.ends_with(".receipt.scb1"))
+                    {
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+
+    fn prepare_transaction_final_receipts_limit_pointer_fixture(
+        fixture: &Fixture,
+    ) -> TransactionFinalReceiptsLimitPointerFixture {
+        let repository = &fixture.repository;
+        let extra_leaf = repository.root().join("transactions/v1/ff/ff");
+        ::std::fs::create_dir_all(&extra_leaf).unwrap();
+        let extra_receipt = extra_leaf.join(::std::format!(
+            "{}.receipt.scb1",
+            "f".repeat(64)
+        ));
+        ::std::fs::write(&extra_receipt, b"final").unwrap();
+        ::std::fs::File::open(&extra_receipt)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(&extra_leaf).unwrap();
+
+        let m2_primary_final_receipt_count =
+            transaction_final_receipt_count(repository.root());
+        let m2_primary_final_receipts_limit = 1_u64;
+        let mut transaction_limits_1 = transaction_recovery_limits();
+        transaction_limits_1.final_receipts = m2_primary_final_receipts_limit;
+        let m2_non_target_limit_fields_1 = (
+            transaction_limits_1.receipt_fanout_directories,
+            transaction_limits_1.receipt_leaf_entries,
+            transaction_limits_1.receipt_stages,
+            transaction_limits_1.head_entries,
+            transaction_limits_1.head_stages,
+        );
+        let m2_non_target_limit_fields_2 = m2_non_target_limit_fields_1;
+        let m2_pristine_primary_observation = (
+            m2_primary_final_receipt_count,
+            m2_primary_final_receipts_limit,
+        );
+
+        let m2_secondary_path = repository.head_path();
+        let mut corrupted_pointer = ::std::fs::read(&m2_secondary_path).unwrap();
+        let pointer_prefix_len = corrupted_pointer.len().checked_sub(32).unwrap();
+        let mut hasher = ::blake3::Hasher::new();
+        hasher.update(super::HEAD_CHECKSUM_DOMAIN);
+        hasher.update(&corrupted_pointer[..pointer_prefix_len]);
+        let m2_secondary_pointer_computed_checksum = *hasher.finalize().as_bytes();
+        *corrupted_pointer.last_mut().unwrap() ^= 1;
+        let mut m2_secondary_pointer_recorded_checksum = [0_u8; 32];
+        m2_secondary_pointer_recorded_checksum
+            .copy_from_slice(&corrupted_pointer[pointer_prefix_len..]);
+        write_corruption_file(&m2_secondary_path, &corrupted_pointer);
+
+        let m2_secondary_only_observation = exact_path_snapshot(&m2_secondary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(repository.root());
+        TransactionFinalReceiptsLimitPointerFixture {
+            m2_non_target_limit_fields_1,
+            m2_non_target_limit_fields_2,
+            m2_owner_accepted_pointer_path: m2_secondary_path.clone(),
+            m2_primary_final_receipt_count,
+            m2_primary_final_receipts_limit,
+            m2_primary_locator: "transaction_recovery_limits::final_receipts".into(),
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_pointer_computed_checksum,
+            m2_secondary_pointer_recorded_checksum,
+            transaction_limits_1,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
+    fn observe_transaction_final_receipts_limit_pointer_fixture_primary(
+        fixture: &Fixture,
+        m2_fixture: &TransactionFinalReceiptsLimitPointerFixture,
+    ) -> (u64, u64) {
+        (
+            transaction_final_receipt_count(fixture.repository.root()),
+            m2_fixture.m2_primary_final_receipts_limit,
+        )
+    }
+
+    fn observe_transaction_final_receipts_limit_pointer_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &TransactionFinalReceiptsLimitPointerFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn ensure_transaction_recovery_limit_pair(
+        fixture: &Fixture,
+        m2_fixture: &TransactionFinalReceiptsLimitPointerFixture,
+    ) -> ::core::result::Result<(), CommitError> {
+        ensure_transaction_recovery_limit(
+            transaction_final_receipt_count(fixture.repository.root()),
+            m2_fixture.m2_primary_final_receipts_limit,
+        )
+    }
+
+    fn decode_transaction_limit_accepted_pointer_error_m2(
+        _fixture: &Fixture,
+        m2_fixture: &TransactionFinalReceiptsLimitPointerFixture,
+    ) -> ::core::result::Result<TransactionId, CommitError> {
+        let bytes = ::std::fs::read(&m2_fixture.m2_secondary_path)
+            .map_err(CommitError::Io)?;
+        decode_head(&bytes)
+    }
+
     fn prepare_s20_530_limit_02_final_receipts_limit_fixture(
         cardinality: u64,
     ) -> (
@@ -15307,6 +15460,7 @@ mod tests {
         ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+
     }
 
     #[test]
@@ -16862,6 +17016,92 @@ mod tests {
         ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+        let fixture = Fixture::new("s20-530-m2-limit-02-final-receipts");
+        let repository: &super::TransactionRepository = &fixture.repository;
+        let owner_root = repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_transaction_final_receipts_limit_pointer_fixture(&fixture);
+        let m2_non_target_limit_fields_1 = m2_fixture.m2_non_target_limit_fields_1.clone();
+        let m2_non_target_limit_fields_2 = m2_fixture.m2_non_target_limit_fields_2.clone();
+        let m2_owner_accepted_pointer_path = m2_fixture.m2_owner_accepted_pointer_path.clone();
+        let m2_primary_final_receipt_count = m2_fixture.m2_primary_final_receipt_count.clone();
+        let m2_primary_final_receipts_limit = m2_fixture.m2_primary_final_receipts_limit.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_pointer_computed_checksum = m2_fixture.m2_secondary_pointer_computed_checksum.clone();
+        let m2_secondary_pointer_recorded_checksum = m2_fixture.m2_secondary_pointer_recorded_checksum.clone();
+        let transaction_limits_1 = m2_fixture.transaction_limits_1.clone();
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_two_final_receipts_present", m2_primary_final_receipt_count), ("primary_two_final_receipts_present", 2_u64));
+        ::core::assert_eq!(("primary_only_final_receipts_limit_is_one", m2_primary_final_receipts_limit), ("primary_only_final_receipts_limit_is_one", 1_u64));
+        ::core::assert_eq!(("secondary_pointer_path_from_owner", m2_secondary_path.as_path()), ("secondary_pointer_path_from_owner", m2_owner_accepted_pointer_path.as_path()));
+        ::core::assert_ne!(("secondary_pointer_checksum_corrupt", m2_secondary_pointer_computed_checksum), ("secondary_pointer_checksum_corrupt", m2_secondary_pointer_recorded_checksum));
+        ::core::assert_ne!(("limit_field_vs_artifact_path", m2_primary_locator.as_str()), ("limit_field_vs_artifact_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = ensure_transaction_recovery_limit_pair(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_transaction_resource_limit", m2_primary_probe_error.code()), ("primary_probe_transaction_resource_limit", "TXN_RESOURCE_LIMIT"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = decode_transaction_limit_accepted_pointer_error_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_ref_head_corrupt", m2_secondary_probe_error.code()), ("secondary_probe_ref_head_corrupt", "REF_HEAD_CORRUPT"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_transaction_final_receipts_limit_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_transaction_final_receipts_limit_pointer_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = repository.recover_with_maintenance_and_limits(&maintenance, transaction_limits_1, accepted_recovery_limits());
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_transaction_final_receipts_limit_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_transaction_final_receipts_limit_pointer_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "TXN_RESOURCE_LIMIT"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::CommitError::Transaction(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        let transaction_limits_2 = TransactionRecoveryLimits { receipt_fanout_directories: transaction_limits_1.receipt_fanout_directories, receipt_leaf_entries: transaction_limits_1.receipt_leaf_entries, final_receipts: 2_u64, receipt_stages: transaction_limits_1.receipt_stages, head_entries: transaction_limits_1.head_entries, head_stages: transaction_limits_1.head_stages };
+        let m2_primary_after_repair = observe_transaction_final_receipts_limit_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_transaction_final_receipts_limit_pointer_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_transaction_final_receipts_limit_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_transaction_final_receipts_limit_pointer_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_non_target_limit_fields_1, m2_non_target_limit_fields_2);
+        let m2_result_2 = repository.recover_with_maintenance_and_limits(&maintenance, transaction_limits_2, accepted_recovery_limits());
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_transaction_final_receipts_limit_pointer_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_transaction_final_receipts_limit_pointer_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::CommitError::Transaction(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 
     #[test]
@@ -17326,8 +17566,8 @@ mod tests {
         ::core::assert_eq!(error.code(), "TXN_PARENT_SHAPE");
         ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
         ::core::assert_eq!(
-            crate::repository::tests::exact_error_source_chain(&error),
-            [] as [&str; 0]
+            crate::repository::tests::exact_error_source_chain::<0>(&error),
+            [] as [&'static str; 0]
         );
         let cycle_observations =
             consume_l_r_l_cycle_observations(&repository, &maintenance, plan, &provenance);

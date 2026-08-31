@@ -55,6 +55,15 @@ same owned-entry facts to the precedence winner and first-operation snapshots.
 Their secondary probes use distinct M2 helper identities, and their classified
 winner variants carry exact empty `Error::source` chains.
 
+This sole-authority rule applies to every grouped multifault leaf: its matrix
+base error fields project operation one's exact M2 result and unchanged-tree
+snapshot, so no redundant generic corruption fixture, result local, or
+preflight body can compete with the M2 plan. The two limit multifault cases keep
+their normal exact-limit/limit-plus-one runtime prefix and append a fresh,
+isolated M2 suffix. That suffix changes only the selected limit from one to two
+between calls, proving the limit winner first and the corruption loser second
+without owner-tree mutation.
+
 Test-only non-regular fixtures bind a Unix datagram socket at one guarded short
 path under the system temporary directory and rename the inode into the final
 owner path. Direct final-path socket binds are not evidence. COR-03 explicitly
@@ -177,6 +186,30 @@ lexical inspection can prove the absence of every deliberately computed internal
 lock path. Final Vulcan review therefore owns arbitrary same-process lock-path
 mutation analysis over the exact closeout source-set digest, in addition to the
 checker and runtime evidence.
+
+S20-530 v8 adopts one narrow hybrid proof path for entry paths and control
+ancestry. The checker still generates the complete pre-exception inventory for
+all 30 events and preserves every resolved leaf as `STATIC_PASS`. It may assign
+`UNRESOLVED_BY_V8_STATIC_RESOLVER` with
+`FINAL_SPECIALIST_REVIEW_REQUIRED` only to a generated unresolved leaf that
+matches the exact frozen ledger. The entry partition is 110 complete leaves,
+90 static passes, and 20 exceptions across 13 events. The control partition is
+5,213 complete atoms, 3,547 static passes, and 1,666 exceptions across 23
+events. Their ordered fingerprint SHA-256 is
+`5b475cc8c4c1f5abbab836d29fc28fe0270fa0eef58b73b6d01a1253f051c816`.
+This is an equivalent proof path, not a broad bypass: record, order, source,
+attribute-chain, body, lexical-site, parent-manifest, classification, or digest
+drift fails closed, while every runtime observation and final specialist review
+remains required.
+
+The standalone `scripts/reconcile_s20_530_exception_ledgers.py` witness imports
+no checker resolver code. It independently reconstructs the complete structural
+inventories from serialized test-plan manifests and verifies the exact static
+and exception partition. Its bytes join the frozen contract set, its identity is
+bound in the test plan and closeout evidence, and its invocation is an exact
+Tier 2 command. The immutable v7 contract and evidence remain historical
+authority for v7; v8 refreezes the amended specification, ADR, checker, runner,
+reconciler, partition ledgers, and fresh review receipts as one new contract.
 
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,

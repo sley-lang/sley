@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import io
 import json
 import math
 import os
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from contextlib import redirect_stderr
 from pathlib import Path
 from typing import NamedTuple
 
@@ -22,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GIT = Path("/usr/bin/git")
 PYTHON = Path("/usr/bin/python3")
 RUST_IDENTIFIER = r"(?:r#)?[A-Za-z_][A-Za-z0-9_]*"
+RUST_RAW_STRING_PREFIX = re.compile(r'(?:br|cr|r)(?P<hashes>#{0,255})"')
 GIT_ENVIRONMENT = {
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_NOSYSTEM": "1",
@@ -77,6 +80,7 @@ FREEZE_EVIDENCE = (
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
 RUNNER = ROOT / "scripts/run_s20_530_validation.py"
+RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
 FROZEN_SPEC_SHA256 = "9ee07a0a71042706c23ab27ff8c131164a722a2b54da2f67f0757f1b86bce06e"
@@ -84,6 +88,7 @@ FROZEN_ADR_SHA256 = "495bddba2eb368ba63bb739cd98b23cd6c3fe370d125d049863051b7f10
 FROZEN_RUNNER_SHA256 = (
     "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
 )
+FROZEN_RECONCILER_SHA256 = "DRAFT"
 CHECKER_CONTRACT_SHA256 = (
     "a080f4b555b982d1516425138593c968dbba3a11e15c991b153350abeac03d1b"
 )
@@ -2638,8 +2643,9 @@ CROSS_05_EVOLVING_GUARDED_CORES = (
         "BranchRepository",
         "recover_refs_with_maintenance",
         (
-            "self.recover_refs_with_maintenance_and_limits(maintenance,"
-            "ref_recovery_limits())"
+            "letlimits=ref_recovery_limits();"
+            "letresult=self.recover_refs_with_maintenance_and_limits("
+            "maintenance,limits);result"
         ),
         "recover_refs_with_maintenance_and_limits",
         "validate_exclusive_maintenance",
@@ -3135,8 +3141,9 @@ LIMIT_PROFILE_SPECS = (
         "wrapper_owner": "implBranchRepository",
         "wrapper": "recover_refs_with_maintenance",
         "wrapper_body": (
-            "self.recover_refs_with_maintenance_and_limits(maintenance,"
-            "ref_recovery_limits())"
+            "letlimits=ref_recovery_limits();"
+            "letresult=self.recover_refs_with_maintenance_and_limits("
+            "maintenance,limits);result"
         ),
         "helper": "ensure_ref_recovery_limit",
         "helper_error": "BranchErrorCode::BranchResourceLimit",
@@ -5443,7 +5450,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "decoded_origin_and_head_transaction_ids",
                 "origin_and_head_receipt_paths",
                 "valid_non_ancestor_origin",
-                "probe_branch_origin_ancestry",
+                "probe_branch_origin_ancestry_m2",
                 "secondary_origin_head_distinct",
                 "secondary_origin_not_reachable_from_head",
                 "secondary_probe_branch_origin_mismatch",
@@ -5566,7 +5573,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "transaction_repository_owner_root",
                 "accepted_pointer_path",
                 "accepted_pointer_checksum",
-                "decode_accepted_pointer_error",
+                "decode_transaction_limit_accepted_pointer_error_m2",
                 "secondary_pointer_path_from_owner",
                 "secondary_pointer_checksum_corrupt",
                 "secondary_probe_ref_head_corrupt",
@@ -5638,7 +5645,7 @@ MULTIFAULT_OVERLAY_REGISTRY: tuple[tuple[MultifaultKey, MultifaultOverlaySpec], 
                 "selected_branch_name",
                 "branch_ref_path",
                 "ref_digest_rewrite",
-                "import_branch_ref_error",
+                "import_branch_ref_error_m2",
                 "secondary_ref_path_from_branch",
                 "secondary_ref_digest_corrupt",
                 "secondary_probe_ref_digest_mismatch",
@@ -6085,7 +6092,7 @@ def multifault_overlay_registry_sha256(
 
 
 MULTIFAULT_OVERLAY_REGISTRY_SHA256 = (
-    "96010eb8aced871125be613d7ce192c0d97419ed600723522e23d5234fd300a0"
+    "5562e9b7f78039276284581cfd057708ed705edcc219e5375f5c993b783c78b3"
 )
 
 
@@ -6266,21 +6273,21 @@ def error_evidence_field_order(
     subcase_id: str | None,
     leaf_id: str | None = None,
 ) -> tuple[str, ...]:
-    fields = (
-        GROUPED_CORRUPTION_ERROR_EVIDENCE_FIELDS
-        if leaf_id is not None
-        else ERROR_EVIDENCE_FIELDS
-    )
-    if (row_id, subcase_id) in RECOVERY_PROVENANCE_SPECS:
-        fields = (*fields, *RECOVERY_PROVENANCE_EVIDENCE_FIELDS)
     multifault = (
         (row_id, subcase_id) in MULTIFAULT_CASES
         if leaf_id is None
         else (row_id, str(subcase_id), leaf_id) in GROUPED_MULTIFAULT_CASES
     )
+    fields = (
+        GROUPED_CORRUPTION_ERROR_EVIDENCE_FIELDS
+        if leaf_id is not None and not multifault
+        else ERROR_EVIDENCE_FIELDS
+    )
+    if (row_id, subcase_id) in RECOVERY_PROVENANCE_SPECS:
+        fields = (*fields, *RECOVERY_PROVENANCE_EVIDENCE_FIELDS)
     if multifault:
         fields = (*fields, *MULTIFAULT_EVIDENCE_FIELDS)
-    if row_id in PREFLIGHT_CANARIES:
+    if row_id in PREFLIGHT_CANARIES and not multifault:
         fields = (*fields, *PREFLIGHT_CANARY_EVIDENCE_FIELDS)
     return fields
 
@@ -6387,7 +6394,7 @@ FROZEN_TEST_AUTHORITY_FIXED_PATHS = (
 )
 FROZEN_TEST_AUTHORITY_FILE_COUNT = 50
 FROZEN_TEST_AUTHORITY_SET_SHA256 = (
-    "b39212cc958ec9ce670c25fd543f5e3fdfa8c63772e8dac23f6f55a08eb04da1"
+    "b67491e9a88452bdb220a4e1a5c8c38c2f01b47f221632f5cb5f2283699e17f3"
 )
 BUILTIN_DERIVES = frozenset(
     {
@@ -7440,6 +7447,7 @@ TIER_2_COMMANDS = (
     "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
     "cargo test -p sley-mutate mutation_value_codec_adversarial --locked",
     "cargo test -p sley-adapter authorized_adapter_request_binding_confusion_fails_before_charge --locked",
+    "python3 scripts/reconcile_s20_530_exception_ledgers.py evidence/validation/s20-530-crash-recovery-test-plan-v1.json",
     "cargo fmt --all -- --check",
 )
 TEST_LIST_COMMANDS = (
@@ -7712,6 +7720,18 @@ def canonical_json_sha256(value: object) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def preflight_equality_proof_sha256(
+    row_id: str,
+    subcase_id: str | None,
+    leaf_id: str | None,
+    subject: str,
+    assertion: str,
+) -> str:
+    return canonical_json_sha256(
+        [row_id, subcase_id or "", leaf_id or "", subject, assertion]
+    )
 
 
 def review_payload_sha256(evidence: dict[str, object]) -> str:
@@ -8022,6 +8042,7 @@ def current_contract_hashes() -> dict[str, str]:
         "checker_sha256": repository_file_sha256(Path(__file__).resolve()),
         "checker_contract_sha256": checker_contract_sha256(),
         "runner_sha256": repository_file_sha256(RUNNER),
+        "reconciler_sha256": repository_file_sha256(RECONCILER),
     }
 
 
@@ -8032,6 +8053,7 @@ def require_frozen_contract_integrity() -> dict[str, str]:
             FROZEN_SPEC_SHA256,
             FROZEN_ADR_SHA256,
             FROZEN_RUNNER_SHA256,
+            FROZEN_RECONCILER_SHA256,
             CHECKER_CONTRACT_SHA256,
         )
     ):
@@ -8040,6 +8062,7 @@ def require_frozen_contract_integrity() -> dict[str, str]:
         "spec_sha256": FROZEN_SPEC_SHA256,
         "adr_sha256": FROZEN_ADR_SHA256,
         "runner_sha256": FROZEN_RUNNER_SHA256,
+        "reconciler_sha256": FROZEN_RECONCILER_SHA256,
         "checker_contract_sha256": CHECKER_CONTRACT_SHA256,
     }
     current = current_contract_hashes()
@@ -8313,8 +8336,8 @@ def require_exact_matrix(spec: str) -> None:
 
 
 def tier_2_command_contract_problem(spec: str) -> str | None:
-    if len(TIER_2_COMMANDS) != 24 or len(set(TIER_2_COMMANDS)) != 24:
-        return "checker does not freeze exactly 24 unique direct Tier 2 commands"
+    if len(TIER_2_COMMANDS) != 25 or len(set(TIER_2_COMMANDS)) != 25:
+        return "checker does not freeze exactly 25 unique direct Tier 2 commands"
     if any(command.startswith("make ") for command in TIER_2_COMMANDS):
         return "Tier 2 command authority contains mutable Make indirection"
     marker = "Tier 2 for S20-530 is:\n\n```text\n"
@@ -8396,6 +8419,20 @@ def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
     return None
 
 
+def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
+    matches = re.findall(
+        r"The checker freezes the complete v8 exception partition\s+"
+        r"under one ordered fingerprint\. Its SHA-256 is\s+"
+        r"`([0-9a-f]{64})`\.",
+        spec,
+    )
+    if len(matches) != 1:
+        return "cannot isolate one exact v8 exception-partition fingerprint"
+    if matches[0] != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256:
+        return "specification v8 exception-partition fingerprint differs"
+    return None
+
+
 def require_contract(spec: str, adr: str) -> None:
     require_git_source_authority()
     require_owned_entry_v6_controls()
@@ -8416,6 +8453,8 @@ def require_contract(spec: str, adr: str) -> None:
     if problem := multifault_overlay_spec_digest_problem(spec):
         fail(problem)
     if problem := grouped_m2_probe_adapter_spec_digest_problem(spec):
+        fail(problem)
+    if problem := limit_exception_partition_spec_digest_problem(spec):
         fail(problem)
     for marker in (
         "The dependency direction remains `sley-repo -> sley-txn -> sley-store`",
@@ -8526,6 +8565,8 @@ def require_contract(spec: str, adr: str) -> None:
         "remain byte-for-byte immutable after contract review",
         "full workspace-input closure",
         "actual owning-crate Cargo test list",
+        "S20-530 v8 adopts one narrow hybrid proof path",
+        "reconcile_s20_530_exception_ledgers.py` witness imports",
     ):
         require_text(adr, marker, "crash-recovery ADR")
     if "\N{EM DASH}" in spec or "\N{EM DASH}" in adr:
@@ -9105,6 +9146,7 @@ def require_freeze_anchor(package: dict[str, object], hashes: dict[str, str]) ->
         "adr_sha256": str(ADR.relative_to(ROOT)),
         "checker_sha256": str(Path(__file__).resolve().relative_to(ROOT)),
         "runner_sha256": str(RUNNER.relative_to(ROOT)),
+        "reconciler_sha256": str(RECONCILER.relative_to(ROOT)),
     }
     for field, path in committed_paths.items():
         digest = hashlib.sha256(committed_blob(revision, path)).hexdigest()
@@ -9124,6 +9166,7 @@ def freeze_deterministic_inputs_problem(
         "checker_sha256",
         "checker_contract_sha256",
         "runner_sha256",
+        "reconciler_sha256",
     )
     if not isinstance(hashes, dict) or tuple(hashes) != hash_fields:
         return "contract hash fields/order differ"
@@ -9148,8 +9191,13 @@ def freeze_deterministic_inputs_problem(
 S20_530_IMPLEMENTATION_REVIEW_OBLIGATIONS = {
     "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
     "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
-    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
-    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "limit_event_owner_body_control_ancestries": (
+        "FINAL_REVIEW_REQUIRED_30_EVENTS_EXACT_V8_PARTITION"
+    ),
+    "limit_event_entry_call_paths": (
+        "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS_EXACT_V8_PARTITION"
+    ),
+    "independent_exception_reconciliation": "FINAL_REVIEW_REQUIRED_EXACT_TIER_2",
     "test_to_production_shared_state_authority": (
         "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
     ),
@@ -9230,8 +9278,14 @@ def require_implementation(
         "limit_event_owner_bodies_sha256",
         "limit_event_control_ancestries",
         "limit_event_control_ancestries_sha256",
+        "limit_event_control_exception_ledger",
+        "limit_event_control_exception_ledger_sha256",
         "limit_event_entry_call_paths",
         "limit_event_entry_call_paths_sha256",
+        "limit_event_entry_exception_ledger",
+        "limit_event_entry_exception_ledger_sha256",
+        "limit_exception_reconciler",
+        "limit_exception_reconciler_sha256",
         "limit_shared_state_authority",
         "limit_shared_state_authority_sha256",
         "limit_runtime_site_proofs",
@@ -9378,7 +9432,7 @@ def require_implementation(
                             expected_code,
                             require_projection=True,
                         )
-                    if row_id in PREFLIGHT_CANARIES:
+                    if row_id in PREFLIGHT_CANARIES and not row_id.startswith("LIMIT-"):
                         require_preflight_canary_evidence(row_id, subcase_id, subcase)
                 if row_id.startswith("LIMIT-"):
                     expected_limit_result = limit_plus_one_expected_result(
@@ -9575,8 +9629,6 @@ def require_implementation(
     expected_control_ancestries = limit_event_control_ancestry_manifest(
         limit_authority_sources
     )
-    if problem := limit_event_control_ancestry_problem(expected_control_ancestries):
-        fail(f"limit-event control ancestry is unresolved: {problem}")
     recorded_control_ancestries = test_plan.get("limit_event_control_ancestries")
     if (
         not isinstance(recorded_control_ancestries, dict)
@@ -9624,9 +9676,27 @@ def require_implementation(
         != control_ancestries_sha256
     ):
         fail("limit-event control-ancestry review-manifest digest differs")
+    expected_control_ledger = limit_event_control_exception_partition(
+        expected_control_ancestries,
+        limit_authority_sources,
+    )
+    recorded_control_ledger = test_plan.get("limit_event_control_exception_ledger")
+    if problem := limit_exception_ledger_match_problem(
+        recorded_control_ledger,
+        expected_control_ledger,
+        "CONTROL_ANCESTRY",
+    ):
+        fail(f"limit-event control exception ledger differs: {problem}")
+    control_ledger_sha256 = canonical_json_sha256(expected_control_ledger)
+    if (
+        test_plan.get("limit_event_control_exception_ledger_sha256")
+        != control_ledger_sha256
+        or canonical_json_sha256(recorded_control_ledger) != control_ledger_sha256
+        or evidence.get("limit_event_control_exception_ledger_sha256")
+        != control_ledger_sha256
+    ):
+        fail("limit-event control exception-ledger digest differs")
     expected_entry_paths = limit_event_entry_call_path_manifest(limit_authority_sources)
-    if problem := limit_event_entry_call_path_problem(expected_entry_paths):
-        fail(f"limit-event entry-call-path authority differs: {problem}")
     recorded_entry_paths = test_plan.get("limit_event_entry_call_paths")
     if recorded_entry_paths != expected_entry_paths:
         fail("limit-event entry-call-path review manifest differs")
@@ -9637,6 +9707,43 @@ def require_implementation(
         or evidence.get("limit_event_entry_call_paths_sha256") != entry_paths_sha256
     ):
         fail("limit-event entry-call-path review-manifest digest differs")
+    expected_entry_ledger = limit_event_entry_exception_partition(
+        expected_entry_paths,
+        limit_authority_sources,
+    )
+    recorded_entry_ledger = test_plan.get("limit_event_entry_exception_ledger")
+    if problem := limit_exception_ledger_match_problem(
+        recorded_entry_ledger,
+        expected_entry_ledger,
+        "ENTRY_PATH",
+    ):
+        fail(f"limit-event entry exception ledger differs: {problem}")
+    entry_ledger_sha256 = canonical_json_sha256(expected_entry_ledger)
+    if (
+        test_plan.get("limit_event_entry_exception_ledger_sha256")
+        != entry_ledger_sha256
+        or canonical_json_sha256(recorded_entry_ledger) != entry_ledger_sha256
+        or evidence.get("limit_event_entry_exception_ledger_sha256")
+        != entry_ledger_sha256
+    ):
+        fail("limit-event entry exception-ledger digest differs")
+    if problem := limit_exception_partition_freeze_problem(
+        expected_entry_ledger,
+        expected_control_ledger,
+    ):
+        fail(f"limit-event exception partition freeze differs: {problem}")
+    expected_reconciler = limit_exception_reconciler_manifest()
+    recorded_reconciler = test_plan.get("limit_exception_reconciler")
+    if recorded_reconciler != expected_reconciler:
+        fail("limit-event exception reconciler manifest differs")
+    reconciler_manifest_sha256 = canonical_json_sha256(expected_reconciler)
+    if (
+        test_plan.get("limit_exception_reconciler_sha256") != reconciler_manifest_sha256
+        or canonical_json_sha256(recorded_reconciler) != reconciler_manifest_sha256
+        or evidence.get("limit_exception_reconciler_sha256")
+        != reconciler_manifest_sha256
+    ):
+        fail("limit-event exception reconciler-manifest digest differs")
     expected_shared_state = limit_shared_state_authority_manifest(
         limit_authority_sources
     )
@@ -10087,14 +10194,10 @@ def rust_code_mask(source: str) -> list[bool]:
         prefix_boundary = index == 0 or not (
             source[index - 1].isalnum() or source[index - 1] == "_"
         )
-        raw = (
-            re.match(r"(?:br|cr|r)(?P<hashes>#{0,255})\"", source[index:])
-            if prefix_boundary
-            else None
-        )
+        raw = RUST_RAW_STRING_PREFIX.match(source, index) if prefix_boundary else None
         if raw is not None:
             delimiter = '"' + raw["hashes"]
-            cursor = index + raw.end()
+            cursor = raw.end()
             end = source.find(delimiter, cursor)
             end = len(source) if end < 0 else end + len(delimiter)
             mask[index:end] = [False] * (end - index)
@@ -10217,14 +10320,10 @@ def rust_string_literal_values(source: str) -> tuple[str, ...]:
         prefix_boundary = index == 0 or not (
             source[index - 1].isalnum() or source[index - 1] == "_"
         )
-        raw = (
-            re.match(r"(?:br|cr|r)(?P<hashes>#{0,255})\"", source[index:])
-            if prefix_boundary
-            else None
-        )
+        raw = RUST_RAW_STRING_PREFIX.match(source, index) if prefix_boundary else None
         if raw is not None:
             delimiter = '"' + raw["hashes"]
-            payload_start = index + raw.end()
+            payload_start = raw.end()
             closing = source.find(delimiter, payload_start)
             if closing < 0:
                 return tuple(values)
@@ -10262,6 +10361,122 @@ def rust_string_literal_values(source: str) -> tuple[str, ...]:
             continue
         index += 1
     return tuple(values)
+
+
+RUST_SCANNER_FROZEN_SOURCE_PARITY = (
+    (
+        "crates/sley-store/src/lib.rs",
+        193_274,
+        "7cc4f063e027448473f05f335ee5d956ba69dfd6e84fca29e6ad60024e32757b",
+        546,
+        "24bdb20fee036e3a6e44cbdcb0ac42c162cf824a93535c1289c2c6828df2fbb1",
+    ),
+    (
+        "crates/sley-txn/src/repository.rs",
+        1_335_130,
+        "02355afb80ab498ca8e278430ba3fcdb82cfa524fddcf825878366d7b607c5d1",
+        4_475,
+        "3391734d43ae177659546f4b514845ab7ff311228066849796bc5c2c0856716d",
+    ),
+    (
+        "crates/sley-repo/src/refs.rs",
+        1_878_890,
+        "d7af958932380ae4b8d09b6aa21dba63dff882b1a5603b49d71591c456f6330f",
+        9_162,
+        "269ab90729913c9092b772a95f230c8a860b2669b93a4f810c9d0e53146d7476",
+    ),
+    (
+        "crates/sley-repo/src/gc.rs",
+        102_306,
+        "44769036e5b9864f593ceffd5d2215d8d6cde462df1b46920182af6245bb5cc3",
+        130,
+        "bdc1ab5eb11fc387ab0884b9314b175339ce9dbe3719b1c0e8712c6c37401f1e",
+    ),
+)
+RUST_SCANNER_HOSTILE_PARITY = (
+    (
+        "nested-and-unterminated-comments",
+        'fn main() { /* outer "x" /* inner r#"y"# */ tail */ '
+        'let a = "ok"; // "no"\nlet b = r#"raw"#; /* unterminated "z"',
+        "9de2b8e32b4ff5caa64f799959dd48313a9d67725b703be3dc5f617a157ed576",
+        ("ok", "raw"),
+    ),
+    (
+        "raw-string-boundary-hashes",
+        'r"zero" br#"byte"# cr##"cee"## r###"hash"### '
+        + "r"
+        + "#" * 255
+        + '"max"'
+        + "#" * 255
+        + " r"
+        + "#" * 256
+        + '"overflow"'
+        + "#" * 256,
+        "112c647349cd1342f9d2f9ea5fc4a8d7e0976e805d21715f463ea080cf07b50c",
+        ("zero", "byte", "cee", "hash", "max", "overflow"),
+    ),
+    (
+        "byte-c-escapes-unicode-chars-and-lifetimes",
+        'b"bytes\\x21" c"cee\\n" "unicode \\u{1F980}" '
+        "\"line\\\n  continued\" b'\\x41' 'é' 'lifetime &'a str",
+        "8d9cd6d790521da0fbfe55cd3cb7d7f3e40e1f89d571ff81a665ec2cc418184d",
+        ("bytes!", "cee\n", "unicode 🦀", "linecontinued"),
+    ),
+    (
+        "malformed-input",
+        '"kept" "unterminated r#"unterminated_raw b"unterminated_byte '
+        "'unterminated_char /* unterminated comment",
+        "86f383d8954be604f68bdea22cece0e4de219b03f8cfc626d5d21e4a72bbe40b",
+        ("kept", "unterminated r#"),
+    ),
+    (
+        "token-prefix-boundaries",
+        'ar#"not raw"# xbr#"not byte raw"# _cr#"not c raw"# r#"yes"# br#"b"# cr#"c"#',
+        "eb882d116609b7bc61c9c5885bbd3312f70f10660b1ab9f5086dcc07097e3313",
+        ("not raw", "not byte raw", "not c raw", "yes", "b", "c"),
+    ),
+)
+
+
+def rust_string_literal_values_sha256(values: tuple[str, ...]) -> str:
+    payload = json.dumps(
+        values,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def require_rust_scanner_positional_controls() -> None:
+    for (
+        relative,
+        expected_length,
+        expected_mask_sha256,
+        expected_value_count,
+        expected_values_sha256,
+    ) in RUST_SCANNER_FROZEN_SOURCE_PARITY:
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        mask = rust_code_mask(source)
+        values = rust_string_literal_values(source)
+        if (
+            len(source) != expected_length
+            or hashlib.sha256(bytes(mask)).hexdigest() != expected_mask_sha256
+            or len(values) != expected_value_count
+            or rust_string_literal_values_sha256(values) != expected_values_sha256
+        ):
+            fail(f"positional Rust scanner differs from frozen parity: {relative}")
+    for (
+        label,
+        source,
+        expected_mask_sha256,
+        expected_values,
+    ) in RUST_SCANNER_HOSTILE_PARITY:
+        mask = rust_code_mask(source)
+        values = rust_string_literal_values(source)
+        if hashlib.sha256(bytes(mask)).hexdigest() != expected_mask_sha256:
+            fail(f"positional Rust scanner hostile mask differs: {label}")
+        if values != expected_values:
+            fail(f"positional Rust scanner hostile values differ: {label}")
 
 
 def matching_delimiter(
@@ -10546,6 +10761,53 @@ let parents = recovery_ancestry_test_hook::substitute_verified_parents(
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
 """,
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+#[doc(hidden)]
+pub mod recovery_path_read_test_hook;
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+#[doc(hidden)]
+#[must_use]
+pub const fn s20_530_test_hook_feature_name() -> &'static str {
+    "s20-530-test-hooks"
+}
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+use crate::recovery_path_read_test_hook::{self, RecoveryPathReadKind};
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+recovery_path_read_test_hook::inject(
+    RecoveryPathReadKind::Object,
+    &self.object_store.object_path(object_id),
+)
+.map_err(StoreError::io)?;
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+recovery_path_read_test_hook::inject(
+    RecoveryPathReadKind::Object,
+    &self.object_store.object_path(object_id),
+)
+.map_err(StoreError::io)
+.map_err(CommitError::from)
+.map_err(RecoveryAncestryError::Verification)?;
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+recovery_path_read_test_hook::inject(RecoveryPathReadKind::Receipt, path)?;
+""",
+    """\
+#[cfg(any(test, feature = "s20-530-test-hooks"))]
+recovery_path_read_test_hook::inject(
+    RecoveryPathReadKind::Object,
+    &self.object_store.object_path(*object_id),
+)
+.map_err(StoreError::io)?;
+""",
 )
 
 
@@ -10690,6 +10952,55 @@ let _recovery_ancestry_operation =
         S20_530_TEST_HOOK_FEATURE_GATE,
         S20_530_ALLOWED_FEATURE_GATED_ITEMS[5],
     ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/lib.rs",
+        "<crate>",
+        "<module>",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[6],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/lib.rs",
+        "<crate>",
+        "<module>",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[7],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "<crate>",
+        "<module>",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[8],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "implTransactionRepository",
+        "verify_accepted_recovery_ancestry_with_limits",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[9],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "implTransactionRepository",
+        "verify_recovery_ancestries_with_limits",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[10],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "implTransactionRepository",
+        "read_recovery_receipt",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[11],
+    ),
+    RecoveryAncestryHookGateSpec(
+        "crates/sley-txn/src/repository.rs",
+        "implTransactionRepository",
+        "load_objects",
+        S20_530_TEST_HOOK_FEATURE_GATE,
+        S20_530_ALLOWED_FEATURE_GATED_ITEMS[12],
+    ),
 )
 S20_530_RECOVERY_ANCESTRY_PROTECTED_FUNCTIONS = frozenset(
     (spec.path, spec.owner, spec.function)
@@ -10697,7 +11008,7 @@ S20_530_RECOVERY_ANCESTRY_PROTECTED_FUNCTIONS = frozenset(
     if spec.function != "<module>"
 )
 S20_530_RECOVERY_ANCESTRY_HOOK_SHA256 = (
-    "32ea00a796352a26fb9eceaab23390277f8d9769b5cce5aa4c757ef177750ad8"
+    "2b9acf0831d86940b53ad28287496656472f6b57846fbd5d94a40d90f7996cc8"
 )
 
 
@@ -10745,6 +11056,11 @@ def recovery_ancestry_hook_gate_record(
             raw_attribute = rust_attribute_end(source, match.start())
             if attribute is None or raw_attribute is None:
                 continue
+            feature_gate = (
+                "s20-530-test-hooks" in source[match.start() : raw_attribute[0]]
+            )
+            if not feature_gate and raw_attribute[1] != "cfg(test)":
+                continue
             owner, function = rust_function_context(
                 source,
                 projected,
@@ -10755,9 +11071,6 @@ def recovery_ancestry_hook_gate_record(
                 owner,
                 function,
             ) in S20_530_RECOVERY_ANCESTRY_PROTECTED_FUNCTIONS
-            feature_gate = (
-                "s20-530-test-hooks" in source[match.start() : raw_attribute[0]]
-            )
             if not protected and not feature_gate:
                 continue
             item_end = rust_attributed_item_end(projected, attribute[0])
@@ -10792,7 +11105,7 @@ def recovery_ancestry_hook_gate_problem(sources: dict[str, str]) -> str | None:
     )
     actual = recovery_ancestry_hook_gate_record(sources)
     if actual != expected:
-        return f"eight-site raw gate inventory differs: expected {expected!r}, found {actual!r}"
+        return f"15-site raw gate inventory differs: expected {expected!r}, found {actual!r}"
     return None
 
 
@@ -17807,34 +18120,42 @@ def require_error_case_evidence(
     for field, assertion in semantic.items():
         if not isinstance(assertion, str) or assertion not in assertions:
             fail(f"{label} semantic field {field} lacks an exact assertion")
-    if problem := exact_error_result_assertion_problem(
-        semantic["expected_result"], relative, expected_variant, expected_code
-    ):
-        fail(f"{label} exact result assertion differs: {problem}")
-    if problem := exact_error_variant_assertion_problem(
-        semantic["expected_variant"], relative, expected_variant
-    ):
-        fail(f"{label} exact variant assertion differs: {problem}")
-    if problem := exact_error_source_assertion_problem(
-        semantic["expected_source_chain"], relative, expected_chain
-    ):
-        fail(f"{label} exact source-chain assertion differs: {problem}")
-    mutation_operands = exact_assert_eq_operands(semantic["no_mutation"])
-    if mutation_operands is None or {
-        code_only_normalized(operand) for operand in mutation_operands
-    } != {"owner_tree_before_snapshot", "owner_tree_after_snapshot"}:
-        fail(
-            f"{label} no-mutation assertion does not compare exact owner-tree snapshots"
+    multifault_case = (row_id, str(subcase_id), leaf_id)
+    if multifault_case in MULTIFAULT_OVERLAYS:
+        expected_semantic = multifault_base_error_semantic_assertions(
+            multifault_case, relative
         )
-    if exact_assert_predicate(semantic["no_success_report"]) != "result.is_err()":
-        fail(f"{label} no-success assertion is not exact result.is_err()")
+        if semantic != expected_semantic:
+            fail(f"{label} base error semantics differ from multifault operation 1")
+    else:
+        if problem := exact_error_result_assertion_problem(
+            semantic["expected_result"], relative, expected_variant, expected_code
+        ):
+            fail(f"{label} exact result assertion differs: {problem}")
+        if problem := exact_error_variant_assertion_problem(
+            semantic["expected_variant"], relative, expected_variant
+        ):
+            fail(f"{label} exact variant assertion differs: {problem}")
+        if problem := exact_error_source_assertion_problem(
+            semantic["expected_source_chain"], relative, expected_chain
+        ):
+            fail(f"{label} exact source-chain assertion differs: {problem}")
+        mutation_operands = exact_assert_eq_operands(semantic["no_mutation"])
+        if mutation_operands is None or {
+            code_only_normalized(operand) for operand in mutation_operands
+        } != {"owner_tree_before_snapshot", "owner_tree_after_snapshot"}:
+            fail(
+                f"{label} no-mutation assertion does not compare exact owner-tree snapshots"
+            )
+        if exact_assert_predicate(semantic["no_success_report"]) != "result.is_err()":
+            fail(f"{label} no-success assertion is not exact result.is_err()")
     tests = entry.get("tests")
     if not isinstance(tests, list) or len(tests) != 1 or not isinstance(tests[0], str):
         fail(f"{label} lacks one exact test for operation binding")
     definition = exact_test_definition(source, tests[0])
     if definition is None:
         fail(f"{label} operation binding cannot isolate its mapped test")
-    if leaf_id is not None:
+    if leaf_id is not None and multifault_case not in MULTIFAULT_OVERLAYS:
         fixture_key = (row_id, str(subcase_id), leaf_id)
         if problem := corruption_fixture_evidence_problem(
             fixture_key,
@@ -17852,15 +18173,16 @@ def require_error_case_evidence(
             definition[0],
         ):
             fail(f"{label} recovery provenance binding differs: {problem}")
-    if problem := operation_error_binding_problem(
-        definition[0],
-        relative,
-        row_id,
-        subcase_id,
-        semantic,
-        leaf_id,
-    ):
-        fail(f"{label} operation/error binding differs: {problem}")
+    if multifault_case not in MULTIFAULT_OVERLAYS:
+        if problem := operation_error_binding_problem(
+            definition[0],
+            relative,
+            row_id,
+            subcase_id,
+            semantic,
+            leaf_id,
+        ):
+            fail(f"{label} operation/error binding differs: {problem}")
 
 
 def multifault_key(
@@ -18737,6 +19059,23 @@ def multifault_result_assertions(
         "operation_2_code_or_fields": loser[0],
         "operation_2_variant": loser[1],
         "operation_2_source_chain": loser[2],
+    }
+
+
+def multifault_base_error_semantic_assertions(
+    key: MultifaultKey,
+    relative: str,
+) -> dict[str, str]:
+    """Project the frozen operation-1 multifault proof into base error fields."""
+    spec = MULTIFAULT_OVERLAYS[key]
+    results = multifault_result_assertions(spec, relative)
+    snapshots = multifault_snapshot_assertions()
+    return {
+        "expected_result": results["operation_1_code_or_fields"],
+        "expected_variant": results["operation_1_variant"],
+        "expected_source_chain": results["operation_1_source_chain"],
+        "no_mutation": snapshots["operation_1_tree_unchanged"],
+        "no_success_report": results["operation_1_no_success"],
     }
 
 
@@ -19762,6 +20101,15 @@ def multifault_operation_binding_problem(
     normalized_actual = tuple(
         normalize_rust_tokens(statement) for statement in actual_plan
     )
+    if row_id.startswith("LIMIT-"):
+        starts = tuple(
+            index
+            for index, statement in enumerate(normalized_actual)
+            if statement == normalized_expected[0]
+        )
+        if len(starts) != 1:
+            return "appended limit multifault proof start is missing or ambiguous"
+        normalized_actual = normalized_actual[starts[0] :]
     if normalized_actual != normalized_expected:
         shared = min(len(normalized_actual), len(normalized_expected))
         mismatch = next(
@@ -19950,10 +20298,16 @@ def limit_runtime_helper_body_manifest(
         body = rust_named_function_raw_body(source, function, owner)
         if body is None:
             fail(f"cannot isolate limit runtime helper body: {key}")
+        attribute_chain = limit_named_function_attribute_chain(source, function, owner)
+        if attribute_chain is None:
+            fail(f"cannot isolate limit runtime helper attribute chain: {key}")
         manifest[key] = {
             "source": relative,
             "owner": owner,
             "function": function,
+            "attribute_chain_sha256": hashlib.sha256(
+                attribute_chain.encode("utf-8")
+            ).hexdigest(),
             "body_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
         }
     return manifest
@@ -21244,6 +21598,443 @@ def limit_event_entry_call_path_problem(manifest: object) -> str | None:
                 ):
                     return f"{event_id} public-root delegation is conditional"
     return None
+
+
+LIMIT_EXCEPTION_REASON_UNRESOLVED = "UNRESOLVED_BY_V8_STATIC_RESOLVER"
+LIMIT_EXCEPTION_DISPOSITION = "FINAL_SPECIALIST_REVIEW_REQUIRED"
+LIMIT_STATIC_PASS_DISPOSITION = "STATIC_PASS"
+LIMIT_ENTRY_CALL_EDGE_ISSUE = "STATIC_ENTRY_CALL_EDGE_UNRESOLVED"
+LIMIT_ENTRY_REVERSE_CALLER_ISSUE = "STATIC_REVERSE_CALLER_INVENTORY_UNRESOLVED"
+LIMIT_CONTROL_AUTHORITY_ISSUE = "STATIC_CONTROL_AUTHORITY_UNRESOLVED"
+LIMIT_EXCEPTION_PARTITION_FREEZE = {
+    "source_set_sha256": "c813bebe3ed05cec8085c2b72bfe0ce0a2f7f7ed8451369dea8f92f54bffbb30",
+    "gate_registry_sha256": "ea93bab8fc440ea22c4a8ec5c040960f8bc4a569d1980528bb9178ddc193cd32",
+    "scanner_contract_sha256": (
+        "09134b74ccea1e270bdcbe66b4452efd34c6f80fe2c86e67072dd2e3fdf34f5d"
+    ),
+    "entry_complete_count": 110,
+    "entry_static_pass_count": 90,
+    "entry_exception_count": 20,
+    "entry_complete_manifest_sha256": (
+        "141d1a05c82a4488dec942362bbd1e1c0362b05f4719460677604efe4654dbd0"
+    ),
+    "entry_complete_inventory_sha256": (
+        "475c64a412d3be2deed37c6b7cb3c251af2ee5f1339a8b8ebfd8ef2b8a26832a"
+    ),
+    "entry_static_pass_sha256": (
+        "24e94784bfdd723f7967ed1ebb81b52102335ad4210a8757c845d60b2f06c689"
+    ),
+    "entry_exceptions_sha256": (
+        "b315834d2c0226cc9a1480cf16d6f21eaafe91ea9019255e3f0b52366eff1071"
+    ),
+    "entry_ledger_sha256": (
+        "708cac620a6e668f45c17570cdc7476d1e92fcf8b851e738eb0642bb8fc2c5c5"
+    ),
+    "control_complete_count": 5213,
+    "control_static_pass_count": 3547,
+    "control_exception_count": 1666,
+    "control_complete_manifest_sha256": (
+        "d1c757ec9cc9be577689b6b3e91c679efc819952ee723995f91c8362c2556c62"
+    ),
+    "control_complete_inventory_sha256": (
+        "42fd1154c0a8ed9ae43b1443d920cec769a0676d0f401b43062a872e2b8607fc"
+    ),
+    "control_static_pass_sha256": (
+        "d234c30926fbf21a6d7ac4f8af3e33a7d4c0b6ac3b21e955b0b933f5aa6a6c1a"
+    ),
+    "control_exceptions_sha256": (
+        "44705d6a86e1830c2475d6eae3aba8f9af12b0ac476fbebb89bc6223ff7a2132"
+    ),
+    "control_ledger_sha256": (
+        "f44fe3033cc8fb2adce7c5a8dc08bfec04cf1ebfd2e72b32e71d9ceb27154f0f"
+    ),
+}
+LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256 = (
+    "5b475cc8c4c1f5abbab836d29fc28fe0270fa0eef58b73b6d01a1253f051c816"
+)
+
+
+def limit_exception_leaf_sha256(record: dict[str, object]) -> dict[str, object]:
+    leaf = dict(record)
+    leaf["canonical_leaf_sha256"] = canonical_json_sha256(leaf)
+    return leaf
+
+
+def limit_exception_source_set_manifest(
+    sources: dict[str, str],
+) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    for relative in limit_production_source_paths():
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"limit exception source is absent: {relative}")
+        records.append(
+            {
+                "source": relative,
+                "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+            }
+        )
+    return records
+
+
+def limit_exception_gate_registry_manifest() -> list[dict[str, str]]:
+    return [
+        {
+            "path": spec.path,
+            "owner": spec.owner,
+            "function": spec.function,
+            "gate": spec.gate,
+            "item": normalize_rust_tokens(spec.item),
+        }
+        for spec in S20_530_RECOVERY_ANCESTRY_HOOK_GATES
+    ]
+
+
+def limit_exception_scanner_contract() -> dict[str, object]:
+    return {
+        "source_parity": [list(record) for record in RUST_SCANNER_FROZEN_SOURCE_PARITY],
+        "hostile_parity": [
+            [label, source, mask_sha256, list(values)]
+            for label, source, mask_sha256, values in RUST_SCANNER_HOSTILE_PARITY
+        ],
+    }
+
+
+def limit_exception_partition(
+    schema: str,
+    complete_manifest: dict[str, dict[str, object]],
+    inventory: list[dict[str, object]],
+    exceptions: list[dict[str, object]],
+    sources: dict[str, str],
+) -> dict[str, object]:
+    source_set = limit_exception_source_set_manifest(sources)
+    gate_registry = limit_exception_gate_registry_manifest()
+    scanner_contract = limit_exception_scanner_contract()
+    complete_leaf_digests = [record["canonical_leaf_sha256"] for record in inventory]
+    exception_record_digests = [
+        record["canonical_leaf_sha256"] for record in exceptions
+    ]
+    exception_structural_leaf_digests: list[str] = []
+    for record in exceptions:
+        generated_digest_field = {
+            LIMIT_ENTRY_CALL_EDGE_ISSUE: "generated_edge_sha256",
+            LIMIT_ENTRY_REVERSE_CALLER_ISSUE: "generated_inventory_sha256",
+            LIMIT_CONTROL_AUTHORITY_ISSUE: "generated_atom_sha256",
+        }.get(record.get("record_kind"))
+        if generated_digest_field is None:
+            fail(f"{schema} exception ledger contains an unknown record kind")
+        generated_digest = record.get(generated_digest_field)
+        if not isinstance(generated_digest, str):
+            fail(f"{schema} exception ledger lacks its generated leaf digest")
+        exception_structural_leaf_digests.append(generated_digest)
+    exception_digest_set = set(exception_structural_leaf_digests)
+    if len(exception_digest_set) != len(exception_structural_leaf_digests):
+        fail(f"{schema} exception ledger contains duplicate leaves")
+    if not exception_digest_set.issubset(set(complete_leaf_digests)):
+        fail(f"{schema} exception ledger contains leaves outside the inventory")
+    static_pass_leaf_digests = [
+        digest for digest in complete_leaf_digests if digest not in exception_digest_set
+    ]
+    if len(complete_leaf_digests) != len(static_pass_leaf_digests) + len(
+        exception_structural_leaf_digests
+    ) or set(static_pass_leaf_digests).intersection(exception_digest_set):
+        fail(f"{schema} static and exception partitions are not disjoint and complete")
+    event_counts: dict[str, dict[str, object]] = {}
+    for event_id in LIMIT_EVENT_SPECS:
+        complete = [
+            record for record in inventory if record.get("event_id") == event_id
+        ]
+        event_exceptions = [
+            record for record in exceptions if record.get("event_id") == event_id
+        ]
+        event_exception_digests = [
+            record["canonical_leaf_sha256"] for record in event_exceptions
+        ]
+        event_counts[event_id] = {
+            "complete": len(complete),
+            "static_pass": len(complete) - len(event_exceptions),
+            "exceptions": len(event_exceptions),
+            "ordered_exception_leaf_sha256": canonical_json_sha256(
+                event_exception_digests
+            ),
+        }
+    return {
+        "schema": schema,
+        "disposition": LIMIT_EXCEPTION_DISPOSITION,
+        "source_set_sha256": canonical_json_sha256(source_set),
+        "gate_registry_sha256": canonical_json_sha256(gate_registry),
+        "scanner_contract_sha256": canonical_json_sha256(scanner_contract),
+        "complete_manifest_sha256": canonical_json_sha256(complete_manifest),
+        "complete_inventory_sha256": canonical_json_sha256(complete_leaf_digests),
+        "static_pass_sha256": canonical_json_sha256(static_pass_leaf_digests),
+        "exceptions_sha256": canonical_json_sha256(exception_record_digests),
+        "complete_count": len(complete_leaf_digests),
+        "static_pass_count": len(static_pass_leaf_digests),
+        "exception_count": len(exception_record_digests),
+        "event_counts": event_counts,
+        "records": exceptions,
+    }
+
+
+def limit_entry_callsite_unresolved_evidence(
+    callsite: dict[str, object],
+    index_in_path: int,
+) -> list[str]:
+    evidence: list[str] = []
+    unresolved = callsite.get("unresolved")
+    if isinstance(unresolved, str) and unresolved:
+        evidence.append(unresolved)
+    elif isinstance(unresolved, list):
+        evidence.extend(item for item in unresolved if isinstance(item, str) and item)
+    if index_in_path == 0:
+        if callsite.get("dominating_scopes") != []:
+            evidence.append("PUBLIC_ROOT_DOMINATING_SCOPE")
+        if callsite.get("dominating_exits") != []:
+            evidence.append("PUBLIC_ROOT_DOMINATING_EXIT")
+        if callsite.get("preceding_question_mark_count") != 0:
+            evidence.append("PUBLIC_ROOT_PRECEDING_QUESTION_MARK")
+        if callsite.get("preceding_early_exit_tokens") != []:
+            evidence.append("PUBLIC_ROOT_PRECEDING_EARLY_EXIT")
+    return evidence
+
+
+def limit_entry_item_records(
+    event_record: dict[str, object],
+) -> dict[str, dict[str, str]]:
+    records: dict[str, dict[str, str]] = {}
+    call_paths = event_record.get("call_paths")
+    if not isinstance(call_paths, list):
+        fail("entry exception event lacks call paths")
+    for path in call_paths:
+        if not isinstance(path, dict) or not isinstance(path.get("items"), list):
+            fail("entry exception call path differs")
+        for item in path["items"]:
+            if not isinstance(item, dict):
+                fail("entry exception item differs")
+            key = item.get("item_key")
+            if not isinstance(key, str):
+                fail("entry exception item key differs")
+            normalized = {
+                field: item[field]
+                for field in (
+                    "item_key",
+                    "signature_sha256",
+                    "attribute_chain_sha256",
+                    "body_sha256",
+                )
+                if isinstance(item.get(field), str)
+            }
+            if tuple(normalized) != (
+                "item_key",
+                "signature_sha256",
+                "attribute_chain_sha256",
+                "body_sha256",
+            ):
+                fail(f"entry exception item authority differs: {key}")
+            previous = records.setdefault(key, normalized)
+            if previous != normalized:
+                fail(f"entry exception item authority is ambiguous: {key}")
+    return records
+
+
+def limit_event_entry_exception_partition(
+    manifest: dict[str, dict[str, object]],
+    sources: dict[str, str],
+) -> dict[str, object]:
+    inventory: list[dict[str, object]] = []
+    exceptions: list[dict[str, object]] = []
+    for event_ordinal, (event_id, event_record) in enumerate(manifest.items(), start=1):
+        if event_id not in LIMIT_EVENT_SPECS or not isinstance(event_record, dict):
+            fail("entry exception event inventory differs")
+        parent_manifest_sha256 = canonical_json_sha256(event_record)
+        item_records = limit_entry_item_records(event_record)
+        call_paths = event_record.get("call_paths")
+        reverse_callers = event_record.get("reverse_callers")
+        if not isinstance(call_paths, list) or not isinstance(reverse_callers, dict):
+            fail(f"{event_id} entry exception manifest differs")
+        record_ordinal = 0
+        for path_ordinal, path in enumerate(call_paths, start=1):
+            if not isinstance(path, dict) or not isinstance(
+                path.get("callsites"), list
+            ):
+                fail(f"{event_id} entry exception path differs")
+            items = path.get("items")
+            if not isinstance(items, list):
+                fail(f"{event_id} entry exception items differ")
+            for edge_ordinal, callsite in enumerate(path["callsites"], start=1):
+                if not isinstance(callsite, dict) or edge_ordinal >= len(items):
+                    fail(f"{event_id} entry exception callsite differs")
+                caller_item = items[edge_ordinal - 1]
+                callee_item = items[edge_ordinal]
+                if not isinstance(caller_item, dict) or not isinstance(
+                    callee_item, dict
+                ):
+                    fail(f"{event_id} entry exception edge item differs")
+                caller = caller_item.get("item_key")
+                callee = callee_item.get("item_key")
+                if not isinstance(caller, str) or not isinstance(callee, str):
+                    fail(f"{event_id} entry exception edge identity differs")
+                source, owner, function = caller.split(":", 2)
+                caller_authority = item_records[caller]
+                source_text = sources.get(source)
+                if not isinstance(source_text, str):
+                    fail(f"{event_id} entry exception source is absent: {source}")
+                unresolved_record_sha256 = canonical_json_sha256(callsite)
+                callsite_sha256 = callsite.get("callsite_sha256")
+                if (
+                    not isinstance(callsite_sha256, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", callsite_sha256) is None
+                ):
+                    callsite_sha256 = unresolved_record_sha256
+                lexical_site_sha256 = callsite.get("callsite_sha256")
+                if (
+                    not isinstance(lexical_site_sha256, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", lexical_site_sha256) is None
+                ):
+                    lexical_site_sha256 = caller_authority["body_sha256"]
+                evidence = limit_entry_callsite_unresolved_evidence(
+                    callsite,
+                    edge_ordinal - 1,
+                )
+                record_ordinal += 1
+                structural = limit_exception_leaf_sha256(
+                    {
+                        "layer": "ENTRY_PATH",
+                        "leaf_kind": "ENTRY_CALL_EDGE",
+                        "event_id": event_id,
+                        "event_ordinal": event_ordinal,
+                        "record_ordinal": record_ordinal,
+                        "source": source,
+                        "owner": owner,
+                        "function": function,
+                        "path_ordinal": path_ordinal,
+                        "edge_ordinal": edge_ordinal,
+                        "caller": caller,
+                        "callee": callee,
+                        "parent_manifest_sha256": parent_manifest_sha256,
+                        "unresolved_record_sha256": unresolved_record_sha256,
+                    }
+                )
+                inventory.append(structural)
+                if not evidence:
+                    continue
+                exception = limit_exception_leaf_sha256(
+                    {
+                        "layer": "ENTRY_PATH",
+                        "record_kind": LIMIT_ENTRY_CALL_EDGE_ISSUE,
+                        "reason_code": LIMIT_EXCEPTION_REASON_UNRESOLVED,
+                        "event_id": event_id,
+                        "event_ordinal": event_ordinal,
+                        "record_ordinal": record_ordinal,
+                        "source": source,
+                        "source_sha256": hashlib.sha256(
+                            source_text.encode("utf-8")
+                        ).hexdigest(),
+                        "owner": owner,
+                        "function": function,
+                        "signature_sha256": caller_authority["signature_sha256"],
+                        "attribute_chain_sha256": caller_authority[
+                            "attribute_chain_sha256"
+                        ],
+                        "body_sha256": caller_authority["body_sha256"],
+                        "lexical_site_sha256": lexical_site_sha256,
+                        "parent_manifest_sha256": parent_manifest_sha256,
+                        "unresolved_record_sha256": unresolved_record_sha256,
+                        "path_ordinal": path_ordinal,
+                        "edge_ordinal": edge_ordinal,
+                        "caller": caller,
+                        "callee": callee,
+                        "callsite_sha256": callsite_sha256,
+                        "generated_edge_sha256": structural["canonical_leaf_sha256"],
+                        "unresolved_evidence": evidence,
+                    }
+                )
+                exceptions.append(exception)
+        seen_targets: set[str] = set()
+        for target, reverse_record in reverse_callers.items():
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            if not isinstance(reverse_record, dict):
+                fail(f"{event_id} reverse caller exception differs")
+            target_authority = item_records.get(target)
+            if target_authority is None:
+                fail(f"{event_id} reverse caller target is absent: {target}")
+            source, owner, function = target.split(":", 2)
+            source_text = sources.get(source)
+            if not isinstance(source_text, str):
+                fail(f"{event_id} reverse caller source is absent: {source}")
+            unresolved = reverse_record.get("unresolved")
+            evidence = (
+                [item for item in unresolved if isinstance(item, str) and item]
+                if isinstance(unresolved, list)
+                else []
+            )
+            record_ordinal += 1
+            reverse_sha256 = canonical_json_sha256(reverse_record)
+            structural = limit_exception_leaf_sha256(
+                {
+                    "layer": "ENTRY_PATH",
+                    "leaf_kind": "REVERSE_CALLER_INVENTORY",
+                    "event_id": event_id,
+                    "event_ordinal": event_ordinal,
+                    "record_ordinal": record_ordinal,
+                    "source": source,
+                    "owner": owner,
+                    "function": function,
+                    "target": target,
+                    "parent_manifest_sha256": parent_manifest_sha256,
+                    "unresolved_record_sha256": reverse_sha256,
+                }
+            )
+            inventory.append(structural)
+            if not evidence:
+                continue
+            exception = limit_exception_leaf_sha256(
+                {
+                    "layer": "ENTRY_PATH",
+                    "record_kind": LIMIT_ENTRY_REVERSE_CALLER_ISSUE,
+                    "reason_code": LIMIT_EXCEPTION_REASON_UNRESOLVED,
+                    "event_id": event_id,
+                    "event_ordinal": event_ordinal,
+                    "record_ordinal": record_ordinal,
+                    "source": source,
+                    "source_sha256": hashlib.sha256(
+                        source_text.encode("utf-8")
+                    ).hexdigest(),
+                    "owner": owner,
+                    "function": function,
+                    "signature_sha256": target_authority["signature_sha256"],
+                    "attribute_chain_sha256": target_authority[
+                        "attribute_chain_sha256"
+                    ],
+                    "body_sha256": target_authority["body_sha256"],
+                    "lexical_site_sha256": canonical_json_sha256(
+                        reverse_record.get("found_calls")
+                    ),
+                    "parent_manifest_sha256": parent_manifest_sha256,
+                    "unresolved_record_sha256": reverse_sha256,
+                    "target": target,
+                    "expected_callers": reverse_record.get("expected_callers"),
+                    "found_calls": reverse_record.get("found_calls"),
+                    "expected_callers_sha256": canonical_json_sha256(
+                        reverse_record.get("expected_callers")
+                    ),
+                    "found_calls_sha256": canonical_json_sha256(
+                        reverse_record.get("found_calls")
+                    ),
+                    "generated_inventory_sha256": structural["canonical_leaf_sha256"],
+                    "unresolved_evidence": evidence,
+                }
+            )
+            exceptions.append(exception)
+    return limit_exception_partition(
+        "s20-530-entry-exception-ledger-v1",
+        manifest,
+        inventory,
+        exceptions,
+        sources,
+    )
 
 
 def limit_control_matching_opening(projected: str, closing: int) -> int | None:
@@ -24717,6 +25508,829 @@ def limit_event_control_ancestry_problem(
     return None
 
 
+def limit_event_control_exception_partition(
+    manifest: dict[str, dict[str, object]],
+    sources: dict[str, str],
+) -> dict[str, object]:
+    callable_index = limit_local_callable_index(sources)
+    inventory: list[dict[str, object]] = []
+    exceptions: list[dict[str, object]] = []
+    for event_ordinal, (event_id, event_record) in enumerate(manifest.items(), start=1):
+        if event_id not in LIMIT_EVENT_SPECS or not isinstance(event_record, dict):
+            fail("control exception event inventory differs")
+        relative = event_record.get("source")
+        owner = event_record.get("owner")
+        function = event_record.get("function")
+        if not all(isinstance(item, str) for item in (relative, owner, function)):
+            fail(f"{event_id} control exception owner differs")
+        source = sources.get(relative)
+        if not isinstance(source, str):
+            fail(f"{event_id} control exception source is absent: {relative}")
+        owner_authority = limit_control_item_record(
+            LimitControlItem(relative, owner, function),
+            callable_index,
+        )
+        if owner_authority is None:
+            fail(f"{event_id} control exception owner is ambiguous")
+        parent_manifest_sha256 = canonical_json_sha256(event_record)
+        record_ordinal = 0
+
+        def add_leaf(
+            *,
+            atom_kind: str,
+            section_ordinal: int,
+            atom_ordinal: int,
+            ordered_section_sha256: str,
+            lexical_site_sha256: str,
+            unresolved_record: object,
+            unresolved_evidence: list[str],
+        ) -> None:
+            nonlocal record_ordinal
+            for label, digest in (
+                ("lexical", lexical_site_sha256),
+                ("ordered-section", ordered_section_sha256),
+            ):
+                if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                    fail(f"{event_id} control exception {label} digest differs")
+            record_ordinal += 1
+            unresolved_record_sha256 = canonical_json_sha256(unresolved_record)
+            structural = limit_exception_leaf_sha256(
+                {
+                    "layer": "CONTROL_ANCESTRY",
+                    "atom_kind": atom_kind,
+                    "event_id": event_id,
+                    "event_ordinal": event_ordinal,
+                    "record_ordinal": record_ordinal,
+                    "source": relative,
+                    "owner": owner,
+                    "function": function,
+                    "section_ordinal": section_ordinal,
+                    "atom_ordinal": atom_ordinal,
+                    "ordered_section_sha256": ordered_section_sha256,
+                    "parent_manifest_sha256": parent_manifest_sha256,
+                    "unresolved_record_sha256": unresolved_record_sha256,
+                }
+            )
+            inventory.append(structural)
+            if not unresolved_evidence:
+                return
+            exceptions.append(
+                limit_exception_leaf_sha256(
+                    {
+                        "layer": "CONTROL_ANCESTRY",
+                        "record_kind": LIMIT_CONTROL_AUTHORITY_ISSUE,
+                        "reason_code": LIMIT_EXCEPTION_REASON_UNRESOLVED,
+                        "event_id": event_id,
+                        "event_ordinal": event_ordinal,
+                        "record_ordinal": record_ordinal,
+                        "source": relative,
+                        "source_sha256": hashlib.sha256(
+                            source.encode("utf-8")
+                        ).hexdigest(),
+                        "owner": owner,
+                        "function": function,
+                        "signature_sha256": owner_authority["signature_sha256"],
+                        "attribute_chain_sha256": owner_authority[
+                            "attribute_chain_sha256"
+                        ],
+                        "body_sha256": owner_authority["body_sha256"],
+                        "lexical_site_sha256": lexical_site_sha256,
+                        "parent_manifest_sha256": parent_manifest_sha256,
+                        "unresolved_record_sha256": unresolved_record_sha256,
+                        "section_ordinal": section_ordinal,
+                        "atom_ordinal": atom_ordinal,
+                        "atom_kind": atom_kind,
+                        "ordered_section_sha256": ordered_section_sha256,
+                        "generated_atom_sha256": structural["canonical_leaf_sha256"],
+                        "unresolved_evidence": unresolved_evidence,
+                    }
+                )
+            )
+
+        owner_macros = event_record.get("owner_function_macros")
+        if not isinstance(owner_macros, list):
+            fail(f"{event_id} control exception owner macro inventory differs")
+        owner_macros_sha256 = canonical_json_sha256(owner_macros)
+        for macro_ordinal, macro in enumerate(owner_macros, start=1):
+            macro_sha256 = canonical_json_sha256(macro)
+            valid = (
+                isinstance(macro, dict)
+                and macro.get("event_owner_classification")
+                == "ALLOWED_EVENT_OWNER_MACRO"
+            )
+            add_leaf(
+                atom_kind="OWNER_FUNCTION_MACRO",
+                section_ordinal=0,
+                atom_ordinal=macro_ordinal,
+                ordered_section_sha256=owner_macros_sha256,
+                lexical_site_sha256=macro_sha256,
+                unresolved_record=macro,
+                unresolved_evidence=([] if valid else ["OWNER_MACRO_UNRESOLVED"]),
+            )
+
+        for collection_name, ordered_scope in (
+            ("ordered_scopes", True),
+            ("dominating_exits", False),
+        ):
+            sections = event_record.get(collection_name)
+            if not isinstance(sections, list):
+                fail(f"{event_id} control exception {collection_name} differs")
+            section_prefix = "SCOPE" if ordered_scope else "EXIT"
+            valid_liveness = (
+                {"RUNTIME_ROOTED_EDGE", "STATICALLY_REQUIRED_EDGE"}
+                if ordered_scope
+                else {"RUNTIME_ROOTED_EDGE"}
+            )
+            for section_ordinal, section in enumerate(sections, start=1):
+                if not isinstance(section, dict):
+                    fail(f"{event_id} control exception section differs")
+                ordered_section_sha256 = canonical_json_sha256(section)
+                site_sha256 = section.get("header_sha256")
+                if not isinstance(site_sha256, str):
+                    site_sha256 = canonical_json_sha256(section.get("header"))
+                macros = section.get("macros", [])
+                if not isinstance(macros, list):
+                    fail(f"{event_id} control exception macro graph differs")
+                for macro_ordinal, macro in enumerate(macros, start=1):
+                    add_leaf(
+                        atom_kind=f"{section_prefix}_MACRO",
+                        section_ordinal=section_ordinal,
+                        atom_ordinal=macro_ordinal,
+                        ordered_section_sha256=ordered_section_sha256,
+                        lexical_site_sha256=site_sha256,
+                        unresolved_record=macro,
+                        unresolved_evidence=["SCOPE_MACRO_AUTHORITY_FORBIDDEN"],
+                    )
+                for field, suffix in (
+                    ("resolved_values", "VALUE"),
+                    ("resolved_authority", "AUTHORITY"),
+                ):
+                    leaves = section.get(field)
+                    if not isinstance(leaves, list):
+                        fail(f"{event_id} control exception {field} differs")
+                    for leaf_ordinal, leaf in enumerate(leaves, start=1):
+                        unresolved = (
+                            not isinstance(leaf, dict)
+                            or leaf.get("classification") == "UNRESOLVED"
+                        )
+                        evidence = []
+                        if unresolved:
+                            evidence = [
+                                str(leaf.get("authority", "UNRESOLVED"))
+                                if isinstance(leaf, dict)
+                                else "MALFORMED_CONTROL_LEAF"
+                            ]
+                        add_leaf(
+                            atom_kind=f"{section_prefix}_{suffix}",
+                            section_ordinal=section_ordinal,
+                            atom_ordinal=leaf_ordinal,
+                            ordered_section_sha256=ordered_section_sha256,
+                            lexical_site_sha256=site_sha256,
+                            unresolved_record=leaf,
+                            unresolved_evidence=evidence,
+                        )
+                liveness = section.get("edge_liveness")
+                if not isinstance(liveness, dict):
+                    fail(f"{event_id} control exception liveness differs")
+                classification = liveness.get("classification")
+                add_leaf(
+                    atom_kind=f"{section_prefix}_LIVENESS",
+                    section_ordinal=section_ordinal,
+                    atom_ordinal=1,
+                    ordered_section_sha256=ordered_section_sha256,
+                    lexical_site_sha256=site_sha256,
+                    unresolved_record=liveness,
+                    unresolved_evidence=(
+                        []
+                        if classification in valid_liveness
+                        else [str(classification or "UNRESOLVED_EDGE_LIVENESS")]
+                    ),
+                )
+
+        collections = event_record.get("collection_mutations")
+        if not isinstance(collections, list):
+            fail(f"{event_id} control exception collection inventory differs")
+        for collection_ordinal, collection in enumerate(collections, start=1):
+            if not isinstance(collection, dict):
+                fail(f"{event_id} control exception collection differs")
+            unresolved = collection.get("unresolved")
+            if not isinstance(unresolved, list):
+                fail(f"{event_id} control exception collection evidence differs")
+            binding_sha256 = collection.get("binding_statement_sha256")
+            if not isinstance(binding_sha256, str):
+                binding_sha256 = canonical_json_sha256(collection)
+            add_leaf(
+                atom_kind="COLLECTION_MUTATION",
+                section_ordinal=collection_ordinal,
+                atom_ordinal=1,
+                ordered_section_sha256=canonical_json_sha256(collection),
+                lexical_site_sha256=binding_sha256,
+                unresolved_record=collection,
+                unresolved_evidence=[
+                    item for item in unresolved if isinstance(item, str) and item
+                ],
+            )
+    return limit_exception_partition(
+        "s20-530-control-exception-ledger-v1",
+        manifest,
+        inventory,
+        exceptions,
+        sources,
+    )
+
+
+LIMIT_EXCEPTION_LEDGER_FIELDS = (
+    "schema",
+    "disposition",
+    "source_set_sha256",
+    "gate_registry_sha256",
+    "scanner_contract_sha256",
+    "complete_manifest_sha256",
+    "complete_inventory_sha256",
+    "static_pass_sha256",
+    "exceptions_sha256",
+    "complete_count",
+    "static_pass_count",
+    "exception_count",
+    "event_counts",
+    "records",
+)
+LIMIT_EXCEPTION_EVENT_COUNT_FIELDS = (
+    "complete",
+    "static_pass",
+    "exceptions",
+    "ordered_exception_leaf_sha256",
+)
+LIMIT_EXCEPTION_COMMON_FIELDS = (
+    "layer",
+    "record_kind",
+    "reason_code",
+    "event_id",
+    "event_ordinal",
+    "record_ordinal",
+    "source",
+    "source_sha256",
+    "owner",
+    "function",
+    "signature_sha256",
+    "attribute_chain_sha256",
+    "body_sha256",
+    "lexical_site_sha256",
+    "parent_manifest_sha256",
+    "unresolved_record_sha256",
+)
+LIMIT_ENTRY_CALL_EDGE_EXCEPTION_FIELDS = (
+    *LIMIT_EXCEPTION_COMMON_FIELDS,
+    "path_ordinal",
+    "edge_ordinal",
+    "caller",
+    "callee",
+    "callsite_sha256",
+    "generated_edge_sha256",
+    "unresolved_evidence",
+    "canonical_leaf_sha256",
+)
+LIMIT_ENTRY_REVERSE_CALLER_EXCEPTION_FIELDS = (
+    *LIMIT_EXCEPTION_COMMON_FIELDS,
+    "target",
+    "expected_callers",
+    "found_calls",
+    "expected_callers_sha256",
+    "found_calls_sha256",
+    "generated_inventory_sha256",
+    "unresolved_evidence",
+    "canonical_leaf_sha256",
+)
+LIMIT_CONTROL_AUTHORITY_EXCEPTION_FIELDS = (
+    *LIMIT_EXCEPTION_COMMON_FIELDS,
+    "section_ordinal",
+    "atom_ordinal",
+    "atom_kind",
+    "ordered_section_sha256",
+    "generated_atom_sha256",
+    "unresolved_evidence",
+    "canonical_leaf_sha256",
+)
+LIMIT_CONTROL_ATOM_KINDS = frozenset(
+    {
+        "OWNER_FUNCTION_MACRO",
+        "SCOPE_MACRO",
+        "SCOPE_VALUE",
+        "SCOPE_AUTHORITY",
+        "SCOPE_LIVENESS",
+        "EXIT_MACRO",
+        "EXIT_VALUE",
+        "EXIT_AUTHORITY",
+        "EXIT_LIVENESS",
+        "COLLECTION_MUTATION",
+    }
+)
+
+
+def exact_nonnegative_json_integer(value: object) -> bool:
+    return type(value) is int and value >= 0
+
+
+def exact_positive_json_integer(value: object) -> bool:
+    return type(value) is int and value > 0
+
+
+def sha256_string(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def limit_exception_record_problem(
+    record: object,
+    expected_layer: str,
+) -> str | None:
+    if not isinstance(record, dict):
+        return "exception record is not an object"
+    record_kind = record.get("record_kind")
+    expected_fields = {
+        LIMIT_ENTRY_CALL_EDGE_ISSUE: LIMIT_ENTRY_CALL_EDGE_EXCEPTION_FIELDS,
+        LIMIT_ENTRY_REVERSE_CALLER_ISSUE: (LIMIT_ENTRY_REVERSE_CALLER_EXCEPTION_FIELDS),
+        LIMIT_CONTROL_AUTHORITY_ISSUE: LIMIT_CONTROL_AUTHORITY_EXCEPTION_FIELDS,
+    }.get(record_kind)
+    if expected_fields is None:
+        return "exception record kind is unknown"
+    if tuple(record) != expected_fields:
+        return "exception record fields/order differ"
+    expected_record_layer = (
+        "CONTROL_ANCESTRY"
+        if record_kind == LIMIT_CONTROL_AUTHORITY_ISSUE
+        else "ENTRY_PATH"
+    )
+    if record.get("layer") != expected_layer or expected_layer != expected_record_layer:
+        return "exception record layer differs"
+    if record.get("reason_code") != LIMIT_EXCEPTION_REASON_UNRESOLVED:
+        return "exception reason code differs"
+    event_id = record.get("event_id")
+    if event_id not in LIMIT_EVENT_SPECS:
+        return "exception event is unknown"
+    expected_event_ordinal = tuple(LIMIT_EVENT_SPECS).index(str(event_id)) + 1
+    if record.get("event_ordinal") != expected_event_ordinal:
+        return "exception event ordinal differs"
+    if not exact_positive_json_integer(record.get("record_ordinal")):
+        return "exception record ordinal differs"
+    for field in (
+        "source",
+        "owner",
+        "function",
+    ):
+        if not isinstance(record.get(field), str) or not record[field]:
+            return f"exception {field} differs"
+    for field in (
+        "source_sha256",
+        "signature_sha256",
+        "attribute_chain_sha256",
+        "body_sha256",
+        "lexical_site_sha256",
+        "parent_manifest_sha256",
+        "unresolved_record_sha256",
+        "canonical_leaf_sha256",
+    ):
+        if not sha256_string(record.get(field)):
+            return f"exception {field} differs"
+    evidence = record.get("unresolved_evidence")
+    if (
+        not isinstance(evidence, list)
+        or not evidence
+        or any(not isinstance(item, str) or not item for item in evidence)
+    ):
+        return "exception unresolved evidence differs"
+    if record_kind == LIMIT_ENTRY_CALL_EDGE_ISSUE:
+        for field in ("path_ordinal", "edge_ordinal"):
+            if not exact_positive_json_integer(record.get(field)):
+                return f"entry exception {field} differs"
+        for field in ("caller", "callee"):
+            if not isinstance(record.get(field), str) or not record[field]:
+                return f"entry exception {field} differs"
+        for field in ("callsite_sha256", "generated_edge_sha256"):
+            if not sha256_string(record.get(field)):
+                return f"entry exception {field} differs"
+    elif record_kind == LIMIT_ENTRY_REVERSE_CALLER_ISSUE:
+        if not isinstance(record.get("target"), str) or not record["target"]:
+            return "reverse-caller exception target differs"
+        expected_callers = record.get("expected_callers")
+        found_calls = record.get("found_calls")
+        if (
+            not isinstance(expected_callers, list)
+            or any(not isinstance(item, str) or not item for item in expected_callers)
+            or not isinstance(found_calls, list)
+            or any(not isinstance(item, dict) for item in found_calls)
+        ):
+            return "reverse-caller complete inventory differs"
+        if record.get("expected_callers_sha256") != canonical_json_sha256(
+            expected_callers
+        ) or record.get("found_calls_sha256") != canonical_json_sha256(found_calls):
+            return "reverse-caller inventory digest differs"
+        if not sha256_string(record.get("generated_inventory_sha256")):
+            return "reverse-caller generated inventory digest differs"
+    else:
+        if not exact_nonnegative_json_integer(record.get("section_ordinal")):
+            return "control exception section ordinal differs"
+        if not exact_positive_json_integer(record.get("atom_ordinal")):
+            return "control exception atom ordinal differs"
+        atom_kind = record.get("atom_kind")
+        if atom_kind not in LIMIT_CONTROL_ATOM_KINDS:
+            return "control exception atom kind differs"
+        if atom_kind == "OWNER_FUNCTION_MACRO":
+            if record.get("section_ordinal") != 0:
+                return "owner-macro exception section ordinal differs"
+        elif record.get("section_ordinal") == 0:
+            return "control exception section ordinal is zero"
+        for field in ("ordered_section_sha256", "generated_atom_sha256"):
+            if not sha256_string(record.get(field)):
+                return f"control exception {field} differs"
+    payload = dict(tuple(record.items())[:-1])
+    if record.get("canonical_leaf_sha256") != canonical_json_sha256(payload):
+        return "exception canonical leaf digest differs"
+    return None
+
+
+def limit_exception_ledger_problem(
+    ledger: object,
+    expected_layer: str,
+) -> str | None:
+    if not isinstance(ledger, dict) or tuple(ledger) != LIMIT_EXCEPTION_LEDGER_FIELDS:
+        return "exception ledger fields/order differ"
+    expected_schema = {
+        "ENTRY_PATH": "s20-530-entry-exception-ledger-v1",
+        "CONTROL_ANCESTRY": "s20-530-control-exception-ledger-v1",
+    }.get(expected_layer)
+    if expected_schema is None or ledger.get("schema") != expected_schema:
+        return "exception ledger schema differs"
+    if ledger.get("disposition") != LIMIT_EXCEPTION_DISPOSITION:
+        return "exception ledger disposition differs"
+    for field in (
+        "source_set_sha256",
+        "gate_registry_sha256",
+        "scanner_contract_sha256",
+        "complete_manifest_sha256",
+        "complete_inventory_sha256",
+        "static_pass_sha256",
+        "exceptions_sha256",
+    ):
+        if not sha256_string(ledger.get(field)):
+            return f"exception ledger {field} differs"
+    counts = tuple(
+        ledger.get(field)
+        for field in ("complete_count", "static_pass_count", "exception_count")
+    )
+    if any(not exact_nonnegative_json_integer(value) for value in counts):
+        return "exception ledger count differs"
+    complete_count, static_pass_count, exception_count = counts
+    if complete_count != static_pass_count + exception_count:
+        return "exception ledger partition counts do not reconcile"
+    records = ledger.get("records")
+    if not isinstance(records, list) or len(records) != exception_count:
+        return "exception ledger record count differs"
+    previous_identity: tuple[int, int] | None = None
+    for record in records:
+        if problem := limit_exception_record_problem(record, expected_layer):
+            return problem
+        identity = (record["event_ordinal"], record["record_ordinal"])
+        if previous_identity is not None and identity <= previous_identity:
+            return "exception ledger record order or identity differs"
+        previous_identity = identity
+    exception_digests = [record["canonical_leaf_sha256"] for record in records]
+    if ledger.get("exceptions_sha256") != canonical_json_sha256(exception_digests):
+        return "exception ledger ordered record digest differs"
+    event_counts = ledger.get("event_counts")
+    if not isinstance(event_counts, dict) or tuple(event_counts) != tuple(
+        LIMIT_EVENT_SPECS
+    ):
+        return "exception ledger event-count inventory differs"
+    totals = [0, 0, 0]
+    for event_id, event_record in event_counts.items():
+        if (
+            not isinstance(event_record, dict)
+            or tuple(event_record) != LIMIT_EXCEPTION_EVENT_COUNT_FIELDS
+        ):
+            return f"{event_id} exception event-count fields/order differ"
+        event_values = tuple(
+            event_record.get(field)
+            for field in ("complete", "static_pass", "exceptions")
+        )
+        if any(not exact_nonnegative_json_integer(value) for value in event_values):
+            return f"{event_id} exception event count differs"
+        if event_values[0] != event_values[1] + event_values[2]:
+            return f"{event_id} exception event partition does not reconcile"
+        event_digests = [
+            record["canonical_leaf_sha256"]
+            for record in records
+            if record["event_id"] == event_id
+        ]
+        if event_values[2] != len(event_digests) or event_record.get(
+            "ordered_exception_leaf_sha256"
+        ) != canonical_json_sha256(event_digests):
+            return f"{event_id} ordered exception leaf digest differs"
+        for index, value in enumerate(event_values):
+            totals[index] += value
+    if tuple(totals) != counts:
+        return "exception ledger per-event totals differ"
+    return None
+
+
+def limit_exception_ledger_match_problem(
+    recorded: object,
+    expected: dict[str, object],
+    expected_layer: str,
+) -> str | None:
+    if problem := limit_exception_ledger_problem(expected, expected_layer):
+        return f"generated {problem}"
+    if problem := limit_exception_ledger_problem(recorded, expected_layer):
+        return f"recorded {problem}"
+    if recorded != expected:
+        return "recorded exception ledger differs from the generated exact ledger"
+    return None
+
+
+def limit_exception_partition_freeze_problem(
+    entry_ledger: dict[str, object],
+    control_ledger: dict[str, object],
+) -> str | None:
+    if (
+        canonical_json_sha256(LIMIT_EXCEPTION_PARTITION_FREEZE)
+        != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256
+    ):
+        return "checker exception-partition freeze digest differs"
+    if any(
+        entry_ledger.get(field) != control_ledger.get(field)
+        for field in (
+            "source_set_sha256",
+            "gate_registry_sha256",
+            "scanner_contract_sha256",
+        )
+    ):
+        return "entry and control ledgers bind different authority sets"
+    observed = {
+        "source_set_sha256": entry_ledger.get("source_set_sha256"),
+        "gate_registry_sha256": entry_ledger.get("gate_registry_sha256"),
+        "scanner_contract_sha256": entry_ledger.get("scanner_contract_sha256"),
+        "entry_complete_count": entry_ledger.get("complete_count"),
+        "entry_static_pass_count": entry_ledger.get("static_pass_count"),
+        "entry_exception_count": entry_ledger.get("exception_count"),
+        "entry_complete_manifest_sha256": entry_ledger.get("complete_manifest_sha256"),
+        "entry_complete_inventory_sha256": entry_ledger.get(
+            "complete_inventory_sha256"
+        ),
+        "entry_static_pass_sha256": entry_ledger.get("static_pass_sha256"),
+        "entry_exceptions_sha256": entry_ledger.get("exceptions_sha256"),
+        "entry_ledger_sha256": canonical_json_sha256(entry_ledger),
+        "control_complete_count": control_ledger.get("complete_count"),
+        "control_static_pass_count": control_ledger.get("static_pass_count"),
+        "control_exception_count": control_ledger.get("exception_count"),
+        "control_complete_manifest_sha256": control_ledger.get(
+            "complete_manifest_sha256"
+        ),
+        "control_complete_inventory_sha256": control_ledger.get(
+            "complete_inventory_sha256"
+        ),
+        "control_static_pass_sha256": control_ledger.get("static_pass_sha256"),
+        "control_exceptions_sha256": control_ledger.get("exceptions_sha256"),
+        "control_ledger_sha256": canonical_json_sha256(control_ledger),
+    }
+    if observed != LIMIT_EXCEPTION_PARTITION_FREEZE:
+        return "generated exception partitions differ from the frozen v8 frontier"
+    return None
+
+
+def synthetic_limit_exception_record(record_kind: str) -> dict[str, object]:
+    digest = "a" * 64
+    event_id = next(iter(LIMIT_EVENT_SPECS))
+    common: dict[str, object] = {
+        "layer": (
+            "CONTROL_ANCESTRY"
+            if record_kind == LIMIT_CONTROL_AUTHORITY_ISSUE
+            else "ENTRY_PATH"
+        ),
+        "record_kind": record_kind,
+        "reason_code": LIMIT_EXCEPTION_REASON_UNRESOLVED,
+        "event_id": event_id,
+        "event_ordinal": 1,
+        "record_ordinal": 1,
+        "source": "crates/example/src/lib.rs",
+        "source_sha256": digest,
+        "owner": "Example",
+        "function": "recover",
+        "signature_sha256": digest,
+        "attribute_chain_sha256": digest,
+        "body_sha256": digest,
+        "lexical_site_sha256": digest,
+        "parent_manifest_sha256": digest,
+        "unresolved_record_sha256": digest,
+    }
+    if record_kind == LIMIT_ENTRY_CALL_EDGE_ISSUE:
+        common.update(
+            {
+                "path_ordinal": 1,
+                "edge_ordinal": 1,
+                "caller": "crates/example/src/lib.rs:Example:recover",
+                "callee": "crates/example/src/lib.rs:Example:recover_inner",
+                "callsite_sha256": digest,
+                "generated_edge_sha256": digest,
+            }
+        )
+    elif record_kind == LIMIT_ENTRY_REVERSE_CALLER_ISSUE:
+        expected_callers = ["crates/example/src/lib.rs:Example:recover"]
+        found_calls = [
+            {
+                "caller": expected_callers[0],
+                "callsite": "self.recover_inner()",
+                "callsite_sha256": digest,
+                "receiver_authority": "CONCRETE_SELF:Example",
+            }
+        ]
+        common.update(
+            {
+                "target": "crates/example/src/lib.rs:Example:recover_inner",
+                "expected_callers": expected_callers,
+                "found_calls": found_calls,
+                "expected_callers_sha256": canonical_json_sha256(expected_callers),
+                "found_calls_sha256": canonical_json_sha256(found_calls),
+                "generated_inventory_sha256": digest,
+            }
+        )
+    elif record_kind == LIMIT_CONTROL_AUTHORITY_ISSUE:
+        common.update(
+            {
+                "section_ordinal": 1,
+                "atom_ordinal": 1,
+                "atom_kind": "SCOPE_VALUE",
+                "ordered_section_sha256": digest,
+                "generated_atom_sha256": digest,
+            }
+        )
+    else:
+        fail("synthetic exception record kind is unknown")
+    common["unresolved_evidence"] = ["synthetic unresolved authority"]
+    return limit_exception_leaf_sha256(common)
+
+
+def synthetic_limit_exception_ledger(
+    record: dict[str, object] | None,
+    layer: str,
+) -> dict[str, object]:
+    records = [] if record is None else [record]
+    event_id = next(iter(LIMIT_EVENT_SPECS))
+    exception_count = len(records)
+    event_counts = {
+        current_event_id: {
+            "complete": 1 if current_event_id == event_id else 0,
+            "static_pass": (
+                1 if current_event_id == event_id and exception_count == 0 else 0
+            ),
+            "exceptions": (exception_count if current_event_id == event_id else 0),
+            "ordered_exception_leaf_sha256": canonical_json_sha256(
+                [
+                    item["canonical_leaf_sha256"]
+                    for item in records
+                    if item["event_id"] == current_event_id
+                ]
+            ),
+        }
+        for current_event_id in LIMIT_EVENT_SPECS
+    }
+    digest = "b" * 64
+    return {
+        "schema": (
+            "s20-530-entry-exception-ledger-v1"
+            if layer == "ENTRY_PATH"
+            else "s20-530-control-exception-ledger-v1"
+        ),
+        "disposition": LIMIT_EXCEPTION_DISPOSITION,
+        "source_set_sha256": digest,
+        "gate_registry_sha256": digest,
+        "scanner_contract_sha256": digest,
+        "complete_manifest_sha256": digest,
+        "complete_inventory_sha256": digest,
+        "static_pass_sha256": digest,
+        "exceptions_sha256": canonical_json_sha256(
+            [item["canonical_leaf_sha256"] for item in records]
+        ),
+        "complete_count": 1,
+        "static_pass_count": 1 - exception_count,
+        "exception_count": exception_count,
+        "event_counts": event_counts,
+        "records": records,
+    }
+
+
+def require_limit_exception_ledger_negative_controls() -> None:
+    entry_record = synthetic_limit_exception_record(LIMIT_ENTRY_CALL_EDGE_ISSUE)
+    entry_ledger = synthetic_limit_exception_ledger(entry_record, "ENTRY_PATH")
+    reverse_record = synthetic_limit_exception_record(LIMIT_ENTRY_REVERSE_CALLER_ISSUE)
+    control_record = synthetic_limit_exception_record(LIMIT_CONTROL_AUTHORITY_ISSUE)
+    for record, layer in (
+        (entry_record, "ENTRY_PATH"),
+        (reverse_record, "ENTRY_PATH"),
+        (control_record, "CONTROL_ANCESTRY"),
+    ):
+        if problem := limit_exception_record_problem(record, layer):
+            fail(f"checker self-test rejected exact exception record: {problem}")
+    if problem := limit_exception_ledger_problem(entry_ledger, "ENTRY_PATH"):
+        fail(f"checker self-test rejected exact exception ledger: {problem}")
+
+    hostile_ledgers: list[dict[str, object]] = []
+    missing = json.loads(json.dumps(entry_ledger))
+    missing.pop("scanner_contract_sha256")
+    hostile_ledgers.append(missing)
+    extra = json.loads(json.dumps(entry_ledger))
+    extra["wildcard"] = "forbidden"
+    hostile_ledgers.append(extra)
+    reordered = {
+        "disposition": entry_ledger["disposition"],
+        "schema": entry_ledger["schema"],
+        **{
+            key: value
+            for key, value in entry_ledger.items()
+            if key not in {"schema", "disposition"}
+        },
+    }
+    hostile_ledgers.append(reordered)
+    boolean_count = json.loads(json.dumps(entry_ledger))
+    boolean_count["exception_count"] = True
+    hostile_ledgers.append(boolean_count)
+    partition_drift = json.loads(json.dumps(entry_ledger))
+    partition_drift["static_pass_count"] = 1
+    hostile_ledgers.append(partition_drift)
+    event_order = json.loads(json.dumps(entry_ledger))
+    event_order["event_counts"] = dict(reversed(event_order["event_counts"].items()))
+    hostile_ledgers.append(event_order)
+    duplicate = json.loads(json.dumps(entry_ledger))
+    duplicate["records"].append(json.loads(json.dumps(duplicate["records"][0])))
+    duplicate["complete_count"] = 2
+    duplicate["exception_count"] = 2
+    duplicate["exceptions_sha256"] = canonical_json_sha256(
+        [record["canonical_leaf_sha256"] for record in duplicate["records"]]
+    )
+    first_event = next(iter(LIMIT_EVENT_SPECS))
+    duplicate["event_counts"][first_event]["complete"] = 2
+    duplicate["event_counts"][first_event]["exceptions"] = 2
+    duplicate["event_counts"][first_event]["ordered_exception_leaf_sha256"] = duplicate[
+        "exceptions_sha256"
+    ]
+    hostile_ledgers.append(duplicate)
+    for hostile in hostile_ledgers:
+        if limit_exception_ledger_problem(hostile, "ENTRY_PATH") is None:
+            fail("checker self-test accepted a hostile exception ledger")
+
+    hostile_records: list[dict[str, object]] = []
+    unknown_reason = json.loads(json.dumps(entry_record))
+    unknown_reason["reason_code"] = "IGNORE"
+    hostile_records.append(unknown_reason)
+    malformed_digest = json.loads(json.dumps(entry_record))
+    malformed_digest["generated_edge_sha256"] = "*"
+    hostile_records.append(malformed_digest)
+    reordered_record = {
+        "record_kind": entry_record["record_kind"],
+        "layer": entry_record["layer"],
+        **{
+            key: value
+            for key, value in entry_record.items()
+            if key not in {"layer", "record_kind"}
+        },
+    }
+    hostile_records.append(reordered_record)
+    canonical_drift = json.loads(json.dumps(entry_record))
+    canonical_drift["canonical_leaf_sha256"] = "c" * 64
+    hostile_records.append(canonical_drift)
+    for hostile in hostile_records:
+        if limit_exception_record_problem(hostile, "ENTRY_PATH") is None:
+            fail("checker self-test accepted a hostile exception record")
+
+    static_entry_ledger = synthetic_limit_exception_ledger(None, "ENTRY_PATH")
+    if (
+        limit_exception_ledger_match_problem(
+            static_entry_ledger,
+            entry_ledger,
+            "ENTRY_PATH",
+        )
+        is None
+        or limit_exception_ledger_match_problem(
+            entry_ledger,
+            static_entry_ledger,
+            "ENTRY_PATH",
+        )
+        is None
+    ):
+        fail("checker self-test accepted a resolved/unresolved partition drift")
+
+
+def limit_exception_reconciler_manifest() -> dict[str, str]:
+    return {
+        "schema": "s20-530-exception-reconciler-v1",
+        "path": str(RECONCILER.relative_to(ROOT)),
+        "sha256": repository_file_sha256(RECONCILER),
+        "partition_freeze_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256,
+        "entry_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE["entry_ledger_sha256"],
+        "control_ledger_sha256": LIMIT_EXCEPTION_PARTITION_FREEZE[
+            "control_ledger_sha256"
+        ],
+    }
+
+
 def limit_shared_state_authority_manifest(
     sources: dict[str, str],
 ) -> dict[str, object]:
@@ -25197,7 +26811,7 @@ def recovery_success_fixture_binding_problem(
             ),
             "accepted_path": (
                 "let accepted_path = transaction_repository.root()"
-                '.join("refs").join("accepted");'
+                '.join("heads").join("accepted");'
             ),
             "ref_path": (
                 "let ref_path = branch_repository"
@@ -25256,7 +26870,7 @@ def recovery_success_fixture_binding_problem(
                 "let accepted_before = repository.accepted_head().unwrap();"
             ),
             "accepted_path": (
-                'let accepted_path = repository.root().join("refs").join("accepted");'
+                'let accepted_path = repository.root().join("heads").join("accepted");'
             ),
             "maintenance": (
                 "let maintenance = repository.acquire_exclusive_maintenance().unwrap();"
@@ -25547,13 +27161,15 @@ def require_grouped_error_evidence(
             sources[owner],
             leaf_id,
         )
-        require_preflight_canary_evidence(
-            row_id,
-            group_id,
-            leaf_entry,
-            leaf_id,
-        )
-        if (row_id, group_id, leaf_id) in GROUPED_MULTIFAULT_CASES:
+        multifault_case = (row_id, group_id, leaf_id)
+        if multifault_case not in GROUPED_MULTIFAULT_CASES:
+            require_preflight_canary_evidence(
+                row_id,
+                group_id,
+                leaf_entry,
+                leaf_id,
+            )
+        if multifault_case in GROUPED_MULTIFAULT_CASES:
             require_multifault_evidence(
                 row_id,
                 group_id,
@@ -25805,8 +27421,8 @@ def cross05_contender_expected_body(role: str) -> str:
         ),
         "gc": (
             "let operation_result = crate::gc::acquire_exclusive_gc(&gc_store)"
-            ".and_then(|guard| crate::gc::gc_collect("
-            "&gc_store, &gc_snapshot, &gc_verifier, &guard));"
+            ".and_then(|guard| { crate::gc::gc_collect("
+            "&gc_store, &gc_snapshot, &gc_verifier, &guard) });"
         ),
     }[role]
     lock_call = (
@@ -26085,7 +27701,7 @@ def cross05_wrapper_problem(body: str, subcase_id: str) -> str | None:
         return "wrapper owner closure is not bound to owner_handle"
     expected_closure = (
         f"{installer}(owner_repository.root(), cross05_owner_tx, "
-        f"cross05_release_rx); owner_repository.{wrapper}()"
+        f"cross05_release_rx,); owner_repository.{wrapper}()"
     )
     if normalize_rust_tokens(closure[2]) != normalize_rust_tokens(expected_closure):
         return "wrapper owner closure does not install the root-scoped hook then call its no-arg API"
@@ -28825,6 +30441,30 @@ def owned_entry_multifault_preflight_problem(
             or not exact_direct_statement_present(body, assertion)
         ):
             return f"cleanup-canary assertion {field} differs"
+    canary_proof = preflight_equality_proof_sha256(
+        row_id,
+        subcase_id,
+        None,
+        canary,
+        canary_assertions["snapshot_unchanged"],
+    )
+    tree_proof = preflight_equality_proof_sha256(
+        row_id,
+        subcase_id,
+        None,
+        "owner_tree",
+        tree_assertion,
+    )
+    if (
+        hashes.get(f"{canary}_before_sha256") != canary_proof
+        or hashes.get(f"{canary}_after_sha256") != canary_proof
+    ):
+        return "cleanup-canary equality-proof hash differs from its mapped assertion"
+    if (
+        hashes.get("owner_tree_before_sha256") != tree_proof
+        or hashes.get("owner_tree_after_sha256") != tree_proof
+    ):
+        return "owner-tree equality-proof hash differs from its mapped assertion"
     return None
 
 
@@ -28855,10 +30495,18 @@ def owned_entry_preflight_entry(
     return {
         "assertions": list(assertions),
         "cleanup_canary_hashes": {
-            f"{canary}_before_sha256": "a" * 64,
-            f"{canary}_after_sha256": "a" * 64,
-            "owner_tree_before_sha256": "b" * 64,
-            "owner_tree_after_sha256": "b" * 64,
+            f"{canary}_before_sha256": preflight_equality_proof_sha256(
+                row_id, subcase_id, None, canary, byte_assertion
+            ),
+            f"{canary}_after_sha256": preflight_equality_proof_sha256(
+                row_id, subcase_id, None, canary, byte_assertion
+            ),
+            "owner_tree_before_sha256": preflight_equality_proof_sha256(
+                row_id, subcase_id, None, "owner_tree", tree_assertion
+            ),
+            "owner_tree_after_sha256": preflight_equality_proof_sha256(
+                row_id, subcase_id, None, "owner_tree", tree_assertion
+            ),
         },
         "cleanup_canary_kinds": {
             f"{canary}_before_kind": "regular",
@@ -28945,10 +30593,34 @@ def require_owned_entry_v6_controls() -> None:
                     "semantic_assertions": mapping,
                     "m2_operation_bindings": multifault_operation_bindings(key, spec),
                     "cleanup_canary_hashes": {
-                        f"{canary}_before_sha256": "a" * 64,
-                        f"{canary}_after_sha256": "a" * 64,
-                        "owner_tree_before_sha256": "b" * 64,
-                        "owner_tree_after_sha256": "b" * 64,
+                        f"{canary}_before_sha256": preflight_equality_proof_sha256(
+                            row_id,
+                            subcase_id,
+                            None,
+                            canary,
+                            canary_assertions["snapshot_unchanged"],
+                        ),
+                        f"{canary}_after_sha256": preflight_equality_proof_sha256(
+                            row_id,
+                            subcase_id,
+                            None,
+                            canary,
+                            canary_assertions["snapshot_unchanged"],
+                        ),
+                        "owner_tree_before_sha256": preflight_equality_proof_sha256(
+                            row_id,
+                            subcase_id,
+                            None,
+                            "owner_tree",
+                            tree_assertion,
+                        ),
+                        "owner_tree_after_sha256": preflight_equality_proof_sha256(
+                            row_id,
+                            subcase_id,
+                            None,
+                            "owner_tree",
+                            tree_assertion,
+                        ),
                     },
                     "cleanup_canary_kinds": {
                         f"{canary}_before_kind": "regular",
@@ -29408,6 +31080,7 @@ def preflight_canary_problem(
     row_id: str,
     subcase_id: str | None,
     entry: dict[str, object],
+    leaf_id: str | None = None,
 ) -> str | None:
     names = PREFLIGHT_CANARIES[row_id]
     expected_hash_fields = (
@@ -29461,7 +31134,7 @@ def preflight_canary_problem(
             or re.fullmatch(r"[0-9a-f]{64}", before) is None
             or after != before
         ):
-            return f"{name} before/after byte hashes differ or are malformed"
+            return f"{name} equality-proof hashes differ or are malformed"
         before_kind = f"{name}_before_kind"
         after_kind = f"{name}_after_kind"
         expected_kind = PREFLIGHT_CANARY_KINDS.get(
@@ -29482,6 +31155,15 @@ def preflight_canary_problem(
             code_only_normalized(operands[1]),
         } != {f"{name}_before_snapshot", f"{name}_after_snapshot"}:
             return f"{name} assertion does not compare exact before/after snapshots"
+        expected_proof = preflight_equality_proof_sha256(
+            row_id,
+            subcase_id,
+            leaf_id,
+            name,
+            assertion,
+        )
+        if before != expected_proof or after != expected_proof:
+            return f"{name} equality-proof hash differs from its mapped assertion"
         kind_assertion = mapping.get(f"{name}_kind")
         if not isinstance(kind_assertion, str) or kind_assertion not in assertions:
             return f"{name} lacks a mapped kind assertion"
@@ -29521,7 +31203,7 @@ def preflight_canary_problem(
         or re.fullmatch(r"[0-9a-f]{64}", tree_before) is None
         or tree_after != tree_before
     ):
-        return "owner-tree before/after byte hashes differ or are malformed"
+        return "owner-tree equality-proof hashes differ or are malformed"
     tree_assertion = mapping.get("owner_tree")
     if not isinstance(tree_assertion, str) or tree_assertion not in assertions:
         return "owner tree lacks a mapped byte assertion"
@@ -29531,6 +31213,15 @@ def preflight_canary_problem(
         code_only_normalized(tree_operands[1]),
     } != {"owner_tree_before_snapshot", "owner_tree_after_snapshot"}:
         return "owner-tree assertion does not compare exact before/after snapshots"
+    expected_tree_proof = preflight_equality_proof_sha256(
+        row_id,
+        subcase_id,
+        leaf_id,
+        "owner_tree",
+        tree_assertion,
+    )
+    if tree_before != expected_tree_proof or tree_after != expected_tree_proof:
+        return "owner-tree equality-proof hash differs from its mapped assertion"
     return None
 
 
@@ -29540,7 +31231,7 @@ def require_preflight_canary_evidence(
     entry: dict[str, object],
     leaf_id: str | None = None,
 ) -> None:
-    if problem := preflight_canary_problem(row_id, subcase_id, entry):
+    if problem := preflight_canary_problem(row_id, subcase_id, entry, leaf_id):
         label = (
             row_id
             if subcase_id is None
@@ -30670,10 +32361,20 @@ def require_exact_result_assertion(
         fail(f"{label} exact {field} assertion differs: {problem}")
 
 
+def limit_default_assertion_constant(row_id: str, subcase_id: str) -> str:
+    _owner, constant, _expected = LIMIT_DEFAULTS[row_id][subcase_id]
+    if row_id == "LIMIT-03" or (
+        row_id == "LIMIT-02" and subcase_id == "accepted_receipt_bytes"
+    ):
+        return f"super::{constant}"
+    return constant
+
+
 def require_exact_limit_default_assertion(
     row_id: str, subcase_id: str, entry: dict[str, object]
 ) -> None:
-    _owner, constant, expected = LIMIT_DEFAULTS[row_id][subcase_id]
+    _owner, _constant, expected = LIMIT_DEFAULTS[row_id][subcase_id]
+    constant = limit_default_assertion_constant(row_id, subcase_id)
     if not exact_json_scalar_equal(entry.get("frozen_default"), expected):
         fail(f"{row_id}/{subcase_id} frozen default differs")
     semantic = entry.get("semantic_assertions")
@@ -30983,7 +32684,7 @@ def limit_runtime_expected_statements(
         ),
         (
             "let exact_probe = begin_s20_530_limit_probe(exact_owner_root, "
-            f"{json.dumps(spec.qualified_field)}, injected_limit, {events});"
+            f"{json.dumps(spec.qualified_field)}, injected_limit, {events},);"
         ),
         f"let exact_result = {exact_call};",
         "let exact_runtime_observation = finish_s20_530_limit_probe(exact_probe);",
@@ -30991,7 +32692,7 @@ def limit_runtime_expected_statements(
         *limit_runtime_probe_assertions("exact", spec),
         (
             "let plus_one_probe = begin_s20_530_limit_probe(plus_one_owner_root, "
-            f"{json.dumps(spec.qualified_field)}, injected_limit, {events});"
+            f"{json.dumps(spec.qualified_field)}, injected_limit, {events},);"
         ),
         f"let plus_one_result = {plus_call};",
         (
@@ -31029,10 +32730,26 @@ def limit_runtime_test_body_problem(
     )
     actual_ranges = top_level_statement_ranges(body)
     actual = tuple(statement for _start, _end, statement in actual_ranges)
-    if tuple(normalize_rust_tokens(statement) for statement in actual) != tuple(
-        normalize_rust_tokens(statement) for statement in expected
-    ):
+    normalized_actual = tuple(
+        re.sub(r",(?=[)\]])", "", normalize_rust_tokens(statement))
+        for statement in actual
+    )
+    normalized_expected = tuple(
+        re.sub(r",(?=[)\]])", "", normalize_rust_tokens(statement))
+        for statement in expected
+    )
+    key = (row_id, subcase_id, None)
+    compared_actual = (
+        normalized_actual[: len(normalized_expected)]
+        if key in MULTIFAULT_OVERLAYS
+        else normalized_actual
+    )
+    if compared_actual != normalized_expected:
         return "checker-rendered N/N+1 setup, profiles, operations, or peaks differ"
+    if key in MULTIFAULT_OVERLAYS and len(normalized_actual) <= len(
+        normalized_expected
+    ):
+        return "limit multifault case lacks its appended precedence proof"
     return None
 
 
@@ -31199,6 +32916,9 @@ def require_limit_operation_evidence(
 
 
 def require_checker_negative_controls() -> None:
+    require_rust_scanner_positional_controls()
+    require_limit_exception_ledger_negative_controls()
+
     def test_module(items: str) -> str:
         return f"#[cfg(test)]\nmod tests {{\n{items}\n}}\n"
 
@@ -31209,6 +32929,7 @@ def require_checker_negative_controls() -> None:
         "checker_sha256",
         "checker_contract_sha256",
         "runner_sha256",
+        "reconciler_sha256",
     )
     freeze_hashes = {
         field: f"{index:x}" * 64
@@ -31345,6 +33066,26 @@ def require_checker_negative_controls() -> None:
         is None
     ):
         fail("checker self-test accepted a stale grouped adapter spec digest")
+
+    exact_partition_digest_spec = (
+        "The checker freezes the complete v8 exception partition\n"
+        "under one ordered fingerprint. Its SHA-256 is\n"
+        f"`{LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256}`.\n"
+    )
+    if (
+        limit_exception_partition_spec_digest_problem(exact_partition_digest_spec)
+        is not None
+    ):
+        fail("checker self-test rejected the exact exception-partition fingerprint")
+    stale_partition_digest_spec = exact_partition_digest_spec.replace(
+        LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256,
+        "0" * 64,
+    )
+    if (
+        limit_exception_partition_spec_digest_problem(stale_partition_digest_spec)
+        is None
+    ):
+        fail("checker self-test accepted a stale exception-partition fingerprint")
 
     if strict_json_object(b'{"outer":{"value":1}}', "exact-json") != {
         "outer": {"value": 1}
@@ -31922,7 +33663,7 @@ def require_checker_negative_controls() -> None:
         "let head_revision = repository"
         ".verified_revision(head_transaction_id).unwrap();",
         "let accepted_before = repository.accepted_head().unwrap();",
-        'let accepted_path = repository.root().join("refs").join("accepted");',
+        'let accepted_path = repository.root().join("heads").join("accepted");',
         "let maintenance = repository.acquire_exclusive_maintenance().unwrap();",
         "::core::assert!(maintenance.is_exclusive());",
         "::core::assert!(maintenance.covers(repository.root()));",
@@ -32043,7 +33784,7 @@ def require_checker_negative_controls() -> None:
         "let accepted_before = transaction_repository.accepted_head().unwrap();",
         "let branch_before = branch_repository.resolve_branch(&branch_name).unwrap();",
         "let accepted_path = transaction_repository.root()"
-        '.join("refs").join("accepted");',
+        '.join("heads").join("accepted");',
         "let ref_path = branch_repository.checked_ref_path(&branch_name).unwrap();",
         "let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();",
         "::core::assert!(maintenance.is_exclusive());",
@@ -32560,8 +34301,10 @@ let gc_handle = ::std::thread::spawn(move || {
     ::core::assert!(gc_blocked_tx
         .send(Cross05Blocked::Gc(blocked)).is_ok());
     let operation_result = crate::gc::acquire_exclusive_gc(&gc_store)
-        .and_then(|guard| crate::gc::gc_collect(
-            &gc_store, &gc_snapshot, &gc_verifier, &guard));
+        .and_then(|guard| {
+            crate::gc::gc_collect(
+                &gc_store, &gc_snapshot, &gc_verifier, &guard)
+        });
     ::core::assert!(gc_completed_tx
         .send(Cross05Completed::Gc(operation_result.is_ok())).is_ok());
 });
@@ -32621,7 +34364,7 @@ let (cross05_release_tx, cross05_release_rx) =
     ::std::sync::mpsc::sync_channel::<Cross05OwnerSignal>(0);
 let owner_handle = ::std::thread::spawn(move || {
     install_transaction_recovery_hold(
-        owner_repository.root(), cross05_owner_tx, cross05_release_rx);
+        owner_repository.root(), cross05_owner_tx, cross05_release_rx,);
     owner_repository.recover()
 });
 let exclusive_observed = ::core::matches!(
@@ -32991,7 +34734,9 @@ impl BranchRepository {
         &self,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<(), ()> {
-        self.recover_refs_with_maintenance_and_limits(maintenance, ref_recovery_limits())
+        let limits = ref_recovery_limits();
+        let result = self.recover_refs_with_maintenance_and_limits(maintenance, limits);
+        result
     }
 
     fn recover_refs_with_maintenance_and_limits(
@@ -34165,18 +35910,25 @@ mod tests {
     hook_items = S20_530_ALLOWED_FEATURE_GATED_ITEMS
     ref_hook_item = S20_530_RECOVERY_ANCESTRY_HOOK_GATES[3].item
     exact_hook_gate_sources = {
-        "crates/sley-txn/src/lib.rs": hook_items[0],
+        "crates/sley-txn/src/lib.rs": (hook_items[0] + hook_items[6] + hook_items[7]),
         "crates/sley-txn/src/repository.rs": f"""\
 {hook_items[5]}
+{hook_items[8]}
 struct TransactionRepository;
 impl TransactionRepository {{
     fn recover_with_maintenance_and_limits(&self) {{ {hook_items[1]} }}
     fn verify_recovery_ancestries_with_limits(&self) {{
         {hook_items[2]}
         {hook_items[3]}
+        {hook_items[10]}
     }}
-    fn verify_accepted_recovery_ancestry_with_limits(&self) {{ {hook_items[3]} }}
+    fn verify_accepted_recovery_ancestry_with_limits(&self) {{
+        {hook_items[3]}
+        {hook_items[9]}
+    }}
     fn recovery_ancestry_parents(&self) {{ {hook_items[4]} }}
+    fn read_recovery_receipt(&self) {{ {hook_items[11]} }}
+    fn load_objects(&self) {{ {hook_items[12]} }}
 }}
 """,
         "crates/sley-repo/src/refs.rs": f"""\
@@ -34187,7 +35939,7 @@ impl BranchRepository {{
 """,
     }
     if recovery_ancestry_hook_gate_problem(exact_hook_gate_sources) is not None:
-        fail("checker self-test rejected exact eight-site recovery hook gates")
+        fail("checker self-test rejected exact 14-feature/1-test recovery hook gates")
 
     hook_gate_hostiles: list[dict[str, str]] = []
     for relative, old, new in (
@@ -34215,6 +35967,37 @@ impl BranchRepository {{
         hostile = dict(exact_hook_gate_sources)
         hostile[relative] = hostile[relative].replace(old, new, 1)
         hook_gate_hostiles.append(hostile)
+    omitted_gate = dict(exact_hook_gate_sources)
+    omitted_gate["crates/sley-txn/src/repository.rs"] = omitted_gate[
+        "crates/sley-txn/src/repository.rs"
+    ].replace(hook_items[11], "", 1)
+    hook_gate_hostiles.append(omitted_gate)
+    moved_gate = dict(exact_hook_gate_sources)
+    moved_gate["crates/sley-txn/src/repository.rs"] = (
+        moved_gate["crates/sley-txn/src/repository.rs"]
+        .replace(hook_items[11], "", 1)
+        .replace(
+            "fn load_objects(&self) {",
+            f"fn load_objects(&self) {{ {hook_items[11]}",
+            1,
+        )
+    )
+    hook_gate_hostiles.append(moved_gate)
+    duplicated_gate = dict(exact_hook_gate_sources)
+    duplicated_gate["crates/sley-txn/src/repository.rs"] = duplicated_gate[
+        "crates/sley-txn/src/repository.rs"
+    ].replace(hook_items[11], hook_items[11] + hook_items[11], 1)
+    hook_gate_hostiles.append(duplicated_gate)
+    nested_gate = dict(exact_hook_gate_sources)
+    nested_gate["crates/sley-txn/src/repository.rs"] = nested_gate[
+        "crates/sley-txn/src/repository.rs"
+    ].replace(
+        hook_items[11],
+        '#[cfg(any(test, feature = "s20-530-test-hooks"))]\n'
+        f"if nested_gate {{ {hook_items[11]} }}",
+        1,
+    )
+    hook_gate_hostiles.append(nested_gate)
     extra_feature_gate = dict(exact_hook_gate_sources)
     extra_feature_gate["crates/sley-txn/src/repository.rs"] = extra_feature_gate[
         "crates/sley-txn/src/repository.rs"
@@ -35692,10 +37475,18 @@ mod tests {
                 tree_assertion,
             ],
             "cleanup_canary_hashes": {
-                "gc_witness_before_sha256": "a" * 64,
-                "gc_witness_after_sha256": "a" * 64,
-                "owner_tree_before_sha256": "b" * 64,
-                "owner_tree_after_sha256": "b" * 64,
+                "gc_witness_before_sha256": preflight_equality_proof_sha256(
+                    row_id, subcase_id, None, "gc_witness", byte_assertion
+                ),
+                "gc_witness_after_sha256": preflight_equality_proof_sha256(
+                    row_id, subcase_id, None, "gc_witness", byte_assertion
+                ),
+                "owner_tree_before_sha256": preflight_equality_proof_sha256(
+                    row_id, subcase_id, None, "owner_tree", tree_assertion
+                ),
+                "owner_tree_after_sha256": preflight_equality_proof_sha256(
+                    row_id, subcase_id, None, "owner_tree", tree_assertion
+                ),
             },
             "cleanup_canary_kinds": {
                 "gc_witness_before_kind": kind,
@@ -38107,6 +39898,78 @@ impl EvilJoin for PathBuf {}
     exact_runtime_helpers = limit_runtime_helper_body_manifest(
         synthetic_limit_helper_sources
     )
+    runtime_helper_fields = (
+        "source",
+        "owner",
+        "function",
+        "attribute_chain_sha256",
+        "body_sha256",
+    )
+    if len(exact_runtime_helpers) != 50 or any(
+        tuple(record) != runtime_helper_fields
+        or re.fullmatch(r"[0-9a-f]{64}", record["attribute_chain_sha256"]) is None
+        or re.fullmatch(r"[0-9a-f]{64}", record["body_sha256"]) is None
+        for record in exact_runtime_helpers.values()
+    ):
+        fail("checker self-test lost exact 50-record/five-field helper manifest")
+    attribute_key = next(
+        key
+        for key, record in exact_runtime_helpers.items()
+        if record["owner"] == "<crate>"
+    )
+    attribute_record = exact_runtime_helpers[attribute_key]
+    attribute_relative = attribute_record["source"]
+    attribute_function = attribute_record["function"]
+    attribute_needle = f"fn {attribute_function}("
+    if synthetic_limit_helper_sources[attribute_relative].count(attribute_needle) != 1:
+        fail("checker helper attribute control lacks one exact declaration")
+    attribute_mutated_sources = dict(synthetic_limit_helper_sources)
+    attribute_mutated_sources[attribute_relative] = attribute_mutated_sources[
+        attribute_relative
+    ].replace(attribute_needle, f"#[allow(dead_code)]\n{attribute_needle}", 1)
+    attribute_mutated_helpers = limit_runtime_helper_body_manifest(
+        attribute_mutated_sources
+    )
+    if (
+        attribute_mutated_helpers[attribute_key]["attribute_chain_sha256"]
+        == attribute_record["attribute_chain_sha256"]
+        or attribute_mutated_helpers[attribute_key]["body_sha256"]
+        != attribute_record["body_sha256"]
+        or any(
+            attribute_mutated_helpers[key] != record
+            for key, record in exact_runtime_helpers.items()
+            if key != attribute_key
+        )
+    ):
+        fail("checker self-test lost isolated helper attribute-chain binding")
+
+    def helper_manifest_rejects(sources: dict[str, str]) -> bool:
+        with redirect_stderr(io.StringIO()):
+            try:
+                limit_runtime_helper_body_manifest(sources)
+            except SystemExit as error:
+                return error.code == 1
+        return False
+
+    missing_helper_sources = dict(synthetic_limit_helper_sources)
+    missing_helper_sources[attribute_relative] = missing_helper_sources[
+        attribute_relative
+    ].replace(attribute_needle, f"fn missing_{attribute_function}(", 1)
+    ambiguous_helper_sources = dict(synthetic_limit_helper_sources)
+    attribute_body = rust_named_function_raw_body(
+        ambiguous_helper_sources[attribute_relative],
+        attribute_function,
+        "<crate>",
+    )
+    if attribute_body is None:
+        fail("checker helper ambiguity control cannot isolate its positive body")
+    ambiguous_helper_sources[attribute_relative] += (
+        f"\nfn {attribute_function}(value: u64, limit: u64) {{{attribute_body}}}\n"
+    )
+    if not helper_manifest_rejects(
+        missing_helper_sources
+    ) or not helper_manifest_rejects(ambiguous_helper_sources):
+        fail("checker self-test accepted a missing or ambiguous helper declaration")
     exact_runtime_cases = limit_runtime_case_manifest(
         synthetic_limit_rows,
         synthetic_limit_test_bodies,
@@ -38153,11 +40016,22 @@ impl EvilJoin for PathBuf {}
         'let reviewed_helper = "substituted";',
         1,
     )
-    if (
-        limit_runtime_helper_body_manifest(hostile_helper_sources)
-        == exact_runtime_helpers
-    ):
+    hostile_runtime_helpers = limit_runtime_helper_body_manifest(hostile_helper_sources)
+    changed_helper_keys = tuple(
+        key
+        for key, record in exact_runtime_helpers.items()
+        if hostile_runtime_helpers[key] != record
+    )
+    if len(changed_helper_keys) != 1:
         fail("checker self-test missed a limit helper-body substitution")
+    changed_helper_key = changed_helper_keys[0]
+    if (
+        hostile_runtime_helpers[changed_helper_key]["attribute_chain_sha256"]
+        != exact_runtime_helpers[changed_helper_key]["attribute_chain_sha256"]
+        or hostile_runtime_helpers[changed_helper_key]["body_sha256"]
+        == exact_runtime_helpers[changed_helper_key]["body_sha256"]
+    ):
+        fail("checker self-test lost isolated helper body-digest binding")
     exact_observations = limit_event_observation_manifest(
         synthetic_limit_rows,
         synthetic_limit_test_bodies,

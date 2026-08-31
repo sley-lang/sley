@@ -3949,6 +3949,156 @@ mod tests {
         (fixture, paths)
     }
 
+    struct RefFinalOriginsLimitRefFixture {
+        m2_branch_ref_path: ::std::path::PathBuf,
+        m2_non_target_limit_fields_1: (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64),
+        m2_non_target_limit_fields_2: (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64),
+        m2_primary_final_origin_count: u64,
+        m2_primary_final_origins_limit: u64,
+        m2_primary_locator: ::std::string::String,
+        m2_pristine_primary_observation: (u64, u64),
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_ref_computed_digest: [u8; DIGEST_LEN],
+        m2_secondary_ref_recorded_digest: [u8; DIGEST_LEN],
+        ref_limits_1: RefRecoveryLimits,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    impl BranchRefProbeFixture for RefFinalOriginsLimitRefFixture {
+        fn primary_branch_ref_path(&self) -> &::std::path::Path {
+            &self.m2_secondary_path
+        }
+    }
+
+    fn ref_final_origin_count(root: &::std::path::Path) -> u64 {
+        let mut count = 0_u64;
+        let first = ::std::fs::read_dir(root.join("branches/v1")).unwrap();
+        for first_entry in first {
+            let first_path = first_entry.unwrap().path();
+            if !first_path.is_dir() {
+                continue;
+            }
+            for second_entry in ::std::fs::read_dir(first_path).unwrap() {
+                let second_path = second_entry.unwrap().path();
+                if !second_path.is_dir() {
+                    continue;
+                }
+                for entry in ::std::fs::read_dir(second_path).unwrap() {
+                    let path = entry.unwrap().path();
+                    if path
+                        .file_name()
+                        .and_then(::std::ffi::OsStr::to_str)
+                        .is_some_and(|name| name.ends_with(".branch.scb1"))
+                    {
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+
+    fn prepare_ref_final_origins_limit_ref_fixture(
+        fixture: &Fixture,
+    ) -> RefFinalOriginsLimitRefFixture {
+        let visible_name = BranchName::parse("limit03-m2-visible").unwrap();
+        fixture
+            .branches
+            .create_branch(visible_name.as_bytes(), fixture.genesis_transaction_id)
+            .unwrap();
+        let orphan_name = BranchName::parse("limit03-m2-orphan").unwrap();
+        s20_530_limit_03_write_orphan_origin(fixture, &orphan_name);
+
+        let m2_primary_final_origin_count = ref_final_origin_count(fixture.path());
+        let m2_primary_final_origins_limit = 1_u64;
+        let mut ref_limits_1 = ref_recovery_limits();
+        ref_limits_1.final_origins = m2_primary_final_origins_limit;
+        let m2_non_target_limit_fields_1 = (
+            ref_limits_1.origin_fanout_directories,
+            ref_limits_1.origin_leaf_entries,
+            ref_limits_1.origin_stages,
+            ref_limits_1.origin_record_bytes,
+            ref_limits_1.ref_fanout_directories,
+            ref_limits_1.ref_leaf_entries,
+            ref_limits_1.ref_stages,
+            ref_limits_1.visible_ref_record_bytes,
+            ref_limits_1.orphan_origins,
+            ref_limits_1.visible_branches,
+        );
+        let m2_non_target_limit_fields_2 = m2_non_target_limit_fields_1;
+        let m2_pristine_primary_observation = (
+            m2_primary_final_origin_count,
+            m2_primary_final_origins_limit,
+        );
+
+        let m2_secondary_path = fixture.branches.checked_ref_path(&visible_name).unwrap();
+        let mut corrupted_ref = ::std::fs::read(&m2_secondary_path).unwrap();
+        let preimage_len = corrupted_ref.len().checked_sub(DIGEST_LEN).unwrap();
+        let m2_secondary_ref_computed_digest =
+            digest(REF_DIGEST_DOMAIN, &corrupted_ref[..preimage_len]);
+        *corrupted_ref.last_mut().unwrap() ^= 1;
+        let mut m2_secondary_ref_recorded_digest = [0_u8; DIGEST_LEN];
+        m2_secondary_ref_recorded_digest.copy_from_slice(&corrupted_ref[preimage_len..]);
+        ::std::fs::write(&m2_secondary_path, corrupted_ref).unwrap();
+        ::std::fs::File::open(&m2_secondary_path)
+            .unwrap()
+            .sync_all()
+            .unwrap();
+        super::sync_dir(m2_secondary_path.parent().unwrap()).unwrap();
+
+        let m2_secondary_only_observation = exact_path_snapshot(&m2_secondary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(fixture.path());
+        RefFinalOriginsLimitRefFixture {
+            m2_branch_ref_path: m2_secondary_path.clone(),
+            m2_non_target_limit_fields_1,
+            m2_non_target_limit_fields_2,
+            m2_primary_final_origin_count,
+            m2_primary_final_origins_limit,
+            m2_primary_locator: "ref_recovery_limits::final_origins".into(),
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_ref_computed_digest,
+            m2_secondary_ref_recorded_digest,
+            ref_limits_1,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
+    fn observe_ref_final_origins_limit_ref_fixture_primary(
+        fixture: &Fixture,
+        m2_fixture: &RefFinalOriginsLimitRefFixture,
+    ) -> (u64, u64) {
+        (
+            ref_final_origin_count(fixture.path()),
+            m2_fixture.m2_primary_final_origins_limit,
+        )
+    }
+
+    fn observe_ref_final_origins_limit_ref_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &RefFinalOriginsLimitRefFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn ensure_ref_recovery_limit_pair(
+        fixture: &Fixture,
+        m2_fixture: &RefFinalOriginsLimitRefFixture,
+    ) -> ::core::result::Result<(), super::BranchError> {
+        ensure_ref_recovery_limit(
+            ref_final_origin_count(fixture.path()),
+            m2_fixture.m2_primary_final_origins_limit,
+        )
+    }
+
     fn s20_530_limit_03_total_file_bytes(
         paths: &[::std::path::PathBuf],
     ) -> u64 {
@@ -4704,6 +4854,93 @@ mod tests {
         ::core::assert_eq!(plus_one_runtime_observation.scanned_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.retained_peak, injected_limit);
         ::core::assert_eq!(plus_one_runtime_observation.rejected_target_usage, ::core::option::Option::Some(plus_one_fixture_observation.target_usage));
+        let fixture = Fixture::new("s20-530-m2-limit-03-final-origins");
+        let transaction_repository: &::sley_txn::TransactionRepository = &fixture.transactions;
+        let branch_repository: &super::BranchRepository = &fixture.branches;
+        let owner_root = branch_repository.root();
+        ::core::assert_eq!(owner_root, fixture.path());
+        let m2_fixture = prepare_ref_final_origins_limit_ref_fixture(&fixture);
+        let m2_branch_ref_path = m2_fixture.m2_branch_ref_path.clone();
+        let m2_non_target_limit_fields_1 = m2_fixture.m2_non_target_limit_fields_1.clone();
+        let m2_non_target_limit_fields_2 = m2_fixture.m2_non_target_limit_fields_2.clone();
+        let m2_primary_final_origin_count = m2_fixture.m2_primary_final_origin_count.clone();
+        let m2_primary_final_origins_limit = m2_fixture.m2_primary_final_origins_limit.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_ref_computed_digest = m2_fixture.m2_secondary_ref_computed_digest.clone();
+        let m2_secondary_ref_recorded_digest = m2_fixture.m2_secondary_ref_recorded_digest.clone();
+        let ref_limits_1 = m2_fixture.ref_limits_1.clone();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_two_final_origins_present", m2_primary_final_origin_count), ("primary_two_final_origins_present", 2_u64));
+        ::core::assert_eq!(("primary_only_final_origins_limit_is_one", m2_primary_final_origins_limit), ("primary_only_final_origins_limit_is_one", 1_u64));
+        ::core::assert_eq!(("secondary_ref_path_from_branch", m2_secondary_path.as_path()), ("secondary_ref_path_from_branch", m2_branch_ref_path.as_path()));
+        ::core::assert_ne!(("secondary_ref_digest_corrupt", m2_secondary_ref_computed_digest), ("secondary_ref_digest_corrupt", m2_secondary_ref_recorded_digest));
+        ::core::assert_ne!(("limit_field_vs_artifact_path", m2_primary_locator.as_str()), ("limit_field_vs_artifact_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = ensure_ref_recovery_limit_pair(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_branch_resource_limit", m2_primary_probe_error.code()), ("primary_probe_branch_resource_limit", "BRANCH_RESOURCE_LIMIT"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = import_branch_ref_error_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_ref_digest_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_ref_digest_mismatch", "REF_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = branch_repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_ref_final_origins_limit_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_ref_final_origins_limit_ref_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = branch_repository.recover_refs_with_maintenance_and_limits(&maintenance, ref_limits_1);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_ref_final_origins_limit_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_ref_final_origins_limit_ref_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "BRANCH_RESOURCE_LIMIT"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::BranchError::Branch(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        let ref_limits_2 = RefRecoveryLimits { origin_fanout_directories: ref_limits_1.origin_fanout_directories, origin_leaf_entries: ref_limits_1.origin_leaf_entries, final_origins: 2_u64, origin_stages: ref_limits_1.origin_stages, origin_record_bytes: ref_limits_1.origin_record_bytes, ref_fanout_directories: ref_limits_1.ref_fanout_directories, ref_leaf_entries: ref_limits_1.ref_leaf_entries, ref_stages: ref_limits_1.ref_stages, visible_ref_record_bytes: ref_limits_1.visible_ref_record_bytes, orphan_origins: ref_limits_1.orphan_origins, visible_branches: ref_limits_1.visible_branches };
+        let m2_primary_after_repair = observe_ref_final_origins_limit_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_ref_final_origins_limit_ref_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::refs::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = branch_repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_ref_final_origins_limit_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_ref_final_origins_limit_ref_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_non_target_limit_fields_1, m2_non_target_limit_fields_2);
+        let m2_result_2 = branch_repository.recover_refs_with_maintenance_and_limits(&maintenance, ref_limits_2);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::refs::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_ref_final_origins_limit_ref_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_ref_final_origins_limit_ref_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "REF_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::BranchError::Branch(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::refs::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 
     #[test]
@@ -5472,6 +5709,61 @@ mod tests {
 
     fn cross05_recovery_fixture() -> Fixture {
         Fixture::new("cross05-ref-wrapper")
+    }
+
+    struct CrossRecoverySuccessFixture {
+        fixture: Fixture,
+        old_transaction_id: TransactionId,
+        new_transaction_id: TransactionId,
+        branch_name: MappedBranchName,
+    }
+
+    fn cross_recovery_success_fixture(
+        label: &str,
+        accepted_is_new: bool,
+        branch_is_new: bool,
+    ) -> CrossRecoverySuccessFixture {
+        let fixture = Fixture::new(label);
+        let old_transaction_id = fixture.genesis_transaction_id;
+        let accepted_path = fixture.transactions.root().join("heads").join("accepted");
+        let old_accepted_bytes = ::std::fs::read(&accepted_path).unwrap();
+        let branch_name = MappedBranchName(BranchName::parse(label).unwrap());
+        fixture
+            .branches
+            .create_branch(&branch_name, old_transaction_id)
+            .unwrap();
+        let new_transaction_id = fixture.commit_child(79);
+        if !accepted_is_new {
+            ::std::fs::write(&accepted_path, &old_accepted_bytes).unwrap();
+            ::std::fs::File::open(&accepted_path)
+                .unwrap()
+                .sync_all()
+                .unwrap();
+            super::sync_dir(accepted_path.parent().unwrap()).unwrap();
+        }
+        if branch_is_new {
+            fixture
+                .branches
+                .advance_branch(&branch_name, old_transaction_id, new_transaction_id)
+                .unwrap();
+        } else {
+            let advance_error = fixture
+                .branches
+                .advance_branch_with_native_ref_durability_cut(
+                    &branch_name,
+                    old_transaction_id,
+                    new_transaction_id,
+                    NativeRefDurabilityCut::Ref12VerifiedAdvanceRefStageBeforeRename,
+                )
+                .expect_err("expected interrupted branch advance");
+            ::core::assert_eq!(advance_error.code(), "REF_IO");
+        }
+        CrossRecoverySuccessFixture {
+            fixture,
+            old_transaction_id,
+            new_transaction_id,
+            branch_name,
+        }
     }
 
     struct Cross05CompositeFixture {
@@ -21266,6 +21558,302 @@ mod tests {
     }
 
     #[test]
+    fn cross01_old_accepted_old_branch_recoveries_are_idempotent() {
+        let CrossRecoverySuccessFixture {
+            fixture,
+            old_transaction_id,
+            new_transaction_id,
+            branch_name,
+        } = cross_recovery_success_fixture("cross01", false, false);
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let old_revision = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let new_revision = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        let accepted_before = transaction_repository.accepted_head().unwrap();
+        let branch_before = branch_repository.resolve_branch(&branch_name).unwrap();
+        let accepted_path = transaction_repository.root().join("heads").join("accepted");
+        let ref_path = branch_repository.checked_ref_path(&branch_name).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(transaction_repository.root()));
+        ::core::assert!(maintenance.covers(branch_repository.root()));
+        let accepted_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let first_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let first_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let accepted_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let second_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let second_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        drop(maintenance);
+        let accepted_after = transaction_repository.accepted_head().unwrap();
+        let branch_after = branch_repository.resolve_branch(&branch_name).unwrap();
+        let verified_old = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let verified_new = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        ::core::assert_eq!(first_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(old_transaction_id));
+        ::core::assert_eq!(first_transaction_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(first_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.removed_ref_stages, 1);
+        ::core::assert_eq!(first_ref_recovery.visible_branches, 1);
+        ::core::assert!(first_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(first_ref_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(second_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(old_transaction_id));
+        ::core::assert_eq!(second_transaction_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(second_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.visible_branches, 1);
+        ::core::assert!(second_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(second_ref_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(accepted_before_first_snapshot, accepted_after_first_snapshot);
+        ::core::assert_eq!(ref_before_first_snapshot, ref_after_first_snapshot);
+        ::core::assert_eq!(accepted_after_first_snapshot, accepted_before_second_snapshot);
+        ::core::assert_eq!(ref_after_first_snapshot, ref_before_second_snapshot);
+        ::core::assert_eq!(accepted_before_second_snapshot, accepted_after_second_snapshot);
+        ::core::assert_eq!(ref_before_second_snapshot, ref_after_second_snapshot);
+        ::core::assert_ne!(old_transaction_id, new_transaction_id);
+        ::core::assert!(old_revision.receipt().transaction.record.parent_transaction_ids.is_empty());
+        ::core::assert_eq!(new_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[old_transaction_id]);
+        ::core::assert_eq!(accepted_before.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(branch_before.reference.record.head_transaction_id, old_transaction_id);
+        ::core::assert_eq!(accepted_after.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(branch_after.reference.record.head_transaction_id, old_transaction_id);
+        ::core::assert_eq!(verified_old.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(verified_new.transaction_id(), new_transaction_id);
+    }
+
+    #[test]
+    fn cross02_old_accepted_new_branch_recoveries_are_idempotent() {
+        let CrossRecoverySuccessFixture {
+            fixture,
+            old_transaction_id,
+            new_transaction_id,
+            branch_name,
+        } = cross_recovery_success_fixture("cross02", false, true);
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let old_revision = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let new_revision = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        let accepted_before = transaction_repository.accepted_head().unwrap();
+        let branch_before = branch_repository.resolve_branch(&branch_name).unwrap();
+        let accepted_path = transaction_repository.root().join("heads").join("accepted");
+        let ref_path = branch_repository.checked_ref_path(&branch_name).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(transaction_repository.root()));
+        ::core::assert!(maintenance.covers(branch_repository.root()));
+        let accepted_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let first_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let first_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let accepted_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let second_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let second_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        drop(maintenance);
+        let accepted_after = transaction_repository.accepted_head().unwrap();
+        let branch_after = branch_repository.resolve_branch(&branch_name).unwrap();
+        let verified_old = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let verified_new = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        ::core::assert_eq!(first_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(old_transaction_id));
+        ::core::assert_eq!(first_transaction_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(first_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.visible_branches, 1);
+        ::core::assert!(first_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(first_ref_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(second_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(old_transaction_id));
+        ::core::assert_eq!(second_transaction_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(second_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.visible_branches, 1);
+        ::core::assert!(second_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(second_ref_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(accepted_before_first_snapshot, accepted_after_first_snapshot);
+        ::core::assert_eq!(ref_before_first_snapshot, ref_after_first_snapshot);
+        ::core::assert_eq!(accepted_after_first_snapshot, accepted_before_second_snapshot);
+        ::core::assert_eq!(ref_after_first_snapshot, ref_before_second_snapshot);
+        ::core::assert_eq!(accepted_before_second_snapshot, accepted_after_second_snapshot);
+        ::core::assert_eq!(ref_before_second_snapshot, ref_after_second_snapshot);
+        ::core::assert_ne!(old_transaction_id, new_transaction_id);
+        ::core::assert!(old_revision.receipt().transaction.record.parent_transaction_ids.is_empty());
+        ::core::assert_eq!(new_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[old_transaction_id]);
+        ::core::assert_eq!(accepted_before.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(branch_before.reference.record.head_transaction_id, new_transaction_id);
+        ::core::assert_eq!(accepted_after.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(branch_after.reference.record.head_transaction_id, new_transaction_id);
+        ::core::assert_eq!(verified_old.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(verified_new.transaction_id(), new_transaction_id);
+    }
+
+    #[test]
+    fn cross03_new_accepted_old_branch_recoveries_are_idempotent() {
+        let CrossRecoverySuccessFixture {
+            fixture,
+            old_transaction_id,
+            new_transaction_id,
+            branch_name,
+        } = cross_recovery_success_fixture("cross03", true, false);
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let old_revision = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let new_revision = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        let accepted_before = transaction_repository.accepted_head().unwrap();
+        let branch_before = branch_repository.resolve_branch(&branch_name).unwrap();
+        let accepted_path = transaction_repository.root().join("heads").join("accepted");
+        let ref_path = branch_repository.checked_ref_path(&branch_name).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(transaction_repository.root()));
+        ::core::assert!(maintenance.covers(branch_repository.root()));
+        let accepted_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let first_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let first_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let accepted_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let second_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let second_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        drop(maintenance);
+        let accepted_after = transaction_repository.accepted_head().unwrap();
+        let branch_after = branch_repository.resolve_branch(&branch_name).unwrap();
+        let verified_old = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let verified_new = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        ::core::assert_eq!(first_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(new_transaction_id));
+        ::core::assert_eq!(first_transaction_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(first_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.removed_ref_stages, 1);
+        ::core::assert_eq!(first_ref_recovery.visible_branches, 1);
+        ::core::assert!(first_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(first_ref_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(second_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(new_transaction_id));
+        ::core::assert_eq!(second_transaction_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(second_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.visible_branches, 1);
+        ::core::assert!(second_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(second_ref_recovery.verified_ancestry_transactions, 1);
+        ::core::assert_eq!(accepted_before_first_snapshot, accepted_after_first_snapshot);
+        ::core::assert_eq!(ref_before_first_snapshot, ref_after_first_snapshot);
+        ::core::assert_eq!(accepted_after_first_snapshot, accepted_before_second_snapshot);
+        ::core::assert_eq!(ref_after_first_snapshot, ref_before_second_snapshot);
+        ::core::assert_eq!(accepted_before_second_snapshot, accepted_after_second_snapshot);
+        ::core::assert_eq!(ref_before_second_snapshot, ref_after_second_snapshot);
+        ::core::assert_ne!(old_transaction_id, new_transaction_id);
+        ::core::assert!(old_revision.receipt().transaction.record.parent_transaction_ids.is_empty());
+        ::core::assert_eq!(new_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[old_transaction_id]);
+        ::core::assert_eq!(accepted_before.transaction_id(), new_transaction_id);
+        ::core::assert_eq!(branch_before.reference.record.head_transaction_id, old_transaction_id);
+        ::core::assert_eq!(accepted_after.transaction_id(), new_transaction_id);
+        ::core::assert_eq!(branch_after.reference.record.head_transaction_id, old_transaction_id);
+        ::core::assert_eq!(verified_old.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(verified_new.transaction_id(), new_transaction_id);
+    }
+
+    #[test]
+    fn cross04_new_accepted_new_branch_recoveries_are_idempotent() {
+        let CrossRecoverySuccessFixture {
+            fixture,
+            old_transaction_id,
+            new_transaction_id,
+            branch_name,
+        } = cross_recovery_success_fixture("cross04", true, true);
+        let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
+        let branch_repository = super::BranchRepository::new(fixture.path());
+        let old_revision = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let new_revision = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        let accepted_before = transaction_repository.accepted_head().unwrap();
+        let branch_before = branch_repository.resolve_branch(&branch_name).unwrap();
+        let accepted_path = transaction_repository.root().join("heads").join("accepted");
+        let ref_path = branch_repository.checked_ref_path(&branch_name).unwrap();
+        let maintenance = branch_repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert!(maintenance.is_exclusive());
+        ::core::assert!(maintenance.covers(transaction_repository.root()));
+        ::core::assert!(maintenance.covers(branch_repository.root()));
+        let accepted_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let first_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let first_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_first_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let accepted_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_before_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        let second_transaction_recovery = transaction_repository.recover_with_maintenance(&maintenance).unwrap();
+        let second_ref_recovery = branch_repository.recover_refs_with_maintenance(&maintenance).unwrap();
+        let accepted_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&accepted_path);
+        let ref_after_second_snapshot = crate::refs::tests::exact_path_snapshot(&ref_path);
+        drop(maintenance);
+        let accepted_after = transaction_repository.accepted_head().unwrap();
+        let branch_after = branch_repository.resolve_branch(&branch_name).unwrap();
+        let verified_old = transaction_repository.verified_revision(old_transaction_id).unwrap();
+        let verified_new = transaction_repository.verified_revision(new_transaction_id).unwrap();
+        ::core::assert_eq!(first_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(first_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(new_transaction_id));
+        ::core::assert_eq!(first_transaction_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(first_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(first_ref_recovery.visible_branches, 1);
+        ::core::assert!(first_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(first_ref_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(second_transaction_recovery.removed_object_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_receipt_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.removed_head_stages, 0);
+        ::core::assert_eq!(second_transaction_recovery.accepted_transaction_id, ::core::option::Option::Some(new_transaction_id));
+        ::core::assert_eq!(second_transaction_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(second_ref_recovery.removed_branch_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.removed_ref_stages, 0);
+        ::core::assert_eq!(second_ref_recovery.visible_branches, 1);
+        ::core::assert!(second_ref_recovery.orphan_origins.is_empty());
+        ::core::assert_eq!(second_ref_recovery.verified_ancestry_transactions, 2);
+        ::core::assert_eq!(accepted_before_first_snapshot, accepted_after_first_snapshot);
+        ::core::assert_eq!(ref_before_first_snapshot, ref_after_first_snapshot);
+        ::core::assert_eq!(accepted_after_first_snapshot, accepted_before_second_snapshot);
+        ::core::assert_eq!(ref_after_first_snapshot, ref_before_second_snapshot);
+        ::core::assert_eq!(accepted_before_second_snapshot, accepted_after_second_snapshot);
+        ::core::assert_eq!(ref_before_second_snapshot, ref_after_second_snapshot);
+        ::core::assert_ne!(old_transaction_id, new_transaction_id);
+        ::core::assert!(old_revision.receipt().transaction.record.parent_transaction_ids.is_empty());
+        ::core::assert_eq!(new_revision.receipt().transaction.record.parent_transaction_ids.as_slice(), &[old_transaction_id]);
+        ::core::assert_eq!(accepted_before.transaction_id(), new_transaction_id);
+        ::core::assert_eq!(branch_before.reference.record.head_transaction_id, new_transaction_id);
+        ::core::assert_eq!(accepted_after.transaction_id(), new_transaction_id);
+        ::core::assert_eq!(branch_after.reference.record.head_transaction_id, new_transaction_id);
+        ::core::assert_eq!(verified_old.transaction_id(), old_transaction_id);
+        ::core::assert_eq!(verified_new.transaction_id(), new_transaction_id);
+    }
+
+    #[test]
     fn anc02_shared_and_distinct_branch_ancestry_union_is_idempotent() {
         let fixture = Fixture::new("anc02");
         let transaction_repository = ::sley_txn::TransactionRepository::new(fixture.path());
@@ -24114,8 +24702,8 @@ mod tests {
         ::core::assert_eq!(error.code(), "BRANCH_ANCESTRY_CYCLE");
         ::core::assert!(::core::matches!(&error, super::BranchError::Branch(_)));
         ::core::assert_eq!(
-            crate::refs::tests::exact_error_source_chain(&error),
-            [] as [&str; 0]
+            crate::refs::tests::exact_error_source_chain::<0>(&error),
+            [] as [&'static str; 0]
         );
         let (cycle_observations, plan_consumption_counts) = consumed_l_r_l_cycle_observations(&transaction_repository, &maintenance, plan_identity, &provenance);
         provenance.plan_consumption_counts = plan_consumption_counts;
