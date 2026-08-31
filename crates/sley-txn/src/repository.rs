@@ -6848,136 +6848,184 @@ mod tests {
 
     #[test]
     fn cor06_head_checksum__head_shape_before_receipt_missing() {
-        let fixture = Fixture::new("s20-530-cor-06-head-checksum-head-shape-before-receipt-missing");
+        let fixture = Fixture::new("s20-530-m2-cor-06-head-checksum-head-shape-before-receipt-missing");
         let repository: &super::TransactionRepository = &fixture.repository;
         let owner_root = repository.root();
         ::core::assert_eq!(owner_root, fixture.path());
-        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
-        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-06", "head_checksum", "head_shape_before_receipt_missing", "ACCEPTED_POINTER", "accepted_pointer", "transaction_repository_owner_root", "accepted_pointer_path", "accepted_pointer_shape", "decode_accepted_pointer_error", "head_shape_before_receipt_missing", &[]);
-        let fixture_observation = prepare_accepted_head_pointer_corruption_fixture(&fixture, &fixture_plan);
-        let fault_path = fixture_observation.fault_path.clone();
-        let control_path = fixture_observation.control_path.clone();
-        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
-        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
-        apply_accepted_pointer_shape_corruption(&fixture, &fixture_plan, &fault_path);
-        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
-        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
-        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
-        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
-        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
-        let fixture_direct = observe_accepted_head_pointer_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
-        let fixture_probe_result = decode_accepted_pointer_error(&fixture, &fixture_observation, &fault_path);
-        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
-        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
-        ::core::assert_eq!(("pointer_path_from_owner", fault_path.as_path()), ("pointer_path_from_owner", owner_root.join("heads").join("accepted").as_path()));
-        ::core::assert_eq!(("pointer_kind", fault_after_kind), ("pointer_kind", ::core::option::Option::Some("regular")));
-        ::core::assert_eq!(("pointer_pristine_bytes", fault_before_bytes.as_slice()), ("pointer_pristine_bytes", fixture_observation.pristine_bytes.as_slice()));
-        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
-        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Transaction(_)));
-        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "REF_HEAD_CORRUPT"));
-        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_receipt_control");
-        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
-        let object_stage_path = fixture_observation.object_stage_path.clone();
-        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
-        let object_stage_before_kind = object_stage_before_snapshot.0;
-        ::core::assert_eq!(object_stage_before_kind, "regular");
-        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
-        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
-        ::core::assert_eq!(receipt_stage_before_kind, "regular");
-        let head_stage_path = fixture_observation.head_stage_path.clone();
-        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
-        let head_stage_before_kind = head_stage_before_snapshot.0;
-        ::core::assert_eq!(head_stage_before_kind, "regular");
-        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let result = repository.recover_with_maintenance(&maintenance);
-        ::core::assert!(result.is_err());
-        let error = result.expect_err("expected recovery error");
-        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
-        let object_stage_after_kind = object_stage_after_snapshot.0;
-        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
-        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
-        let head_stage_after_kind = head_stage_after_snapshot.0;
-        ::core::assert_eq!(error.code(), "REF_HEAD_CORRUPT");
-        ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
-        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain::<0>(&error), [] as [&'static str; 0]);
-        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
-        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
-        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
-        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
-        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
-        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
-        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+        let m2_fixture = prepare_grouped_head_shape_receipt_missing_fixture(&fixture);
+        let m2_owner_accepted_pointer_path = m2_fixture.m2_owner_accepted_pointer_path.clone();
+        let m2_pointer_target_receipt_path = m2_fixture.m2_pointer_target_receipt_path.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_primary_path = m2_fixture.m2_primary_path.clone();
+        let m2_primary_pointer_field_count = m2_fixture.m2_primary_pointer_field_count.clone();
+        let m2_pristine_primary_bytes = m2_fixture.m2_pristine_primary_bytes.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_receipt_snapshot = m2_fixture.m2_secondary_receipt_snapshot.clone();
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_pointer_path_from_owner", m2_primary_path.as_path()), ("primary_pointer_path_from_owner", m2_owner_accepted_pointer_path.as_path()));
+        ::core::assert_ne!(("primary_pointer_shape_corrupt", m2_primary_pointer_field_count), ("primary_pointer_shape_corrupt", 2_usize));
+        ::core::assert_eq!(("secondary_receipt_path_from_pointer", m2_secondary_path.as_path()), ("secondary_receipt_path_from_pointer", m2_pointer_target_receipt_path.as_path()));
+        ::core::assert!(m2_secondary_receipt_snapshot.is_none(), "secondary_receipt_absent");
+        ::core::assert_ne!(("pointer_path_differs_from_target_receipt_path", m2_primary_locator.as_str()), ("pointer_path_differs_from_target_receipt_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = decode_grouped_accepted_pointer_error_m2(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_ref_head_corrupt", m2_primary_probe_error.code()), ("primary_probe_ref_head_corrupt", "REF_HEAD_CORRUPT"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = verify_grouped_absent_revision_receipt_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_receipt_incomplete", m2_secondary_probe_error.code()), ("secondary_probe_receipt_incomplete", "RECOVERY_RECEIPT_INCOMPLETE"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_grouped_head_shape_receipt_missing_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_grouped_head_shape_receipt_missing_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_grouped_head_shape_receipt_missing_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_grouped_head_shape_receipt_missing_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::CommitError::Transaction(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_grouped_head_shape_receipt_missing_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_grouped_head_shape_receipt_missing_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_grouped_head_shape_receipt_missing_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_grouped_head_shape_receipt_missing_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_grouped_head_shape_receipt_missing_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_grouped_head_shape_receipt_missing_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "RECOVERY_RECEIPT_INCOMPLETE"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::CommitError::Transaction(_)), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_2)), ("m2_operation_2_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 
     #[test]
     fn cor06_head_checksum__head_checksum_before_receipt_corrupt() {
-        let fixture = Fixture::new("s20-530-cor-06-head-checksum-head-checksum-before-receipt-corrupt");
+        let fixture = Fixture::new("s20-530-m2-cor-06-head-checksum-head-checksum-before-receipt-corrupt");
         let repository: &super::TransactionRepository = &fixture.repository;
         let owner_root = repository.root();
         ::core::assert_eq!(owner_root, fixture.path());
-        let maintenance: super::RepositoryMaintenanceGuard = repository.acquire_exclusive_maintenance().unwrap();
-        let fresh_owner_tree_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-06", "head_checksum", "head_checksum_before_receipt_corrupt", "ACCEPTED_POINTER", "accepted_pointer", "transaction_repository_owner_root", "accepted_pointer_path", "accepted_pointer_checksum", "decode_accepted_pointer_error", "head_checksum_before_receipt_corrupt", &[]);
-        let fixture_observation = prepare_accepted_head_pointer_corruption_fixture(&fixture, &fixture_plan);
-        let fault_path = fixture_observation.fault_path.clone();
-        let control_path = fixture_observation.control_path.clone();
-        let fault_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
-        let control_before_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
-        apply_accepted_pointer_checksum_corruption(&fixture, &fixture_plan, &fault_path);
-        let fault_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&fault_path);
-        let control_after_snapshot = crate::repository::tests::exact_optional_path_snapshot(&control_path);
-        let fault_after_kind = fault_after_snapshot.as_ref().map(|snapshot| snapshot.0);
-        let fault_before_bytes = fault_before_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
-        let fault_after_bytes = fault_after_snapshot.as_ref().map(|snapshot| snapshot.2.clone()).unwrap_or_default();
-        let fixture_direct = observe_accepted_head_pointer_corruption_fixture(&fixture, &fixture_observation, &fault_path, &control_path);
-        let fixture_probe_result = decode_accepted_pointer_error(&fixture, &fixture_observation, &fault_path);
-        let untargeted_probe_result = probe_untargeted_corruption_control(&fixture, &fixture_observation, &control_path);
-        let fixture_probe_error = fixture_probe_result.expect_err("expected direct corruption fixture probe error");
-        ::core::assert_eq!(("pointer_path_from_owner", fault_path.as_path()), ("pointer_path_from_owner", owner_root.join("heads").join("accepted").as_path()));
-        ::core::assert_eq!(("pointer_kind", fault_after_kind), ("pointer_kind", ::core::option::Option::Some("regular")));
-        ::core::assert_eq!(("pointer_pristine_bytes", fault_before_bytes.as_slice()), ("pointer_pristine_bytes", fixture_observation.pristine_bytes.as_slice()));
-        ::core::assert_ne!(("selector_effect", fault_before_snapshot), ("selector_effect", fault_after_snapshot));
-        ::core::assert!(::core::matches!((&fixture_probe_error), super::CommitError::Transaction(_)));
-        ::core::assert_eq!(("direct_probe_code", fixture_probe_error.code()), ("direct_probe_code", "REF_HEAD_CORRUPT"));
-        ::core::assert!(untargeted_probe_result.is_ok(), "untargeted_receipt_control");
-        ::core::assert_eq!(control_before_snapshot, control_after_snapshot);
-        let object_stage_path = fixture_observation.object_stage_path.clone();
-        let object_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
-        let object_stage_before_kind = object_stage_before_snapshot.0;
-        ::core::assert_eq!(object_stage_before_kind, "regular");
-        let receipt_stage_path = fixture_observation.receipt_stage_path.clone();
-        let receipt_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_before_kind = receipt_stage_before_snapshot.0;
-        ::core::assert_eq!(receipt_stage_before_kind, "regular");
-        let head_stage_path = fixture_observation.head_stage_path.clone();
-        let head_stage_before_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
-        let head_stage_before_kind = head_stage_before_snapshot.0;
-        ::core::assert_eq!(head_stage_before_kind, "regular");
-        let owner_tree_before_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let result = repository.recover_with_maintenance(&maintenance);
-        ::core::assert!(result.is_err());
-        let error = result.expect_err("expected recovery error");
-        let owner_tree_after_snapshot = crate::repository::tests::exact_tree_snapshot(owner_root);
-        let object_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&object_stage_path);
-        let object_stage_after_kind = object_stage_after_snapshot.0;
-        let receipt_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&receipt_stage_path);
-        let receipt_stage_after_kind = receipt_stage_after_snapshot.0;
-        let head_stage_after_snapshot = crate::repository::tests::exact_path_snapshot(&head_stage_path);
-        let head_stage_after_kind = head_stage_after_snapshot.0;
-        ::core::assert_eq!(error.code(), "REF_HEAD_CORRUPT");
-        ::core::assert!(::core::matches!(&error, super::CommitError::Transaction(_)));
-        ::core::assert_eq!(crate::repository::tests::exact_error_source_chain::<0>(&error), [] as [&'static str; 0]);
-        ::core::assert_eq!(owner_tree_before_snapshot, owner_tree_after_snapshot);
-        ::core::assert_eq!(object_stage_before_snapshot, object_stage_after_snapshot);
-        ::core::assert_eq!(object_stage_before_kind, object_stage_after_kind);
-        ::core::assert_eq!(receipt_stage_before_snapshot, receipt_stage_after_snapshot);
-        ::core::assert_eq!(receipt_stage_before_kind, receipt_stage_after_kind);
-        ::core::assert_eq!(head_stage_before_snapshot, head_stage_after_snapshot);
-        ::core::assert_eq!(head_stage_before_kind, head_stage_after_kind);
+        let m2_fixture = prepare_grouped_head_checksum_receipt_digest_fixture(&fixture);
+        let m2_owner_accepted_pointer_path = m2_fixture.m2_owner_accepted_pointer_path.clone();
+        let m2_pointer_target_receipt_path = m2_fixture.m2_pointer_target_receipt_path.clone();
+        let m2_primary_locator = m2_fixture.m2_primary_locator.clone();
+        let m2_primary_path = m2_fixture.m2_primary_path.clone();
+        let m2_primary_pointer_computed_checksum = m2_fixture.m2_primary_pointer_computed_checksum.clone();
+        let m2_primary_pointer_recorded_checksum = m2_fixture.m2_primary_pointer_recorded_checksum.clone();
+        let m2_pristine_primary_bytes = m2_fixture.m2_pristine_primary_bytes.clone();
+        let m2_pristine_primary_observation = m2_fixture.m2_pristine_primary_observation.clone();
+        let m2_secondary_locator = m2_fixture.m2_secondary_locator.clone();
+        let m2_secondary_only_observation = m2_fixture.m2_secondary_only_observation.clone();
+        let m2_secondary_only_owner_tree = m2_fixture.m2_secondary_only_owner_tree.clone();
+        let m2_secondary_path = m2_fixture.m2_secondary_path.clone();
+        let m2_secondary_receipt_computed_digest = m2_fixture.m2_secondary_receipt_computed_digest.clone();
+        let m2_secondary_receipt_recorded_digest = m2_fixture.m2_secondary_receipt_recorded_digest.clone();
+        let maintenance = repository.acquire_exclusive_maintenance().unwrap();
+        ::core::assert_eq!(("primary_pointer_path_from_owner", m2_primary_path.as_path()), ("primary_pointer_path_from_owner", m2_owner_accepted_pointer_path.as_path()));
+        ::core::assert_ne!(("primary_pointer_checksum_corrupt", m2_primary_pointer_computed_checksum), ("primary_pointer_checksum_corrupt", m2_primary_pointer_recorded_checksum));
+        ::core::assert_eq!(("secondary_receipt_path_from_pointer", m2_secondary_path.as_path()), ("secondary_receipt_path_from_pointer", m2_pointer_target_receipt_path.as_path()));
+        ::core::assert_ne!(("secondary_receipt_digest_corrupt", m2_secondary_receipt_computed_digest), ("secondary_receipt_digest_corrupt", m2_secondary_receipt_recorded_digest));
+        ::core::assert_ne!(("pointer_path_differs_from_target_receipt_path", m2_primary_locator.as_str()), ("pointer_path_differs_from_target_receipt_path", m2_secondary_locator.as_str()));
+        let m2_primary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_probe_result = decode_grouped_accepted_pointer_error_m2(&fixture, &m2_fixture);
+        let m2_primary_probe_error = m2_primary_probe_result.expect_err("expected primary multifault probe error");
+        let m2_primary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("primary_probe_ref_head_corrupt", m2_primary_probe_error.code()), ("primary_probe_ref_head_corrupt", "REF_HEAD_CORRUPT"));
+        ::core::assert_eq!(m2_primary_probe_before, m2_primary_probe_after);
+        let m2_secondary_probe_before = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_secondary_probe_result = import_grouped_transaction_receipt_error_m2(&fixture, &m2_fixture);
+        let m2_secondary_probe_error = m2_secondary_probe_result.expect_err("expected secondary multifault probe error");
+        let m2_secondary_probe_after = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(("secondary_probe_scb_digest_mismatch", m2_secondary_probe_error.code()), ("secondary_probe_scb_digest_mismatch", "SCB_DIGEST_MISMATCH"));
+        ::core::assert_eq!(m2_secondary_probe_before, m2_secondary_probe_after);
+        let m2_receiver_identity_1 = repository.root().to_path_buf();
+        let m2_owner_root_1 = owner_root.to_path_buf();
+        let m2_guard_identity_1 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_1 = m2_fixture.m2_arguments_1.clone();
+        let m2_before_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_1 = observe_grouped_head_checksum_receipt_digest_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_1 = observe_grouped_head_checksum_receipt_digest_fixture_secondary(&fixture, &m2_fixture);
+        let m2_result_1 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_1.is_err());
+        let m2_error_1 = m2_result_1.expect_err("expected multifault precedence winner");
+        let m2_after_1 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_1 = observe_grouped_head_checksum_receipt_digest_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_1 = observe_grouped_head_checksum_receipt_digest_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_1_code", m2_error_1.code()), ("m2_operation_1_code", "REF_HEAD_CORRUPT"));
+        ::core::assert!(::core::matches!(&m2_error_1, super::CommitError::Transaction(_)), "m2_operation_1_variant");
+        ::core::assert_eq!(("m2_operation_1_source_chain", crate::repository::tests::exact_error_source_chain::<0>(&m2_error_1)), ("m2_operation_1_source_chain", [] as [&'static str; 0]));
+        ::core::assert_eq!(m2_before_1, m2_after_1);
+        ::core::assert_eq!(m2_primary_before_1, m2_primary_after_1);
+        ::core::assert_eq!(m2_secondary_before_1, m2_secondary_after_1);
+        ::std::fs::write(&m2_primary_path, &m2_pristine_primary_bytes).unwrap();
+        ::std::fs::File::open(&m2_primary_path).unwrap().sync_all().unwrap();
+        super::sync_dir(m2_primary_path.parent().unwrap()).unwrap();
+        let m2_primary_after_repair = observe_grouped_head_checksum_receipt_digest_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_repair = observe_grouped_head_checksum_receipt_digest_fixture_secondary(&fixture, &m2_fixture);
+        let m2_after_repair = crate::repository::tests::exact_tree_snapshot(owner_root);
+        ::core::assert_eq!(m2_primary_after_repair, m2_pristine_primary_observation);
+        ::core::assert_eq!(m2_secondary_after_repair, m2_secondary_only_observation);
+        ::core::assert_eq!(m2_after_repair, m2_secondary_only_owner_tree);
+        let m2_receiver_identity_2 = repository.root().to_path_buf();
+        let m2_owner_root_2 = owner_root.to_path_buf();
+        let m2_guard_identity_2 = maintenance.repository_root().to_path_buf();
+        let m2_arguments_2 = m2_fixture.m2_arguments_2.clone();
+        let m2_before_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_before_2 = observe_grouped_head_checksum_receipt_digest_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_before_2 = observe_grouped_head_checksum_receipt_digest_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(m2_receiver_identity_1, m2_receiver_identity_2);
+        ::core::assert_eq!(m2_owner_root_1, m2_owner_root_2);
+        ::core::assert_eq!(m2_guard_identity_1, m2_guard_identity_2);
+        ::core::assert_eq!(m2_arguments_1, m2_arguments_2);
+        let m2_result_2 = repository.recover_with_maintenance(&maintenance);
+        ::core::assert!(m2_result_2.is_err());
+        let m2_error_2 = m2_result_2.expect_err("expected multifault precedence loser");
+        let m2_after_2 = crate::repository::tests::exact_tree_snapshot(owner_root);
+        let m2_primary_after_2 = observe_grouped_head_checksum_receipt_digest_fixture_primary(&fixture, &m2_fixture);
+        let m2_secondary_after_2 = observe_grouped_head_checksum_receipt_digest_fixture_secondary(&fixture, &m2_fixture);
+        ::core::assert_eq!(("m2_operation_2_code", m2_error_2.code()), ("m2_operation_2_code", "SCB_DIGEST_MISMATCH"));
+        ::core::assert!(::core::matches!(&m2_error_2, super::CommitError::Codec(crate::codec::TransactionCodecError::Scb(_))), "m2_operation_2_variant");
+        ::core::assert_eq!(("m2_operation_2_source_chain", crate::repository::tests::exact_error_source_chain(&m2_error_2)), ("m2_operation_2_source_chain", ["TransactionCodecError"]));
+        ::core::assert_eq!(m2_before_2, m2_after_2);
+        ::core::assert_eq!(m2_primary_before_2, m2_primary_after_2);
+        ::core::assert_eq!(m2_secondary_before_2, m2_secondary_after_2);
     }
 
     #[test]
@@ -11493,6 +11541,216 @@ mod tests {
         fn index(&self, index: ::core::primitive::usize) -> &Self::Output {
             &self.projection[index]
         }
+    }
+
+    struct GroupedHeadShapeReceiptMissingFixture {
+        m2_owner_accepted_pointer_path: ::std::path::PathBuf,
+        m2_pointer_target_receipt_path: ::std::path::PathBuf,
+        m2_primary_locator: ::std::string::String,
+        m2_primary_path: ::std::path::PathBuf,
+        m2_primary_pointer_field_count: usize,
+        m2_pristine_primary_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_observation: ExactPathSnapshot,
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactOptionalPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_receipt_snapshot: ExactOptionalPathSnapshot,
+        m2_target_transaction_id: TransactionId,
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    struct GroupedHeadChecksumReceiptDigestFixture {
+        m2_owner_accepted_pointer_path: ::std::path::PathBuf,
+        m2_pointer_target_receipt_path: ::std::path::PathBuf,
+        m2_primary_locator: ::std::string::String,
+        m2_primary_path: ::std::path::PathBuf,
+        m2_primary_pointer_computed_checksum: [u8; 32],
+        m2_primary_pointer_recorded_checksum: [u8; 32],
+        m2_pristine_primary_bytes: ::std::vec::Vec<u8>,
+        m2_pristine_primary_observation: ExactPathSnapshot,
+        m2_secondary_locator: ::std::string::String,
+        m2_secondary_only_observation: ExactPathSnapshot,
+        m2_secondary_only_owner_tree: ExactTreeSnapshot,
+        m2_secondary_path: ::std::path::PathBuf,
+        m2_secondary_receipt_computed_digest: [u8; 32],
+        m2_secondary_receipt_recorded_digest: [u8; 32],
+        m2_arguments_1: (),
+        m2_arguments_2: (),
+    }
+
+    trait GroupedAcceptedPointerProbeFixture {
+        fn grouped_accepted_pointer_path(&self) -> &::std::path::Path;
+    }
+
+    impl GroupedAcceptedPointerProbeFixture for GroupedHeadShapeReceiptMissingFixture {
+        fn grouped_accepted_pointer_path(&self) -> &::std::path::Path {
+            &self.m2_primary_path
+        }
+    }
+
+    impl GroupedAcceptedPointerProbeFixture for GroupedHeadChecksumReceiptDigestFixture {
+        fn grouped_accepted_pointer_path(&self) -> &::std::path::Path {
+            &self.m2_primary_path
+        }
+    }
+
+    fn prepare_grouped_head_shape_receipt_missing_fixture(
+        fixture: &Fixture,
+    ) -> GroupedHeadShapeReceiptMissingFixture {
+        let m2_primary_path = fixture.repository.head_path();
+        let m2_pristine_primary_bytes = ::std::fs::read(&m2_primary_path).unwrap();
+        let m2_target_transaction_id = decode_head(&m2_pristine_primary_bytes).unwrap();
+        let m2_secondary_path =
+            corruption_receipt_path(fixture.path(), m2_target_transaction_id);
+        ::std::fs::remove_file(&m2_secondary_path).unwrap();
+        super::sync_dir(m2_secondary_path.parent().unwrap()).unwrap();
+
+        let m2_pristine_primary_observation = exact_path_snapshot(&m2_primary_path);
+        let m2_secondary_receipt_snapshot = exact_optional_path_snapshot(&m2_secondary_path);
+        ::core::assert!(m2_secondary_receipt_snapshot.is_none());
+        let m2_secondary_only_observation = m2_secondary_receipt_snapshot.clone();
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(fixture.path());
+
+        let mut corrupted_pointer = m2_pristine_primary_bytes.clone();
+        corrupted_pointer[0] ^= 1;
+        write_corruption_file(&m2_primary_path, &corrupted_pointer);
+
+        GroupedHeadShapeReceiptMissingFixture {
+            m2_owner_accepted_pointer_path: m2_primary_path.clone(),
+            m2_pointer_target_receipt_path: m2_secondary_path.clone(),
+            m2_primary_locator: m2_primary_path.display().to_string(),
+            m2_primary_path,
+            m2_primary_pointer_field_count: 1,
+            m2_pristine_primary_bytes,
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_receipt_snapshot,
+            m2_target_transaction_id,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
+    fn prepare_grouped_head_checksum_receipt_digest_fixture(
+        fixture: &Fixture,
+    ) -> GroupedHeadChecksumReceiptDigestFixture {
+        let m2_primary_path = fixture.repository.head_path();
+        let m2_pristine_primary_bytes = ::std::fs::read(&m2_primary_path).unwrap();
+        let target_transaction_id = decode_head(&m2_pristine_primary_bytes).unwrap();
+        let m2_secondary_path =
+            corruption_receipt_path(fixture.path(), target_transaction_id);
+
+        let mut corrupted_receipt = ::std::fs::read(&m2_secondary_path).unwrap();
+        let receipt_preimage_len = corrupted_receipt.len().checked_sub(32).unwrap();
+        let m2_secondary_receipt_computed_digest =
+            *::sley_id::ReceiptId::derive(&corrupted_receipt[..receipt_preimage_len])
+                .as_bytes();
+        *corrupted_receipt.last_mut().unwrap() ^= 1;
+        let mut m2_secondary_receipt_recorded_digest = [0_u8; 32];
+        m2_secondary_receipt_recorded_digest
+            .copy_from_slice(&corrupted_receipt[receipt_preimage_len..]);
+        write_corruption_file(&m2_secondary_path, &corrupted_receipt);
+
+        let m2_pristine_primary_observation = exact_path_snapshot(&m2_primary_path);
+        let m2_secondary_only_observation = exact_path_snapshot(&m2_secondary_path);
+        let m2_secondary_only_owner_tree = exact_tree_snapshot(fixture.path());
+
+        let mut corrupted_pointer = m2_pristine_primary_bytes.clone();
+        let pointer_prefix_len = corrupted_pointer.len().checked_sub(32).unwrap();
+        let mut hasher = ::blake3::Hasher::new();
+        hasher.update(super::HEAD_CHECKSUM_DOMAIN);
+        hasher.update(&corrupted_pointer[..pointer_prefix_len]);
+        let m2_primary_pointer_computed_checksum = *hasher.finalize().as_bytes();
+        *corrupted_pointer.last_mut().unwrap() ^= 1;
+        let mut m2_primary_pointer_recorded_checksum = [0_u8; 32];
+        m2_primary_pointer_recorded_checksum
+            .copy_from_slice(&corrupted_pointer[pointer_prefix_len..]);
+        write_corruption_file(&m2_primary_path, &corrupted_pointer);
+
+        GroupedHeadChecksumReceiptDigestFixture {
+            m2_owner_accepted_pointer_path: m2_primary_path.clone(),
+            m2_pointer_target_receipt_path: m2_secondary_path.clone(),
+            m2_primary_locator: m2_primary_path.display().to_string(),
+            m2_primary_path,
+            m2_primary_pointer_computed_checksum,
+            m2_primary_pointer_recorded_checksum,
+            m2_pristine_primary_bytes,
+            m2_pristine_primary_observation,
+            m2_secondary_locator: m2_secondary_path.display().to_string(),
+            m2_secondary_only_observation,
+            m2_secondary_only_owner_tree,
+            m2_secondary_path,
+            m2_secondary_receipt_computed_digest,
+            m2_secondary_receipt_recorded_digest,
+            m2_arguments_1: (),
+            m2_arguments_2: (),
+        }
+    }
+
+    fn observe_grouped_head_shape_receipt_missing_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadShapeReceiptMissingFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_grouped_head_shape_receipt_missing_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadShapeReceiptMissingFixture,
+    ) -> ExactOptionalPathSnapshot {
+        exact_optional_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn observe_grouped_head_checksum_receipt_digest_fixture_primary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadChecksumReceiptDigestFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_primary_path)
+    }
+
+    fn observe_grouped_head_checksum_receipt_digest_fixture_secondary(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadChecksumReceiptDigestFixture,
+    ) -> ExactPathSnapshot {
+        exact_path_snapshot(&m2_fixture.m2_secondary_path)
+    }
+
+    fn decode_grouped_accepted_pointer_error_m2<
+        T: GroupedAcceptedPointerProbeFixture,
+    >(
+        _fixture: &Fixture,
+        m2_fixture: &T,
+    ) -> ::core::result::Result<TransactionId, CommitError> {
+        let bytes = ::std::fs::read(m2_fixture.grouped_accepted_pointer_path())
+            .map_err(CommitError::Io)?;
+        decode_head(&bytes)
+    }
+
+    fn verify_grouped_absent_revision_receipt_m2(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadShapeReceiptMissingFixture,
+    ) -> ::core::result::Result<(), CommitError> {
+        super::TransactionRepository::read_receipt_at(
+            m2_fixture.m2_target_transaction_id,
+            &m2_fixture.m2_secondary_path,
+        )
+        .map(|_| ())
+    }
+
+    fn import_grouped_transaction_receipt_error_m2(
+        _fixture: &Fixture,
+        m2_fixture: &GroupedHeadChecksumReceiptDigestFixture,
+    ) -> ::core::result::Result<(), CommitError> {
+        let bytes = ::std::fs::read(&m2_fixture.m2_secondary_path)
+            .map_err(CommitError::Io)?;
+        import_transaction_receipt(&bytes)
+            .map(|_| ())
+            .map_err(CommitError::Codec)
     }
 
     struct VerifierNestedCodecClaimFixture {

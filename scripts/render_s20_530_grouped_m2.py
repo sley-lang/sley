@@ -66,10 +66,13 @@ def rendered_body(statements: tuple[str, ...], indent: str) -> str:
 
 
 def validate_case(
-    checker: dict[str, object], source: str, key: tuple[str, str, str]
+    checker: dict[str, object],
+    source: str,
+    key: tuple[str, str, str],
+    *,
+    mask: str | None = None,
 ) -> None:
     overlays = checker["MULTIFAULT_OVERLAYS"]
-    exact_test_definition = checker["exact_test_definition"]
     multifault_operation_bindings = checker["multifault_operation_bindings"]
     multifault_operation_binding_problem = checker[
         "multifault_operation_binding_problem"
@@ -77,12 +80,10 @@ def validate_case(
     if not isinstance(overlays, dict):
         raise RuntimeError("checker multifault registry is unavailable")
     spec = overlays[key]
-    definition = exact_test_definition(source, test_name(key))
-    if definition is None:
-        raise RuntimeError(f"cannot isolate rendered test {test_name(key)}")
+    start, end, _indent = test_body_range(checker, source, test_name(key), mask=mask)
     entry = {"m2_operation_bindings": multifault_operation_bindings(key, spec)}
     problem = multifault_operation_binding_problem(
-        definition[0], key[0], key[1], entry, key[2]
+        source[start:end], key[0], key[1], entry, key[2]
     )
     if problem is not None:
         raise RuntimeError(f"{key!r} exact M2 body differs: {problem}")
@@ -129,8 +130,9 @@ def render_sources(checker: dict[str, object], *, write: bool) -> int:
             source if write or not replacements else path.read_text(encoding="utf-8")
         )
         if write or not replacements:
+            effective_mask = checker["rust_code_mask"](effective)
             for key in keys:
-                validate_case(checker, effective, key)
+                validate_case(checker, effective, key, mask=effective_mask)
 
     if write:
         print(f"rendered and validated {changed} grouped M2 test bodies")
