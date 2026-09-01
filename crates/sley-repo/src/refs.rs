@@ -9350,12 +9350,7 @@ mod tests {
         fault_path: &::std::path::Path,
     ) {
         assert_ref_owner_corruption_plan(fixture_plan);
-        ::std::fs::remove_file(fault_path).unwrap();
-        let status = ::std::process::Command::new("mkfifo")
-            .arg(fault_path)
-            .status()
-            .unwrap();
-        ::core::assert!(status.success());
+        let _non_regular_socket = plant_non_regular_socket(fault_path, true);
         sync_dir(fault_path.parent().unwrap()).unwrap();
     }
 

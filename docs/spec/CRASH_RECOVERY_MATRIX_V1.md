@@ -578,9 +578,9 @@ Nabu, Ariadne, and Vulcan implementation reviews remain mandatory.
 The exact entry partition is 110 complete leaves: 90 static passes and 20
 manual-review exceptions across 13 events. The exact control partition is
 5,213 complete atoms: 3,547 static passes and 1,666 manual-review exceptions
-across 23 events. The checker freezes the complete v8 exception partition
+across 23 events. The checker freezes the complete v10 exception partition
 under one ordered fingerprint. Its SHA-256 is
-`5b475cc8c4c1f5abbab836d29fc28fe0270fa0eef58b73b6d01a1253f051c816`.
+`f335c2f504fa8b73faa3500712ab76c2013afbfdb70a0db901ac1984d8c63129`.
 The fingerprint binds the corrected 31-source closure, 14 feature-gated
 production occurrences plus the separate test-only reference site, positional
 scanner contract, complete manifests, complete inventories, static-pass sets,
@@ -1283,6 +1283,16 @@ and rejects any extracted path-to-mode-and-SHA-256 map that differs from the
 validated commit descriptors. It does not repair or normalize archive member
 modes after extraction.
 
+S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper.
+The helper previously spawned an external `mkfifo` binary, which the isolated
+execution environment's pinned tool path does not provision, so the mapped
+test failed closed at first captured execution. The helper now plants a
+Unix-domain socket through the standard library using the same staged-rename
+technique as the existing non-regular socket corruption, which the captured
+environment already executes. Production recovery behavior, the matrix, the
+mapped-test map, and all partition counts are unchanged; the refreshed
+partition digests bind the repaired source bytes.
+
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the
 validation uid or validation gid that mutates and restores repository,
@@ -1306,7 +1316,7 @@ contract digest, the closeout source-set digest, validated commit, and the
 review-free closeout-evidence payload digest. A verdict from one phase, source
 set, commit, or evidence payload cannot satisfy another.
 
-Every v9 verdict also binds the reviewer role, phase, unique request nonce and
+Every v10 verdict also binds the reviewer role, phase, unique request nonce and
 canonical request digest, trusted local Council session ID and timestamp,
 session JSONL and trajectory SHA-256, the exact limit source and scanner
 digests, both exception-ledger digests, and the ordered exception-partition

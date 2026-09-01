@@ -235,6 +235,19 @@ remains historical authority for v8; v9 refreezes the specification, ADR,
 checker, runner, unchanged reconciler and exception partition, rebound test
 plan, and fresh contract-freeze receipts before closeout resumes.
 
+S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper
+discovered failing at first captured v9 closeout execution. The helper spawned
+an external `mkfifo` binary that the pinned isolated tool path does not
+provision; it now plants a Unix-domain socket through the standard library
+with the same staged-rename technique as the existing non-regular socket
+corruption already executed by the captured environment. Production recovery
+behavior, the matrix, the mapped-test map, the reconciler, and all partition
+counts are unchanged; the refreshed partition digests bind the repaired source
+bytes. The immutable v9 evidence and its receipts remain historical authority
+for v9; v10 refreezes the specification, ADR, checker, refreshed exception
+partition, rebound test plan, and fresh contract-freeze receipts before
+closeout resumes.
+
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,
 specification, and frozen-evidence inputs. Only closeout outputs are excluded.

@@ -82,7 +82,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v9.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v10.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -90,8 +90,8 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "4f94e25bdd30deb9a38f2aef48647e377829f6fc32e990ee25135a507cc105f1"
-FROZEN_ADR_SHA256 = "db53ff0f7f6a4a4b78d1834f3038045354669c6ad6545e9faa1a941df3636042"
+FROZEN_SPEC_SHA256 = "890ea14f547a9bfea7e25718d2cc209868eb95743ce806d70d777179c0efe79e"
+FROZEN_ADR_SHA256 = "3e276d3eb52379de6c88f2fe50d04d397f5b25e054d98965db090fb177f486bd"
 FROZEN_RUNNER_SHA256 = (
     "c59ed596133143f8f32123dc90b2e14443c87beea3eaf29a3e6be7743ade6a8c"
 )
@@ -99,7 +99,7 @@ FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "959e0d03f5ad9ba540e4d7a5d44174f51a296890afbe73d1b9e0cc817d3c21eb"
+    "60536cce6c8b87dff57509eb1b632fcddd4050dfadcb31fc4bb408be79abe497"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -8447,15 +8447,15 @@ def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
 
 def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
     matches = re.findall(
-        r"The checker freezes the complete v8 exception partition\s+"
+        r"The checker freezes the complete v10 exception partition\s+"
         r"under one ordered fingerprint\. Its SHA-256 is\s+"
         r"`([0-9a-f]{64})`\.",
         spec,
     )
     if len(matches) != 1:
-        return "cannot isolate one exact v8 exception-partition fingerprint"
+        return "cannot isolate one exact v10 exception-partition fingerprint"
     if matches[0] != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256:
-        return "specification v8 exception-partition fingerprint differs"
+        return "specification v10 exception-partition fingerprint differs"
     return None
 
 
@@ -8598,6 +8598,7 @@ def require_contract(spec: str, adr: str) -> None:
         "S20-530 v8 adopts one narrow hybrid proof path",
         "reconcile_s20_530_exception_ledgers.py` witness imports",
         "S20-530 v9 repairs only the per-command Git archive mode contract",
+        "S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper",
         "does not normalize modes after extraction",
     ):
         require_text(adr, marker, "crash-recovery ADR")
@@ -9614,7 +9615,7 @@ def verify_review_receipts(phase: str) -> None:
     phase_contract = {
         "contract_freeze": (
             FREEZE_EVIDENCE,
-            "s20-530-crash-recovery-contract-freeze-v9",
+            "s20-530-crash-recovery-contract-freeze-v10",
             "PASS_CONTRACT_FROZEN",
             "PASS_CONTRACT_FREEZE",
         ),
@@ -10015,7 +10016,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v9":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v10":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -11200,10 +11201,10 @@ RUST_SCANNER_FROZEN_SOURCE_PARITY = (
     ),
     (
         "crates/sley-repo/src/refs.rs",
-        1_878_890,
-        "d7af958932380ae4b8d09b6aa21dba63dff882b1a5603b49d71591c456f6330f",
-        9_162,
-        "269ab90729913c9092b772a95f230c8a860b2669b93a4f810c9d0e53146d7476",
+        1_878_738,
+        "4593a7ab7e30a7552539ab087e4afdfd023e8e291554d2093410226a6ebc0601",
+        9_161,
+        "b2d522a7b861c30a486d90b2f86ac992b42aad33b1dba0466b35069dfcd8b818",
     ),
     (
         "crates/sley-repo/src/gc.rs",
@@ -22427,10 +22428,10 @@ LIMIT_ENTRY_CALL_EDGE_ISSUE = "STATIC_ENTRY_CALL_EDGE_UNRESOLVED"
 LIMIT_ENTRY_REVERSE_CALLER_ISSUE = "STATIC_REVERSE_CALLER_INVENTORY_UNRESOLVED"
 LIMIT_CONTROL_AUTHORITY_ISSUE = "STATIC_CONTROL_AUTHORITY_UNRESOLVED"
 LIMIT_EXCEPTION_PARTITION_FREEZE = {
-    "source_set_sha256": "c813bebe3ed05cec8085c2b72bfe0ce0a2f7f7ed8451369dea8f92f54bffbb30",
+    "source_set_sha256": "8b5b43bd12e143758feead21ab59c378b87b7eaab5b3aee31ae435ac6b1b5cee",
     "gate_registry_sha256": "ea93bab8fc440ea22c4a8ec5c040960f8bc4a569d1980528bb9178ddc193cd32",
     "scanner_contract_sha256": (
-        "09134b74ccea1e270bdcbe66b4452efd34c6f80fe2c86e67072dd2e3fdf34f5d"
+        "3beb204997b3bdf2b310eb4ff597c7a978206911a45d0c5b24c755089c52614f"
     ),
     "entry_complete_count": 110,
     "entry_static_pass_count": 90,
@@ -22445,10 +22446,10 @@ LIMIT_EXCEPTION_PARTITION_FREEZE = {
         "24e94784bfdd723f7967ed1ebb81b52102335ad4210a8757c845d60b2f06c689"
     ),
     "entry_exceptions_sha256": (
-        "b315834d2c0226cc9a1480cf16d6f21eaafe91ea9019255e3f0b52366eff1071"
+        "1be9e201fe4380d1bd2774ca912592d2c7344ef8361d39c191ed4d5a43fc30da"
     ),
     "entry_ledger_sha256": (
-        "708cac620a6e668f45c17570cdc7476d1e92fcf8b851e738eb0642bb8fc2c5c5"
+        "2e8f6ea52bd68d89545475b300876d191703ab4b7d87e8b81a943d6f07a1f954"
     ),
     "control_complete_count": 5213,
     "control_static_pass_count": 3547,
@@ -22463,14 +22464,14 @@ LIMIT_EXCEPTION_PARTITION_FREEZE = {
         "d234c30926fbf21a6d7ac4f8af3e33a7d4c0b6ac3b21e955b0b933f5aa6a6c1a"
     ),
     "control_exceptions_sha256": (
-        "44705d6a86e1830c2475d6eae3aba8f9af12b0ac476fbebb89bc6223ff7a2132"
+        "244e47bba81cb87f4217f963db17e4a89d5d77f1e9019dd6bfaf050186d4e467"
     ),
     "control_ledger_sha256": (
-        "f44fe3033cc8fb2adce7c5a8dc08bfec04cf1ebfd2e72b32e71d9ceb27154f0f"
+        "ca166f86b663c0d320fde523365231e9d0c0f49a4b80066ec14cd28b2e4ad453"
     ),
 }
 LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256 = (
-    "5b475cc8c4c1f5abbab836d29fc28fe0270fa0eef58b73b6d01a1253f051c816"
+    "f335c2f504fa8b73faa3500712ab76c2013afbfdb70a0db901ac1984d8c63129"
 )
 
 
@@ -26912,7 +26913,7 @@ def limit_exception_partition_freeze_problem(
         "control_ledger_sha256": canonical_json_sha256(control_ledger),
     }
     if observed != LIMIT_EXCEPTION_PARTITION_FREEZE:
-        return "generated exception partitions differ from the frozen v8 frontier"
+        return "generated exception partitions differ from the frozen v10 frontier"
     return None
 
 
@@ -33890,7 +33891,7 @@ def require_checker_negative_controls() -> None:
         fail("checker self-test accepted a stale grouped adapter spec digest")
 
     exact_partition_digest_spec = (
-        "The checker freezes the complete v8 exception partition\n"
+        "The checker freezes the complete v10 exception partition\n"
         "under one ordered fingerprint. Its SHA-256 is\n"
         f"`{LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256}`.\n"
     )
