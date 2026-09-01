@@ -40,8 +40,17 @@ The repaired source bytes rebind the frozen scanner parity for
 literal), the scanner contract digest, the limit source-set digest, both
 exception-ledger digests, and the ordered exception-partition fingerprint. All
 entry and control counts, complete manifests, inventories, static-pass sets,
-and per-record exception digests other than the two ledger headers are
-unchanged and were compared against the v8 frontier values before acceptance.
+event ordering, and every non-binding exception record field are unchanged
+against the v8 frontier. The 12 entry and 297 control exception records whose
+`source` is `crates/sley-repo/src/refs.rs` rebind `source_sha256` and
+therefore `canonical_leaf_sha256` to the repaired bytes; no record with any
+other source changed. Consequently 16 per-event ordered exception digests
+(9 entry events, 7 control events), both exception-set aggregates
+(`entry_exceptions_sha256`, `control_exceptions_sha256`), both ledger digests,
+and the ordered partition fingerprint moved while the exception semantics are
+identical. This was verified by deterministic record-by-record comparison of
+the v9-bound and v10-bound test plans; an earlier draft of this paragraph
+wrongly stated that per-record exception digests were unchanged.
 V10 refreezes the specification, ADR, checker, aggregate contract-set digest,
 freeze evidence, and test-plan binding. The immutable v8 and v9 freeze
 evidence and receipts remain byte-for-byte unchanged as historical authority.
