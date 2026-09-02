@@ -1,0 +1,19 @@
+$ uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py
+execution_profile_sha256: 2dd500d114ce37f530ff4a2fa4807f6b808a88a9839c31d2e9da3f1c3a746631
+exit_status: 0
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: /run/user/1000/.sley-s20-530-t95ljtd5/uv-environment
+   Building sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-t95ljtd5/source/oracle/scb1
+      Built sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-t95ljtd5/source/oracle/scb1
+Installed 3 packages in 0.43ms
+{
+  "contract": "s20-170-repository-pack-v1",
+  "independent_checks": {
+    "digest_tree_root": "1c0ee93f9eaf275808b7f50086ccb2f7aebd8eb61bcf2ad3896f642c34fa13d9",
+    "leaf_count": 5,
+    "repository_pack_id": "7a1e139c74191a46cbf03275dcb4ae4e4625765d6d6ee412076628d49d867df8",
+    "stored_bytes": 1421
+  },
+  "problems": [],
+  "result": "PASS"
+}

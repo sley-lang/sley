@@ -1,0 +1,18 @@
+$ uv run --project oracle/scb1 --frozen sley2-scb1-oracle check --accepted conformance/scb1/v1/accepted.json --rejected conformance/scb1/v1/rejected.json
+execution_profile_sha256: 2dd500d114ce37f530ff4a2fa4807f6b808a88a9839c31d2e9da3f1c3a746631
+exit_status: 0
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: /run/user/1000/.sley-s20-530-xfetcdv9/uv-environment
+   Building sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-xfetcdv9/source/oracle/scb1
+      Built sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-xfetcdv9/source/oracle/scb1
+Installed 3 packages in 0.48ms
+{
+  "accepted_decode_agreement": true,
+  "accepted_vectors": 23,
+  "byte_agreement": true,
+  "code_agreement": true,
+  "contract": "s20-130-independent-oracle-v1",
+  "problems": [],
+  "rejected_vectors": 26,
+  "result": "PASS"
+}
