@@ -1,11 +1,11 @@
 # S20-530 stop checkpoint (2026-09-02)
 
-Status: V13 FROZEN; AUTHORITATIVE CLOSEOUT (ATTEMPT 6) PENDING OR COMPLETE;
-RESULTS LIVE ONLY IN THE OUTPUT PATHS
+Status: V13 FROZEN AND REVIEWED; AUTHORITATIVE CLOSEOUT (ATTEMPT 6) PASSED;
+IMPLEMENTATION RECEIPTS BLOCKED ON THE PROVIDER USAGE LIMIT
 
 Owner: Claude orchestrator
 
-Checkpoint time: 2026-09-02T11:01:31Z
+Checkpoint time: 2026-09-02T19:13:52Z
 
 ## Repository state at this commit
 
@@ -91,3 +91,60 @@ age; this is an operator decision and was not taken here.
   one captured run, and three implementation receipts remain; all three steps
   have already succeeded once under v12).
 - Overall Sley 2.0 roadmap: 53 percent, moderate confidence.
+
+## State at 2026-09-02T19:13:52Z (supersedes the sections above where they differ)
+
+- v13 is frozen and reviewed: freeze evidence
+  `evidence/validation/s20-530-crash-recovery-contract-freeze-v13.json` in its
+  single addition commit `250557833364ae1f85dc67290ff6c7c5f0c7fdba`, contract
+  set `0257eddda95d24dba657b993eee981443e6c215e93f7cb04387a8d444a9c7caa`,
+  plan `5e051a6bb2a89fd54d50cb706eb87a603df8ccc0a9764c1b7e063690f947ee44`
+  (rows=100, tests=419), receipts nabu `…20260902T173505-4e2f40e0`, ariadne
+  `…20260902T173505-ee0cd3fa`, vulcan `…20260902T173505-d7eb9f55`, all
+  `PASS_CONTRACT_FREEZE`, verified `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`.
+- The authoritative closeout (attempt 6) PASSED on validated commit
+  `8f7c7630c3ba786478aa0066ba35c271feff2036`; its evidence (reviews empty,
+  payload `7a312c0c…`, source set `468490e1…`) and 28 logs are committed as
+  output paths. `machine-summary.json` still says
+  `implementation_complete: false` and points at the v8 freeze; the checker's
+  no-argument run therefore still fails at the machine summary, as it has
+  throughout the campaign.
+- Blocker: implementation reviews cannot be dispatched until the Codex OAuth
+  usage window resets (`The usage limit has been reached`) or the operator
+  allows another model in `agents.defaults.modelPolicy.allow`.
+
+## Exact resume point
+
+1. Tree must be clean at or after `HEAD` of this checkpoint; do not change any
+   bound path (crates, scripts, `docs/spec`, `docs/adr`, plan, manifests,
+   conformance, oracle, bench, evidence). Narrative lanes (`machineresearch/`,
+   `docs/WORK_PACKAGES.md`) may change.
+2. Request three `PASS_IMPLEMENTATION` reviews with fresh nonces, one at a
+   time, `forge agent --bounded --thinking xhigh --timeout 3000`, session
+   pattern `forge-<role>-s20-530-implementation-<UTC>-<nonce8>`. The request
+   payload comes from `phase_review_request_payload(role,
+   "PASS_IMPLEMENTATION", nonce, contract_set, review_payload_sha256(closeout
+   evidence), validation.source_set_sha256, validation.validated_commit)`; the
+   message carries `S20_530_REVIEW_REQUEST_JSON=` and the expected
+   `S20_530_REVIEW_VERDICT_JSON=` line, the dirty-tree note is no longer
+   needed (outputs are committed), and a decision budget of about 20 minutes
+   (at 1800 s two reviewers timed out mid-investigation).
+3. Export each session from `~/.openclaw/agents/<role>/agent/openclaw-agent.sqlite`
+   (`transcript_events` and `trajectory_runtime_events` for the session id,
+   `event_json` newline-joined with a trailing newline) to
+   `~/.openclaw/agents/<role>/sessions/<sid>.jsonl` and
+   `<sid>.trajectory.jsonl`; bind the review rows in
+   `phase_review_field_order("PASS_IMPLEMENTATION")` order into the closeout
+   evidence `reviews`; run `--verify-review-receipts implementation`, insert
+   the printed record as `review_receipt_verification`, re-verify.
+4. Update `machine-summary.json` (`status`
+   `CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE`, `implementation_complete: true`,
+   `contract_freeze_evidence` v13, `contract_set_sha256` `0257eddd…`,
+   `freeze_commit` `25055783…`, `contract_reviews` from the v13 freeze
+   evidence, `validation_evidence`, `validated_commit`, `source_set_sha256`,
+   `implementation_reviews` from the closeout evidence). Commit the closeout
+   evidence and machine summary together.
+5. Run `/usr/bin/python3 -I -B scripts/check_s20_530_crash_recovery.py`
+   (about 95 minutes). It must print `S20-530 crash-recovery contract check:
+   PASS (100 exact matrix rows; implementation_complete=True)`. Then append a
+   completion note to this checkpoint (narrative lane) and commit.
