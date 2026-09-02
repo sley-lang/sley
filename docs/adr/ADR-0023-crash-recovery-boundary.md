@@ -259,16 +259,21 @@ rustup and links them into the isolated tool directory, the frozen tool
 manifest names them, each owner test module carries exactly one
 `#[rustfmt::skip]` attribute after `#[cfg(test)]`, and the checker accepts that
 chain from a frozen two-element set. Smoking the implementation-complete
-checker path, which no closeout had ever reached, exposed four latent defects
+checker path, which no closeout had ever reached, exposed six latent defects
 that v11 also repairs: the private `recovery_receipt_metadata` bridge body is
 restored to the match-guard form frozen on 2026-08-28, which the 2026-08-29
 implementation had rewritten with identical semantics; the
 `RecoveryAncestryError` trait check receives the byte-preserving normal-build
 source instead of a literal-blanking projection; the `recover_gc_witness`
 signature check accepts the return type through the exact `GcError` result
-alias that `gc.rs` has always declared; and `limit_events_problem` accepts an
+alias that `gc.rs` has always declared; `limit_events_problem` accepts an
 unresolved control entry only when its canonical digest is a ledgered
-manual-review exception of the exception partition. Production recovery
+manual-review exception of the exception partition and the derived control
+ledger reproduces the frozen reviewed ledger digest;
+`expected_private_enum_body` renders durability-cut payload variants in the
+rustfmt single-line form the owner sources write; and the generic semantic
+assertion check accepts the underscore-grouped integer literal that the mapped
+tests write and the frozen-default check already demands. Production recovery
 behavior, the matrix, the mapped-test map, the reconciler, and all partition
 counts are unchanged; the refreshed positional scanner parity and partition
 digests bind the added attribute lines and the restored bridge body. The

@@ -90,8 +90,8 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "1bf3caeefb4c9826f7d010ad0c0232d8c01d9198362edb9d8d0c54935bf62ba0"
-FROZEN_ADR_SHA256 = "3163390fbbdcfdc11235bc629b5c7ecf491305539734de93e682bf33319d54ca"
+FROZEN_SPEC_SHA256 = "34c9fcb2eacdb35e29e8ef27facd3d917b304307f5f458d17110df8430e1a604"
+FROZEN_ADR_SHA256 = "345d519574a1130e6f3ebd10b8b53d3a5e682267b65941a7d987f2da8c335978"
 FROZEN_RUNNER_SHA256 = (
     "4e1e411d88e4caddb7232b119158fc5d18b98da3c4623cad5f45e10d5d00d4e7"
 )
@@ -99,7 +99,7 @@ FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "6e9ec6234e8741b534237639823a1f4ca6fcd6db1e0f95840a051b8dd8b89300"
+    "dcdb1f8fbd28d0692e74f6ba0c130060de3bffd32c51ba0d142038d29c6a11a9"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -16424,12 +16424,21 @@ def limit_events_problem(sources: object) -> str | None:
     control_ledger = limit_event_control_exception_partition(
         control_ancestries, sources
     )
-    ledgered_unresolved = frozenset(
-        str(record["unresolved_record_sha256"])
-        for record in control_ledger["records"]
-        if isinstance(record, dict)
-        and record.get("reason_code") == LIMIT_EXCEPTION_REASON_UNRESOLVED
-    )
+    # Unresolved control entries are acceptable only as the frozen reviewed
+    # manual-review exceptions: the derived ledger must reproduce the frozen
+    # control-ledger digest byte for byte before any of its records may excuse
+    # an UNRESOLVED classification. Any other source yields the strict rule.
+    ledgered_unresolved: frozenset[str] = frozenset()
+    if (
+        canonical_json_sha256(control_ledger)
+        == LIMIT_EXCEPTION_PARTITION_FREEZE["control_ledger_sha256"]
+    ):
+        ledgered_unresolved = frozenset(
+            str(record["unresolved_record_sha256"])
+            for record in control_ledger["records"]
+            if isinstance(record, dict)
+            and record.get("reason_code") == LIMIT_EXCEPTION_REASON_UNRESOLVED
+        )
     if problem := limit_event_control_ancestry_problem(
         control_ancestries, ledgered_unresolved
     ):
@@ -26269,10 +26278,12 @@ def limit_event_control_ancestry_problem(
 ) -> str | None:
     """Validate one control-ancestry manifest.
 
-    Unresolved values or callables are rejected unless `ledgered_unresolved`
-    names their canonical record digests, which the caller derives from the
-    exception partition generated from the same manifest; the partition's
-    equality with the frozen reviewed frontier is enforced separately.
+    Unresolved values, callables, edge liveness, and collection mutations are
+    rejected unless `ledgered_unresolved` names their canonical record digests.
+    The only caller that supplies that set derives it from the control exception
+    ledger generated from the same manifest, and only after that ledger has
+    reproduced the frozen reviewed control-ledger digest; every other source
+    receives the strict rule.
     """
 
     def ledgered(item: object) -> bool:

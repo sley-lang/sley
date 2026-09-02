@@ -1306,7 +1306,7 @@ directly after `#[cfg(test)]`, which the checker accepts as the only other
 exact test-module attribute chain. The formatter gate still governs all
 production code, all test-only items outside those modules, and every other
 crate. Smoking the implementation-complete checker path, which no closeout had
-ever reached, exposed four latent defects that v11 also repairs. The private
+ever reached, exposed six latent defects that v11 also repairs. The private
 `recovery_receipt_metadata` bridge body is restored to the exact match-guard
 form frozen on 2026-08-28, which the 2026-08-29 implementation had rewritten
 with identical semantics; the checker expectation is unchanged. The
@@ -1316,11 +1316,19 @@ match. The `recover_gc_witness` signature check accepts the return type through
 the exact `GcError` result alias that `gc.rs` has always declared and requires
 that alias at top level. `limit_events_problem` accepts an unresolved control
 value or callable only when its canonical digest is a ledgered manual-review
-exception of the exception partition, whose equality with the frozen frontier
-is enforced separately. Production recovery behavior, the matrix, the
-mapped-test map, the reconciler, the string-literal profiles, and all partition
-counts are unchanged; the refreshed positional scanner parity and partition
-digests bind the three added attribute lines and the restored bridge body.
+exception of the exception partition, and only after the derived control ledger
+reproduces the frozen reviewed ledger digest byte for byte; every other source
+receives the strict rule. `expected_private_enum_body` renders each payload
+variant of the four test-only durability-cut enums in the rustfmt single-line
+form `Name { field: Type }` that every owner source writes, instead of a form
+with a trailing comma inside the braces that no source carries. The generic
+semantic assertion check accepts the underscore-grouped integer literal
+(`65_792`) that the mapped tests write and that the frozen-default check
+already demands, alongside the plain spelling. Production recovery behavior,
+the matrix, the mapped-test map, the reconciler, the string-literal profiles,
+and all partition counts are unchanged; the refreshed positional scanner parity
+and partition digests bind the three added attribute lines and the restored
+bridge body.
 
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the
