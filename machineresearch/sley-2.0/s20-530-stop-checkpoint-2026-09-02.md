@@ -1,7 +1,7 @@
 # S20-530 stop checkpoint (2026-09-02)
 
-Status: V13 FROZEN AND REVIEWED; AUTHORITATIVE CLOSEOUT (ATTEMPT 6) PASSED;
-IMPLEMENTATION RECEIPTS BLOCKED ON THE PROVIDER USAGE LIMIT
+Status: V13 ACCEPTED (FREEZE REVIEWED, CLOSEOUT PASSED, IMPLEMENTATION RECEIPTS
+BOUND, MACHINE SUMMARY COMPLETE); FINAL CHECKER CONFIRMATION RUN PENDING
 
 Owner: Claude orchestrator
 
@@ -148,3 +148,32 @@ age; this is an operator decision and was not taken here.
    (about 95 minutes). It must print `S20-530 crash-recovery contract check:
    PASS (100 exact matrix rows; implementation_complete=True)`. Then append a
    completion note to this checkpoint (narrative lane) and commit.
+
+## State at 2026-09-02T22:58:01Z (supersedes the sections above where they differ)
+
+- Implementation receipts were obtained on `claude-cli/claude-opus-5` after the
+  operator directed the switch away from the exhausted OpenAI account (gateway
+  policy and per-agent `claude-cli:local` auth profiles added; see the resume
+  record). All three are `PASS_IMPLEMENTATION`, verified
+  `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`.
+- Acceptance commit `034cc75abb59d743ea30b2f2a410205a018cb25f`:
+  `machine-summary.json` says `implementation_complete: true`, bound to the v13
+  freeze `25055783…`, contract set `0257eddd…`, validated commit `8f7c763`,
+  source set `468490e1…`.
+- Remaining: the full checker run at the accepted state (about 95 minutes),
+  which is the `make quick` gate; it was relaunched right after this checkpoint
+  and is expected to print `S20-530 crash-recovery contract check: PASS (100
+  exact matrix rows; implementation_complete=True)`. If it fails, the failure
+  message names the defect; repair follows the amendment loop (v14) exactly as
+  v11 through v13 did.
+- Do not change any bound path until that run passes; narrative lanes
+  (`machineresearch/`, `docs/WORK_PACKAGES.md`) remain free to change.
+
+## Completion estimate at this checkpoint
+
+- S20-530 governed closeout: 99 percent, high confidence (only the
+  confirmation run and a completion note remain; the implementation path was
+  already exercised clean against the real evidence).
+- Overall Sley 2.0 roadmap: 53 percent, moderate confidence. S20-530 was the
+  last blocker on the M4 crash-recovery lane; S20-510, S20-520, and S20-540
+  (comparison, merge, pack exchange) and the M5 benchmark packages remain.
