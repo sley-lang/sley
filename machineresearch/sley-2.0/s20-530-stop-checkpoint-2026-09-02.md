@@ -1,7 +1,7 @@
 # S20-530 stop checkpoint (2026-09-02)
 
-Status: V12 FROZEN AND REVIEWED; AUTHORITATIVE CLOSEOUT (ATTEMPT 5) RUNNING OR
-COMPLETE; RESULTS LIVE ONLY IN THE OUTPUT PATHS
+Status: V13 FROZEN; AUTHORITATIVE CLOSEOUT (ATTEMPT 6) PENDING OR COMPLETE;
+RESULTS LIVE ONLY IN THE OUTPUT PATHS
 
 Owner: Claude orchestrator
 
@@ -15,14 +15,19 @@ Checkpoint time: 2026-09-02T11:01:31Z
   s20-530-crash-recovery-closeout-v1.json`, `evidence/validation/
   s20-530-crash-recovery-logs-v1/*.log`, and
   `machineresearch/sley-2.0/machine-summary.json`.
-- The v12 contract is frozen and reviewed: freeze evidence
-  `evidence/validation/s20-530-crash-recovery-contract-freeze-v12.json` in its
-  single addition commit `f12bfecb744664250915001eef55092efb47ef88`, contract
-  set `939c2aea801500b915e0a47d1c39585757755454bf7da1469b76ec64dd72b416`,
+- The v12 closeout (attempt 5, validated commit `7277af6`) passed and three
+  `PASS_IMPLEMENTATION` receipts were bound (`f677b1a`), but the first full
+  checker run exposed one more latent implementation-gate defect (the LIMIT
+  frozen-default field in the generic semantic check); the v13 amendment
+  repairs it, and the v12 outputs were removed from the tree (`0748588`).
+- The v13 contract candidate is committed (`3abb51c`), contract set
+  `0257eddda95d24dba657b993eee981443e6c215e93f7cb04387a8d444a9c7caa`; its
+  freeze evidence, receipts, plan binding, closeout, and implementation
+  receipts are recorded by later commits and the output paths. The v12 freeze
+  (`f12bfecb`, contract set `939c2aea…`) remains immutable history with
   partition fingerprint
   `867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487`, test
-  plan `256ee2dfbe4c63402d023ab7184bfd0ba0cb9c54861bd98699b9353eeb6141d8`
-  (rows=100, tests=419), receipts nabu `…20260902T103652-1198b414`, ariadne
+  plan `256ee2df…` (rows=100, tests=419) and receipts nabu `…20260902T103652-1198b414`, ariadne
   `…20260902T103652-a084b9d0`, vulcan `…20260902T103652-13ee2fff`, all
   `PASS_CONTRACT_FREEZE`, verified `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`. The
   v11 freeze (`a35bbb2`) remains immutable history.
@@ -54,8 +59,8 @@ Checkpoint time: 2026-09-02T11:01:31Z
    `<sid>.trajectory.jsonl`; bind, run
    `--verify-review-receipts implementation`, insert the record, re-verify.
 4. Update `machine-summary.json` (`implementation_complete: true`,
-   `contract_freeze_evidence` v12, `contract_set_sha256`, `freeze_commit`
-   `f12bfecb744664250915001eef55092efb47ef88`, `contract_reviews`, `validation_evidence`,
+   `contract_freeze_evidence` v13, `contract_set_sha256`, `freeze_commit`
+   (the v13 evidence addition commit), `contract_reviews`, `validation_evidence`,
    `implementation_reviews`), commit the three output paths together, then
    run the no-argument checker to PASS.
 
@@ -82,7 +87,7 @@ age; this is an operator decision and was not taken here.
 
 ## Completion estimate at this checkpoint
 
-- S20-530 governed closeout: 97 percent, high confidence (one captured run and
-  three implementation receipts remain, both already demonstrated in the
-  attempt-4 dry run).
+- S20-530 governed closeout: 97 percent, high confidence (v13 freeze receipts,
+  one captured run, and three implementation receipts remain; all three steps
+  have already succeeded once under v12).
 - Overall Sley 2.0 roadmap: 53 percent, moderate confidence.
