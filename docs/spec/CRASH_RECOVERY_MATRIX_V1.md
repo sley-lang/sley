@@ -578,7 +578,7 @@ Nabu, Ariadne, and Vulcan implementation reviews remain mandatory.
 The exact entry partition is 110 complete leaves: 90 static passes and 20
 manual-review exceptions across 13 events. The exact control partition is
 5,213 complete atoms: 3,547 static passes and 1,666 manual-review exceptions
-across 23 events. The checker freezes the complete v11 exception partition
+across 23 events. The checker freezes the complete v12 exception partition
 under one ordered fingerprint. Its SHA-256 is
 `867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487`.
 The fingerprint binds the corrected 31-source closure, 14 feature-gated
@@ -1220,7 +1220,7 @@ Closeout evidence binds execution to the complete reviewed workspace-input
 closure, not a four-file sample. The canonical closure includes every tracked
 or nonignored untracked workspace file, including crate manifests,
 `Cargo.lock`, production modules, tests, scripts, specifications, and frozen
-evidence. Only the machine summary, the closeout JSON, and the exact twenty-seven
+evidence. Only the machine summary, the closeout JSON, and the exact twenty-eight
 runner-named S20-530 command logs are validation outputs and excluded. Any
 other file under the log directory remains an input. Existing excluded output
 paths must still be regular Git/workspace entries. The checker opens the
@@ -1329,6 +1329,23 @@ the matrix, the mapped-test map, the reconciler, the string-literal profiles,
 and all partition counts are unchanged; the refreshed positional scanner parity
 and partition digests bind the three added attribute lines and the restored
 bridge body.
+
+S20-530 v12 corrects the runner log count and exempts narrative lanes from the
+post-validation binding. The first captured closeout under the reviewed v11
+contract passed every gate with 28 retained runner logs, three test-list
+commands plus 25 Tier 2 commands, while this specification still said
+twenty-seven; the sentence now says twenty-eight and no checker, runner, or
+matrix count changes. The same reviews showed that the frozen post-validation
+binding treated every tracked file as a validation input, so the package's own
+completion records (the stop checkpoint, the resume record, and the
+work-package row) would have re-opened the accepted closeout inside `make
+quick`. Changes after the validated commit to paths under `machineresearch/`
+and to `docs/WORK_PACKAGES.md`, the narrative lanes, no longer count as
+non-output input changes; every other tracked path stays bound, the runner
+still binds the complete closure at validation, the working tree must still be
+clean, the validated commit must still be an ancestor of HEAD, and the recorded
+workspace inputs must still equal the validated commit's blobs. Sources,
+runner, reconciler, scanner parity, and the exception partition are unchanged.
 
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the

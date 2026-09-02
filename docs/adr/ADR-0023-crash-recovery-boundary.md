@@ -282,6 +282,21 @@ v11 refreezes the specification, ADR, checker, runner, refreshed exception
 partition, rebound test plan, and fresh contract-freeze receipts before
 closeout resumes.
 
+S20-530 v12 corrects the runner log count and exempts narrative lanes from the
+post-validation binding. The first captured v11 closeout passed every gate with
+28 retained runner logs while the specification said twenty-seven; the
+specification now says twenty-eight. The frozen binding also treated every
+tracked file as a validation input after acceptance, so the stop checkpoint,
+the resume record, and the work-package row that complete the package would
+have re-opened the accepted closeout inside `make quick`. Paths under
+`machineresearch/` and `docs/WORK_PACKAGES.md` are narrative lanes: they remain
+part of the closure bound at validation and must be committed, but changes to
+them after the validated commit no longer count as non-output input changes.
+Every other tracked path stays bound. The immutable v11 evidence and its
+receipts remain historical authority for v11; v12 refreezes the specification,
+ADR, checker, and rebound test plan with fresh contract-freeze receipts before
+closeout resumes.
+
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,
 specification, and frozen-evidence inputs. Only closeout outputs are excluded.

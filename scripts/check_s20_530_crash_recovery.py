@@ -82,7 +82,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v11.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v12.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -90,8 +90,8 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "34c9fcb2eacdb35e29e8ef27facd3d917b304307f5f458d17110df8430e1a604"
-FROZEN_ADR_SHA256 = "345d519574a1130e6f3ebd10b8b53d3a5e682267b65941a7d987f2da8c335978"
+FROZEN_SPEC_SHA256 = "aaac0b231f475808528ae141c6e5470db1409d5f80a7210e31a9d81e620b592c"
+FROZEN_ADR_SHA256 = "1e88aeeddb00e9ccdab6e6ab9087d1061035522538d244064c7d6eeac0f4e6b9"
 FROZEN_RUNNER_SHA256 = (
     "4e1e411d88e4caddb7232b119158fc5d18b98da3c4623cad5f45e10d5d00d4e7"
 )
@@ -99,7 +99,7 @@ FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "dcdb1f8fbd28d0692e74f6ba0c130060de3bffd32c51ba0d142038d29c6a11a9"
+    "a03bd3a222a88a1062b20cafd2c5aa87125fd78b673db1dd02c096f31b72573c"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -110,6 +110,13 @@ OUTPUT_EXACT_PATHS = frozenset(
     }
 )
 VALIDATION_LOG_PREFIX = f"{VALIDATION_LOG_DIR.relative_to(ROOT)}/"
+# Narrative lanes carry no validation authority. They stay part of the complete
+# workspace-input closure bound at validation time and must be committed, but
+# changes to them after the validated commit do not re-open an accepted closeout.
+POST_VALIDATION_NARRATIVE_LANES = (
+    "machineresearch/",
+    "docs/WORK_PACKAGES.md",
+)
 
 MATRIX_IDS = (
     "OBJ-01",
@@ -8315,13 +8322,22 @@ def require_runner_self_controls() -> None:
         fail(f"validation runner hostile controls failed: {detail.strip()}")
 
 
+def is_post_validation_narrative_path(relative: str) -> bool:
+    return any(
+        relative == lane or (lane.endswith("/") and relative.startswith(lane))
+        for lane in POST_VALIDATION_NARRATIVE_LANES
+    )
+
+
 def non_output_changes_since(revision: str) -> tuple[str, ...]:
     raw = git_bytes("diff", "--name-only", "-z", f"{revision}..HEAD")
     return tuple(
         sorted(
             os.fsdecode(value)
             for value in raw.split(b"\0")
-            if value and not is_validation_output_path(os.fsdecode(value))
+            if value
+            and not is_validation_output_path(os.fsdecode(value))
+            and not is_post_validation_narrative_path(os.fsdecode(value))
         )
     )
 
@@ -8449,15 +8465,15 @@ def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
 
 def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
     matches = re.findall(
-        r"The checker freezes the complete v11 exception partition\s+"
+        r"The checker freezes the complete v12 exception partition\s+"
         r"under one ordered fingerprint\. Its SHA-256 is\s+"
         r"`([0-9a-f]{64})`\.",
         spec,
     )
     if len(matches) != 1:
-        return "cannot isolate one exact v11 exception-partition fingerprint"
+        return "cannot isolate one exact v12 exception-partition fingerprint"
     if matches[0] != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256:
-        return "specification v11 exception-partition fingerprint differs"
+        return "specification v12 exception-partition fingerprint differs"
     return None
 
 
@@ -8602,6 +8618,7 @@ def require_contract(spec: str, adr: str) -> None:
         "S20-530 v9 repairs only the per-command Git archive mode contract",
         "S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper",
         "S20-530 v11 repairs only the Tier 2 `cargo fmt` gate",
+        "S20-530 v12 corrects the runner log count and exempts narrative lanes",
         "does not normalize modes after extraction",
     ):
         require_text(adr, marker, "crash-recovery ADR")
@@ -9618,7 +9635,7 @@ def verify_review_receipts(phase: str) -> None:
     phase_contract = {
         "contract_freeze": (
             FREEZE_EVIDENCE,
-            "s20-530-crash-recovery-contract-freeze-v11",
+            "s20-530-crash-recovery-contract-freeze-v12",
             "PASS_CONTRACT_FROZEN",
             "PASS_CONTRACT_FREEZE",
         ),
@@ -10019,7 +10036,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v11":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v12":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -26973,7 +26990,7 @@ def limit_exception_partition_freeze_problem(
         "control_ledger_sha256": canonical_json_sha256(control_ledger),
     }
     if observed != LIMIT_EXCEPTION_PARTITION_FREEZE:
-        return "generated exception partitions differ from the frozen v11 frontier"
+        return "generated exception partitions differ from the frozen v12 frontier"
     return None
 
 
@@ -32409,11 +32426,13 @@ def execution_binding_problem(
             path: descriptor
             for path, descriptor in workspace_input_hashes().items()
             if not is_validation_output_path(path)
+            and not is_post_validation_narrative_path(path)
         }
         committed_non_outputs = {
             path: descriptor
             for path, descriptor in workspace_inputs.items()
             if not is_validation_output_path(path)
+            and not is_post_validation_narrative_path(path)
         }
         if current_non_outputs != committed_non_outputs:
             return "current non-output bytes/modes differ from validated commit"
@@ -33962,7 +33981,7 @@ def require_checker_negative_controls() -> None:
         fail("checker self-test accepted a stale grouped adapter spec digest")
 
     exact_partition_digest_spec = (
-        "The checker freezes the complete v11 exception partition\n"
+        "The checker freezes the complete v12 exception partition\n"
         "under one ordered fingerprint. Its SHA-256 is\n"
         f"`{LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256}`.\n"
     )
