@@ -2876,12 +2876,10 @@ fn head_recovery_entry_is_owned_stage(path: &Path) -> bool {
 /// Rejects a missing receipt as incomplete and any non-regular entry as I/O.
 fn recovery_receipt_metadata(path: &Path) -> Result<fs::Metadata, CommitError> {
     match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err(txn_commit_error(TransactionErrorCode::Io));
-            }
-            Ok(metadata)
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err(txn_commit_error(TransactionErrorCode::Io))
         }
+        Ok(metadata) => Ok(metadata),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Err(txn_commit_error(
             TransactionErrorCode::RecoveryReceiptIncomplete,
         )),
@@ -3330,6 +3328,7 @@ fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
     use std::sync::{Arc, Barrier};
 

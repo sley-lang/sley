@@ -248,6 +248,35 @@ for v9; v10 refreezes the specification, ADR, checker, refreshed exception
 partition, rebound test plan, and fresh contract-freeze receipts before
 closeout resumes.
 
+S20-530 v11 repairs only the Tier 2 `cargo fmt` gate that the first captured
+v10 closeout reached and failed after every mapped test and 24 of 25 Tier 2
+commands passed. The isolated tool path provisioned neither `cargo-fmt` nor
+`rustfmt`, and every formatting difference in the workspace lay inside the
+three owner `#[cfg(test)] mod tests` modules whose statement text the checker
+renders and byte-verifies; two authorities cannot own the layout of the same
+bytes, and the checker keeps it. The runner now resolves both tools through
+rustup and links them into the isolated tool directory, the frozen tool
+manifest names them, each owner test module carries exactly one
+`#[rustfmt::skip]` attribute after `#[cfg(test)]`, and the checker accepts that
+chain from a frozen two-element set. Smoking the implementation-complete
+checker path, which no closeout had ever reached, exposed four latent defects
+that v11 also repairs: the private `recovery_receipt_metadata` bridge body is
+restored to the match-guard form frozen on 2026-08-28, which the 2026-08-29
+implementation had rewritten with identical semantics; the
+`RecoveryAncestryError` trait check receives the byte-preserving normal-build
+source instead of a literal-blanking projection; the `recover_gc_witness`
+signature check accepts the return type through the exact `GcError` result
+alias that `gc.rs` has always declared; and `limit_events_problem` accepts an
+unresolved control entry only when its canonical digest is a ledgered
+manual-review exception of the exception partition. Production recovery
+behavior, the matrix, the mapped-test map, the reconciler, and all partition
+counts are unchanged; the refreshed positional scanner parity and partition
+digests bind the added attribute lines and the restored bridge body. The
+immutable v10 evidence and its receipts remain historical authority for v10;
+v11 refreezes the specification, ADR, checker, runner, refreshed exception
+partition, rebound test plan, and fresh contract-freeze receipts before
+closeout resumes.
+
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,
 specification, and frozen-evidence inputs. Only closeout outputs are excluded.

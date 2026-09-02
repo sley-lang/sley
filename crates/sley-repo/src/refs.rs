@@ -3004,6 +3004,7 @@ fn fail_selected_ref_recovery_stage_cut(stage_path: &Path) -> Result<(), BranchE
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
     use std::collections::BTreeMap;
     use std::sync::{Arc, Barrier, mpsc};

@@ -918,6 +918,7 @@ fn fail_selected_object_recovery_cut(leaf_directory: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
     use super::*;
     use sley_scb1::{

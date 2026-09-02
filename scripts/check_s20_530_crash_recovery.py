@@ -82,7 +82,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v10.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v11.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -90,16 +90,16 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "890ea14f547a9bfea7e25718d2cc209868eb95743ce806d70d777179c0efe79e"
-FROZEN_ADR_SHA256 = "3e276d3eb52379de6c88f2fe50d04d397f5b25e054d98965db090fb177f486bd"
+FROZEN_SPEC_SHA256 = "1bf3caeefb4c9826f7d010ad0c0232d8c01d9198362edb9d8d0c54935bf62ba0"
+FROZEN_ADR_SHA256 = "3163390fbbdcfdc11235bc629b5c7ecf491305539734de93e682bf33319d54ca"
 FROZEN_RUNNER_SHA256 = (
-    "c59ed596133143f8f32123dc90b2e14443c87beea3eaf29a3e6be7743ade6a8c"
+    "4e1e411d88e4caddb7232b119158fc5d18b98da3c4623cad5f45e10d5d00d4e7"
 )
 FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "60536cce6c8b87dff57509eb1b632fcddd4050dfadcb31fc4bb408be79abe497"
+    "6e9ec6234e8741b534237639823a1f4ca6fcd6db1e0f95840a051b8dd8b89300"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -7517,6 +7517,8 @@ EXECUTION_TOOL_NAMES = (
     "cargo",
     "rustc",
     "rustdoc",
+    "cargo-fmt",
+    "rustfmt",
     "python3",
     "uv",
     "make",
@@ -8447,15 +8449,15 @@ def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
 
 def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
     matches = re.findall(
-        r"The checker freezes the complete v10 exception partition\s+"
+        r"The checker freezes the complete v11 exception partition\s+"
         r"under one ordered fingerprint\. Its SHA-256 is\s+"
         r"`([0-9a-f]{64})`\.",
         spec,
     )
     if len(matches) != 1:
-        return "cannot isolate one exact v10 exception-partition fingerprint"
+        return "cannot isolate one exact v11 exception-partition fingerprint"
     if matches[0] != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256:
-        return "specification v10 exception-partition fingerprint differs"
+        return "specification v11 exception-partition fingerprint differs"
     return None
 
 
@@ -8599,6 +8601,7 @@ def require_contract(spec: str, adr: str) -> None:
         "reconcile_s20_530_exception_ledgers.py` witness imports",
         "S20-530 v9 repairs only the per-command Git archive mode contract",
         "S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper",
+        "S20-530 v11 repairs only the Tier 2 `cargo fmt` gate",
         "does not normalize modes after extraction",
     ):
         require_text(adr, marker, "crash-recovery ADR")
@@ -9615,7 +9618,7 @@ def verify_review_receipts(phase: str) -> None:
     phase_contract = {
         "contract_freeze": (
             FREEZE_EVIDENCE,
-            "s20-530-crash-recovery-contract-freeze-v10",
+            "s20-530-crash-recovery-contract-freeze-v11",
             "PASS_CONTRACT_FROZEN",
             "PASS_CONTRACT_FREEZE",
         ),
@@ -10016,7 +10019,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v10":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v11":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -10818,7 +10821,10 @@ def require_public_recovery_api() -> None:
         "RecoveryAncestryError",
         "Cycle,LimitExceeded,ClaimMismatch{request_index:u64,claim_index:u64,},Verification(CommitError),",
     )
-    if problem := recovery_ancestry_error_traits_problem(txn):
+    txn_source = normal_build_source(
+        authority_sources["crates/sley-txn/src/repository.rs"]
+    )
+    if problem := recovery_ancestry_error_traits_problem(txn_source):
         fail(f"RecoveryAncestryError trait contract differs: {problem}")
     require_impl_method(
         txn,
@@ -10932,9 +10938,15 @@ def require_public_recovery_api() -> None:
         fail("GcWitnessRecoveryStatus contains an extra production variant or token")
     require_top_level_rust_pattern(
         gc,
+        r"type\s+Result\s*<\s*T\s*>\s*=\s*core\s*::\s*result\s*::\s*Result\s*<\s*T\s*,\s*"
+        r"GcError\s*>\s*;",
+        "exact GcError result alias",
+    )
+    require_top_level_rust_pattern(
+        gc,
         r"pub\s+fn\s+recover_gc_witness\s*\(\s*store\s*:\s*&ObjectStore\s*,\s*"
         r"maintenance\s*:\s*&RepositoryMaintenanceGuard\s*,?\s*\)\s*"
-        r"->\s*Result\s*<\s*GcWitnessRecoveryStatus\s*,\s*GcError\s*>",
+        r"->\s*Result\s*<\s*GcWitnessRecoveryStatus\s*(?:,\s*GcError\s*)?>",
         "exact public GC-witness recovery API",
     )
     require_production_limit_defaults(authority_sources)
@@ -11187,22 +11199,22 @@ def rust_string_literal_values(source: str) -> tuple[str, ...]:
 RUST_SCANNER_FROZEN_SOURCE_PARITY = (
     (
         "crates/sley-store/src/lib.rs",
-        193_274,
-        "7cc4f063e027448473f05f335ee5d956ba69dfd6e84fca29e6ad60024e32757b",
+        193_291,
+        "5a41c79c81d471d716d443bdd9ea0dcfcfa92ca7268dcf222b567ad9cd4983fe",
         546,
         "24bdb20fee036e3a6e44cbdcb0ac42c162cf824a93535c1289c2c6828df2fbb1",
     ),
     (
         "crates/sley-txn/src/repository.rs",
-        1_335_130,
-        "02355afb80ab498ca8e278430ba3fcdb82cfa524fddcf825878366d7b607c5d1",
+        1_335_120,
+        "be680e6e2831129b3093c435677107422aaafbce22fd8a76bab0c8d8a6bab67c",
         4_475,
         "3391734d43ae177659546f4b514845ab7ff311228066849796bc5c2c0856716d",
     ),
     (
         "crates/sley-repo/src/refs.rs",
-        1_878_738,
-        "4593a7ab7e30a7552539ab087e4afdfd023e8e291554d2093410226a6ebc0601",
+        1_878_755,
+        "732d1dff50a522baceb335a36b6396e4212bb7ac335d2007f53ec0c058c3a854",
         9_161,
         "b2d522a7b861c30a486d90b2f86ac992b42aad33b1dba0466b35069dfcd8b818",
     ),
@@ -12024,7 +12036,7 @@ def expected_private_enum_body(
             pieces.append(f"{name},")
         else:
             field, field_type = payload
-            pieces.append(f"{name}{{{field}:{field_type},}},")
+            pieces.append(f"{name}{{{field}:{field_type}}},")
     return "".join(pieces)
 
 
@@ -16409,7 +16421,18 @@ def limit_events_problem(sources: object) -> str | None:
                     f"{site[0]}::{site[2]} contains global limit bypass token {token!r}"
                 )
     control_ancestries = limit_event_control_ancestry_manifest(sources)
-    if problem := limit_event_control_ancestry_problem(control_ancestries):
+    control_ledger = limit_event_control_exception_partition(
+        control_ancestries, sources
+    )
+    ledgered_unresolved = frozenset(
+        str(record["unresolved_record_sha256"])
+        for record in control_ledger["records"]
+        if isinstance(record, dict)
+        and record.get("reason_code") == LIMIT_EXCEPTION_REASON_UNRESOLVED
+    )
+    if problem := limit_event_control_ancestry_problem(
+        control_ancestries, ledgered_unresolved
+    ):
         return problem
     return None
 
@@ -22428,10 +22451,14 @@ LIMIT_ENTRY_CALL_EDGE_ISSUE = "STATIC_ENTRY_CALL_EDGE_UNRESOLVED"
 LIMIT_ENTRY_REVERSE_CALLER_ISSUE = "STATIC_REVERSE_CALLER_INVENTORY_UNRESOLVED"
 LIMIT_CONTROL_AUTHORITY_ISSUE = "STATIC_CONTROL_AUTHORITY_UNRESOLVED"
 LIMIT_EXCEPTION_PARTITION_FREEZE = {
-    "source_set_sha256": "8b5b43bd12e143758feead21ab59c378b87b7eaab5b3aee31ae435ac6b1b5cee",
-    "gate_registry_sha256": "ea93bab8fc440ea22c4a8ec5c040960f8bc4a569d1980528bb9178ddc193cd32",
+    "source_set_sha256": (
+        "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065"
+    ),
+    "gate_registry_sha256": (
+        "ea93bab8fc440ea22c4a8ec5c040960f8bc4a569d1980528bb9178ddc193cd32"
+    ),
     "scanner_contract_sha256": (
-        "3beb204997b3bdf2b310eb4ff597c7a978206911a45d0c5b24c755089c52614f"
+        "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52"
     ),
     "entry_complete_count": 110,
     "entry_static_pass_count": 90,
@@ -22446,10 +22473,10 @@ LIMIT_EXCEPTION_PARTITION_FREEZE = {
         "24e94784bfdd723f7967ed1ebb81b52102335ad4210a8757c845d60b2f06c689"
     ),
     "entry_exceptions_sha256": (
-        "1be9e201fe4380d1bd2774ca912592d2c7344ef8361d39c191ed4d5a43fc30da"
+        "d21049ed4ca7181c2940b2fd50721bb6b17ffb8ccb7f5e067b0e9d96f36350c4"
     ),
     "entry_ledger_sha256": (
-        "2e8f6ea52bd68d89545475b300876d191703ab4b7d87e8b81a943d6f07a1f954"
+        "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b"
     ),
     "control_complete_count": 5213,
     "control_static_pass_count": 3547,
@@ -22464,14 +22491,14 @@ LIMIT_EXCEPTION_PARTITION_FREEZE = {
         "d234c30926fbf21a6d7ac4f8af3e33a7d4c0b6ac3b21e955b0b933f5aa6a6c1a"
     ),
     "control_exceptions_sha256": (
-        "244e47bba81cb87f4217f963db17e4a89d5d77f1e9019dd6bfaf050186d4e467"
+        "0ff24e60e5e0dbbd15d7f327d5a0c5f7aa52c9adf3ed8c38cd281a1d0bc7be44"
     ),
     "control_ledger_sha256": (
-        "ca166f86b663c0d320fde523365231e9d0c0f49a4b80066ec14cd28b2e4ad453"
+        "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d"
     ),
 }
 LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256 = (
-    "f335c2f504fa8b73faa3500712ab76c2013afbfdb70a0db901ac1984d8c63129"
+    "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487"
 )
 
 
@@ -26238,7 +26265,23 @@ def limit_event_control_ancestry_manifest(
 
 def limit_event_control_ancestry_problem(
     manifest: object,
+    ledgered_unresolved: frozenset[str] | None = None,
 ) -> str | None:
+    """Validate one control-ancestry manifest.
+
+    Unresolved values or callables are rejected unless `ledgered_unresolved`
+    names their canonical record digests, which the caller derives from the
+    exception partition generated from the same manifest; the partition's
+    equality with the frozen reviewed frontier is enforced separately.
+    """
+
+    def ledgered(item: object) -> bool:
+        return (
+            ledgered_unresolved is not None
+            and isinstance(item, dict)
+            and canonical_json_sha256(item) in ledgered_unresolved
+        )
+
     if not isinstance(manifest, dict) or tuple(manifest) != tuple(LIMIT_EVENT_SPECS):
         return "limit-event control-ancestry event inventory differs"
     for event_id, record in manifest.items():
@@ -26273,24 +26316,25 @@ def limit_event_control_ancestry_problem(
             if not isinstance(values, list):
                 return f"{event_id} control value graph differs"
             for value in values:
-                if (
-                    not isinstance(value, dict)
-                    or value.get("classification") == "UNRESOLVED"
+                if not isinstance(value, dict) or (
+                    value.get("classification") == "UNRESOLVED" and not ledgered(value)
                 ):
                     return f"{event_id} control value is unresolved or forbidden"
             resolutions = scope.get("resolved_authority")
             if not isinstance(resolutions, list):
                 return f"{event_id} control callable closure differs"
             for resolution in resolutions:
-                if (
-                    not isinstance(resolution, dict)
-                    or resolution.get("classification") == "UNRESOLVED"
+                if not isinstance(resolution, dict) or (
+                    resolution.get("classification") == "UNRESOLVED"
+                    and not ledgered(resolution)
                 ):
                     return f"{event_id} control callable is unresolved or forbidden"
             edge_liveness = scope.get("edge_liveness")
-            if not isinstance(edge_liveness, dict) or edge_liveness.get(
-                "classification"
-            ) not in {"RUNTIME_ROOTED_EDGE", "STATICALLY_REQUIRED_EDGE"}:
+            if not isinstance(edge_liveness, dict) or (
+                edge_liveness.get("classification")
+                not in {"RUNTIME_ROOTED_EDGE", "STATICALLY_REQUIRED_EDGE"}
+                and not ledgered(edge_liveness)
+            ):
                 return f"{event_id} control edge lacks runtime or static liveness"
         dominating_exits = record.get("dominating_exits")
         if not isinstance(dominating_exits, list):
@@ -26304,27 +26348,32 @@ def limit_event_control_ancestry_problem(
                 return f"{event_id} dominating-exit authority differs"
             if any(
                 not isinstance(value, dict)
-                or value.get("classification") == "UNRESOLVED"
+                or (value.get("classification") == "UNRESOLVED" and not ledgered(value))
                 for value in values
             ):
                 return f"{event_id} dominating-exit value is unresolved"
             if any(
                 not isinstance(resolution, dict)
-                or resolution.get("classification") == "UNRESOLVED"
+                or (
+                    resolution.get("classification") == "UNRESOLVED"
+                    and not ledgered(resolution)
+                )
                 for resolution in resolutions
             ):
                 return f"{event_id} dominating-exit callable is unresolved"
             edge_liveness = dominator.get("edge_liveness")
-            if (
-                not isinstance(edge_liveness, dict)
-                or edge_liveness.get("classification") != "RUNTIME_ROOTED_EDGE"
+            if not isinstance(edge_liveness, dict) or (
+                edge_liveness.get("classification") != "RUNTIME_ROOTED_EDGE"
+                and not ledgered(edge_liveness)
             ):
                 return f"{event_id} dominating exit lacks runtime-rooted liveness"
         collections = record.get("collection_mutations")
         if not isinstance(collections, list):
             return f"{event_id} collection-mutation inventory differs"
         for collection in collections:
-            if not isinstance(collection, dict) or collection.get("unresolved") != []:
+            if not isinstance(collection, dict) or (
+                collection.get("unresolved") != [] and not ledgered(collection)
+            ):
                 return f"{event_id} collection authority is unresolved"
     return None
 
@@ -26913,7 +26962,7 @@ def limit_exception_partition_freeze_problem(
         "control_ledger_sha256": canonical_json_sha256(control_ledger),
     }
     if observed != LIMIT_EXCEPTION_PARTITION_FREEZE:
-        return "generated exception partitions differ from the frozen v10 frontier"
+        return "generated exception partitions differ from the frozen v11 frontier"
     return None
 
 
@@ -32628,6 +32677,14 @@ def brace_depth_at(source: str, mask: list[bool], end: int) -> int:
     return depth
 
 
+EXACT_TEST_MODULE_ATTRIBUTE_CHAINS = frozenset(
+    {
+        "#[cfg(test)]",
+        "#[cfg(test)]#[rustfmt::skip]",
+    }
+)
+
+
 def exact_test_module_range(source: str, mask: list[bool]) -> tuple[int, int] | None:
     pattern = re.compile(r"(?P<attrs>(?:#\[[^\]]+\]\s*)+)mod\s+tests\s*\{")
     ranges: list[tuple[int, int]] = []
@@ -32640,7 +32697,8 @@ def exact_test_module_range(source: str, mask: list[bool]) -> tuple[int, int] | 
             or opening < 0
             or not all(mask[attrs_start : match.end()])
             or has_preceding_code_attribute(source, mask, attrs_start)
-            or re.sub(r"\s+", "", match["attrs"]) != "#[cfg(test)]"
+            or re.sub(r"\s+", "", match["attrs"])
+            not in EXACT_TEST_MODULE_ATTRIBUTE_CHAINS
             or brace_depth_at(source, mask, mod_start) != 0
         ):
             continue
@@ -33119,10 +33177,12 @@ def exact_value_assertion_problem(
         return (
             "mapped assertion is not an exact field predicate or two-operand assert_eq!"
         )
-    literal = json.dumps(expected, ensure_ascii=False)
-    if operands[0].strip() == literal:
+    literals = {json.dumps(expected, ensure_ascii=False)}
+    if type(expected) is int:
+        literals.add(f"{expected:_}")
+    if operands[0].strip() in literals:
         claimed = operands[1]
-    elif operands[1].strip() == literal:
+    elif operands[1].strip() in literals:
         claimed = operands[0]
     else:
         return "expected value is not an exact equality operand"
@@ -33891,7 +33951,7 @@ def require_checker_negative_controls() -> None:
         fail("checker self-test accepted a stale grouped adapter spec digest")
 
     exact_partition_digest_spec = (
-        "The checker freezes the complete v10 exception partition\n"
+        "The checker freezes the complete v11 exception partition\n"
         "under one ordered fingerprint. Its SHA-256 is\n"
         f"`{LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256}`.\n"
     )
@@ -36932,6 +36992,16 @@ mod tests {
         ("::core::assert!(!preserved);", "preserved", False),
         ("::core::assert_eq!(candidate_count, 3);", "candidate_count", 3),
         (
+            "::core::assert_eq!(fanout_directories, 65_792);",
+            "fanout_directories",
+            65792,
+        ),
+        (
+            "::core::assert_eq!(65_792, fanout_directories);",
+            "fanout_directories",
+            65792,
+        ),
+        (
             '::core::assert_eq!(expected_result.code(), "TXN_IO");',
             "expected_result",
             "TXN_IO",
@@ -36948,6 +37018,13 @@ mod tests {
     ):
         if exact_value_assertion_problem(hostile, "no_mutation", True) is None:
             fail("checker self-test accepted an unbound semantic value assertion")
+    for hostile in (
+        "::core::assert_eq!(fanout_directories, 65_793);",
+        "::core::assert_eq!(fanout_directories, 6_5792);",
+        "::core::assert_eq!(fanout_directories, 65792_u64);",
+    ):
+        if exact_value_assertion_problem(hostile, "fanout_directories", 65792) is None:
+            fail("checker self-test accepted a non-exact grouped integer literal")
     for actual, expected in (
         (True, 1),
         (1, True),

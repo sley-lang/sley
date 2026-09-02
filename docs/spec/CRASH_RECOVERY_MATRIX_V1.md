@@ -578,9 +578,9 @@ Nabu, Ariadne, and Vulcan implementation reviews remain mandatory.
 The exact entry partition is 110 complete leaves: 90 static passes and 20
 manual-review exceptions across 13 events. The exact control partition is
 5,213 complete atoms: 3,547 static passes and 1,666 manual-review exceptions
-across 23 events. The checker freezes the complete v10 exception partition
+across 23 events. The checker freezes the complete v11 exception partition
 under one ordered fingerprint. Its SHA-256 is
-`f335c2f504fa8b73faa3500712ab76c2013afbfdb70a0db901ac1984d8c63129`.
+`867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487`.
 The fingerprint binds the corrected 31-source closure, 14 feature-gated
 production occurrences plus the separate test-only reference site, positional
 scanner contract, complete manifests, complete inventories, static-pass sets,
@@ -1293,6 +1293,35 @@ environment already executes. Production recovery behavior, the matrix, the
 mapped-test map, and all partition counts are unchanged; the refreshed
 partition digests bind the repaired source bytes.
 
+S20-530 v11 repairs only the Tier 2 `cargo fmt` gate. The first captured v10
+closeout executed every mapped test and 24 of the 25 Tier 2 commands, then
+failed closed on `cargo fmt --all -- --check`: the isolated tool path
+provisioned neither `cargo-fmt` nor `rustfmt`, and every formatting difference
+in the workspace lay inside the three owner `#[cfg(test)] mod tests` modules
+whose statement text the checker renders and byte-verifies. The runner now
+resolves `cargo-fmt` and `rustfmt` through rustup and links both into the
+isolated tool directory, the frozen tool manifest names them, and each of the
+three owner test modules carries exactly one `#[rustfmt::skip]` attribute
+directly after `#[cfg(test)]`, which the checker accepts as the only other
+exact test-module attribute chain. The formatter gate still governs all
+production code, all test-only items outside those modules, and every other
+crate. Smoking the implementation-complete checker path, which no closeout had
+ever reached, exposed four latent defects that v11 also repairs. The private
+`recovery_receipt_metadata` bridge body is restored to the exact match-guard
+form frozen on 2026-08-28, which the 2026-08-29 implementation had rewritten
+with identical semantics; the checker expectation is unchanged. The
+`RecoveryAncestryError` trait check now receives the byte-preserving
+normal-build source instead of a literal-blanking projection that could never
+match. The `recover_gc_witness` signature check accepts the return type through
+the exact `GcError` result alias that `gc.rs` has always declared and requires
+that alias at top level. `limit_events_problem` accepts an unresolved control
+value or callable only when its canonical digest is a ledgered manual-review
+exception of the exception partition, whose equality with the frozen frontier
+is enforced separately. Production recovery behavior, the matrix, the
+mapped-test map, the reconciler, the string-literal profiles, and all partition
+counts are unchanged; the refreshed positional scanner parity and partition
+digests bind the three added attribute lines and the restored bridge body.
+
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the
 validation uid or validation gid that mutates and restores repository,
@@ -1316,7 +1345,7 @@ contract digest, the closeout source-set digest, validated commit, and the
 review-free closeout-evidence payload digest. A verdict from one phase, source
 set, commit, or evidence payload cannot satisfy another.
 
-Every v10 verdict also binds the reviewer role, phase, unique request nonce and
+Every v10 and later verdict also binds the reviewer role, phase, unique request nonce and
 canonical request digest, trusted local Council session ID and timestamp,
 session JSONL and trajectory SHA-256, the exact limit source and scanner
 digests, both exception-ledger digests, and the ordered exception-partition
