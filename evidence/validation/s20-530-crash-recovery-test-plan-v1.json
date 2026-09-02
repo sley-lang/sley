@@ -1,6 +1,6 @@
 {
   "contract": "s20-530-crash-recovery-test-plan-v1",
-  "contract_set_sha256": "862aa81be3cd9bf31fd4c929639921928c9b53756553c3f105378f85410c7df4",
+  "contract_set_sha256": "5d3d1b4b87466d854fb51f0423cc9f32c2fed25c15527cb84180ec3540b61373",
   "matrix_test_map": {
     "OBJ-01": {
       "result": "PASS",
