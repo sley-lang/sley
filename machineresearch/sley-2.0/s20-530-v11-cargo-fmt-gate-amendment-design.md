@@ -96,10 +96,13 @@ V11 changes nine things and nothing else.
    main tree fails the same check. `limit_events_problem` now derives the
    control exception ledger from the same manifest and accepts an unresolved
    entry only when its canonical digest is one of those ledgered
-   `UNRESOLVED_BY_V8_STATIC_RESOLVER` records; the strict default (no ledger)
-   is unchanged for the hostile negative controls, and the partition's
-   equality with the frozen reviewed frontier is still enforced by the
-   builder and the implementation gate.
+   `UNRESOLVED_BY_V8_STATIC_RESOLVER` records, and only after the derived
+   control ledger has reproduced the frozen reviewed `control_ledger_sha256`
+   byte for byte; any other source, including every hostile negative
+   control, receives the strict rule. The first draft of this change
+   derived the allowlist from the manifest under test without that digest
+   binding, and the main-tree self-test `checker self-test accepted a
+   cross-crate qualified constant: constant-false` caught it before review.
 8. Checker renderer on the same latent path. `expected_private_enum_body`
    rendered each payload variant of the four test-only durability-cut enums
    as `Name { field: Type, }`, with a trailing comma inside the braces, while
