@@ -12,8 +12,96 @@
   "limit_event_entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
   "limit_exception_reconciler_sha256": "f5e73c8450b4d6690b0647ee7ace2c1b66fe8328ec5f2a7db5ed231d1142556f",
   "limit_shared_state_authority_sha256": "e8afecbb3860fd016766e94372672ce22ff496373ddc064bfa1105cb320f9c24",
-  "reviews": {},
-  "review_receipt_verification": {},
+  "reviews": {
+    "nabu": {
+      "result": "PASS_IMPLEMENTATION",
+      "reviewer_role": "nabu",
+      "phase": "implementation",
+      "request_nonce": "23c1f91b6438023a0d75181c19d5e0e9",
+      "request_sha256": "92565e1dfed3d7886b1cad1ea5447efd14479199bc29a7d8a292b8e3eb4ea7ce",
+      "session_id": "forge-nabu-s20-530-implementation-20260902T215406-23c1f91b",
+      "reviewed_at_utc": "2026-09-02T22:01:04.000Z",
+      "session_json_sha256": "19762231ec03e061e69aa1bacdd02c2a678eba52f5af237c473ee02e6b023a4f",
+      "trajectory_sha256": "283d160079ba3379fa3968e36e044848b66e585373cad553f90d1bac9c12aaab",
+      "contract_set_sha256": "0257eddda95d24dba657b993eee981443e6c215e93f7cb04387a8d444a9c7caa",
+      "source_set_sha256": "468490e1b67360344fd8384a71be3861b650eb6004587256c6fa70c859cc2ab5",
+      "validated_commit": "8f7c7630c3ba786478aa0066ba35c271feff2036",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7a312c0cf387b2baaec94b62811baae247c30d5169885f5161a51b91444803ab"
+    },
+    "ariadne": {
+      "result": "PASS_IMPLEMENTATION",
+      "reviewer_role": "ariadne",
+      "phase": "implementation",
+      "request_nonce": "3ae4faa7e48e691b3e7d97dacb425063",
+      "request_sha256": "ed51eceef1835c65429ca29112991a6e960a041f3b5f82450954900b2dfe1564",
+      "session_id": "forge-ariadne-s20-530-implementation-20260902T215406-3ae4faa7",
+      "reviewed_at_utc": "2026-09-02T22:07:08.668Z",
+      "session_json_sha256": "8a8d0dd608a920cbf4a10935af31336fa8e4fff77bb378eb99096485e0ff323f",
+      "trajectory_sha256": "dd16cfc030c47e23a25a52226c0efcdcb524cab7be2f499de3a68318907bf724",
+      "contract_set_sha256": "0257eddda95d24dba657b993eee981443e6c215e93f7cb04387a8d444a9c7caa",
+      "source_set_sha256": "468490e1b67360344fd8384a71be3861b650eb6004587256c6fa70c859cc2ab5",
+      "validated_commit": "8f7c7630c3ba786478aa0066ba35c271feff2036",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7a312c0cf387b2baaec94b62811baae247c30d5169885f5161a51b91444803ab"
+    },
+    "vulcan": {
+      "result": "PASS_IMPLEMENTATION",
+      "reviewer_role": "vulcan",
+      "phase": "implementation",
+      "request_nonce": "33df60344cc2750551c9c845c67e6f27",
+      "request_sha256": "01ded57f40d27edf968bbd6df4f9b1e013e1a63fc0605fbc0cf33e5130d8b3e1",
+      "session_id": "forge-vulcan-s20-530-implementation-20260902T215406-33df6034",
+      "reviewed_at_utc": "2026-09-02T22:15:31.958Z",
+      "session_json_sha256": "ac9c6cee3987510b7d9cf88e3615c6efb1cd9cf4d1948090e89378ca473a4daa",
+      "trajectory_sha256": "c3f997c4673747c27fc58123d86ea320970ffcb896b3fed790d0a933ca60db1f",
+      "contract_set_sha256": "0257eddda95d24dba657b993eee981443e6c215e93f7cb04387a8d444a9c7caa",
+      "source_set_sha256": "468490e1b67360344fd8384a71be3861b650eb6004587256c6fa70c859cc2ab5",
+      "validated_commit": "8f7c7630c3ba786478aa0066ba35c271feff2036",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7a312c0cf387b2baaec94b62811baae247c30d5169885f5161a51b91444803ab"
+    }
+  },
+  "review_receipt_verification": {
+    "command": "/usr/bin/python3 -I -B scripts/check_s20_530_crash_recovery.py --verify-review-receipts implementation",
+    "result": "PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS",
+    "phase": "implementation",
+    "evidence": "evidence/validation/s20-530-crash-recovery-closeout-v1.json",
+    "review_receipts_sha256": "8904f6d5e11ff4bf461ccb2aa9a1f3b8d25ea0dfbb74e089149369760f75ff2c",
+    "verified_receipts": {
+      "nabu": {
+        "session_id": "forge-nabu-s20-530-implementation-20260902T215406-23c1f91b",
+        "reviewed_at_utc": "2026-09-02T22:01:04.000Z",
+        "session_json_sha256": "19762231ec03e061e69aa1bacdd02c2a678eba52f5af237c473ee02e6b023a4f",
+        "trajectory_sha256": "283d160079ba3379fa3968e36e044848b66e585373cad553f90d1bac9c12aaab"
+      },
+      "ariadne": {
+        "session_id": "forge-ariadne-s20-530-implementation-20260902T215406-3ae4faa7",
+        "reviewed_at_utc": "2026-09-02T22:07:08.668Z",
+        "session_json_sha256": "8a8d0dd608a920cbf4a10935af31336fa8e4fff77bb378eb99096485e0ff323f",
+        "trajectory_sha256": "dd16cfc030c47e23a25a52226c0efcdcb524cab7be2f499de3a68318907bf724"
+      },
+      "vulcan": {
+        "session_id": "forge-vulcan-s20-530-implementation-20260902T215406-33df6034",
+        "reviewed_at_utc": "2026-09-02T22:15:31.958Z",
+        "session_json_sha256": "ac9c6cee3987510b7d9cf88e3615c6efb1cd9cf4d1948090e89378ca473a4daa",
+        "trajectory_sha256": "c3f997c4673747c27fc58123d86ea320970ffcb896b3fed790d0a933ca60db1f"
+      }
+    },
+    "payload_sha256": "bfe8b3e238f1786ba28b7c4727a364fc736188104838182a9c836c940f161853"
+  },
   "validation": {
     "workspace_inputs": {
       ".gitignore": {
