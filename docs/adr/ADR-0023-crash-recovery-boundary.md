@@ -297,6 +297,18 @@ receipts remain historical authority for v11; v12 refreezes the specification,
 ADR, checker, and rebound test plan with fresh contract-freeze receipts before
 closeout resumes.
 
+S20-530 v13 excludes the LIMIT frozen-default field from the generic semantic
+check. The first full checker run with `implementation_complete` true, after
+the authoritative v12 closeout and its three implementation receipts, failed
+because `require_semantic_assertions` demanded that each LIMIT `frozen_default`
+assertion compare the field name, while the tests compare the frozen constant
+that the dedicated `require_exact_limit_default_assertion` verifies exactly.
+The LIMIT call site now lists `frozen_default` among its custom fields like the
+four other dedicated fields; nothing else changes. The immutable v12 evidence
+and receipts remain historical authority for v12; v13 refreezes the
+specification, ADR, checker, and rebound test plan with fresh contract-freeze
+receipts before closeout resumes.
+
 Closeout execution evidence covers the full workspace-input closure, including
 all tracked and nonignored untracked source, test, manifest, lockfile, script,
 specification, and frozen-evidence inputs. Only closeout outputs are excluded.

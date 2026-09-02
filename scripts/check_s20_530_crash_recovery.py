@@ -82,7 +82,7 @@ ADR = ROOT / "docs/adr/ADR-0023-crash-recovery-boundary.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 FREEZE_EVIDENCE = (
-    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v12.json"
+    ROOT / "evidence/validation/s20-530-crash-recovery-contract-freeze-v13.json"
 )
 CLOSEOUT_EVIDENCE = ROOT / "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 TEST_PLAN = ROOT / "evidence/validation/s20-530-crash-recovery-test-plan-v1.json"
@@ -90,8 +90,8 @@ RUNNER = ROOT / "scripts/run_s20_530_validation.py"
 RECONCILER = ROOT / "scripts/reconcile_s20_530_exception_ledgers.py"
 VALIDATION_LOG_DIR = ROOT / "evidence/validation/s20-530-crash-recovery-logs-v1"
 
-FROZEN_SPEC_SHA256 = "aaac0b231f475808528ae141c6e5470db1409d5f80a7210e31a9d81e620b592c"
-FROZEN_ADR_SHA256 = "1e88aeeddb00e9ccdab6e6ab9087d1061035522538d244064c7d6eeac0f4e6b9"
+FROZEN_SPEC_SHA256 = "d9cf50e08ba9ae9f233f871e10769db11ef267277cea97c03c7994c3f66cee0c"
+FROZEN_ADR_SHA256 = "7467814660500583086d6dc7f30a6e28c7f432fb5b7409dcfd3c87cfc22810d6"
 FROZEN_RUNNER_SHA256 = (
     "4e1e411d88e4caddb7232b119158fc5d18b98da3c4623cad5f45e10d5d00d4e7"
 )
@@ -99,7 +99,7 @@ FROZEN_RECONCILER_SHA256 = (
     "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
 )
 CHECKER_CONTRACT_SHA256 = (
-    "a03bd3a222a88a1062b20cafd2c5aa87125fd78b673db1dd02c096f31b72573c"
+    "839459caa72eff5d09a0c294d886df7263b2dab68acae0d23b7230683c5f94bc"
 )
 
 REVIEWERS = ("nabu", "ariadne", "vulcan")
@@ -8465,15 +8465,15 @@ def grouped_m2_probe_adapter_spec_digest_problem(spec: str) -> str | None:
 
 def limit_exception_partition_spec_digest_problem(spec: str) -> str | None:
     matches = re.findall(
-        r"The checker freezes the complete v12 exception partition\s+"
+        r"The checker freezes the complete v13 exception partition\s+"
         r"under one ordered fingerprint\. Its SHA-256 is\s+"
         r"`([0-9a-f]{64})`\.",
         spec,
     )
     if len(matches) != 1:
-        return "cannot isolate one exact v12 exception-partition fingerprint"
+        return "cannot isolate one exact v13 exception-partition fingerprint"
     if matches[0] != LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256:
-        return "specification v12 exception-partition fingerprint differs"
+        return "specification v13 exception-partition fingerprint differs"
     return None
 
 
@@ -8619,6 +8619,7 @@ def require_contract(spec: str, adr: str) -> None:
         "S20-530 v10 repairs only the test-only COR-07 non-regular corruption helper",
         "S20-530 v11 repairs only the Tier 2 `cargo fmt` gate",
         "S20-530 v12 corrects the runner log count and exempts narrative lanes",
+        "S20-530 v13 excludes the LIMIT frozen-default field",
         "does not normalize modes after extraction",
     ):
         require_text(adr, marker, "crash-recovery ADR")
@@ -9635,7 +9636,7 @@ def verify_review_receipts(phase: str) -> None:
     phase_contract = {
         "contract_freeze": (
             FREEZE_EVIDENCE,
-            "s20-530-crash-recovery-contract-freeze-v12",
+            "s20-530-crash-recovery-contract-freeze-v13",
             "PASS_CONTRACT_FROZEN",
             "PASS_CONTRACT_FREEZE",
         ),
@@ -10036,7 +10037,7 @@ def require_freeze_evidence(
 ) -> tuple[str, dict[str, object]]:
     hashes = require_frozen_contract_integrity()
     evidence = load_json(FREEZE_EVIDENCE)
-    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v12":
+    if evidence.get("contract") != "s20-530-crash-recovery-contract-freeze-v13":
         fail("contract-freeze evidence identity differs")
     if evidence.get("result") != "PASS_CONTRACT_FROZEN":
         fail("contract-freeze evidence is not PASS_CONTRACT_FROZEN")
@@ -10298,6 +10299,7 @@ def require_implementation(
                         semantic_fields,
                         custom_fields=frozenset(
                             {
+                                "frozen_default",
                                 "no_mutation",
                                 "exact_limit_success",
                                 "limit_plus_one_code",
@@ -26990,7 +26992,7 @@ def limit_exception_partition_freeze_problem(
         "control_ledger_sha256": canonical_json_sha256(control_ledger),
     }
     if observed != LIMIT_EXCEPTION_PARTITION_FREEZE:
-        return "generated exception partitions differ from the frozen v12 frontier"
+        return "generated exception partitions differ from the frozen v13 frontier"
     return None
 
 
@@ -33981,7 +33983,7 @@ def require_checker_negative_controls() -> None:
         fail("checker self-test accepted a stale grouped adapter spec digest")
 
     exact_partition_digest_spec = (
-        "The checker freezes the complete v12 exception partition\n"
+        "The checker freezes the complete v13 exception partition\n"
         "under one ordered fingerprint. Its SHA-256 is\n"
         f"`{LIMIT_EXCEPTION_PARTITION_FREEZE_SHA256}`.\n"
     )

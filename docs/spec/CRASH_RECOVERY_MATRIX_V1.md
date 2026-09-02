@@ -578,7 +578,7 @@ Nabu, Ariadne, and Vulcan implementation reviews remain mandatory.
 The exact entry partition is 110 complete leaves: 90 static passes and 20
 manual-review exceptions across 13 events. The exact control partition is
 5,213 complete atoms: 3,547 static passes and 1,666 manual-review exceptions
-across 23 events. The checker freezes the complete v12 exception partition
+across 23 events. The checker freezes the complete v13 exception partition
 under one ordered fingerprint. Its SHA-256 is
 `867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487`.
 The fingerprint binds the corrected 31-source closure, 14 feature-gated
@@ -1346,6 +1346,20 @@ still binds the complete closure at validation, the working tree must still be
 clean, the validated commit must still be an ancestor of HEAD, and the recorded
 workspace inputs must still equal the validated commit's blobs. Sources,
 runner, reconciler, scanner parity, and the exception partition are unchanged.
+
+S20-530 v13 excludes the LIMIT frozen-default field from the generic semantic
+check. After the authoritative v12 closeout passed and three
+`PASS_IMPLEMENTATION` receipts were bound, the first full checker run with
+`implementation_complete` true failed at the LIMIT rows:
+`require_semantic_assertions` treated `frozen_default` as a plain value field
+and demanded that the assertion compare the field name, while every LIMIT test
+compares the frozen constant that the dedicated
+`require_exact_limit_default_assertion` already verifies exactly. The LIMIT
+call site now lists `frozen_default` among its custom fields, next to the four
+other fields that already have dedicated exact checks, and the dedicated check
+remains the sole authority for that assertion. Sources, runner, reconciler,
+scanner parity, and the exception partition are unchanged; the superseded v12
+closeout outputs are removed before the v13 closeout.
 
 The trust boundary also excludes a cooperating command that fabricates and
 then restores evidence or authority, and any unrelated actor with the
