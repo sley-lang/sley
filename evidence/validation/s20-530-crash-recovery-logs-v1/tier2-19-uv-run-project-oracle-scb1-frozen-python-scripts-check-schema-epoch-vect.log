@@ -1,0 +1,16 @@
+$ uv run --project oracle/scb1 --frozen python scripts/check_schema_epoch_vector.py
+execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
+exit_status: 0
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: /run/user/1000/.sley-s20-530-853nctxx/uv-environment
+   Building sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-853nctxx/source/oracle/scb1
+      Built sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-853nctxx/source/oracle/scb1
+Installed 3 packages in 0.70ms
+{
+  "contract": "s20-140-independent-bootstrap-vector-v1",
+  "preimage_bytes": 84,
+  "problems": [],
+  "record_bytes": 74,
+  "result": "PASS",
+  "schema_epoch_id": "ae5b235713b46c04f73c1decd0fb0bb57c5557d0fe89dae7ddac4a7dba25564e"
+}

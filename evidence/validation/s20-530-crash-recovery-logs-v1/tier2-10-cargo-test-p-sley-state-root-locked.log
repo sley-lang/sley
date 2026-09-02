@@ -1,0 +1,56 @@
+$ cargo test -p sley-state-root --locked
+execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
+exit_status: 0
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded arrayref v0.3.9
+  Downloaded arrayvec v0.7.8
+  Downloaded shlex v2.0.1
+  Downloaded tinyvec v1.12.0
+  Downloaded cfg-if v1.0.4
+  Downloaded constant_time_eq v0.3.1
+  Downloaded tinyvec_macros v0.1.1
+  Downloaded find-msvc-tools v0.1.11
+  Downloaded blake3 v1.8.2
+  Downloaded cc v1.4.4
+  Downloaded unicode-normalization v0.1.24
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.11
+   Compiling arrayref v0.3.9
+   Compiling constant_time_eq v0.3.1
+   Compiling arrayvec v0.7.8
+   Compiling cfg-if v1.0.4
+   Compiling tinyvec_macros v0.1.1
+   Compiling tinyvec v1.12.0
+   Compiling cc v1.4.4
+   Compiling unicode-normalization v0.1.24
+   Compiling blake3 v1.8.2
+   Compiling sley-id v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-ai0xn3e8/source/crates/sley-id)
+   Compiling sley-scb1 v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-ai0xn3e8/source/crates/sley-scb1)
+   Compiling sley-schema v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-ai0xn3e8/source/crates/sley-schema)
+   Compiling sley-state-root v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-ai0xn3e8/source/crates/sley-state-root)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.74s
+     Running unittests src/lib.rs (/run/user/1000/.sley-s20-530-ai0xn3e8/cargo-target/debug/deps/sley_state_root-271bddcf1f474da8)
+
+running 12 tests
+test tests::accepted_vector_is_frozen_and_round_trips ... ok
+test tests::builder_collection_limit_fails_closed_before_sorting ... ok
+test tests::builder_rejects_duplicates_unbound_entry_and_unknown_flags ... ok
+test tests::descriptor_and_registered_epoch_are_exact ... ok
+test tests::epoch_descriptor_and_decoder_mismatch_fail_closed ... ok
+test tests::every_field_perturbation_changes_root ... ok
+test tests::strict_import_rejects_nonminimal_envelope_and_payload_epoch_mismatch ... ok
+test tests::strict_import_rejects_order_duplicates_mismatch_trailer_and_limits ... ok
+test tests::strict_import_rejects_unknown_duplicate_and_ordered_fields ... ok
+test tests::synthetic_flag_changes_digest_but_remains_unauthorized ... ok
+test tests::synthetic_zero_epoch_vector_hashes_but_authorization_rejects ... ok
+test tests::unordered_inputs_have_identical_root ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_state_root
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

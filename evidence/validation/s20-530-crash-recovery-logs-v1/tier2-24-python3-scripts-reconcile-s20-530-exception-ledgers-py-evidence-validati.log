@@ -1,0 +1,4 @@
+$ python3 scripts/reconcile_s20_530_exception_ledgers.py evidence/validation/s20-530-crash-recovery-test-plan-v1.json
+execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
+exit_status: 0
+S20-530 exception reconciliation: PASS {"control_complete_count":5213,"control_exception_count":1666,"control_static_pass_count":3547,"entry_complete_count":110,"entry_exception_count":20,"entry_static_pass_count":90}

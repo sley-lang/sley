@@ -1,0 +1,80 @@
+$ cargo test -p sley-scb1 --locked
+execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
+exit_status: 0
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded arrayref v0.3.9
+  Downloaded arrayvec v0.7.8
+  Downloaded cfg-if v1.0.4
+  Downloaded constant_time_eq v0.3.1
+  Downloaded tinyvec_macros v0.1.1
+  Downloaded itoa v1.0.18
+  Downloaded find-msvc-tools v0.1.11
+  Downloaded shlex v2.0.1
+  Downloaded quote v1.0.47
+  Downloaded unicode-ident v1.0.24
+  Downloaded tinyvec v1.12.0
+  Downloaded serde_core v1.0.228
+  Downloaded proc-macro2 v1.0.107
+  Downloaded serde_derive v1.0.228
+  Downloaded blake3 v1.8.2
+  Downloaded ryu v1.0.23
+  Downloaded serde v1.0.228
+  Downloaded memchr v2.8.3
+  Downloaded cc v1.4.4
+  Downloaded unicode-normalization v0.1.24
+  Downloaded serde_json v1.0.145
+  Downloaded syn v2.0.119
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.11
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling constant_time_eq v0.3.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling arrayvec v0.7.8
+   Compiling arrayref v0.3.9
+   Compiling serde v1.0.228
+   Compiling serde_json v1.0.145
+   Compiling tinyvec v1.12.0
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling ryu v1.0.23
+   Compiling cc v1.4.4
+   Compiling unicode-normalization v0.1.24
+   Compiling syn v2.0.119
+   Compiling blake3 v1.8.2
+   Compiling sley-id v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-5vn94zo5/source/crates/sley-id)
+   Compiling sley-scb1 v2.0.0-alpha.0 (/run/user/1000/.sley-s20-530-5vn94zo5/source/crates/sley-scb1)
+   Compiling serde_derive v1.0.228
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.48s
+     Running unittests src/lib.rs (/run/user/1000/.sley-s20-530-5vn94zo5/cargo-target/debug/deps/sley_scb1-1046215929c6c323)
+
+running 6 tests
+test tests::sint128_round_trips_extrema_and_signs ... ok
+test tests::uvar128_rejects_invalid_widths_and_overflows ... ok
+test tests::uvar128_rejects_nonminimal_trailing_and_exhausted_input ... ok
+test tests::uvar128_round_trips_canonical_boundaries ... ok
+test tests::value_cursor_decodes_low_level_round_trip_primitives ... ok
+test tests::value_cursor_returns_stable_low_level_failure_codes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (/run/user/1000/.sley-s20-530-5vn94zo5/cargo-target/debug/deps/conformance-1b82ebec028e35ae)
+
+running 4 tests
+test accepted_vectors_match_frozen_hex ... ok
+test bounded_scb1_decoder_fuzz_smoke_rejects_seeded_noise ... ok
+test epoch_invariants_and_encoder_canonicalization_hold ... ok
+test rejected_vectors_return_frozen_codes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_scb1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

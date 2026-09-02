@@ -1,0 +1,23 @@
+$ uv run --project oracle/scb1 --frozen python -m unittest discover -s oracle/scb1/tests -v
+execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
+exit_status: 0
+Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+Creating virtual environment at: /run/user/1000/.sley-s20-530-uc86jvp3/uv-environment
+   Building sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-uc86jvp3/source/oracle/scb1
+      Built sley2-scb1-oracle @ file:///run/user/1000/.sley-s20-530-uc86jvp3/source/oracle/scb1
+Installed 3 packages in 0.44ms
+test_dependency_versions_are_pinned (test_codec.OracleTests.test_dependency_versions_are_pinned) ... ok
+test_every_accepted_vector_matches (test_codec.OracleTests.test_every_accepted_vector_matches) ... ok
+test_every_rejected_vector_returns_exact_code (test_codec.OracleTests.test_every_rejected_vector_returns_exact_code) ... ok
+test_frozen_corpus_gate_passes (test_codec.OracleTests.test_frozen_corpus_gate_passes) ... ok
+test_nested_fixture_is_real_encoded_input (test_codec.OracleTests.test_nested_fixture_is_real_encoded_input) ... ok
+test_s20_350_candidate_corpus_gate_passes (test_codec.OracleTests.test_s20_350_candidate_corpus_gate_passes) ... ok
+test_s20_360_candidate_result_corpus_gate_passes (test_codec.OracleTests.test_s20_360_candidate_result_corpus_gate_passes) ... ok
+test_s20_390_transaction_receipt_corpus_gate_passes (test_codec.OracleTests.test_s20_390_transaction_receipt_corpus_gate_passes) ... ok
+test_standalone_contract_must_match_declared_type (test_codec.OracleTests.test_standalone_contract_must_match_declared_type) ... ok
+test_uvar_boundaries_round_trip (test_codec.OracleTests.test_uvar_boundaries_round_trip) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.022s
+
+OK
