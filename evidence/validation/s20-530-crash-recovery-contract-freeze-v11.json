@@ -1,0 +1,172 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v11",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Repair only the Tier 2 cargo fmt gate that the first captured v10 closeout reached and failed after every mapped test and 24 of 25 Tier 2 commands passed: the isolated tool-bin provisioned neither cargo-fmt nor rustfmt (cargo reported no such command: fmt), and every rustfmt difference in the workspace (1929 hunks, present since before v10) lay inside the three owner cfg(test) mod tests modules whose statement text the checker renders and byte-verifies. The runner now resolves cargo-fmt and rustfmt through the pinned rustup which path, records them in the tool manifest, and links both into the isolated tool directory; the checker's frozen EXECUTION_TOOL_NAMES names them; each of the three owner test modules carries exactly one rustfmt::skip attribute directly after cfg(test); and exact_test_module_range accepts that chain from a frozen two-element set. cargo fmt --all -- --check passes with zero hunks and still governs all production code, all test-only items outside the modules, and every other crate. The private transaction bridge recovery_receipt_metadata is restored to the match-guard body frozen on 2026-08-28 (39a6296) that the 2026-08-29 implementation commit (691e870) had rewritten as an equivalent if inside the Ok arm; require_public_recovery_api runs only on the implementation-complete path, so the drift was latent. On that same path require_public_recovery_api handed the RecoveryAncestryError trait check the production_rust projection, which blanks string literals, so the frozen Display::fmt expectation could never match; it now receives the byte-preserving normal_build_source projection and the unchanged body matches. The frozen regex for the public recover_gc_witness API demanded the explicit Result<GcWitnessRecoveryStatus, GcError> spelling while gc.rs has always written Result<GcWitnessRecoveryStatus> through its exact module alias type Result<T> = core::result::Result<T, GcError> (the same type, and the public API baseline is anchored on that spelling); the checker now requires that exact alias at top level and accepts the return type with or without the explicit GcError argument. limit_events_problem rejected every unresolved control entry (scope and exit values, callables, edge liveness, and collection mutations) although the v5 to v8 exception partition records exactly those static-resolver frontier cases as reviewed manual exceptions (1666 ledgered records across seven atom kinds in the committed plan, each matched to its manifest entry by unresolved_record_sha256); it now derives the control ledger from the same manifest and accepts an unresolved entry only when its canonical digest is a ledgered UNRESOLVED_BY_V8_STATIC_RESOLVER record and only after the derived control ledger reproduces the frozen reviewed control_ledger_sha256, so every other source including the hostile controls receives the strict rule. expected_private_enum_body rendered payload variants of the four test-only durability-cut enums with a trailing comma inside the braces, which rustfmt removes and no owner source carries, so require_test_only_durability_cut_authority could never pass; it now renders the rustfmt single-line form and the frozen variant tables and source enums are unchanged. For every LIMIT subcase the frozen-default assertion is checked twice: require_exact_limit_default_assertion demands the underscore-grouped literal the mapped tests write while the generic exact_value_assertion_problem demanded the JSON spelling, so both could never hold; the generic check now also accepts the grouped integer literal. Production recovery behavior, matrix rows, mapped tests, reconciler, string-literal profiles, public API surface, module graph, and all partition counts are unchanged; the positional scanner parity for the three owner sources, the limit source-set digest, the scanner contract digest, the exception records sourced from those files, both exception-ledger digests, and the ordered exception-partition fingerprint were refrozen, the runner and checker digests moved for the tool manifest and attribute-chain set, and fresh final reviews are bound to trusted local Council session and trajectory receipts.",
+  "design": "machineresearch/sley-2.0/s20-530-v11-cargo-fmt-gate-amendment-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "34c9fcb2eacdb35e29e8ef27facd3d917b304307f5f458d17110df8430e1a604",
+    "adr_sha256": "345d519574a1130e6f3ebd10b8b53d3a5e682267b65941a7d987f2da8c335978",
+    "checker_sha256": "0a510c9467d235d4115a3f062ed09d70ba4190f16096b7c8b1eaaf461b52468b",
+    "checker_contract_sha256": "dcdb1f8fbd28d0692e74f6ba0c130060de3bffd32c51ba0d142038d29c6a11a9",
+    "runner_sha256": "4e1e411d88e4caddb7232b119158fc5d18b98da3c4623cad5f45e10d5d00d4e7",
+    "reconciler_sha256": "381a92164e5fff07fe7d5324b8c95873763010c6db99c7708422affdd2471d91"
+  },
+  "contract_set_sha256": "5d3d1b4b87466d854fb51f0423cc9f32c2fed25c15527cb84180ec3540b61373",
+  "commands": {
+    "python3 -m py_compile checker and runner": "PASS",
+    "ruff format --check checker and runner": "PASS",
+    "ruff check checker and runner": "PASS",
+    "git diff --check": "PASS",
+    "cargo fmt --all -- --check on the workspace with rustfmt::skip owner test modules": "PASS_ZERO_HUNKS_WITH_RUSTFMT_SKIP_OWNER_TEST_MODULES",
+    "100-row matrix compiler and 419-test exact map": "PASS_SHA256_C3D72B2D8689B62618439ECCB8F694867ED454F0C5FE175FEC319C34EF1277C3",
+    "runner hostile controls and exact commit materialization self-test with cargo-fmt and rustfmt provisioned": "PASS",
+    "cargo test -p sley-store, sley-txn, sley-repo --lib --locked with rustfmt::skip test modules": "PASS_STORE_48_TXN_195_REPO_303",
+    "independent serialized exception reconciliation": "PASS_ENTRY_110_90_20_CONTROL_5213_3547_1666",
+    "exception partition regeneration equality against frozen v11 constants": "PASS",
+    "frozen contract self-integrity": "PASS"
+  },
+  "partition": {
+    "source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+    "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+    "entry_complete_count": 110,
+    "entry_static_pass_count": 90,
+    "entry_exception_count": 20,
+    "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+    "control_complete_count": 5213,
+    "control_static_pass_count": 3547,
+    "control_exception_count": 1666,
+    "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+    "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS_EXACT_V8_PARTITION",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS_EXACT_V8_PARTITION",
+    "independent_exception_reconciliation": "FINAL_REVIEW_REQUIRED_EXACT_TIER_2",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "resolved_findings": [
+    "allocation_heavy_rust_scanner_runtime_debt",
+    "incomplete_feature_gate_authority",
+    "helper_manifest_attribute_chain_gap",
+    "entry_and_control_static_resolver_frontier",
+    "independent_exception_partition_reconciliation",
+    "trusted_local_specialist_review_receipts",
+    "git_archive_mode_contract",
+    "cor07_helper_execution_environment",
+    "cargo_fmt_tool_provisioning_and_test_module_formatter_exemption",
+    "recovery_receipt_metadata_bridge_body_drift",
+    "recovery_ancestry_error_traits_check_literal_projection",
+    "recover_gc_witness_signature_alias_spelling",
+    "limit_events_ledgered_unresolved_reconciliation",
+    "durability_cut_enum_payload_renderer_trailing_comma",
+    "semantic_assertion_grouped_integer_literal"
+  ],
+  "deferred_semantic_findings": [
+    "captured_exact_tier_2_closeout_execution",
+    "fresh_final_implementation_reviews",
+    "immutable_closeout_evidence"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": true,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "reviewer_role": "nabu",
+      "phase": "contract_freeze",
+      "request_nonce": "59b9bcaa54ebaed7036eb1e5049a1951",
+      "request_sha256": "6e280de9213c331e3382290abf2b7e748fc6e9b79fea3af073ec5ce4cb5fda8d",
+      "session_id": "forge-nabu-s20-530-contract-freeze-20260902T070444-59b9bcaa",
+      "reviewed_at_utc": "2026-09-02T07:29:37.222Z",
+      "session_json_sha256": "f6c2298ffe62fb7afb5a508e5013471fa91fdac97d6cb8378f387e8a913790c8",
+      "trajectory_sha256": "3f436b7af2b54cc05b42c599838480c6fce6b551cb89111e91bf2c521716cc33",
+      "contract_set_sha256": "5d3d1b4b87466d854fb51f0423cc9f32c2fed25c15527cb84180ec3540b61373",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7d2b15692bba094ae75b06a66ed957656b007661f9e6a3571465c8e6e7e14709"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "reviewer_role": "ariadne",
+      "phase": "contract_freeze",
+      "request_nonce": "cfd15f4adfd08c424d8fc2d2a1d520cb",
+      "request_sha256": "93eb3a8e84e121ae285db1a4d3c4292f0a46946cb8b0e27e1544096eb9ac0966",
+      "session_id": "forge-ariadne-s20-530-contract-freeze-20260902T075220-cfd15f4a",
+      "reviewed_at_utc": "2026-09-02T08:10:50.203Z",
+      "session_json_sha256": "6630d2ad7322bc4a885530efb23e8e047f19e9fb0dceac7ba50eb49cb97d9c33",
+      "trajectory_sha256": "9aa283cfc5c6967fe6be7f7af3cef54dcdb402f24386f75f2563690e01cb23e4",
+      "contract_set_sha256": "5d3d1b4b87466d854fb51f0423cc9f32c2fed25c15527cb84180ec3540b61373",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7d2b15692bba094ae75b06a66ed957656b007661f9e6a3571465c8e6e7e14709"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "reviewer_role": "vulcan",
+      "phase": "contract_freeze",
+      "request_nonce": "453f44be32354b5aec47ed42720fe3af",
+      "request_sha256": "dd64a49226eca1b613102a1da45b3d2207b036890f951437f3cb4bf9eba6fca4",
+      "session_id": "forge-vulcan-s20-530-contract-freeze-20260902T070444-453f44be",
+      "reviewed_at_utc": "2026-09-02T07:51:51.865Z",
+      "session_json_sha256": "27d033b8209ddf20f0d736552c0485a24156aa163d7794ae2f26cdd9e21731aa",
+      "trajectory_sha256": "ee4944dd0de84f57dc260c2f9800b741350a6a30bc2fb2e1c698c5abbbc5ae8a",
+      "contract_set_sha256": "5d3d1b4b87466d854fb51f0423cc9f32c2fed25c15527cb84180ec3540b61373",
+      "limit_source_set_sha256": "91643706169b4b879121e2b559e0aa278ecdc70400b942d50f38a4a0efca1065",
+      "scanner_contract_sha256": "50412e3d8ececd7135e47c863c38b36b5fed54d1468fc65f5e1a91e57b8b9d52",
+      "entry_exception_ledger_sha256": "0436e7fbe9844eb8ddec234c939458f73f8c0e39f8764a9625b532fc02dc6f0b",
+      "control_exception_ledger_sha256": "dac8c6752b55de4b99e001f23c4bab396e2b09c6a8fa56a109efea010de0fe9d",
+      "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
+      "evidence_payload_sha256": "7d2b15692bba094ae75b06a66ed957656b007661f9e6a3571465c8e6e7e14709"
+    }
+  },
+  "review_receipt_verification": {
+    "command": "/usr/bin/python3 -I -B scripts/check_s20_530_crash_recovery.py --verify-review-receipts contract_freeze",
+    "result": "PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS",
+    "phase": "contract_freeze",
+    "evidence": "evidence/validation/s20-530-crash-recovery-contract-freeze-v11.json",
+    "review_receipts_sha256": "b43799a4fd8b136705053680ebcd6d241da10a9516dd14743df9808133ab95c5",
+    "verified_receipts": {
+      "nabu": {
+        "session_id": "forge-nabu-s20-530-contract-freeze-20260902T070444-59b9bcaa",
+        "reviewed_at_utc": "2026-09-02T07:29:37.222Z",
+        "session_json_sha256": "f6c2298ffe62fb7afb5a508e5013471fa91fdac97d6cb8378f387e8a913790c8",
+        "trajectory_sha256": "3f436b7af2b54cc05b42c599838480c6fce6b551cb89111e91bf2c521716cc33"
+      },
+      "ariadne": {
+        "session_id": "forge-ariadne-s20-530-contract-freeze-20260902T075220-cfd15f4a",
+        "reviewed_at_utc": "2026-09-02T08:10:50.203Z",
+        "session_json_sha256": "6630d2ad7322bc4a885530efb23e8e047f19e9fb0dceac7ba50eb49cb97d9c33",
+        "trajectory_sha256": "9aa283cfc5c6967fe6be7f7af3cef54dcdb402f24386f75f2563690e01cb23e4"
+      },
+      "vulcan": {
+        "session_id": "forge-vulcan-s20-530-contract-freeze-20260902T070444-453f44be",
+        "reviewed_at_utc": "2026-09-02T07:51:51.865Z",
+        "session_json_sha256": "27d033b8209ddf20f0d736552c0485a24156aa163d7794ae2f26cdd9e21731aa",
+        "trajectory_sha256": "ee4944dd0de84f57dc260c2f9800b741350a6a30bc2fb2e1c698c5abbbc5ae8a"
+      }
+    },
+    "payload_sha256": "2a6887af5cd6f7c80edaf0e82076188d27f70bcb8e62edad17be26def92343ba"
+  }
+}
