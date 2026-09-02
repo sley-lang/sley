@@ -1,3 +1,0 @@
-$ cargo fmt --all -- --check
-execution_profile_sha256: 44bdb95437fab95069985f744afdad35ba62985544db680ed9f9ba3815f168be
-exit_status: 0
