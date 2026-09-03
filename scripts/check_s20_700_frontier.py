@@ -99,7 +99,7 @@ if (ROOT / "crates/sley-repo/src/merge.rs").exists():
 work_packages = WORK_PACKAGES.read_text(encoding="utf-8")
 for marker in [
     "twelve persistent libFuzzer targets",
-    "twelve scoped persistent Make smoke gates",
+    "eleven scoped persistent Make smoke gates",
     "merge production boundary remains absent",
 ]:
     if marker not in work_packages:
