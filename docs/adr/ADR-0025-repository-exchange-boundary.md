@@ -93,7 +93,25 @@ unreachable receipt ceiling.
    254- and 255-byte names because of the double varint length prefix, and
    found the marker install non-atomic; revision 3 states the exact length
    order, installs the marker by temp-and-rename, constrains `exchange/v1/`
-   contents, and names the two-importer jam consequence.
+   contents, and names the two-importer jam consequence. The third pass
+   (session `forge-ariadne-s20-540-pass3-20260903T021306-68bdb08f`) returned
+   `PASS_CONTRACT_DRAFT`.
+9. **Import-surface review and the write guard.** Vulcan's review of
+   revision 3 (session
+   `forge-vulcan-s20-540-contract-20260903T014755-d837d5c4`) returned
+   `FAIL_CONTRACT_DRAFT` with one P1: the claim that a headless incomplete
+   clone is not a repository to any reader was unenforced, because
+   `initialize_trusted_genesis`, `commit`, `create_branch`, `advance_branch`,
+   and GC acquisition operate on a head-absent root, so a third party could
+   adopt half-imported receipts and branches under a foreign genesis after a
+   crash. Revision 4 makes the stage marker a write guard: those paths fail
+   closed with a new S20-390 code `TXN_INCOMPLETE_CLONE` (`39021`), added to
+   the frozen transaction error table by the S20-540 slice; read paths stay
+   available and establish no acceptance. Revision 4 also re-classifies the
+   target after ownership, adds symlink discipline, closed preflight work
+   ceilings mirroring the S20-530 recovery limits, one exact code for nested
+   exchanges, the receipt ceiling as the fast-forward bound, the inner
+   admissibility invariant, and a subset proof for incomplete clones.
 
 ## Consequences
 

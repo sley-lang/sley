@@ -722,14 +722,19 @@
     "transaction_owner_api": "initialize_trusted_clone_receipts_with_maintenance/initialize_trusted_clone_head_with_maintenance",
     "nabu_design_consult": "PASS_EMBED_SLEY_TXN_API_BYTE_EXACT_CONCERNS_APPLIED",
     "nabu_design_consult_session": "forge-nabu-s20-540-design-20260903T013712-0fb98776",
-    "ariadne_contract_review": "PENDING_RE_REVIEW",
-    "vulcan_import_surface_review": "PENDING",
+    "ariadne_contract_review": "PENDING_LIMITED_PASS_ON_REVISION_4",
+    "vulcan_import_surface_review": "PENDING_RE_REVIEW",
     "implementation_complete": false,
-    "contract_revision": 3,
+    "contract_revision": 4,
     "ariadne_contract_review_revision_1": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
     "ariadne_contract_review_revision_1_session": "forge-ariadne-s20-540-contract-20260903T014755-7931f8f9",
     "ariadne_contract_review_revision_2": "FAIL_CONTRACT_DRAFT_2_P1_1_P2_3_P3_ALL_APPLIED_IN_REVISION_3",
-    "ariadne_contract_review_revision_2_session": "forge-ariadne-s20-540-rereview-20260903T020340-91f5e854"
+    "ariadne_contract_review_revision_2_session": "forge-ariadne-s20-540-rereview-20260903T020340-91f5e854",
+    "ariadne_contract_review_revision_3": "PASS_CONTRACT_DRAFT",
+    "ariadne_contract_review_revision_3_session": "forge-ariadne-s20-540-pass3-20260903T021306-68bdb08f",
+    "vulcan_import_surface_review_revision_3": "FAIL_CONTRACT_DRAFT_1_P1_4_P2_3_P3_ALL_APPLIED_IN_REVISION_4",
+    "vulcan_import_surface_review_revision_3_session": "forge-vulcan-s20-540-contract-20260903T014755-d837d5c4",
+    "incomplete_clone_write_guard_code": "TXN_INCOMPLETE_CLONE:39021"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",

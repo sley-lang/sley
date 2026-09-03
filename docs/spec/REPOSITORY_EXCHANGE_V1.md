@@ -1,10 +1,10 @@
 # Repository Exchange v1
 
-Status: S20-540 contract draft, revision 3. Nabu design consult applied; the
-first Ariadne contract review (`FAIL_CONTRACT_DRAFT`, 4 P0, 4 P1, 10 P2, 7 P3)
-and the second (`FAIL_CONTRACT_DRAFT`, 2 P1, 1 P2, 3 P3) are applied in full;
-the third Ariadne pass and the Vulcan import-surface review are pending; no
-implementation exists.
+Status: S20-540 contract draft, revision 4. Nabu design consult applied; three
+Ariadne contract passes (revision 3 `PASS_CONTRACT_DRAFT`) and the first
+Vulcan import-surface review of revision 3 (`FAIL_CONTRACT_DRAFT`, 1 P1, 4 P2,
+3 P3) are applied in full; the Vulcan re-review and a limited Ariadne pass
+over the changed paragraphs are pending; no implementation exists.
 
 ## Notation
 
@@ -89,10 +89,10 @@ The payload is a closed SCB1 Record with all fields required:
 | Tag | Field | S20-540 type and rule |
 |---:|---|---|
 | 1 | `exchange_version` | `UInt<32>`; exactly `1` |
-| 2 | `object_pack` | `Bytes`; one exact stored S20-170 pack (tag 170, version 1) of at most `16,777,216` bytes; an exchange never nests an exchange |
+| 2 | `object_pack` | `Bytes`; one exact stored S20-170 pack (tag 170, version 1) of at most `16,777,216` bytes; an exchange never nests an exchange, and a nested exchange is `EXCHANGE_PACK_INVALID` |
 | 3 | `receipts` | `CanonicalSet` of receipt entries; because a receipt entry begins with `transaction_id fixed32`, canonical-set order equals raw `TransactionId` order |
 | 4 | `accepted_head` | head entry naming one receipt of tag 3 |
-| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding excluding the element length prefix; see the ordering rule below |
+| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding excluding the element length prefix (the exclusion SCB1 states for map keys and the frozen S20-170 `object_entry` set order applies to set elements); see the ordering rule below |
 | 6 | `compression_profile` | `UInt<32>`; exactly `0` (`none`) |
 | 7 | `digest_tree` | digest-tree record below |
 | 8 | `signature_metadata` | `Option<Bytes>`; MUST be present as `Option` union tag `0` (absent value), never omitted and never tag `1` |
@@ -153,8 +153,10 @@ writes.
    dependency and exact object-inventory closure within it.
 4. **Branch closure.** For every branch entry, `origin_transaction_id` and
    `head_transaction_id` MUST name receipts in the set; the current head MUST
-   be reachable from the origin by following parent links only (fast-forward)
-   within 65,536 nodes, else `EXCHANGE_BRANCH_NOT_FAST_FORWARD`; and every
+   be reachable from the origin by following parent links only (fast-forward);
+   because the receipt set is bounded by `4,096` and acyclic, every walk
+   terminates within `4,096` nodes; an unreachable head is
+   `EXCHANGE_BRANCH_NOT_FAST_FORWARD`; and every
    origin and current fact (workspace, roots, epoch, policy, dependency
    roots) MUST equal the facts derived from the named receipts exactly as
    S20-500 sections 4 and 5 require, else `EXCHANGE_BRANCH_INVALID`.
@@ -218,11 +220,21 @@ closed exchange limits:
 - receipts: `4,096`;
 - branches: `4,096` visible `(origin, ref)` pairs;
 - digest leaves: `8,194` (the exact sum `1 + 4,096 + 4,096 + 1`);
-- fast-forward walk per branch: `65,536` nodes (the S20-500 ancestry ceiling);
 - decoder allocation budget: `134,217,728` bytes, one top-down budget shared
   by the exchange decoder and the embedded pack decoder;
 - expanded bytes: reserved; under profile `0` no limit beyond the stored and
-  `Bytes` ceilings can bind, and a future compressed profile MUST define it.
+  `Bytes` ceilings can bind, and a future compressed profile MUST define it;
+- preflight work ceilings, mirroring the frozen S20-530 recovery work limits:
+  object verifications `2,097,152` (each object is verified once and the
+  result memoized across receipts), binding visits `4,194,304`, verified
+  object bytes `1,073,741,824`, and verified receipt bytes `1,073,741,824`;
+  exhausting any of them is `EXCHANGE_RESOURCE_LIMIT`.
+
+Inner admissibility is a named invariant: the set of S20-170 packs the
+embedded decoder accepts inside an exchange equals the set it accepts
+standalone, because a maximal legal exchange consumes at most about
+`84` MiB of the shared budget and leaves the pack decoder more than its own
+worst case. Implementation proves it with a maximal-legal-exchange decode test.
 
 The allocation budget counts decoder heap allocations for decoded values,
 excluding the caller-owned stored input buffer; the embedded pack decoder is
@@ -273,11 +285,23 @@ The import target is a path. It MUST be one of:
 - a **fresh target**: the path does not exist; or it is a directory that
   contains nothing; or it is a directory whose only entry is an empty
   `exchange/` directory, or an `exchange/v1/` directory containing nothing
-  except at most one `sley-repo`-owned marker temporary (removed on retry);
-  any other entry under `exchange/v1/` is `EXCHANGE_TARGET_NOT_EMPTY`;
+  except at most one `sley-repo`-owned marker temporary, which is exactly
+  one regular file named `<hex>.stage.tmp` (removed on retry); any other
+  entry under `exchange/v1/` is `EXCHANGE_TARGET_NOT_EMPTY`;
 - an **incomplete clone** of this same exchange: the directory contains the
-  stage marker for this `RepositoryExchangeId`, and the fixed accepted head is
-  absent, or present, resolving, and equal to `accepted_head.transaction_id`.
+  stage marker for this `RepositoryExchangeId`; the fixed accepted head is
+  absent, or present, resolving, and equal to `accepted_head.transaction_id`;
+  every receipt already installed in the target is byte-exactly one of the
+  exchange's receipt entries; and every visible branch already installed is
+  byte-exactly one of the exchange's branch entries. Any installed receipt,
+  branch, or head outside the exchange is `EXCHANGE_TARGET_INCOMPLETE_MISMATCH`.
+
+Target inspection and every write use symlink discipline: the importer
+resolves and pins the target directory once, requires the target, `exchange/`,
+`exchange/v1/`, and every layout component it creates or writes through to be
+a real directory that it created or verified non-symlink, opens the marker
+and its temporary without following symlinks, and treats any symlink or
+non-regular entry on those paths as `EXCHANGE_IO` before any write.
 
 The stage marker is exactly one regular file
 `exchange/v1/<hex>.stage`, where `<hex>` is the lowercase 64-character hex
@@ -321,7 +345,10 @@ Import is split into preflight and persistence:
    2. create the remaining repository layout, initialize repository
       maintenance, and acquire exclusive repository maintenance ownership
       without waiting; a held lock is `EXCHANGE_IO`. The importer holds that
-      ownership through step 8.7;
+      ownership through step 8.7. Then re-run the complete step-7
+      classification against the now-owned target and abort with the
+      classification's code on any change; the pre-ownership classification
+      is advisory and only the owned classification authorizes writes;
    3. import the embedded pack (S20-170 step 6; idempotent for present
       objects);
    4. install every receipt through
@@ -352,15 +379,24 @@ otherwise outside v1. `sley-repo` owns `exchange/`; it lies outside the
 S20-500 ref fan-out and the GC `objects/scb1` inventory, so no existing
 unknown-entry rule fires on an X-07 clone.
 
-The head is the completion witness: a target without a head is not a
-repository to any reader, and only the importer may write into it. Every step
-before the head is idempotent over exact bytes, so retry converges.
+The head is the completion witness and the marker is the write guard. On a
+marked root (an `exchange/v1/` directory containing any `.stage` entry) no
+reader resolves an accepted head, and every frozen write path fails closed
+with `TXN_INCOMPLETE_CLONE`: `sley-txn` `initialize_trusted_genesis` and
+`commit`, and `sley-repo` `create_branch`, `advance_branch`, and exclusive GC
+acquisition all check the marker after taking their locks and before any
+write. Read paths (`verified_revision`, `resolve_branch`, `list_branches`)
+stay available on a marked root and establish no acceptance. Only the
+importer, holding exclusive maintenance ownership, writes into a marked
+root, and every step before the head is idempotent over exact bytes, so
+retry converges.
 
 ## Interruption and retry
 
-An interrupted import leaves a fresh target or an incomplete clone, never a
-state that any reader accepts as a repository without the exchange's own
-head. Retrying the import of the identical exchange bytes converges to the
+An interrupted import leaves a fresh target or a marked incomplete clone; on
+an incomplete clone no reader resolves an accepted head and every frozen
+write path fails closed with `TXN_INCOMPLETE_CLONE` until the importer
+completes it. Retrying the import of the identical exchange bytes converges to the
 complete clone; retrying with different exchange bytes fails
 `EXCHANGE_TARGET_INCOMPLETE_MISMATCH`. The frozen interruption rows are:
 
@@ -369,9 +405,9 @@ complete clone; retrying with different exchange bytes fails
 | X-01 | before the stage-marker rename is durable (at most the empty `exchange/v1/` directory and one owned temporary exist) | target is fresh; the owned temporary is removed; import restarts from step 8.1 |
 | X-02 | after the marker, before any object (layout may be partial) | incomplete clone; layout completed, objects, receipts, branches, head installed |
 | X-03 | during object promotion | S20-170 idempotent re-import; unreachable staged objects are S20-530 owner cleanup |
-| X-04 | during receipt installation | exact existing receipts reverified; missing receipts installed |
-| X-05 | during branch installation | exact existing origins and refs reverified; missing ones installed |
-| X-06 | before the head rename is durable | head absent; branches complete; head installed on retry |
+| X-04 | during receipt installation | no reader resolves a head, writes fail closed; exact existing receipts reverified; missing receipts installed |
+| X-05 | during branch installation | no reader resolves a head, writes fail closed; exact existing origins and refs reverified; missing ones installed |
+| X-06 | before the head rename is durable | no reader resolves a head, writes fail closed; branches complete; head installed on retry |
 | X-07 | after the head, before marker removal | complete clone with marker; every step reverifies exact bytes, then the marker is removed |
 
 `sley-txn` and `sley-repo` recovery on an incomplete clone fail closed exactly
@@ -435,10 +471,13 @@ Numeric codes `54000` through `54021` are exact:
 Strict lower-layer failures retain their exact owning code and numeric value:
 `SCB_*`, `PACK_*`, `STORE_*`, `TXN_*`, `REF_*`, and `BRANCH_*` are preserved,
 never remapped. `EXCHANGE_PROFILE_UNSUPPORTED` rejects signature presence
-(field 8 tag `1`) and any nested exchange; `EXCHANGE_PACK_INVALID` wraps no
-code and is returned only when the embedded bytes are not a tag-170 version-1
-pack at all; `EXCHANGE_RECEIPT_INVALID` covers a receipt entry whose declared
-identities disagree with its bytes.
+(field 8 tag `1`) and any compression or profile field other than the frozen
+values; `EXCHANGE_PACK_INVALID` wraps no code and is returned exactly when
+the embedded bytes are not a tag-170 version-1 pack, which includes a nested
+exchange (tag 540) and every other contract tag; `EXCHANGE_RECEIPT_INVALID`
+covers a receipt entry whose declared identities disagree with its bytes.
+A marked incomplete clone rejects every frozen write path with the S20-390
+code `TXN_INCOMPLETE_CLONE` (`39021`), named in the ownership section.
 
 ## Ownership and the transaction-owner API
 
@@ -481,6 +520,18 @@ fixed head to be absent, in which case it writes it with the S20-390 head
 durability order, or already exactly equal to `head`, in which case it
 reverifies and returns success without a rename.
 
+S20-540 implementation also adds the incomplete-clone write guard as
+transaction-owner and ref-owner work inside the slice: `sley-txn` exposes the
+marked-root predicate (an `exchange/v1/` directory whose entries include any
+`.stage` regular file, read without following symlinks) and returns the new
+S20-390 code `TXN_INCOMPLETE_CLONE` (`39021`, appended to the frozen
+`TransactionErrorCode` table and to `TRANSACTION_MODEL_V1.md` by the same
+commit) from `initialize_trusted_genesis` and `commit`; `sley-repo` returns
+the same code through its existing upstream transaction error from
+`create_branch`, `advance_branch`, and exclusive GC acquisition. The clone
+API phases themselves run only on a marked root and are the sole writers
+there.
+
 Relative to `initialize_trusted_genesis`, the clone path reproduces from
 receipt bytes and imported objects every check that genesis derives from its
 inputs: registry-authorized state root and policy root, exact object
@@ -517,6 +568,15 @@ Implementation acceptance requires at least:
   advanced branch, one orphan origin, one unreachable receipt, and one
   present-but-unreferenced object;
 - a test that the clone API is unreachable from ordinary candidate commit;
+- genesis-into-incomplete-clone, commit-into-incomplete-clone,
+  branch-mutation-into-incomplete-clone, and GC-into-incomplete-clone tests
+  proving `TXN_INCOMPLETE_CLONE`, and a read-path test proving no accepted
+  head resolves on a marked root;
+- an owned re-classification test (a target changed between the advisory and
+  the owned classification aborts), a pre-seeded-symlink rejection test, an
+  extra-installed-branch incomplete-clone mismatch test, a nested-exchange
+  test expecting `EXCHANGE_PACK_INVALID`, a preflight-cost test at the
+  maximal legal exchange, and the maximal-legal-exchange decode test;
 - a structural dependency check proving no `sley-txn -> sley-repo` edge;
 - an exchange-import persistent libFuzzer target (S20-700 adjacent surface);
 - Tier 1 plus repository-focused Tier 2 validation;
