@@ -30,6 +30,7 @@ DECODER_LIMITS_HASH = "808eaba936f09b2a938306c538e0dff636a1a6d2617ed0b4298d92989
 DRAFT_STATUS = "S20_540_CONTRACT_DRAFT_REVIEW_PENDING"
 FROZEN_STATUS = "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_PENDING"
 IN_PROGRESS_STATUS = "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS"
+REVIEW_PENDING_STATUS = "S20_540_IMPLEMENTED_REVIEW_PENDING"
 COMPLETE_STATUS = "S20_540_COMPLETE"
 SOURCE = ROOT / "crates/sley-repo/src/exchange.rs"
 SOURCE_MARKERS = (
@@ -199,14 +200,20 @@ def main() -> int:
         if type(actual) is not type(value) or actual != value:
             problems.append(f"machine-summary:{key}")
     status = section.get("status")
-    if status not in (DRAFT_STATUS, FROZEN_STATUS, IN_PROGRESS_STATUS, COMPLETE_STATUS):
+    if status not in (
+        DRAFT_STATUS,
+        FROZEN_STATUS,
+        IN_PROGRESS_STATUS,
+        REVIEW_PENDING_STATUS,
+        COMPLETE_STATUS,
+    ):
         problems.append("machine-summary:status")
     present = [
         str(path.relative_to(ROOT)) for path in IMPLEMENTATION_SURFACES if path.exists()
     ]
     if status in (DRAFT_STATUS, FROZEN_STATUS) and present:
         problems.append(f"implementation-before-freeze:{present}")
-    if status in (IN_PROGRESS_STATUS, COMPLETE_STATUS):
+    if status in (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_STATUS):
         source = SOURCE.read_text(encoding="utf-8") if SOURCE.is_file() else ""
         for marker in SOURCE_MARKERS:
             if marker not in source:

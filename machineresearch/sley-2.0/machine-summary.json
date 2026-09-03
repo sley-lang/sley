@@ -702,7 +702,7 @@
     "implementation_complete": true
   },
   "repository_exchange": {
-    "status": "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+    "status": "S20_540_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/REPOSITORY_EXCHANGE_V1.md",
     "adr": "docs/adr/ADR-0025-repository-exchange-boundary.md",
     "design_brief": "machineresearch/sley-2.0/s20-540-pack-exchange-design-brief-2026-09-03.md",
@@ -757,7 +757,12 @@
     "ariadne_contract_review_revision_7": "PASS_CONTRACT_DRAFT_FRAMING_CONFIRMED",
     "ariadne_contract_review_revision_7_session": "forge-ariadne-s20-540-pass6-20260903T030956-34fa856b",
     "interruption_rows_tested": 7,
-    "rust_unit_tests": 10
+    "rust_unit_tests": 10,
+    "closeout_audit": "docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md",
+    "tier2": "PASS_2026-09-03T03:19Z_core_conformance_adversarial_fuzz-smoke_exchange-persistent-fuzz-smoke",
+    "nabu_implementation_review": "PENDING",
+    "ariadne_implementation_review": "PENDING",
+    "vulcan_implementation_review": "PENDING"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
