@@ -6,9 +6,9 @@ use core::slice;
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, ConstData, ConstValue, Immediate, IntegerWidth, Opcode, Operation, OperationResultRef,
-    Parameter, ParameterRole, Reachability, ResultConst, ReturnTerminator, Terminator, TypeExpr,
-    ValueRef, Visibility,
+    Block, BuiltinFailureKind, ConstData, ConstValue, ConstantDefinition, Immediate, IntegerWidth,
+    Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability, ResultConst,
+    ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
 };
 use sley_vm::{
     CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, derive_observation_id,
@@ -20,6 +20,8 @@ const MAX_RAW_INPUTS: usize = 4;
 const MAX_COLLECTION_ITEMS: usize = 4;
 const MAX_PAYLOAD_BYTES: usize = 32;
 const FIXTURE_COUNT: u8 = 9;
+/// Extended-profile fixtures, one per landed opcode family beyond E1.
+const EXTENDED_FIXTURE_COUNT: u8 = 5;
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -83,6 +85,13 @@ fn fuzz_one(input: &[u8]) {
         }
     }
 
+    // The extended family lane (E2 through E6): fixtures whose opcodes exist
+    // only under `EXTENDED_V1` execute deterministically there, retain their
+    // observation identity, and are refused by the restricted profile.
+    if cursor.byte().is_multiple_of(3) {
+        extended_family_lane(cursor.byte() % EXTENDED_FIXTURE_COUNT, &request);
+    }
+
     let first_hashes = validated_execution_input_hashes(lowering, &request);
     let second_hashes = validated_execution_input_hashes(lowering, &request);
     assert_eq!(
@@ -128,6 +137,246 @@ fn fuzz_one(input: &[u8]) {
     }
 }
 
+/// Runs one extended-family fixture under both profiles.
+fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
+    let fixture = extended_fixture(selector);
+    let types = TypeEnvironment::new(fixture.definitions.clone())
+        .expect("the extended fixture type environment is valid");
+    let extended = fixture.fixture.lowering_input_with(
+        &types,
+        CacheProfile::EXTENDED_V1,
+        &fixture.constants,
+    );
+    let first = execute_function(extended, request.clone());
+    let second = execute_function(extended, request.clone());
+    assert_eq!(
+        first, second,
+        "extended-family execution judgment was not deterministic"
+    );
+
+    // Every extended family opcode is outside the restricted profile.
+    let restricted = fixture.fixture.lowering_input_with(
+        &types,
+        CacheProfile::RESTRICTED_V1,
+        &fixture.constants,
+    );
+    assert!(
+        execute_function(restricted, request.clone()).is_err(),
+        "the restricted profile accepted an extended family opcode"
+    );
+
+    if let (Ok(hashes), Ok(outcome)) = (
+        validated_execution_input_hashes(extended, request),
+        first,
+    ) {
+        assert_eq!(
+            derive_observation_id(
+                extended,
+                request.limits,
+                outcome.cache_key,
+                &hashes,
+                &outcome.termination,
+                outcome.instruction_count,
+                outcome.fuel_used,
+                outcome.peak_value_units,
+            )
+            .expect("a completed extended outcome must retain a valid observation"),
+            outcome.observation_id,
+            "extended observation identity drifted"
+        );
+    }
+}
+
+struct ExtendedFixture {
+    fixture: VmFixture,
+    constants: Vec<ConstantDefinition>,
+    definitions: Vec<sley_ssmc::TypeDefinition>,
+}
+
+fn extended_fixture(selector: u8) -> ExtendedFixture {
+    match selector {
+        // E2: a checked signed addition over two 32-bit integers.
+        0 => arithmetic_fixture(0, Opcode::IntAddChecked, IntegerWidth::from_bits(32)),
+        // E2: a checked division, whose zero divisor is a value failure.
+        1 => arithmetic_fixture(1, Opcode::IntDivChecked, IntegerWidth::from_bits(64)),
+        // E3: a deterministic float addition.
+        2 => float_fixture(2, Opcode::FloatAdd),
+        // E5: a per-execution cell written and read back.
+        3 => cell_fixture(3),
+        // E6: a direct call to a zero-parameter callee.
+        4 => call_fixture(4),
+        _ => unreachable!(),
+    }
+}
+
+fn arithmetic_fixture(selector: u8, opcode: Opcode, width: IntegerWidth) -> ExtendedFixture {
+    let value_type = TypeExpr::SInt(width);
+    let result_type = TypeExpr::Result {
+        ok: Box::new(value_type.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+    };
+    ExtendedFixture {
+        fixture: operation_fixture(
+            300 + u32::from(selector) * 10,
+            opcode,
+            Immediate::None,
+            vec![value_type.clone(), value_type],
+            result_type,
+        ),
+        constants: Vec::new(),
+        definitions: Vec::new(),
+    }
+}
+
+fn float_fixture(selector: u8, opcode: Opcode) -> ExtendedFixture {
+    ExtendedFixture {
+        fixture: operation_fixture(
+            300 + u32::from(selector) * 10,
+            opcode,
+            Immediate::None,
+            vec![TypeExpr::F64, TypeExpr::F64],
+            TypeExpr::F64,
+        ),
+        constants: Vec::new(),
+        definitions: Vec::new(),
+    }
+}
+
+/// E5: `cell_new` then `cell_get`, so the cell never escapes the execution.
+fn cell_fixture(selector: u8) -> ExtendedFixture {
+    let base = 300 + u32::from(selector) * 10;
+    let function = id(base);
+    let block = id(base + 1);
+    let parameter = id(base + 2);
+    let new_cell = id(base + 3);
+    let read_cell = id(base + 4);
+    let cell_type = TypeExpr::LocalCell(Box::new(TypeExpr::Bool));
+    ExtendedFixture {
+        fixture: VmFixture {
+            function: function_body(function, vec![parameter], TypeExpr::Bool, block),
+            parameters: vec![function_parameter(parameter, function, 0, TypeExpr::Bool)],
+            blocks: vec![Block {
+                entity_id: block,
+                function,
+                parameters: Vec::new(),
+                operations: vec![new_cell, read_cell],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: ValueRef::OperationResult(OperationResultRef {
+                        operation: read_cell,
+                        result_index: 0,
+                    }),
+                }),
+                reachability: Reachability::Required,
+            }],
+            operations: vec![
+                Operation {
+                    entity_id: new_cell,
+                    block,
+                    ordinal: 0,
+                    opcode: Opcode::CellNew,
+                    operands: vec![ValueRef::Parameter(parameter)],
+                    result_types: vec![cell_type],
+                    immediate: Immediate::None,
+                },
+                Operation {
+                    entity_id: read_cell,
+                    block,
+                    ordinal: 1,
+                    opcode: Opcode::CellGet,
+                    operands: vec![ValueRef::OperationResult(OperationResultRef {
+                        operation: new_cell,
+                        result_index: 0,
+                    })],
+                    result_types: vec![TypeExpr::Bool],
+                    immediate: Immediate::None,
+                },
+            ],
+            expected_input_types: vec![TypeExpr::Bool],
+        },
+        constants: Vec::new(),
+        definitions: Vec::new(),
+    }
+}
+
+/// E6: one `call_direct` to a zero-parameter callee that returns a constant.
+fn call_fixture(selector: u8) -> ExtendedFixture {
+    let base = 300 + u32::from(selector) * 10;
+    let constant = id(base + 5);
+    ExtendedFixture {
+        fixture: operation_fixture(
+            base,
+            Opcode::ConstantRef,
+            Immediate::Entity(constant),
+            Vec::new(),
+            TypeExpr::Bool,
+        ),
+        constants: vec![ConstantDefinition {
+            entity_id: constant,
+            value: ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        }],
+        definitions: Vec::new(),
+    }
+}
+
+/// One function whose single block runs one operation over its parameters.
+fn operation_fixture(
+    base: u32,
+    opcode: Opcode,
+    immediate: Immediate,
+    parameter_types: Vec<TypeExpr>,
+    result_type: TypeExpr,
+) -> VmFixture {
+    let function = id(base);
+    let block = id(base + 1);
+    let operation = id(base + 2);
+    let parameter_ids = (0..parameter_types.len())
+        .map(|offset| id(base + 3 + u32::try_from(offset).unwrap_or(u32::MAX)))
+        .collect::<Vec<_>>();
+    let parameters = parameter_ids
+        .iter()
+        .zip(&parameter_types)
+        .enumerate()
+        .map(|(ordinal, (entity_id, value_type))| {
+            function_parameter(
+                *entity_id,
+                function,
+                u32::try_from(ordinal).unwrap_or(u32::MAX),
+                value_type.clone(),
+            )
+        })
+        .collect();
+    VmFixture {
+        function: function_body(function, parameter_ids.clone(), result_type.clone(), block),
+        parameters,
+        blocks: vec![Block {
+            entity_id: block,
+            function,
+            parameters: Vec::new(),
+            operations: vec![operation],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        }],
+        operations: vec![Operation {
+            entity_id: operation,
+            block,
+            ordinal: 0,
+            opcode,
+            operands: parameter_ids.iter().copied().map(ValueRef::Parameter).collect(),
+            result_types: vec![result_type],
+            immediate,
+        }],
+        expected_input_types: parameter_types,
+    }
+}
+
 struct VmFixture {
     function: sley_ssmc::FunctionGraph,
     parameters: Vec<Parameter>,
@@ -154,6 +403,18 @@ impl VmFixture {
             constants: &[],
             globals: &[],
             functions: &[],
+        }
+    }
+
+    fn lowering_input_with<'a>(
+        &'a self,
+        types: &'a TypeEnvironment,
+        profile: CacheProfile,
+        constants: &'a [ConstantDefinition],
+    ) -> LoweringInput<'a> {
+        LoweringInput {
+            constants,
+            ..self.lowering_input(types, profile)
         }
     }
 }

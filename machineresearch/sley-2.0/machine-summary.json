@@ -1662,7 +1662,7 @@
     ]
   },
   "s20_700_vm_persistent_fuzz_slice": {
-    "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_270_ONLY",
+    "status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
     "target": "fuzz/targets/vm_canonical_inputs.rs",
     "runner": "scripts/run_vm_persistent_fuzz.py",
     "checker": "scripts/check_vm_persistent_fuzz_slice.py",
@@ -1683,7 +1683,7 @@
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 625,
+    "generated_seed_count": 715,
     "synthetic_seed_grammar": "bounded fuzz-only typed VM input constructors v1",
     "runtime_evidence": "evidence/runtime/s20-700-vm-input-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
@@ -1692,6 +1692,13 @@
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
     "deferred_surfaces": [
       "merge engine"
+    ],
+    "extended_family_fixture_count": 5,
+    "extended_family_lanes": [
+      "E2 checked integer add and divide",
+      "E3 deterministic float add",
+      "E5 per-execution cell write and read",
+      "E6 constant reference under the extended profile"
     ]
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {

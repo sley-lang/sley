@@ -1793,7 +1793,7 @@
       "declares_no_open_p0_p1_p2": false,
       "disposition": "DEFERRED_FORGE_OAUTH_401",
       "field": "vulcan_review",
-      "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_270_ONLY",
+      "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
       "section": "s20_700_vm_persistent_fuzz_slice",
       "severities": [],
       "state": "DEFERRED"
@@ -2190,7 +2190,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "31bd343bb9ade8f0a86636bebefce903c2c23fb6efdb25d361d26c1469ca5792",
+  "obligations_digest": "40b722b557f03d375fd949d0fc182506fcb1b85751c6fb47124e1f105bf35169",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2469,7 +2469,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "88edb0ab025c6706a59c7c32047538f2d1b1dd9cfe4830e992285f57c8ca380f",
+  "register_digest": "722dab8c50b2b93de34c60b81bb2ae584c80cbb3862969c2e5eda4320cf5535a",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,

@@ -27,6 +27,8 @@ MAX_INPUT_LEN = 4096
 SMOKE_RUNS = 256
 SMOKE_TIMEOUT_SECONDS = 60
 FIXTURE_COUNT = 9
+# Extended-profile fixtures, one per landed opcode family beyond E1.
+EXTENDED_FIXTURE_COUNT = 5
 
 
 def main() -> int:
@@ -50,6 +52,7 @@ def main() -> int:
         "raw_bytecode_decoder_claimed": False,
         "raw_bytecode_execution_entrypoint_claimed": False,
         "fixture_count": FIXTURE_COUNT,
+        "extended_family_fixture_count": EXTENDED_FIXTURE_COUNT,
         "identity_fixture_count": 6,
         "boolean_opcode_fixture_count": 3,
         "max_input_bytes": MAX_INPUT_LEN,
@@ -139,6 +142,14 @@ def generate_seed_corpus() -> int:
         for limit_selector in range(6):
             seeds.append(bytes([fixture, 0]) + bytes([limit_selector]) * 64)
             seeds.append(bytes([fixture, 1]) + bytes([limit_selector]) * 64)
+
+    # The extended-family lane runs when the byte after the cross-profile
+    # selector is a multiple of three, and the byte after it picks the family
+    # fixture; the trailing filler keeps the canonical values well formed.
+    for fixture in range(FIXTURE_COUNT):
+        for family in range(EXTENDED_FIXTURE_COUNT):
+            seeds.append(bytes([fixture, 0, 0, 0, 0, family]) + bytes([0]) * 64)
+            seeds.append(bytes([fixture, 1, 0, 0, 0, family]) + bytes([0xFF]) * 64)
 
     seeds.extend(
         [
