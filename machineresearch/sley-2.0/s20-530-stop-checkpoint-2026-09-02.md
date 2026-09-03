@@ -1,7 +1,8 @@
 # S20-530 stop checkpoint (2026-09-02)
 
-Status: V13 ACCEPTED (FREEZE REVIEWED, CLOSEOUT PASSED, IMPLEMENTATION RECEIPTS
-BOUND, MACHINE SUMMARY COMPLETE); FINAL CHECKER CONFIRMATION RUN PENDING
+Status: S20-530 COMPLETE (V13 FREEZE REVIEWED, CLOSEOUT PASSED, IMPLEMENTATION
+RECEIPTS BOUND, MACHINE SUMMARY COMPLETE, FINAL CHECKER CONFIRMATION PASS at
+2026-09-03T01:06Z); POST-ACCEPTANCE AGING DECISION OPEN (operator)
 
 Owner: Claude orchestrator
 
@@ -177,3 +178,37 @@ age; this is an operator decision and was not taken here.
 - Overall Sley 2.0 roadmap: 53 percent, moderate confidence. S20-530 was the
   last blocker on the M4 crash-recovery lane; S20-510, S20-520, and S20-540
   (comparison, merge, pack exchange) and the M5 benchmark packages remain.
+
+## Completion note (2026-09-03T01:07Z, appended after the final checker run)
+
+- The final checker confirmation run launched at 2026-09-02T22:58:01Z from
+  the accepted state (HEAD `cc0f92f`, acceptance commit `034cc75`, validated
+  commit `8f7c763`) finished at 2026-09-03T01:06:49Z with exit status 0 and
+  printed `S20-530 crash-recovery contract check: PASS (100 exact matrix
+  rows; implementation_complete=True)`. Wall clock 128 minutes 48 seconds
+  under a load average near 3 from a concurrent operator session; the
+  captured log is `s20-530-final-checker-v13-confirmation-2026-09-02.log`
+  (SHA-256 `f8e93918697c73ea91a4df1a74435a36ab0c3915d2da8b4818735d1ac39a8cdd`),
+  kept in this narrative lane because `evidence/` is a bound path after
+  acceptance.
+- S20-530 is COMPLETE: contract frozen at v13 with three
+  `PASS_CONTRACT_FREEZE` receipts, captured closeout PASS at `8f7c763`, three
+  `PASS_IMPLEMENTATION` receipts verified `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`,
+  `machine-summary.json` `implementation_complete: true`, and the `make quick`
+  gate PASS at the accepted state. M4 is no longer blocked by this package.
+- No bound path changed between the acceptance commit and this note; the
+  diff `034cc75..HEAD` touches only `machineresearch/` and
+  `docs/WORK_PACKAGES.md` (narrative lanes).
+- Successor decision: the post-acceptance binding freezes every non-narrative
+  path at `8f7c763` and the public-API phase pins the owner crates' module
+  lists, so any further development (including the frontier re-anchor and
+  S20-540) needs the aging rule chosen in
+  `s20-530-post-acceptance-aging-decision-2026-09-02.md`. That decision
+  belongs to the operator and was not taken here.
+
+## Completion estimate at this note
+
+- S20-530 governed closeout: 100 percent, high confidence.
+- Overall Sley 2.0 roadmap: 54 percent, moderate confidence. Next
+  dependency-complete package: S20-540 pack exchange, after the aging
+  decision.
