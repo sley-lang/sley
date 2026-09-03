@@ -174,6 +174,12 @@ release-candidate-smoke:
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_finding_register.py
 	python3 scripts/build_decision_dossier.py
+	python3 scripts/sync_evidence_counters.py
+	python3 scripts/build_finding_register.py
+	python3 scripts/build_decision_dossier.py
+	# The T54 scan covers the evidence documents the builders above rewrote,
+	# so it runs last and the tree is consistent when the smoke returns.
+	python3 scripts/generate_supply_chain_evidence.py
 	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
