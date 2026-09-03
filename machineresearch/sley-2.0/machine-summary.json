@@ -2542,8 +2542,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 199,
-    "open_reviews": 78,
+    "obligations": 200,
+    "open_reviews": 79,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2571,7 +2571,7 @@
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/DECISION_DOSSIER_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
     "checker": "scripts/check_decision_dossier.py",
     "dossier": "evidence/release/decision-dossier.json",
@@ -2581,7 +2581,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "78 review obligations are open",
+      "79 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -2693,5 +2693,18 @@
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false
+  },
+  "threat_coverage": {
+    "report": "evidence/security/threat-coverage-report.json",
+    "source": "docs/THREAT_REGISTER.md",
+    "threat_count": 55,
+    "states": {
+      "PLANNED_EVIDENCE_PRESENT": 6,
+      "SYMBOL_NOT_LOCATED": 25,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 24
+    },
+    "p0_p1_without_located_symbol": 25,
+    "independent_security_review": "PENDING",
+    "interpretation": "a located symbol is not a mitigation claim; the unlocated set is the review's work list"
   }
 }

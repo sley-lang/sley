@@ -26,6 +26,7 @@ PROVENANCE = ROOT / "evidence/release/provenance.json"
 CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
+THREAT_COVERAGE = ROOT / "evidence/security/threat-coverage-report.json"
 STATE_ROOT_FIXTURE = ROOT / "conformance/state-root/v1/accepted.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 CONTRACT = "sley2.decision-dossier.v1"
@@ -101,6 +102,7 @@ def build_entries(sources: dict) -> list[dict]:
     bom = sources["cyclonedx"]
     provenance = sources["provenance"]
     inventory = sources["inventory_of_tests"]
+    threats = sources["threat_coverage"]
     attestation = repro["attestations"][0] if repro.get("attestations") else None
     succession = summary.get("succession", {})
     audit = summary.get("s20_710_pre_release_audit", {})
@@ -252,8 +254,15 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "security review result",
-            note="the independent security review is Vulcan's and the lane is unavailable "
-            "(the finding register records the deferred dispositions)",
+            note="the independent security review is Vulcan's and the lane is unavailable (the "
+            "finding register records the deferred dispositions). Its input is measured: of the "
+            f"{threats['threat_count']} registered threats, "
+            f"{threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} have a located and "
+            f"exercised failure code, {threats['states'].get('PLANNED_EVIDENCE_PRESENT', 0)} carry "
+            f"their planned evidence directory, and "
+            f"{len(threats['p0_p1_without_located_symbol'])} P0 or P1 threats have no located "
+            "symbol and form the review's work list "
+            "(evidence/security/threat-coverage-report.json)",
         ),
         entry(
             "succession benchmark methodology",
@@ -434,6 +443,7 @@ def build_dossier() -> dict:
         "conformance": load(CONFORMANCE, "sley2.independent-conformance-report.v1"),
         "register": load(REGISTER, "sley2.finding-register.v1"),
         "inventory_of_tests": load(TEST_INVENTORY, "sley2.test-inventory.v1"),
+        "threat_coverage": load(THREAT_COVERAGE, "sley2.threat-coverage-report.v1"),
     }
     entries = build_entries(sources)
     state, reasons = derive_decision(sources, entries)

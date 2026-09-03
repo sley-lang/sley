@@ -3,6 +3,13 @@
 Status: M0 planned-control map. Evidence paths are future required outputs and
 must not be read as passing evidence until the named work package records them.
 
+`scripts/build_threat_coverage_report.py` measures how far the plan has been
+realized and writes `evidence/security/threat-coverage-report.json`, which the
+S20-750 dossier reads. It locates each expected failure code in the tree and
+classifies it; a located symbol is not a mitigation claim, and the threats it
+cannot locate are a work list for the independent security review, not an
+assertion that they are untested.
+
 | ID | Threat | Sev | Owner | Expected failure code | Required test | Evidence path |
 |---|---|---:|---|---|---|---|
 | T01 | malformed SCB1 | P0 | sley-canon | `SCB_MALFORMED` | decoder fuzz/rejection | `evidence/security/T01/` |

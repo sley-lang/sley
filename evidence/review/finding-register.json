@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 199,
+  "obligation_count": 200,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2144,6 +2144,16 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "independent_security_review",
+      "package_status": "IN_PROGRESS",
+      "section": "threat_coverage",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS",
       "field": "vulcan_final_review",
       "package_status": "S20_210_COMPLETE",
@@ -2280,7 +2290,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "6898b5a85866ac80c0907d6e206ae615fc0da0272a05fc1700012cbfcc6555ba",
+  "obligations_digest": "8c34391b139f2ecd8b44f8dc9a111a210a819c3a62866de27fe12f9aa3169905",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2583,6 +2593,10 @@
       "section": "succession_accounting"
     },
     {
+      "field": "independent_security_review",
+      "section": "threat_coverage"
+    },
+    {
       "field": "ariadne_contract_review",
       "section": "vm_extended_opcode_profile"
     },
@@ -2595,7 +2609,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "3c58bcf79c722c3cfbf7efe90b7d7676825e64ce485260d24222aa40729fca33",
+  "register_digest": "00275e360f0cf228805981d07afac8f988646e450554c2d5690b1c7b61540439",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2610,7 +2624,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 78
+    "PENDING": 79
   },
   "unclassified": [
     {

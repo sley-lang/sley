@@ -95,6 +95,10 @@ or adds an item is `DOSSIER_SOURCE_INVALID`:
   encoder and conformance coverage);
 - `evidence/review/finding-register.json` (findings by severity and
   disposition, open reviews);
+- `evidence/security/threat-coverage-report.json`
+  (`sley2.threat-coverage-report.v1`): how far the M0 threat register's planned
+  controls are realized, which the security review item cites as its measured
+  input;
 - `evidence/validation/test-inventory.json` (`sley2.test-inventory.v1`): the
   Rust unit tests per crate, the ignored fixture-refresh emitters, the
   persistent fuzz targets, the Python test functions, and the conformance

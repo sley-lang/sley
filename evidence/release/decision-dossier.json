@@ -3,14 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "12 review lanes are deferred and unavailable",
-    "78 review obligations are open",
+    "79 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "fe26b9c68e0fde0d318ea7d53de9c8c77a4648de8f293529a72a6673fada94c4",
+  "dossier_digest": "315e7690651c671a7297e687ce1113c8df73dbded485e1b80dbbedf0bd143bff",
   "entries": [
     {
       "evidence": [
@@ -184,7 +184,7 @@
     {
       "evidence": [],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions)",
+      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 55 registered threats, 24 have a located and exercised failure code, 6 carry their planned evidence directory, and 25 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -331,7 +331,7 @@
           "p3": 0,
           "p4": 0
         },
-        "obligations": 199,
+        "obligations": 200,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 29,
@@ -345,7 +345,7 @@
           "HISTORICAL_ROUND": 24,
           "OTHER": 1,
           "PASS": 84,
-          "PENDING": 78
+          "PENDING": 79
         }
       }
     },
@@ -439,7 +439,7 @@
       }
     }
   ],
-  "entries_digest": "389723e6ec3500436d7a5297b7d4dd5717c35057381c8616a05a3085c0848387",
+  "entries_digest": "582a2344e2e8169031047c5503cd22aab8ed6909f0c02bc20ba92836ad97c8e8",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
