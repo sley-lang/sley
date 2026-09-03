@@ -59,7 +59,7 @@ COVERAGE: dict[str, str | None] = {
     "smp1-json-bridge": f"{ORACLE_RUNNER} python scripts/check_smp1_json_bridge_vector.py",
     "state-root": f"{ORACLE_RUNNER} python scripts/check_state_root_vector.py",
     "transaction-receipt": f"{ORACLE_RUNNER} sley2-scb1-oracle check-transaction-receipt",
-    "vm-extended": f"{ORACLE_RUNNER} sley2-scb1-oracle check-vm-extended",
+    "vm-extended": f"{ORACLE_RUNNER} sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
 }
 # Every family now has an independent checker; the mapping stays so a future
 # family can be declared native-only with its reason.

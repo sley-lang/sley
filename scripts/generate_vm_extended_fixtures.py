@@ -45,6 +45,32 @@ def main() -> int:
             )
     if [vector["id"] for vector in vectors] != EXPECTED:
         raise RuntimeError(f"unexpected vector set {[v['id'] for v in vectors]}")
+    # Deterministic rejections over the first accepted artifact, one per
+    # container rule an independent decoder must enforce.
+    seed = bytes.fromhex(vectors[0]["bytecode_hex"])
+    mutations = []
+    for identifier, mutated in (
+        ("magic", b"SLEYBC01" + seed[8:]),
+        ("format-version", seed[:8] + (2).to_bytes(4, "big") + seed[12:]),
+        ("truncated", seed[:-1]),
+        ("trailing-byte", seed + b"\x00"),
+        ("callee-count", seed[:-8] + (1).to_bytes(8, "big")),
+    ):
+        mutations.append(
+            {
+                "expected": "REFUSED",
+                "id": identifier,
+                "input_hex": mutated.hex(),
+                "input_sha256": hashlib.sha256(mutated).hexdigest(),
+                "seed": vectors[0]["id"],
+            }
+        )
+    rejected = {
+        "claim": "s20-260-270-vm-extended-container-rejection-conformance",
+        "contract": "sley2-vm-extended-opcode-profile-v1",
+        "generator": "scripts/generate_vm_extended_fixtures.py",
+        "mutations": mutations,
+    }
     accepted = {
         "claim": "s20-260-270-vm-extended-e1-e6-conformance",
         "contract": "sley2-vm-extended-opcode-profile-v1",
@@ -55,7 +81,10 @@ def main() -> int:
         "state_root_hex": "09" * 32,
         "vectors": vectors,
     }
-    rendered = {FIXTURES / "accepted.json": json.dumps(accepted, indent=2, sort_keys=True) + "\n"}
+    rendered = {
+        FIXTURES / "accepted.json": json.dumps(accepted, indent=2, sort_keys=True) + "\n",
+        FIXTURES / "rejected.json": json.dumps(rejected, indent=2, sort_keys=True) + "\n",
+    }
     rendered[FIXTURES / "SHA256SUMS"] = "".join(f"{hashlib.sha256(payload.encode()).hexdigest()}  {path.name}\n" for path, payload in rendered.items())
     if arguments.check:
         drift = [str(path.relative_to(ROOT)) for path, expected in rendered.items() if not path.is_file() or path.read_text(encoding="utf-8") != expected]

@@ -86,7 +86,7 @@ def main() -> None:
     parser.add_argument("--rejected", required=False, type=Path)
     arguments = parser.parse_args()
     if arguments.command == "check-vm-extended":
-        result = check_vm_extended(arguments.accepted)
+        result = check_vm_extended(arguments.accepted, arguments.rejected)
     elif arguments.command == "check-transaction-receipt":
         result = check_transaction_receipt(arguments.accepted, arguments.rejected)
     elif arguments.command == "check-candidate-result":

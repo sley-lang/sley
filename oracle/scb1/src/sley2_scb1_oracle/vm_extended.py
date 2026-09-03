@@ -346,7 +346,7 @@ def cache_key(schema_epoch: bytes, state_root: bytes, function: bytes) -> bytes:
     return blake3.blake3(CACHE_KEY_DOMAIN + preimage).digest()
 
 
-def check_vm_extended(accepted_path: Path) -> dict[str, Any]:
+def check_vm_extended(accepted_path: Path, rejected_path: Path | None = None) -> dict[str, Any]:
     """Checks the frozen extended-profile corpus with the independent decoder."""
     accepted = json.loads(accepted_path.read_text(encoding="utf-8"))
     problems: list[str] = []
@@ -391,12 +391,32 @@ def check_vm_extended(accepted_path: Path) -> dict[str, Any]:
             problems.append(f"{label}: the entry block slot is not first")
         if len(entry["register_types"]) < len(entry["parameter_registers"]):
             problems.append(f"{label}: fewer register types than parameter registers")
-    return _result(accepted, problems)
+
+    rejected_count = 0
+    if rejected_path is not None:
+        rejected = json.loads(rejected_path.read_text(encoding="utf-8"))
+        if rejected.get("contract") != "sley2-vm-extended-opcode-profile-v1":
+            problems.append("rejected contract drift")
+        for mutation in rejected.get("mutations", []):
+            rejected_count += 1
+            label = mutation.get("id", "?")
+            data = bytes.fromhex(mutation["input_hex"])
+            if hashlib.sha256(data).hexdigest() != mutation["input_sha256"]:
+                problems.append(f"rejected {label}: input SHA-256 drift")
+            try:
+                decode_bytecode(data)
+            except BytecodeError:
+                continue
+            problems.append(f"rejected {label}: the independent decoder accepted it")
+    return _result(accepted, problems, rejected_count)
 
 
-def _result(accepted: dict[str, Any], problems: list[str]) -> dict[str, Any]:
+def _result(
+    accepted: dict[str, Any], problems: list[str], rejected_vectors: int = 0
+) -> dict[str, Any]:
     return {
         "accepted_vectors": len(accepted.get("vectors", [])),
+        "rejected_vectors": rejected_vectors,
         "claim": accepted.get("claim"),
         "contract": "s20-260-270-independent-extended-bytecode-oracle-v1",
         "problems": problems,

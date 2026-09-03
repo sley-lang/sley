@@ -92,14 +92,14 @@
     },
     {
       "family": "vm-extended",
-      "rejections": 0,
+      "rejections": 5,
       "vectors": 19
     }
   ],
-  "conformance_rejections": 157,
+  "conformance_rejections": 162,
   "conformance_vectors": 349,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "273c59fac860bc9d0a0bb2350d4560859a083300a056a365cfd699769c6e5f54",
+  "inventory_digest": "7a81876d83e0f10e1c56be73592d5b9bc4652694942c704bacd59163f65b56c1",
   "persistent_fuzz_target_count": 20,
   "persistent_fuzz_targets": [
     "adapter_responses",

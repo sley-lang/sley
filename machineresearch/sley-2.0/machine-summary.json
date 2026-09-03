@@ -421,7 +421,10 @@
       "crates/sley-vm/src/lower.rs",
       "crates/sley-vm/src/execute.rs"
     ],
-    "judgment_entry": "sley_vm::judge_function_operations"
+    "judgment_entry": "sley_vm::judge_function_operations",
+    "independent_oracle": "oracle/scb1/src/sley2_scb1_oracle/vm_extended.py",
+    "independent_oracle_result": "PASS",
+    "container_rejection_vectors": 5
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
