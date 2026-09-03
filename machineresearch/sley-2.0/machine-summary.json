@@ -2395,5 +2395,48 @@
     "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
     "S20-710 local lock inventory and bounded high-confidence scan pass, but operator-approved root license text, a standards SBOM, release provenance, release-candidate re-anchoring, and final independent dispositions remain blocked",
     "The succession corpus is frozen but no benchmark trial has executed"
-  ]
+  ],
+  "reproducibility_and_independent_conformance": {
+    "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+    "contract": "docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md",
+    "checker": "scripts/check_reproducibility_and_independent_conformance.py",
+    "reproducibility_report": "evidence/release/reproducibility-report.json",
+    "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
+    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
+    "second_host_status": "GATED_OPERATOR_LANE",
+    "required_hosts": 2,
+    "attested_hosts": 1,
+    "fixture_directories": 19,
+    "independently_checked_families": 17,
+    "native_only_families": [
+      "conformance/release-demo/v1",
+      "conformance/vm-extended/v1"
+    ],
+    "independent_conformance_result": "INDEPENDENT_CONFORMANCE_PARTIAL",
+    "new_stable_error_codes": 8,
+    "new_error_code_range": "73000 through 73007",
+    "ga_claimed": false,
+    "publication_authorized": false,
+    "blockers": [
+      "second_host_attestation_operator_lane",
+      "independent_vm_and_endpoint_oracles",
+      "root_license_text_operator_approval",
+      "standards_sbom_and_provenance_s20_710_full",
+      "council_reviews"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": true,
+    "implementation": [
+      "scripts/build_reproducibility_report.py",
+      "scripts/build_independent_conformance_report.py",
+      "scripts/check_reproducibility_and_independent_conformance.py",
+      "bench/release/tests/test_reproducibility.py"
+    ]
+  }
 }

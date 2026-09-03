@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""S20-730 reproducibility report: host attestations of the S20-720 candidate.
+
+Derives this host's attestation from the S20-720 evidence record, merges it
+with attestations from other hosts, and writes
+`evidence/release/reproducibility-report.json`. Nothing here builds, claims
+GA, or opens `release-check`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sys
+from enum import IntEnum
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+EVIDENCE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
+REPORT = ROOT / "evidence/release/reproducibility-report.json"
+ATTESTATION_CONTRACT = "sley2.reproducibility-attestation.v1"
+REPORT_CONTRACT = "sley2.reproducibility-report.v1"
+REQUIRED_HOSTS = 2
+HEX_64 = re.compile(r"^[0-9a-f]{64}$")
+HEX_40 = re.compile(r"^[0-9a-f]{40}$")
+BLOCKERS = [
+    "second_host_attestation_operator_lane",
+    "root_license_text_operator_approval",
+    "standards_sbom_and_provenance_s20_710_full",
+    "succession_thresholds_s20_640",
+    "council_reviews",
+]
+
+
+class ReproErrorCode(IntEnum):
+    """S20-730 reproducibility failures (contract section 7)."""
+
+    EVIDENCE_MISSING = 73000
+    EVIDENCE_INVALID = 73001
+    ATTESTATION_INVALID = 73002
+    ATTESTATION_CONFLICT = 73003
+
+
+class ReproError(Exception):
+    """One exact S20-730 failure."""
+
+    def __init__(self, code: ReproErrorCode, detail: str) -> None:
+        super().__init__(f"{code.name}: {detail}")
+        self.code = code
+        self.detail = detail
+
+
+def display(path: Path) -> str:
+    """The repository-relative path when the path is inside the tree."""
+    return str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+
+
+def canonical(value: object) -> str:
+    return json.dumps(value, indent=2, sort_keys=True) + "\n"
+
+
+def digest_of(value: object) -> str:
+    return hashlib.sha256(canonical(value).encode("utf-8")).hexdigest()
+
+
+def local_attestation(host_label: str, evidence_path: Path = EVIDENCE) -> dict:
+    """Derives this host's attestation from the S20-720 evidence record."""
+    if not evidence_path.exists():
+        raise ReproError(
+            ReproErrorCode.EVIDENCE_MISSING,
+            f"{display(evidence_path)} does not exist; run make release-candidate-smoke",
+        )
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, str(error)) from error
+    if not isinstance(evidence, dict):
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, "evidence is not an object")
+    required = (
+        "artifact_name",
+        "artifact_sha256",
+        "artifact_size_bytes",
+        "commit",
+        "manifest_digest",
+        "member_count",
+        "toolchain",
+        "reproducibility",
+        "working_tree_clean",
+        "result",
+    )
+    missing = [key for key in required if key not in evidence]
+    if missing:
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, f"missing keys {missing}")
+    if evidence["result"] != "PASS":
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, "evidence result is not PASS")
+    reproducibility = evidence["reproducibility"]
+    if not isinstance(reproducibility, dict) or reproducibility.get("result") != "REPRODUCIBLE":
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, "the two builds were not REPRODUCIBLE")
+    toolchain = evidence["toolchain"]
+    if not isinstance(toolchain, dict) or set(toolchain) != {"cargo", "rustc"}:
+        raise ReproError(ReproErrorCode.EVIDENCE_INVALID, "toolchain must name cargo and rustc")
+    return validate_attestation(
+        {
+            "contract": ATTESTATION_CONTRACT,
+            "host_label": host_label,
+            "commit": evidence["commit"],
+            "artifact_name": evidence["artifact_name"],
+            "artifact_sha256": evidence["artifact_sha256"],
+            "artifact_size_bytes": evidence["artifact_size_bytes"],
+            "manifest_digest": evidence["manifest_digest"],
+            "member_count": evidence["member_count"],
+            "toolchain": {"cargo": toolchain["cargo"], "rustc": toolchain["rustc"]},
+            "reproducibility": "REPRODUCIBLE",
+            "working_tree_clean": bool(evidence["working_tree_clean"]),
+            "differing_members": list(reproducibility.get("differing_members", [])),
+        }
+    )
+
+
+def validate_attestation(value: object) -> dict:
+    """Checks the contract section 1 shape and returns the attestation."""
+    if not isinstance(value, dict):
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "attestation is not an object")
+    expected = {
+        "contract",
+        "host_label",
+        "commit",
+        "artifact_name",
+        "artifact_sha256",
+        "artifact_size_bytes",
+        "manifest_digest",
+        "member_count",
+        "toolchain",
+        "reproducibility",
+        "working_tree_clean",
+        "differing_members",
+    }
+    if set(value) != expected:
+        raise ReproError(
+            ReproErrorCode.ATTESTATION_INVALID,
+            f"attestation keys {sorted(set(value) ^ expected)} differ from the contract",
+        )
+    if value["contract"] != ATTESTATION_CONTRACT:
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "wrong attestation contract")
+    if not isinstance(value["host_label"], str) or not value["host_label"].strip():
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "host_label must be a non-empty string")
+    if not isinstance(value["commit"], str) or not HEX_40.match(value["commit"]):
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "commit must be 40 lowercase hex")
+    for key in ("artifact_sha256", "manifest_digest"):
+        if not isinstance(value[key], str) or not HEX_64.match(value[key]):
+            raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"{key} must be 64 lowercase hex")
+    for key in ("artifact_size_bytes", "member_count"):
+        if not isinstance(value[key], int) or isinstance(value[key], bool) or value[key] <= 0:
+            raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"{key} must be a positive integer")
+    toolchain = value["toolchain"]
+    if (
+        not isinstance(toolchain, dict)
+        or set(toolchain) != {"cargo", "rustc"}
+        or not all(isinstance(item, str) and item for item in toolchain.values())
+    ):
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "toolchain must name cargo and rustc")
+    if value["reproducibility"] != "REPRODUCIBLE":
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "only REPRODUCIBLE builds attest")
+    if value["working_tree_clean"] is not True:
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "the attested tree must be clean")
+    if value["differing_members"] != []:
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "differing members contradict REPRODUCIBLE")
+    return dict(value)
+
+
+def build_report(attestations: list[dict]) -> dict:
+    """Merges attestations into the contract section 2 report."""
+    by_label: dict[str, dict] = {}
+    for attestation in attestations:
+        checked = validate_attestation(attestation)
+        label = checked["host_label"]
+        if label in by_label:
+            raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"duplicate host label {label!r}")
+        by_label[label] = checked
+    commits: dict[str, dict] = {}
+    for label in sorted(by_label):
+        attestation = by_label[label]
+        entry = commits.setdefault(
+            attestation["commit"],
+            {"artifact_sha256": attestation["artifact_sha256"], "hosts": []},
+        )
+        if entry["artifact_sha256"] != attestation["artifact_sha256"]:
+            raise ReproError(
+                ReproErrorCode.ATTESTATION_CONFLICT,
+                f"commit {attestation['commit']} has different artifact digests across hosts",
+            )
+        entry["hosts"].append(label)
+    multi_host = any(len(entry["hosts"]) >= REQUIRED_HOSTS for entry in commits.values())
+    report = {
+        "contract": REPORT_CONTRACT,
+        "work_package": "S20-730",
+        "required_hosts": REQUIRED_HOSTS,
+        "distinct_hosts": len(by_label),
+        "attestations": [by_label[label] for label in sorted(by_label)],
+        "commits": {commit: commits[commit] for commit in sorted(commits)},
+        "result": "MULTI_HOST_REPRODUCIBLE" if multi_host else "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": {
+            "status": "ATTESTED" if multi_host else "GATED_OPERATOR_LANE",
+            "note": (
+                "at least two hosts attested the same commit and artifact digest"
+                if multi_host
+                else "the second host build is an operator-gated lane; only the primary host attested"
+            ),
+        },
+        "ga_claimed": False,
+        "publication_authorized": False,
+        "blockers": [
+            blocker
+            for blocker in BLOCKERS
+            if not (multi_host and blocker == "second_host_attestation_operator_lane")
+        ],
+    }
+    report["report_digest"] = digest_of(report)
+    return report
+
+
+def load_attestation(path: Path) -> dict:
+    try:
+        return validate_attestation(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"{path}: {error}") from error
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host-label", default="primary")
+    parser.add_argument("--attest", action="append", default=[], type=Path)
+    parser.add_argument("--emit-attestation", type=Path)
+    parser.add_argument("--output", type=Path, default=REPORT)
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    try:
+        local = local_attestation(args.host_label)
+        if args.emit_attestation is not None:
+            args.emit_attestation.parent.mkdir(parents=True, exist_ok=True)
+            args.emit_attestation.write_text(canonical(local), encoding="utf-8")
+            print(canonical({"result": "PASS", "attestation": str(args.emit_attestation)}), end="")
+            return 0
+        report = build_report([local, *(load_attestation(path) for path in args.attest)])
+        text = canonical(report)
+        if args.check:
+            current = args.output.read_text(encoding="utf-8") if args.output.exists() else None
+            drift = current != text
+            print(
+                canonical(
+                    {
+                        "mode": "check",
+                        "result": "FAIL" if drift else "PASS",
+                        "distinct_hosts": report["distinct_hosts"],
+                        "reproducibility": report["result"],
+                    }
+                ),
+                end="",
+            )
+            return 1 if drift else 0
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text, encoding="utf-8")
+        print(
+            canonical(
+                {
+                    "mode": "write",
+                    "result": "PASS",
+                    "distinct_hosts": report["distinct_hosts"],
+                    "reproducibility": report["result"],
+                    "second_host": report["second_host"]["status"],
+                    "output": display(args.output),
+                }
+            ),
+            end="",
+        )
+        return 0
+    except ReproError as error:
+        print(
+            canonical(
+                {
+                    "result": "FAIL",
+                    "code": int(error.code),
+                    "name": error.code.name,
+                    "detail": error.detail,
+                }
+            ),
+            end="",
+        )
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,204 @@
+"""Offline tests of the S20-730 reproducibility and independent conformance evidence."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def load(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"scripts/{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+repro = load("build_reproducibility_report")
+conformance = load("build_independent_conformance_report")
+
+
+def evidence_record(**overrides) -> dict:
+    record = {
+        "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+        "artifact_sha256": "a" * 64,
+        "artifact_size_bytes": 2_050_866,
+        "commit": "b" * 40,
+        "manifest_digest": "c" * 64,
+        "member_count": 14,
+        "toolchain": {"cargo": "cargo 1.93.0", "rustc": "rustc 1.93.0"},
+        "reproducibility": {"result": "REPRODUCIBLE", "differing_members": [], "archive_only": False},
+        "working_tree_clean": True,
+        "result": "PASS",
+    }
+    record.update(overrides)
+    return record
+
+
+class ReproducibilityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def write_evidence(self, **overrides) -> Path:
+        path = self.root / "evidence.json"
+        path.write_text(json.dumps(evidence_record(**overrides)), encoding="utf-8")
+        return path
+
+    def test_attestation_derives_from_a_passing_reproducible_record(self) -> None:
+        attestation = repro.local_attestation("primary", self.write_evidence())
+        self.assertEqual(attestation["contract"], repro.ATTESTATION_CONTRACT)
+        self.assertEqual(attestation["reproducibility"], "REPRODUCIBLE")
+        self.assertEqual(attestation["commit"], "b" * 40)
+        # No host name, path, or time enters the attestation.
+        self.assertEqual(
+            set(attestation) - {
+                "contract",
+                "host_label",
+                "commit",
+                "artifact_name",
+                "artifact_sha256",
+                "artifact_size_bytes",
+                "manifest_digest",
+                "member_count",
+                "toolchain",
+                "reproducibility",
+                "working_tree_clean",
+                "differing_members",
+            },
+            set(),
+        )
+
+    def test_missing_failed_or_nonreproducible_evidence_fails_closed(self) -> None:
+        with self.assertRaises(repro.ReproError) as missing:
+            repro.local_attestation("primary", self.root / "absent.json")
+        self.assertEqual(missing.exception.code, repro.ReproErrorCode.EVIDENCE_MISSING)
+        for overrides, code in (
+            ({"result": "FAIL"}, repro.ReproErrorCode.EVIDENCE_INVALID),
+            (
+                {"reproducibility": {"result": "ARCHIVE_ONLY", "differing_members": ["bin/sley"]}},
+                repro.ReproErrorCode.EVIDENCE_INVALID,
+            ),
+        ):
+            with self.assertRaises(repro.ReproError) as error:
+                repro.local_attestation("primary", self.write_evidence(**overrides))
+            self.assertEqual(error.exception.code, code)
+
+    def test_one_host_reports_single_host_and_names_the_gated_lane(self) -> None:
+        report = repro.build_report([repro.local_attestation("primary", self.write_evidence())])
+        self.assertEqual(report["result"], "SINGLE_HOST_REPRODUCIBLE")
+        self.assertEqual(report["second_host"]["status"], "GATED_OPERATOR_LANE")
+        self.assertIn("second_host_attestation_operator_lane", report["blockers"])
+        self.assertFalse(report["ga_claimed"])
+        self.assertFalse(report["publication_authorized"])
+        self.assertEqual(report["report_digest"], repro.digest_of({k: v for k, v in report.items() if k != "report_digest"}))
+
+    def test_two_agreeing_hosts_report_multi_host(self) -> None:
+        first = repro.local_attestation("primary", self.write_evidence())
+        second = dict(first, host_label="secondary")
+        report = repro.build_report([first, second])
+        self.assertEqual(report["result"], "MULTI_HOST_REPRODUCIBLE")
+        self.assertEqual(report["second_host"]["status"], "ATTESTED")
+        self.assertNotIn("second_host_attestation_operator_lane", report["blockers"])
+        self.assertEqual(report["commits"]["b" * 40]["hosts"], ["primary", "secondary"])
+
+    def test_conflicting_digests_and_duplicate_labels_fail_closed(self) -> None:
+        first = repro.local_attestation("primary", self.write_evidence())
+        conflicting = dict(first, host_label="secondary", artifact_sha256="d" * 64)
+        with self.assertRaises(repro.ReproError) as conflict:
+            repro.build_report([first, conflicting])
+        self.assertEqual(conflict.exception.code, repro.ReproErrorCode.ATTESTATION_CONFLICT)
+        with self.assertRaises(repro.ReproError) as duplicate:
+            repro.build_report([first, dict(first)])
+        self.assertEqual(duplicate.exception.code, repro.ReproErrorCode.ATTESTATION_INVALID)
+
+    def test_a_dirty_or_incomplete_attestation_is_refused(self) -> None:
+        base = repro.local_attestation("primary", self.write_evidence())
+        for mutation in (
+            {"working_tree_clean": False},
+            {"commit": "not hex"},
+            {"artifact_sha256": "short"},
+            {"reproducibility": "ARCHIVE_ONLY"},
+            {"differing_members": ["bin/sley"]},
+        ):
+            with self.assertRaises(repro.ReproError) as error:
+                repro.validate_attestation(dict(base, **mutation))
+            self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_INVALID)
+        with self.assertRaises(repro.ReproError):
+            repro.validate_attestation({key: value for key, value in base.items() if key != "toolchain"})
+
+
+class IndependentConformanceTests(unittest.TestCase):
+    def test_report_covers_every_fixture_family_from_tracked_files(self) -> None:
+        report = conformance.build_report()
+        self.assertEqual(report["contract"], conformance.REPORT_CONTRACT)
+        directories = sorted(
+            path.name for path in (ROOT / "conformance").iterdir() if path.is_dir()
+        )
+        self.assertEqual(report["fixture_directories"], len(directories))
+        self.assertEqual(
+            [family["directory"] for family in report["fixtures"]],
+            [f"conformance/{name}/v1" for name in directories],
+        )
+        self.assertEqual(
+            report["independently_checked"] + len(report["native_only"]),
+            report["fixture_directories"],
+        )
+
+    def test_every_declared_oracle_command_is_in_the_make_recipe(self) -> None:
+        recipe = conformance.conformance_recipe()
+        for family in conformance.build_report()["fixtures"]:
+            coverage = family["coverage"]
+            if coverage["kind"] == "independent_oracle":
+                self.assertIn(coverage["command"], recipe)
+            else:
+                self.assertEqual(coverage["kind"], "native_only")
+                self.assertTrue(coverage["note"])
+
+    def test_the_report_is_a_pure_function_of_the_tree(self) -> None:
+        self.assertEqual(conformance.build_report(), conformance.build_report())
+
+    def test_an_undeclared_family_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "brand-new"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text("{}", encoding="utf-8")
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.ORACLE_DRIFT)
+
+    def test_a_malformed_fixture_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text("{not json", encoding="utf-8")
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(
+                error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
+            )
+
+    def test_mismatched_sums_fail_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text('{"contract": "x"}', encoding="utf-8")
+            (directory / "v1/SHA256SUMS").write_text(f"{'e' * 64}  accepted.json\n", encoding="utf-8")
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.SUMS_MISMATCH)
+
+
+if __name__ == "__main__":
+    unittest.main()

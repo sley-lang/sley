@@ -412,6 +412,21 @@ the candidate mechanics only; `release-check` stays fail-closed. The contract
 is a draft with Council review pending and reserves, rather than freezes,
 these codes.
 
+S20-730 reserves numeric codes 73000 through 73007 for the exact failures of
+`REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md`: a missing
+(`REPRO_EVIDENCE_MISSING`) or unusable (`REPRO_EVIDENCE_INVALID`) S20-720
+evidence record, an attestation that fails the frozen shape
+(`REPRO_ATTESTATION_INVALID`), two hosts attesting one commit with different
+artifact digests (`REPRO_ATTESTATION_CONFLICT`), an unreadable fixture
+(`CONFORMANCE_FIXTURE_UNREADABLE`), a fixture digest list that disagrees with
+its fixtures (`CONFORMANCE_SUMS_MISMATCH`), an undeclared fixture family, a
+declared oracle command absent from the `make conformance` recipe or a Rust
+dependency in the independent oracle (`CONFORMANCE_ORACLE_DRIFT`), and a
+tracked conformance report that differs from the derived one
+(`CONFORMANCE_REPORT_DRIFT`). They name evidence derivation only; no GA,
+release, or publication claim follows from them. The contract is a draft with
+Council review pending and reserves, rather than freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:
