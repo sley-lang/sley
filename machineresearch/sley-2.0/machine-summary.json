@@ -2603,7 +2603,7 @@
     "test_inventory": "evidence/validation/test-inventory.json"
   },
   "remaining_gates": {
-    "council_model_access": "every specialist lane answers HTTP 401 (invalid x-api-key); the recorded review obligations and the S20-740 independent review wait on it",
+    "council_model_access": "every specialist lane answers HTTP 401 (invalid x-api-key); the recorded review obligations and the S20-740 independent review wait on it. The S20-250 retry loop probed both models every fifteen minutes and reported RETRY_EXHAUSTED at 2026-09-03T22:34:24Z without a lane; the package-review retry chain is still probing. Restoring the gateway credential is the only action that opens this gate",
     "schema_epoch_decision": "S20-240 full contract kinds and the S20-360 production-epoch fingerprint requirement need a later schema epoch",
     "succession_trials": "the six per-arm metrics need executed benchmark trials, which need model access and spend authorization",
     "root_license_text": "the S20-710 audit and both SBOM documents record it as their blocker",
