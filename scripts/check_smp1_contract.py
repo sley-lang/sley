@@ -94,7 +94,7 @@ def main() -> int:
     for numeric, symbol in CODES:
         if f"| {numeric} | `{symbol}` |" not in spec:
             problems.append(f"spec-code:{symbol}")
-    tags = [int(tag) for tag in re.findall(r"^\| (\d{3}) \| `[a-z.]+` \|", spec, flags=re.M)]
+    tags = [int(tag) for tag in re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", spec, flags=re.M)]
     if tags != METHOD_TAGS:
         problems.append(f"spec-method-table:{tags}")
     adr = read(ADR)

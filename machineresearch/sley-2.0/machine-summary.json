@@ -1002,7 +1002,7 @@
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
-    "method_count": 40,
+    "method_count": 41,
     "method_families": 6,
     "new_stable_error_codes": 12,
     "new_error_code_range": "40000 through 40011",
