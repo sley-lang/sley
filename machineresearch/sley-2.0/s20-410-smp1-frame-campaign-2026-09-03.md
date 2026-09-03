@@ -64,12 +64,39 @@ pending.
   branch is `REF_IO`; pack failures carry numeric 0 until S20-560 exposes
   its registry.
 
-## Slice C (mutation-side families) — pending
+## Slice C (mutation-side families)
 
-`workspace.create/open`, `merge.commit`, `exchange.import`, `gc.*`, the
-candidate family, `commit`, `execute`, and `report` dispatch, plus the
-server request/response conformance corpus. Until slice C lands the
-protocol summary status stays `S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
+- Nine more methods dispatch: `workspace.create` (trusted genesis from the
+  state root, policy root, object, and tombstone bytes; identical inputs
+  yield the identical `TransactionId`), `workspace.open`, `candidate.create`,
+  `candidate.inspect`, `candidate.discard` (the server holds no candidate
+  state), `candidate.validate` (the S20-360 validator renders every outcome
+  as a result record), `commit` (S20-390 with the caller-supplied
+  principal and clock), `merge.commit` (judge, plan, commit through
+  S20-520), and `exchange.import` (S20-540 into the server's repository);
+  thirty-one methods now dispatch and five stay deferred
+  (`candidate.append`, `gc.dry_run`, `gc.collect`, `execute`, `report`).
+- Contract revision 3 appendix A carries the body records of every
+  dispatched method.
+- Native: a fifth server test (workspace.create reproducing the genesis
+  identity in a fresh repository, owner codes preserved through the
+  candidate and commit paths over malformed bytes, merge.commit over equal
+  roots reaching the merge owner, an export/import round trip whose
+  accepted head is the source genesis, and the deferred reason on
+  `execute`).
+- Numeric exposure follow-up: validation, candidate, state-root, and
+  policy-root failures carry numeric 0 at this slice because their crates
+  expose symbols only; commit, branch, exchange, query, and capsule
+  failures carry their exact numerics.
+
+## Slice D (remaining dispatch) — pending
+
+`candidate.append` (needs a public mutation-operation codec), `gc.dry_run`
+and `gc.collect` (retention snapshots from repository state), `execute`
+and `report` (S20-380 lowering inputs), plus the server request/response
+conformance corpus and the numeric exposure of the symbol-only owner
+crates. Until slice D lands the protocol summary status stays
+`S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
 
 ## Tier 2 handoff gate for slice A (2026-09-03, at `d4ff651`)
 

@@ -10,6 +10,7 @@ description = "Sley 2 machine protocol (SMP1) frames, negotiation, and identity 
 blake3 = "=1.8.2"
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
+sley-policy = { path = "../sley-policy" }
 sley-query = { path = "../sley-query" }
 sley-repo = { path = "../sley-repo" }
 sley-scb1 = { path = "../sley-scb1" }
@@ -18,7 +19,6 @@ sley-state-root = { path = "../sley-state-root" }
 sley-txn = { path = "../sley-txn" }
 
 [dev-dependencies]
-sley-policy = { path = "../sley-policy" }
 sley-repo = { path = "../sley-repo", features = ["test-support"] }
 sley-ssmc = { path = "../sley-ssmc" }
 sley-store = { path = "../sley-store" }

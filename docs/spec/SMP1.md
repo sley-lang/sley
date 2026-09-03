@@ -304,6 +304,8 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 | 102 `session.close` | empty | empty |
 | 103 `session.capabilities` | empty | the `SelectedProfile` record (section 2) |
 | 104 `session.budgets` | empty | the `LimitProfile` record |
+| 200 `workspace.create` | `record(1: state root stored bytes, 2: policy root stored bytes, 3: list(bytes(object stored bytes)), 4: list(EntityId))` | the genesis `TransactionId[32]` |
+| 201 `workspace.open` | empty | `revision_summary` of the accepted head |
 | 202 `refs.list` | `uvar(limit)`, 1 through 4,096 | `list(branch_summary)` |
 | 203 `refs.resolve` | branch name bytes | `branch_summary` |
 | 204 `revision.read` | `TransactionId[32]` | `revision_summary` |
@@ -312,11 +314,18 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 | 207 `compare` | `record(1: base TransactionId, 2: target TransactionId)` | the S20-510 stored delta bytes |
 | 208 `merge.judge` | `record(1: ancestor, 2: ours, 3: theirs)` | `union(1: record(1: merged StateRoot, 2: uvar(objects), 3: bytes(state root stored bytes)) \| 2: the S20-520 stored conflict bytes)` |
 | 210 `exchange.export` | empty | the S20-540 exchange stored bytes |
+| 209 `merge.commit` | `record(1: ancestor, 2: ours, 3: theirs, 4: PrincipalId, 5: uvar(now millis), 6: uvar(expiry millis), 7: branch name bytes)` | `union(1: TransactionId \| 2: the S20-520 stored conflict bytes)` |
+| 211 `exchange.import` | the S20-540 exchange stored bytes | `record(1: RepositoryExchangeId, 2: accepted head TransactionId, 3: uvar(receipts), 4: uvar(branches))` |
 | 214 `refs.recover` | empty | `record(1: removed branch stages, 2: removed ref stages, 3: visible branches)` |
 | 300 `query.root` | the exact `SLEYRQQ1` request preimage over the accepted head's snapshot; a preimage bound to another snapshot is the owner's `QUERY_SNAPSHOT_MISMATCH` | the `SLEYRQR1` record |
 | 301 `query.continue` | as 300 with `after` present (`PROTOCOL_PAYLOAD_INVALID` otherwise) | the `SLEYRQR1` record |
 | 302 `capsule` | as 300 | the `SLEYCCP1` record |
 | 303 `query.restricted` | the exact `SLEYQRY1` request preimage over the arm-1 snapshot of the accepted head's kinds 4 through 15 | the `SLEYQRS1` record |
+| 400 `candidate.create` | the canonical S20-350 candidate record payload | the stored candidate bytes |
+| 402 `candidate.validate` | `record(1: base TransactionId, 2: PrincipalId, 3: uvar(now millis), 4: stored candidate bytes)` | the S20-360 candidate result stored bytes |
+| 403 `candidate.inspect` | stored candidate bytes | `record(1: CandidateId, 2: WorkspaceId, 3: base TransactionId, 4: base StateRoot, 5: PrincipalId, 6: uvar(operations), 7: uvar(preconditions))` |
+| 404 `candidate.discard` | stored candidate bytes | empty; the server holds no candidate state, so a discard verifies the bytes and acknowledges |
+| 500 `commit` | `record(1: expected parent TransactionId, 2: PrincipalId, 3: uvar(now millis), 4: stored candidate bytes)` | `record(1: TransactionId, 2: ReceiptId, 3: StateRoot, 4: bytes(candidate result stored bytes))` |
 | 501 `receipt.read` | `TransactionId[32]` | the receipt stored bytes |
 | 502 `checkout` | `TransactionId[32]` | `record(1: StateRoot, 2: list(bytes(object stored bytes)))` |
 | 504 `recovery` | empty | `record(1: removed object stages, 2: removed receipt stages, 3: removed head stages, 4: option(accepted TransactionId), 5: verified ancestry transactions)` |

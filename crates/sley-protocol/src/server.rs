@@ -13,7 +13,14 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use sley_id::{EntityId, ProtocolHandshakeId, SchemaEpochId, StateRoot, TransactionId};
-use sley_mutate::import_entity_object;
+use sley_id::{PrincipalId, ReceiptId};
+use sley_mutate::{
+    build_candidate, decode_candidate_record, import_candidate, import_entity_object,
+};
+use sley_policy::{
+    CandidateValidationContext, CandidateValidationLimits, conformance_registry as policy_registry,
+    import_policy_root, validate_candidate_bytes,
+};
 use sley_query::{
     Cursor, ImpactEdge, ImpactKind, IndexCompleteness, ModeledEntityKind, QueryLimits,
     RestrictedQuery, RootQuery, SnapshotContext, build_index_snapshot,
@@ -21,12 +28,14 @@ use sley_query::{
 };
 use sley_repo::{
     BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, IndexCacheError,
-    MergeOutcome, MergeSide, RepositoryQueryError, compare_complete_roots,
-    export_repository_exchange, judge_merge, run_context_capsule, run_root_query,
+    MergeCommitInput, MergeOutcome, MergeSide, RepositoryQueryError, build_merge_plan,
+    commit_merge, compare_complete_roots, export_repository_exchange, import_repository_exchange,
+    judge_merge, run_context_capsule, run_root_query,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
-use sley_txn::{TransactionRepository, VerifiedRevision};
+use sley_state_root::{conformance_registry as state_registry, import_state_root};
+use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
 
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FrameKind, LimitProfile, Method, PROTOCOL_VERSION,
@@ -291,18 +300,23 @@ impl Server {
                 let _ = single_uvar(body)?;
                 self.plain(Vec::new())
             }
-            Method::WorkspaceCreate
-            | Method::WorkspaceOpen
-            | Method::MergeCommit
-            | Method::ExchangeImport
+            Method::WorkspaceCreate => self.workspace_create(body),
+            Method::WorkspaceOpen => self.workspace_open(),
+            Method::MergeCommit => self.merge_commit(body),
+            Method::ExchangeImport => self.exchange_import(body),
+            Method::CandidateCreate => self.candidate_create(body),
+            Method::CandidateInspect => self.candidate_inspect(body),
+            Method::CandidateDiscard => {
+                // The server holds no candidate state: candidates are
+                // caller-held bytes, so a discard only verifies the bytes.
+                import_candidate(body).map_err(|error| owner(error.code(), 0))?;
+                self.plain(Vec::new())
+            }
+            Method::CandidateValidate => self.candidate_validate(body),
+            Method::Commit => self.commit(body),
+            Method::CandidateAppend
             | Method::GcDryRun
             | Method::GcCollect
-            | Method::CandidateCreate
-            | Method::CandidateAppend
-            | Method::CandidateValidate
-            | Method::CandidateInspect
-            | Method::CandidateDiscard
-            | Method::Commit
             | Method::Execute
             | Method::Report => Err(unsupported(DEFERRED_DISPATCH_REASON)),
             Method::HandleExpand
@@ -662,6 +676,188 @@ impl Server {
             ..BoundedContext::none()
         };
         Ok((body, bounds))
+    }
+
+    fn workspace_create(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 4)?;
+        let state_registry = state_registry()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let policy_registry = policy_registry()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let state = import_state_root(&state_registry, fields[0])
+            .map_err(|error| owner(error.code_str(), 0))?;
+        let policy = import_policy_root(&policy_registry, fields[1])
+            .map_err(|error| owner(error.code_str(), 0))?;
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let objects = list(fields[2])?
+            .into_iter()
+            .map(|item| {
+                import_entity_object(epoch, item).map_err(|error| owner(error.code().as_str(), 0))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let tombstones = list(fields[3])?
+            .into_iter()
+            .map(|item| fixed32(item).map(EntityId::from_bytes))
+            .collect::<Result<Vec<_>>>()?;
+        let head = self
+            .transactions()
+            .initialize_trusted_genesis(TrustedGenesisInput::new(
+                &state,
+                &policy,
+                &objects,
+                &tombstones,
+            ))
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        self.counted(
+            head.transaction_id().as_bytes().to_vec(),
+            to_u64(objects.len())?,
+        )
+    }
+
+    fn workspace_open(&self) -> Result<(Vec<u8>, BoundedContext)> {
+        let head = self.head()?;
+        let summary = revision_summary(&head)?;
+        self.counted(summary, 1)
+    }
+
+    fn candidate_create(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let record = decode_candidate_record(body).map_err(|error| owner(error.code(), 0))?;
+        let candidate = build_candidate(&record).map_err(|error| owner(error.code(), 0))?;
+        let count = to_u64(candidate.record.operations.len())?;
+        self.counted(candidate.stored_bytes, count)
+    }
+
+    fn candidate_inspect(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let candidate = import_candidate(body).map_err(|error| owner(error.code(), 0))?;
+        let record = &candidate.record;
+        let summary = scb(encode_record(&[
+            (1, candidate.candidate_id.as_bytes().to_vec()),
+            (2, record.workspace_id.as_bytes().to_vec()),
+            (3, record.base_transaction_id.as_bytes().to_vec()),
+            (4, record.base_root.as_bytes().to_vec()),
+            (5, record.principal_id.as_bytes().to_vec()),
+            (6, encode_uvar(to_u64(record.operations.len())?)),
+            (7, encode_uvar(to_u64(record.preconditions.len())?)),
+        ]))?;
+        self.counted(summary, to_u64(record.operations.len())?)
+    }
+
+    fn candidate_validate(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 4)?;
+        let base_id = TransactionId::from_bytes(fixed32(fields[0])?);
+        let principal = PrincipalId::from_bytes(fixed32(fields[1])?);
+        let now = single_uvar(fields[2])?;
+        let base = self.revision(base_id)?;
+        let context = CandidateValidationContext::new(
+            base_id,
+            base.state_root(),
+            base.objects(),
+            base.tombstoned_entities(),
+            base.policy_root(),
+            principal,
+            &[],
+            now,
+            CandidateValidationLimits::full_v1(),
+        )
+        .map_err(|error| owner(&error.to_string(), 0))?;
+        let output = validate_candidate_bytes(&context, fields[3])
+            .map_err(|error| owner(&error.to_string(), 0))?;
+        self.counted(output.result().stored_bytes.clone(), 1)
+    }
+
+    fn commit(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 4)?;
+        let parent = TransactionId::from_bytes(fixed32(fields[0])?);
+        let principal = PrincipalId::from_bytes(fixed32(fields[1])?);
+        let now = single_uvar(fields[2])?;
+        let input = CommitInput::new(
+            parent,
+            fields[3],
+            principal,
+            &[],
+            now,
+            CandidateValidationLimits::full_v1(),
+        );
+        let output = self
+            .transactions()
+            .commit(input)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        let record = scb(encode_record(&[
+            (1, output.transaction_id().as_bytes().to_vec()),
+            (2, output.receipt_id().as_bytes().to_vec()),
+            (3, output.state_root().root.as_bytes().to_vec()),
+            (
+                4,
+                scb(encode_bytes(&output.candidate_result().stored_bytes))?,
+            ),
+        ]))?;
+        let _: ReceiptId = output.receipt_id();
+        self.counted(record, 1)
+    }
+
+    fn merge_commit(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 7)?;
+        let ancestor = MergeSide::from_revision(
+            &self.revision(TransactionId::from_bytes(fixed32(fields[0])?))?,
+        );
+        let ours = MergeSide::from_revision(
+            &self.revision(TransactionId::from_bytes(fixed32(fields[1])?))?,
+        );
+        let theirs = MergeSide::from_revision(
+            &self.revision(TransactionId::from_bytes(fixed32(fields[2])?))?,
+        );
+        let principal = PrincipalId::from_bytes(fixed32(fields[3])?);
+        let now = single_uvar(fields[4])?;
+        let expiry = single_uvar(fields[5])?;
+        let branch = fields[6];
+        let merge_failure = |error: sley_repo::MergeError| {
+            owner(
+                &error.symbol(),
+                error.code().map_or(0, sley_repo::MergeErrorCode::numeric),
+            )
+        };
+        let outcome = judge_merge(&ancestor, &ours, &theirs).map_err(merge_failure)?;
+        match outcome {
+            MergeOutcome::Conflict(conflict) => {
+                let count = to_u64(conflict.conflict.conflicts.len())?;
+                self.counted(scb(encode_union(2, &conflict.stored_bytes))?, count)
+            }
+            MergeOutcome::Merged(merged) => {
+                let plan = build_merge_plan(&ours, &merged).map_err(merge_failure)?;
+                let transaction_id = commit_merge(
+                    &self.transactions(),
+                    &self.branches(),
+                    &ours,
+                    &plan,
+                    MergeCommitInput {
+                        principal_id: principal,
+                        now_unix_millis: now,
+                        expiry_unix_millis: expiry,
+                        limits: CandidateValidationLimits::full_v1(),
+                        branch,
+                    },
+                )
+                .map_err(merge_failure)?;
+                self.counted(scb(encode_union(1, transaction_id.as_bytes()))?, 1)
+            }
+        }
+    }
+
+    fn exchange_import(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let verifier =
+            move |bytes: &[u8]| import_entity_object(epoch, bytes).map(|object| object.object_id());
+        let report = import_repository_exchange(&self.repository, body, &verifier)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        let record = scb(encode_record(&[
+            (1, report.exchange_id.as_bytes().to_vec()),
+            (2, report.accepted_head.transaction_id().as_bytes().to_vec()),
+            (3, encode_uvar(to_u64(report.receipts)?)),
+            (4, encode_uvar(to_u64(report.branches)?)),
+        ]))?;
+        self.counted(record, to_u64(report.receipts)?)
     }
 
     fn counted(&self, body: Vec<u8>, entities: u64) -> Result<(Vec<u8>, BoundedContext)> {
@@ -1081,6 +1277,30 @@ fn uvar_at(input: &[u8], offset: &mut usize) -> Result<u64> {
         }
         shift += 7;
     }
+}
+
+/// Reads a list of length-delimited items.
+fn list(input: &[u8]) -> Result<Vec<&[u8]>> {
+    let mut offset = 0_usize;
+    let count = uvar_at(input, &mut offset)?;
+    if count > 1_000_000 {
+        return protocol_failure(ProtocolErrorCode::LimitExceeded);
+    }
+    let mut items = Vec::with_capacity(usize::try_from(count).unwrap_or(0).min(4_096));
+    for _ in 0..count {
+        let len = usize::try_from(uvar_at(input, &mut offset)?)
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+        let end = offset
+            .checked_add(len)
+            .filter(|end| *end <= input.len())
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+        items.push(&input[offset..end]);
+        offset = end;
+    }
+    if offset != input.len() {
+        return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+    }
+    Ok(items)
 }
 
 /// Reads a record with exactly the fields 1 through `expected`.

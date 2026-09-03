@@ -327,7 +327,7 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     let cancel = harness.ok(Method::Cancel, encode_uvar(3));
     assert!(cancel.body.is_empty());
     // Deferred and reserved methods fail with versioned reasons.
-    let deferred = harness.fail(Method::Commit, Vec::new());
+    let deferred = harness.fail(Method::GcDryRun, Vec::new());
     assert_eq!(
         deferred.code,
         ProtocolErrorCode::MethodUnsupported.numeric()
@@ -546,4 +546,243 @@ fn identity_session_and_frame_rules_hold_at_the_server() {
     harness.ok(Method::SessionClose, Vec::new());
     let closed = harness.fail(Method::RevisionRead, tx(genesis));
     assert_eq!(closed.code, ProtocolErrorCode::SessionClosed.numeric());
+}
+
+#[test]
+fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
+    let mut harness = Harness::new("smp1-mutation");
+    let genesis_id = harness.genesis;
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository);
+    let revision = transactions.verified_revision(genesis_id).unwrap();
+    // workspace.open summarises the accepted head.
+    let opened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(&opened.body[..0], b"");
+    assert_eq!(opened.bounds.returned_entities, 1);
+    // workspace.create over the genesis inputs into a fresh repository
+    // yields the same transaction identity (trusted genesis is exact).
+    let fresh = sley_repo::test_support::TempDir::new("smp1-create");
+    let fresh_root = fresh.child("repo");
+    std::fs::create_dir(&fresh_root).unwrap();
+    let mut other = Server::new(&fresh_root, harness.server.profile().clone()).unwrap();
+    let handshake = other.handshake_id();
+    let open = other
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let other_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let objects: Vec<Vec<u8>> = revision
+        .objects()
+        .iter()
+        .map(|o| o.stored_bytes().to_vec())
+        .collect();
+    let body = encode_record(&[
+        (1, revision.state_root().stored_bytes.clone()),
+        (2, revision.policy_root().stored_bytes().to_vec()),
+        (3, sley_scb1::encode_list(&objects).unwrap()),
+        (4, sley_scb1::encode_list(&[]).unwrap()),
+    ])
+    .unwrap();
+    let created = other
+        .answer(&request_frame(
+            Some(other_session),
+            1,
+            Method::WorkspaceCreate,
+            body,
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&created.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert!(
+        !created.failed,
+        "{:?}",
+        ProtocolFailure::decode(&frame.body)
+    );
+    assert_eq!(
+        frame.body,
+        tx(genesis_id),
+        "trusted genesis over identical inputs is one identity"
+    );
+    // candidate.create with a structurally empty record keeps the owner's code.
+    let empty_candidate = harness.fail(Method::CandidateCreate, vec![0]);
+    assert!(
+        empty_candidate.symbol.starts_with("CANDIDATE_")
+            || empty_candidate.symbol.starts_with("SCB_"),
+        "{}",
+        empty_candidate.symbol
+    );
+    // candidate.inspect and discard over garbage bytes keep the owner's code.
+    let inspect = harness.fail(Method::CandidateInspect, b"not a candidate".to_vec());
+    assert!(
+        !inspect.symbol.starts_with("PROTOCOL_"),
+        "{}",
+        inspect.symbol
+    );
+    let discard = harness.fail(Method::CandidateDiscard, b"not a candidate".to_vec());
+    assert_eq!(discard.symbol, inspect.symbol);
+    // candidate.validate and commit reach the owners with the base revision.
+    let principal = sley_repo::test_support::fixed(2, sley_id::PrincipalId::from_bytes);
+    let validate_body = encode_record(&[
+        (1, tx(genesis_id)),
+        (2, principal.as_bytes().to_vec()),
+        (3, encode_uvar(1_000)),
+        (4, b"not a candidate".to_vec()),
+    ])
+    .unwrap();
+    // The S20-360 validator renders every outcome as a canonical result
+    // record, so garbage candidate bytes yield a result, not a failure.
+    let validated = harness.ok(Method::CandidateValidate, validate_body);
+    assert_eq!(&validated.body[..8], b"SLEYCRS1");
+    assert_eq!(validated.bounds.returned_entities, 1);
+    let commit_body = encode_record(&[
+        (1, tx(genesis_id)),
+        (2, principal.as_bytes().to_vec()),
+        (3, encode_uvar(1_000)),
+        (4, b"not a candidate".to_vec()),
+    ])
+    .unwrap();
+    let committed = harness.fail(Method::Commit, commit_body);
+    assert!(
+        !committed.symbol.starts_with("PROTOCOL_"),
+        "{}",
+        committed.symbol
+    );
+    assert_ne!(
+        committed.code, 0,
+        "commit failures carry the owner's numeric code"
+    );
+    // merge.commit of three equal roots reaches the merge owner; an empty
+    // plan is the owner's decision, not the transport's.
+    let merge_body = encode_record(&[
+        (1, tx(genesis_id)),
+        (2, tx(genesis_id)),
+        (3, tx(genesis_id)),
+        (4, principal.as_bytes().to_vec()),
+        (5, encode_uvar(1_000)),
+        (6, encode_uvar(2_000)),
+        (7, b"main".to_vec()),
+    ])
+    .unwrap();
+    let (merge_failed, merge_frame) = harness.call(Method::MergeCommit, merge_body);
+    if merge_failed {
+        let failure = ProtocolFailure::decode(&merge_frame.body).unwrap();
+        assert!(
+            failure.symbol.starts_with("MERGE_")
+                || failure.symbol.starts_with("REF_")
+                || failure.symbol.starts_with("TXN_"),
+            "{}",
+            failure.symbol
+        );
+    } else {
+        assert_eq!(merge_frame.body[0], 1);
+    }
+    // exchange.import round trip: export from a dependency-free repository,
+    // import into a fresh one, and the accepted head is the source genesis.
+    let (source_temp, _source_transactions, source_genesis) =
+        genesis("smp1-import-source", dependency_free_bodies(), &[]);
+    let source_root = source_temp.child("repo");
+    let mut source = Server::new(&source_root, harness.server.profile().clone()).unwrap();
+    let source_handshake = source.handshake_id();
+    let open = source
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            source_handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let source_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let created = source
+        .answer(&request_frame(
+            Some(source_session),
+            1,
+            Method::BranchCreate,
+            encode_record(&[(1, b"main".to_vec()), (2, tx(source_genesis))]).unwrap(),
+        ))
+        .unwrap();
+    assert!(!created.failed);
+    let exported = source
+        .answer(&request_frame(
+            Some(source_session),
+            2,
+            Method::ExchangeExport,
+            Vec::new(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(export_frame), _) =
+        decode_frame(&exported.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert!(!exported.failed);
+    let target_temp = sley_repo::test_support::TempDir::new("smp1-import-target");
+    let target_root = target_temp.child("repo");
+    let mut target = Server::new(&target_root, harness.server.profile().clone()).unwrap();
+    let target_handshake = target.handshake_id();
+    let open = target
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            target_handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let target_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let imported = target
+        .answer(&request_frame(
+            Some(target_session),
+            1,
+            Method::ExchangeImport,
+            export_frame.body.clone(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(import_frame), _) =
+        decode_frame(&imported.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert!(
+        !imported.failed,
+        "{:?}",
+        ProtocolFailure::decode(&import_frame.body)
+    );
+    assert!(
+        import_frame
+            .body
+            .windows(32)
+            .any(|window| window == source_genesis.as_bytes())
+    );
+    let opened = target
+        .answer(&request_frame(
+            Some(target_session),
+            2,
+            Method::WorkspaceOpen,
+            Vec::new(),
+        ))
+        .unwrap();
+    assert!(!opened.failed);
+    // Deferred methods still answer with the versioned reason.
+    let deferred = harness.fail(Method::Execute, Vec::new());
+    assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);
 }
