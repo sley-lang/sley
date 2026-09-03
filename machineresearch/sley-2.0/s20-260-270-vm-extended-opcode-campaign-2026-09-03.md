@@ -48,7 +48,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Slice E3 (floats), revision 4 | `785b92d` | green | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
 | Slice E4 (records, variants, maps), revision 5 | `4f1e197` | green | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
 | Slice E5 (cells, hashing, globals, references), revision 6 | `4491b1c` | green | register-only cell handles, escape guard, S20-250 hashing, inventory-bound globals and references in `extended.rs`; 1 test with 9 rejections; 3 vectors |
-| Slice E6 (direct calls), revision 7 | pending | pending | callee closure lowering and `SLEYBC02` callee table in `lower.rs`, per-frame execution with shared budgets and the 256-frame ceiling in `execute.rs`; 1 test with 4 rejections; 2 vectors |
+| Slice E6 (direct calls), revision 7 | `04ef631` | green | callee closure lowering and `SLEYBC02` callee table in `lower.rs`, per-frame execution with shared budgets and the 256-frame ceiling in `execute.rs`; 1 test with 4 rejections; 2 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
@@ -112,3 +112,32 @@ The slice added the `sley-vm` to `sley-mutate` dependency edge for canonical map
 | `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
 
 `make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
+## Slice E6 Tier 2 handoff record (2026-09-03, at `04ef631`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 994 tests passed, 0 failed |
+| `make conformance` | exit 0 | 11 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 8 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | 1 s | 5 bounded smoke tests passed |
+| `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
+
+`make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
+## Program status after slice E6 (2026-09-03)
+
+Every family slice E1 through E6 is implemented under contract revision 7
+(E7 stays excluded until its owners exist). The machine summary records
+`vm_extended_opcode_profile.status = S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING`
+with nineteen conformance vectors in `conformance/vm-extended/v1/accepted.json`
+and thirty `sley-vm` unit tests. The three Council reviews (Ariadne contract,
+Nabu architecture, Vulcan surface) stay queued in the session review loop with
+their request texts refreshed to revision 7; their findings land as contract
+revisions before the freeze that turns the status to `S20_260_270_EXTENDED_COMPLETE`.
+
+The next authority-safe package is the SMP1 appendix C revision 8 execute
+profile selector (`S20-410-EXECUTE-PROFILE-SELECTOR`): an `execute` limits
+field naming the cache profile so the endpoint, the JSON bridge, the CLI, and
+the S20-620 runner can execute under `EXTENDED_V1`. Until it lands the
+endpoint executes under `RESTRICTED_V1` only.

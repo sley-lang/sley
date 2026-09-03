@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode lowering and execution program is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 execute profile selector is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -99,8 +99,12 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`), and the S20-410
   slice C dispatch is implemented (SMP1 revision 7, the S20-410 closeout
   addendum), and S20-720 mechanics are implemented
-  (`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`), so the full
-  S20-260/S20-270 opcode program is the next dependency-complete work.
+  (`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`), and the full
+  S20-260/S20-270 opcode program is implemented under
+  `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md` revision 7 (campaign
+  `machineresearch/sley-2.0/s20-260-270-vm-extended-opcode-campaign-2026-09-03.md`),
+  so the SMP1 appendix C revision 8 execute profile selector is the next
+  dependency-complete work.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -120,10 +124,9 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the full S20-260/S20-270 program:
-semantic signature judgment, lowering, and deterministic execution for the
-fifty-two opcodes beyond the three Boolean ones, in opcode-family slices
-under the frozen VM contracts, while the pending S20-250, S20-510, S20-520,
-S20-300, S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620,
-S20-630, and S20-720 reviews land as revisions; nothing in it is treated
-as GA.
+boundary drifts. The next action is the SMP1 appendix C revision 8 execute
+profile selector: an `execute` limits field naming the cache profile so the
+endpoint, bridge, CLI, and runner execute under `EXTENDED_V1`, while the
+pending S20-250, S20-510, S20-520, S20-300, S20-310, S20-320, S20-400,
+S20-330, S20-420, S20-430, S20-620, S20-630, S20-720, and S20-260/S20-270
+reviews land as revisions; nothing in it is treated as GA.

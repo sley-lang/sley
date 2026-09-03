@@ -64,7 +64,8 @@ non-reserved method since SMP1 revision 7; S20-440 is implemented
 (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`); S20-620 is implemented
 (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`); S20-630 is implemented
 (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`); S20-720 mechanics are implemented
-(`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`). Now
+(`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`); the full S20-260/S20-270 opcode program is implemented
+(`docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md` revision 7, six family slices, reviews pending). Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5
