@@ -23,6 +23,7 @@ removed after a PASS unless `--keep` is given and is always kept after a FAIL.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -34,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GIT = "/usr/bin/git"
 PYTHON = "/usr/bin/python3"
 CHECKER = "scripts/check_s20_530_crash_recovery.py"
+CLOSEOUT_EVIDENCE = "evidence/validation/s20-530-crash-recovery-closeout-v1.json"
 CONFIRMATION_COMMIT = "cc0f92f0b3ff41f3f8ca5db86117619255ddac5c"
 FROZEN_GIT_CONFIG = (
     b"[core]\n"
@@ -98,10 +100,34 @@ def main() -> int:
     run((GIT, "clone", "--quiet", "--no-hardlinks", str(ROOT), str(clone)), cwd=ROOT)
     run((GIT, "checkout", "--quiet", "-B", "main", arguments.commit), cwd=clone)
     (clone / ".git/config").write_bytes(FROZEN_GIT_CONFIG)
-    os.chmod(clone / ".git/config", 0o644)
     (clone / ".git/info").mkdir(exist_ok=True)
     (clone / ".git/info/exclude").write_bytes(FROZEN_GIT_INFO_EXCLUDE)
-    os.chmod(clone / ".git/info/exclude", 0o644)
+    # The frozen checker compares the live Git local-authority record (owner,
+    # directory and file modes) with the record captured at validation, so the
+    # clone must reproduce those modes exactly; apply them from the frozen
+    # closeout evidence at the checked-out commit and fail early on any
+    # directory mode the clone cannot reproduce.
+    authority = json.loads((clone / CLOSEOUT_EVIDENCE).read_text(encoding="utf-8"))["validation"][
+        "git_local_authority"
+    ]
+    os.chmod(clone / ".git/config", int(authority["config"]["mode"], 8))
+    os.chmod(clone / ".git/info/exclude", int(authority["info_exclude"]["mode"], 8))
+    for relative, field in (
+        (".", "root_mode"),
+        (".git", "git_dir_mode"),
+        (".git/info", "info_dir_mode"),
+        (".git/objects", "objects_dir_mode"),
+        (".git/objects/info", "objects_info_dir_mode"),
+        (".git/refs", "refs_dir_mode"),
+    ):
+        os.chmod(clone / relative, int(authority[field], 8))
+    if os.geteuid() != authority["owner_uid"] or os.getegid() != authority["owner_gid"]:
+        print(
+            "S20-530 accepted-state verification: FAIL: the validated Git authority was "
+            f"captured by uid {authority['owner_uid']} gid {authority['owner_gid']}; "
+            f"this process is uid {os.geteuid()} gid {os.getegid()}"
+        )
+        return 1
 
     sys.stdout.flush()
     result = subprocess.run(

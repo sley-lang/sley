@@ -109,8 +109,18 @@ every machine-summary S20-530 scalar, the six receipt rows byte-for-byte
 against the frozen evidence, the presence of all 419 mapped tests with
 `#[test]` in their owner crates, and the digests of ADR-0024 and the verify
 script; the verify script writes the frozen `.git/config` and
-`.git/info/exclude` bytes and runs Git with a clean environment. The first
-`make s20-530-verify` result is recorded below when it completes.
+`.git/info/exclude` bytes and runs Git with a clean environment.
+
+First `make s20-530-verify` run (2026-09-03T01:23:36Z to 03:36:05Z, isolated
+clone at `cc0f92f`): FAIL with `Git local authority differs from validated
+execution`. Root cause: the verify script forced `.git/config` and
+`.git/info/exclude` to mode `0644`, while the validated Git-authority record
+captured `0664` under the workstation's umask; the frozen checker compares
+those modes exactly. The script now applies the modes recorded in the
+frozen closeout evidence and fails early on an owner mismatch; the second run
+was launched at 03:38:05Z and its result is recorded here when it completes.
+The failed run is non-authoritative evidence of the script, not of the
+accepted state.
 
 ## Validation record
 

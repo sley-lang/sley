@@ -224,6 +224,15 @@ def main() -> int:
                 problems.append(f"txn-source-marker:{marker}")
         if "pub(crate) fn list_branches_locked" not in (ROOT / "crates/sley-repo/src/refs.rs").read_text(encoding="utf-8"):
             problems.append("refs-source-marker:list_branches_locked")
+        txn_manifest = (ROOT / "crates/sley-txn/Cargo.toml").read_text(encoding="utf-8")
+        if "sley-repo" in txn_manifest:
+            problems.append("dependency-direction:sley-txn-depends-on-sley-repo")
+        commit_body = txn_source.split("    fn commit_inner(", 1)[-1].split("\n    fn ", 1)[0]
+        if "initialize_trusted_clone" in commit_body or "cas_head(None" in commit_body:
+            problems.append("clone-api-reachable-from-commit")
+        genesis_body = txn_source.split("    fn initialize_trusted_genesis_inner(", 1)[-1].split("\n    fn ", 1)[0]
+        if "initialize_trusted_clone" in genesis_body:
+            problems.append("clone-api-reachable-from-genesis")
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8")) if FIXTURE.is_file() else {}
         vectors = fixture.get("vectors") or [{}]
         for key, value in FIXTURE_EXPECTED.items():

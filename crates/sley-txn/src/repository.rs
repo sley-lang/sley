@@ -833,6 +833,7 @@ impl TransactionRepository {
         self.validate_maintenance(maintenance)?;
         self.ensure_read_layout()?;
         let _lock = self.acquire_existing_lock()?;
+        self.require_not_incomplete_clone()?;
         let transaction_id = self
             .read_head()?
             .ok_or_else(|| txn_commit_error(TransactionErrorCode::HeadMissing))?;
@@ -2057,10 +2058,9 @@ fn verify_transaction_relationship_with_parent(
 pub fn verify_receipt_against_objects(
     receipt: &ImportedTransactionReceipt,
     parent: Option<&ImportedTransactionReceipt>,
-    objects: &[(ObjectId, &[u8])],
+    by_id: &BTreeMap<ObjectId, &[u8]>,
 ) -> Result<(), CommitError> {
     verify_transaction_relationship_with_parent(receipt, parent)?;
-    let by_id: BTreeMap<ObjectId, &[u8]> = objects.iter().copied().collect();
     let epoch = receipt.state_root.record.schema_epoch_id;
     let verifier = entity_verifier(epoch);
     let mut bound = Vec::with_capacity(receipt.state_root.record.entity_bindings.len());
@@ -21360,9 +21360,13 @@ mod clone_tests {
         let recover = fixture.repository.recover().unwrap_err();
         assert_eq!(recover.code(), "TXN_INCOMPLETE_CLONE");
 
-        assert_eq!(
-            fixture.repository.accepted_head().unwrap().transaction_id(),
-            head.transaction_id()
+        let read = fixture.repository.accepted_head().unwrap_err();
+        assert_eq!(read.code(), "TXN_INCOMPLETE_CLONE");
+        assert!(
+            fixture
+                .repository
+                .verified_revision(head.transaction_id())
+                .is_ok()
         );
     }
 
@@ -21414,6 +21418,17 @@ mod clone_tests {
         assert_eq!(head_again.transaction_id(), head_id);
         drop(guard);
 
+        // With the marker still present no reader resolves the head; once the
+        // importer removes it, the clone is a repository like any other.
+        let blocked = target.accepted_head().unwrap_err();
+        assert_eq!(blocked.code(), "TXN_INCOMPLETE_CLONE");
+        fs::remove_file(
+            temp.path
+                .join(EXCHANGE_DIRECTORY)
+                .join(EXCHANGE_VERSION_DIRECTORY)
+                .join(format!("{}.stage", "ab".repeat(32))),
+        )
+        .unwrap();
         let resolved = target.accepted_head().unwrap();
         assert_eq!(
             resolved.receipt().stored_bytes,

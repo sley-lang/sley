@@ -119,5 +119,43 @@ fail closed.
 
 ## Independent review
 
-Recorded below as the bounded Nabu, Ariadne, and Vulcan implementation
-reviews complete.
+Bounded reviews on `claude-cli/claude-opus-5`, sequential, on the closeout
+commit `7ef7b02`:
+
+- Nabu (architecture), session
+  `forge-nabu-s20-540-implementation-20260903T032106-699aad57`:
+  `PASS_IMPLEMENTATION`, no blocking finding. Advisories applied in the
+  commit after `7ef7b02`: the maintenance-acquisition error keeps its host
+  detail, the test-cut splits are `cfg(test)`-gated out of the production
+  persistence path, pack objects are indexed once for receipt verification,
+  and the owned re-classification test, the clone-API-unreachable check, and
+  the no-`sley-txn -> sley-repo`-edge check were added (the last two in the
+  spec checker). The export/import dependency-root asymmetry is contract
+  literal and recorded below.
+- Ariadne (contract conformance), session
+  `forge-ariadne-s20-540-implementation-20260903T032106-05769ff7`:
+  `FAIL_IMPLEMENTATION` with two P1 findings, both remedied in the same
+  commit: `accepted_head` now fails closed with `TXN_INCOMPLETE_CLONE` on a
+  marked root (the contract lists only the verified-revision and branch
+  readers as available there), and the rejection matrix now asserts ten
+  further codes (`54000`, `54002`, `54004`, `54009`, `54011`, `54012`,
+  `54016`, `54017`, `54020`, `54021`). Its P2 items are the same three tests
+  and checks Nabu named, now added; `EXCHANGE_INTERNAL_INVARIANT` is
+  recorded as reserved below. A limited Ariadne re-review is recorded when
+  it completes.
+- Vulcan (QA and security): recorded when it completes.
+
+## Reserved and unreachable codes
+
+- `EXCHANGE_ANCESTRY_CYCLE` (`54008`) is unreachable by construction:
+  every receipt is content-addressed and a parent link names a hash of the
+  parent's bytes, so a cycle would require a hash cycle. The topological
+  order still guards it.
+- `EXCHANGE_INTERNAL_INVARIANT` (`54019`) is reserved and never constructed
+  by the current implementation.
+- A foreign `<otherhex>.stage.tmp` under `exchange/v1/` classifies as
+  `EXCHANGE_TARGET_NOT_EMPTY`, the fail-closed reading of the contract's
+  owned-temporary rule.
+- Export builds the pack over exactly the committed roots and preserves any
+  `PACK_*` failure of dependency closure; the exportable class is therefore
+  the contract's literal export step 4, narrower than the importable class.

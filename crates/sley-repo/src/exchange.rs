@@ -66,6 +66,17 @@ const EXCHANGE_VERSION_DIRECTORY: &str = "v1";
 const STAGE_SUFFIX: &str = ".stage";
 const STAGE_TEMPORARY_SUFFIX: &str = ".stage.tmp";
 const RECEIPT_SUFFIX: &str = ".receipt.scb1";
+/// The only root entries an incomplete clone may carry besides the exchange
+/// directory: the S20-390, S20-500, and S20-180 owned layout.
+const REPOSITORY_LAYOUT_ENTRIES: [&str; 7] = [
+    EXCHANGE_DIRECTORY,
+    "objects",
+    "transactions",
+    "heads",
+    "locks",
+    "branches",
+    "refs",
+];
 const ORIGIN_SUFFIX: &str = ".branch.scb1";
 const REF_SUFFIX: &str = ".ref.scb1";
 
@@ -1298,12 +1309,12 @@ fn verify_receipts_against_pack(
     receipts: &BTreeMap<TransactionId, ImportedTransactionReceipt>,
     pack: &crate::PreflightedPack,
 ) -> Result<()> {
-    let objects = pack
+    let objects: BTreeMap<ObjectId, &[u8]> = pack
         .decoded
         .objects
         .iter()
         .map(|object| (object.object_id, object.stored_bytes.as_slice()))
-        .collect::<Vec<(ObjectId, &[u8])>>();
+        .collect();
     let mut binding_visits = 0_u64;
     let mut receipt_bytes = 0_u64;
     let mut verified_objects: BTreeSet<ObjectId> = BTreeSet::new();
@@ -1323,12 +1334,7 @@ fn verify_receipts_against_pack(
                 if verified_objects.len() as u64 > MAX_PREFLIGHT_OBJECT_VERIFICATIONS {
                     return Err(exchange_error(ExchangeErrorCode::ResourceLimit));
                 }
-                let length = pack
-                    .decoded
-                    .objects
-                    .iter()
-                    .find(|object| object.object_id == *object_id)
-                    .map_or(0, |object| object.stored_bytes.len() as u64);
+                let length = objects.get(object_id).map_or(0, |bytes| bytes.len() as u64);
                 object_bytes = object_bytes
                     .checked_add(length)
                     .filter(|total| *total <= MAX_PREFLIGHT_OBJECT_BYTES)
@@ -1480,6 +1486,26 @@ pub(crate) fn select_interruption(cut: ExchangeInterruption) {
 }
 
 #[cfg(test)]
+std::thread_local! {
+    static AFTER_ADVISORY_CLASSIFICATION: std::cell::RefCell<Option<Box<dyn FnOnce(&Path)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `action` on the target once, after the advisory classification and
+/// before the first write (test only), to exercise the owned re-classification.
+#[cfg(test)]
+pub(crate) fn after_advisory_classification(action: impl FnOnce(&Path) + 'static) {
+    AFTER_ADVISORY_CLASSIFICATION.with(|slot| slot.replace(Some(Box::new(action))));
+}
+
+#[cfg(test)]
+fn run_after_advisory_classification(target: &Path) {
+    if let Some(action) = AFTER_ADVISORY_CLASSIFICATION.with(|slot| slot.borrow_mut().take()) {
+        action(target);
+    }
+}
+
+#[cfg(test)]
 fn fail_at(cut: ExchangeInterruption) -> Result<()> {
     let selected = SELECTED_INTERRUPTION.with(|selected| {
         if selected.get() == Some(cut) {
@@ -1622,6 +1648,12 @@ fn classify_target(target: &Path, preflight: &Preflight) -> Result<Target> {
         } else {
             Err(exchange_error(ExchangeErrorCode::TargetNotEmpty))
         };
+    }
+    if entries
+        .iter()
+        .any(|name| !REPOSITORY_LAYOUT_ENTRIES.contains(&name.as_str()))
+    {
+        return Err(exchange_error(ExchangeErrorCode::TargetNotEmpty));
     }
     verify_incomplete_clone(target, preflight)?;
     Ok(Target::IncompleteClone)
@@ -1810,11 +1842,13 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
     let preflight = preflight(input, verifier)?;
     let advisory = classify_target(target, &preflight)?;
     let _ = advisory;
+    #[cfg(test)]
+    run_after_advisory_classification(target);
 
     let marker = install_stage_marker(target, preflight.exchange_id)?;
     initialize_repository_maintenance(target)?;
-    let maintenance = acquire_exclusive_repository_maintenance_nonblocking(target)
-        .map_err(|_| exchange_error(ExchangeErrorCode::Io))?;
+    let maintenance =
+        acquire_exclusive_repository_maintenance_nonblocking(target).map_err(ExchangeError::Io)?;
     if classify_target(target, &preflight)? != Target::IncompleteClone {
         return Err(exchange_error(ExchangeErrorCode::TargetIncompleteMismatch));
     }
@@ -1823,14 +1857,12 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
     fail_at(ExchangeInterruption::X02AfterMarkerBeforeObjects)?;
     let store = ObjectStore::new(target);
     let objects = &preflight.pack.decoded.objects;
-    let split = objects.len().min(1);
-    let (first_promoted, first_present) =
-        promote_pack_objects(&store, &objects[..split], verifier)?;
     #[cfg(test)]
-    fail_at(ExchangeInterruption::X03DuringObjectPromotion)?;
-    let (rest_promoted, rest_present) = promote_pack_objects(&store, &objects[split..], verifier)?;
-    let promoted_objects = first_promoted + rest_promoted;
-    let present_objects = first_present + rest_present;
+    {
+        promote_pack_objects(&store, &objects[..objects.len().min(1)], verifier)?;
+        fail_at(ExchangeInterruption::X03DuringObjectPromotion)?;
+    }
+    let (promoted_objects, present_objects) = promote_pack_objects(&store, objects, verifier)?;
 
     let transactions = TransactionRepository::new(target);
     let order = topological_order(&preflight.receipts)?;
@@ -1839,14 +1871,15 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
         .map(|transaction_id| preflight.receipts[transaction_id].stored_bytes.as_slice())
         .collect::<Vec<&[u8]>>();
     let head_id = preflight.decoded.accepted_head.transaction_id;
-    let first_receipts = receipt_bytes.len().min(1);
-    transactions.initialize_trusted_clone_receipts_with_maintenance(
-        &maintenance,
-        head_id,
-        &receipt_bytes[..first_receipts],
-    )?;
     #[cfg(test)]
-    fail_at(ExchangeInterruption::X04DuringReceiptInstallation)?;
+    {
+        transactions.initialize_trusted_clone_receipts_with_maintenance(
+            &maintenance,
+            head_id,
+            &receipt_bytes[..receipt_bytes.len().min(1)],
+        )?;
+        fail_at(ExchangeInterruption::X04DuringReceiptInstallation)?;
+    }
     let receipts = transactions.initialize_trusted_clone_receipts_with_maintenance(
         &maintenance,
         head_id,
@@ -1854,14 +1887,12 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
     )?;
 
     let branch_repository = BranchRepository::new(target);
-    let first_branches = preflight.branches.len().min(1);
-    install_branches(
-        target,
-        &preflight.branches[..first_branches],
-        &branch_repository,
-    )?;
     #[cfg(test)]
-    fail_at(ExchangeInterruption::X05DuringBranchInstallation)?;
+    {
+        let first = preflight.branches.len().min(1);
+        install_branches(target, &preflight.branches[..first], &branch_repository)?;
+        fail_at(ExchangeInterruption::X05DuringBranchInstallation)?;
+    }
     install_branches(target, &preflight.branches, &branch_repository)?;
 
     #[cfg(test)]
@@ -2034,12 +2065,17 @@ mod tests {
         /// A source whose commit uses `nonce_byte`, so two sources with
         /// different nonces export different exchanges.
         fn new_with_nonce(label: &str, nonce_byte: u8) -> Self {
+            Self::new_with_nonce_and_workspace(label, nonce_byte, 1)
+        }
+
+        /// A source in workspace `workspace_byte`, for cross-workspace rejections.
+        fn new_with_nonce_and_workspace(label: &str, nonce_byte: u8, workspace_byte: u8) -> Self {
             let temp = TempDir::new(label);
             let root = temp.child("source");
             fs::create_dir(&root).unwrap();
             let transactions = TransactionRepository::new(&root);
             let branches = BranchRepository::new(&root);
-            let workspace_id = fixed(1, WorkspaceId::from_bytes);
+            let workspace_id = fixed(workspace_byte, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let base_entity = fixed(10, EntityId::from_bytes);
             let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
@@ -2565,6 +2601,230 @@ mod tests {
         assert_eq!(decoded.leaves.len(), MAX_EXCHANGE_LEAVES);
     }
 
+    /// Rebuilds an exchange with one top-level payload field replaced and a
+    /// recomputed trailer, so the inner decoder is reached.
+    fn rebuild_with_field(
+        exchange: &AcceptedRepositoryExchange,
+        tag: u32,
+        value: Vec<u8>,
+    ) -> Vec<u8> {
+        let (_, payload, _) = decode_envelope(&exchange.stored_bytes).unwrap();
+        let mut record = RecordReader::new(payload).unwrap();
+        let mut fields = Vec::new();
+        for field_tag in 1..=8_u64 {
+            fields.push((
+                u32::try_from(field_tag).unwrap(),
+                record.required(field_tag).unwrap().to_vec(),
+            ));
+        }
+        record.finish().unwrap();
+        for field in &mut fields {
+            if field.0 == tag {
+                field.1 = value.clone();
+            }
+        }
+        let payload = encode_record(&fields).unwrap();
+        stored_exchange_bytes(&payload).unwrap().0
+    }
+
+    fn field_bytes(exchange: &AcceptedRepositoryExchange, tag: u64) -> Vec<u8> {
+        let (_, payload, _) = decode_envelope(&exchange.stored_bytes).unwrap();
+        let mut record = RecordReader::new(payload).unwrap();
+        let mut value = Vec::new();
+        for field_tag in 1..=8_u64 {
+            let bytes = record.required(field_tag).unwrap();
+            if field_tag == tag {
+                value = bytes.to_vec();
+            }
+        }
+        value
+    }
+
+    #[test]
+    fn every_reachable_exchange_code_has_an_asserting_rejection() {
+        let source = Source::new("code-matrix");
+        let exchange = source.export();
+        let verify = verifier(source.epoch);
+        let never = source.target("never");
+        let expect = |bytes: &[u8], code: &str| {
+            let error = import_repository_exchange(&never, bytes, &verify).unwrap_err();
+            assert_eq!(error.code(), code);
+            assert!(!never.exists(), "{code} wrote into the target");
+        };
+
+        expect(
+            &rebuild_with_field(&exchange, 1, encode_uvar(2)),
+            "EXCHANGE_VERSION_UNSUPPORTED",
+        );
+        expect(
+            &rebuild_with_field(&exchange, 6, encode_uvar(1)),
+            "EXCHANGE_COMPRESSION_UNSUPPORTED",
+        );
+        expect(
+            &rebuild_with_field(&exchange, 8, encode_union(1, b"sig").unwrap()),
+            "EXCHANGE_PROFILE_UNSUPPORTED",
+        );
+
+        let receipts_field = field_bytes(&exchange, 3);
+        let receipt_elements = decode_list(&receipts_field, MAX_EXCHANGE_RECEIPTS).unwrap();
+        let duplicated =
+            encode_list(&[receipt_elements[0].to_vec(), receipt_elements[0].to_vec()]).unwrap();
+        expect(
+            &rebuild_with_field(&exchange, 3, duplicated),
+            "EXCHANGE_DUPLICATE_ENTRY",
+        );
+
+        let tree = field_bytes(&exchange, 7);
+        let mut tree_record = RecordReader::new(&tree).unwrap();
+        let algorithm = tree_record.required(1).unwrap().to_vec();
+        let count = tree_record.required(2).unwrap().to_vec();
+        let leaves = tree_record.required(3).unwrap().to_vec();
+        let mut root = tree_record.required(4).unwrap().to_vec();
+        root[0] ^= 0x01;
+        let flipped_tree =
+            encode_record(&[(1, algorithm), (2, count), (3, leaves), (4, root)]).unwrap();
+        expect(
+            &rebuild_with_field(&exchange, 7, flipped_tree),
+            "EXCHANGE_DIGEST_TREE_MISMATCH",
+        );
+
+        let genesis_entry = exchange
+            .receipts
+            .iter()
+            .find(|entry| entry.transaction_id == source.genesis)
+            .cloned()
+            .unwrap();
+        let surplus = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            ExchangeHeadEntry {
+                transaction_id: genesis_entry.transaction_id,
+                receipt_id: genesis_entry.receipt_id,
+            },
+            Vec::new(),
+        )
+        .unwrap();
+        expect(&surplus.stored_bytes, "EXCHANGE_ANCESTRY_SURPLUS");
+
+        let mut renamed = exchange.branches[0].clone();
+        renamed.branch_name = b"zzz".to_vec();
+        let renamed = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            vec![renamed],
+        )
+        .unwrap();
+        expect(&renamed.stored_bytes, "EXCHANGE_BRANCH_INVALID");
+
+        let transactions = TransactionRepository::new(&source.root);
+        let head_revision = transactions.verified_revision(source.head).unwrap();
+        let genesis_revision = transactions.verified_revision(source.genesis).unwrap();
+        let name = BranchName::parse("ff").unwrap();
+        let origin = crate::refs::build_branch_record(&crate::refs::BranchRecord {
+            format_version: 1,
+            branch_name: name.clone(),
+            workspace_id: head_revision.state_root().record.workspace_id,
+            origin_transaction_id: source.head,
+            origin_state_root: head_revision.state_root().root,
+            schema_epoch_id: head_revision.state_root().record.schema_epoch_id,
+            policy_root_id: head_revision.policy_root().root(),
+            dependency_roots: head_revision.state_root().record.dependency_roots.clone(),
+        })
+        .unwrap();
+        let reference = crate::refs::build_branch_ref(&crate::refs::BranchRefRecord {
+            format_version: 1,
+            branch_name: name,
+            branch_record_digest: origin.digest,
+            workspace_id: genesis_revision.state_root().record.workspace_id,
+            head_transaction_id: source.genesis,
+            head_state_root: genesis_revision.state_root().root,
+            schema_epoch_id: genesis_revision.state_root().record.schema_epoch_id,
+            policy_root_id: genesis_revision.policy_root().root(),
+            dependency_roots: genesis_revision
+                .state_root()
+                .record
+                .dependency_roots
+                .clone(),
+        })
+        .unwrap();
+        let backwards = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            vec![ExchangeBranchEntry {
+                branch_name: b"ff".to_vec(),
+                stored_origin: origin.stored_bytes,
+                stored_ref: reference.stored_bytes,
+            }],
+        )
+        .unwrap();
+        expect(&backwards.stored_bytes, "EXCHANGE_BRANCH_NOT_FAST_FORWARD");
+
+        let narrow_pack = crate::export_conformance_pack(
+            &ObjectStore::new(&source.root),
+            core::slice::from_ref(genesis_revision.state_root()),
+            &verify,
+        )
+        .unwrap();
+        let open_roots = build_exchange(
+            narrow_pack.pack_id,
+            narrow_pack.stored_bytes,
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            Vec::new(),
+        )
+        .unwrap();
+        expect(&open_roots.stored_bytes, "EXCHANGE_ROOT_CLOSURE");
+
+        let other = Source::new_with_nonce_and_workspace("code-matrix-ws2", 30, 2);
+        let other_exchange = other.export();
+        let other_genesis = other_exchange
+            .receipts
+            .iter()
+            .find(|entry| entry.transaction_id == other.genesis)
+            .cloned()
+            .unwrap();
+        let mut mixed = vec![genesis_entry.clone(), other_genesis];
+        mixed.sort_by(|left, right| {
+            left.transaction_id
+                .as_bytes()
+                .cmp(right.transaction_id.as_bytes())
+        });
+        let mixed = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            mixed,
+            ExchangeHeadEntry {
+                transaction_id: genesis_entry.transaction_id,
+                receipt_id: genesis_entry.receipt_id,
+            },
+            Vec::new(),
+        )
+        .unwrap();
+        expect(&mixed.stored_bytes, "EXCHANGE_WORKSPACE_MISMATCH");
+    }
+
+    #[test]
+    fn owned_re_classification_aborts_a_target_changed_after_the_advisory_pass() {
+        let source = Source::new("owned-reclassify");
+        let exchange = source.export();
+        let target = source.target("racy");
+        after_advisory_classification(|target| {
+            fs::create_dir_all(target).unwrap();
+            fs::write(target.join("stray"), b"x").unwrap();
+        });
+        let error =
+            import_repository_exchange(&target, &exchange.stored_bytes, &verifier(source.epoch))
+                .unwrap_err();
+        assert_eq!(error.code(), "EXCHANGE_TARGET_NOT_EMPTY");
+        assert!(!target.join("heads").join("accepted").exists());
+        assert!(!target.join("objects").exists());
+    }
+
     #[test]
     fn frozen_write_paths_fail_closed_on_a_marked_root() {
         let source = Source::new("guards");
@@ -2587,11 +2847,11 @@ mod tests {
         let transactions = TransactionRepository::new(&source.root);
         let error = transactions.recover().unwrap_err();
         assert_eq!(error.code(), "TXN_INCOMPLETE_CLONE");
-        // Read paths stay available and establish no acceptance.
-        assert_eq!(
-            transactions.accepted_head().unwrap().transaction_id(),
-            source.head
-        );
+        // No reader resolves an accepted head; revision and branch reads stay
+        // available and establish no acceptance.
+        let read = transactions.accepted_head().unwrap_err();
+        assert_eq!(read.code(), "TXN_INCOMPLETE_CLONE");
+        assert!(transactions.verified_revision(source.head).is_ok());
         assert_eq!(branches.list_branches(MAX_BRANCHES).unwrap().len(), 2);
     }
 
