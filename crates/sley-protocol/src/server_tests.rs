@@ -782,6 +782,20 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
         ))
         .unwrap();
     assert!(!opened.failed);
+    // candidate.append composes two candidate records through the owner's
+    // codec; malformed parts keep the owner's code.
+    let append_body = encode_record(&[(1, b"not a candidate".to_vec()), (2, vec![0])]).unwrap();
+    let appended = harness.fail(Method::CandidateAppend, append_body);
+    assert!(
+        !appended.symbol.starts_with("PROTOCOL_"),
+        "{}",
+        appended.symbol
+    );
+    let malformed_append = harness.fail(Method::CandidateAppend, vec![7]);
+    assert_eq!(
+        malformed_append.code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
     // Deferred methods still answer with the versioned reason.
     let deferred = harness.fail(Method::Execute, Vec::new());
     assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);

@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 implements its frame, negotiation, and identity scoping; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation and streaming is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -87,8 +87,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   under a draft contract with Council reviews pending; the merge engine
   target is attached as the eleventh Section 18.5 surface with the arm-2
   snapshot decoder, root-query engine, and capsule builder targets beside
-  it; the S20-400 SMP1 contract is drafted (`docs/spec/SMP1.md` revision 1,
-  ADR-0032, `3a38db0`), so S20-410 is the next dependency-complete package.
+  it; the S20-400 SMP1 contract is drafted (`docs/spec/SMP1.md` revision 3,
+  ADR-0032) and S20-410 is implemented
+  (`docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`), so S20-440 cancellation and
+  streaming is the next dependency-complete package.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -107,8 +109,8 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is S20-410: the SMP1 frame codec,
-derived negotiation, session-scoped request identity, and the deterministic
-server over the frozen engines, while the pending S20-250, S20-510, S20-520,
+boundary drifts. The next action is S20-440: the cancellation latency
+bound, the streaming continuation rules, and the hard limits over the
+implemented SMP1 server, while the pending S20-250, S20-510, S20-520,
 S20-300, S20-310, S20-320, and S20-400 reviews land as revisions; nothing in
 it is treated as GA.

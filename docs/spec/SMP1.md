@@ -322,6 +322,7 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 | 302 `capsule` | as 300 | the `SLEYCCP1` record |
 | 303 `query.restricted` | the exact `SLEYQRY1` request preimage over the arm-1 snapshot of the accepted head's kinds 4 through 15 | the `SLEYQRS1` record |
 | 400 `candidate.create` | the canonical S20-350 candidate record payload | the stored candidate bytes |
+| 401 `candidate.append` | `record(1: stored candidate bytes, 2: a canonical candidate record payload whose operations and preconditions are appended in order)` | the stored candidate bytes |
 | 402 `candidate.validate` | `record(1: base TransactionId, 2: PrincipalId, 3: uvar(now millis), 4: stored candidate bytes)` | the S20-360 candidate result stored bytes |
 | 403 `candidate.inspect` | stored candidate bytes | `record(1: CandidateId, 2: WorkspaceId, 3: base TransactionId, 4: base StateRoot, 5: PrincipalId, 6: uvar(operations), 7: uvar(preconditions))` |
 | 404 `candidate.discard` | stored candidate bytes | empty; the server holds no candidate state, so a discard verifies the bytes and acknowledges |

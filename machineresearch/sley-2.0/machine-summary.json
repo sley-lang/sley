@@ -997,7 +997,7 @@
     "v2_required": false
   },
   "protocol": {
-    "status": "S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS",
+    "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
     "contract_revision": 3,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
@@ -1043,6 +1043,7 @@
       302,
       303,
       400,
+      401,
       402,
       403,
       404,
@@ -1053,7 +1054,6 @@
       603
     ],
     "deferred_methods": [
-      401,
       212,
       213,
       600,
@@ -1066,7 +1066,15 @@
       601,
       602
     ],
-    "server": "crates/sley-protocol/src/server.rs"
+    "server": "crates/sley-protocol/src/server.rs",
+    "deferred_method_blockers": {
+      "212_213": "S20-560 exposes no production GcObjectVerifier (test implementations only)",
+      "600_604": "no public ConstValue bytes codec (S20-380) and no stored-bytes form of the S20-290 execution report envelope"
+    },
+    "closeout": "docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md",
+    "fixture": "conformance/smp1/v1",
+    "oracle": "scripts/check_smp1_vector.py",
+    "persistent_fuzz_target": "fuzz/targets/smp1_frame_decoder.rs"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -1741,7 +1749,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-410-SMP1-FRAME",
+    "next_dependency_complete_package": "S20-440-SMP1-CANCEL-STREAM",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1875,9 +1883,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_400_DRAFTED_S20_410_IN_PROGRESS",
+    "status": "S20_410_IMPLEMENTED_REVIEWS_PENDING_S20_440_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-410-SMP1-FRAME",
+    "next_authority_safe_package": "S20-440-SMP1-CANCEL-STREAM",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1916,7 +1924,7 @@
     "transaction_boundary_available": true,
     "fixed_accepted_head_available": true,
     "named_ref_boundary_available": true,
-    "protocol_boundary_available": false,
+    "protocol_boundary_available": true,
     "merge_boundary_available": true,
     "real_benchmark_run_authorized": false,
     "root_license_text_approved": false,
@@ -1932,7 +1940,8 @@
     "s20_300_full_implemented": true,
     "s20_310_full_implemented": true,
     "s20_320_full_implemented": true,
-    "s20_400_contract_drafted": true
+    "s20_400_contract_drafted": true,
+    "s20_410_implemented": true
   },
   "succession": {
     "corpus_version": 1,

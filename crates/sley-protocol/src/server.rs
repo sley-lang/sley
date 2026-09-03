@@ -313,12 +313,11 @@ impl Server {
                 self.plain(Vec::new())
             }
             Method::CandidateValidate => self.candidate_validate(body),
+            Method::CandidateAppend => self.candidate_append(body),
             Method::Commit => self.commit(body),
-            Method::CandidateAppend
-            | Method::GcDryRun
-            | Method::GcCollect
-            | Method::Execute
-            | Method::Report => Err(unsupported(DEFERRED_DISPATCH_REASON)),
+            Method::GcDryRun | Method::GcCollect | Method::Execute | Method::Report => {
+                Err(unsupported(DEFERRED_DISPATCH_REASON))
+            }
             Method::HandleExpand
             | Method::Diagnostics
             | Method::RefMoveProtected
@@ -723,6 +722,19 @@ impl Server {
 
     fn candidate_create(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let record = decode_candidate_record(body).map_err(|error| owner(error.code(), 0))?;
+        let candidate = build_candidate(&record).map_err(|error| owner(error.code(), 0))?;
+        let count = to_u64(candidate.record.operations.len())?;
+        self.counted(candidate.stored_bytes, count)
+    }
+
+    fn candidate_append(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 2)?;
+        let base = import_candidate(fields[0]).map_err(|error| owner(error.code(), 0))?;
+        let addition =
+            decode_candidate_record(fields[1]).map_err(|error| owner(error.code(), 0))?;
+        let mut record = base.record;
+        record.operations.extend(addition.operations);
+        record.preconditions.extend(addition.preconditions);
         let candidate = build_candidate(&record).map_err(|error| owner(error.code(), 0))?;
         let count = to_u64(candidate.record.operations.len())?;
         self.counted(candidate.stored_bytes, count)

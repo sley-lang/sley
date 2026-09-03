@@ -135,7 +135,7 @@ expected = {
     "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-410-SMP1-FRAME",
+    "next_dependency_complete_package": "S20-440-SMP1-CANCEL-STREAM",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -162,6 +162,7 @@ for path, marker in [
     (AUDIT, "the full S20-310 root-backed queries are implemented"),
     (AUDIT, "the full S20-320 context capsule is implemented"),
     (AUDIT, "the S20-400 SMP1 contract is drafted"),
+    (AUDIT, "S20-410 is implemented"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

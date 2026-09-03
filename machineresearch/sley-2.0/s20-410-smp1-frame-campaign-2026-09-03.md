@@ -89,14 +89,21 @@ pending.
   expose symbols only; commit, branch, exchange, query, and capsule
   failures carry their exact numerics.
 
-## Slice D (remaining dispatch) — pending
+## Slice D (candidate.append and the remaining blockers)
 
-`candidate.append` (needs a public mutation-operation codec), `gc.dry_run`
-and `gc.collect` (retention snapshots from repository state), `execute`
-and `report` (S20-380 lowering inputs), plus the server request/response
-conformance corpus and the numeric exposure of the symbol-only owner
-crates. Until slice D lands the protocol summary status stays
-`S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
+- `candidate.append` dispatches by composing two candidate records through
+  the owner's codec (the operations and preconditions of a canonical
+  one-or-more-operation record are appended in order and the candidate is
+  rebuilt); thirty-two methods now dispatch.
+- Blocked, and answered with the versioned reason until their owners
+  expose the surfaces: `gc.dry_run` and `gc.collect` need a production
+  S20-560 `GcObjectVerifier` (the crate has test implementations only);
+  `execute` and `report` need a public S20-380 `ConstValue` bytes codec and
+  a stored-bytes form of the S20-290 execution report envelope. These are
+  owner gaps, recorded in the machine summary as
+  `protocol.deferred_method_blockers`, not transport gaps.
+- With every unblocked method dispatched, S20-410 is implemented under the
+  S20-400 draft with the Council reviews pending.
 
 ## Tier 2 handoff gate for slice A (2026-09-03, at `d4ff651`)
 

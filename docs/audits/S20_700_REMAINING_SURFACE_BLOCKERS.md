@@ -55,7 +55,9 @@ the full S20-310 root-backed queries are implemented
 the full S20-320 context capsule is implemented
 (`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`), each under its
 draft contract with reviews pending; the S20-400 SMP1 contract is drafted
-(`docs/spec/SMP1.md` revision 1, ADR-0032) and S20-410 implements it. Now
+(`docs/spec/SMP1.md` revision 3, ADR-0032) and S20-410 is implemented
+(`docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`) with four methods deferred on
+owner gaps. Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5
