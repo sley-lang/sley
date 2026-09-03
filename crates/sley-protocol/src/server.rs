@@ -1743,6 +1743,9 @@ impl Server {
             schema_epoch: request.schema_epoch_id(),
             state_root: request.root(),
             profile: CacheProfile::RESTRICTED_V1,
+            constants: &entities.constants,
+            globals: &entities.globals,
+            functions: &entities.functions,
         };
         let execution_request = ExecutionRequest { inputs, limits };
         let execution = execute_function(input(), execution_request.clone());

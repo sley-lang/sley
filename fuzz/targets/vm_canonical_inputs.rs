@@ -56,8 +56,32 @@ fn fuzz_one(input: &[u8]) {
         inputs,
         limits: generated_limits(limits_profile, &mut cursor),
     };
+    // The extended profile lane (E1): the same Boolean fixtures lower and
+    // execute under `EXTENDED_V1`, and every termination must equal the
+    // restricted profile's while the cache keys differ.
+    let extended_lane = cursor.byte() % 2 == 1;
     let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
-    let lowering = fixture.lowering_input(&types);
+    let lowering = fixture.lowering_input(&types, CacheProfile::RESTRICTED_V1);
+    if extended_lane {
+        let extended = fixture.lowering_input(&types, CacheProfile::EXTENDED_V1);
+        let restricted_outcome = execute_function(lowering, request.clone());
+        let extended_outcome = execute_function(extended, request.clone());
+        match (&restricted_outcome, &extended_outcome) {
+            (Ok(left), Ok(right)) => {
+                assert_eq!(
+                    left.termination, right.termination,
+                    "cross-profile termination drifted"
+                );
+                assert_ne!(left.cache_key, right.cache_key, "profiles shared a cache key");
+            }
+            (Err(left), Err(right)) => assert_eq!(
+                left.to_string(),
+                right.to_string(),
+                "cross-profile failure drifted"
+            ),
+            _ => panic!("cross-profile acceptance drifted"),
+        }
+    }
 
     let first_hashes = validated_execution_input_hashes(lowering, &request);
     let second_hashes = validated_execution_input_hashes(lowering, &request);
@@ -113,7 +137,11 @@ struct VmFixture {
 }
 
 impl VmFixture {
-    fn lowering_input<'a>(&'a self, types: &'a TypeEnvironment) -> LoweringInput<'a> {
+    fn lowering_input<'a>(
+        &'a self,
+        types: &'a TypeEnvironment,
+        profile: CacheProfile,
+    ) -> LoweringInput<'a> {
         LoweringInput {
             types,
             function: &self.function,
@@ -122,7 +150,10 @@ impl VmFixture {
             operations: &self.operations,
             schema_epoch: SchemaEpochId::from_bytes([8; 32]),
             state_root: StateRoot::from_bytes([9; 32]),
-            profile: CacheProfile::RESTRICTED_V1,
+            profile,
+            constants: &[],
+            globals: &[],
+            functions: &[],
         }
     }
 }

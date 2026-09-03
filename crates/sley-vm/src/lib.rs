@@ -6,6 +6,9 @@ use core::fmt;
 use sley_id::{BytecodeCacheKey, EntityId, SchemaEpochId, StateRoot};
 
 mod execute;
+pub mod extended;
+#[cfg(test)]
+mod extended_tests;
 mod lower;
 
 pub use execute::{
@@ -139,6 +142,22 @@ impl CacheProfile {
         adapter_abi_entries: 0,
         execution_abi_flags: 0,
     };
+
+    /// The extended opcode profile (`docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md`).
+    pub const EXTENDED_V1: Self = Self {
+        vm_version: [1, 0, 0],
+        lowering_profile: 2,
+        lowerer_version: [1, 0, 0],
+        entry_type_arguments: 0,
+        adapter_abi_entries: 0,
+        execution_abi_flags: 0,
+    };
+
+    /// Whether this is the extended opcode profile.
+    #[must_use]
+    pub fn is_extended(&self) -> bool {
+        *self == Self::EXTENDED_V1
+    }
 }
 
 /// Builds the exact restricted bytecode cache-key preimage.
@@ -153,7 +172,7 @@ pub fn cache_key_preimage(
     entry_function: EntityId,
     profile: CacheProfile,
 ) -> Result<Vec<u8>, LowerError> {
-    if profile != CacheProfile::RESTRICTED_V1 {
+    if profile != CacheProfile::RESTRICTED_V1 && profile != CacheProfile::EXTENDED_V1 {
         return Err(LowerError::new(LowerErrorCode::CacheKeyUnsupported));
     }
     let mut preimage = Vec::with_capacity(224);

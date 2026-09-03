@@ -414,6 +414,8 @@ pub fn execute_function(
         limits,
         &lowered.bytecode.blocks,
         &lowered.bytecode.result_type,
+        &lowered.bytecode.register_types,
+        input,
     ) {
         Ok(termination) => termination,
         Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
@@ -433,6 +435,8 @@ fn run(
     limits: ExecutionLimits,
     blocks: &[crate::BytecodeBlock],
     result_type: &TypeExpr,
+    register_types: &[TypeExpr],
+    input: LoweringInput<'_>,
 ) -> RuntimeResult<ExecutionTermination> {
     loop {
         let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
@@ -441,6 +445,14 @@ fn run(
                 charge_action(runtime, &limits, Some(ResourceKind::Instruction))
             {
                 return Ok(termination);
+            }
+            if input.profile.is_extended() {
+                if let Some(termination) =
+                    execute_extended(runtime, &limits, instruction, register_types, input)?
+                {
+                    return Ok(termination);
+                }
+                continue;
             }
             let operands = read_bool_operands(runtime, &instruction.operands)?;
             if instruction.results.len() != 1 {
@@ -477,6 +489,47 @@ fn run(
         };
         return Ok(termination);
     }
+}
+
+/// Executes one instruction under the extended profile: reads every operand,
+/// derives the result through the family semantics, charges its value units,
+/// and writes the single result register.
+fn execute_extended(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    instruction: &crate::Instruction,
+    register_types: &[TypeExpr],
+    input: LoweringInput<'_>,
+) -> RuntimeResult<Option<ExecutionTermination>> {
+    let opcode = sley_ssmc::Opcode::from_tag(instruction.opcode).ok_or(RuntimeFault)?;
+    let mut operands = Vec::with_capacity(instruction.operands.len());
+    for register in &instruction.operands {
+        operands.push(read_register(runtime, *register)?.value()?.clone());
+    }
+    let [result_register] = instruction.results.as_slice() else {
+        return Err(RuntimeFault);
+    };
+    let register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
+    let result_type = register_types.get(register).ok_or(RuntimeFault)?;
+    let value = crate::extended::execute_extended_instruction(
+        opcode,
+        &instruction.immediate,
+        &operands,
+        result_type,
+        input.constants,
+    )
+    .map_err(|_| RuntimeFault)?;
+    if &value.value_type != result_type {
+        return Err(RuntimeFault);
+    }
+    if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
+        return Ok(Some(ExecutionTermination::ResourceLimit(
+            ResourceKind::ValueUnits,
+        )));
+    }
+    runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+    write_register(runtime, register, RuntimeValue::new(value))?;
+    Ok(None)
 }
 
 fn validate_inputs(
@@ -1163,6 +1216,9 @@ mod tests {
                 schema_epoch: SchemaEpochId::from_bytes([8; 32]),
                 state_root: StateRoot::from_bytes([9; 32]),
                 profile: CacheProfile::RESTRICTED_V1,
+                constants: &[],
+                globals: &[],
+                functions: &[],
             }
         }
     }
@@ -1868,7 +1924,18 @@ mod tests {
             terminator: BytecodeTerminator::Return(0),
             reachability: 1,
         }];
-        assert!(run(&mut runtime, limits(), &blocks, &TypeExpr::Bool).is_err());
+        let fixture = bool_fixture(Opcode::BoolAnd);
+        assert!(
+            run(
+                &mut runtime,
+                limits(),
+                &blocks,
+                &TypeExpr::Bool,
+                &[TypeExpr::Bool],
+                fixture.input()
+            )
+            .is_err()
+        );
     }
 
     #[test]

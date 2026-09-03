@@ -42,4 +42,5 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0039, stage checker |
+| Contract draft revision 1 | `d1217ad` | green | ADR-0039, stage checker |
+| Slice E1 (data), revision 2 | pending | pending | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |

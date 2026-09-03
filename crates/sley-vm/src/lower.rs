@@ -9,8 +9,8 @@ use sley_check::{
 };
 use sley_id::{BytecodeCacheKey, EntityId};
 use sley_ssmc::{
-    Block, CaseKey, FunctionGraph, Immediate, Opcode, Operation, Parameter, SwitchArgument,
-    Terminator, TypeExpr, ValueRef,
+    Block, CaseKey, ConstantDefinition, FunctionGraph, GlobalValueDefinition, Immediate, Opcode,
+    Operation, Parameter, SwitchArgument, Terminator, TypeExpr, ValueRef,
 };
 
 use crate::{CacheProfile, LowerError, LowerErrorCode, derive_cache_key};
@@ -41,6 +41,9 @@ pub struct Instruction {
     pub operands: Vec<Register>,
     /// Ordered result registers.
     pub results: Vec<Register>,
+    /// The operation's immediate; always `None` under the restricted
+    /// profile and encoded only by `SLEYBC02` (extended profile).
+    pub immediate: Immediate,
 }
 
 /// Ordinary lowered target edge.
@@ -175,6 +178,12 @@ pub struct LoweringInput<'a> {
     pub state_root: sley_id::StateRoot,
     /// Requested cache/lowering profile.
     pub profile: CacheProfile,
+    /// Complete Constant inventory (extended profile `constant_ref`).
+    pub constants: &'a [ConstantDefinition],
+    /// Complete `GlobalValue` inventory (extended profile `global_get`).
+    pub globals: &'a [GlobalValueDefinition],
+    /// Complete Function inventory (extended profile calls and references).
+    pub functions: &'a [FunctionGraph],
 }
 
 /// Integrated earlier or lowering failure.
@@ -236,9 +245,13 @@ pub fn lower_function(input: LoweringInput<'_>) -> Result<LoweredFunction, Lower
     }
     let mut work = preflight_resources(input)?;
     let maps = Maps::build(input, &mut work)?;
-    validate_operations(input, &maps, &mut work)?;
+    if input.profile.is_extended() {
+        judge_extended(input, &maps, &mut work)?;
+    } else {
+        validate_operations(input, &maps, &mut work)?;
+    }
     let bytecode = emit_function(input, &maps, &mut work)?;
-    let bytes = encode_function(&bytecode)?;
+    let bytes = encode_function(&bytecode, input.profile.is_extended())?;
     Ok(LoweredFunction {
         bytecode,
         bytes,
@@ -443,6 +456,36 @@ fn validate_operations(
     Ok(())
 }
 
+/// Judges every operation under the extended profile (contract section 3):
+/// the derived result type must equal the declared one exactly.
+fn judge_extended(
+    input: LoweringInput<'_>,
+    maps: &Maps<'_>,
+    work: &mut u64,
+) -> Result<(), LoweringError> {
+    for block_id in &input.function.blocks {
+        let block = maps.blocks.get(block_id).ok_or_else(local_error)?.0;
+        for operation_id in &block.operations {
+            let operation = maps.operations.get(operation_id).ok_or_else(local_error)?.0;
+            let mut operand_types = Vec::with_capacity(operation.operands.len());
+            for operand in &operation.operands {
+                operand_types.push(maps.value_type(*operand)?);
+                charge(work, 1)?;
+            }
+            crate::extended::judge_extended_operation(
+                input.types,
+                input.constants,
+                operation.opcode,
+                &operation.immediate,
+                &operand_types,
+                &operation.result_types,
+            )?;
+            charge(work, 1)?;
+        }
+    }
+    Ok(())
+}
+
 fn emit_function(
     input: LoweringInput<'_>,
     maps: &Maps<'_>,
@@ -477,6 +520,11 @@ fn emit_function(
                 opcode: operation.opcode.tag(),
                 operands,
                 results: results.clone(),
+                immediate: if input.profile.is_extended() {
+                    operation.immediate.clone()
+                } else {
+                    Immediate::None
+                },
             });
         }
         let terminator = lower_terminator(&block.terminator, maps, work)?;
@@ -573,9 +621,9 @@ fn lower_edge(
     })
 }
 
-fn encode_function(value: &BytecodeFunction) -> Result<Vec<u8>, LoweringError> {
+fn encode_function(value: &BytecodeFunction, extended: bool) -> Result<Vec<u8>, LoweringError> {
     let mut output = Encoder::new();
-    output.raw(b"SLEYBC01")?;
+    output.raw(if extended { b"SLEYBC02" } else { b"SLEYBC01" })?;
     output.u32(1)?;
     output.raw(value.function.as_bytes())?;
     output.registers(&value.parameter_registers)?;
@@ -594,6 +642,9 @@ fn encode_function(value: &BytecodeFunction) -> Result<Vec<u8>, LoweringError> {
             output.u32(instruction.opcode)?;
             output.registers(&instruction.operands)?;
             output.registers(&instruction.results)?;
+            if extended {
+                output.immediate(&instruction.immediate)?;
+            }
         }
         output.terminator(&block.terminator)?;
         output.u32(block.reachability)?;
@@ -700,6 +751,29 @@ impl Encoder {
             }
             TypeExpr::TypeParameter(value) => self.u32(*value),
             TypeExpr::BuiltinFailure(value) => self.u16(value.tag()),
+        }
+    }
+
+    fn immediate(&mut self, value: &Immediate) -> Result<(), LoweringError> {
+        self.u32(value.tag())?;
+        match value {
+            Immediate::None => Ok(()),
+            Immediate::Entity(id) => self.entity(*id),
+            Immediate::Index(index) => self.u32(*index),
+            Immediate::Field(member) => self.raw(member.as_bytes()),
+            Immediate::Variant(variant) => {
+                self.entity(variant.definition)?;
+                self.raw(variant.member_id.as_bytes())
+            }
+            Immediate::Observation(digest) => self.raw(digest),
+            Immediate::Function(function) => {
+                self.entity(function.function)?;
+                self.len(function.type_arguments.len())?;
+                for argument in &function.type_arguments {
+                    self.type_expr(argument, 1)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -838,6 +912,9 @@ mod tests {
                 schema_epoch: SchemaEpochId::from_bytes([8; 32]),
                 state_root: StateRoot::from_bytes([9; 32]),
                 profile: CacheProfile::RESTRICTED_V1,
+                constants: &[],
+                globals: &[],
+                functions: &[],
             }
         }
     }
@@ -922,6 +999,7 @@ mod tests {
                 opcode: 103,
                 operands: vec![0, 1],
                 results: vec![2],
+                immediate: Immediate::None,
             }]
         );
         assert_eq!(

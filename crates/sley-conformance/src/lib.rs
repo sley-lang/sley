@@ -347,7 +347,7 @@ pub fn build_execution_report(
     request: &ExecutionRequest,
     execution: &core::result::Result<ExecutionOutcome, ExecutionError>,
 ) -> Result<ExecutionReportEnvelope> {
-    if input.profile != CacheProfile::RESTRICTED_V1 {
+    if input.profile != CacheProfile::RESTRICTED_V1 && input.profile != CacheProfile::EXTENDED_V1 {
         return report_fail(ReportErrorCode::ProfileUnsupported);
     }
     let (inputs, result) = match execution {
@@ -1108,6 +1108,9 @@ mod tests {
                 schema_epoch: epoch(),
                 state_root: root(),
                 profile: CacheProfile::RESTRICTED_V1,
+                constants: &[],
+                globals: &[],
+                functions: &[],
             }
         }
     }

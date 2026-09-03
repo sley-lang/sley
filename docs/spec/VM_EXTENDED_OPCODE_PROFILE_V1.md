@@ -1,10 +1,10 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 1 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 2 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). No implementation exists at this revision.
-Implementation lands in family slices E1 through E6 tracked in the machine
-summary; E7 is explicitly excluded until its owners exist.
+Vulcan surface review). Revision 2 records the clarifications of slice E1
+(section 7). Implementation lands in family slices E1 through E6 tracked in
+the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
 
@@ -72,7 +72,7 @@ narrows it; integer widths are 8, 16, 32, 64, or 128.
 | 33 `vector_len` | `Vector<T>` | none | `UInt(64)` | the length |
 | 34 `vector_get` | `Vector<T>`, `UInt(64)` | none | `Option<T>` | `Some` in range, `None` otherwise |
 | 35 `vector_set` | `Vector<T>`, `UInt(64)`, `T` | none | `Result<Vector<T>, BuiltinFailure(Index)>` | a new vector, or `Err(Index, 1)` out of range |
-| 96 `equal`, 97 `not_equal` | `T`, `T`, `T` hashable | none | `Bool` | canonical value equality |
+| 96 `equal`, 97 `not_equal` | `T`, `T`, `T` hashable and float-free | none | `Bool` | canonical value equality |
 | 98 to 101 order predicates | `T`, `T`, `T` in `Bool`, `SInt`, `UInt`, `Bytes`, `Text` | none | `Bool` | `false < true`; numeric order; `Bytes` and `Text` by byte then length; floats in E3 |
 | 128 `option_some` | `T` | none | `Option<T>` | `Some` |
 | 129 `option_none` | none | none | the declared `Option<T>` | `None` |
@@ -178,3 +178,19 @@ This contract does not claim: E7; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.
+
+## 7. Revision 2 clarifications (slice E1)
+
+- E1 equality excludes any type containing `F32` or `F64` (S20-210 counts
+  floats as hashable); E3 defines float equality and order under IEEE.
+- The E1 vectors live in `conformance/vm-extended/v1/accepted.json`
+  (bytecode bytes, cache key, success value hash, observation identity,
+  instruction count) under the fixed epoch `08`\*32 and root `09`\*32,
+  emitted by the crate and drift-gated in `make quick`.
+- The E1 fuzz lane is the profile toggle of `vm_canonical_inputs`: every
+  fixed fixture also lowers and executes under `EXTENDED_V1`, and the
+  terminations must equal the restricted profile's while the cache keys
+  differ; a generated data-family lane joins with E2.
+- `constant_ref` reads the root's Constant inventory carried by the
+  lowering input; the restricted profile ignores the new inventories.
+- The S20-290 report builder accepts `EXTENDED_V1` beside `RESTRICTED_V1`.
