@@ -166,6 +166,31 @@ kernel (master goal section 6.5).
   the packaged binary; it counts against the independent PASS. No family is
   native-only at revision 2.
 
+## 5.1 Second-host runbook
+
+The second host is an operator-gated lane, so the procedure is written here
+rather than automated:
+
+1. On the second host, with the same commit checked out and a clean tree, run
+   `make release-candidate-smoke`. It builds the candidate twice and writes the
+   local S20-720 evidence record.
+2. Run
+   `python3 scripts/build_reproducibility_report.py --host-label <label> --emit-attestation /tmp/<label>-attestation.json`.
+   The attestation carries only the commit, artifact name, digest, size,
+   manifest digest, member count, toolchain versions, and the clean-tree flag:
+   no host name, user name, path, or time.
+3. Copy that one JSON file to the primary host by any means the operator
+   authorizes.
+4. On the primary host run
+   `python3 scripts/build_reproducibility_report.py --attest /tmp/<label>-attestation.json`,
+   then `make evidence-refresh` and `make quick`, and commit.
+
+The merged report reads `MULTI_HOST_REPRODUCIBLE` exactly when both hosts
+attest the same commit with the same artifact digest; a disagreement is
+`REPRO_ATTESTATION_CONFLICT` and writes no report, which is the point of the
+exercise. Nothing in this runbook requires the second host to run any Sley
+service, expose a port, or share a filesystem.
+
 ## 6. Evidence files
 
 - `evidence/release/reproducibility-report.json` (tracked): rebuilt by

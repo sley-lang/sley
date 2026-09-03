@@ -47,6 +47,30 @@ After that decision, Argus must re-run license and secret review, approve the
 release-standard SBOM/provenance artifacts, re-anchor history at the release
 candidate, and disposition every finding before S20-710 can pass.
 
+### What happens mechanically after the text lands
+
+The decision is one file plus one command; nothing else needs hand editing.
+
+1. Write the approved text to the repository root as `LICENSE` (and `NOTICE`
+   if the terms require a separate notice). The packaged
+   `LICENSE-PENDING.txt` is replaced by the real text on the next candidate
+   build.
+2. Run `python3 scripts/generate_supply_chain_evidence.py`. The T52 inventory
+   re-reads the root license files, so the nineteen components whose
+   disposition is `BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT` move to
+   their approved disposition and `license_text_files` stops being empty.
+3. Run `make evidence-refresh`. Both SBOM documents regenerate with the new
+   dispositions, the provenance re-derives over them, and the register and
+   dossier follow.
+4. Flip `root_license_text_approved` to `true` in the machine summary's
+   `s20_710_pre_release_audit` section and update the expectation in
+   `scripts/check_supply_chain_audit.py`, which pins it.
+5. Run `make quick`, then `make release-candidate-smoke` from a clean tree so
+   the artifact carries the real license, and commit the regenerated evidence.
+
+Steps 2 through 5 are mechanical and take about a minute; step 1 and the
+approval in step 4 are the operator's.
+
 ## Draft standards documents (2026-09-03)
 
 The mechanics of the standards formats now exist under
