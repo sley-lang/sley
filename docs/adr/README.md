@@ -49,3 +49,4 @@ Current records:
 - ADR-0040: reproducibility attestations and independent conformance as derived evidence
 - ADR-0041: standards SBOM and unsigned provenance derived from local evidence
 - ADR-0042: the finding register is derived from recorded dispositions
+- ADR-0043: the decision dossier is derived, and the decision is not

@@ -2495,8 +2495,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 181,
-    "open_reviews": 60,
+    "obligations": 184,
+    "open_reviews": 63,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2519,6 +2519,43 @@
       "scripts/build_finding_register.py",
       "scripts/check_finding_register.py",
       "bench/review/tests/test_finding_register.py"
+    ]
+  },
+  "decision_dossier": {
+    "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
+    "contract": "docs/spec/DECISION_DOSSIER_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
+    "checker": "scripts/check_decision_dossier.py",
+    "dossier": "evidence/release/decision-dossier.json",
+    "required_items": 34,
+    "evidenced_items": 23,
+    "gated_items": 11,
+    "decision_state": "BLOCKED",
+    "decision_reasons": [
+      "12 review lanes are deferred and unavailable",
+      "63 review obligations are open",
+      "no succession trial has been executed",
+      "only one host has attested the candidate",
+      "the release-check and v2 product gates are fail-closed",
+      "the root license text is not operator-approved"
+    ],
+    "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
+    "operator_decision": "PENDING",
+    "new_stable_error_codes": 4,
+    "new_error_code_range": "76000 through 76003",
+    "ga_claimed": false,
+    "publication_authorized": false,
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": true,
+    "implementation": [
+      "scripts/build_decision_dossier.py",
+      "scripts/check_decision_dossier.py",
+      "bench/review/tests/test_decision_dossier.py"
     ]
   }
 }

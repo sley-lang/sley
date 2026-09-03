@@ -66,6 +66,7 @@ quick:
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 	python3 scripts/check_finding_register.py
+	python3 scripts/check_decision_dossier.py
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
@@ -150,9 +151,13 @@ release-candidate-smoke:
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
+	python3 scripts/build_finding_register.py
+	python3 scripts/build_decision_dossier.py
 	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
+	python3 scripts/check_finding_register.py
+	python3 scripts/check_decision_dossier.py
 
 legacy-runner-smoke:
 	python3 -m bench.legacy.runner smoke --timeout-seconds 90 --output-limit-bytes 65536 --evidence-dir evidence/runtime/s20-600-legacy-smoke
