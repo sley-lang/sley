@@ -36,11 +36,12 @@ enum Domain {
     RestrictedQueryCapsule,
     ValidationProfile,
     CandidateAttempt,
+    RepositoryExchange,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 29] = [
+    const ALL: [Self; 30] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -70,6 +71,7 @@ impl Domain {
         Self::RestrictedQueryCapsule,
         Self::ValidationProfile,
         Self::CandidateAttempt,
+        Self::RepositoryExchange,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -103,6 +105,7 @@ impl Domain {
             Self::RestrictedQueryCapsule => b"sley2.restricted-query-capsule.v1",
             Self::ValidationProfile => b"sley2.validation-profile.v1",
             Self::CandidateAttempt => b"sley2.candidate-attempt.v1",
+            Self::RepositoryExchange => b"sley2.repository-exchange.v1",
         }
     }
 }
@@ -262,6 +265,10 @@ fixed_bytes_type!(
     RepositoryPackId
 );
 fixed_bytes_type!(
+    /// Repository-exchange digest (S20-540).
+    RepositoryExchangeId
+);
+fixed_bytes_type!(
     /// Protocol-handshake digest.
     ProtocolHandshakeId
 );
@@ -348,6 +355,7 @@ digest_type!(ObservationId, Domain::Observation);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
+digest_type!(RepositoryExchangeId, Domain::RepositoryExchange);
 digest_type!(ProtocolHandshakeId, Domain::ProtocolHandshake);
 digest_type!(AdapterStateId, Domain::AdapterState);
 digest_type!(AdapterTranscriptId, Domain::AdapterTranscript);
@@ -389,7 +397,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 29] = [
+    const FIXED_VECTORS: [(Domain, &str); 30] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -506,6 +514,10 @@ mod tests {
             Domain::CandidateAttempt,
             "cd296e4ca56f3149cb171446a9de98847cb2439fba7ab8bd531f937f809422c6",
         ),
+        (
+            Domain::RepositoryExchange,
+            "b559025aeafda015e67ddf388b4d8f8b3bb74db671ff79eeb435bc30efbe2d6f",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -552,6 +564,7 @@ mod tests {
                 b"sley2.restricted-query-capsule.v1",
                 b"sley2.validation-profile.v1",
                 b"sley2.candidate-attempt.v1",
+                b"sley2.repository-exchange.v1",
             ]
         );
     }
@@ -693,6 +706,7 @@ mod tests {
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<RepositoryExchangeId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ProtocolHandshakeId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<IndexSnapshotId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RestrictedQueryCapsuleId>(), ID_LEN);

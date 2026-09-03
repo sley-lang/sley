@@ -792,11 +792,12 @@
     "crate": "sley-id",
     "hash": "BLAKE3-256",
     "blake3_version": "1.8.2",
-    "domains": 28,
+    "domains": 30,
     "typed_values": 30,
     "unit_tests": 7,
     "ariadne_spec_review": "PASS",
-    "vulcan_implementation_review": "PASS"
+    "vulcan_implementation_review": "PASS",
+    "s20_540_repository_exchange_domain": "sley2.repository-exchange.v1"
   },
   "conformance": {
     "status": "S20_130_COMPLETE",

@@ -46,6 +46,7 @@ part of the `sley-id` kernel API.
 | test report | `sley2.test-report.v1` |
 | repository pack | `sley2.repository-pack.v1` |
 | protocol handshake | `sley2.protocol-handshake.v1` |
+| repository exchange (S20-540) | `sley2.repository-exchange.v1` |
 
 A domain cannot be renamed, aliased, or reused for another preimage. Adding a
 domain requires an ADR, fixtures, and registry drift validation.
