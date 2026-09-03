@@ -47,8 +47,7 @@ The implementation provides, in `crates/sley-protocol`:
 
 - Contract revision 1 at `3a38db0` (fix `bfe96fb`), revision 2 with slice A
   at `d4ff651`, slice B at `bb67ab9`, revision 3 appendix A with slice C at
-  `8cd39b3`, slice D (`candidate.append` and the blocker record) in the
-  commit after this file.
+  `8cd39b3`, slice D (`candidate.append` and the blocker record) at `6dac878`.
 - Conformance corpus: `conformance/smp1/v1/accepted.json` (client and
   server hello frames, the selected profile and its handshake identity,
   request, response, and failure frames) and `rejected.json` (length above
@@ -119,7 +118,8 @@ The implementation provides, in `crates/sley-protocol`:
 Tier 1 `make quick` passed at every commit of the slices. Tier 2 ran on
 2026-09-03 after each slice (`make core`, `make conformance`,
 `make adversarial`, `make fuzz-smoke`, `make smp1-persistent-fuzz-smoke`)
-and again after slice D; the per-slice tables are in the campaign record.
+and again after slice D at `6dac878` (`make core` 958 tests, all gates exit 0
+in 31 seconds); the per-slice tables are in the campaign record.
 The full `make v1` gate was skipped because this is a subsystem handoff,
 not a release boundary; `make v2` and `make release-check` remain
 intentionally fail closed.
