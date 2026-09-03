@@ -35,3 +35,4 @@ Current records:
 - ADR-0026: complete entity model and complete-root impact boundary
 - ADR-0027: semantic comparison delta boundary
 - ADR-0028: merge composition and conflict boundary
+- ADR-0029: complete-root index snapshot and cache reuse boundary

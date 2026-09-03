@@ -21,6 +21,7 @@ quick:
 	python3 scripts/generate_semantic_comparison_fixtures.py --check
 	python3 scripts/check_merge_spec.py
 	python3 scripts/generate_merge_fixtures.py --check
+	python3 scripts/check_complete_root_index_snapshot_profile.py
 	python3 scripts/check_merge_persistent_fuzz_slice.py
 	python3 scripts/check_semantic_delta_persistent_fuzz_slice.py
 	python3 scripts/check_complete_root_persistent_fuzz_slice.py

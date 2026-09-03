@@ -190,6 +190,14 @@ provenance, authorize decoded cache edges, model
 the six missing entity bodies, provide a useful performance cache, complete
 full S20-300, or unblock root-backed S20-310.
 
+S20-300 full reserves numeric codes 30008 through 30010 for the exact
+`INDEX_SNAPSHOT_*` failures listed in
+`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` (contract draft; frozen with
+that contract): an incomplete root (wrapping the exact `IMPACT_*` code), a
+cached inventory that differs from the root's bindings, and cache I/O. They
+cover the complete-root arm and the repository-owned index cache whose hits
+serve read-only derived query surfaces only.
+
 S20-310 restricted freezes numeric codes 31000 through 31007 for the exact
 `QUERY_*` failures listed in `RESTRICTED_QUERY_PROFILE_V1.md`. They cover four
 typed modeled-snapshot queries, exact `QueryId`/context/limit binding, hard
