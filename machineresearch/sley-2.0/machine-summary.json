@@ -829,6 +829,27 @@
     "persistent_fuzz_target": "fuzz/targets/semantic_delta_decoder.rs",
     "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke"
   },
+  "merge": {
+    "status": "S20_520_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/MERGE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0028-merge-composition-boundary.md",
+    "checker": "scripts/check_merge_spec.py",
+    "contract_tag": 520,
+    "digest_domain_tag": 21,
+    "domain": "sley2.merge-conflict.v1",
+    "field_schema_hash": "008e0676f911dc82b605286624c855a21b2e9e9d397358bf0ce7f196f55c2c8b",
+    "decoder_limits_hash": "c6c071df3c80f18702cb0cb41298d56524e2cdba4bbe77d8a9755cfcd95d20c5",
+    "judgment_rules": 8,
+    "conflict_reasons": 9,
+    "stable_error_codes": 14,
+    "owner_crate": "sley-repo",
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
+  },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
     "contract": "docs/spec/GARBAGE_COLLECTION_V1.md",

@@ -142,6 +142,14 @@ digest, canonical order, duplicates, format), the comparison preconditions
 and resource ceilings; wrapped `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*` codes
 are preserved. They do not claim merge, conflict objects, or S20-520.
 
+S20-520 reserves numeric codes 52000 through 52013 for the exact `MERGE_*`
+failures listed in `MERGE_V1.md` (contract draft; frozen with that contract).
+They cover the common-ancestor preconditions, shared workspace and epoch,
+unsupported dependency-root changes, wrapped comparison failures, resource
+ceilings, the canonical conflict record, unsupported plans, and the
+post-commit result check. A conflict is a successful judgment carrying a
+conflict object, not a failure code.
+
 S20-260 freezes numeric codes 26000 through 26006 for the exact `VM_LOWER_*`
 failures listed in `VM_LOWERING_PROFILE_V1.md`. They cover only the restricted
 epoch-1 O0 lowering profile for all five terminators and the three validated
