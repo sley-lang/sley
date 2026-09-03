@@ -578,7 +578,9 @@
     "nabu_architecture_review": "PENDING",
     "ariadne_contract_review": "PENDING",
     "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "implementation_complete": false,
+    "unblocked_by_restricted_s20_320": false,
+    "implementation_started": false
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",

@@ -124,8 +124,25 @@ def main() -> int:
         require_equal(frontier, expected_frontier, "machine-summary frontier")
 
         session = summary.get("session_handle_profile", {})
+        # Re-audited 2026-09-03 (ADR-0033): S20-330 moved from deferred to a
+        # staged contract; the session module may exist only while the staged
+        # checker says its implementation is in progress or later.
+        session_status = session.get("status")
+        session_statuses = (
+            "S20_330_CONTRACT_DRAFT_REVIEW_PENDING",
+            "S20_330_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+            "S20_330_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
+            "S20_330_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+            "S20_330_IMPLEMENTED_REVIEW_PENDING",
+            "S20_330_COMPLETE",
+        )
+        if session_status not in session_statuses:
+            fail(f"S20-330 status drift: {session_status}")
+        session_implemented = session_status in session_statuses[1:]
         require_equal(
-            session.get("implementation_started"), False, "S20-330 implementation"
+            (ROOT / "crates/sley-protocol/src/session.rs").exists(),
+            session_implemented,
+            "S20-330 implementation",
         )
         require_equal(
             session.get("unblocked_by_restricted_s20_320"), False, "S20-330 authority"
