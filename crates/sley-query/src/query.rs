@@ -16,10 +16,10 @@ const QUERY_MAGIC: &[u8; 8] = b"SLEYQRY1";
 const RESPONSE_MAGIC: &[u8; 8] = b"SLEYQRS1";
 const FORMAT_VERSION: u32 = 1;
 const PROFILE_VERSION: u32 = 1;
-const LIMITS_PROFILE: u32 = 1;
+pub(crate) const LIMITS_PROFILE: u32 = 1;
 const COMPLETENESS_RESTRICTED: u32 = 1;
-const OPTION_NONE: u32 = 1;
-const OPTION_SOME: u32 = 2;
+pub(crate) const OPTION_NONE: u32 = 1;
+pub(crate) const OPTION_SOME: u32 = 2;
 const RESPONSE_HEADER_WITHOUT_ROOT: usize = 204;
 const RESPONSE_HEADER_WITH_ROOT: usize = 236;
 
@@ -510,7 +510,7 @@ fn verify_request(request: &RestrictedQueryRequest) -> Result<(), QueryError> {
     Ok(())
 }
 
-fn validate_limits(limits: QueryLimits) -> Result<(), QueryError> {
+pub(crate) fn validate_limits(limits: QueryLimits) -> Result<(), QueryError> {
     if limits.max_returned_entities == 0
         || limits.max_returned_entities > MAX_QUERY_RETURNED_ENTITIES
         || limits.max_returned_edges == 0
@@ -551,7 +551,7 @@ fn validate_query_shape(query: &RestrictedQuery) -> Result<(), QueryError> {
     }
 }
 
-fn strictly_increasing<T: Ord>(values: &[T]) -> bool {
+pub(crate) fn strictly_increasing<T: Ord>(values: &[T]) -> bool {
     values.windows(2).all(|pair| pair[0] < pair[1])
 }
 
@@ -608,7 +608,10 @@ fn encode_root_option_request(
     }
 }
 
-fn encode_limits_request(out: &mut Vec<u8>, limits: QueryLimits) -> Result<(), QueryError> {
+pub(crate) fn encode_limits_request(
+    out: &mut Vec<u8>,
+    limits: QueryLimits,
+) -> Result<(), QueryError> {
     push_request_u64(out, limits.max_returned_entities)?;
     push_request_u64(out, limits.max_returned_edges)?;
     push_request_u32(out, limits.max_depth)?;
@@ -674,7 +677,7 @@ fn select_edges(
     Ok(selected)
 }
 
-fn reverse_closure(
+pub(crate) fn reverse_closure(
     snapshot: &IndexSnapshot,
     seeds: &[EntityId],
     work: &mut u64,
@@ -849,7 +852,7 @@ fn encode_root_option_response(
     }
 }
 
-fn encode_limits_response(
+pub(crate) fn encode_limits_response(
     out: &mut Vec<u8>,
     limits: QueryLimits,
     limit: usize,
@@ -875,7 +878,11 @@ fn checked_list_bytes(count: u64, item_bytes: u64) -> Result<u64, QueryError> {
         .ok_or_else(|| QueryError::new(QueryErrorCode::ResourceLimit))
 }
 
-fn charge_work(work: &mut u64, amount: u64, applied_limit: u64) -> Result<(), QueryError> {
+pub(crate) fn charge_work(
+    work: &mut u64,
+    amount: u64,
+    applied_limit: u64,
+) -> Result<(), QueryError> {
     *work = work
         .checked_add(amount)
         .ok_or_else(|| QueryError::new(QueryErrorCode::ResourceLimit))?;
@@ -886,15 +893,15 @@ fn charge_work(work: &mut u64, amount: u64, applied_limit: u64) -> Result<(), Qu
     }
 }
 
-fn push_request_u32(out: &mut Vec<u8>, value: u32) -> Result<(), QueryError> {
+pub(crate) fn push_request_u32(out: &mut Vec<u8>, value: u32) -> Result<(), QueryError> {
     append_request(out, &value.to_be_bytes())
 }
 
-fn push_request_u64(out: &mut Vec<u8>, value: u64) -> Result<(), QueryError> {
+pub(crate) fn push_request_u64(out: &mut Vec<u8>, value: u64) -> Result<(), QueryError> {
     append_request(out, &value.to_be_bytes())
 }
 
-fn append_request(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), QueryError> {
+pub(crate) fn append_request(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), QueryError> {
     let next = out
         .len()
         .checked_add(bytes.len())
@@ -906,15 +913,27 @@ fn append_request(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), QueryError> {
     Ok(())
 }
 
-fn push_response_u32(out: &mut Vec<u8>, value: u32, limit: usize) -> Result<(), QueryError> {
+pub(crate) fn push_response_u32(
+    out: &mut Vec<u8>,
+    value: u32,
+    limit: usize,
+) -> Result<(), QueryError> {
     append_response(out, &value.to_be_bytes(), limit)
 }
 
-fn push_response_u64(out: &mut Vec<u8>, value: u64, limit: usize) -> Result<(), QueryError> {
+pub(crate) fn push_response_u64(
+    out: &mut Vec<u8>,
+    value: u64,
+    limit: usize,
+) -> Result<(), QueryError> {
     append_response(out, &value.to_be_bytes(), limit)
 }
 
-fn append_response(out: &mut Vec<u8>, bytes: &[u8], limit: usize) -> Result<(), QueryError> {
+pub(crate) fn append_response(
+    out: &mut Vec<u8>,
+    bytes: &[u8],
+    limit: usize,
+) -> Result<(), QueryError> {
     let next = out
         .len()
         .checked_add(bytes.len())
@@ -926,7 +945,7 @@ fn append_response(out: &mut Vec<u8>, bytes: &[u8], limit: usize) -> Result<(), 
     Ok(())
 }
 
-fn to_u64(value: usize) -> Result<u64, QueryError> {
+pub(crate) fn to_u64(value: usize) -> Result<u64, QueryError> {
     u64::try_from(value).map_err(|_| QueryError::new(QueryErrorCode::ResourceLimit))
 }
 

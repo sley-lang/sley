@@ -8,6 +8,7 @@ mod gc;
 mod index_cache;
 mod merge;
 mod refs;
+mod root_query;
 
 pub use compare::*;
 pub use complete_root::*;
@@ -16,6 +17,7 @@ pub use gc::*;
 pub use index_cache::*;
 pub use merge::*;
 pub use refs::*;
+pub use root_query::*;
 
 use core::fmt;
 use std::collections::BTreeSet;

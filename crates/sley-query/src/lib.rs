@@ -4,11 +4,13 @@
 mod capsule;
 mod complete_root;
 mod query;
+mod root_query;
 mod snapshot;
 
 pub use capsule::*;
 pub use complete_root::*;
 pub use query::*;
+pub use root_query::*;
 pub use snapshot::*;
 
 use core::fmt;

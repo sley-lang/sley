@@ -53,3 +53,27 @@ checker `scripts/check_root_backed_query_profile.py`.
 ## Commits
 
 - contract draft revision 1: the commit that adds this file.
+
+## Implementation under the draft (2026-09-03)
+
+The Council lanes were still unavailable, so the integrator implemented the
+full profile under contract draft revision 1 with the reviews queued:
+
+- `crates/sley-id`: thirty-third domain `sley2.root-query.v1`, `RootQueryId`.
+- `crates/sley-query/src/root_query.rs`: nineteen classes, input binding,
+  exact-then-paged results with typed cursors, `SLEYRQQ1`/`SLEYRQR1`
+  records, eleven codes 31000 through 31010; restricted helpers shared
+  inside the crate, restricted surfaces untouched.
+- `crates/sley-repo/src/root_query.rs`: `run_root_query` over the verified
+  revision, the S20-250 extraction adapter, and the S20-300 cache (first
+  cache-hit consumer, edges only).
+- Fixture `conformance/root-backed-query/v1` (23 vectors, 8 rejections)
+  bound to the S20-250 fixture request and the S20-300 snapshot identity;
+  independent oracle `scripts/check_root_backed_query_vector.py` PASS.
+- Persistent fuzz `fuzz/targets/root_query_engine.rs`, smoke PASS over 971
+  seeds.
+- Closeout `docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md`;
+  summary status `S20_310_FULL_IMPLEMENTED_REVIEW_PENDING`; frontier
+  re-anchored to the full S20-320 context capsule.
+
+Tier 2 results are appended below when the handoff gate runs.

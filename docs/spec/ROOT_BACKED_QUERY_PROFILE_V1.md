@@ -1,9 +1,10 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 1 (2026-09-03); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+Status: S20-310 full contract draft, revision 1 (2026-09-03); implemented
+under this draft with Council review pending (Ariadne contract review, Nabu
+architecture review, Vulcan surface review), so the contract is not frozen
+and the package is not complete. Implementation state is tracked in the
+machine summary.
 
 This profile completes S20-310. It defines the nineteen root-backed query
 classes the master goal requires, exact bounded semantics for each, lawful

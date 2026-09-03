@@ -70,6 +70,10 @@ path = "targets/merge_conflict_decoder.rs"
 name = "complete_root_snapshot_decoder"
 path = "targets/complete_root_snapshot_decoder.rs"
 
+[[bin]]
+name = "root_query_engine"
+path = "targets/root_query_engine.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }

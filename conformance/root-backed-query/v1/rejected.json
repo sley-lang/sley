@@ -1,0 +1,161 @@
+{
+  "claim": "s20-310-full-root-backed-query-v1-conformance",
+  "contract": "sley2-root-backed-query-v1",
+  "mutations": [
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_REQUIRED_FACT_OMITTED",
+      "expected_numeric": 31006,
+      "id": "truncated-without-continuation",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 3,
+        "max_returned_entities": 2,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 4,
+        "kind": 3
+      }
+    },
+    {
+      "after": {
+        "root": "3333333333333333333333333333333333333333333333333333333333333333",
+        "tag": 3
+      },
+      "allow_continuation": true,
+      "expected_code": "QUERY_CONTINUATION_INVALID",
+      "expected_numeric": 31009,
+      "id": "cursor-wrong-type",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 3,
+        "max_returned_entities": 2,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 4,
+        "kind": 3
+      }
+    },
+    {
+      "after": {
+        "entity": "0101010101010101010101010101010101010101010101010101010101010101",
+        "tag": 1
+      },
+      "allow_continuation": true,
+      "expected_code": "QUERY_CONTINUATION_INVALID",
+      "expected_numeric": 31009,
+      "id": "cursor-on-single-key",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 3,
+        "max_returned_entities": 2,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 2,
+        "entity": "0707070707070707070707070707070707070707070707070707070707070707"
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_CLASS_NOT_APPLICABLE",
+      "expected_numeric": 31010,
+      "id": "class-not-applicable",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 6,
+        "entity": "0404040404040404040404040404040404040404040404040404040404040404"
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_UNRESOLVED_ENTITY",
+      "expected_numeric": 31004,
+      "id": "unresolved-entity",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 2,
+        "entity": "9999999999999999999999999999999999999999999999999999999999999999"
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_REQUEST_NOT_CANONICAL",
+      "expected_numeric": 31001,
+      "id": "filter-not-canonical",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 13,
+        "entity": "0707070707070707070707070707070707070707070707070707070707070707",
+        "kinds": [
+          8,
+          1
+        ]
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": true,
+      "expected_code": "QUERY_REQUIRED_FACT_OMITTED",
+      "expected_numeric": 31006,
+      "id": "depth-cut",
+      "limits": {
+        "max_depth": 0,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 14,
+        "seeds": [
+          "0909090909090909090909090909090909090909090909090909090909090909"
+        ]
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_RESOURCE_LIMIT",
+      "expected_numeric": 31005,
+      "id": "work-exhausted",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 0
+      },
+      "query": {
+        "class": 1
+      }
+    }
+  ]
+}
