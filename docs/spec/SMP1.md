@@ -1,11 +1,11 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 7 (2026-09-03; revision 2 folds the
+Status: S20-400 contract draft, revision 8 (2026-09-03; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
 the exact body records of the methods S20-410 dispatches; revision 4 freezes
 the S20-440 cancellation, streaming, and budget rules of section 7 and
 appendix B; revision 5 hands `handle.expand` and session issuance to the
-S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches); Council review
+S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches; revision 8 adds the `execute` cache profile selector, `limits` field 6); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -406,7 +406,7 @@ Budget accounting: `remaining := max_work` at `session.open`;
 response, saturating at zero; a request that finds `remaining = 0` after
 admission is released and answered `PROTOCOL_LIMIT_EXCEEDED`.
 
-## Appendix C. Body records of the slice C methods (S20-410 slice C, revision 7)
+## Appendix C. Body records of the slice C methods (S20-410 slice C, revision 7; profile selector revision 8)
 
 Revision 7 defines the bodies of the four methods that earlier revisions
 left to owner gaps, so the server dispatches every non-reserved method and
@@ -432,7 +432,8 @@ const_value      = the S20-350 mutation value codec's `ConstValue` bytes
                    (`sley_mutate::encode_const_value` / `decode_const_value`)
 limits           = record(1: uvar(max_instructions), 2: uvar(max_fuel),
                           3: uvar(max_value_units), 4: uvar(max_output_units),
-                          5: option(uvar(cancel_at_fuel)))
+                          5: option(uvar(cancel_at_fuel)),
+                          6: uvar(profile: 1 restricted_v1 | 2 extended_v1))
 execution_report = record(1: ExecutionReportId[32], 2: bytes(execution report preimage, `SLEYEXR1`))
 ```
 
@@ -457,8 +458,11 @@ Rules:
 - **Execute is head-bound.** `execute` runs over the session's bound root
   under the S20-330 root check, projects the root's entities with the
   S20-250 full projection, lowers and executes the named Function under
-  the S20-260/S20-270 restricted profile, and builds the S20-290 execution
-  report. Every VM, lowering, projection, and report failure keeps its
+  the cache profile the request selects (`limits` field 6, revision 8: 1 is
+  `RESTRICTED_V1`, 2 is `EXTENDED_V1`, the S20-260/S20-270 full profile of
+  `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md`; any other value is
+  `PROTOCOL_PAYLOAD_INVALID`), and builds the S20-290 execution report,
+  whose cache key names the selected profile. Every VM, lowering, projection, and report failure keeps its
   owner code. Before answering, the server stores the report preimage
   under `reports/execution/<id hex>` create-once with fsync (S20-560
   report store); an identical re-execution finds the same identity already

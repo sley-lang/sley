@@ -1320,6 +1320,7 @@ fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
         (3, encode_uvar(10_000)),
         (4, encode_uvar(100)),
         (5, sley_scb1::encode_union(0, &[]).unwrap()),
+        (6, encode_uvar(1)),
     ])
     .unwrap();
     let body = |inputs: Vec<Vec<u8>>| {
@@ -1408,6 +1409,82 @@ fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
     );
 }
 
+#[test]
+fn execute_selects_the_cache_profile_from_limits_field_six() {
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    let (_temp, mut server, session, _genesis_id) =
+        open_server("smp1-execute-profile", executable_bodies());
+    let function = sley_repo::test_support::id(30);
+    let value = |bit: bool| {
+        sley_mutate::encode_const_value(&ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(bit),
+        })
+        .unwrap()
+    };
+    let limits = |fields: Vec<(u32, Vec<u8>)>| encode_record(&fields).unwrap();
+    let base = |profile: Option<u64>| {
+        let mut fields = vec![
+            (1, encode_uvar(1_000)),
+            (2, encode_uvar(1_000)),
+            (3, encode_uvar(10_000)),
+            (4, encode_uvar(100)),
+            (5, sley_scb1::encode_union(0, &[]).unwrap()),
+        ];
+        if let Some(profile) = profile {
+            fields.push((6, encode_uvar(profile)));
+        }
+        fields
+    };
+    let body = |limits_bytes: Vec<u8>| {
+        encode_record(&[
+            (1, function.as_bytes().to_vec()),
+            (
+                2,
+                sley_scb1::encode_list(&[value(true), value(true)]).unwrap(),
+            ),
+            (3, limits_bytes),
+        ])
+        .unwrap()
+    };
+    let (failed, restricted) = call_frame(
+        &mut server,
+        session,
+        2,
+        Method::Execute,
+        body(limits(base(Some(1)))),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&restricted.body));
+    let (failed, extended) = call_frame(
+        &mut server,
+        session,
+        3,
+        Method::Execute,
+        body(limits(base(Some(2)))),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&extended.body));
+    // Both profiles execute the Boolean function; the reports differ because
+    // the cache key names the profile.
+    assert_ne!(
+        fields_of(&restricted.body, 2)[0],
+        fields_of(&extended.body, 2)[0]
+    );
+    for (request, malformed) in [(4, limits(base(Some(3)))), (5, limits(base(None)))] {
+        let (failed, frame) = call_frame(
+            &mut server,
+            session,
+            request,
+            Method::Execute,
+            body(malformed),
+        );
+        assert!(failed);
+        assert_eq!(
+            ProtocolFailure::decode(&frame.body).unwrap().code,
+            ProtocolErrorCode::PayloadInvalid.numeric()
+        );
+    }
+}
+
 /// Prints the S20-720 demo fixture for `scripts/generate_release_demo_fixtures.py`:
 /// the exchange of the executable genesis with branch `main`, a bound
 /// `query.root` summary request and its response, an `execute` request and
@@ -1417,7 +1494,11 @@ fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
 fn emit_release_demo_vectors_for_fixture_refresh() {
     use sley_ssmc::{ConstData, ConstValue, TypeExpr};
     fn hex_of(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        use core::fmt::Write as _;
+        bytes.iter().fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        })
     }
     let (temp, mut server, session, genesis_id) = open_server("release-demo", executable_bodies());
     let repository = temp.child("repo");
@@ -1471,6 +1552,7 @@ fn emit_release_demo_vectors_for_fixture_refresh() {
                 (3, encode_uvar(10_000)),
                 (4, encode_uvar(100)),
                 (5, sley_scb1::encode_union(0, &[]).unwrap()),
+                (6, encode_uvar(1)),
             ])
             .unwrap(),
         ),

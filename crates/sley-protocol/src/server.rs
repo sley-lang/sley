@@ -1717,7 +1717,7 @@ impl Server {
                     .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))
             })
             .collect::<Result<Vec<_>>>()?;
-        let limits = decode_execution_limits(fields[2])?;
+        let (limits, profile) = decode_execution_limits(fields[2])?;
         let revision = self.head()?;
         let request = CompleteRootRequest::extract(&revision)
             .map_err(|error| owner(error.code(), error.numeric()))?;
@@ -1742,7 +1742,7 @@ impl Server {
             operations: &entities.operations,
             schema_epoch: request.schema_epoch_id(),
             state_root: request.root(),
-            profile: CacheProfile::RESTRICTED_V1,
+            profile,
             constants: &entities.constants,
             globals: &entities.globals,
             functions: &entities.functions,
@@ -1825,8 +1825,10 @@ fn decode_pins(body: &[u8]) -> Result<Vec<RetentionTarget>> {
         .collect()
 }
 
-fn decode_execution_limits(body: &[u8]) -> Result<ExecutionLimits> {
-    let fields = record(body, 5)?;
+/// Decodes the appendix C `limits` record, including the revision 8 cache
+/// profile selector in field 6.
+fn decode_execution_limits(body: &[u8]) -> Result<(ExecutionLimits, CacheProfile)> {
+    let fields = record(body, 6)?;
     let mut offset = 0;
     let tag = uvar_at(fields[4], &mut offset)?;
     let length = uvar_at(fields[4], &mut offset)?;
@@ -1835,13 +1837,21 @@ fn decode_execution_limits(body: &[u8]) -> Result<ExecutionLimits> {
         (1, _) => Some(single_uvar(&fields[4][offset..])?),
         _ => return protocol_failure(ProtocolErrorCode::PayloadInvalid),
     };
-    Ok(ExecutionLimits {
-        max_instructions: single_uvar(fields[0])?,
-        max_fuel: single_uvar(fields[1])?,
-        max_value_units: single_uvar(fields[2])?,
-        max_output_units: single_uvar(fields[3])?,
-        cancel_at_fuel,
-    })
+    let profile = match single_uvar(fields[5])? {
+        1 => CacheProfile::RESTRICTED_V1,
+        2 => CacheProfile::EXTENDED_V1,
+        _ => return protocol_failure(ProtocolErrorCode::PayloadInvalid),
+    };
+    Ok((
+        ExecutionLimits {
+            max_instructions: single_uvar(fields[0])?,
+            max_fuel: single_uvar(fields[1])?,
+            max_value_units: single_uvar(fields[2])?,
+            max_output_units: single_uvar(fields[3])?,
+            cancel_at_fuel,
+        },
+        profile,
+    ))
 }
 
 fn id_list<T: AsRef<[u8]>>(items: &[T]) -> Result<Vec<u8>> {

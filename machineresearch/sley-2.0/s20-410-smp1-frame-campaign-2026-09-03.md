@@ -191,3 +191,13 @@ Appendix C defines the bodies of `gc.dry_run`, `gc.collect`, `execute`, and `rep
 | `make accounting-smoke` | exit 0 | 1 s | report PARTIAL over the S20-620 run; evidence PASS |
 
 Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
+## Revision 8: execute profile selector (2026-09-03)
+
+The frontier package `S20-410-EXECUTE-PROFILE-SELECTOR` lands SMP1 revision 8:
+`limits` field 6 selects the cache profile for `execute` (1 restricted, 2
+extended), decoded in `crates/sley-protocol/src/server.rs`
+(`decode_execution_limits`), covered by
+`execute_selects_the_cache_profile_from_limits_field_six`, and carried by the
+release demo fixture (`conformance/release-demo/v1/demo.json`, regenerated).
+Tier 2 gates and the release candidate smoke are recorded below once run.

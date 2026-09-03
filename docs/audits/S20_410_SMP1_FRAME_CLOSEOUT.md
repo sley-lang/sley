@@ -168,3 +168,17 @@ Slice C landed at `49c06f7` with `make quick` green; Tier 2 at that commit
 597 tests, `make fuzz-smoke`, both SMP1 persistent smoke gates, and the
 S20-620 and S20-630 smokes, all exit 0) is recorded in
 `machineresearch/sley-2.0/s20-410-smp1-frame-campaign-2026-09-03.md`.
+
+## Revision 8 addendum: execute profile selector (2026-09-03)
+
+SMP1 revision 8 adds field 6 to the appendix C `limits` record: a uvar cache
+profile selector (1 `RESTRICTED_V1`, 2 `EXTENDED_V1`). The server decodes
+exactly six fields, maps the selector onto the S20-260/S20-270 cache profile,
+and fails any other value or a five-field record closed with
+`PROTOCOL_PAYLOAD_INVALID`. Execution, the S20-290 report, and the stored
+report bytes otherwise follow the revision 7 rules; the report's cache key
+names the selected profile, so the two profiles never share a report
+identity. The release demo fixture and the server tests carry the selector;
+`execute_selects_the_cache_profile_from_limits_field_six` covers both
+profiles and both rejections. Council review of revisions 7 and 8 stays
+pending with the S20-400 queue.
