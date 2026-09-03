@@ -1,10 +1,11 @@
 # Repository Exchange v1
 
-Status: S20-540 contract draft, revision 4. Nabu design consult applied; three
-Ariadne contract passes (revision 3 `PASS_CONTRACT_DRAFT`) and the first
-Vulcan import-surface review of revision 3 (`FAIL_CONTRACT_DRAFT`, 1 P1, 4 P2,
-3 P3) are applied in full; the Vulcan re-review and a limited Ariadne pass
-over the changed paragraphs are pending; no implementation exists.
+Status: S20-540 contract draft, revision 5. Nabu design consult applied; three
+Ariadne contract passes (revision 3 `PASS_CONTRACT_DRAFT`), the Vulcan
+import-surface review of revision 3 (`FAIL_CONTRACT_DRAFT`) and its re-review
+of revision 4 (`PASS_CONTRACT_DRAFT`, four text notes applied here) are
+applied in full; a limited Ariadne pass over the paragraphs changed since
+revision 3 is pending; no implementation exists.
 
 ## Notation
 
@@ -381,15 +382,19 @@ unknown-entry rule fires on an X-07 clone.
 
 The head is the completion witness and the marker is the write guard. On a
 marked root (an `exchange/v1/` directory containing any `.stage` entry) no
-reader resolves an accepted head, and every frozen write path fails closed
-with `TXN_INCOMPLETE_CLONE`: `sley-txn` `initialize_trusted_genesis` and
-`commit`, and `sley-repo` `create_branch`, `advance_branch`, and exclusive GC
-acquisition all check the marker after taking their locks and before any
-write. Read paths (`verified_revision`, `resolve_branch`, `list_branches`)
-stay available on a marked root and establish no acceptance. Only the
-importer, holding exclusive maintenance ownership, writes into a marked
-root, and every step before the head is idempotent over exact bytes, so
-retry converges.
+reader resolves an accepted head, and every frozen acceptance-establishing,
+ref-mutating, or deleting path fails closed with `TXN_INCOMPLETE_CLONE`:
+`sley-txn` `initialize_trusted_genesis`, `commit`, and `recover`, and
+`sley-repo` `create_branch`, `advance_branch`, `recover_refs`,
+`recover_gc_witness`, and exclusive GC acquisition all check the marker after
+taking their locks and before any acceptance-establishing write, ref write,
+or deletion (creating the maintenance layout or lock files is none of
+those). Read paths (`verified_revision`, `resolve_branch`, `list_branches`)
+stay available on a marked root and establish no acceptance. Object-store
+puts remain content-addressed and establish nothing. Only the importer,
+holding exclusive maintenance ownership, establishes acceptance or mutates
+receipts, refs, or the head in a marked root, and every step before the head
+is idempotent over exact bytes, so retry converges.
 
 ## Interruption and retry
 
@@ -404,15 +409,17 @@ complete clone; retrying with different exchange bytes fails
 |---|---|---|
 | X-01 | before the stage-marker rename is durable (at most the empty `exchange/v1/` directory and one owned temporary exist) | target is fresh; the owned temporary is removed; import restarts from step 8.1 |
 | X-02 | after the marker, before any object (layout may be partial) | incomplete clone; layout completed, objects, receipts, branches, head installed |
-| X-03 | during object promotion | S20-170 idempotent re-import; unreachable staged objects are S20-530 owner cleanup |
+| X-03 | during object promotion | S20-170 idempotent re-import; staged object temporaries are removed by the importer's own re-import or, after the clone completes, by S20-530 owner recovery |
 | X-04 | during receipt installation | no reader resolves a head, writes fail closed; exact existing receipts reverified; missing receipts installed |
 | X-05 | during branch installation | no reader resolves a head, writes fail closed; exact existing origins and refs reverified; missing ones installed |
 | X-06 | before the head rename is durable | no reader resolves a head, writes fail closed; branches complete; head installed on retry |
 | X-07 | after the head, before marker removal | complete clone with marker; every step reverifies exact bytes, then the marker is removed |
 
-`sley-txn` and `sley-repo` recovery on an incomplete clone fail closed exactly
-as they do today for an absent head; they never complete an import. Any
-interruption row not listed above is an implementation defect. No S20-530
+`sley-txn` and `sley-repo` recovery on a marked incomplete clone fail closed
+with `TXN_INCOMPLETE_CLONE` before removing anything, because their owned
+cleanup could otherwise delete the importer's in-progress files; they never
+complete an import. Any interruption row not listed above is an
+implementation defect. No S20-530
 matrix row is added or changed: an incomplete clone is never accepted state.
 
 ## Clone equivalence
@@ -526,11 +533,12 @@ marked-root predicate (an `exchange/v1/` directory whose entries include any
 `.stage` regular file, read without following symlinks) and returns the new
 S20-390 code `TXN_INCOMPLETE_CLONE` (`39021`, appended to the frozen
 `TransactionErrorCode` table and to `TRANSACTION_MODEL_V1.md` by the same
-commit) from `initialize_trusted_genesis` and `commit`; `sley-repo` returns
-the same code through its existing upstream transaction error from
-`create_branch`, `advance_branch`, and exclusive GC acquisition. The clone
-API phases themselves run only on a marked root and are the sole writers
-there.
+commit) from `initialize_trusted_genesis`, `commit`, and `recover`;
+`sley-repo` returns the same code through its existing upstream transaction
+error from `create_branch`, `advance_branch`, `recover_refs`,
+`recover_gc_witness`, and exclusive GC acquisition. The clone API phases
+themselves run only on a marked root and are the sole acceptance-establishing
+writers there.
 
 Relative to `initialize_trusted_genesis`, the clone path reproduces from
 receipt bytes and imported objects every check that genesis derives from its
@@ -569,6 +577,7 @@ Implementation acceptance requires at least:
   present-but-unreferenced object;
 - a test that the clone API is unreachable from ordinary candidate commit;
 - genesis-into-incomplete-clone, commit-into-incomplete-clone,
+  recovery-into-incomplete-clone (transaction, refs, and GC witness),
   branch-mutation-into-incomplete-clone, and GC-into-incomplete-clone tests
   proving `TXN_INCOMPLETE_CLONE`, and a read-path test proving no accepted
   head resolves on a marked root;

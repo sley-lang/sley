@@ -111,7 +111,12 @@ unreachable receipt ceiling.
    target after ownership, adds symlink discipline, closed preflight work
    ceilings mirroring the S20-530 recovery limits, one exact code for nested
    exchanges, the receipt ceiling as the fast-forward bound, the inner
-   admissibility invariant, and a subset proof for incomplete clones.
+   admissibility invariant, and a subset proof for incomplete clones. The
+   Vulcan re-review of revision 4 (session
+   `forge-vulcan-s20-540-rereview-20260903T022707-896ec8f9`) returned
+   `PASS_CONTRACT_DRAFT`; its four text notes (recovery paths must also be
+   guarded, `recover_gc_witness` named, object-store puts establish nothing,
+   layout creation is not an acceptance write) are applied in revision 5.
 
 ## Consequences
 
