@@ -2015,7 +2015,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-410-EXECUTE-PROFILE-SELECTOR",
+    "next_dependency_complete_package": "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -2259,9 +2259,9 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md"
   },
   "local_completion_frontier": {
-    "status": "S20_260_270_FULL_IMPLEMENTED_REVIEWS_PENDING_SMP1_EXECUTE_PROFILE_NEXT",
+    "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEWS_PENDING_S20_710_FULL_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-410-EXECUTE-PROFILE-SELECTOR",
+    "next_authority_safe_package": "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",

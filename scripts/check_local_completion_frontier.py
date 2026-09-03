@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_260_270_FULL_IMPLEMENTED_REVIEWS_PENDING_SMP1_EXECUTE_PROFILE_NEXT",
+            "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEWS_PENDING_S20_710_FULL_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-410-EXECUTE-PROFILE-SELECTOR",
+            "next_authority_safe_package": "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -196,7 +196,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-410-EXECUTE-PROFILE-SELECTOR",
+            "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -388,6 +388,7 @@ def main() -> int:
             "S20-630 is implemented",
             "S20-720 mechanics are implemented",
             "the full S20-260/S20-270 opcode program is implemented",
+            "S20-730 mechanics are implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -409,7 +410,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-410-EXECUTE-PROFILE-SELECTOR",
+                "next_authority_safe_package": "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
                 "result": "PASS",
             },
             indent=2,

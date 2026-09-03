@@ -135,7 +135,7 @@ expected = {
     "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-410-EXECUTE-PROFILE-SELECTOR",
+    "next_dependency_complete_package": "S20-710-FULL-STANDARDS-SBOM-AND-PROVENANCE",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -171,6 +171,7 @@ for path, marker in [
     (AUDIT, "S20-630 is implemented"),
     (AUDIT, "S20-720 mechanics are implemented"),
     (AUDIT, "the full S20-260/S20-270 opcode program is implemented"),
+    (AUDIT, "S20-730 mechanics are implemented"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

@@ -55,9 +55,18 @@ the candidate build and reruns the staged checker.
 
 ## Validation
 
-| Gate | Result | Evidence |
-|---|---|---|
-| Tier 1 `make quick` | recorded below | includes the new staged checker, the report drift check, and the release tests |
-| Tier 2 | recorded below | `make core`, `make conformance`, `make adversarial`, `make fuzz-smoke`, `make release-candidate-smoke` |
+Landed at `7579d34`. Tier 1 `make quick` passed at the commit, including the
+new staged checker, the conformance report drift check, and the sixteen
+release tests. Tier 2 ran on 2026-09-03 at that commit:
 
-`make v1` was not run: this is a subsystem handoff, not a release boundary.
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 995 tests passed, 0 failed |
+| `make conformance` | exit 0 | 11 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make release-candidate-smoke` | exit 0 | 29 s | two builds REPRODUCIBLE, demo PASS, report rebuilt at `7579d34` (artifact digest `8a76e094...`), staged checker PASS |
+
+The smoke's report rebuild is the intended flow: the tracked reproducibility
+report now attests the commit it was built from. `make v1` was not run: this
+is a subsystem handoff, not a release boundary.
