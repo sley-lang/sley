@@ -1,9 +1,10 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 1 (2026-09-03); Council review
-pending (Nabu architecture review, Ariadne contract review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+Status: S20-330 contract draft, revision 1 (2026-09-03); implemented under
+this draft with Council review pending (Nabu architecture review, Ariadne
+contract review, Vulcan surface review), so the contract is not frozen and
+the package is not complete. Implementation state is tracked in the machine
+summary.
 
 This profile defines the negotiated session authority that SMP1 (S20-400)
 and the master context capsule (S20-320 full) reserved: what a session
@@ -90,7 +91,12 @@ named session in this order:
 
 Head-bound methods answer over "the accepted head" without naming it:
 `workspace.open` (201), `query.root` (300), `query.continue` (301),
-`capsule` (302), `query.restricted` (303), and `handle.expand` (304).
+`capsule` (302), and `query.restricted` (303). `handle.expand` (304)
+performs the same root comparison itself and reports
+`SESSION_STALE_HANDLE` (section 4) instead of `SESSION_ROOT_ADVANCED`.
+`workspace.create` (200) and `exchange.import` (211) may travel without a
+session, because a repository without an accepted head cannot bind one;
+under a session they are checked like every other method.
 Methods that name an explicit `TransactionId` or mutate the repository are
 not head-bound; a mutation that advances the head leaves the session bound
 to the previous root until renewal, which is the explicit signal that

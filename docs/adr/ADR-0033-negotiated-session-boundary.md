@@ -1,7 +1,8 @@
 # ADR-0033: Negotiated session, binding checks, and positional handles
 
 Status: proposed; the S20-330 contract is a draft at revision 1 with
-Council review pending; implementation pending
+Council review pending; implemented under the draft
+(`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`)
 
 Date: 2026-09-03
 

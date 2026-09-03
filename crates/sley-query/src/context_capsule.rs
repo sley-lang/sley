@@ -15,7 +15,7 @@ use core::fmt;
 
 use sley_id::{
     ContextCapsuleId, EntityId, IndexSnapshotId, ObjectId, RootQueryId, SchemaEpochId,
-    SemanticFingerprint, StateRoot, WorkspaceId,
+    SemanticFingerprint, SessionId, StateRoot, WorkspaceId,
 };
 
 use crate::root_query::{Cursor, RootQueryRequest, RootQueryResponse, RootQueryResult};
@@ -26,6 +26,7 @@ const RESPONSE_MAGIC: &[u8; 8] = b"SLEYRQR1";
 const FORMAT_VERSION: u32 = 1;
 const PROFILE_VERSION: u32 = 1;
 const SESSION_BINDING_NONE: u32 = 1;
+const SESSION_BINDING_NEGOTIATED: u32 = 2;
 const COMPLETENESS_COMPLETE: u32 = 1;
 const COMPLETENESS_PAGE: u32 = 2;
 const FLAG_FALSE: u32 = 1;
@@ -150,6 +151,7 @@ pub struct ContextCapsule {
     schema_epoch: SchemaEpochId,
     workspace_id: WorkspaceId,
     class_tag: u32,
+    session: Option<SessionId>,
     completeness: CapsuleCompleteness,
     truncated: bool,
     total_count: u64,
@@ -201,6 +203,13 @@ impl ContextCapsule {
     #[must_use]
     pub const fn class_tag(&self) -> u32 {
         self.class_tag
+    }
+
+    /// The negotiated session the capsule was built under, if any
+    /// (S20-330; `None` is the fixed arm 1).
+    #[must_use]
+    pub const fn session(&self) -> Option<SessionId> {
+        self.session
     }
 
     #[must_use]
@@ -313,6 +322,40 @@ pub fn build_context_capsule(
     request: &RootQueryRequest,
     response: &RootQueryResponse,
 ) -> Result<ContextCapsule, ContextCapsuleError> {
+    build_capsule(request, response, None)
+}
+
+/// Builds the capsule under a negotiated session (S20-330, S20-320 full
+/// revision 2): the session binding arm is `Negotiated(2)` with the
+/// session identity, and the response's provenance must equal the
+/// session's workspace, root, and epoch.
+///
+/// # Errors
+///
+/// Fails `CONTEXT_CAPSULE_SOURCE_INVALID` on a provenance mismatch and
+/// otherwise as `build_context_capsule`.
+pub fn build_context_capsule_bound(
+    request: &RootQueryRequest,
+    response: &RootQueryResponse,
+    session: SessionId,
+    workspace_id: WorkspaceId,
+    root: StateRoot,
+    schema_epoch: SchemaEpochId,
+) -> Result<ContextCapsule, ContextCapsuleError> {
+    if response.workspace_id() != workspace_id
+        || response.root() != root
+        || response.schema_epoch() != schema_epoch
+    {
+        return fail(ContextCapsuleErrorCode::SourceInvalid);
+    }
+    build_capsule(request, response, Some(session))
+}
+
+fn build_capsule(
+    request: &RootQueryRequest,
+    response: &RootQueryResponse,
+    session: Option<SessionId>,
+) -> Result<ContextCapsule, ContextCapsuleError> {
     validate_source(request, response)?;
     let mut work = Work(0);
     let facts = derive_facts(request, response, &mut work)?;
@@ -325,7 +368,15 @@ pub fn build_context_capsule(
         .total_count()
         .checked_sub(response.returned())
         .ok_or_else(|| ContextCapsuleError::new(ContextCapsuleErrorCode::SourceInvalid))?;
-    let mut record = encode_preimage(request, response, completeness, omitted, &facts, &mut work)?;
+    let mut record = encode_preimage(
+        request,
+        response,
+        session,
+        completeness,
+        omitted,
+        &facts,
+        &mut work,
+    )?;
     let capsule_id = ContextCapsuleId::derive(&record);
     append(&mut record, capsule_id.as_bytes(), &mut work)?;
     Ok(ContextCapsule {
@@ -336,6 +387,7 @@ pub fn build_context_capsule(
         schema_epoch: response.schema_epoch(),
         workspace_id: response.workspace_id(),
         class_tag: response.class_tag(),
+        session,
         completeness,
         truncated: response.truncated(),
         total_count: response.total_count(),
@@ -513,6 +565,7 @@ fn derive_facts(
 fn encode_preimage(
     request: &RootQueryRequest,
     response: &RootQueryResponse,
+    session: Option<SessionId>,
     completeness: CapsuleCompleteness,
     omitted: u64,
     facts: &Facts,
@@ -527,7 +580,13 @@ fn encode_preimage(
     append(&mut out, response.root().as_bytes(), work)?;
     append(&mut out, response.snapshot_id().as_bytes(), work)?;
     append(&mut out, response.query_id().as_bytes(), work)?;
-    push_u32(&mut out, SESSION_BINDING_NONE, work)?;
+    match session {
+        None => push_u32(&mut out, SESSION_BINDING_NONE, work)?,
+        Some(session) => {
+            push_u32(&mut out, SESSION_BINDING_NEGOTIATED, work)?;
+            append(&mut out, session.as_bytes(), work)?;
+        }
+    }
     let mut question = Vec::new();
     crate::root_query::encode_question(&mut question, request)?;
     append(&mut out, &question, work)?;
@@ -803,6 +862,49 @@ mod tests {
         assert_eq!(
             ContextCapsuleErrorCode::DictionaryInvalid.as_str(),
             "CONTEXT_CAPSULE_DICTIONARY_INVALID"
+        );
+    }
+
+    #[test]
+    fn a_session_bound_capsule_carries_the_negotiated_arm_and_refuses_foreign_provenance() {
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        let full = QueryLimits::profile_maximum();
+        let (request, response, plain) =
+            capsule(&input, RootQuery::GetRootSummary, full, false, None);
+        let session = SessionId::from_bytes([0x5E; 32]);
+        let bound = build_context_capsule_bound(
+            &request,
+            &response,
+            session,
+            response.workspace_id(),
+            response.root(),
+            response.schema_epoch(),
+        )
+        .unwrap();
+        assert_eq!(bound.session(), Some(session));
+        assert_eq!(plain.session(), None);
+        assert_ne!(bound.capsule_id(), plain.capsule_id());
+        assert_eq!(bound.entities(), plain.entities());
+        assert!(
+            bound
+                .record()
+                .windows(32)
+                .any(|window| window == session.as_bytes())
+        );
+        assert_eq!(
+            build_context_capsule_bound(
+                &request,
+                &response,
+                session,
+                response.workspace_id(),
+                StateRoot::from_bytes([0x34; 32]),
+                response.schema_epoch(),
+            )
+            .unwrap_err()
+            .code(),
+            ContextCapsuleErrorCode::SourceInvalid
         );
     }
 

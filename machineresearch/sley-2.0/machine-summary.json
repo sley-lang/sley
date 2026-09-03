@@ -525,12 +525,12 @@
   "context_capsule_profile": {
     "status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
     "checker": "scripts/check_context_capsule_profile.py",
     "identifier_domain": "sley2.context-capsule.v1",
     "capsule_magic": "SLEYCCP1",
-    "session_binding": "NONE_FIXED_NEGOTIATED_RESERVED_FOR_S20_330",
+    "session_binding": "NONE_OR_NEGOTIATED_WITH_SESSION_ID_S20_330",
     "omission": "EXACT_TOTAL_RETURNED_OMITTED_WITH_TYPED_CURSORS",
     "new_stable_error_codes": 4,
     "new_error_code_range": "32008 through 32011",
@@ -550,7 +550,7 @@
     "fixture_vectors": 23
   },
   "session_handle_profile": {
-    "status": "S20_330_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
@@ -580,7 +580,14 @@
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
     "unblocked_by_restricted_s20_320": false,
-    "implementation_started": false
+    "implementation_started": true,
+    "implementation": [
+      "crates/sley-protocol/src/session.rs",
+      "crates/sley-protocol/src/server.rs",
+      "crates/sley-query/src/context_capsule.rs"
+    ],
+    "closeout": "docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md",
+    "restricted_profile_viable": true
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
@@ -1013,7 +1020,7 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -1056,6 +1063,7 @@
       301,
       302,
       303,
+      304,
       400,
       401,
       402,
@@ -1074,7 +1082,6 @@
       604
     ],
     "reserved_methods": [
-      304,
       305,
       503,
       601,
@@ -1769,7 +1776,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-330-NEGOTIATED-SESSIONS",
+    "next_dependency_complete_package": "S20-420-JSON-BRIDGE",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1903,9 +1910,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_440_IMPLEMENTED_REVIEWS_PENDING_S20_330_NEXT",
+    "status": "S20_330_IMPLEMENTED_REVIEWS_PENDING_S20_420_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-330-NEGOTIATED-SESSIONS",
+    "next_authority_safe_package": "S20-420-JSON-BRIDGE",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1940,7 +1947,7 @@
     "s20_530_aging_rule": "ADR-0024",
     "s20_540_implementation_started": true,
     "s20_510_blocked_by_full_s20_250": false,
-    "session_authority_available": false,
+    "session_authority_available": true,
     "transaction_boundary_available": true,
     "fixed_accepted_head_available": true,
     "named_ref_boundary_available": true,
@@ -1962,7 +1969,8 @@
     "s20_320_full_implemented": true,
     "s20_400_contract_drafted": true,
     "s20_410_implemented": true,
-    "s20_440_implemented": true
+    "s20_440_implemented": true,
+    "s20_330_implemented": true
   },
   "succession": {
     "corpus_version": 1,

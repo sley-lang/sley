@@ -58,7 +58,8 @@ draft contract with reviews pending; the S20-400 SMP1 contract is drafted
 (`docs/spec/SMP1.md` revision 3, ADR-0032) and S20-410 is implemented
 (`docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`) with four methods deferred on
 owner gaps; S20-440 is implemented
-(`docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`). Now
+(`docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`); S20-330 is implemented
+(`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5

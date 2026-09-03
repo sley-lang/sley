@@ -43,7 +43,7 @@ SPEC_MARKERS = (
     "Status: S20-320 full contract",
     "sley2.context-capsule.v1 -> ContextCapsuleId",
     "`build_context_capsule(request, response)`",
-    "SessionBinding = None(1)          // Negotiated(2) reserved for S20-330",
+    "SessionBinding = None(1) | Negotiated(2) || SessionId[32]   // S20-330",
     "## 4. Omission and continuation status",
     "omitted = total_count - returned",
     '"SLEYCCP1"',
@@ -66,6 +66,8 @@ ADR_MARKERS = (
 WORK_PACKAGE_MARKERS = ("`docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md`", "ADR-0031")
 ENGINE_MARKERS = (
     "pub fn build_context_capsule",
+    "pub fn build_context_capsule_bound",
+    "const SESSION_BINDING_NEGOTIATED: u32 = 2;",
     "pub struct ContextCapsule",
     'const MAGIC: &[u8; 8] = b"SLEYCCP1";',
     "const SESSION_BINDING_NONE: u32 = 1;",
@@ -122,7 +124,7 @@ def main() -> int:
         "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
         "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
         "identifier_domain": "sley2.context-capsule.v1",
-        "session_binding": "NONE_FIXED_NEGOTIATED_RESERVED_FOR_S20_330",
+        "session_binding": "NONE_OR_NEGOTIATED_WITH_SESSION_ID_S20_330",
         "new_stable_error_codes": len(CODES),
         "implementation_complete": status == COMPLETE_STATUS,
     }

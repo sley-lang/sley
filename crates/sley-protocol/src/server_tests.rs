@@ -333,7 +333,7 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
         ProtocolErrorCode::MethodUnsupported.numeric()
     );
     assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);
-    let reserved = harness.fail(Method::HandleExpand, Vec::new());
+    let reserved = harness.fail(Method::Diagnostics, Vec::new());
     assert_eq!(reserved.details, RESERVED_METHOD_REASON);
     // Malformed bodies fail before any engine runs.
     let malformed = harness.fail(Method::RevisionRead, vec![1, 2, 3]);
@@ -564,21 +564,16 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let fresh_root = fresh.child("repo");
     std::fs::create_dir(&fresh_root).unwrap();
     let mut other = Server::new(&fresh_root, harness.server.profile().clone()).unwrap();
-    let handshake = other.handshake_id();
-    let open = other
+    // A repository without an accepted head cannot bind a session yet.
+    let premature = other
         .answer(&request_frame(
             None,
             1,
             Method::SessionOpen,
-            handshake.as_bytes().to_vec(),
+            other.handshake_id().as_bytes().to_vec(),
         ))
         .unwrap();
-    let (DecodedFrame::Response(frame), _) =
-        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
-    else {
-        panic!();
-    };
-    let other_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    assert!(premature.failed, "no head, no session");
     let objects: Vec<Vec<u8>> = revision
         .objects()
         .iter()
@@ -592,12 +587,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     ])
     .unwrap();
     let created = other
-        .answer(&request_frame(
-            Some(other_session),
-            1,
-            Method::WorkspaceCreate,
-            body,
-        ))
+        .answer(&request_frame(None, 2, Method::WorkspaceCreate, body))
         .unwrap();
     let (DecodedFrame::Response(frame), _) =
         decode_frame(&created.frame.bytes, MAX_FRAME_BYTES).unwrap()
@@ -734,24 +724,9 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let target_temp = sley_repo::test_support::TempDir::new("smp1-import-target");
     let target_root = target_temp.child("repo");
     let mut target = Server::new(&target_root, harness.server.profile().clone()).unwrap();
-    let target_handshake = target.handshake_id();
-    let open = target
-        .answer(&request_frame(
-            None,
-            1,
-            Method::SessionOpen,
-            target_handshake.as_bytes().to_vec(),
-        ))
-        .unwrap();
-    let (DecodedFrame::Response(frame), _) =
-        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
-    else {
-        panic!();
-    };
-    let target_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
     let imported = target
         .answer(&request_frame(
-            Some(target_session),
+            None,
             1,
             Method::ExchangeImport,
             export_frame.body.clone(),
@@ -773,10 +748,26 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
             .windows(32)
             .any(|window| window == source_genesis.as_bytes())
     );
+    let target_handshake = target.handshake_id();
+    let open = target
+        .answer(&request_frame(
+            None,
+            2,
+            Method::SessionOpen,
+            target_handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert!(!open.failed, "{:?}", ProtocolFailure::decode(&frame.body));
+    let target_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
     let opened = target
         .answer(&request_frame(
             Some(target_session),
-            2,
+            1,
             Method::WorkspaceOpen,
             Vec::new(),
         ))
@@ -1001,5 +992,126 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     assert_eq!(
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::LimitExceeded.numeric()
+    );
+}
+
+#[test]
+fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
+    use sley_repo::test_support::{TempDir, genesis_in_workspace};
+    let mut harness = Harness::new("smp1-330");
+    let genesis_id = harness.genesis;
+    let session = harness.session;
+    // Deterministic issuance: a second server over the same state issues
+    // the same identity, derived under sley2.session.v1.
+    let mut twin = Server::new(&harness.repository, harness.server.profile().clone()).unwrap();
+    let open = twin
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            twin.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(frame.body, session.as_bytes().to_vec());
+    // A positional handle expands under the bound root.
+    let expanded = harness.ok(Method::HandleExpand, encode_uvar(1));
+    assert_eq!(expanded.bounds.returned_entities, 1);
+    assert!(
+        expanded
+            .body
+            .windows(32)
+            .any(|window| window == session.as_bytes())
+    );
+    let unknown = harness.fail(Method::HandleExpand, encode_uvar(7));
+    assert_eq!(unknown.symbol, "SESSION_HANDLE_UNKNOWN");
+    assert_eq!(unknown.code, 33_005);
+    // The head advances: another root under the same workspace replaces the
+    // repository on disk, which is what a commit would leave behind.
+    let (other_temp, _other_transactions, _other_genesis) =
+        genesis_in_workspace("smp1-330-advance", dependency_free_bodies(), &[], 1);
+    let parked = TempDir::new("smp1-330-parked");
+    let parked_repo = parked.child("repo");
+    std::fs::rename(&harness.repository, &parked_repo).unwrap();
+    std::fs::rename(other_temp.child("repo"), &harness.repository).unwrap();
+    let stale = harness.fail(Method::HandleExpand, encode_uvar(1));
+    assert_eq!(stale.symbol, "SESSION_STALE_HANDLE");
+    assert_eq!(stale.code, 33_004);
+    let advanced = harness.fail(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(advanced.symbol, "SESSION_ROOT_ADVANCED");
+    // Methods naming explicit transactions are not head-bound.
+    let explicit = harness.fail(Method::RevisionRead, tx(genesis_id));
+    assert!(
+        !explicit.symbol.starts_with("SESSION_"),
+        "{}",
+        explicit.symbol
+    );
+    // Renewal rebinds to the new head and handles resolve again.
+    let renewed = harness.ok(Method::SessionRenew, session.as_bytes().to_vec());
+    assert_eq!(renewed.body, session.as_bytes().to_vec());
+    let fresh = harness.ok(Method::HandleExpand, encode_uvar(0));
+    assert_eq!(fresh.bounds.returned_entities, 1);
+    let reopened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(reopened.bounds.returned_entities, 1);
+    // T47: a repository of another workspace refuses the session before
+    // anything else, and the same holds for renewal.
+    let (foreign_temp, _foreign_transactions, _foreign_genesis) =
+        genesis_in_workspace("smp1-330-foreign", dependency_free_bodies(), &[], 2);
+    let parked_two = TempDir::new("smp1-330-parked-two");
+    std::fs::rename(&harness.repository, parked_two.child("repo")).unwrap();
+    std::fs::rename(foreign_temp.child("repo"), &harness.repository).unwrap();
+    let mismatch = harness.fail(Method::HandleExpand, encode_uvar(0));
+    assert_eq!(mismatch.symbol, "SESSION_WORKSPACE_MISMATCH");
+    assert_eq!(mismatch.code, 33_001);
+    let refused_renew = harness.fail(Method::SessionRenew, session.as_bytes().to_vec());
+    assert_eq!(refused_renew.symbol, "SESSION_WORKSPACE_MISMATCH");
+    let refused_read = harness.fail(Method::RevisionRead, tx(genesis_id));
+    assert_eq!(refused_read.symbol, "SESSION_WORKSPACE_MISMATCH");
+    // A capsule built under the session carries the negotiated arm.
+    std::fs::rename(&harness.repository, foreign_temp.child("repo")).unwrap();
+    std::fs::rename(parked_two.child("repo"), &harness.repository).unwrap();
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository);
+    let head = transactions.accepted_head().unwrap();
+    let outcome = run_root_query(
+        &harness.repository,
+        head.verified_revision(),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    let capsule = harness.ok(Method::Capsule, outcome.request.preimage().to_vec());
+    assert!(
+        capsule
+            .body
+            .windows(32)
+            .any(|window| window == session.as_bytes())
+    );
+    // Unknown sessions are refused as sessions, not as frames.
+    let ghost = harness
+        .server
+        .answer(&request_frame(
+            Some(SessionId::from_bytes([0xAA; 32])),
+            1,
+            Method::WorkspaceOpen,
+            Vec::new(),
+        ))
+        .unwrap();
+    assert!(ghost.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&ghost.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(
+        failure.code,
+        ProtocolErrorCode::RequestIdConflict.numeric(),
+        "the registry refuses first"
     );
 }

@@ -23,20 +23,21 @@ use sley_policy::{
 };
 use sley_query::{
     Cursor, ImpactEdge, ImpactKind, IndexCompleteness, ModeledEntityKind, QueryLimits,
-    RestrictedQuery, RootQuery, SnapshotContext, build_index_snapshot,
+    RestrictedQuery, RootQuery, SnapshotContext, build_context_capsule_bound, build_index_snapshot,
     build_restricted_query_request, execute_restricted_query,
 };
 use sley_repo::{
     BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, IndexCacheError,
     MergeCommitInput, MergeOutcome, MergeSide, RepositoryQueryError, build_merge_plan,
     commit_merge, compare_complete_roots, export_repository_exchange, import_repository_exchange,
-    judge_merge, run_context_capsule, run_root_query,
+    judge_merge, run_root_query,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
 use sley_state_root::{conformance_registry as state_registry, import_state_root};
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
 
+use crate::session::{HeadBinding, SessionAuthority, SessionError};
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_STREAM, FLAG_CANCEL, FrameKind,
     LimitProfile, Method, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure,
@@ -98,8 +99,7 @@ pub struct Server {
     profile: SelectedProfile,
     handshake_id: ProtocolHandshakeId,
     registry: RequestRegistry,
-    sessions_issued: u64,
-    open_sessions: BTreeSet<SessionId>,
+    authority: SessionAuthority,
     /// Bytes still available to each session under the negotiated
     /// `max_work` budget (contract appendix B).
     budgets: BTreeMap<SessionId, u64>,
@@ -134,8 +134,7 @@ impl Server {
             profile,
             handshake_id,
             registry: RequestRegistry::new(),
-            sessions_issued: 0,
-            open_sessions: BTreeSet::new(),
+            authority: SessionAuthority::new(handshake_id),
             budgets: BTreeMap::new(),
         })
     }
@@ -354,6 +353,20 @@ impl Server {
             }
             return self.session_open(&frame.body);
         }
+        // A repository without an accepted head cannot bind a session, so
+        // the two methods that create one may travel without a session
+        // (contract section 3); under a session they are checked normally.
+        if frame.session.is_none()
+            && matches!(method, Method::WorkspaceCreate | Method::ExchangeImport)
+        {
+            if !self.profile.admits(method) {
+                return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
+            }
+            return match method {
+                Method::WorkspaceCreate => self.workspace_create(&frame.body),
+                _ => self.exchange_import(&frame.body),
+            };
+        }
         let Some(session) = frame.session else {
             return protocol_failure(ProtocolErrorCode::SessionClosed);
         };
@@ -366,7 +379,10 @@ impl Server {
                 .map_err(|error| ProtocolFailure::protocol(error.code()))?;
             return protocol_failure(ProtocolErrorCode::LimitExceeded);
         }
-        let outcome = self.dispatch_admitted(session, method, frame);
+        let outcome = match self.session_check(session, method) {
+            Ok(()) => self.dispatch_admitted(session, method, frame),
+            Err(failure) => Err(failure),
+        };
         // Synchronous server: the request completes before the next frame.
         if self.registry.is_open(session) {
             self.registry
@@ -399,12 +415,21 @@ impl Server {
         let body = frame.body.as_slice();
         match method {
             Method::SessionOpen => protocol_failure(ProtocolErrorCode::InternalInvariant),
-            Method::SessionRenew => self.plain(session.as_bytes().to_vec()),
+            Method::SessionRenew => {
+                let (_, binding) = self.head_binding()?;
+                let record = self
+                    .authority
+                    .renew_session(session, &binding)
+                    .map_err(session_failure)?;
+                self.plain(record.session_id.as_bytes().to_vec())
+            }
             Method::SessionClose => {
                 self.registry
                     .close(session)
                     .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-                self.open_sessions.remove(&session);
+                self.authority
+                    .close_session(session)
+                    .map_err(session_failure)?;
                 self.budgets.remove(&session);
                 self.plain(Vec::new())
             }
@@ -435,7 +460,8 @@ impl Server {
             Method::QueryRoot | Method::QueryContinue => {
                 self.query_root(body, method == Method::QueryContinue)
             }
-            Method::Capsule => self.capsule(body),
+            Method::Capsule => self.capsule(body, session),
+            Method::HandleExpand => self.handle_expand(body, session),
             Method::QueryRestricted => self.query_restricted(body),
             Method::ReceiptRead => self.receipt_read(body),
             Method::Checkout => self.checkout(body),
@@ -464,12 +490,47 @@ impl Server {
             Method::GcDryRun | Method::GcCollect | Method::Execute | Method::Report => {
                 Err(unsupported(DEFERRED_DISPATCH_REASON))
             }
-            Method::HandleExpand
-            | Method::Diagnostics
+            Method::Diagnostics
             | Method::RefMoveProtected
             | Method::TestsSelected
             | Method::TestsAffected => Err(unsupported(RESERVED_METHOD_REASON)),
         }
+    }
+
+    /// Head-bound methods answer over the accepted head without naming it
+    /// (contract section 3). `handle.expand` performs the same root check
+    /// itself and reports `SESSION_STALE_HANDLE`.
+    const fn head_bound(method: Method) -> bool {
+        matches!(
+            method,
+            Method::WorkspaceOpen
+                | Method::QueryRoot
+                | Method::QueryContinue
+                | Method::Capsule
+                | Method::QueryRestricted
+        )
+    }
+
+    fn head_binding(&self) -> Result<(VerifiedRevision, HeadBinding)> {
+        let head = self.head()?;
+        let record = &head.state_root().record;
+        let binding = HeadBinding {
+            workspace_id: record.workspace_id,
+            root: head.state_root().root,
+            schema_epoch: record.schema_epoch_id,
+        };
+        Ok((head, binding))
+    }
+
+    fn session_check(&self, session: SessionId, method: Method) -> Result<()> {
+        if matches!(method, Method::SessionRenew | Method::SessionClose) {
+            return Ok(());
+        }
+        let (_, binding) = self.head_binding()?;
+        self.authority
+            .check_session(session, &binding, Self::head_bound(method))
+            .map(|_| ())
+            .map_err(session_failure)
     }
 
     fn plain(&self, body: Vec<u8>) -> Result<(Vec<u8>, BoundedContext)> {
@@ -486,19 +547,15 @@ impl Server {
         if claimed != *self.handshake_id.as_bytes() {
             return protocol_failure(ProtocolErrorCode::Downgrade);
         }
-        self.sessions_issued = self
-            .sessions_issued
-            .checked_add(1)
-            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded))?;
-        let mut preimage = Vec::with_capacity(48);
-        preimage.extend_from_slice(b"session:");
-        preimage.extend_from_slice(self.handshake_id.as_bytes());
-        preimage.extend_from_slice(&self.sessions_issued.to_be_bytes());
-        let session = SessionId::from_bytes(*ProtocolHandshakeId::derive(&preimage).as_bytes());
+        let (_, binding) = self.head_binding()?;
+        let record = self
+            .authority
+            .open_session(&binding)
+            .map_err(session_failure)?;
+        let session = record.session_id;
         self.registry
             .open(session)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-        self.open_sessions.insert(session);
         self.budgets.insert(session, self.profile.limits.max_work);
         self.plain(session.as_bytes().to_vec())
     }
@@ -738,7 +795,31 @@ impl Server {
         Ok((body, bounds))
     }
 
-    fn capsule(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+    fn handle_expand(&self, body: &[u8], session: SessionId) -> Result<(Vec<u8>, BoundedContext)> {
+        let handle = single_uvar(body)?;
+        let (head, binding) = self.head_binding()?;
+        let request = CompleteRootRequest::extract(&head)
+            .map_err(|error| owner(error.code(), error.numeric()))?;
+        let kinds: Vec<u32> = request
+            .borrowed()
+            .iter()
+            .map(|entity| entity.kind().tag())
+            .collect();
+        let facts = self
+            .authority
+            .expand_handle(session, &binding, request.bound_objects(), &kinds, handle)
+            .map_err(session_failure)?;
+        let record = scb(encode_record(&[
+            (1, facts.entity.as_bytes().to_vec()),
+            (2, encode_uvar(u64::from(facts.kind))),
+            (3, facts.object_id.as_bytes().to_vec()),
+            (4, facts.bound_root.as_bytes().to_vec()),
+            (5, facts.session_id.as_bytes().to_vec()),
+        ]))?;
+        self.counted(record, 1)
+    }
+
+    fn capsule(&self, body: &[u8], session: SessionId) -> Result<(Vec<u8>, BoundedContext)> {
         let decoded = decode_root_query(body)?;
         let revision = self.head()?;
         let outcome = run_root_query(
@@ -753,15 +834,18 @@ impl Server {
         if outcome.request.preimage() != body {
             return owner_failure("QUERY_SNAPSHOT_MISMATCH", 31_003);
         }
-        let (capsule, _) = run_context_capsule(
-            &self.repository,
-            &revision,
-            decoded.query,
-            decoded.limits,
-            decoded.allow_continuation,
-            decoded.after,
+        let record = self.authority.record(session).copied().ok_or_else(|| {
+            session_failure(SessionError::new(crate::session::SessionErrorCode::Unknown))
+        })?;
+        let capsule = build_context_capsule_bound(
+            &outcome.request,
+            &outcome.response,
+            session,
+            record.workspace_id,
+            record.bound_root,
+            record.schema_epoch,
         )
-        .map_err(|error| repository_query_failure(&error))?;
+        .map_err(|error| owner(error.code().as_str(), error.code().numeric()))?;
         let body = capsule.record().to_vec();
         let bounds = BoundedContext {
             applied_limits: self.profile.limits,
@@ -1028,6 +1112,16 @@ impl Server {
         };
         Ok((body, bounds))
     }
+}
+
+fn session_failure(error: SessionError) -> ProtocolFailure {
+    let mut failure = owner(error.code().as_str(), error.code().numeric());
+    failure.retryability = match error.code() {
+        crate::session::SessionErrorCode::RootAdvanced
+        | crate::session::SessionErrorCode::StaleHandle => Retryability::AfterRequery,
+        _ => Retryability::Never,
+    };
+    failure
 }
 
 fn repository_query_failure(error: &RepositoryQueryError) -> ProtocolFailure {

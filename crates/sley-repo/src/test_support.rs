@@ -99,10 +99,20 @@ pub fn genesis(
     bodies: Vec<(u8, EntityBodyValue)>,
     dependency_roots: &[StateRoot],
 ) -> (TempDir, TransactionRepository, sley_id::TransactionId) {
+    genesis_in_workspace(label, bodies, dependency_roots, 1)
+}
+
+/// A trusted genesis under a chosen workspace identity byte.
+pub fn genesis_in_workspace(
+    label: &str,
+    bodies: Vec<(u8, EntityBodyValue)>,
+    dependency_roots: &[StateRoot],
+    workspace_byte: u8,
+) -> (TempDir, TransactionRepository, sley_id::TransactionId) {
     let temp = TempDir::new(label);
     let root = temp.child("repo");
     fs::create_dir(&root).unwrap();
-    let workspace_id = fixed(1, WorkspaceId::from_bytes);
+    let workspace_id = fixed(workspace_byte, WorkspaceId::from_bytes);
     let principal_id = fixed(2, PrincipalId::from_bytes);
     let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
         1_000, 1_000, 1_000, 100, 100, 100,

@@ -1,6 +1,7 @@
 # Context Capsule Profile v1
 
-Status: S20-320 full contract draft, revision 1 (2026-09-03); implemented
+Status: S20-320 full contract draft, revision 2 (2026-09-03; revision 2 fills
+the `Negotiated` session arm from S20-330); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Implementation state is tracked in the
@@ -57,15 +58,17 @@ Provenance {
   snapshot_id:  IndexSnapshotId,
   query_id:     RootQueryId
 }
-SessionBinding = None(1)          // Negotiated(2) reserved for S20-330
+SessionBinding = None(1) | Negotiated(2) || SessionId[32]   // S20-330
 ```
 
 Provenance is copied from the response, whose fields the engine bound to a
-verified root; the capsule adds no claim of its own. The session binding
-is the fixed arm `None` at this revision: S20-330 owns negotiated session
-authority and will add the `Negotiated` arm as a contract revision. The
-capsule is therefore root-, epoch-, and workspace-bound evidence, and never
-a handle.
+verified root; the capsule adds no claim of its own. A capsule built
+outside a session carries arm `None`. A capsule built under a negotiated
+session (S20-330, `build_context_capsule_bound`) carries arm `Negotiated`
+with the `SessionId`, and the builder fails `CONTEXT_CAPSULE_SOURCE_INVALID`
+when the response's workspace, root, or epoch differs from the session's
+binding. The capsule is root-, epoch-, and workspace-bound evidence, and
+never a handle.
 
 ## 3. Question
 
@@ -132,7 +135,8 @@ the S20-310 encodings.
 capsule_preimage =
   "SLEYCCP1" || u32be(format_version=1) || u32be(profile_version=1) ||
   WorkspaceId[32] || SchemaEpochId[32] || StateRoot[32] ||
-  IndexSnapshotId[32] || RootQueryId[32] || u32be(session_binding=1) ||
+  IndexSnapshotId[32] || RootQueryId[32] ||
+  u32be(session_binding) || (SessionId[32] when session_binding = 2) ||
   u32be(class_tag) || class_body || query_limits ||
   u32be(allow_continuation) || option(cursor, after) ||
   u32be(completeness) || u32be(truncation) ||

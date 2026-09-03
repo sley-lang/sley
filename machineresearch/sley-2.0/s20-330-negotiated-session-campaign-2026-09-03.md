@@ -40,6 +40,19 @@ checker `scripts/check_session_handle_profile.py`.
 - Whether a session should expire by request count in addition to the
   renewal limit and the S20-440 budget.
 
+## Implementation under the draft (2026-09-03)
+
+- `sley-id` domain 35 `sley2.session.v1`; `crates/sley-protocol/src/session.rs`
+  (`SessionAuthority`, positional handles, eight codes); the server issues,
+  checks, renews, closes, and expands handles; `workspace.create` and
+  `exchange.import` travel without a session (SMP1 revision 5); the capsule
+  gains `build_context_capsule_bound` (S20-320 revision 2).
+- Closeout `docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`; summary
+  status `S20_330_IMPLEMENTED_REVIEW_PENDING`; frontier re-anchored to the
+  S20-420 JSON bridge.
+
+Tier 2 results are appended below when the handoff gate runs.
+
 ## Commits
 
-- contract draft revision 1: the commit that adds this file.
+- contract draft revision 1: `c018cc8` (guard fix `3f598b4`).

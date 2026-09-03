@@ -99,8 +99,9 @@ for marker in [
     # S20-510 (ADR-0027) added sley2.semantic-delta.v1 as the thirty-first;
     # S20-520 (ADR-0028) added sley2.merge-conflict.v1 as the thirty-second;
     # S20-310 full (ADR-0030) added sley2.root-query.v1 as the thirty-third;
-    # S20-410 (ADR-0032) added sley2.protocol-frame.v1 as the thirty-fourth.
-    "const ALL: [Self; 34]",
+    # S20-410 (ADR-0032) added sley2.protocol-frame.v1 as the thirty-fourth;
+    # S20-330 (ADR-0033) added sley2.session.v1 as the thirty-fifth.
+    "const ALL: [Self; 35]",
 ]:
     if marker not in identifier_source:
         problems.append(f"identifier-registry:missing:{marker}")

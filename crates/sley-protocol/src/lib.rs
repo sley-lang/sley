@@ -11,7 +11,9 @@
 #![allow(missing_docs)]
 
 pub mod server;
+pub mod session;
 pub use server::*;
+pub use session::*;
 #[cfg(test)]
 mod server_tests;
 
@@ -173,21 +175,8 @@ fn scb<T>(result: core::result::Result<T, sley_scb1::ScbError>) -> Result<T> {
 // Identities and profiles
 // ---------------------------------------------------------------------------
 
-/// Opaque session identity issued by the S20-330 session authority.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct SessionId([u8; 32]);
-
-impl SessionId {
-    #[must_use]
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    #[must_use]
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
+/// The negotiated session identity (S20-330, `sley2.session.v1`).
+pub use sley_id::SessionId;
 
 /// Negotiable limits (contract section 2).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -565,11 +554,7 @@ impl Method {
     pub const fn is_reserved(self) -> bool {
         matches!(
             self,
-            Self::HandleExpand
-                | Self::Diagnostics
-                | Self::RefMoveProtected
-                | Self::TestsSelected
-                | Self::TestsAffected
+            Self::Diagnostics | Self::RefMoveProtected | Self::TestsSelected | Self::TestsAffected
         )
     }
 
@@ -1977,7 +1962,7 @@ mod tests {
                 .iter()
                 .filter(|method| method.is_reserved())
                 .count(),
-            5
+            4
         );
         assert_eq!(Method::GcDryRun.name(), "gc.dry_run");
         assert_eq!(Method::Report.family(), 6);
