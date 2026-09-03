@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 190,
+  "obligation_count": 193,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -513,6 +513,36 @@
         "P2"
       ],
       "state": "HISTORICAL_ROUND"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "ariadne_contract_review",
+      "package_status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "epoch_migration_policy",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "nabu_architecture_review",
+      "package_status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "epoch_migration_policy",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "vulcan_surface_review",
+      "package_status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "epoch_migration_policy",
+      "severities": [],
+      "state": "PENDING"
     },
     {
       "declares_closed_findings": false,
@@ -2190,7 +2220,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "5e09337ab25ba677d07a619fae1932af6b6f0f1ed0d0ff3f6489231a2cb48fdd",
+  "obligations_digest": "4e368a7a68232d6036d73f37dae2340c491a99276d308f0ddb530d04261b694a",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2251,6 +2281,18 @@
     {
       "field": "vulcan_surface_review",
       "section": "decision_dossier"
+    },
+    {
+      "field": "ariadne_contract_review",
+      "section": "epoch_migration_policy"
+    },
+    {
+      "field": "nabu_architecture_review",
+      "section": "epoch_migration_policy"
+    },
+    {
+      "field": "vulcan_surface_review",
+      "section": "epoch_migration_policy"
     },
     {
       "field": "ariadne_contract_review",
@@ -2469,7 +2511,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "4e8d16f9d9f05cbd2f64c6228430a7e39b1d58d48d77346757b5e8d7d31e519f",
+  "register_digest": "ecf12aba2fcef9dbdb4fe795378639d6090597adb39a1eacfff3dbc64fdfb83b",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2484,7 +2526,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 69
+    "PENDING": 72
   },
   "unclassified": [
     {

@@ -2541,8 +2541,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 190,
-    "open_reviews": 69,
+    "obligations": 193,
+    "open_reviews": 72,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2580,7 +2580,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "69 review obligations are open",
+      "72 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -2613,5 +2613,32 @@
     "second_host_attestation": "multi-host reproducibility needs the gated laboratory lane",
     "release_decision": "the dossier derives BLOCKED; the decision and any publication are the operator's",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains"
+  },
+  "epoch_migration_policy": {
+    "status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/EPOCH_MIGRATION_POLICY_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0046-epoch-migration-policy-and-profile-preference.md",
+    "checker": "scripts/check_epoch_migration_policy.py",
+    "master_goal_deliverable": "M6 migration policy for Sley 2.x epochs",
+    "epoch_forcing_facts": 9,
+    "migration_obligations": 7,
+    "approvals_required": [
+      "schema_owner",
+      "architecture_owner",
+      "surface_owner",
+      "operator"
+    ],
+    "profile_separation_preferred": true,
+    "epoch_2_agenda_items": 3,
+    "epoch_created": false,
+    "migration_performed": false,
+    "active_epochs": 1,
+    "ga_claimed": false,
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
   }
 }

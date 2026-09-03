@@ -52,3 +52,4 @@ Current records:
 - ADR-0043: the decision dossier is derived, and the decision is not
 - ADR-0044: candidate operation analysis runs through the VM judgment owner
 - ADR-0045: the transaction semantic profile names the analysis that validated the program
+- ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
