@@ -46,10 +46,11 @@ HEAD.
    accepted state. `make s20-530-verify` runs
    `scripts/verify_s20_530_accepted_state.py`, which clones the repository into
    an isolated directory, checks out the confirmation commit `cc0f92f` on a
-   local `main` branch, copies the source repository's exact `.git/config`, and
-   runs the no-argument checker there. It must print
+   local `main` branch, writes the exact `.git/config` bytes the checker
+   freezes, and runs the no-argument checker there. It is required to print
    `S20-530 crash-recovery contract check: PASS (100 exact matrix rows;
-   implementation_complete=True)`.
+   implementation_complete=True)`; each completed run is recorded in the
+   S20-530 closeout audit.
 2. `make quick` runs `scripts/check_s20_530_acceptance_anchor.py` instead of
    the full checker. The anchor verifies that the validated, acceptance, and
    confirmation commits are ancestors of HEAD; that the specification,
@@ -62,10 +63,14 @@ HEAD.
    work-package table carries the S20-530 row markers. It uses only read-only
    Git object commands.
 3. The frozen S20-530 surfaces are immutable history: the specification,
-   ADR-0023, the checker, the runner, the reconciler, the freeze evidence, the
-   test plan, the closeout evidence, and the retained logs may not change. A
-   change to any of them is a new contract version and requires a fresh
-   freeze, closeout, and receipts under the S20-530 contract's own rules.
+   ADR-0023, the checker, the runner, the reconciler, the test-plan builder
+   and grouped-M2 renderer, the freeze evidence, the test plan, the closeout
+   evidence, and the retained logs may not change. By construction the frozen
+   checker cannot pass at any commit after the confirmation commit: it binds
+   the whole workspace, the owner-crate module inventories, and the exact
+   test-module attribute chains, and the first ADR-0024 commits already add a
+   lint-allow attribute chain to the frozen test modules. That is expected;
+   the frozen checker is a statement about the accepted state only.
 4. Later development that changes the owner sources of an accepted package
    (for S20-530: `crates/sley-store/src/lib.rs`,
    `crates/sley-txn/src/repository.rs`, `crates/sley-repo/src/refs.rs`,
@@ -73,9 +78,15 @@ HEAD.
    ordinary Tier 1 and Tier 2 gates, by the mapped tests that remain in the
    crates and run under `cargo test` and `make check-changed`, and by the
    changing package's own contract and review. Such a change does not re-open
-   the accepted closeout. The operator may order a re-validation at any later
-   commit with `make s20-530-verify` pointed at that commit through
-   `--commit`, after a fresh closeout and receipts have been produced for it.
+   the accepted closeout. After acceptance, live ownership of an owner source
+   returns to the package that currently owns it in the work-package table
+   (for `crates/sley-repo/src/refs.rs`, S20-500 and its successors); the
+   accepted package retains only its frozen surfaces. A re-validation of
+   S20-530 at a later commit is a new contract version (v14 or later) under
+   the S20-530 contract's own rules: a fresh freeze, closeout, and receipts
+   recorded at versioned evidence paths, never by overwriting the frozen v13
+   paths; `make s20-530-verify --commit` then points the historical
+   verification at that version's confirmation commit.
 5. This ADR supersedes only the post-validation binding rule of ADR-0023 v12
    at HEADs after the confirmation commit. ADR-0023 itself is unchanged and
    remains the contract authority at the accepted state.

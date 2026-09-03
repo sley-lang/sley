@@ -74,8 +74,43 @@ evidence is intact as immutable history. Later changes to the owner sources
 are governed by the ordinary gates, the mapped tests, and the changing
 package's own contract.
 
-Bounded Nabu and Vulcan reviews of ADR-0024 and the anchor: see the
-"Aging rule review" section below once recorded.
+## Aging rule review
+
+Bounded reviews on `claude-cli/claude-opus-5` of commits `3036c15` and
+`18d4296` (range `cc0f92f..18d4296`), advisory because ADR-0024 is not an
+S20-530 contract phase:
+
+- Nabu, session `forge-nabu-s20-530-aging-20260903T012356-62f886b2`
+  (2026-09-03T01:28:33Z): `PASS_AGING_RULE`, no blocking finding. Advisory
+  P2: the ADR-0024 re-validation wording was not executable because the
+  frozen checker reads the v13 evidence at frozen paths and rejects the added
+  lint-allow attribute chain by construction; P3: the anchor did not bind its
+  own Makefile registration, the closeout audit's fact header, or the
+  test-plan builder and grouped-M2 renderer; the verify script copied the live
+  `.git/config`; ownership reversion after acceptance was unstated; the first
+  `make s20-530-verify` run had not completed.
+- Vulcan, session `forge-vulcan-s20-530-aging-20260903T012356-3f3125a1`
+  (2026-09-03T01:33:30Z): `PASS_AGING_RULE`, no blocking finding. Confirmed
+  the range touches no production code, conformance vector, or S20-530 bound
+  digest, that the T54 delta is counters-only with zero findings, and that
+  the verify script cannot pass falsely. Advisory P2: gate removal and the
+  anchor's own trust base were unbound; P3: tree modes were not compared, the
+  clone ran without a clean Git environment, and the `dead_code` allow could
+  hide a dropped `#[test]`; P4: some machine-summary fields and the nested
+  receipt digests were not compared.
+
+Disposition (commit after `18d4296`): ADR-0024 sections 1, 3, and 4 restate
+the rule executably (re-validation is a new contract version at versioned
+evidence paths; live ownership returns to the current package owner; the
+frozen checker cannot pass after the confirmation commit by construction);
+the anchor now binds its `make quick` line and the `s20-530-verify` target,
+this audit's fact header, the test-plan builder and renderer, tree modes,
+every machine-summary S20-530 scalar, the six receipt rows byte-for-byte
+against the frozen evidence, the presence of all 419 mapped tests with
+`#[test]` in their owner crates, and the digests of ADR-0024 and the verify
+script; the verify script writes the frozen `.git/config` and
+`.git/info/exclude` bytes and runs Git with a clean environment. The first
+`make s20-530-verify` result is recorded below when it completes.
 
 ## Validation record
 
