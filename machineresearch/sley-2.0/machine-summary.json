@@ -194,6 +194,27 @@
     "vulcan_final_review": "PASS",
     "implementation_complete": true
   },
+  "complete_entity_impact_profile": {
+    "status": "S20_250_FULL_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/COMPLETE_ENTITY_IMPACT_PROFILE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0026-complete-entity-model-boundary.md",
+    "checker": "scripts/check_complete_entity_impact_profile.py",
+    "normative_model": "crates/sley-ssmc",
+    "entity_kinds": 18,
+    "six_kind_fingerprints": false,
+    "edge_kinds": 12,
+    "closure_rules": 11,
+    "new_stable_error_codes": 12,
+    "new_error_code_range": "25013 through 25024",
+    "restricted_consumers": "FAIL_CLOSED_KINDS_4_TO_15_ONLY",
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "council_unavailability_evidence": "machineresearch/sley-2.0/s20-250-full-entity-bodies-campaign-2026-09-03.md",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
+  },
   "vm_lowering_profile": {
     "status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
     "full_ga_complete": false,

@@ -125,6 +125,15 @@ for modeled SSMC1 kinds 4 through 15. They do not claim a complete-root index;
 kinds 1 through 3 and 16 through 18 remain unsupported until their semantic
 bodies enter the Rust model.
 
+S20-250 full reserves numeric codes 25013 through 25024 for the exact
+`IMPACT_ROOT_*` closure failures listed in
+`COMPLETE_ENTITY_IMPACT_PROFILE_V1.md` (contract draft; frozen with that
+contract). They cover the complete-root request over all eighteen SSMC1
+kinds: binding and inventory equality, the single workspace, package
+membership, namespace roots and tree, member ownership, export scoping,
+entry-point and dependency-root equality, and dependency-binding ownership.
+They do not claim semantic comparison, merge, or the full S20-300 snapshot.
+
 S20-260 freezes numeric codes 26000 through 26006 for the exact `VM_LOWER_*`
 failures listed in `VM_LOWERING_PROFILE_V1.md`. They cover only the restricted
 epoch-1 O0 lowering profile for all five terminators and the three validated

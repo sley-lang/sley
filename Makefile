@@ -15,6 +15,7 @@ quick:
 	python3 scripts/check_effect_system.py
 	python3 scripts/check_contract_test_profile.py
 	python3 scripts/check_fingerprint_impact_profile.py
+	python3 scripts/check_complete_entity_impact_profile.py
 	python3 scripts/check_vm_lowering_profile.py
 	python3 scripts/check_vm_execution_profile.py
 	python3 scripts/check_reference_adapter_profile.py
