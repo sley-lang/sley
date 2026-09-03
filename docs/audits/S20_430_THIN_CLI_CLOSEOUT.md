@@ -49,8 +49,7 @@ The implementation provides:
 
 - Contract draft revision 1, ADR-0035, stage checker, and rule audit at
   `d5fc242`; bridge revision 3 and the offered hello at `6e6b6bc`;
-  revision 2 and the implementation in the commit recorded in the campaign
-  record.
+  revision 2 and the implementation at `c680894`.
 - Endpoint tests (`cargo test -p sley-cli`, eight tests over a trusted
   genesis repository): byte-mode answers byte-identical to a direct
   `Server` over the same repository with the report's counts; JSON mode
@@ -100,7 +99,10 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 is recorded in
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`c680894` (`make core` 982 tests, `make conformance` 19 oracles,
+`make adversarial` 596 tests, `make fuzz-smoke`, and both SMP1 persistent
+smoke gates, all exit 0 in 40 seconds of wall time) and is recorded in
 `machineresearch/sley-2.0/s20-430-thin-cli-campaign-2026-09-03.md`. The
 full `make v1` gate was skipped because this is a subsystem handoff, not a
 release boundary; `make v2` and `make release-check` remain intentionally

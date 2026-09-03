@@ -45,4 +45,19 @@ Contract: `docs/spec/SLEY_CLI_V1.md`, ADR-0035, stage checker
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0035, stage checker, rule audit |
+| Contract draft revision 1 | `d5fc242` | green | ADR-0035, stage checker, rule audit |
+| Bridge revision 3 and `Server::offered_hello` | `6e6b6bc` | green | method tag zero renders; failure envelope; offered hello test |
+| Implementation, revision 2 | `c680894` | green | `crates/sley-cli`; 8 endpoint tests; rule audit PASS; closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md` |
+
+## Tier 2 handoff record (2026-09-03, at `c680894`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 15 s | 982 tests passed, 0 failed across 39 test binaries |
+| `make conformance` | exit 0 | 10 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 596 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | 1 s | 5 bounded smoke tests passed |
+| `make smp1-json-bridge-persistent-fuzz-smoke` | exit 0 | 2 s | 632 runs, PASS |
+| `make smp1-persistent-fuzz-smoke` | exit 0 | 3 s | 653 runs, PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
