@@ -45,7 +45,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Contract draft revision 1 | `d1217ad` | green | ADR-0039, stage checker |
 | Slice E1 (data), revision 2 | `f1a5e6f` | green | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
 | Slice E2 (checked integers), revision 3 | `2ff19c0` | green | `checked_integer` in `extended.rs`; 24 exact outcomes over widths 8 and 128, 4 rejections; 3 vectors |
-| Slice E3 (floats), revision 4 | pending | pending | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
+| Slice E3 (floats), revision 4 | `785b92d` | green | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
@@ -70,6 +70,18 @@ Logs were captured under the session scratchpad; `make v1` was skipped because t
 | `make conformance` | exit 0 | 10 s | 19 oracle results PASS |
 | `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
 | `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
+## Slice E3 Tier 2 handoff record (2026-09-03, at `785b92d`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 991 tests passed, 0 failed |
+| `make conformance` | exit 0 | 10 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | 1 s | 5 bounded smoke tests passed |
 | `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
 
 Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
