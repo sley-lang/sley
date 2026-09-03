@@ -702,7 +702,7 @@
     "implementation_complete": true
   },
   "repository_exchange": {
-    "status": "S20_540_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_540_COMPLETE",
     "contract": "docs/spec/REPOSITORY_EXCHANGE_V1.md",
     "adr": "docs/adr/ADR-0025-repository-exchange-boundary.md",
     "design_brief": "machineresearch/sley-2.0/s20-540-pack-exchange-design-brief-2026-09-03.md",
@@ -724,7 +724,7 @@
     "nabu_design_consult_session": "forge-nabu-s20-540-design-20260903T013712-0fb98776",
     "ariadne_contract_review": "PASS_CONTRACT_DRAFT_REVISION_6",
     "vulcan_import_surface_review": "PASS_CONTRACT_DRAFT_REVISION_4_NOTES_APPLIED_IN_REVISION_5",
-    "implementation_complete": false,
+    "implementation_complete": true,
     "contract_revision": 7,
     "ariadne_contract_review_revision_1": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
     "ariadne_contract_review_revision_1_session": "forge-ariadne-s20-540-contract-20260903T014755-7931f8f9",
@@ -757,12 +757,15 @@
     "ariadne_contract_review_revision_7": "PASS_CONTRACT_DRAFT_FRAMING_CONFIRMED",
     "ariadne_contract_review_revision_7_session": "forge-ariadne-s20-540-pass6-20260903T030956-34fa856b",
     "interruption_rows_tested": 7,
-    "rust_unit_tests": 10,
+    "rust_unit_tests": 12,
     "closeout_audit": "docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md",
     "tier2": "PASS_2026-09-03T03:19Z_core_conformance_adversarial_fuzz-smoke_exchange-persistent-fuzz-smoke",
-    "nabu_implementation_review": "PENDING",
-    "ariadne_implementation_review": "PENDING",
-    "vulcan_implementation_review": "PENDING"
+    "nabu_implementation_review": "PASS_IMPLEMENTATION",
+    "ariadne_implementation_review": "PASS_IMPLEMENTATION_AFTER_P1_REMEDIATION",
+    "vulcan_implementation_review": "PASS_IMPLEMENTATION",
+    "nabu_implementation_review_session": "forge-nabu-s20-540-implementation-20260903T032106-699aad57",
+    "ariadne_implementation_review_session": "forge-ariadne-s20-540-impl-rereview-20260903T033958-dca29d66",
+    "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -951,7 +954,7 @@
     "manual_command": "python3 scripts/run_exchange_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "failed_preflight_target_writes": 0,
-    "vulcan_review": "PENDING_S20_540_IMPLEMENTATION_REVIEW",
+    "vulcan_review": "PASS_IMPLEMENTATION",
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md"
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
@@ -1366,7 +1369,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-540-PACK-EXCHANGE",
+    "next_dependency_complete_package": "S20-250-FULL-ENTITY-BODIES",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true
   },
@@ -1492,9 +1495,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_530_COMPLETE_S20_540_PENDING",
+    "status": "S20_540_COMPLETE_REPOSITORY_LANE_BLOCKED_BY_FULL_S20_250",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-540-PACK-EXCHANGE",
+    "next_authority_safe_package": "S20-250-FULL-ENTITY-BODIES",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1541,7 +1544,8 @@
     "required_specialist_review": "PASS_S20_500_NABU_ARIADNE_VULCAN",
     "focused_semantic_security_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
     "full_v2_eligible": false,
-    "release_check_eligible": false
+    "release_check_eligible": false,
+    "s20_540_complete": true
   },
   "succession": {
     "corpus_version": 1,

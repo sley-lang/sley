@@ -126,7 +126,7 @@ expected = {
     "merge_engine_production_boundary": False,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-540-PACK-EXCHANGE",
+    "next_dependency_complete_package": "S20-250-FULL-ENTITY-BODIES",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -148,7 +148,7 @@ for path, marker in [
     (GAPS, "S20-350 is complete as a proposal-only construction boundary"),
     (AUDIT, "No placeholder merge target is created"),
     (AUDIT, "S20-510 remains blocked"),
-    (AUDIT, "S20-540 pack exchange is the next dependency-complete"),
+    (AUDIT, "full S20-250 entity bodies are the next dependency-complete"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

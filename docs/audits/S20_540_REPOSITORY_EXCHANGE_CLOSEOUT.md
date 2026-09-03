@@ -1,6 +1,6 @@
 # S20-540 Repository Exchange Closeout
 
-Status: **S20-540 clone-equivalent repository exchange implemented under the frozen v1 contract; implementation reviews recorded below; the Sley 2 goal remains incomplete**
+Status: **S20-540 clone-equivalent repository exchange complete under the frozen v1 contract with Nabu, Ariadne, and Vulcan implementation receipts; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -143,7 +143,23 @@ commit `7ef7b02`:
   and checks Nabu named, now added; `EXCHANGE_INTERNAL_INVARIANT` is
   recorded as reserved below. A limited Ariadne re-review is recorded when
   it completes.
-- Vulcan (QA and security): recorded when it completes.
+- Ariadne re-review, session
+  `forge-ariadne-s20-540-impl-rereview-20260903T033958-dca29d66`:
+  `PASS_IMPLEMENTATION`; every first-review item closed, the 54008 and
+  54019 disclosures accepted; three residual P3 notes applied in the
+  finalizing commit (layout allowlist disclosed, aborted-import marker
+  removed, oracle environment stated).
+- Vulcan (QA and security), session `forge-vulcan-s20-540-implementation-20260903T032106-9c15e773`:
+  `PASS_IMPLEMENTATION`, no P0 or P1. Its P2 (the clone phases lacked the
+  marked-root precondition, so an exclusive-maintenance caller could graft
+  receipts into an unmarked repository) is closed in the finalizing commit:
+  both phases refuse an unmarked root with `TXN_ALREADY_INITIALIZED`, with a
+  test. Its P3 and P4 notes are recorded in the reserved and deferred
+  sections. Vulcan re-ran the exchange tests, the spec checker, and the
+  Python oracle under `uv` and reported PASS.
+
+Nabu, Ariadne, and Vulcan each returned PASS on the closeout commit or its
+remediation with no open P0 or P1 finding.
 
 ## Reserved and unreachable codes
 
@@ -159,3 +175,28 @@ commit `7ef7b02`:
 - Export builds the pack over exactly the committed roots and preserves any
   `PACK_*` failure of dependency closure; the exportable class is therefore
   the contract's literal export step 4, narrower than the importable class.
+- A marked incomplete clone may carry only the known repository layout
+  entries (`exchange`, `objects`, `transactions`, `heads`, `locks`,
+  `branches`, `refs`); any other root entry is `EXCHANGE_TARGET_NOT_EMPTY`.
+  This is a fail-closed implementation rule stricter than the contract's
+  incomplete-clone bullet, which names only receipts, origins, refs, and the
+  head.
+- When the owned re-classification aborts, a marker that the aborted call
+  itself wrote is removed so a fresh target is not jammed; a marker that
+  predated the call is left in place. The advisory-to-marker window can
+  still leave a marker in a directory that another process turned into a
+  repository at the same instant; concurrent creation of the same target is
+  outside v1, as the contract states.
+- The clone-API-unreachable check in the spec checker is textual over the
+  bodies of `commit_inner` and `initialize_trusted_genesis_inner`; the clone
+  installers are distinct public functions never called from those paths,
+  and both phases now refuse an unmarked root with
+  `TXN_ALREADY_INITIALIZED`, so an exclusive-maintenance caller cannot graft
+  receipts into a repository.
+- The Python vector oracle needs the frozen `oracle/scb1` environment
+  (`uv run --project oracle/scb1 --frozen`); it is registered that way in
+  `make conformance`.
+- The fuzz target caps inputs at 65,536 bytes against the 64 MiB contract
+  ceiling, like the S20-170 slice; the injected X-03, X-04, and X-05 cuts
+  fall on item boundaries, not inside a single write, because the
+  lower-layer writes are covered by the frozen S20-530 matrix.

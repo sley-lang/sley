@@ -153,6 +153,20 @@ strict clippy debt in pre-existing S20-390/S20-530 code (pedantic lints in
 production functions), the S20-540 closeout audit, Tier 2, and the three
 implementation reviews.
 
+## S20-540 completion (2026-09-03T03:55Z)
+
+S20-540 is complete: Tier 2 PASS, Nabu `PASS_IMPLEMENTATION`
+(`forge-nabu-s20-540-implementation-20260903T032106-699aad57`), Ariadne
+`FAIL` then `PASS` after the two P1 remediations
+(`forge-ariadne-s20-540-impl-rereview-20260903T033958-dca29d66`), Vulcan
+`PASS_IMPLEMENTATION` (`forge-vulcan-s20-540-implementation-20260903T032106-9c15e773`) with its P2 closed. The
+machine summary records `S20_540_COMPLETE`; the local completion frontier
+now names the full S20-250 entity bodies as the next dependency-complete
+work, because S20-510 and S20-520 (the remaining M4 packages) are blocked by
+them. Choosing whether to open that semantics lane next, or another lane,
+is an operator roadmap decision; this record recommends the S20-250 entity
+bodies because they unblock both the repository lane and S20-300.
+
 ## Isolated verification
 
 `make s20-530-verify` was launched at 2026-09-03T01:23:36Z (clone at

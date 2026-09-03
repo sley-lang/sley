@@ -1747,7 +1747,17 @@ fn create_real_directory(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn install_stage_marker(target: &Path, exchange_id: RepositoryExchangeId) -> Result<PathBuf> {
+/// Result of installing the stage marker: its path and whether this call
+/// created it (a retry finds it already durable).
+struct InstalledMarker {
+    path: PathBuf,
+    created: bool,
+}
+
+fn install_stage_marker(
+    target: &Path,
+    exchange_id: RepositoryExchangeId,
+) -> Result<InstalledMarker> {
     create_real_directory(target)?;
     let exchange_dir = target.join(EXCHANGE_DIRECTORY);
     create_real_directory(&exchange_dir)?;
@@ -1760,7 +1770,10 @@ fn install_stage_marker(target: &Path, exchange_id: RepositoryExchangeId) -> Res
             return Err(exchange_error(ExchangeErrorCode::Io));
         }
         if read_regular_file(&marker, ID_LEN)? == exchange_id.as_bytes() {
-            return Ok(marker);
+            return Ok(InstalledMarker {
+                path: marker,
+                created: false,
+            });
         }
         return Err(exchange_error(ExchangeErrorCode::TargetIncompleteMismatch));
     }
@@ -1781,7 +1794,10 @@ fn install_stage_marker(target: &Path, exchange_id: RepositoryExchangeId) -> Res
     sync_directory(&versioned)?;
     sync_directory(&exchange_dir)?;
     sync_directory(target)?;
-    Ok(marker)
+    Ok(InstalledMarker {
+        path: marker,
+        created: true,
+    })
 }
 
 fn install_branches(
@@ -1849,8 +1865,22 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
     initialize_repository_maintenance(target)?;
     let maintenance =
         acquire_exclusive_repository_maintenance_nonblocking(target).map_err(ExchangeError::Io)?;
-    if classify_target(target, &preflight)? != Target::IncompleteClone {
-        return Err(exchange_error(ExchangeErrorCode::TargetIncompleteMismatch));
+    let owned = classify_target(target, &preflight);
+    if !matches!(owned, Ok(Target::IncompleteClone)) {
+        // A marker this call wrote must not jam a target it will not clone.
+        if marker.created {
+            let _ = fs::remove_file(&marker.path);
+            let _ = sync_directory(
+                &target
+                    .join(EXCHANGE_DIRECTORY)
+                    .join(EXCHANGE_VERSION_DIRECTORY),
+            );
+        }
+        drop(maintenance);
+        return match owned {
+            Ok(_) => Err(exchange_error(ExchangeErrorCode::TargetIncompleteMismatch)),
+            Err(error) => Err(error),
+        };
     }
 
     #[cfg(test)]
@@ -1902,7 +1932,7 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
     #[cfg(test)]
     fail_at(ExchangeInterruption::X07AfterHeadBeforeMarkerRemoval)?;
 
-    fs::remove_file(&marker)?;
+    fs::remove_file(&marker.path)?;
     let versioned = target
         .join(EXCHANGE_DIRECTORY)
         .join(EXCHANGE_VERSION_DIRECTORY);
@@ -2823,6 +2853,17 @@ mod tests {
         assert_eq!(error.code(), "EXCHANGE_TARGET_NOT_EMPTY");
         assert!(!target.join("heads").join("accepted").exists());
         assert!(!target.join("objects").exists());
+        let marker = target
+            .join(EXCHANGE_DIRECTORY)
+            .join(EXCHANGE_VERSION_DIRECTORY)
+            .join(format!(
+                "{}{STAGE_SUFFIX}",
+                hex_id(exchange.exchange_id.as_bytes())
+            ));
+        assert!(
+            !marker.exists(),
+            "an aborted fresh import must not leave its marker"
+        );
     }
 
     #[test]

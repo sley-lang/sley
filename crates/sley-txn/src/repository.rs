@@ -2430,6 +2430,16 @@ impl TransactionRepository {
         Ok(())
     }
 
+    /// The clone phases run only inside a marked incomplete clone; on an
+    /// unmarked root they are unavailable (`TXN_ALREADY_INITIALIZED`), so an
+    /// exclusive-maintenance caller cannot graft receipts into a repository.
+    fn require_incomplete_clone(&self) -> Result<(), CommitError> {
+        if !incomplete_clone_marker_present(&self.root)? {
+            return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+        }
+        Ok(())
+    }
+
     /// Installs verified receipts into an incomplete clone (S20-540 receipt
     /// phase) under the caller's exclusive maintenance ownership.
     ///
@@ -2444,8 +2454,9 @@ impl TransactionRepository {
     ///
     /// # Errors
     ///
-    /// Returns `TXN_ALREADY_INITIALIZED` for any other present head,
-    /// `TXN_RECEIPT_CONFLICT` for two different receipts under one
+    /// Returns `TXN_ALREADY_INITIALIZED` on an unmarked root (the clone phases
+    /// run only inside a marked incomplete clone) or for any other present
+    /// head, `TXN_RECEIPT_CONFLICT` for two different receipts under one
     /// `TransactionId`, the exact codec, relationship, object, store, or I/O
     /// failure of the first receipt that does not verify, and `TXN_IO` for a
     /// non-exclusive or foreign maintenance guard.
@@ -2458,6 +2469,7 @@ impl TransactionRepository {
         self.validate_exclusive_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
+        self.require_incomplete_clone()?;
         match self.read_head()? {
             None => {}
             Some(head) if head == expected_head => {
@@ -2545,6 +2557,7 @@ impl TransactionRepository {
         self.validate_exclusive_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
+        self.require_incomplete_clone()?;
         let mut cursor = Some(head);
         let mut visited = 0_usize;
         while let Some(transaction_id) = cursor {
@@ -21487,6 +21500,27 @@ mod clone_tests {
             )
             .unwrap_err();
         assert_eq!(error.code(), "TXN_IO");
+    }
+
+    #[test]
+    fn clone_phases_are_unavailable_on_an_unmarked_root() {
+        let (source, head_id) = source_with_one_commit("clone-unmarked-source");
+        let genesis_bytes = stored_receipt(&source, source.genesis_transaction_id);
+        let guard = acquire_exclusive_repository_maintenance(source.path()).unwrap();
+        let receipts = source
+            .repository
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                head_id,
+                &[genesis_bytes.as_slice()],
+            )
+            .unwrap_err();
+        assert_eq!(receipts.code(), "TXN_ALREADY_INITIALIZED");
+        let head = source
+            .repository
+            .initialize_trusted_clone_head_with_maintenance(&guard, head_id)
+            .unwrap_err();
+        assert_eq!(head.code(), "TXN_ALREADY_INITIALIZED");
     }
 
     #[test]

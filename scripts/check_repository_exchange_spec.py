@@ -193,7 +193,7 @@ def main() -> int:
         "digest_leaf_limit": 8194,
         "failure_range": "54000-54021",
         "interruption_rows": 7,
-        "implementation_complete": False,
+        "implementation_complete": section.get("status") == COMPLETE_STATUS,
     }
     for key, value in expected.items():
         actual = section.get(key)
