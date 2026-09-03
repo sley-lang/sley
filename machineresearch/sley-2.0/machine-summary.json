@@ -2487,5 +2487,38 @@
       "scripts/check_standards_sbom_and_provenance.py",
       "bench/release/tests/test_standards_sbom.py"
     ]
+  },
+  "finding_register": {
+    "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
+    "contract": "docs/spec/FINDING_REGISTER_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
+    "checker": "scripts/check_finding_register.py",
+    "register": "evidence/review/finding-register.json",
+    "obligations": 181,
+    "open_reviews": 60,
+    "deferred_reviews": 12,
+    "unclassified_dispositions": 1,
+    "complete_packages": 24,
+    "register_result": "FINDING_REGISTER_OPEN",
+    "independent_review": "PENDING",
+    "new_stable_error_codes": 4,
+    "new_error_code_range": "75000 through 75003",
+    "ga_claimed": false,
+    "blockers": [
+      "council_lanes_unavailable",
+      "independent_review_s20_740"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": true,
+    "implementation": [
+      "scripts/build_finding_register.py",
+      "scripts/check_finding_register.py",
+      "bench/review/tests/test_finding_register.py"
+    ]
   }
 }

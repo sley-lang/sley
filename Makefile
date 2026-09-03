@@ -65,6 +65,7 @@ quick:
 	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
+	python3 scripts/check_finding_register.py
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
