@@ -10,6 +10,11 @@
 // contract text is their documentation.
 #![allow(missing_docs)]
 
+pub mod server;
+pub use server::*;
+#[cfg(test)]
+mod server_tests;
+
 use core::fmt;
 use std::collections::BTreeMap;
 

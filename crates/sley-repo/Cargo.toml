@@ -19,6 +19,9 @@ sley-ssmc = { path = "../sley-ssmc" }
 sley-store = { path = "../sley-store" }
 sley-txn = { path = "../sley-txn" }
 
+[features]
+test-support = []
+
 [dev-dependencies]
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
 

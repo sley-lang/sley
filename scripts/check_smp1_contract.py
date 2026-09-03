@@ -60,6 +60,8 @@ SPEC_MARKERS = (
     "## 7. Cancellation and streaming",
     "## 8. JSON bridge",
     "## 11. Explicit exclusions",
+    "## Appendix A. Body records of the dispatched methods (S20-410)",
+    "S20-410-SLICE-C-DEFERRED",
 )
 ADR_MARKERS = (
     "# ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary",

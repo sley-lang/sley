@@ -34,12 +34,42 @@ pending.
   derived negotiation with downgrade detection, request identity matrix,
   method table and failure envelope), 128-run determinism.
 
-## Slice B (deterministic server) — pending
+## Slice B (deterministic server, read-only and reference families)
 
-Method dispatch over the frozen engines for every non-reserved method,
-byte-identical responses across runs, and the request/response conformance
-corpus. Until slice B lands the protocol summary status stays
-`S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
+- `crates/sley-protocol/src/server.rs`: `Server::answer` decodes a request
+  frame under the negotiated ceiling, enforces version, session, request
+  identity, and method rules in contract precedence, dispatches the body to
+  the owning engine, and answers with a response frame whose bounded
+  context is copied from the owner's response; twenty-two methods dispatch
+  (session 100 through 104, refs 202/203/205/206/214, revision 204,
+  compare 207, merge.judge 208, exchange.export 210, query 300 through
+  303, receipt 501, checkout 502, recovery 504, cancel 603); fourteen
+  non-reserved methods answer `PROTOCOL_METHOD_UNSUPPORTED` with the
+  versioned detail `S20-410-SLICE-C-DEFERRED`; five reserved methods answer
+  `SMP1-RESERVED-METHOD`.
+- Contract revision 3 adds appendix A with the exact body records of the
+  dispatched methods.
+- `sley-repo` gains the `test-support` feature (a public mirror of the
+  trusted-genesis fixtures) so downstream crates can build repositories in
+  tests.
+- Native: four server tests (session, repository, and transaction methods
+  over a trusted genesis with byte-identical answers from a second server
+  and 128 repeated reads; the query family transporting the exact S20-310,
+  S20-320, and restricted records with paging and owner mismatch codes;
+  identity, session, downgrade, and frame rules at the server; a
+  dependency-free root exported as a pack byte for byte).
+- Known owner behaviours surfaced and preserved: a root binding a
+  dependency root no packed root provides is refused by the pack owner
+  (`PACK_ROOT_INVALID`), and an exchange over a repository with no named
+  branch is `REF_IO`; pack failures carry numeric 0 until S20-560 exposes
+  its registry.
+
+## Slice C (mutation-side families) — pending
+
+`workspace.create/open`, `merge.commit`, `exchange.import`, `gc.*`, the
+candidate family, `commit`, `execute`, and `report` dispatch, plus the
+server request/response conformance corpus. Until slice C lands the
+protocol summary status stays `S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
 
 ## Tier 2 handoff gate for slice A (2026-09-03, at `d4ff651`)
 

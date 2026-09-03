@@ -2,7 +2,7 @@
   "blockers": [
     "workspace-license-text:missing-operator-approved-root-license"
   ],
-  "cargo_lock_sha256": "7baa872f96ecb53a269428e57813d703abdbd3addb5cc7244d0824052061ea62",
+  "cargo_lock_sha256": "61bba5c53dd2d6019f15bb136ba0c6e082dab157309503b1bf0654c9f0deac10",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
   "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
@@ -810,11 +810,43 @@
     },
     {
       "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
     },
     {
       "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
     },
     {
       "from": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",

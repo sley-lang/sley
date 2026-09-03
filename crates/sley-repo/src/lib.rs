@@ -9,6 +9,8 @@ mod index_cache;
 mod merge;
 mod refs;
 mod root_query;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 pub use compare::*;
 pub use complete_root::*;

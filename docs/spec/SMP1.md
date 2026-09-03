@@ -1,7 +1,8 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 2 (2026-09-03; revision 2 folds the
-hello into frame kind 4 under one contract tag); Council review
+Status: S20-400 contract draft, revision 3 (2026-09-03; revision 2 folds the
+hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
+the exact body records of the methods S20-410 dispatches); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -283,3 +284,57 @@ multi-tenant isolation, or network behaviour; negotiated session semantics
 and handles (S20-330); cancellation latency and streaming rules (S20-440);
 the generated JSON bridge (S20-420) and CLI (S20-430); diagnostics and test
 selection (S20-620); runtime, benchmark, packaging, release, or GA.
+
+## Appendix A. Body records of the dispatched methods (S20-410)
+
+Bodies are canonical SCB1 values (`uvar` integers, `record` as
+`uvar(count) || (uvar(tag) || uvar(len) || bytes)...`, `list` as
+`uvar(count) || (uvar(len) || bytes)...`, `union` as
+`uvar(tag) || uvar(len) || bytes`, options as the SSMC1 generic union
+`0:None | 1:Some`). Fixed identities are raw 32-byte strings. The methods
+below are dispatched by the S20-410 deterministic server; every other
+non-reserved method answers `PROTOCOL_METHOD_UNSUPPORTED` with the
+versioned detail `S20-410-SLICE-C-DEFERRED` until its slice lands, and
+reserved methods answer with `SMP1-RESERVED-METHOD`.
+
+| Method | Request body | Response body |
+|---|---|---|
+| 100 `session.open` | `ProtocolHandshakeId[32]`; a claim that is not the negotiated identity is `PROTOCOL_DOWNGRADE` | `SessionId[32]`, provisionally derived as `BLAKE3("sley2.protocol-handshake.v1" \|\| "session:" \|\| handshake_id \|\| u64be(issue_counter))` until S20-330 owns issuance |
+| 101 `session.renew` | `SessionId[32]` | the same `SessionId[32]` |
+| 102 `session.close` | empty | empty |
+| 103 `session.capabilities` | empty | the `SelectedProfile` record (section 2) |
+| 104 `session.budgets` | empty | the `LimitProfile` record |
+| 202 `refs.list` | `uvar(limit)`, 1 through 4,096 | `list(branch_summary)` |
+| 203 `refs.resolve` | branch name bytes | `branch_summary` |
+| 204 `revision.read` | `TransactionId[32]` | `revision_summary` |
+| 205 `branch.create` | `record(1: name bytes, 2: origin TransactionId)` | `uvar(status)`: 1 created, 2 advanced, 3 present |
+| 206 `branch.advance` | `record(1: name bytes, 2: expected head, 3: new head)` | `uvar(status)` |
+| 207 `compare` | `record(1: base TransactionId, 2: target TransactionId)` | the S20-510 stored delta bytes |
+| 208 `merge.judge` | `record(1: ancestor, 2: ours, 3: theirs)` | `union(1: record(1: merged StateRoot, 2: uvar(objects), 3: bytes(state root stored bytes)) \| 2: the S20-520 stored conflict bytes)` |
+| 210 `exchange.export` | empty | the S20-540 exchange stored bytes |
+| 214 `refs.recover` | empty | `record(1: removed branch stages, 2: removed ref stages, 3: visible branches)` |
+| 300 `query.root` | the exact `SLEYRQQ1` request preimage over the accepted head's snapshot; a preimage bound to another snapshot is the owner's `QUERY_SNAPSHOT_MISMATCH` | the `SLEYRQR1` record |
+| 301 `query.continue` | as 300 with `after` present (`PROTOCOL_PAYLOAD_INVALID` otherwise) | the `SLEYRQR1` record |
+| 302 `capsule` | as 300 | the `SLEYCCP1` record |
+| 303 `query.restricted` | the exact `SLEYQRY1` request preimage over the arm-1 snapshot of the accepted head's kinds 4 through 15 | the `SLEYQRS1` record |
+| 501 `receipt.read` | `TransactionId[32]` | the receipt stored bytes |
+| 502 `checkout` | `TransactionId[32]` | `record(1: StateRoot, 2: list(bytes(object stored bytes)))` |
+| 504 `recovery` | empty | `record(1: removed object stages, 2: removed receipt stages, 3: removed head stages, 4: option(accepted TransactionId), 5: verified ancestry transactions)` |
+| 603 `cancel` | `uvar(request_id)` | empty; the server answers every request before reading the next frame, so the named request has already completed |
+
+```text
+branch_summary   = record(1: name bytes, 2: origin TransactionId,
+                          3: head TransactionId, 4: head StateRoot)
+revision_summary = record(1: TransactionId, 2: StateRoot, 3: PolicyRootId,
+                          4: WorkspaceId, 5: SchemaEpochId, 6: uvar(objects),
+                          7: uvar(tombstones), 8: ReceiptId)
+```
+
+The bounded context of a response copies the owning record's counts: a
+`SLEYRQR1` response supplies `returned`, `total_count - returned`, its
+truncation flag, and whether a cursor follows; a capsule supplies its
+dictionary sizes and status; list responses count their items; every
+other body counts one item and its bytes. Owner failures keep their symbol
+and numeric code; a pack-owned failure whose numeric registry is not
+exposed by its crate carries numeric `0` at this revision, which S20-560's
+next revision closes.
