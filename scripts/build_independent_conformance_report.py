@@ -48,7 +48,7 @@ COVERAGE: dict[str, str | None] = {
     "merge": f"{ORACLE_RUNNER} python scripts/check_merge_vector.py",
     "mutation-candidate": f"{ORACLE_RUNNER} sley2-scb1-oracle check-mutation-candidate",
     "mutation-value": f"{ORACLE_RUNNER} sley2-scb1-oracle check-mutation-value",
-    "release-demo": None,
+    "release-demo": f"{ORACLE_RUNNER} python scripts/check_release_demo_vector.py",
     "repository-exchange": f"{ORACLE_RUNNER} python scripts/check_repository_exchange_vector.py",
     "repository-pack": f"{ORACLE_RUNNER} python scripts/check_repository_pack_vector.py",
     "root-backed-query": f"{ORACLE_RUNNER} python scripts/check_root_backed_query_vector.py",
@@ -59,18 +59,11 @@ COVERAGE: dict[str, str | None] = {
     "smp1-json-bridge": f"{ORACLE_RUNNER} python scripts/check_smp1_json_bridge_vector.py",
     "state-root": f"{ORACLE_RUNNER} python scripts/check_state_root_vector.py",
     "transaction-receipt": f"{ORACLE_RUNNER} sley2-scb1-oracle check-transaction-receipt",
-    "vm-extended": None,
+    "vm-extended": f"{ORACLE_RUNNER} sley2-scb1-oracle check-vm-extended",
 }
-NATIVE_ONLY_NOTES = {
-    "release-demo": (
-        "exercised through the packaged binary by bench/release/run_demo.py; an "
-        "independent endpoint oracle is not commissioned"
-    ),
-    "vm-extended": (
-        "emitted and checked by the Rust VM through scripts/generate_vm_extended_fixtures.py; "
-        "an independent lowering and execution oracle is not commissioned"
-    ),
-}
+# Every family now has an independent checker; the mapping stays so a future
+# family can be declared native-only with its reason.
+NATIVE_ONLY_NOTES: dict[str, str] = {}
 
 
 class ConformanceErrorCode(IntEnum):

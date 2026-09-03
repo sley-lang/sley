@@ -1,8 +1,9 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-730 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). The mechanics are `scripts/build_reproducibility_report.py` and
+review). Revision 2 records the independent oracles that closed the two
+native-only families (section 5). The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -133,10 +134,14 @@ Rules:
   `sums_consistent: null`;
 - an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`;
 - the result is `INDEPENDENT_CONFORMANCE_COMPLETE` exactly when no family is
-  native-only; at revision 1 the release demo (exercised through the packaged
-  binary) and the extended VM vectors (emitter drift only) are native-only,
-  so the result is `INDEPENDENT_CONFORMANCE_PARTIAL` and those two families
-  are recorded blockers for the "final independent PASS";
+  native-only. Revision 2 closed the two families that were native-only at
+  revision 1: the extended VM vectors are checked by
+  `sley2_scb1_oracle.vm_extended`, which decodes the `SLEYBC02` container and
+  re-derives every cache key from the frozen preimage, and the release demo by
+  `scripts/check_release_demo_vector.py`, which re-derives the `RootQueryId`
+  and the `ExecutionReportId` from the recorded preimages. Both are codec and
+  identity oracles written from the contracts; neither judges semantics, so
+  the oracle does not become a second semantic kernel;
 - `--check` recomputes the report and fails with `CONFORMANCE_REPORT_DRIFT`
   when the tracked file differs.
 
@@ -153,9 +158,13 @@ kernel (master goal section 6.5).
 
 - `independent_oracle`: the family's vectors are checked by the Python
   oracle package or by a Python vector checker that decodes with the oracle,
-  without the Rust implementation.
+  without the Rust implementation. Such a checker verifies containers,
+  identities, and declared bindings; semantic judgment stays with the owner
+  crate, so the oracle never becomes a second kernel (master goal section
+  6.5).
 - `native_only`: the family is exercised only through Rust code or through
-  the packaged binary; it counts against the independent PASS.
+  the packaged binary; it counts against the independent PASS. No family is
+  native-only at revision 2.
 
 ## 6. Evidence files
 

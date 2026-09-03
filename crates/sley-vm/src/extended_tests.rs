@@ -2539,9 +2539,18 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             panic!("{label}: not a success");
         };
         let value_hash = hash_validated_value(SchemaEpochId::from_bytes([8; 32]), value).unwrap();
+        // The vector's subject is the entry function's last operation; a
+        // fixture with a callee also carries the callee's operations.
+        let entry_blocks: Vec<EntityId> = fixture.function.blocks.clone();
+        let subject = fixture
+            .operations
+            .iter()
+            .filter(|operation| entry_blocks.contains(&operation.block))
+            .next_back()
+            .expect("the entry function runs at least one operation");
         println!(
             "VM_EXTENDED_VECTOR|{label}|{}|{}|{}|{}|{}|{}",
-            fixture.operations.last().unwrap().opcode.tag(),
+            subject.opcode.tag(),
             hex(&lowered.bytes),
             hex(lowered.cache_key.as_bytes()),
             hex(value_hash.as_bytes()),

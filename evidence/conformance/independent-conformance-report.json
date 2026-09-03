@@ -255,8 +255,9 @@
       "claim": "s20-720-release-demo-v1",
       "contract": "sley2-release-demo-v1",
       "coverage": {
-        "kind": "native_only",
-        "note": "exercised through the packaged binary by bench/release/run_demo.py; an independent endpoint oracle is not commissioned"
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
       "directory": "conformance/release-demo/v1",
       "files": [
@@ -635,20 +636,21 @@
       "claim": "s20-260-270-vm-extended-e1-e6-conformance",
       "contract": "sley2-vm-extended-opcode-profile-v1",
       "coverage": {
-        "kind": "native_only",
-        "note": "emitted and checked by the Rust VM through scripts/generate_vm_extended_fixtures.py; an independent lowering and execution oracle is not commissioned"
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
       "directory": "conformance/vm-extended/v1",
       "files": [
         {
           "bytes": 80,
           "name": "SHA256SUMS",
-          "sha256": "f67df9fcd2d0b403584f9f9210ae7947e5e2b84dea1ebcaca94421289f4de0dc"
+          "sha256": "86ea3776144182f35034ad9c6ec1b2b5a3f1088cb9c833b90fcd5f80558cd306"
         },
         {
-          "bytes": 19599,
+          "bytes": 19600,
           "name": "accepted.json",
-          "sha256": "ad62215e3f80950d793987f546b2d510fc2e2243958ba653b943e3b0e7e68df8"
+          "sha256": "12b9967117e09f5531ca4842bddec5c52eb3c7f5bc780d5fcde576acc39a5148"
         }
       ],
       "shape": {
@@ -660,12 +662,9 @@
       "sums_file": true
     }
   ],
-  "independently_checked": 17,
+  "independently_checked": 19,
   "make_target": "conformance",
-  "native_only": [
-    "conformance/release-demo/v1",
-    "conformance/vm-extended/v1"
-  ],
+  "native_only": [],
   "oracle_independence": {
     "forbidden_markers": [
       "subprocess",
@@ -679,9 +678,9 @@
       "target/"
     ],
     "problems": [],
-    "python_sources": 8
+    "python_sources": 9
   },
-  "report_digest": "d8c414367939d24697b1adf8e01c66b8d78966828d054bdd9cd9740de3380620",
-  "result": "INDEPENDENT_CONFORMANCE_PARTIAL",
+  "report_digest": "93df008077b675557ffaecf9bbc096289a25631657aa8c313f4aaa20c2c421f5",
+  "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

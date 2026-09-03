@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "ed4eb910c535108242fbb3b410e34a9ab3766ed0e2de4e35bd9fc16b91ca1eb5",
+  "dossier_digest": "0394b66603b0ad5fefa287934af85b20034415df3b03bc34f48cc61d9aeeccd3",
   "entries": [
     {
       "evidence": [
@@ -93,11 +93,8 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 17,
-        "native_only_families": [
-          "conformance/release-demo/v1",
-          "conformance/vm-extended/v1"
-        ],
+        "independently_checked_families": 19,
+        "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
     },
@@ -112,7 +109,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 8,
+        "python_sources": 9,
         "rust_dependency_check": "PASS"
       }
     },
@@ -442,7 +439,7 @@
       }
     }
   ],
-  "entries_digest": "58c68eaf46d142742f63c042fdcd58025ad619000893ae85db9b33516da43daf",
+  "entries_digest": "523f1e271eece681fcf8ef0ec19210265156167a9e4fa2e8beac13385e565a6a",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

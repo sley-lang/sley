@@ -174,7 +174,7 @@
       "id": "call-direct-second",
       "instruction_count": 3,
       "observation_id_hex": "b0ba10af7c0f3a313084725f07436c310c6fd6cb8efe813ab7439a42295ea1c8",
-      "opcode": 17,
+      "opcode": 112,
       "success_value_hash_hex": "5599aed10477b3816ac50c2cda2811ec2b137aa5d48d23f00d5d6ef691dc77e3"
     },
     {

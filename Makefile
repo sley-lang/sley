@@ -117,6 +117,8 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py
+	uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json
+	uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py
 
 adversarial:
 	cargo test -p sley-mutate mutation_value_codec_adversarial --locked

@@ -2448,7 +2448,7 @@
   "reproducibility_and_independent_conformance": {
     "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md",
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
@@ -2458,19 +2458,15 @@
     "required_hosts": 2,
     "attested_hosts": 1,
     "fixture_directories": 19,
-    "independently_checked_families": 17,
-    "native_only_families": [
-      "conformance/release-demo/v1",
-      "conformance/vm-extended/v1"
-    ],
-    "independent_conformance_result": "INDEPENDENT_CONFORMANCE_PARTIAL",
+    "independently_checked_families": 19,
+    "native_only_families": [],
+    "independent_conformance_result": "INDEPENDENT_CONFORMANCE_COMPLETE",
     "new_stable_error_codes": 8,
     "new_error_code_range": "73000 through 73007",
     "ga_claimed": false,
     "publication_authorized": false,
     "blockers": [
       "second_host_attestation_operator_lane",
-      "independent_vm_and_endpoint_oracles",
       "root_license_text_operator_approval",
       "standards_sbom_and_provenance_s20_710_full",
       "council_reviews"
@@ -2486,6 +2482,10 @@
       "scripts/build_independent_conformance_report.py",
       "scripts/check_reproducibility_and_independent_conformance.py",
       "bench/release/tests/test_reproducibility.py"
+    ],
+    "independent_oracles_added": [
+      "oracle/scb1/src/sley2_scb1_oracle/vm_extended.py",
+      "scripts/check_release_demo_vector.py"
     ]
   },
   "standards_sbom_and_provenance": {
