@@ -42,8 +42,9 @@ minimums.
 
 S20-520 has no implementation. Its S20-500 native ref/branch prerequisite is
 implemented locally, while its S20-510 semantic comparison prerequisite is
-absent. S20-510 remains blocked because full S20-250 still lacks six canonical
-entity bodies and complete-root impact semantics. S20-530 crash recovery is
+absent. S20-510 remains blocked because full S20-250, whose six canonical
+entity bodies and complete-root judgment landed at `e78a1ab`, awaits its
+Council reviews and contract freeze. S20-530 crash recovery is
 complete (`docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md`, aging under
 ADR-0024); S20-540 pack exchange is complete
 (`docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`); the repository lane
@@ -61,8 +62,8 @@ deferred, and `make v2` remains a release-boundary gate. The scoped S20-600 and
 S20-610 mechanics, S20-650 unavailable disposition, and bounded S20-710 audit
 have since landed. Restricted S20-360 candidate validation, restricted S20-390
 atomic commit, and S20-500 native refs are complete. S20-510 remains blocked
-by incomplete full S20-250 semantics. S20-530 crash recovery and S20-540 pack
-exchange are complete; the
+by incomplete full S20-250 semantics (implemented, reviews pending). S20-530
+crash recovery and S20-540 pack exchange are complete; the
 full S20-250 entity bodies are the next dependency-complete work; the
 current cross-lane result is
 `docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md`.

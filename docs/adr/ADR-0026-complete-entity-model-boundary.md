@@ -1,7 +1,8 @@
 # ADR-0026: Complete entity model and complete-root impact boundary
 
-Status: proposed; the S20-250 full contract is a draft at revision 1 with
-Council review pending; implementation pending
+Status: proposed; the S20-250 full contract is a draft at revision 2 with
+Council review pending; implementation landed against the draft at `e78a1ab`
+(closeout `docs/audits/S20_250_FULL_ENTITY_BODIES_CLOSEOUT.md`)
 
 Date: 2026-09-03
 
@@ -55,8 +56,9 @@ freeze.
    its only root facts, and is judged by the eleven closure rules of the
    contract's section 6.1 with twelve new stable codes 25013 through 25024.
    The pure judgment lives in `sley-query`; the extraction adapter lives in
-   the crate that already owns object loading and projection, so `sley-query`
-   gains no dependency on `sley-store`, `sley-mutate`, or `sley-policy`.
+   `sley-repo` over a verified revision and projects through the public
+   `sley-policy` projection, so `sley-query` gains no dependency on
+   `sley-store`, `sley-mutate`, or `sley-policy`.
 5. **Restricted consumers stay restricted.** The S20-300, S20-310, and
    S20-320 profiles keep "kinds 4 through 15" and their fixed vectors; the
    snapshot builders fail closed with

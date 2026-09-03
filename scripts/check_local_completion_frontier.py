@@ -152,7 +152,7 @@ def main() -> int:
         )
         require_equal(
             summary.get("fingerprint_impact_profile", {}).get("unmodeled_entity_kinds"),
-            [1, 2, 3, 16, 17, 18],
+            [],
             "S20-250 modeled kinds",
         )
         require_equal(

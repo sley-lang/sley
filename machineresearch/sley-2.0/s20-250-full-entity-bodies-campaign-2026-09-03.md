@@ -67,4 +67,11 @@ freeze, exactly as S20-540 did.
 
 ## Commits
 
-- contract draft revision 1: see the commit that adds this file.
+- `4701733` contract draft revision 1, ADR-0026, stage checker, this record.
+- `e78a1ab` implementation: six definitions, eighteen-kind impact,
+  complete-root judgment, sley-repo adapter, fixture, oracle, fuzz slice.
+- closeout docs, revision 2 status, Tier 2 record: the commit after `e78a1ab`.
+
+Tier 2 at `e78a1ab` (2026-09-03): core 914 tests, conformance, adversarial,
+fuzz-smoke, complete-root smoke, all exit 0 in 30 s. Reviews still pending;
+the retry loop probes both lanes every 15 minutes.

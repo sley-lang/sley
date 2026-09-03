@@ -13,8 +13,11 @@ closure. Every answer is exact or fails without a partial payload.
 The crate is not validation, repository, root, cache, policy, or mutation
 authority. The snapshot is disposable conformance evidence, not a useful cache
 or root-provenance proof. Every index rebuilds from a complete closed entity
-request. The six SSMC1 entity bodies not yet represented by `sley-ssmc` and
-strict root/object extraction remain explicit full-GA blockers.
+request. The full S20-250 profile (`COMPLETE_ENTITY_IMPACT_PROFILE_V1.md`)
+extends the closed request to all eighteen SSMC1 kinds and adds the pure
+complete-root closure judgment (`judge_complete_root`) over borrowed bodies
+plus the state-root facts; the restricted snapshot and queries stay bound to
+kinds 4 through 15 and fail closed on the others.
 The nineteen master-goal root-backed query classes, truncation, continuation,
 capsules, diagnostics, and mutation affordances are not implemented.
 S20-320 adds only a `RestrictedCompleteQueryCapsuleV1` evidence envelope for

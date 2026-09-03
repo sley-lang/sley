@@ -1,9 +1,11 @@
 # Complete Entity Model and Impact Profile v1
 
-Status: S20-250 full contract draft, revision 1 (2026-09-03); Council review
+Status: S20-250 full contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked separately in the machine summary.
+review). Revision 2 names the extraction and projection crates decided by
+the implementation, which landed against the draft while every Council lane
+was unavailable (ADR-0026 context). Implementation state is tracked in the
+machine summary and in `docs/audits/S20_250_FULL_ENTITY_BODIES_CLOSEOUT.md`.
 
 This contract completes S20-250. It adds the six SSMC1 entity bodies that the
 restricted profile left outside the semantic core, freezes their exact
@@ -146,9 +148,13 @@ record `R` and the exact objects it binds:
    facts copied from `R`: `entry_points` and `dependency_roots`.
 
 The pure closure judgment consumes borrowed definitions and the two root
-facts and performs no I/O. The extraction adapter that reads the store and
-projects objects lives in the crate that already owns object loading and
-projection; the judgment and the index live in `sley-query`. The dependency
+facts and performs no I/O. The extraction adapter is `sley-repo`
+(`CompleteRootRequest::extract` over a verified revision, whose objects the
+transaction owner has already loaded and inventory-checked); it projects
+through the validator's public `sley-policy` projection
+(`complete_entities::project_complete_entities`), which is the single
+mapping from proposal bodies to definitions; the judgment and the index live
+in `sley-query`. The dependency
 direction `sley-query -> sley-check -> sley-ssmc` is unchanged, and
 `sley-query` gains no dependency on `sley-store`, `sley-mutate`, or
 `sley-policy`.
