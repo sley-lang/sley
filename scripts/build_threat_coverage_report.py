@@ -67,7 +67,9 @@ def structural_entries() -> set[str]:
         if not line.startswith("| T"):
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) >= 3 and not re.findall(r"`([A-Z][A-Z0-9_]+)`", cells[2]):
+        if len(cells) >= 3 and not re.findall(
+            r"`([A-Z][A-Z0-9_]+|[A-Za-z][A-Za-z0-9]*::[A-Za-z][A-Za-z0-9]*)`", cells[2]
+        ):
             structural.add(cells[0])
     return structural
 
@@ -94,7 +96,13 @@ def recorded_exercises() -> dict[str, list[str]]:
 
 
 def realized_codes() -> dict[str, list[str]]:
-    """The register's addendum: threats whose shipped code differs from the plan."""
+    """The register's addendum: threats whose shipped code differs from the plan.
+
+    A realized control is not always a string constant. The reference adapter
+    numbers its failures and names them as enum variants, so the addendum may
+    record `AdapterErrorCode::PathInvalid`; that path is searched exactly like
+    a code, because it is just as findable and just as specific.
+    """
     text = REGISTER.read_text(encoding="utf-8")
     if "## Realized codes" not in text:
         return {}
@@ -107,6 +115,7 @@ def realized_codes() -> dict[str, list[str]]:
         if len(cells) < 3:
             continue
         codes = re.findall(r"`([A-Z][A-Z0-9_]+)`", cells[2])
+        codes += re.findall(r"`([A-Za-z][A-Za-z0-9]*::[A-Za-z][A-Za-z0-9]*)`", cells[2])
         if codes:
             mapping[cells[0]] = codes
     return mapping
