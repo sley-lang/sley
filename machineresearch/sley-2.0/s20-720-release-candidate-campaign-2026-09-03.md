@@ -45,4 +45,18 @@ checker `scripts/check_release_candidate_packaging.py`.
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
 | Contract draft revision 1 | `4adaca8` | green | ADR-0038, stage checker |
-| Mechanics, revision 2 | pending | pending | build script, demo, fixture, 4 offline tests; smoke PASS: 1,990,615 bytes, 14 members, REPRODUCIBLE, demo 12 steps; first run refused ten registry paths (scan working) |
+| Mechanics, revision 2 | `cb51cb0` | green | build script, demo, fixture, 4 offline tests; smoke PASS: 1,990,615 bytes, 14 members, REPRODUCIBLE, demo 12 steps; first run refused ten registry paths (scan working); closeout `docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md` |
+
+## Tier 2 handoff record (2026-09-03, at `cb51cb0`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 15 s | 985 tests passed, 0 failed across 39 test binaries |
+| `make conformance` | exit 0 | 12 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make release-candidate-smoke` | exit 0 | 24 s | two clean builds, artifact REPRODUCIBLE, conformance subset and demo PASS, stage checker PASS |
+| `make sley2-runner-smoke` | exit 0 | 1 s | evidence PASS |
+| `make accounting-smoke` | exit 0 | under 1 s | evidence PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.

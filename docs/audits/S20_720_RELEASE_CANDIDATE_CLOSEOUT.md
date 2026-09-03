@@ -35,8 +35,7 @@ are pending and must pass before the status above changes.
 ## Evidence
 
 - Contract draft revision 1, ADR-0038, and the stage checker at
-  `4adaca8`; revision 2 and the mechanics in the commit recorded in the
-  campaign record.
+  `4adaca8`; revision 2 and the mechanics at `cb51cb0`.
 - Offline tests (four, all pass): the tar is byte-identical across
   changed timestamps with sorted members, zero times and owners, normalized
   modes, and a zero gzip mtime; the manifest digest is canonical, stable,
@@ -86,7 +85,11 @@ are pending and must pass before the status above changes.
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 is recorded in
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`cb51cb0` (`make core` 985 tests, `make conformance` 19 oracles,
+`make adversarial` 597 tests, `make fuzz-smoke`,
+`make release-candidate-smoke` reproducible, and the S20-620 and S20-630
+smokes, all exit 0 in 61 seconds of wall time) and is recorded in
 `machineresearch/sley-2.0/s20-720-release-candidate-campaign-2026-09-03.md`.
 The full `make v1` gate was skipped because this is a subsystem handoff,
 not a release boundary; `make v2` and `make release-check` remain
