@@ -25,6 +25,19 @@ S20-400 Council reviews are pending.
 - Whether a cancel should be allowed to name a request of a later batch
   (a pre-cancel) or only of the same batch.
 
+## Tier 2 handoff gate (2026-09-03, at `1c8d149`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (960 tests) |
+| `make conformance` | PASS |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make smp1-persistent-fuzz-smoke` | PASS (652 seeds, four lanes) |
+
+Total 30 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary. Council reviews remain pending.
+
 ## Commits
 
-- implementation and contract revision 4: the commit that adds this file.
+- implementation and contract revision 4: `1c8d149`.

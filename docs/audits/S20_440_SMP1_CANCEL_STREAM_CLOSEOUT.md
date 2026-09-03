@@ -36,8 +36,7 @@ remainder.
 
 ## Evidence
 
-- Contract revision 4 and the implementation in the commit after this
-  file; Tier 2 recorded in
+- Contract revision 4 and the implementation at `1c8d149`; Tier 2 recorded in
   `machineresearch/sley-2.0/s20-440-smp1-cancel-stream-campaign-2026-09-03.md`.
 - Native tests: the streaming codec test (split, every frame within the
   ceiling, reassembly to the exact body and bounded context, single frame
@@ -69,9 +68,10 @@ remainder.
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 (`make core`,
-`make conformance`, `make adversarial`, `make fuzz-smoke`,
-`make smp1-persistent-fuzz-smoke`) is recorded in the campaign record. The
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`1c8d149` (`make core` 960 tests, `make conformance`, `make adversarial`,
+`make fuzz-smoke`, `make smp1-persistent-fuzz-smoke`, all exit 0 in 30
+seconds) and is recorded in the campaign record. The
 full `make v1` gate was skipped because this is a subsystem handoff, not a
 release boundary; `make v2` and `make release-check` remain intentionally
 fail closed.
