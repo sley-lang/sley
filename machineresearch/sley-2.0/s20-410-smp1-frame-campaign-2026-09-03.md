@@ -84,6 +84,20 @@ protocol summary status stays `S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
 Total 31 seconds. `make v1` skipped: subsystem handoff, not a release
 boundary.
 
+## Tier 2 handoff gate for slice B (2026-09-03, at `bb67ab9`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (957 tests) |
+| `make conformance` | PASS |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make smp1-persistent-fuzz-smoke` | PASS (489 seeds) |
+
+Total 38 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary.
+
 ## Commits
 
+- slice B: `bb67ab9`.
 - slice A: `d4ff651`.
