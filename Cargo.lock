@@ -177,6 +177,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-json-bridge"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "serde_json",
+ "sley-id",
+ "sley-protocol",
+]
+
+[[package]]
 name = "sley-mutate"
 version = "2.0.0-alpha.0"
 dependencies = [

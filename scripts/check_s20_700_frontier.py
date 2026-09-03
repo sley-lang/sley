@@ -107,8 +107,8 @@ if (ROOT / "crates/sley-repo/src/merge.rs").exists() and merge_status not in (
     problems.append("merge-production-boundary-now-present:reaudit-required")
 work_packages = WORK_PACKAGES.read_text(encoding="utf-8")
 for marker in [
-    "nineteen persistent libFuzzer targets",
-    "eighteen scoped persistent Make smoke gates",
+    "twenty persistent libFuzzer targets",
+    "nineteen scoped persistent Make smoke gates",
     "merge production boundary is implemented",
 ]:
     if marker not in work_packages:
@@ -118,8 +118,8 @@ summary = json.loads(MACHINE_SUMMARY.read_text(encoding="utf-8"))
 frontier = summary.get("s20_700_remaining_surface_audit", {})
 expected = {
     "master_required_surface_count": 11,
-    "scoped_target_count": 19,
-    "scoped_landed_surface_count": 20,
+    "scoped_target_count": 20,
+    "scoped_landed_surface_count": 21,
     "remaining_required_surface_count": 0,
     "mutation_candidate_production_boundary": True,
     "mutation_candidate_persistent_fuzz_target": True,
@@ -135,7 +135,7 @@ expected = {
     "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-420-JSON-BRIDGE",
+    "next_dependency_complete_package": "S20-430-CLI",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -153,7 +153,7 @@ if frontier.get("local_frontier_contract") != "docs/audits/S20_LOCAL_COMPLETION_
     problems.append("machine-summary-local-frontier-drift")
 
 for path, marker in [
-    (RESULTS, "nineteen scoped persistent libFuzzer"),
+    (RESULTS, "twenty scoped persistent libFuzzer"),
     (GAPS, "S20-350 is complete as a proposal-only construction boundary"),
     (AUDIT, "the merge engine target is attached"),
     (AUDIT, "S20-510 semantic comparison is implemented"),
@@ -165,6 +165,7 @@ for path, marker in [
     (AUDIT, "S20-410 is implemented"),
     (AUDIT, "S20-440 is implemented"),
     (AUDIT, "S20-330 is implemented"),
+    (AUDIT, "S20-420 is implemented"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

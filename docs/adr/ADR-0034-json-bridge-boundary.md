@@ -1,7 +1,9 @@
 # ADR-0034: JSON bridge as a generated, non-canonical representation
 
-Status: proposed; the S20-420 contract is a draft at revision 1 with
-Council review pending; implementation pending
+Status: proposed; the S20-420 contract is a draft at revision 2 with
+Council review pending; implemented at `crates/sley-json-bridge`
+(2026-09-03) with a round-trip fixture, an independent oracle, and a
+persistent fuzz slice
 
 Date: 2026-09-03
 

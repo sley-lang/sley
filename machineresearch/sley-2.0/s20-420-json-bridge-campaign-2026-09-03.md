@@ -46,4 +46,15 @@ Contract: `docs/spec/SMP1_JSON_BRIDGE_V1.md`, ADR-0034, stage checker
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0034, checker, generator, method table |
+| Contract draft revision 1 | `be9843c` | green | ADR-0034, checker, generator, method table |
+| Implementation, revision 2, fixture, oracle, fuzz slice | pending | pending | `crates/sley-json-bridge`; 8 native tests; oracle 5 vectors, 31 rejections; fuzz smoke 631 seeds, 632 runs, 12.9 s |
+
+## Observations outside the package
+
+- `cargo clippy -p sley-json-bridge --all-targets -- -D warnings` also
+  lints path dependencies under `-D warnings` and stopped on a pre-existing
+  `too_many_lines` finding in `crates/sley-store/src/lib.rs`
+  (`recover_staged_with_limits`, 107 lines), which no repository gate runs
+  clippy against. The bridge lint reran with `--no-deps` and is clean; the
+  sley-store finding is recorded here, untouched, because that crate is
+  frozen under S20-530/S20-540.

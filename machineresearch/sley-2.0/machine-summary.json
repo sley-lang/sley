@@ -590,9 +590,9 @@
     "restricted_profile_viable": true
   },
   "json_bridge": {
-    "status": "S20_420_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -617,8 +617,17 @@
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
-    "implementation_started": false,
-    "implementation": []
+    "implementation_started": true,
+    "implementation": [
+      "crates/sley-json-bridge/src/lib.rs",
+      "crates/sley-json-bridge/src/tests.rs"
+    ],
+    "round_trip_fixture": "conformance/smp1-json-bridge/v1/roundtrip.json",
+    "rejection_fixture": "conformance/smp1-json-bridge/v1/rejected.json",
+    "fixture_generator": "scripts/generate_smp1_json_bridge_fixtures.py",
+    "independent_oracle": "scripts/check_smp1_json_bridge_vector.py",
+    "persistent_fuzz_slice": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
+    "closeout": "docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md"
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
@@ -1397,6 +1406,25 @@
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true
   },
+  "s20_700_smp1_json_bridge_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_420_SMP1_JSON_BRIDGE_TEXT_AND_FRAME_ROUND_TRIP_ONLY",
+    "target": "fuzz/targets/smp1_json_bridge.rs",
+    "runner": "scripts/run_smp1_json_bridge_persistent_fuzz.py",
+    "checker": "scripts/check_smp1_json_bridge_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 3,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/smp1-json-bridge/v1/roundtrip.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-smp1-json-bridge-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-smp1-json-bridge-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_smp1_json_bridge_persistent_fuzz.py --manual",
+    "text_lane": true,
+    "frame_lane": true,
+    "record_lane": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md"
+  },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
     "targets": [
@@ -1784,8 +1812,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
     "master_required_surface_count": 11,
-    "scoped_target_count": 19,
-    "scoped_landed_surface_count": 20,
+    "scoped_target_count": 20,
+    "scoped_landed_surface_count": 21,
     "remaining_required_surface_count": 0,
     "remaining_required_surfaces": [],
     "mutation_candidate_production_boundary": true,
@@ -1807,7 +1835,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-420-JSON-BRIDGE",
+    "next_dependency_complete_package": "S20-430-CLI",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1917,13 +1945,13 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
-    "cargo_lock_sha256": "acb7945fdd18cad7652883f0a3921b4449a3e34b5e016fce1db14af20423e59a",
+    "cargo_lock_sha256": "9eb99e66b837e535ab6380b760736dc517b86c67cc4479a858eca57d3d22b0e7",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
-    "cargo_workspace_packages": 15,
+    "cargo_workspace_packages": 17,
     "cargo_registry_packages": 22,
     "python_workspace_packages": 1,
     "python_registry_packages": 2,
-    "dependency_relationships": 87,
+    "dependency_relationships": 108,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 499,
@@ -1941,9 +1969,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_330_IMPLEMENTED_REVIEWS_PENDING_S20_420_NEXT",
+    "status": "S20_420_IMPLEMENTED_REVIEWS_PENDING_S20_430_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-420-JSON-BRIDGE",
+    "next_authority_safe_package": "S20-430-CLI",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -2001,7 +2029,9 @@
     "s20_400_contract_drafted": true,
     "s20_410_implemented": true,
     "s20_440_implemented": true,
-    "s20_330_implemented": true
+    "s20_330_implemented": true,
+    "s20_420_implemented": true,
+    "json_bridge_available": true
   },
   "succession": {
     "corpus_version": 1,

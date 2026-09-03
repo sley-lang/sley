@@ -1,0 +1,926 @@
+//! SMP1 JSON bridge (S20-420, contract `docs/spec/SMP1_JSON_BRIDGE_V1.md`,
+//! ADR-0034).
+//!
+//! A generated, non-canonical text representation of SMP1 frames and of the
+//! records SMP1 owns. Bytes stay the only canonical form: [`frame_from_json`]
+//! re-encodes through the frozen `sley-protocol` codec, and nothing here is
+//! hashed, stored, or compared as identity. The bridge owns no semantics: it
+//! checks text resources, object shape, and the declared encodings, and
+//! every other failure keeps the codec's `PROTOCOL_*` code.
+
+#![forbid(unsafe_code)]
+
+use core::fmt;
+
+use serde_json::{Map, Value};
+use sley_id::SchemaEpochId;
+use sley_protocol::{
+    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_CHECKSUM,
+    FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_STREAM, FrameKind, Hello, LimitProfile,
+    MAX_FRAME_BYTES, Method, ProtocolError, ProtocolFailure, ProtocolFrame, Retryability,
+    SelectedProfile, SessionId, StreamChunk, decode_frame, encode_frame, encode_hello_frame,
+};
+
+/// Largest JSON text the bridge parses (contract section 3).
+pub const MAX_JSON_TEXT_BYTES: usize = 268_435_456;
+/// Deepest object or array nesting the bridge parses (contract section 3).
+pub const MAX_JSON_DEPTH: usize = 32;
+/// Largest integer emitted as a JSON number; larger values travel as decimal
+/// strings (contract section 1).
+pub const MAX_JSON_NUMBER: u64 = (1 << 53) - 1;
+/// The generated method table, embedded verbatim from
+/// `conformance/smp1-json-bridge/v1/methods.json`.
+pub const METHOD_TABLE_JSON: &str =
+    include_str!("../../../conformance/smp1-json-bridge/v1/methods.json");
+
+// ---------------------------------------------------------------------------
+// Failures
+// ---------------------------------------------------------------------------
+
+/// The bridge's own stable failures (contract section 5).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum JsonBridgeErrorCode {
+    /// `JSON_BRIDGE_SHAPE_INVALID`: unparseable text, an unknown, missing, or
+    /// null field, a wrong JSON type, a wrong fixed length, or an unknown
+    /// frozen name.
+    ShapeInvalid,
+    /// `JSON_BRIDGE_NUMBER_INVALID`: an integer outside its declared form.
+    NumberInvalid,
+    /// `JSON_BRIDGE_HEX_INVALID`: uppercase, odd-length, or non-hex bytes.
+    HexInvalid,
+    /// `JSON_BRIDGE_METHOD_UNKNOWN`: a method name or tag outside the table.
+    MethodUnknown,
+    /// `JSON_BRIDGE_RESOURCE_LIMIT`: text above the size or depth ceiling.
+    ResourceLimit,
+}
+
+impl JsonBridgeErrorCode {
+    /// Every bridge code in numeric order.
+    pub const ALL: [Self; 5] = [
+        Self::ShapeInvalid,
+        Self::NumberInvalid,
+        Self::HexInvalid,
+        Self::MethodUnknown,
+        Self::ResourceLimit,
+    ];
+
+    /// The frozen symbol.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ShapeInvalid => "JSON_BRIDGE_SHAPE_INVALID",
+            Self::NumberInvalid => "JSON_BRIDGE_NUMBER_INVALID",
+            Self::HexInvalid => "JSON_BRIDGE_HEX_INVALID",
+            Self::MethodUnknown => "JSON_BRIDGE_METHOD_UNKNOWN",
+            Self::ResourceLimit => "JSON_BRIDGE_RESOURCE_LIMIT",
+        }
+    }
+
+    /// The frozen numeric code.
+    #[must_use]
+    pub const fn numeric(self) -> u32 {
+        match self {
+            Self::ShapeInvalid => 42_000,
+            Self::NumberInvalid => 42_001,
+            Self::HexInvalid => 42_002,
+            Self::MethodUnknown => 42_003,
+            Self::ResourceLimit => 42_004,
+        }
+    }
+}
+
+/// A bridge operation's failure: either the bridge's own code or the frozen
+/// codec's code, verbatim.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BridgeError {
+    /// A resource, shape, or encoding failure of the bridge.
+    Bridge(JsonBridgeErrorCode),
+    /// A failure of the frozen codec, carried unchanged.
+    Protocol(ProtocolError),
+}
+
+impl BridgeError {
+    /// The numeric code of either owner.
+    #[must_use]
+    pub const fn numeric(&self) -> u32 {
+        match self {
+            Self::Bridge(code) => code.numeric(),
+            Self::Protocol(error) => error.code().numeric(),
+        }
+    }
+
+    /// The symbol of either owner.
+    #[must_use]
+    pub const fn symbol(&self) -> &'static str {
+        match self {
+            Self::Bridge(code) => code.as_str(),
+            Self::Protocol(error) => error.code().as_str(),
+        }
+    }
+}
+
+impl From<ProtocolError> for BridgeError {
+    fn from(error: ProtocolError) -> Self {
+        Self::Protocol(error)
+    }
+}
+
+impl fmt::Display for BridgeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.symbol())
+    }
+}
+
+impl std::error::Error for BridgeError {}
+
+/// The bridge result type.
+pub type Result<T> = core::result::Result<T, BridgeError>;
+
+const fn fail<T>(code: JsonBridgeErrorCode) -> Result<T> {
+    Err(BridgeError::Bridge(code))
+}
+
+// ---------------------------------------------------------------------------
+// Method table
+// ---------------------------------------------------------------------------
+
+/// One row of the generated method table.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MethodEntry {
+    /// The frozen tag.
+    pub tag: u32,
+    /// The frozen name.
+    pub name: String,
+    /// The family name (`session`, `repository`, `query`, `candidate`,
+    /// `transaction`, `runtime`).
+    pub family: String,
+    /// Whether the method is reserved at this revision.
+    pub reserved: bool,
+    /// The owning work package as written in the contract table.
+    pub owner: String,
+}
+
+/// Parses the embedded method table.
+///
+/// # Errors
+///
+/// Returns `JSON_BRIDGE_SHAPE_INVALID` if the embedded table is malformed.
+pub fn method_table() -> Result<Vec<MethodEntry>> {
+    let table: Value = serde_json::from_str(METHOD_TABLE_JSON)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))?;
+    let rows = table.get("methods").and_then(Value::as_array);
+    let Some(rows) = rows else {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    };
+    let mut entries = Vec::with_capacity(rows.len());
+    for row in rows {
+        let fields = object(row, &["family", "name", "owner", "reserved", "tag"], &[])?;
+        entries.push(MethodEntry {
+            tag: u32_field(&fields["tag"])?,
+            name: string_field(&fields["name"])?.to_string(),
+            family: string_field(&fields["family"])?.to_string(),
+            reserved: bool_field(&fields["reserved"])?,
+            owner: string_field(&fields["owner"])?.to_string(),
+        });
+    }
+    Ok(entries)
+}
+
+/// Resolves a frozen method name.
+#[must_use]
+pub fn method_by_name(name: &str) -> Option<Method> {
+    Method::ALL
+        .iter()
+        .copied()
+        .find(|method| method.name() == name)
+}
+
+fn method_name(tag: u32) -> Result<&'static str> {
+    Method::from_tag(tag)
+        .map(Method::name)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
+}
+
+fn method_tag(name: &str) -> Result<u32> {
+    method_by_name(name)
+        .map(Method::tag)
+        .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
+}
+
+// ---------------------------------------------------------------------------
+// Declared encodings
+// ---------------------------------------------------------------------------
+
+fn integer(value: u64) -> Value {
+    if value <= MAX_JSON_NUMBER {
+        Value::from(value)
+    } else {
+        Value::String(value.to_string())
+    }
+}
+
+fn hex(bytes: &[u8]) -> Value {
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        text.push(char::from(b"0123456789abcdef"[usize::from(byte >> 4)]));
+        text.push(char::from(b"0123456789abcdef"[usize::from(byte & 0x0f)]));
+    }
+    Value::String(text)
+}
+
+fn parse_decimal(text: &str) -> Result<u64> {
+    if text.is_empty()
+        || !text.bytes().all(|byte| byte.is_ascii_digit())
+        || (text.len() > 1 && text.starts_with('0'))
+    {
+        return fail(JsonBridgeErrorCode::NumberInvalid);
+    }
+    text.parse()
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::NumberInvalid))
+}
+
+fn u64_field(value: &Value) -> Result<u64> {
+    match value {
+        Value::Number(number) => number
+            .as_u64()
+            .filter(|value| *value <= MAX_JSON_NUMBER)
+            .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::NumberInvalid)),
+        Value::String(text) => parse_decimal(text),
+        _ => fail(JsonBridgeErrorCode::ShapeInvalid),
+    }
+}
+
+fn u32_field(value: &Value) -> Result<u32> {
+    u32::try_from(u64_field(value)?)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::NumberInvalid))
+}
+
+fn bool_field(value: &Value) -> Result<bool> {
+    value
+        .as_bool()
+        .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))
+}
+
+fn string_field(value: &Value) -> Result<&str> {
+    value
+        .as_str()
+        .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))
+}
+
+fn hex_field(value: &Value) -> Result<Vec<u8>> {
+    let text = string_field(value)?;
+    if text.len() % 2 != 0 {
+        return fail(JsonBridgeErrorCode::HexInvalid);
+    }
+    let nibble = |byte: u8| -> Result<u8> {
+        match byte {
+            b'0'..=b'9' => Ok(byte - b'0'),
+            b'a'..=b'f' => Ok(byte - b'a' + 10),
+            _ => fail(JsonBridgeErrorCode::HexInvalid),
+        }
+    };
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for pair in bytes.chunks(2) {
+        out.push((nibble(pair[0])? << 4) | nibble(pair[1])?);
+    }
+    Ok(out)
+}
+
+fn hex32_field(value: &Value) -> Result<[u8; 32]> {
+    <[u8; 32]>::try_from(hex_field(value)?)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))
+}
+
+fn list_field(value: &Value) -> Result<&Vec<Value>> {
+    value
+        .as_array()
+        .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))
+}
+
+fn object<'a>(
+    value: &'a Value,
+    fields: &[&str],
+    nullable: &[&str],
+) -> Result<&'a Map<String, Value>> {
+    let Some(map) = value.as_object() else {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    };
+    if map.len() != fields.len() {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    }
+    for field in fields {
+        match map.get(*field) {
+            None => return fail(JsonBridgeErrorCode::ShapeInvalid),
+            Some(Value::Null) if !nullable.contains(field) => {
+                return fail(JsonBridgeErrorCode::ShapeInvalid);
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(map)
+}
+
+fn insert(map: &mut Map<String, Value>, field: &str, value: Value) {
+    map.insert(field.to_string(), value);
+}
+
+fn render(value: &Value) -> String {
+    value.to_string()
+}
+
+/// Checks the text ceilings before parsing (contract section 3).
+///
+/// # Errors
+///
+/// Returns `JSON_BRIDGE_RESOURCE_LIMIT`.
+pub fn check_resources(text: &str) -> Result<()> {
+    if text.len() > MAX_JSON_TEXT_BYTES {
+        return fail(JsonBridgeErrorCode::ResourceLimit);
+    }
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for byte in text.bytes() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'{' | b'[' => {
+                depth += 1;
+                if depth > MAX_JSON_DEPTH {
+                    return fail(JsonBridgeErrorCode::ResourceLimit);
+                }
+            }
+            b'}' | b']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn parse(text: &str) -> Result<Value> {
+    check_resources(text)?;
+    serde_json::from_str(text).map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::ShapeInvalid))
+}
+
+// ---------------------------------------------------------------------------
+// Limits, bounds, flags, features
+// ---------------------------------------------------------------------------
+
+const LIMIT_FIELDS: [&str; 7] = [
+    "max_frame_bytes",
+    "max_entities",
+    "max_edges",
+    "max_depth",
+    "max_response_bytes",
+    "max_work",
+    "max_inflight",
+];
+const BOUNDS_FIELDS: [&str; 8] = [
+    "applied_limits",
+    "returned_bytes",
+    "returned_entities",
+    "returned_edges",
+    "reached_depth",
+    "omitted",
+    "truncated",
+    "continuation",
+];
+const FLAG_FIELDS: [&str; 2] = ["cancel", "stream"];
+const FEATURE_FIELDS: [&str; 4] = ["cancel", "stream", "json_bridge", "checksum"];
+const FRAME_FIELDS: [&str; 8] = [
+    "protocol_version",
+    "session",
+    "request_id",
+    "kind",
+    "method",
+    "flags",
+    "bounds",
+    "body",
+];
+const HELLO_FIELDS: [&str; 7] = [
+    "protocol_versions",
+    "schema_epochs",
+    "limits",
+    "methods",
+    "features",
+    "adapters",
+    "effects",
+];
+const SELECTED_FIELDS: [&str; 8] = [
+    "protocol_version",
+    "schema_epoch",
+    "limits",
+    "methods",
+    "features",
+    "adapters",
+    "effects",
+    "handshake_id",
+];
+const FAILURE_FIELDS: [&str; 6] = [
+    "code",
+    "symbol",
+    "phase",
+    "retryability",
+    "incident",
+    "details",
+];
+const CHUNK_FIELDS: [&str; 3] = ["index", "total", "bytes"];
+
+fn limits_value(limits: &LimitProfile) -> Value {
+    let mut map = Map::new();
+    insert(&mut map, "max_frame_bytes", integer(limits.max_frame_bytes));
+    insert(&mut map, "max_entities", integer(limits.max_entities));
+    insert(&mut map, "max_edges", integer(limits.max_edges));
+    insert(&mut map, "max_depth", integer(u64::from(limits.max_depth)));
+    insert(
+        &mut map,
+        "max_response_bytes",
+        integer(limits.max_response_bytes),
+    );
+    insert(&mut map, "max_work", integer(limits.max_work));
+    insert(
+        &mut map,
+        "max_inflight",
+        integer(u64::from(limits.max_inflight)),
+    );
+    Value::Object(map)
+}
+
+fn limits_from_value(value: &Value) -> Result<LimitProfile> {
+    let map = object(value, &LIMIT_FIELDS, &[])?;
+    Ok(LimitProfile {
+        max_frame_bytes: u64_field(&map["max_frame_bytes"])?,
+        max_entities: u64_field(&map["max_entities"])?,
+        max_edges: u64_field(&map["max_edges"])?,
+        max_depth: u32_field(&map["max_depth"])?,
+        max_response_bytes: u64_field(&map["max_response_bytes"])?,
+        max_work: u64_field(&map["max_work"])?,
+        max_inflight: u32_field(&map["max_inflight"])?,
+    })
+}
+
+fn bounds_value(bounds: &BoundedContext) -> Value {
+    let mut map = Map::new();
+    insert(
+        &mut map,
+        "applied_limits",
+        limits_value(&bounds.applied_limits),
+    );
+    insert(&mut map, "returned_bytes", integer(bounds.returned_bytes));
+    insert(
+        &mut map,
+        "returned_entities",
+        integer(bounds.returned_entities),
+    );
+    insert(&mut map, "returned_edges", integer(bounds.returned_edges));
+    insert(
+        &mut map,
+        "reached_depth",
+        integer(u64::from(bounds.reached_depth)),
+    );
+    insert(&mut map, "omitted", integer(bounds.omitted));
+    insert(&mut map, "truncated", Value::Bool(bounds.truncated));
+    insert(&mut map, "continuation", Value::Bool(bounds.continuation));
+    Value::Object(map)
+}
+
+fn bounds_from_value(value: &Value) -> Result<BoundedContext> {
+    let map = object(value, &BOUNDS_FIELDS, &[])?;
+    Ok(BoundedContext {
+        applied_limits: limits_from_value(&map["applied_limits"])?,
+        returned_bytes: u64_field(&map["returned_bytes"])?,
+        returned_entities: u64_field(&map["returned_entities"])?,
+        returned_edges: u64_field(&map["returned_edges"])?,
+        reached_depth: u32_field(&map["reached_depth"])?,
+        omitted: u64_field(&map["omitted"])?,
+        truncated: bool_field(&map["truncated"])?,
+        continuation: bool_field(&map["continuation"])?,
+    })
+}
+
+fn bits_value(bits: u32, fields: &[&str], masks: &[u32]) -> Result<Value> {
+    let known = masks.iter().fold(0, |acc, mask| acc | mask);
+    if bits & !known != 0 {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    }
+    let mut map = Map::new();
+    for (field, mask) in fields.iter().zip(masks) {
+        insert(&mut map, field, Value::Bool(bits & mask != 0));
+    }
+    Ok(Value::Object(map))
+}
+
+fn bits_from_value(value: &Value, fields: &[&str], masks: &[u32]) -> Result<u32> {
+    let map = object(value, fields, &[])?;
+    let mut bits = 0;
+    for (field, mask) in fields.iter().zip(masks) {
+        if bool_field(&map[*field])? {
+            bits |= mask;
+        }
+    }
+    Ok(bits)
+}
+
+const FLAG_MASKS: [u32; 2] = [FLAG_CANCEL, FLAG_STREAM];
+const FEATURE_MASKS: [u32; 4] = [
+    FEATURE_CANCEL,
+    FEATURE_STREAM,
+    FEATURE_JSON_BRIDGE,
+    FEATURE_CHECKSUM,
+];
+
+fn kind_name(kind: FrameKind) -> &'static str {
+    match kind {
+        FrameKind::Request => "request",
+        FrameKind::Response => "response",
+        FrameKind::Event => "event",
+        FrameKind::Hello => "hello",
+    }
+}
+
+fn kind_from_value(value: &Value) -> Result<FrameKind> {
+    match string_field(value)? {
+        "request" => Ok(FrameKind::Request),
+        "response" => Ok(FrameKind::Response),
+        "event" => Ok(FrameKind::Event),
+        "hello" => Ok(FrameKind::Hello),
+        _ => fail(JsonBridgeErrorCode::ShapeInvalid),
+    }
+}
+
+fn retryability_name(retryability: Retryability) -> &'static str {
+    match retryability {
+        Retryability::Never => "never",
+        Retryability::AfterRequery => "after_requery",
+        Retryability::AfterCapability => "after_capability",
+        Retryability::AfterLimitChange => "after_limit_change",
+        Retryability::TransientHost => "transient_host",
+    }
+}
+
+fn retryability_from_value(value: &Value) -> Result<Retryability> {
+    match string_field(value)? {
+        "never" => Ok(Retryability::Never),
+        "after_requery" => Ok(Retryability::AfterRequery),
+        "after_capability" => Ok(Retryability::AfterCapability),
+        "after_limit_change" => Ok(Retryability::AfterLimitChange),
+        "transient_host" => Ok(Retryability::TransientHost),
+        _ => fail(JsonBridgeErrorCode::ShapeInvalid),
+    }
+}
+
+fn hex32_list(items: &[[u8; 32]]) -> Value {
+    Value::Array(items.iter().map(|item| hex(item)).collect())
+}
+
+fn hex32_list_from_value(value: &Value) -> Result<Vec<[u8; 32]>> {
+    list_field(value)?.iter().map(hex32_field).collect()
+}
+
+fn method_names(tags: &[u32]) -> Result<Value> {
+    tags.iter()
+        .map(|tag| method_name(*tag).map(|name| Value::String(name.to_string())))
+        .collect::<Result<Vec<_>>>()
+        .map(Value::Array)
+}
+
+fn method_tags_from_value(value: &Value) -> Result<Vec<u32>> {
+    list_field(value)?
+        .iter()
+        .map(|item| method_tag(string_field(item)?))
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Frames
+// ---------------------------------------------------------------------------
+
+/// Renders a decoded frame as the `Frame` object (contract section 2).
+///
+/// # Errors
+///
+/// Returns `JSON_BRIDGE_METHOD_UNKNOWN` for a method tag outside the table
+/// and `JSON_BRIDGE_SHAPE_INVALID` for flag bits the bridge cannot name.
+pub fn frame_value(frame: &ProtocolFrame) -> Result<Value> {
+    let method = if frame.kind == FrameKind::Hello && frame.method == 0 {
+        ""
+    } else {
+        method_name(frame.method)?
+    };
+    let mut map = Map::new();
+    insert(
+        &mut map,
+        "protocol_version",
+        integer(u64::from(frame.protocol_version)),
+    );
+    insert(
+        &mut map,
+        "session",
+        frame
+            .session
+            .map_or(Value::Null, |session| hex(session.as_bytes())),
+    );
+    insert(&mut map, "request_id", integer(frame.request_id));
+    insert(
+        &mut map,
+        "kind",
+        Value::String(kind_name(frame.kind).to_string()),
+    );
+    insert(&mut map, "method", Value::String(method.to_string()));
+    insert(
+        &mut map,
+        "flags",
+        bits_value(frame.flags, &FLAG_FIELDS, &FLAG_MASKS)?,
+    );
+    insert(&mut map, "bounds", bounds_value(&frame.bounds));
+    insert(&mut map, "body", hex(&frame.body));
+    Ok(Value::Object(map))
+}
+
+/// Parses the `Frame` object into a decoded frame without encoding it.
+///
+/// # Errors
+///
+/// Returns the bridge's shape and encoding codes in contract precedence.
+pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
+    let map = object(value, &FRAME_FIELDS, &["session"])?;
+    let protocol_version = u32_field(&map["protocol_version"])?;
+    let session = match &map["session"] {
+        Value::Null => None,
+        other => Some(SessionId::from_bytes(hex32_field(other)?)),
+    };
+    let request_id = u64_field(&map["request_id"])?;
+    let kind = kind_from_value(&map["kind"])?;
+    let name = string_field(&map["method"])?;
+    let method = if kind == FrameKind::Hello {
+        if !name.is_empty() {
+            return fail(JsonBridgeErrorCode::ShapeInvalid);
+        }
+        0
+    } else {
+        method_tag(name)?
+    };
+    let flags = bits_from_value(&map["flags"], &FLAG_FIELDS, &FLAG_MASKS)?;
+    let bounds = bounds_from_value(&map["bounds"])?;
+    let body = hex_field(&map["body"])?;
+    let frame = ProtocolFrame {
+        protocol_version,
+        session,
+        request_id,
+        kind,
+        method,
+        flags,
+        bounds,
+        body,
+    };
+    if kind == FrameKind::Hello
+        && (session.is_some()
+            || request_id != 0
+            || flags != 0
+            || frame.bounds != BoundedContext::none())
+    {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    }
+    Ok(frame)
+}
+
+/// Decodes an encoded SMP1 frame with the frozen codec under the absolute
+/// ceiling and renders it as the `Frame` object.
+///
+/// # Errors
+///
+/// Returns the codec's `PROTOCOL_*` code verbatim, or a bridge code when the
+/// decoded frame cannot be named.
+pub fn frame_to_json(bytes: &[u8]) -> Result<String> {
+    let (decoded, _) = decode_frame(bytes, MAX_FRAME_BYTES)?;
+    let frame = match decoded {
+        DecodedFrame::Hello(hello) => ProtocolFrame {
+            protocol_version: sley_protocol::PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Hello,
+            method: 0,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: hello.encode()?,
+        },
+        DecodedFrame::Request(frame) | DecodedFrame::Response(frame) => frame,
+    };
+    Ok(render(&frame_value(&frame)?))
+}
+
+/// Parses the `Frame` object and encodes it with the frozen codec; the
+/// returned bytes are the only canonical form.
+///
+/// # Errors
+///
+/// Returns `JSON_BRIDGE_RESOURCE_LIMIT`, then the shape and encoding codes,
+/// then the codec's `PROTOCOL_*` code verbatim.
+pub fn frame_from_json(text: &str) -> Result<EncodedFrame> {
+    let frame = frame_from_value(&parse(text)?)?;
+    if frame.kind == FrameKind::Hello {
+        Ok(encode_hello_frame(&Hello::decode(&frame.body)?)?)
+    } else {
+        Ok(encode_frame(&frame)?)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Hello and selected profile
+// ---------------------------------------------------------------------------
+
+fn hello_value(hello: &Hello) -> Result<Value> {
+    let mut map = Map::new();
+    insert(
+        &mut map,
+        "protocol_versions",
+        Value::Array(
+            hello
+                .protocol_versions
+                .iter()
+                .map(|v| integer(u64::from(*v)))
+                .collect(),
+        ),
+    );
+    insert(
+        &mut map,
+        "schema_epochs",
+        Value::Array(
+            hello
+                .schema_epochs
+                .iter()
+                .map(|e| hex(e.as_bytes()))
+                .collect(),
+        ),
+    );
+    insert(&mut map, "limits", limits_value(&hello.limits));
+    insert(&mut map, "methods", method_names(&hello.methods)?);
+    insert(
+        &mut map,
+        "features",
+        bits_value(hello.features, &FEATURE_FIELDS, &FEATURE_MASKS)?,
+    );
+    insert(&mut map, "adapters", hex32_list(&hello.adapters));
+    insert(&mut map, "effects", hex32_list(&hello.effects));
+    Ok(Value::Object(map))
+}
+
+/// Renders a validated hello as the `Hello` object.
+///
+/// # Errors
+///
+/// Returns the codec's validation failure or a bridge naming failure.
+pub fn hello_to_json(hello: &Hello) -> Result<String> {
+    hello.validate()?;
+    Ok(render(&hello_value(hello)?))
+}
+
+/// Parses the `Hello` object into a validated hello.
+///
+/// # Errors
+///
+/// Returns the bridge codes in precedence, then the codec's validation code.
+pub fn hello_from_json(text: &str) -> Result<Hello> {
+    let value = parse(text)?;
+    let map = object(&value, &HELLO_FIELDS, &[])?;
+    let hello = Hello {
+        protocol_versions: list_field(&map["protocol_versions"])?
+            .iter()
+            .map(u32_field)
+            .collect::<Result<_>>()?,
+        schema_epochs: hex32_list_from_value(&map["schema_epochs"])?
+            .into_iter()
+            .map(SchemaEpochId::from_bytes)
+            .collect(),
+        limits: limits_from_value(&map["limits"])?,
+        methods: method_tags_from_value(&map["methods"])?,
+        features: bits_from_value(&map["features"], &FEATURE_FIELDS, &FEATURE_MASKS)?,
+        adapters: hex32_list_from_value(&map["adapters"])?,
+        effects: hex32_list_from_value(&map["effects"])?,
+    };
+    hello.validate()?;
+    Ok(hello)
+}
+
+/// Renders a selected profile, including its derived handshake identity.
+///
+/// # Errors
+///
+/// Returns the codec's failure or a bridge naming failure.
+pub fn selected_to_json(selected: &SelectedProfile) -> Result<String> {
+    let handshake = selected.handshake_id()?;
+    let mut map = Map::new();
+    insert(
+        &mut map,
+        "protocol_version",
+        integer(u64::from(selected.protocol_version)),
+    );
+    insert(
+        &mut map,
+        "schema_epoch",
+        hex(selected.schema_epoch.as_bytes()),
+    );
+    insert(&mut map, "limits", limits_value(&selected.limits));
+    insert(&mut map, "methods", method_names(&selected.methods)?);
+    insert(
+        &mut map,
+        "features",
+        bits_value(selected.features, &FEATURE_FIELDS, &FEATURE_MASKS)?,
+    );
+    insert(&mut map, "adapters", hex32_list(&selected.adapters));
+    insert(&mut map, "effects", hex32_list(&selected.effects));
+    insert(&mut map, "handshake_id", hex(handshake.as_bytes()));
+    debug_assert_eq!(map.len(), SELECTED_FIELDS.len());
+    Ok(render(&Value::Object(map)))
+}
+
+// ---------------------------------------------------------------------------
+// Failure envelope and stream chunks
+// ---------------------------------------------------------------------------
+
+/// Renders a failure envelope with its code and symbol verbatim.
+///
+/// # Errors
+///
+/// Returns the codec's `PROTOCOL_PAYLOAD_INVALID` for a symbol the codec
+/// would not encode.
+pub fn failure_to_json(failure: &ProtocolFailure) -> Result<String> {
+    failure.encode()?;
+    let mut map = Map::new();
+    insert(&mut map, "code", integer(u64::from(failure.code)));
+    insert(&mut map, "symbol", Value::String(failure.symbol.clone()));
+    insert(&mut map, "phase", integer(u64::from(failure.phase)));
+    insert(
+        &mut map,
+        "retryability",
+        Value::String(retryability_name(failure.retryability).to_string()),
+    );
+    insert(
+        &mut map,
+        "incident",
+        failure.incident.map_or(Value::Null, |digest| hex(&digest)),
+    );
+    insert(&mut map, "details", hex(&failure.details));
+    Ok(render(&Value::Object(map)))
+}
+
+/// Parses the `Failure` object.
+///
+/// # Errors
+///
+/// Returns the bridge codes in precedence, then the codec's symbol check.
+pub fn failure_from_json(text: &str) -> Result<ProtocolFailure> {
+    let value = parse(text)?;
+    let map = object(&value, &FAILURE_FIELDS, &["incident"])?;
+    let failure = ProtocolFailure {
+        code: u32_field(&map["code"])?,
+        symbol: string_field(&map["symbol"])?.to_string(),
+        phase: u32_field(&map["phase"])?,
+        retryability: retryability_from_value(&map["retryability"])?,
+        incident: match &map["incident"] {
+            Value::Null => None,
+            other => Some(hex32_field(other)?),
+        },
+        details: hex_field(&map["details"])?,
+    };
+    failure.encode()?;
+    Ok(failure)
+}
+
+/// Renders a stream chunk.
+#[must_use]
+pub fn chunk_to_json(chunk: &StreamChunk) -> String {
+    let mut map = Map::new();
+    insert(&mut map, "index", integer(chunk.index));
+    insert(&mut map, "total", integer(chunk.total));
+    insert(&mut map, "bytes", hex(&chunk.bytes));
+    render(&Value::Object(map))
+}
+
+/// Parses the `StreamChunk` object.
+///
+/// # Errors
+///
+/// Returns the bridge codes in precedence.
+pub fn chunk_from_json(text: &str) -> Result<StreamChunk> {
+    let value = parse(text)?;
+    let map = object(&value, &CHUNK_FIELDS, &[])?;
+    Ok(StreamChunk {
+        index: u64_field(&map["index"])?,
+        total: u64_field(&map["total"])?,
+        bytes: hex_field(&map["bytes"])?,
+    })
+}
+
+#[cfg(test)]
+mod tests;

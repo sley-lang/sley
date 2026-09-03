@@ -82,12 +82,17 @@ path = "targets/context_capsule_builder.rs"
 name = "smp1_frame_decoder"
 path = "targets/smp1_frame_decoder.rs"
 
+[[bin]]
+name = "smp1_json_bridge"
+path = "targets/smp1_json_bridge.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }
 sley-id = { path = "../crates/sley-id" }
 sley-mutate = { path = "../crates/sley-mutate" }
 sley-policy = { path = "../crates/sley-policy" }
+sley-json-bridge = { path = "../crates/sley-json-bridge" }
 sley-protocol = { path = "../crates/sley-protocol" }
 sley-query = { path = "../crates/sley-query" }
 sley-repo = { path = "../crates/sley-repo" }

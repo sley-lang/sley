@@ -1,6 +1,6 @@
 # Property, Fuzz, and Adversarial Results
 
-Status: bounded partial S20-700 evidence with nineteen scoped persistent libFuzzer
+Status: bounded partial S20-700 evidence with twenty scoped persistent libFuzzer
 harnesses. This is not the complete cross-surface suite or a final finding
 register. The 55-threat map remains `docs/THREAT_REGISTER.md`.
 
@@ -71,6 +71,15 @@ Current landed slices:
   separately reject a digest-valid receipt whose authenticated object length
   differs from durable inventory. This adjacent target grants no runtime or
   named-ref authority.
+- SMP1 frame decoder persistent libFuzzer slice: four lanes decode direct
+  and trailer-rehashed frames, bare hellos with negotiation, and stream
+  chunks with reassembly; every accepted frame binds its derived identity
+  and re-encodes byte-identically (`docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md`).
+- SMP1 JSON bridge persistent libFuzzer slice: three lanes parse frame text,
+  render frame bytes, and parse hello, failure, and chunk text; every
+  accepted value round-trips to identical bytes or values and every
+  rejection carries a frozen `JSON_BRIDGE_*` or `PROTOCOL_*` code
+  (`docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md`).
 
 Closed development finding `S20-700-HARNESS-001` retains minimized input `c2`.
 The initial fuzz-only type generator could expand that cyclic one-byte stream

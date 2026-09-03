@@ -1,9 +1,10 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-420 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). Revision 2 records the clarifications found while implementing
+revision 1 (section 8). The implementation is `crates/sley-json-bridge`;
+implementation state is tracked in the machine summary.
 
 The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
@@ -151,3 +152,26 @@ This contract does not claim: JSON forms of owner bodies (queries,
 capsules, candidates, receipts, packs), which stay hex; JSON Schema
 publication; streaming JSON over a transport; the CLI (S20-430); runtime,
 benchmark, packaging, release, or GA.
+
+## 8. Revision 2 clarifications
+
+- A fixed-length byte field (`hex[64]`) whose hex is valid but of another
+  length is `JSON_BRIDGE_SHAPE_INVALID`; `JSON_BRIDGE_HEX_INVALID` names
+  only uppercase, odd-length, and non-hex text.
+- A `hello` Frame carries a null `session`, a zero `request_id`, an empty
+  `method`, both flags false, and the all-zero bounds; any other value is
+  `JSON_BRIDGE_SHAPE_INVALID`. Its `body` is the hello record, which the
+  reader decodes and re-encodes through the codec (`PROTOCOL_*` on
+  failure).
+- Rendering a frame whose method tag is outside the table, or whose flag
+  or feature bits have no frozen name, fails with
+  `JSON_BRIDGE_METHOD_UNKNOWN` or `JSON_BRIDGE_SHAPE_INVALID`; the bridge
+  never invents a name.
+- A frozen-name field (`kind`, `retryability`) with an unlisted string is
+  `JSON_BRIDGE_SHAPE_INVALID`; a JSON type other than the declared one
+  (a boolean for an integer, a number for hex) is
+  `JSON_BRIDGE_SHAPE_INVALID` before any encoding check.
+- The JSON text `-0` reads as the integer zero; every other signed form is
+  `JSON_BRIDGE_NUMBER_INVALID`.
+- `hello_to_json` and `failure_to_json` validate through the codec first,
+  so a value the codec would not encode fails with its `PROTOCOL_*` code.
