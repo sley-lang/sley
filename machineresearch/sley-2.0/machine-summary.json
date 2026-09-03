@@ -589,6 +589,37 @@
     "closeout": "docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md",
     "restricted_profile_viable": true
   },
+  "json_bridge": {
+    "status": "S20_420_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
+    "checker": "scripts/check_smp1_json_bridge_contract.py",
+    "method_table": "conformance/smp1-json-bridge/v1/methods.json",
+    "method_table_generator": "scripts/generate_smp1_json_bridge_table.py",
+    "canonical_form": "SMP1_BYTES_ONLY",
+    "new_stable_error_codes": 5,
+    "new_error_code_range": "42000 through 42004",
+    "declared_encodings": [
+      "LOWERCASE_HEX_BYTES",
+      "NUMBER_TO_2_POW_53_MINUS_1_ELSE_DECIMAL_STRING",
+      "FROZEN_ENUM_NAMES",
+      "EXACT_OBJECT_SHAPES_LEXICOGRAPHIC_EMISSION"
+    ],
+    "forbidden": [
+      "json_in_program_identity",
+      "semantic_validation",
+      "collapsed_codes",
+      "derived_omission_states"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": false,
+    "implementation": []
+  },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
     "contract": "docs/spec/MUTATION_SCHEMA_V1.md",

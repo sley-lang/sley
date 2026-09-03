@@ -363,6 +363,14 @@ body keeps its owning contract's code; `SESSION_*` codes belong to S20-330.
 The contract is a draft with Council review pending and reserves, rather than
 freezes, these codes.
 
+S20-420 reserves numeric codes 42000 through 42004 for the exact `JSON_BRIDGE_*`
+failures of `SMP1_JSON_BRIDGE_V1.md`: object shape, integer encoding, hex
+encoding, unknown method name, and the text resource ceiling. They precede
+the `PROTOCOL_*` codes only for resource, shape, and encoding failures; a frame
+that is invalid on the wire keeps its `PROTOCOL_*` code. The contract is a
+draft with Council review pending and reserves, rather than freezes, these
+codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:
