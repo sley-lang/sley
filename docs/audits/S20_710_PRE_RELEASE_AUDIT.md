@@ -43,6 +43,21 @@ Provide or approve the exact root proprietary license text, including the
 copyright holder, year/range, grant or restriction terms, and any required
 notice language. The implementation must not invent these legal facts.
 
-After that decision, Argus must re-run license and secret review, generate the
+After that decision, Argus must re-run license and secret review, approve the
 release-standard SBOM/provenance artifacts, re-anchor history at the release
 candidate, and disposition every finding before S20-710 can pass.
+
+## Draft standards documents (2026-09-03)
+
+The mechanics of the standards formats now exist under
+`docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md` (draft revision 1, ADR-0041):
+`scripts/build_standards_sbom.py` derives a draft standards SBOM in both
+CycloneDX 1.6 (`evidence/release/sbom/cyclonedx-1.6.json`) and SPDX 2.3
+(`evidence/release/sbom/spdx-2.3.json`) from this inventory, and
+`scripts/build_release_provenance.py` derives an unsigned in-toto statement
+(`evidence/release/provenance.json`) for the S20-720 candidate. They are
+deterministic, carry no host path or wall clock, assert no license conclusion,
+and are signed by nobody. They do not lift this audit's blocker: the machine
+summary keeps `standards_sbom` and `release_provenance` false until the
+operator approves the root license text and Argus and Vulcan disposition the
+result at the release candidate.

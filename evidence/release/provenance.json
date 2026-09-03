@@ -1,0 +1,113 @@
+{
+  "attestation": {
+    "blockers": [
+      "root_license_text_operator_approval",
+      "signing_key_and_transparency_log_unauthorized",
+      "final_argus_and_vulcan_dispositions",
+      "release_candidate_history_reanchor",
+      "second_host_attestation_operator_lane",
+      "council_reviews"
+    ],
+    "publication_authorized": false,
+    "signature_algorithm": null,
+    "signed": false,
+    "transparency_log": null
+  },
+  "contract": "sley2.release-provenance.v1",
+  "statement": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "predicate": {
+      "buildDefinition": {
+        "buildType": "urn:sley2:buildtype:release-candidate/v1",
+        "externalParameters": {
+          "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+          "commit": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2",
+          "make_target": "release-candidate-smoke"
+        },
+        "internalParameters": {
+          "artifact_size_bytes": 2050870,
+          "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
+          "locked": true,
+          "member_count": 14,
+          "path_remaps": [
+            "--remap-path-prefix <worktree>=/sley2",
+            "--remap-path-prefix <cargo-registry-src>=/cargo/registry/src",
+            "--remap-path-prefix <home>=/home-remapped"
+          ],
+          "profile": "release",
+          "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+        },
+        "resolvedDependencies": [
+          {
+            "digest": {
+              "sha1": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2"
+            },
+            "uri": "urn:sley2:git-commit"
+          },
+          {
+            "digest": {
+              "sha256": "0dc09f8a4c472bf0772ab444e86ebed796878960c9218e5d99dc659de1605d13"
+            },
+            "name": "Cargo.lock"
+          },
+          {
+            "digest": {
+              "sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446"
+            },
+            "name": "oracle/scb1/uv.lock"
+          },
+          {
+            "digest": {
+              "sha256": "312cc54821956d54e73e4f8b5820d653d42ce3fa0fa359cbd9911b9499a45cf0"
+            },
+            "name": "evidence/security/T52/pre-release-inventory.json"
+          },
+          {
+            "digest": {
+              "sha256": "ef9bd27f6747a1d33b7d4a96b28fadd510a963b75a37f0a90594342c6c0b6bed"
+            },
+            "name": "evidence/release/sbom/cyclonedx-1.6.json"
+          },
+          {
+            "digest": {
+              "sha256": "b890b9c58399152ddffa0f59011b27e6674724d050ad752288fa93d3c8d1f0ed"
+            },
+            "name": "evidence/release/sbom/spdx-2.3.json"
+          }
+        ]
+      },
+      "runDetails": {
+        "builder": {
+          "id": "urn:sley2:builder:local-primary"
+        },
+        "byproducts": [
+          {
+            "digest": {
+              "sha256": "fd1f3a1847973cc17604f3fe4e2d93659ffd88a22a7c1e0a4592e5b2004fc60e"
+            },
+            "name": "evidence/release/reproducibility-report.json"
+          },
+          {
+            "digest": {
+              "sha256": "fcb729040992aa627762886c17cb7a7d5a5c340abed8430aca16fd101bd208be"
+            },
+            "name": "evidence/conformance/independent-conformance-report.json"
+          }
+        ],
+        "metadata": {
+          "invocationId": "510fe41c46976f0b91e29ab4a1fcf114c830a153e4b2b243967ad063567da230"
+        }
+      }
+    },
+    "predicateType": "https://slsa.dev/provenance/v1",
+    "subject": [
+      {
+        "digest": {
+          "sha256": "8a76e09465bc7eda0e77cfc498c403e54c7cd10c6baf54eae9427ae6c1668a7f"
+        },
+        "name": "sley-2.0.0-linux-x86_64.tar.gz"
+      }
+    ]
+  },
+  "statement_digest": "9ba74b291e016eacd3977906fd831dcff28fa839bed14906b8057aeee83a0c7f"
+}

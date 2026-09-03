@@ -427,6 +427,20 @@ tracked conformance report that differs from the derived one
 release, or publication claim follows from them. The contract is a draft with
 Council review pending and reserves, rather than freezes, these codes.
 
+S20-710 full reserves numeric codes 74000 through 74007 for the exact failures
+of `STANDARDS_SBOM_AND_PROVENANCE_V1.md`: a missing
+(`SBOM_INVENTORY_MISSING`) or malformed (`SBOM_INVENTORY_INVALID`) T52
+inventory, a component without a purl, name, version, ecosystem, or license
+expression (`SBOM_COMPONENT_INCOMPLETE`), a tracked CycloneDX or SPDX document
+that differs from the derived one (`SBOM_DOCUMENT_DRIFT`), a missing
+(`PROVENANCE_EVIDENCE_MISSING`) or non-reproducible
+(`PROVENANCE_EVIDENCE_INVALID`) candidate evidence record, a provenance subject
+that disagrees with the candidate or the SBOM root
+(`PROVENANCE_SUBJECT_MISMATCH`), and a tracked provenance that differs from the
+derived statement (`PROVENANCE_DOCUMENT_DRIFT`). Nothing here signs, publishes,
+or completes the S20-710 audit. The contract is a draft with Council review
+pending and reserves, rather than freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:

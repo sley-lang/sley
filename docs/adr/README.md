@@ -47,3 +47,4 @@ Current records:
 - ADR-0038: release candidate mechanics without a release
 - ADR-0039: the extended opcode profile as a second, explicit VM profile
 - ADR-0040: reproducibility attestations and independent conformance as derived evidence
+- ADR-0041: standards SBOM and unsigned provenance derived from local evidence

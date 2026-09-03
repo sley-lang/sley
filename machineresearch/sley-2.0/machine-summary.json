@@ -2214,7 +2214,13 @@
     "release_candidate_history_reanchored": false,
     "final_argus_disposition": "DEFERRED_FORGE_OAUTH_401",
     "final_vulcan_disposition": "DEFERRED_FORGE_OAUTH_401",
-    "publication_authorized": false
+    "publication_authorized": false,
+    "standards_sbom_draft_documents": [
+      "evidence/release/sbom/cyclonedx-1.6.json",
+      "evidence/release/sbom/spdx-2.3.json"
+    ],
+    "release_provenance_draft_statement": "evidence/release/provenance.json",
+    "draft_documents_contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md"
   },
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
@@ -2437,6 +2443,49 @@
       "scripts/build_independent_conformance_report.py",
       "scripts/check_reproducibility_and_independent_conformance.py",
       "bench/release/tests/test_reproducibility.py"
+    ]
+  },
+  "standards_sbom_and_provenance": {
+    "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
+    "contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0041-standards-sbom-and-unsigned-provenance.md",
+    "checker": "scripts/check_standards_sbom_and_provenance.py",
+    "cyclonedx_document": "evidence/release/sbom/cyclonedx-1.6.json",
+    "spdx_document": "evidence/release/sbom/spdx-2.3.json",
+    "provenance_document": "evidence/release/provenance.json",
+    "cyclonedx_spec_version": "1.6",
+    "spdx_version": "SPDX-2.3",
+    "statement_type": "https://in-toto.io/Statement/v1",
+    "predicate_type": "https://slsa.dev/provenance/v1",
+    "components": 43,
+    "dependency_relationships": 118,
+    "license_disposition_blocked_components": 19,
+    "signed": false,
+    "transparency_log": false,
+    "ga_claimed": false,
+    "publication_authorized": false,
+    "s20_710_audit_complete": false,
+    "new_stable_error_codes": 8,
+    "new_error_code_range": "74000 through 74007",
+    "blockers": [
+      "root_license_text_operator_approval",
+      "signing_key_and_transparency_log_unauthorized",
+      "final_argus_and_vulcan_dispositions",
+      "release_candidate_history_reanchor",
+      "council_reviews"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": true,
+    "implementation": [
+      "scripts/build_standards_sbom.py",
+      "scripts/build_release_provenance.py",
+      "scripts/check_standards_sbom_and_provenance.py",
+      "bench/release/tests/test_standards_sbom.py"
     ]
   }
 }

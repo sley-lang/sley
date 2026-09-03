@@ -1,0 +1,188 @@
+# Standards SBOM and Release Provenance v1
+
+Status: S20-710 full-audit contract draft, revision 1 (2026-09-03); Council
+review pending (Ariadne contract review, Nabu architecture review, Vulcan
+surface review). The mechanics are `scripts/build_standards_sbom.py` and
+`scripts/build_release_provenance.py`; implementation state is tracked in the
+machine summary.
+
+## Boundary
+
+This contract freezes how the Sley 2 candidate's dependency inventory becomes
+standards-format SBOM documents and how the local build becomes an unsigned
+provenance statement (master goal sections 16.7, 26.8, dossier 21; the
+S20-710 full-audit requirement named in `docs/audits/S20_710_PRE_RELEASE_AUDIT.md`).
+It composes the S20-710 T52 inventory and the S20-720 candidate evidence and
+derives; it never queries a registry, contacts a network, signs anything, or
+authorizes publication.
+
+It does not complete the S20-710 audit. That still requires the
+operator-approved root license text, the Argus and Vulcan dispositions, and a
+history re-anchor at the release candidate, so the machine summary keeps
+`s20_710_pre_release_audit.standards_sbom` and `release_provenance` false and
+these documents are draft, local, and unapproved.
+
+## 1. Inputs
+
+- `evidence/security/T52/pre-release-inventory.json` (contract
+  `s20-710-pre-release-inventory-v1`): packages with purl `bom_ref`, version,
+  ecosystem, source, declared license expression and disposition, plus the
+  dependency relationships. A missing file is `SBOM_INVENTORY_MISSING`; a file
+  whose contract tag, package list, or relationship list is absent or
+  malformed is `SBOM_INVENTORY_INVALID`.
+- `evidence/runtime/s20-720-release-candidate/evidence.json`: the artifact
+  name, digest, size, member count, manifest digest, commit, and toolchain of
+  the local candidate. A missing file is `PROVENANCE_EVIDENCE_MISSING`; a
+  record that is not a reproducible `PASS` is `PROVENANCE_EVIDENCE_INVALID`.
+- `Cargo.lock` and `oracle/scb1/uv.lock` digests, read from the inventory.
+- `evidence/release/reproducibility-report.json` (S20-730), recorded as a
+  provenance byproduct.
+
+Every component must carry a purl, a name, a version, an ecosystem, and a
+license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`.
+
+## 2. CycloneDX 1.6
+
+`evidence/release/sbom/cyclonedx-1.6.json` is a CycloneDX 1.6 JSON BOM:
+
+- `bomFormat` `CycloneDX`, `specVersion` `1.6`, `version` 1;
+- `serialNumber` is `urn:uuid:` followed by a UUID derived from the SHA-256 of
+  the canonical BOM without that field, with the version nibble set to 8 and
+  the variant nibble to 8, so the document is deterministic and carries no
+  random state;
+- `metadata.component` is the candidate: `type` `application`, the artifact
+  name, version `2.0.0-alpha.0`, and the artifact SHA-256;
+- `metadata.tools.components` names `sley2-standards-sbom` version 1;
+- `metadata.properties` records `sley2:commit`, `sley2:inventory-digest`,
+  `sley2:license-disposition-blocked` and `sley2:manifest-digest`;
+- `components` is one entry per inventory package, ascending by purl, with
+  `bom-ref` the purl, `type` `library`, `name`, `version`, `purl`,
+  `licenses` as a single `expression` (a `LicenseRef-Proprietary` expression
+  is emitted verbatim), `externalReferences` for the locked source, and a
+  `hashes` entry only when the lock records exactly one artifact digest;
+- a component whose lock records several platform artifacts (Python wheels)
+  carries no `hashes` and instead the property
+  `sley2:locked-artifact-digests` with their count, because no single digest
+  identifies the component; the digests stay in the T52 inventory, which the
+  BOM references by digest;
+- `dependencies` is one entry per component, ascending, with `dependsOn` the
+  ascending purls of its inventory relationships;
+- no timestamp, host name, user name, or absolute path appears anywhere.
+
+## 3. SPDX 2.3
+
+`evidence/release/sbom/spdx-2.3.json` is an SPDX 2.3 JSON document:
+
+- `spdxVersion` `SPDX-2.3`, `dataLicense` `CC0-1.0`, `SPDXID`
+  `SPDXRef-DOCUMENT`;
+- `documentNamespace` is `urn:sley2:spdx:<inventory digest>`, an absolute URI
+  that names no host;
+- `creationInfo.created` is `1970-01-01T00:00:00Z`, so the document is
+  deterministic; `creators` is `["Tool: sley2-standards-sbom-1"]` and the
+  comment names the local, unapproved status;
+- `packages` mirrors section 2, one per inventory package plus the candidate
+  root, with `SPDXID` `SPDXRef-<ecosystem>-<name>-<version>` (every character
+  outside `[A-Za-z0-9.-]` replaced by `-`), `versionInfo`,
+  `downloadLocation` (the locked source, or `NOASSERTION` for a workspace
+  package), `filesAnalyzed` false, `licenseDeclared` the declared expression,
+  `licenseConcluded` `NOASSERTION` (no legal opinion), `copyrightText`
+  `NOASSERTION`, `checksums` under the section 2 single-digest rule, and an
+  `externalRefs` PACKAGE-MANAGER purl entry;
+- `hasExtractedLicensingInfos` defines `LicenseRef-Proprietary` with extracted
+  text naming the pending operator decision, because it is not an SPDX
+  license identifier;
+- `relationships` carries `DESCRIBES` from the document to the candidate root
+  and one `DEPENDS_ON` per inventory relationship, ascending.
+
+## 4. Provenance
+
+`evidence/release/provenance.json` wraps an in-toto statement so the
+statement can later be signed verbatim without rewriting local facts:
+
+```text
+file = {
+  "contract": "sley2.release-provenance.v1",
+  "statement": in-toto Statement v1 (below),
+  "attestation": { "signed": false, "signature_algorithm": null,
+                   "transparency_log": null, "publication_authorized": false,
+                   "blockers": [string, ...] },
+  "statement_digest": SHA-256 of the canonical statement
+}
+```
+
+The statement is:
+
+- `_type` `https://in-toto.io/Statement/v1`;
+- `subject`: one entry, the artifact name and its SHA-256 digest;
+- `predicateType` `https://slsa.dev/provenance/v1`;
+- `predicate.buildDefinition.buildType`
+  `urn:sley2:buildtype:release-candidate/v1`;
+- `predicate.buildDefinition.externalParameters`: the commit, the artifact
+  name, and the make target `release-candidate-smoke`;
+- `predicate.buildDefinition.internalParameters`: the cargo and rustc
+  versions, the `release` profile, `locked` true, and the path remaps of the
+  S20-720 build (which are themselves path-free strings);
+- `predicate.buildDefinition.resolvedDependencies`: the git commit (a `sha1`
+  digest), `Cargo.lock`, `oracle/scb1/uv.lock`, the T52 inventory, and both
+  SBOM documents, each with its SHA-256;
+- `predicate.runDetails.builder.id` `urn:sley2:builder:local-primary`, naming
+  a host label rather than a host;
+- `predicate.runDetails.metadata.invocationId`: the candidate manifest digest;
+- `predicate.runDetails.byproducts`: the manifest digest, the reproducibility
+  report, and the independent conformance report with their SHA-256 digests;
+- no timestamp anywhere: `startedOn` and `finishedOn` are omitted because a
+  wall clock would break determinism and leak nothing useful locally.
+
+The subject digest must equal the S20-720 evidence digest and the CycloneDX
+root component digest; any disagreement is `PROVENANCE_SUBJECT_MISMATCH`.
+
+## 5. Determinism
+
+Both builders write canonical JSON (sorted keys, two-space indentation,
+trailing newline) and are pure functions of their inputs. `--check`
+recomputes and fails with `SBOM_DOCUMENT_DRIFT` or
+`PROVENANCE_DOCUMENT_DRIFT` when a tracked document differs. Repeated runs on
+unchanged inputs rewrite byte-identical files.
+
+## 6. Codes
+
+S20-710 full reserves 74000 through 74007: `SBOM_INVENTORY_MISSING` (74000),
+`SBOM_INVENTORY_INVALID` (74001), `SBOM_COMPONENT_INCOMPLETE` (74002),
+`SBOM_DOCUMENT_DRIFT` (74003), `PROVENANCE_EVIDENCE_MISSING` (74004),
+`PROVENANCE_EVIDENCE_INVALID` (74005), `PROVENANCE_SUBJECT_MISMATCH` (74006),
+`PROVENANCE_DOCUMENT_DRIFT` (74007). Each script exits 1 and prints one JSON
+object naming the code on failure.
+
+## 7. Staging
+
+`scripts/check_standards_sbom_and_provenance.py` runs under `make quick`.
+Statuses: `S20_710_FULL_CONTRACT_DRAFT_REVIEW_PENDING`,
+`S20_710_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS`,
+`S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING`, and
+`S20_710_FULL_COMPLETE`, the last requiring the three Council reviews to read
+`PASS` and the S20-710 audit blockers to be closed. In every implementation
+status the checker verifies the three documents exist with their contract
+tags and versions, that they carry no timestamp or host path, that both
+builders report no drift, that the provenance subject agrees with the
+candidate evidence and the CycloneDX root, that the unit tests pass, and that
+`release-check` and `v2` stay `NOT_IMPLEMENTED`.
+
+`make release-candidate-smoke` rebuilds the reproducibility report, both SBOM
+documents, and the provenance statement after a candidate build, so the
+tracked evidence names the commit it was built from.
+
+## 8. Explicit exclusions
+
+- No signature, key, keyless flow, transparency log, or attestation service.
+- No registry, network, or vulnerability lookup; no VEX document.
+- No legal opinion: `licenseConcluded` stays `NOASSERTION` and the
+  proprietary reference stays blocked until the operator approves the root
+  license text.
+- No completion of the S20-710 audit, no GA claim, no release decision, no
+  publication; `release-check` and `v2` stay fail-closed.
+- No second-host provenance: the builder id names the primary host label, and
+  a multi-host claim needs S20-730 attestations.
+
+## 9. Clarifications
+
+Revision 1 carries none.

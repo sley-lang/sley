@@ -1,0 +1,1811 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pkg:cargo/arrayref@0.3.9",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-2-Clause"
+        }
+      ],
+      "name": "arrayref",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/arrayref@0.3.9",
+      "type": "library",
+      "version": "0.3.9"
+    },
+    {
+      "bom-ref": "pkg:cargo/arrayvec@0.7.8",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "arrayvec",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/arrayvec@0.7.8",
+      "type": "library",
+      "version": "0.7.8"
+    },
+    {
+      "bom-ref": "pkg:cargo/blake3@1.8.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3888aaa89e4b2a40fca9848e400f6a658a5a3978de7be858e209cafa8be9a4a0"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception"
+        }
+      ],
+      "name": "blake3",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/blake3@1.8.2",
+      "type": "library",
+      "version": "1.8.2"
+    },
+    {
+      "bom-ref": "pkg:cargo/cc@1.4.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0ad534f4357a5264cce5019c989cf66a4f0dc4e0d1b1d15f8aacec0ff7360273"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "cc",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/cc@1.4.4",
+      "type": "library",
+      "version": "1.4.4"
+    },
+    {
+      "bom-ref": "pkg:cargo/cfg-if@1.0.4",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "cfg-if",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/cfg-if@1.0.4",
+      "type": "library",
+      "version": "1.0.4"
+    },
+    {
+      "bom-ref": "pkg:cargo/constant_time_eq@0.3.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "CC0-1.0 OR MIT-0 OR Apache-2.0"
+        }
+      ],
+      "name": "constant_time_eq",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/constant_time_eq@0.3.1",
+      "type": "library",
+      "version": "0.3.1"
+    },
+    {
+      "bom-ref": "pkg:cargo/find-msvc-tools@0.1.11",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "find-msvc-tools",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/find-msvc-tools@0.1.11",
+      "type": "library",
+      "version": "0.1.11"
+    },
+    {
+      "bom-ref": "pkg:cargo/itoa@1.0.18",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "itoa",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/itoa@1.0.18",
+      "type": "library",
+      "version": "1.0.18"
+    },
+    {
+      "bom-ref": "pkg:cargo/memchr@2.8.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Unlicense OR MIT"
+        }
+      ],
+      "name": "memchr",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/memchr@2.8.3",
+      "type": "library",
+      "version": "2.8.3"
+    },
+    {
+      "bom-ref": "pkg:cargo/proc-macro2@1.0.107",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "proc-macro2",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/proc-macro2@1.0.107",
+      "type": "library",
+      "version": "1.0.107"
+    },
+    {
+      "bom-ref": "pkg:cargo/quote@1.0.47",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "quote",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/quote@1.0.47",
+      "type": "library",
+      "version": "1.0.47"
+    },
+    {
+      "bom-ref": "pkg:cargo/ryu@1.0.23",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSL-1.0"
+        }
+      ],
+      "name": "ryu",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/ryu@1.0.23",
+      "type": "library",
+      "version": "1.0.23"
+    },
+    {
+      "bom-ref": "pkg:cargo/serde@1.0.228",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "serde",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/serde@1.0.228",
+      "type": "library",
+      "version": "1.0.228"
+    },
+    {
+      "bom-ref": "pkg:cargo/serde_core@1.0.228",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "serde_core",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/serde_core@1.0.228",
+      "type": "library",
+      "version": "1.0.228"
+    },
+    {
+      "bom-ref": "pkg:cargo/serde_derive@1.0.228",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "serde_derive",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/serde_derive@1.0.228",
+      "type": "library",
+      "version": "1.0.228"
+    },
+    {
+      "bom-ref": "pkg:cargo/serde_json@1.0.145",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "serde_json",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/serde_json@1.0.145",
+      "type": "library",
+      "version": "1.0.145"
+    },
+    {
+      "bom-ref": "pkg:cargo/shlex@2.0.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "shlex",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/shlex@2.0.1",
+      "type": "library",
+      "version": "2.0.1"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-adapter",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-check",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-cli",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-conformance",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-id",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-json-bridge",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-mutate",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-policy",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-protocol",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-query",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-repo",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-scb1",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-schema",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-ssmc",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-state-root",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-store",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-txn",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-vm",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "type": "library",
+      "version": "2.0.0-alpha.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/syn@2.0.119",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "syn",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/syn@2.0.119",
+      "type": "library",
+      "version": "2.0.119"
+    },
+    {
+      "bom-ref": "pkg:cargo/tinyvec@1.12.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Zlib OR Apache-2.0 OR MIT"
+        }
+      ],
+      "name": "tinyvec",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/tinyvec@1.12.0",
+      "type": "library",
+      "version": "1.12.0"
+    },
+    {
+      "bom-ref": "pkg:cargo/tinyvec_macros@0.1.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0 OR Zlib"
+        }
+      ],
+      "name": "tinyvec_macros",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/tinyvec_macros@0.1.1",
+      "type": "library",
+      "version": "0.1.1"
+    },
+    {
+      "bom-ref": "pkg:cargo/unicode-ident@1.0.24",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "(MIT OR Apache-2.0) AND Unicode-3.0"
+        }
+      ],
+      "name": "unicode-ident",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/unicode-ident@1.0.24",
+      "type": "library",
+      "version": "1.0.24"
+    },
+    {
+      "bom-ref": "pkg:cargo/unicode-normalization@0.1.24",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT/Apache-2.0"
+        }
+      ],
+      "name": "unicode-normalization",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/unicode-normalization@0.1.24",
+      "type": "library",
+      "version": "0.1.24"
+    },
+    {
+      "bom-ref": "pkg:pypi/blake3@1.0.9",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://pypi.org/simple"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "CC0-1.0 OR Apache-2.0"
+        }
+      ],
+      "name": "blake3",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-artifact-digests",
+          "value": "53"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "https://pypi.org/simple"
+        }
+      ],
+      "purl": "pkg:pypi/blake3@1.0.9",
+      "type": "library",
+      "version": "1.0.9"
+    },
+    {
+      "bom-ref": "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true",
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley2-scb1-oracle",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "workspace:oracle/scb1"
+        }
+      ],
+      "purl": "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true",
+      "type": "library",
+      "version": "0.1.0"
+    },
+    {
+      "bom-ref": "pkg:pypi/unicodedata2@16.0.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://pypi.org/simple"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "name": "unicodedata2",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-artifact-digests",
+          "value": "13"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "https://pypi.org/simple"
+        }
+      ],
+      "purl": "pkg:pypi/unicodedata2@16.0.0",
+      "type": "library",
+      "version": "16.0.0"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+        "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true"
+      ],
+      "ref": "pkg:generic/sley@2.0.0-alpha.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/arrayref@0.3.9"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/arrayvec@0.7.8"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/arrayref@0.3.9",
+        "pkg:cargo/arrayvec@0.7.8",
+        "pkg:cargo/cc@1.4.4",
+        "pkg:cargo/cfg-if@1.0.4",
+        "pkg:cargo/constant_time_eq@0.3.1"
+      ],
+      "ref": "pkg:cargo/blake3@1.8.2"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/find-msvc-tools@0.1.11",
+        "pkg:cargo/shlex@2.0.1"
+      ],
+      "ref": "pkg:cargo/cc@1.4.4"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/cfg-if@1.0.4"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/constant_time_eq@0.3.1"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/find-msvc-tools@0.1.11"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/itoa@1.0.18"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/memchr@2.8.3"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/unicode-ident@1.0.24"
+      ],
+      "ref": "pkg:cargo/proc-macro2@1.0.107"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107"
+      ],
+      "ref": "pkg:cargo/quote@1.0.47"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/ryu@1.0.23"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/serde_core@1.0.228",
+        "pkg:cargo/serde_derive@1.0.228"
+      ],
+      "ref": "pkg:cargo/serde@1.0.228"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/serde_derive@1.0.228"
+      ],
+      "ref": "pkg:cargo/serde_core@1.0.228"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/syn@2.0.119"
+      ],
+      "ref": "pkg:cargo/serde_derive@1.0.228"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/itoa@1.0.18",
+        "pkg:cargo/memchr@2.8.3",
+        "pkg:cargo/ryu@1.0.23",
+        "pkg:cargo/serde@1.0.228",
+        "pkg:cargo/serde_core@1.0.228"
+      ],
+      "ref": "pkg:cargo/serde_json@1.0.145"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/shlex@2.0.1"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2"
+      ],
+      "ref": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/serde@1.0.228",
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/serde@1.0.228",
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/unicode-normalization@0.1.24"
+      ],
+      "ref": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/proc-macro2@1.0.107",
+        "pkg:cargo/quote@1.0.47",
+        "pkg:cargo/unicode-ident@1.0.24"
+      ],
+      "ref": "pkg:cargo/syn@2.0.119"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/tinyvec_macros@0.1.1"
+      ],
+      "ref": "pkg:cargo/tinyvec@1.12.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/tinyvec_macros@0.1.1"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/unicode-ident@1.0.24"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/tinyvec@1.12.0"
+      ],
+      "ref": "pkg:cargo/unicode-normalization@0.1.24"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/blake3@1.0.9"
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/blake3@1.0.9",
+        "pkg:pypi/unicodedata2@16.0.0"
+      ],
+      "ref": "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/unicodedata2@16.0.0"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:generic/sley@2.0.0-alpha.0",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8a76e09465bc7eda0e77cfc498c403e54c7cd10c6baf54eae9427ae6c1668a7f"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "LicenseRef-Proprietary"
+        }
+      ],
+      "name": "sley-2.0.0-linux-x86_64.tar.gz",
+      "type": "application",
+      "version": "2.0.0-alpha.0"
+    },
+    "properties": [
+      {
+        "name": "sley2:commit",
+        "value": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2"
+      },
+      {
+        "name": "sley2:inventory-digest",
+        "value": "312cc54821956d54e73e4f8b5820d653d42ce3fa0fa359cbd9911b9499a45cf0"
+      },
+      {
+        "name": "sley2:license-disposition-blocked",
+        "value": "19"
+      },
+      {
+        "name": "sley2:manifest-digest",
+        "value": "510fe41c46976f0b91e29ab4a1fcf114c830a153e4b2b243967ad063567da230"
+      },
+      {
+        "name": "sley2:publication-authorized",
+        "value": "false"
+      },
+      {
+        "name": "sley2:signed",
+        "value": "false"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "name": "sley2-standards-sbom",
+          "type": "application",
+          "version": "1"
+        }
+      ]
+    }
+  },
+  "serialNumber": "urn:uuid:803a4af7-1e80-87b4-8018-fdc6cd93fba7",
+  "specVersion": "1.6",
+  "version": 1
+}
