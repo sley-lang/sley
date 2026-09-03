@@ -57,6 +57,26 @@ trait SimpleEnumCodec: Copy + Eq {
     fn from_tag(tag: u32) -> Option<Self>;
 }
 
+/// Encodes one `ConstValue` as its exact S20-350 mutation-value bytes
+/// (SMP1 appendix C `const_value`).
+///
+/// # Errors
+///
+/// Returns the exact SCB error for a value outside the codec's limits.
+pub fn encode_const_value(value: &ConstValue) -> Result<Vec<u8>> {
+    encode_exact(value)
+}
+
+/// Decodes one `ConstValue` from its exact S20-350 mutation-value bytes,
+/// consuming every byte.
+///
+/// # Errors
+///
+/// Returns the exact SCB error for malformed, non-canonical, or trailing bytes.
+pub fn decode_const_value(input: &[u8]) -> Result<ConstValue> {
+    decode_exact(input)
+}
+
 pub(crate) fn encode_exact<T: MutationValueCodec>(value: &T) -> Result<Vec<u8>> {
     encode_at_depth(value, 0)
 }

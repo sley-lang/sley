@@ -135,7 +135,7 @@ expected = {
     "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-410-SLICE-C-DEFERRED-DISPATCH",
+    "next_dependency_complete_package": "S20-720-CLEAN-ROOM-PACKAGING",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:

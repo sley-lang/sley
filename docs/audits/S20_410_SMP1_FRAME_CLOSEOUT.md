@@ -93,13 +93,15 @@ The implementation provides, in `crates/sley-protocol`:
 
 - **Council reviews.** Ariadne (owner), Nabu, and Vulcan reviews of
   S20-400 are queued and land as contract revisions.
-- **Owner gaps that block four methods.** `gc.dry_run` and `gc.collect`
-  wait for a production S20-560 `GcObjectVerifier`; `execute` and `report`
-  wait for a public S20-380 `ConstValue` bytes codec and a stored-bytes
-  form of the S20-290 execution report envelope. They answer
-  `PROTOCOL_METHOD_UNSUPPORTED` with the versioned detail
-  `S20-410-SLICE-C-DEFERRED` and are recorded in the machine summary as
-  `protocol.deferred_method_blockers`.
+- **Owner gaps that blocked four methods (closed by slice C, 2026-09-03).**
+  `gc.dry_run` and `gc.collect` waited for a production S20-560
+  `GcObjectVerifier`; `execute` and `report` waited for a public S20-380
+  `ConstValue` bytes codec and a stored-bytes form of the S20-290 execution
+  report envelope. SMP1 revision 7 (appendix C) defines their bodies, the
+  S20-560 `RepositoryObjectVerifier` and execution report store, the public
+  `sley_mutate::{encode_const_value, decode_const_value}`, and the server
+  dispatches all thirty-seven non-reserved methods; see the slice C addendum
+  below.
 - **Numeric exposure.** Validation, candidate, state-root, policy-root, and
   pack failures carry numeric 0 on the wire because their crates expose
   symbols only; commit, branch, exchange, query, and capsule failures carry
@@ -127,3 +129,36 @@ intentionally fail closed.
 ## Independent review
 
 Pending. Sessions and verdicts are recorded here when they land.
+
+## Slice C addendum (2026-09-03)
+
+SMP1 revision 7 adds appendix C and the server dispatches `gc.dry_run`
+(212), `gc.collect` (213), `execute` (600), and `report` (604):
+
+- the server derives the retention snapshot from its accepted head and
+  named branches and lets a request only add session pins, verifies every
+  object through the S20-560 `RepositoryObjectVerifier` (entity objects
+  under the conformance epoch, no object references), and answers the
+  S20-180 report verbatim; `gc.collect` holds the exclusive guard for the
+  request;
+- `execute` is head-bound: it projects the bound root with the S20-250 full
+  projection, lowers and executes the named Function under the restricted
+  profile, builds the S20-290 report, and stores its preimage create-once
+  under `reports/execution/<id hex>` (S20-560 report store, codes 56000
+  through 56002) before answering `record(id, preimage)`; a rejected
+  execution is still a report; an unknown Function is
+  `PROTOCOL_PAYLOAD_INVALID` with detail `FUNCTION-UNKNOWN`;
+- `report` answers the stored record after re-deriving its identity; an
+  unknown identity is `PROTOCOL_PAYLOAD_INVALID` with detail
+  `REPORT-UNKNOWN`.
+
+Evidence: two server tests (a dry run and a collection over a
+dependency-free genesis with a named branch, an unknown pin refused inside
+the owner, and reads after collection; an execution of the BoolAnd Function
+of the executable test genesis with the identity re-deriving from the
+preimage, equal executions answering equal bytes, `report` answering the
+stored record, an input-count mismatch answered as a rejected report, and
+unknown-function and malformed-value payload failures), the report store
+unit test, and the offered-hello test now asserting thirty-seven methods.
+The genesis of the main harness names a dependency root the repository
+does not hold, so its dry run fails closed with `GC_DEPENDENCY_MISSING`.

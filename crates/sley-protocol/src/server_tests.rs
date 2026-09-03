@@ -8,11 +8,15 @@ use sley_query::{
     ModeledEntityKind, QueryLimits, RestrictedQuery, RootQuery, SnapshotContext,
     build_index_snapshot, build_restricted_query_request,
 };
-use sley_repo::test_support::{complete_bodies, complete_dependency_root, genesis};
+use sley_repo::test_support::{
+    complete_bodies, complete_dependency_root, executable_bodies, genesis,
+};
 use sley_repo::{CompleteRootRequest, run_root_query};
 use sley_scb1::{encode_record, encode_uvar};
 
-use crate::server::{DEFERRED_DISPATCH_REASON, RESERVED_METHOD_REASON, Server};
+use crate::server::{
+    FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_METHOD_REASON, Server,
+};
 use crate::{
     BoundedContext, DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method,
     PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, SessionId, decode_frame,
@@ -326,13 +330,18 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     assert!(!recovery.body.is_empty());
     let cancel = harness.ok(Method::Cancel, encode_uvar(3));
     assert!(cancel.body.is_empty());
-    // Deferred and reserved methods fail with versioned reasons.
-    let deferred = harness.fail(Method::GcDryRun, Vec::new());
+    // Slice C methods decode their bodies before any engine runs; reserved
+    // methods fail with the versioned reason.
+    let malformed_gc = harness.fail(Method::GcDryRun, Vec::new());
     assert_eq!(
-        deferred.code,
-        ProtocolErrorCode::MethodUnsupported.numeric()
+        malformed_gc.code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
     );
-    assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);
+    // This genesis names a dependency root the repository does not hold, so
+    // the server-derived snapshot fails closed inside the S20-180 owner.
+    let no_pins = encode_record(&[(1, sley_scb1::encode_list(&[]).unwrap())]).unwrap();
+    let dependency_missing = harness.fail(Method::GcDryRun, no_pins);
+    assert_eq!(dependency_missing.symbol, "GC_DEPENDENCY_MISSING");
     let reserved = harness.fail(Method::Diagnostics, Vec::new());
     assert_eq!(reserved.details, RESERVED_METHOD_REASON);
     // Malformed bodies fail before any engine runs.
@@ -533,14 +542,13 @@ fn identity_session_and_frame_rules_hold_at_the_server() {
     assert!(garbage.failed);
     assert_eq!(garbage.session, None);
     assert_eq!(garbage.request_id, 0);
-    // Unknown method tag.
-    let mut unknown_method = request_frame(Some(harness.session), 50, Method::Report, Vec::new());
-    let _ = &mut unknown_method;
-    let (failed, frame) = harness.call(Method::Report, Vec::new());
+    // A report identity nothing was stored under is a payload failure with
+    // the appendix C detail.
+    let (failed, frame) = harness.call(Method::Report, vec![0; 32]);
     assert!(failed);
     assert_eq!(
         ProtocolFailure::decode(&frame.body).unwrap().details,
-        DEFERRED_DISPATCH_REASON
+        REPORT_UNKNOWN_DETAIL
     );
     // Close, then everything fails closed.
     harness.ok(Method::SessionClose, Vec::new());
@@ -787,9 +795,12 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
         malformed_append.code,
         ProtocolErrorCode::PayloadInvalid.numeric()
     );
-    // Deferred methods still answer with the versioned reason.
-    let deferred = harness.fail(Method::Execute, Vec::new());
-    assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);
+    // Execute decodes its body before any engine runs.
+    let malformed_execute = harness.fail(Method::Execute, Vec::new());
+    assert_eq!(
+        malformed_execute.code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
 }
 
 #[test]
@@ -1126,14 +1137,10 @@ fn the_offered_hello_names_exactly_the_dispatched_methods() {
         crate::FEATURE_CANCEL | crate::FEATURE_STREAM
     );
     assert!(offered.adapters.is_empty() && offered.effects.is_empty());
-    assert_eq!(offered.methods.len(), 33);
+    assert_eq!(offered.methods.len(), 37);
     for method in Method::ALL {
         let offered_it = offered.methods.contains(&method.tag());
-        assert_eq!(
-            offered_it,
-            !method.is_reserved() && !Server::is_deferred(method),
-            "{method:?}"
-        );
+        assert_eq!(offered_it, !method.is_reserved(), "{method:?}");
     }
     // Every offered method answers something other than an unsupported-method
     // failure carrying the deferred or reserved reason.
@@ -1147,12 +1154,256 @@ fn the_offered_hello_names_exactly_the_dispatched_methods() {
         if failed {
             let failure = ProtocolFailure::decode(&frame.body).unwrap();
             assert!(
-                failure.details != DEFERRED_DISPATCH_REASON
-                    && failure.details != RESERVED_METHOD_REASON,
+                failure.details != RESERVED_METHOD_REASON,
                 "{method:?} is offered but not dispatched"
             );
         }
     }
     let selected = negotiate(&offered, &offered).unwrap();
     assert_eq!(selected.methods, offered.methods);
+}
+
+/// A server with an open session over a genesis of the given bodies and no
+/// dependency roots; returns the server, the session, and the genesis id.
+fn open_server(
+    label: &str,
+    bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
+) -> (
+    sley_repo::test_support::TempDir,
+    Server,
+    SessionId,
+    TransactionId,
+) {
+    let (temp, _transactions, genesis_id) = genesis(label, bodies, &[]);
+    let repository = temp.child("repo");
+    let profile = negotiate(&hello(all_methods(), 4), &hello(all_methods(), 8)).unwrap();
+    let mut server = Server::new(&repository, profile).unwrap();
+    let handshake = server.handshake_id();
+    let open = server
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("session open response");
+    };
+    let session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    (temp, server, session, genesis_id)
+}
+
+fn call_frame(
+    server: &mut Server,
+    session: SessionId,
+    id: u64,
+    method: Method,
+    body: Vec<u8>,
+) -> (bool, ProtocolFrame) {
+    let answer = server
+        .answer(&request_frame(Some(session), id, method, body))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    (answer.failed, frame)
+}
+
+fn fields_of(body: &[u8], count: u64) -> Vec<Vec<u8>> {
+    // record(count) || (tag || len || bytes)*
+    let mut offset = 0;
+    let read = |offset: &mut usize| -> u64 {
+        let mut value = 0u64;
+        let mut shift = 0;
+        loop {
+            let byte = body[*offset];
+            *offset += 1;
+            value |= u64::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                return value;
+            }
+            shift += 7;
+        }
+    };
+    assert_eq!(read(&mut offset), count);
+    (0..count)
+        .map(|index| {
+            assert_eq!(read(&mut offset), index + 1);
+            let length = usize::try_from(read(&mut offset)).unwrap();
+            let field = body[offset..offset + length].to_vec();
+            offset += length;
+            field
+        })
+        .collect()
+}
+
+#[test]
+fn gc_dry_run_and_collect_derive_the_snapshot_from_the_repository() {
+    let (_temp, mut server, session, genesis_id) = open_server("smp1-gc", dependency_free_bodies());
+    let (failed, _) = call_frame(
+        &mut server,
+        session,
+        2,
+        Method::BranchCreate,
+        encode_record(&[(1, b"main".to_vec()), (2, tx(genesis_id))]).unwrap(),
+    );
+    assert!(!failed);
+    let no_pins = encode_record(&[(1, sley_scb1::encode_list(&[]).unwrap())]).unwrap();
+    let (failed, frame) = call_frame(&mut server, session, 3, Method::GcDryRun, no_pins.clone());
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&frame.body));
+    let fields = fields_of(&frame.body, 10);
+    // decision 1 = dry run; no candidates; every inventory object reachable.
+    assert_eq!(fields[7], encode_uvar(1));
+    assert_eq!(fields[4], sley_scb1::encode_list(&[]).unwrap());
+    assert_eq!(fields[2], fields[3], "reachable equals inventory");
+    assert_eq!(fields[8], sley_scb1::encode_list(&[]).unwrap());
+    // The examined anchors are the accepted head and the one named branch.
+    let anchors_record = &fields[0];
+    assert!(
+        anchors_record[0] >= 2,
+        "at least the head and the branch anchors"
+    );
+    // A pin naming an unknown object fails closed in the owner.
+    let pin = encode_record(&[(
+        1,
+        sley_scb1::encode_list(&[sley_scb1::encode_union(2, &[0xEE; 32]).unwrap()]).unwrap(),
+    )])
+    .unwrap();
+    let (failed, frame) = call_frame(&mut server, session, 4, Method::GcDryRun, pin);
+    assert!(failed);
+    assert!(
+        ProtocolFailure::decode(&frame.body)
+            .unwrap()
+            .symbol
+            .starts_with("GC_")
+    );
+    // Collect under the exclusive guard: nothing is unreachable, so nothing is deleted.
+    let (failed, frame) = call_frame(&mut server, session, 5, Method::GcCollect, no_pins);
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&frame.body));
+    let fields = fields_of(&frame.body, 10);
+    assert_eq!(fields[7], encode_uvar(2));
+    assert_eq!(fields[8], sley_scb1::encode_list(&[]).unwrap());
+    assert_eq!(fields[9], sley_scb1::encode_union(0, &[]).unwrap());
+    // The repository still answers reads after a collection.
+    let (failed, _) = call_frame(
+        &mut server,
+        session,
+        6,
+        Method::RevisionRead,
+        tx(genesis_id),
+    );
+    assert!(!failed);
+}
+
+#[test]
+fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    let (_temp, mut server, session, _genesis_id) =
+        open_server("smp1-execute", executable_bodies());
+    let function = sley_repo::test_support::id(30);
+    let value = |bit: bool| {
+        sley_mutate::encode_const_value(&ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(bit),
+        })
+        .unwrap()
+    };
+    let limits = encode_record(&[
+        (1, encode_uvar(1_000)),
+        (2, encode_uvar(1_000)),
+        (3, encode_uvar(10_000)),
+        (4, encode_uvar(100)),
+        (5, sley_scb1::encode_union(0, &[]).unwrap()),
+    ])
+    .unwrap();
+    let body = |inputs: Vec<Vec<u8>>| {
+        encode_record(&[
+            (1, function.as_bytes().to_vec()),
+            (2, sley_scb1::encode_list(&inputs).unwrap()),
+            (3, limits.clone()),
+        ])
+        .unwrap()
+    };
+    let (failed, frame) = call_frame(
+        &mut server,
+        session,
+        2,
+        Method::Execute,
+        body(vec![value(true), value(true)]),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&frame.body));
+    let fields = fields_of(&frame.body, 2);
+    assert_eq!(fields[0].len(), 32);
+    // field 2 is bytes(len || preimage)
+    let mut offset = 0;
+    let mut length = 0usize;
+    let mut shift = 0;
+    loop {
+        let byte = fields[1][offset];
+        offset += 1;
+        length |= usize::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            break;
+        }
+        shift += 7;
+    }
+    let stored = &fields[1][offset..offset + length];
+    assert!(stored.starts_with(b"SLEYEXR1"));
+    assert_eq!(
+        sley_id::ExecutionReportId::derive(stored).as_bytes(),
+        fields[0].as_slice(),
+        "the identity re-derives from the preimage"
+    );
+    // Equal executions answer the same identity and bytes.
+    let (failed, again) = call_frame(
+        &mut server,
+        session,
+        3,
+        Method::Execute,
+        body(vec![value(true), value(true)]),
+    );
+    assert!(!failed);
+    assert_eq!(again.body, frame.body);
+    // Report answers the stored record verbatim.
+    let (failed, report) = call_frame(&mut server, session, 4, Method::Report, fields[0].clone());
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&report.body));
+    assert_eq!(report.body, frame.body);
+    // An input count mismatch is a rejected report, not a protocol failure.
+    let (failed, rejected) = call_frame(
+        &mut server,
+        session,
+        5,
+        Method::Execute,
+        body(vec![value(true)]),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&rejected.body));
+    assert_ne!(rejected.body, frame.body);
+    // An unknown function is a payload failure with the appendix C detail.
+    let mut unknown = body(vec![value(true), value(true)]);
+    unknown[3..35].copy_from_slice(&[0x77; 32]);
+    let (failed, frame) = call_frame(&mut server, session, 6, Method::Execute, unknown);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().details,
+        FUNCTION_UNKNOWN_DETAIL
+    );
+    // A malformed value is a payload failure.
+    let (failed, frame) = call_frame(
+        &mut server,
+        session,
+        7,
+        Method::Execute,
+        body(vec![vec![0xFF, 0xFF]]),
+    );
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
 }

@@ -58,7 +58,8 @@ The implementation provides:
   the capsule carrying the session, and an unknown session refused);
   `sley-protocol` 15 tests, `sley-query` 61 tests, `sley-id` 7 tests pass.
 - The SMP1 method table now dispatches 33 methods; four stay reserved
-  (305, 503, 601, 602) and four deferred on owner gaps.
+  (305, 503, 601, 602) and four were deferred on owner gaps until SMP1
+  revision 7 (slice C) dispatched them.
 - Tier 1: `make quick` green at the commit.
 - Tier 2: see the validation record below.
 

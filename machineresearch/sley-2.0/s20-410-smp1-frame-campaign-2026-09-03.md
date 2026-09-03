@@ -168,3 +168,11 @@ complete.
 ## Revision 6 (2026-09-03, S20-620 finding)
 
 The S20-620 runner derives per-response failure counts from frames it cannot decode, and no wire signal distinguished a failure envelope from an owner body. SMP1 revision 6 sets response flag bit 2 (`failed`) on every failure envelope; requests and hellos carrying it are `PROTOCOL_FRAME_INVALID`. The codec, server, SMP1 fixture (failure vector), Python oracle, and the S20-420 bridge (revision 4, `flags.failed`) moved together; the S20-410 persistent slice and every oracle pass unchanged.
+
+## Slice C (2026-09-03, SMP1 revision 7)
+
+Appendix C defines the bodies of `gc.dry_run`, `gc.collect`, `execute`, and `report`. The server derives the GC retention snapshot itself (clients may only add session pins) and verifies objects through the new S20-560 `RepositoryObjectVerifier`; `execute` is head-bound, runs the named Function of the bound root through the S20-250 full projection, the restricted VM, and the S20-290 report builder, and stores the report preimage create-once (S20-560 report store, codes 56000 through 56002); `report` answers the stored record. `sley-mutate` exposes `encode_const_value` and `decode_const_value`. The offered hello now names thirty-seven methods. Commit and Tier 2 are recorded in the table below when they land.
+
+| Stage | Commit | Tier 1 | Notes |
+|---|---|---|---|
+| Slice C implementation, SMP1 revision 7 | pending | pending | 18 protocol tests (two new), report store test, executable test genesis |

@@ -12,10 +12,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use sley_id::{EntityId, ProtocolHandshakeId, SchemaEpochId, StateRoot, TransactionId};
+use sley_check::TypeEnvironment;
+use sley_conformance::{build_execution_report, execution_report_preimage};
+use sley_id::{
+    EntityId, ExecutionReportId, ObjectId, ProtocolHandshakeId, SchemaEpochId, StateRoot,
+    TransactionId,
+};
 use sley_id::{PrincipalId, ReceiptId};
 use sley_mutate::{
-    build_candidate, decode_candidate_record, import_candidate, import_entity_object,
+    build_candidate, decode_candidate_record, decode_const_value, import_candidate,
+    import_entity_object,
 };
 use sley_policy::{
     CandidateValidationContext, CandidateValidationLimits, conformance_registry as policy_registry,
@@ -27,15 +33,22 @@ use sley_query::{
     build_restricted_query_request, execute_restricted_query,
 };
 use sley_repo::{
-    BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, IndexCacheError,
-    MergeCommitInput, MergeOutcome, MergeSide, RepositoryQueryError, build_merge_plan,
-    commit_merge, compare_complete_roots, export_repository_exchange, import_repository_exchange,
-    judge_merge, run_root_query,
+    BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, GcDecision, GcReport,
+    IndexCacheError, MergeCommitInput, MergeOutcome, MergeSide, ReportStoreErrorCode,
+    RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
+    RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
+    compare_complete_roots, export_repository_exchange, gc_collect, gc_dry_run,
+    import_repository_exchange, judge_merge, read_execution_report, run_root_query,
+    store_execution_report,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
-use sley_state_root::{conformance_registry as state_registry, import_state_root};
+use sley_state_root::{
+    AcceptedStateRoot, conformance_registry as state_registry, import_state_root,
+};
+use sley_store::ObjectStore;
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
+use sley_vm::{CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, execute_function};
 
 use crate::session::{HeadBinding, SessionAuthority, SessionError};
 use crate::{
@@ -45,9 +58,12 @@ use crate::{
     SelectedProfile, SessionId, decode_frame, encode_frame, stream_response,
 };
 
-/// Versioned reason carried by `PROTOCOL_METHOD_UNSUPPORTED` for methods
-/// whose dispatch is a later slice.
-pub const DEFERRED_DISPATCH_REASON: &[u8] = b"S20-410-SLICE-C-DEFERRED";
+/// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `report` names no
+/// stored report (SMP1 appendix C).
+pub const REPORT_UNKNOWN_DETAIL: &[u8] = b"REPORT-UNKNOWN";
+/// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `execute` names no
+/// Function of the bound root (SMP1 appendix C).
+pub const FUNCTION_UNKNOWN_DETAIL: &[u8] = b"FUNCTION-UNKNOWN";
 /// Reason carried for reserved methods.
 pub const RESERVED_METHOD_REASON: &[u8] = b"SMP1-RESERVED-METHOD";
 
@@ -159,7 +175,7 @@ impl Server {
             methods: Method::ALL
                 .iter()
                 .copied()
-                .filter(|method| !method.is_reserved() && !Self::is_deferred(*method))
+                .filter(|method| !method.is_reserved())
                 .map(Method::tag)
                 .collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM,
@@ -168,15 +184,6 @@ impl Server {
         };
         hello.validate()?;
         Ok(hello)
-    }
-
-    /// Methods whose dispatch is a later slice (`DEFERRED_DISPATCH_REASON`).
-    #[must_use]
-    pub const fn is_deferred(method: Method) -> bool {
-        matches!(
-            method,
-            Method::GcDryRun | Method::GcCollect | Method::Execute | Method::Report
-        )
     }
 
     #[must_use]
@@ -528,9 +535,10 @@ impl Server {
             Method::CandidateValidate => self.candidate_validate(body),
             Method::CandidateAppend => self.candidate_append(body),
             Method::Commit => self.commit(body),
-            Method::GcDryRun | Method::GcCollect | Method::Execute | Method::Report => {
-                Err(unsupported(DEFERRED_DISPATCH_REASON))
-            }
+            Method::GcDryRun => self.gc(body, session, false),
+            Method::GcCollect => self.gc(body, session, true),
+            Method::Execute => self.execute(body),
+            Method::Report => self.report(body),
             Method::Diagnostics
             | Method::RefMoveProtected
             | Method::TestsSelected
@@ -549,6 +557,7 @@ impl Server {
                 | Method::QueryContinue
                 | Method::Capsule
                 | Method::QueryRestricted
+                | Method::Execute
         )
     }
 
@@ -1621,4 +1630,311 @@ fn record(input: &[u8], expected: u64) -> Result<Vec<&[u8]>> {
         return protocol_failure(ProtocolErrorCode::PayloadInvalid);
     }
     Ok(fields)
+}
+
+// ---------------------------------------------------------------------------
+// Slice C: garbage collection, execution, and reports (SMP1 appendix C)
+// ---------------------------------------------------------------------------
+
+const PIN_STATE_ROOT: u64 = 1;
+const PIN_OBJECT: u64 = 2;
+const MAX_GC_PINS: usize = 4_096;
+
+impl Server {
+    /// `gc.dry_run` (212) and `gc.collect` (213): the server derives the
+    /// retention snapshot from its refs and accepted head; the request may
+    /// only add session pins.
+    fn gc(
+        &self,
+        body: &[u8],
+        session: SessionId,
+        collect: bool,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let pins = decode_pins(body)?;
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let head = self.head()?;
+        let mut roots: BTreeMap<StateRoot, AcceptedStateRoot> = BTreeMap::new();
+        let mut anchors = Vec::new();
+        let head_root = head.state_root().root;
+        anchors.push(RetentionAnchor::new(
+            RetentionKind::Transaction,
+            *head.transaction_id().as_bytes(),
+            vec![RetentionTarget::StateRoot(head_root)],
+        ));
+        roots.insert(head_root, head.state_root().clone());
+        let branches = self
+            .branches()
+            .list_branches(usize::try_from(MAX_BRANCH_LIST).unwrap_or(usize::MAX))
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        let mut seen: BTreeSet<TransactionId> = BTreeSet::new();
+        for branch in &branches {
+            let revision = &branch.revision;
+            if !seen.insert(revision.transaction_id()) {
+                continue;
+            }
+            let root = revision.state_root().root;
+            anchors.push(RetentionAnchor::new(
+                RetentionKind::Ref,
+                *revision.transaction_id().as_bytes(),
+                vec![RetentionTarget::StateRoot(root)],
+            ));
+            roots
+                .entry(root)
+                .or_insert_with(|| revision.state_root().clone());
+        }
+        if !pins.is_empty() {
+            anchors.push(RetentionAnchor::new(
+                RetentionKind::SessionPin,
+                *session.as_bytes(),
+                pins,
+            ));
+        }
+        let snapshot = RetentionSnapshot::new(anchors, roots.into_values().collect())
+            .map_err(|error| owner(error.symbol(), 0))?;
+        let store = ObjectStore::new(&self.repository);
+        let verifier = RepositoryObjectVerifier::new(epoch);
+        let report = if collect {
+            let guard = acquire_exclusive_gc(&store).map_err(|error| owner(error.symbol(), 0))?;
+            gc_collect(&store, &snapshot, &verifier, &guard)
+        } else {
+            gc_dry_run(&store, &snapshot, &verifier)
+        }
+        .map_err(|error| owner(error.symbol(), 0))?;
+        let objects = to_u64(report.inventory_objects.len())?;
+        self.counted(encode_gc_report(&report)?, objects)
+    }
+
+    /// `execute` (600): runs one Function of the bound root under the
+    /// restricted profile, builds the S20-290 report, and stores it.
+    fn execute(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 3)?;
+        let function = EntityId::from_bytes(fixed32(fields[0])?);
+        let inputs = list(fields[1])?
+            .into_iter()
+            .map(|bytes| {
+                decode_const_value(bytes)
+                    .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let limits = decode_execution_limits(fields[2])?;
+        let revision = self.head()?;
+        let request = CompleteRootRequest::extract(&revision)
+            .map_err(|error| owner(error.code(), error.numeric()))?;
+        let entities = request.entities();
+        let types = TypeEnvironment::new(entities.type_definitions.clone())
+            .map_err(|error| owner(error.code().as_str(), error.code().numeric()))?;
+        let Some(graph) = entities
+            .functions
+            .iter()
+            .find(|graph| graph.entity_id == function)
+        else {
+            return Err(ProtocolFailure {
+                details: FUNCTION_UNKNOWN_DETAIL.to_vec(),
+                ..ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid)
+            });
+        };
+        let input = || LoweringInput {
+            types: &types,
+            function: graph,
+            parameters: &entities.parameters,
+            blocks: &entities.blocks,
+            operations: &entities.operations,
+            schema_epoch: request.schema_epoch_id(),
+            state_root: request.root(),
+            profile: CacheProfile::RESTRICTED_V1,
+        };
+        let execution_request = ExecutionRequest { inputs, limits };
+        let execution = execute_function(input(), execution_request.clone());
+        let report = build_execution_report(input(), &execution_request, &execution)
+            .map_err(|error| report_validation_owner(&error))?;
+        let preimage = execution_report_preimage(&report)
+            .map_err(|error| owner(error.code().as_str(), error.code().numeric()))?;
+        let id = report.report_id();
+        store_execution_report(&self.repository, id, &preimage)
+            .map_err(|error| owner(error.code().as_str(), error.code().numeric()))?;
+        self.counted(encode_execution_report(id, &preimage)?, 1)
+    }
+
+    /// `report` (604): answers the stored execution report for an identity.
+    fn report(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        let id = ExecutionReportId::from_bytes(fixed32(body)?);
+        let preimage = read_execution_report(&self.repository, id).map_err(|error| {
+            if error.code() == ReportStoreErrorCode::Unknown {
+                ProtocolFailure {
+                    details: REPORT_UNKNOWN_DETAIL.to_vec(),
+                    ..ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid)
+                }
+            } else {
+                owner(error.code().as_str(), error.code().numeric())
+            }
+        })?;
+        self.counted(encode_execution_report(id, &preimage)?, 1)
+    }
+}
+
+/// Maps an S20-290 report validation failure to its owner's code and symbol.
+fn report_validation_owner(error: &sley_conformance::ReportValidationError) -> ProtocolFailure {
+    use sley_conformance::ReportValidationError as Validation;
+    use sley_vm::ExecutionError as Exec;
+    let symbol = error.to_string();
+    let numeric = match error {
+        Validation::Type(inner) | Validation::Execution(Exec::Type(inner)) => {
+            inner.code().numeric()
+        }
+        Validation::Fingerprint(inner) | Validation::Execution(Exec::Fingerprint(inner)) => {
+            inner.code().numeric()
+        }
+        Validation::Lower(_) | Validation::Execution(Exec::Lowering(_)) => 0,
+        Validation::Execution(Exec::Status(inner)) => inner.numeric(),
+        Validation::Execution(Exec::Exec(inner)) => inner.numeric(),
+        Validation::Report(inner) => inner.code().numeric(),
+    };
+    owner(&symbol, numeric)
+}
+
+fn decode_pins(body: &[u8]) -> Result<Vec<RetentionTarget>> {
+    let fields = record(body, 1)?;
+    let items = list(fields[0])?;
+    if items.len() > MAX_GC_PINS {
+        return protocol_failure(ProtocolErrorCode::LimitExceeded);
+    }
+    items
+        .into_iter()
+        .map(|item| {
+            let mut offset = 0;
+            let tag = uvar_at(item, &mut offset)?;
+            let length = usize::try_from(uvar_at(item, &mut offset)?)
+                .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+            let payload = item
+                .get(offset..offset + length)
+                .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+            if offset + length != item.len() {
+                return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+            }
+            let bytes = fixed32(payload)?;
+            match tag {
+                PIN_STATE_ROOT => Ok(RetentionTarget::StateRoot(StateRoot::from_bytes(bytes))),
+                PIN_OBJECT => Ok(RetentionTarget::Object(ObjectId::from_bytes(bytes))),
+                _ => protocol_failure(ProtocolErrorCode::PayloadInvalid),
+            }
+        })
+        .collect()
+}
+
+fn decode_execution_limits(body: &[u8]) -> Result<ExecutionLimits> {
+    let fields = record(body, 5)?;
+    let mut offset = 0;
+    let tag = uvar_at(fields[4], &mut offset)?;
+    let length = uvar_at(fields[4], &mut offset)?;
+    let cancel_at_fuel = match (tag, length) {
+        (0, 0) if offset == fields[4].len() => None,
+        (1, _) => Some(single_uvar(&fields[4][offset..])?),
+        _ => return protocol_failure(ProtocolErrorCode::PayloadInvalid),
+    };
+    Ok(ExecutionLimits {
+        max_instructions: single_uvar(fields[0])?,
+        max_fuel: single_uvar(fields[1])?,
+        max_value_units: single_uvar(fields[2])?,
+        max_output_units: single_uvar(fields[3])?,
+        cancel_at_fuel,
+    })
+}
+
+fn id_list<T: AsRef<[u8]>>(items: &[T]) -> Result<Vec<u8>> {
+    let encoded: Vec<Vec<u8>> = items.iter().map(|item| item.as_ref().to_vec()).collect();
+    encode_list(&encoded)
+        .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))
+}
+
+fn encode_gc_report(report: &GcReport) -> Result<Vec<u8>> {
+    let invariant = |_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant);
+    let anchors: Vec<Vec<u8>> = report
+        .examined_anchors
+        .iter()
+        .map(|key| {
+            encode_record(&[
+                (1, encode_uvar(key.kind as u64)),
+                (2, key.anchor_id.to_vec()),
+            ])
+            .map_err(invariant)
+        })
+        .collect::<Result<_>>()?;
+    let decision = match report.decision {
+        GcDecision::DryRun => 1,
+        GcDecision::Collected => 2,
+        GcDecision::PartialDeleteFailure => 3,
+    };
+    let failed = match report.failed_object {
+        None => encode_union(0, &[]),
+        Some(object) => encode_union(1, object.as_bytes()),
+    }
+    .map_err(invariant)?;
+    encode_record(&[
+        (1, encode_list(&anchors).map_err(invariant)?),
+        (
+            2,
+            id_list(
+                &report
+                    .retained_roots
+                    .iter()
+                    .map(|root| *root.as_bytes())
+                    .collect::<Vec<_>>(),
+            )?,
+        ),
+        (
+            3,
+            id_list(
+                &report
+                    .reachable_objects
+                    .iter()
+                    .map(|id| *id.as_bytes())
+                    .collect::<Vec<_>>(),
+            )?,
+        ),
+        (
+            4,
+            id_list(
+                &report
+                    .inventory_objects
+                    .iter()
+                    .map(|id| *id.as_bytes())
+                    .collect::<Vec<_>>(),
+            )?,
+        ),
+        (
+            5,
+            id_list(
+                &report
+                    .deletion_candidates
+                    .iter()
+                    .map(|id| *id.as_bytes())
+                    .collect::<Vec<_>>(),
+            )?,
+        ),
+        (6, encode_uvar(report.inventory_bytes)),
+        (7, encode_uvar(report.candidate_bytes)),
+        (8, encode_uvar(decision)),
+        (
+            9,
+            id_list(
+                &report
+                    .deleted_objects
+                    .iter()
+                    .map(|id| *id.as_bytes())
+                    .collect::<Vec<_>>(),
+            )?,
+        ),
+        (10, failed),
+    ])
+    .map_err(invariant)
+}
+
+fn encode_execution_report(id: ExecutionReportId, preimage: &[u8]) -> Result<Vec<u8>> {
+    let invariant = |_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant);
+    encode_record(&[
+        (1, id.as_bytes().to_vec()),
+        (2, encode_bytes(preimage).map_err(invariant)?),
+    ])
+    .map_err(invariant)
 }

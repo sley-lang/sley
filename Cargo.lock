@@ -229,6 +229,8 @@ name = "sley-protocol"
 version = "2.0.0-alpha.0"
 dependencies = [
  "blake3",
+ "sley-check",
+ "sley-conformance",
  "sley-id",
  "sley-mutate",
  "sley-policy",
@@ -240,6 +242,7 @@ dependencies = [
  "sley-state-root",
  "sley-store",
  "sley-txn",
+ "sley-vm",
 ]
 
 [[package]]

@@ -363,6 +363,14 @@ body keeps its owning contract's code; `SESSION_*` codes belong to S20-330.
 The contract is a draft with Council review pending and reserves, rather than
 freezes, these codes.
 
+S20-560 reserves numeric codes 56000 through 56002 for the exact
+`REPORT_STORE_*` failures of the execution report store composed by SMP1
+appendix C (`SMP1.md` revision 7): an unknown identity, stored bytes that do
+not re-derive their identity or exceed the bound, and a host failure or a
+differing existing entry. The production object verifier reports the
+S20-180 `GC_*` codes of the planner it serves. These codes are reserved with
+the S20-400 draft and frozen with it.
+
 S20-420 reserves numeric codes 42000 through 42004 for the exact `JSON_BRIDGE_*`
 failures of `SMP1_JSON_BRIDGE_V1.md`: object shape, integer encoding, hex
 encoding, unknown method name, and the text resource ceiling. They precede

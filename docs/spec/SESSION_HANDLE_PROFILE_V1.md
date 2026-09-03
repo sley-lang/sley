@@ -102,6 +102,10 @@ not head-bound; a mutation that advances the head leaves the session bound
 to the previous root until renewal, which is the explicit signal that
 earlier handles and capsules describe an older root.
 
+SMP1 revision 7 adds `execute` (600) to the head-bound set: it runs over
+the session's bound root, so a root advance answers `SESSION_ROOT_ADVANCED`
+until the session renews.
+
 ## 4. Handles
 
 A handle is the session-local name of one entity of the session's bound

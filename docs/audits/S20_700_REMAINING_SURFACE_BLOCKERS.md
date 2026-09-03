@@ -56,8 +56,8 @@ the full S20-320 context capsule is implemented
 (`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`), each under its
 draft contract with reviews pending; the S20-400 SMP1 contract is drafted
 (`docs/spec/SMP1.md` revision 3, ADR-0032) and S20-410 is implemented
-(`docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`) with four methods deferred on
-owner gaps; S20-440 is implemented
+(`docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`), its slice C dispatching every
+non-reserved method since SMP1 revision 7; S20-440 is implemented
 (`docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`); S20-330 is implemented
 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`); S20-420 is implemented
 (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`); S20-430 is implemented

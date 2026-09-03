@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the deferred S20-410 slice C dispatch (gc, execute, report) is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 clean-room packaging mechanics are next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -96,8 +96,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), S20-430 is implemented
   (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`), S20-620 is implemented
   (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`), and S20-630 is implemented
-  (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`), so the
-  deferred S20-410 slice C dispatch is the next dependency-complete work.
+  (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`), and the S20-410
+  slice C dispatch is implemented (SMP1 revision 7, the S20-410 closeout
+  addendum), so S20-720 clean-room packaging mechanics are the next
+  dependency-complete work.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -112,14 +114,15 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   gates and are not success evidence.
 - The protocol, JSON bridge, CLI, comparison, merge, Sley 2 trial runner,
   and accounting production modules exist under draft contracts; the
-  server still defers four methods (212, 213, 600, 604) on owner gaps.
+  server dispatches every non-reserved SMP1 method since revision 7.
 - No real benchmark trial, release artifact, publication authority, provider
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the deferred S20-410 slice C
-dispatch: `gc.dry_run`, `gc.collect`, `execute`, and `report` over the
-frozen S20-180, S20-270, and S20-290 owners so the SMP1 table dispatches
-every non-reserved method, while the pending S20-250, S20-510, S20-520,
-S20-300, S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620,
-and S20-630 reviews land as revisions; nothing in it is treated as GA.
+boundary drifts. The next action is S20-720 mechanics: a clean-room
+artifact build and the source-independent demo through the `sley`
+endpoint (create, import, query, execute, export, and import back with no
+source, parser, or legacy repository), with `release-check` staying fail
+closed until GA, while the pending S20-250, S20-510, S20-520, S20-300,
+S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620, and S20-630
+reviews land as revisions; nothing in it is treated as GA.

@@ -1,11 +1,11 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 6 (2026-09-03; revision 2 folds the
+Status: S20-400 contract draft, revision 7 (2026-09-03; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
 the exact body records of the methods S20-410 dispatches; revision 4 freezes
 the S20-440 cancellation, streaming, and budget rules of section 7 and
 appendix B; revision 5 hands `handle.expand` and session issuance to the
-S20-330 profile; revision 6 marks failure envelopes with response flag bit 2); Council review
+S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -324,9 +324,9 @@ Bodies are canonical SCB1 values (`uvar` integers, `record` as
 `uvar(count) || (uvar(len) || bytes)...`, `union` as
 `uvar(tag) || uvar(len) || bytes`, options as the SSMC1 generic union
 `0:None | 1:Some`). Fixed identities are raw 32-byte strings. The methods
-below are dispatched by the S20-410 deterministic server; every other
-non-reserved method answers `PROTOCOL_METHOD_UNSUPPORTED` with the
-versioned detail `S20-410-SLICE-C-DEFERRED` until its slice lands, and
+below are dispatched by the S20-410 deterministic server; the four methods
+of appendix C (revision 7) are dispatched as well, so no non-reserved method
+answers the former versioned detail `S20-410-SLICE-C-DEFERRED`, and
 reserved methods answer with `SMP1-RESERVED-METHOD`.
 
 | Method | Request body | Response body |
@@ -405,3 +405,66 @@ Budget accounting: `remaining := max_work` at `session.open`;
 `remaining := remaining - (1 + returned_bytes)` after each successful
 response, saturating at zero; a request that finds `remaining = 0` after
 admission is released and answered `PROTOCOL_LIMIT_EXCEEDED`.
+
+## Appendix C. Body records of the slice C methods (S20-410 slice C, revision 7)
+
+Revision 7 defines the bodies of the four methods that earlier revisions
+left to owner gaps, so the server dispatches every non-reserved method and
+the `S20-410-SLICE-C-DEFERRED` detail no longer appears. Bodies follow the
+appendix A conventions; identities are raw 32-byte values.
+
+| Method | Request body | Response body |
+|---|---|---|
+| 212 `gc.dry_run` | `record(1: list(pin))` where `pin = union(1: StateRoot[32], 2: ObjectId[32])` | `gc_report` |
+| 213 `gc.collect` | the same | `gc_report`; the server holds the exclusive GC guard for the request |
+| 600 `execute` | `record(1: function EntityId[32], 2: list(const_value), 3: limits)` over the session's bound root | `execution_report` |
+| 604 `report` | `ExecutionReportId[32]` | the stored `execution_report` |
+
+```text
+gc_report        = record(1: list(anchor_key), 2: list(StateRoot[32]) retained roots,
+                          3: list(ObjectId[32]) reachable, 4: list(ObjectId[32]) inventory,
+                          5: list(ObjectId[32]) deletion candidates,
+                          6: uvar(inventory_bytes), 7: uvar(candidate_bytes),
+                          8: uvar(decision: 1 dry_run | 2 collected | 3 partial_delete_failure),
+                          9: list(ObjectId[32]) deleted, 10: option(ObjectId[32]) failed object)
+anchor_key       = record(1: uvar(retention kind 1..7), 2: anchor id[32])
+const_value      = the S20-350 mutation value codec's `ConstValue` bytes
+                   (`sley_mutate::encode_const_value` / `decode_const_value`)
+limits           = record(1: uvar(max_instructions), 2: uvar(max_fuel),
+                          3: uvar(max_value_units), 4: uvar(max_output_units),
+                          5: option(uvar(cancel_at_fuel)))
+execution_report = record(1: ExecutionReportId[32], 2: bytes(execution report preimage, `SLEYEXR1`))
+```
+
+Rules:
+
+- **The server owns the retention snapshot.** A client can only add
+  retention: the request's pins become one `SessionPin` anchor under the
+  session identity. Every other anchor and every root come from the
+  repository itself: one `Ref` anchor per named branch targeting its head
+  root, one `Transaction` anchor for the accepted head, and the accepted
+  state roots of those revisions. A dependency root that is not among them
+  fails closed with the S20-180 `GC_DEPENDENCY_MISSING` code; nothing is
+  deleted. `gc.dry_run` never mutates; `gc.collect` acquires the S20-180
+  exclusive guard for the duration of the request and answers its report
+  verbatim, including a partial-delete failure.
+- **Objects are verified by the production verifier.** Reachability reads
+  every object through the S20-560 `RepositoryObjectVerifier`: an object
+  is an S20-340 entity object under the conformance schema epoch and
+  references no other object (entity references are binding positions of
+  the state root, which the planner already traverses), so any other
+  record in the inventory fails closed with `GC_OBJECT_REFERENCE_MALFORMED`.
+- **Execute is head-bound.** `execute` runs over the session's bound root
+  under the S20-330 root check, projects the root's entities with the
+  S20-250 full projection, lowers and executes the named Function under
+  the S20-260/S20-270 restricted profile, and builds the S20-290 execution
+  report. Every VM, lowering, projection, and report failure keeps its
+  owner code. Before answering, the server stores the report preimage
+  under `reports/execution/<id hex>` create-once with fsync (S20-560
+  report store); an identical re-execution finds the same identity already
+  stored and answers it.
+- **Report reads the store.** `report` answers the stored record for the
+  identity, verifying that the identity re-derives from the stored
+  preimage; an unknown identity answers `PROTOCOL_PAYLOAD_INVALID` with
+  the detail `REPORT-UNKNOWN`, and a corrupt store entry the S20-560 store
+  code.

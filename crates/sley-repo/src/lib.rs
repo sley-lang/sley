@@ -7,7 +7,9 @@ mod exchange;
 mod gc;
 mod index_cache;
 mod merge;
+mod object_verifier;
 mod refs;
+mod reports;
 mod root_query;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
@@ -18,7 +20,9 @@ pub use exchange::*;
 pub use gc::*;
 pub use index_cache::*;
 pub use merge::*;
+pub use object_verifier::*;
 pub use refs::*;
+pub use reports::*;
 pub use root_query::*;
 
 use core::fmt;

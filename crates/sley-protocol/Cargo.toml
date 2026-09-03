@@ -13,15 +13,18 @@ sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }
 sley-query = { path = "../sley-query" }
 sley-repo = { path = "../sley-repo" }
+sley-check = { path = "../sley-check" }
+sley-conformance = { path = "../sley-conformance" }
 sley-scb1 = { path = "../sley-scb1" }
 sley-schema = { path = "../sley-schema" }
 sley-state-root = { path = "../sley-state-root" }
+sley-store = { path = "../sley-store" }
 sley-txn = { path = "../sley-txn" }
+sley-vm = { path = "../sley-vm" }
 
 [dev-dependencies]
 sley-repo = { path = "../sley-repo", features = ["test-support"] }
 sley-ssmc = { path = "../sley-ssmc" }
-sley-store = { path = "../sley-store" }
 
 [lints]
 workspace = true

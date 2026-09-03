@@ -14,7 +14,7 @@ S20-410 server over one repository path, in byte form or in the S20-420
 JSON form, answering each frame as it arrives or, under `--batch`, every
 frame together so S20-440 cancellation can precede execution. The endpoint
 offers the server's own hello (`Server::offered_hello`: version 1, the
-conformance schema epoch, the limit ceilings, the thirty-three dispatched
+conformance schema epoch, the limit ceilings, the dispatched
 methods, cancel and stream, and the `json_bridge` feature in JSON mode),
 derives the profile with the frozen `negotiate`, and builds only two
 frames itself: its hello and one failure response through the codec. It

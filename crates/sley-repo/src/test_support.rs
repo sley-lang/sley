@@ -241,3 +241,73 @@ pub fn complete_bodies() -> Vec<(u8, EntityBodyValue)> {
 pub fn complete_dependency_root() -> StateRoot {
     fixed(9, StateRoot::from_bytes)
 }
+
+/// The complete bodies plus one executable Function (entity 30: `BoolAnd` over
+/// two Bool parameters 31 and 32 in block 33 with operation 34), for the
+/// SMP1 `execute` path.
+#[must_use]
+pub fn executable_bodies() -> Vec<(u8, EntityBodyValue)> {
+    use sley_mutate::value::{BlockBody, EntityIdSet, FunctionBody, OperationBody, ParameterBody};
+    use sley_ssmc::{
+        Immediate, Opcode, OperationResultRef, ParameterRole, Reachability, ReturnTerminator,
+        Terminator, TypeExpr, ValueRef,
+    };
+    let mut bodies = complete_bodies();
+    let function = id(30);
+    let left = id(31);
+    let right = id(32);
+    let block = id(33);
+    let operation = id(34);
+    let empty = EntityIdSet::from_unsorted(Vec::new()).unwrap();
+    bodies.push((
+        30,
+        EntityBodyValue::Function(FunctionBody {
+            type_parameters: Vec::new(),
+            parameters: vec![left, right],
+            result_type: TypeExpr::Bool,
+            effects: empty.clone(),
+            entry_block: block,
+            blocks: vec![block],
+            contracts: empty,
+            visibility: Visibility::Private,
+        }),
+    ));
+    for (byte, ordinal) in [(31, 0), (32, 1)] {
+        bodies.push((
+            byte,
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal,
+                value_type: TypeExpr::Bool,
+            }),
+        ));
+    }
+    bodies.push((
+        33,
+        EntityBodyValue::Block(BlockBody {
+            function,
+            parameters: Vec::new(),
+            operations: vec![operation],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        }),
+    ));
+    bodies.push((
+        34,
+        EntityBodyValue::Operation(OperationBody {
+            block,
+            ordinal: 0,
+            opcode: Opcode::BoolAnd.tag(),
+            operands: vec![ValueRef::Parameter(left), ValueRef::Parameter(right)],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        }),
+    ));
+    bodies
+}

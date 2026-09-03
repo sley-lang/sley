@@ -193,6 +193,7 @@ pub use candidate::{
     encode_candidate_record, full_validation_profile_id, full_validation_profile_record,
     import_candidate,
 };
+pub use codec::{decode_const_value, encode_const_value};
 pub use object::{
     ENTITY_OBJECT_CONTRACT_TAG, ENTITY_OBJECT_FORMAT_VERSION, ENTITY_OBJECT_MAGIC, EntityObject,
     EntityObjectRecord, MAX_ENTITY_OBJECT_LABEL_BYTES, build_entity_object, import_entity_object,

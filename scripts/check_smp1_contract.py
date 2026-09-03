@@ -64,6 +64,10 @@ SPEC_MARKERS = (
     "S20-410-SLICE-C-DEFERRED",
     "## Appendix B. Cancellation, streaming, and budget records (S20-440)",
     "stream_chunk = record(1: uvar(index), 2: uvar(total), 3: bytes(chunk))",
+    "## Appendix C. Body records of the slice C methods (S20-410 slice C, revision 7)",
+    "**The server owns the retention snapshot.**",
+    "**Execute is head-bound.**",
+    "execution_report = record(1: ExecutionReportId[32], 2: bytes(execution report preimage, `SLEYEXR1`))",
     "cancel latency bound is therefore exactly one request execution",
 )
 ADR_MARKERS = (
