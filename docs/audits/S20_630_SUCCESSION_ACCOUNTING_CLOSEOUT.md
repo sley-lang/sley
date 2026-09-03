@@ -43,8 +43,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1, ADR-0037, and the stage checker at
-  `539c0f9`; revision 2 and the implementation in the commit recorded in
-  the campaign record.
+  `539c0f9`; revision 2 and the implementation at `33d90af`.
 - Offline tests (four, all pass): ratios and medians are exact over odd
   and even counts with zero denominators as nulls and a float refused;
   every attempt stays in the denominator across accepted, rejected,
@@ -86,7 +85,11 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 is recorded in
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`33d90af` (`make core` 982 tests, `make conformance` 19 oracles,
+`make adversarial` 596 tests, `make fuzz-smoke`, `make accounting-smoke`,
+and `make sley2-runner-smoke`, all exit 0 in 33 seconds of wall time) and
+is recorded in
 `machineresearch/sley-2.0/s20-630-succession-accounting-campaign-2026-09-03.md`.
 The full `make v1` gate was skipped because this is a subsystem handoff,
 not a release boundary; `make v2` and `make release-check` remain

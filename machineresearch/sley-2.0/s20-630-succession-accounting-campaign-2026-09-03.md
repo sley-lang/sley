@@ -45,4 +45,17 @@ Contract: `docs/spec/SUCCESSION_ACCOUNTING_V1.md`, ADR-0037, stage checker
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
 | Contract draft revision 1 | `539c0f9` | green | ADR-0037, stage checker |
-| Implementation, revision 2 | pending | pending | `bench/accounting`; 4 offline tests; smoke over the S20-620 run: PARTIAL, 2 attempts, no accepted change, thresholds UNDETERMINED |
+| Implementation, revision 2 | `33d90af` | green | `bench/accounting`; 4 offline tests; smoke over the S20-620 run: PARTIAL, 2 attempts, no accepted change, thresholds UNDETERMINED; closeout `docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md` |
+
+## Tier 2 handoff record (2026-09-03, at `33d90af`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 982 tests passed, 0 failed across 39 test binaries |
+| `make conformance` | exit 0 | 11 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 8 s | 596 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make accounting-smoke` | exit 0 | 1 s | report PARTIAL over the S20-620 run; evidence PASS; stage checker PASS |
+| `make sley2-runner-smoke` | exit 0 | under 1 s (cached build) | scripted and intruding trials; evidence PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
