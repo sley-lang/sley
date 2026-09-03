@@ -73,7 +73,7 @@ WORK_PACKAGE_MARKERS = (
 
 
 PREIMAGE_PATTERN = re.compile(
-    r"^(field schema preimage|decoder limits preimage) = (\S+)$\n^(field_schema_hash|decoder_limits_hash) = ([0-9a-f]{64})$",
+    r"^(field schema preimage|decoder limits preimage) = (.+)$\n^(field_schema_hash|decoder_limits_hash) = ([0-9a-f]{64})$",
     re.MULTILINE,
 )
 
