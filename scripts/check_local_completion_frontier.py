@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "LOCAL_IMPLEMENTATION_FRONTIER_EXHAUSTED_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
+            "status": "LOCAL_EVIDENCE_COMPLETE_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
             "goal_complete": False,
-            "next_authority_safe_package": "NONE_REMAINING_LOCAL_IMPLEMENTATION_ALL_LANES_GATED",
+            "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -196,7 +196,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "NONE_REMAINING_LOCAL_IMPLEMENTATION_ALL_LANES_GATED",
+            "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -409,7 +409,7 @@ def main() -> int:
             "the S20-740 finding register is implemented",
             "the S20-750 decision dossier is implemented",
             "the full S20-360 operation analysis and the extended semantic profile are implemented",
-            "the local implementation frontier is exhausted",
+            "every fixture family is independently checked",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -431,7 +431,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "NONE_REMAINING_LOCAL_IMPLEMENTATION_ALL_LANES_GATED",
+                "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
                 "result": "PASS",
             },
             indent=2,

@@ -723,7 +723,7 @@
       "declares_no_open_p0_p1_p2": true,
       "disposition": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
       "field": "focused_semantic_security_review",
-      "package_status": "LOCAL_IMPLEMENTATION_FRONTIER_EXHAUSTED_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
+      "package_status": "LOCAL_EVIDENCE_COMPLETE_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
       "section": "local_completion_frontier",
       "severities": [
         "P0",
@@ -739,7 +739,7 @@
       "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_S20_500_NABU_ARIADNE_VULCAN",
       "field": "required_specialist_review",
-      "package_status": "LOCAL_IMPLEMENTATION_FRONTIER_EXHAUSTED_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
+      "package_status": "LOCAL_EVIDENCE_COMPLETE_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
       "section": "local_completion_frontier",
       "severities": [],
       "state": "PASS"
@@ -2190,7 +2190,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "99d5cc8354e4ee8169eb3555cdc8e98365948cb7bf58bd088ea94f1ec4da066c",
+  "obligations_digest": "5e09337ab25ba677d07a619fae1932af6b6f0f1ed0d0ff3f6489231a2cb48fdd",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2469,7 +2469,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "e8888a316ab24b8372db6e9fef7e0fa45462a8e5975a53a90126e903f2041e92",
+  "register_digest": "4e8d16f9d9f05cbd2f64c6228430a7e39b1d58d48d77346757b5e8d7d31e519f",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,

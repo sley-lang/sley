@@ -2061,7 +2061,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "NONE_REMAINING_LOCAL_IMPLEMENTATION_ALL_LANES_GATED",
+    "next_dependency_complete_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -2311,9 +2311,9 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md"
   },
   "local_completion_frontier": {
-    "status": "LOCAL_IMPLEMENTATION_FRONTIER_EXHAUSTED_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
+    "status": "LOCAL_EVIDENCE_COMPLETE_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
     "goal_complete": false,
-    "next_authority_safe_package": "NONE_REMAINING_LOCAL_IMPLEMENTATION_ALL_LANES_GATED",
+    "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -2611,6 +2611,7 @@
     "succession_trials": "the six per-arm metrics need executed benchmark trials, which need model access and spend authorization",
     "root_license_text": "the S20-710 audit and both SBOM documents record it as their blocker",
     "second_host_attestation": "multi-host reproducibility needs the gated laboratory lane",
-    "release_decision": "the dossier derives BLOCKED; the decision and any publication are the operator's"
+    "release_decision": "the dossier derives BLOCKED; the decision and any publication are the operator's",
+    "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains"
   }
 }

@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 revision 8 execute profile selector is implemented; S20-730 mechanics are implemented (single-host reproducibility attestation and declared independent-oracle coverage of every fixture family, reviews pending); the standards SBOM and release provenance are implemented (deterministic CycloneDX 1.6 and SPDX 2.3 documents and an unsigned in-toto statement, reviews pending, the S20-710 audit still blocked on the root license text); the S20-740 finding register is implemented (181 review obligations derived from the machine summary, sixty open while the lanes are down, the completion invariant enforced); the S20-750 decision dossier is implemented (all thirty-four completion-report items derived, eleven gated, decision state BLOCKED); the full S20-360 operation analysis and the extended semantic profile are implemented (candidate validation judges the E1 through E6 operation families and a receipt names the analysis that validated its program); the extended VM fuzz lanes and the tracked test inventory are implemented; the local implementation frontier is exhausted and every remaining boundary is gated by Council model access, a schema epoch decision, or operator authority; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 revision 8 execute profile selector is implemented; S20-730 mechanics are implemented (single-host reproducibility attestation and declared independent-oracle coverage of every fixture family, reviews pending); the standards SBOM and release provenance are implemented (deterministic CycloneDX 1.6 and SPDX 2.3 documents and an unsigned in-toto statement, reviews pending, the S20-710 audit still blocked on the root license text); the S20-740 finding register is implemented (181 review obligations derived from the machine summary, sixty open while the lanes are down, the completion invariant enforced); the S20-750 decision dossier is implemented (all thirty-four completion-report items derived, eleven gated, decision state BLOCKED); the full S20-360 operation analysis and the extended semantic profile are implemented (candidate validation judges the E1 through E6 operation families and a receipt names the analysis that validated its program); the extended VM fuzz lanes and the tracked test inventory are implemented; every one of the nineteen fixture families is now independently checked, so the local evidence is complete and every remaining boundary is gated by Council model access, a schema epoch decision, or operator authority; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -121,10 +121,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   so the release-evidence chain is mechanically complete. The full S20-360
   operation analysis (ADR-0044), the S20-390 extended semantic profile
   (ADR-0045), the extended VM fuzz lanes over families E1 through E6, and the
-  tracked test inventory are implemented, so the local implementation frontier
-  is exhausted: every remaining boundary waits on a Council review, a schema
-  epoch decision, or operator authority for benchmark spend, the root license,
-  the second host, and publication.
+  tracked test inventory are implemented, and every fixture family is independently checked, so no local implementation or evidence work remains:
+  every remaining boundary waits on a Council review, a schema epoch decision,
+  or operator authority for benchmark spend, the root license, the second
+  host, and publication.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -144,8 +144,13 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. No authority-safe local implementation package remains. The
-exact gates are Council model access (every specialist lane answers HTTP 401
+boundary drifts. The independent conformance gap closed on 2026-09-03: the
+extended bytecode container and cache identity are checked by
+`sley2_scb1_oracle.vm_extended` against nineteen accepted vectors and five
+container rejections, and the release demo identities by
+`scripts/check_release_demo_vector.py`, so no fixture family is native-only
+and the report reads `INDEPENDENT_CONFORMANCE_COMPLETE`. What remains is not
+implementation. The exact gates are Council model access (every specialist lane answers HTTP 401
 with an invalid API key, so the recorded review obligations, the S20-740
 independent review, and the security review cannot run), a schema epoch
 decision for the four unsupported S20-240 contract kinds and the S20-360
