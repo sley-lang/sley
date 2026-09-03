@@ -135,8 +135,10 @@ unreachable receipt ceiling.
    canonical-set order of branch entries is plain length-then-bytes for
    every legal name length; the 254 and 255 byte anomaly does not exist.
    Revision 7 restates the paragraph, keeps the 127/128/253/254/255 order
-   test, and changes no preimage or hash; it is submitted for a limited
-   Ariadne confirmation with the encoder and oracle evidence.
+   test, and changes no preimage or hash. Ariadne's sixth pass (session
+   `forge-ariadne-s20-540-pass6-20260903T030956-34fa856b`) confirmed it:
+   single framing in the encoder, the repository codec, and the Python
+   oracle, order monotone over lengths 1 through 255, both hashes unchanged.
 
 ## Consequences
 

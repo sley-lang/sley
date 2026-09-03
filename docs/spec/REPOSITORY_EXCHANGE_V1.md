@@ -110,8 +110,12 @@ field 1 therefore encodes as `uvar(1) || len(branch_name) || branch_name`,
 and the branch order is by the varint bytes of `byte_length(branch_name)`,
 then by the raw name bytes. For every legal name length (1 through 255) this
 is length-then-bytes order: one-byte varints (1 through 127) precede
-two-byte varints (128 through 255), whose first byte exceeds `0x7f`. The
-names `b` and `aa` sort `b` first. This is deliberately not the raw-name
+two-byte varints (128 through 255), whose first byte exceeds `0x7f`. Read
+literally, SCB1 section 4 composes a `Bytes` value's own prefix with the
+field prefix; in the frozen realization those two prefixes coincide in one
+`len`, and this contract binds that realized framing. The S20-500 name
+ceiling of 255 bytes is load-bearing for the monotone length order stated
+here. The names `b` and `aa` sort `b` first. This is deliberately not the raw-name
 order of `list_branches` (S20-500 section 8.3); exporters MUST re-sort into
 this order and MUST NOT sort by raw name bytes alone.
 

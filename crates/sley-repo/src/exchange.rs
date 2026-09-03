@@ -1409,6 +1409,55 @@ enum Target {
     IncompleteClone,
 }
 
+/// Frozen interruption rows X-01 through X-07 (test-only injected cuts).
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExchangeInterruption {
+    /// X-01: before the stage-marker rename is durable.
+    X01BeforeMarkerRename,
+    /// X-02: after the marker, before any object.
+    X02AfterMarkerBeforeObjects,
+    /// X-03: during object promotion (after the first object).
+    X03DuringObjectPromotion,
+    /// X-04: during receipt installation (after the first receipt).
+    X04DuringReceiptInstallation,
+    /// X-05: during branch installation (after the first branch).
+    X05DuringBranchInstallation,
+    /// X-06: before the head rename is durable.
+    X06BeforeHeadRename,
+    /// X-07: after the head, before marker removal.
+    X07AfterHeadBeforeMarkerRemoval,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static SELECTED_INTERRUPTION: std::cell::Cell<Option<ExchangeInterruption>> =
+        const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn select_interruption(cut: ExchangeInterruption) {
+    SELECTED_INTERRUPTION.with(|selected| selected.set(Some(cut)));
+}
+
+#[cfg(test)]
+fn fail_at(cut: ExchangeInterruption) -> Result<()> {
+    let selected = SELECTED_INTERRUPTION.with(|selected| {
+        if selected.get() == Some(cut) {
+            selected.set(None);
+            true
+        } else {
+            false
+        }
+    });
+    if selected {
+        return Err(ExchangeError::Io(io::Error::other(format!(
+            "injected exchange interruption {cut:?}"
+        ))));
+    }
+    Ok(())
+}
+
 fn real_directory_metadata(path: &Path) -> Result<Option<fs::Metadata>> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
@@ -1655,6 +1704,8 @@ fn install_stage_marker(target: &Path, exchange_id: RepositoryExchangeId) -> Res
     file.write_all(exchange_id.as_bytes())?;
     file.sync_all()?;
     drop(file);
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X01BeforeMarkerRename)?;
     fs::rename(&temporary, &marker)?;
     sync_directory(&versioned)?;
     sync_directory(&exchange_dir)?;
@@ -1729,9 +1780,18 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
         return Err(exchange_error(ExchangeErrorCode::TargetIncompleteMismatch));
     }
 
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X02AfterMarkerBeforeObjects)?;
     let store = ObjectStore::new(target);
-    let (promoted_objects, present_objects) =
-        promote_pack_objects(&store, &preflight.pack.decoded.objects, verifier)?;
+    let objects = &preflight.pack.decoded.objects;
+    let split = objects.len().min(1);
+    let (first_promoted, first_present) =
+        promote_pack_objects(&store, &objects[..split], verifier)?;
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X03DuringObjectPromotion)?;
+    let (rest_promoted, rest_present) = promote_pack_objects(&store, &objects[split..], verifier)?;
+    let promoted_objects = first_promoted + rest_promoted;
+    let present_objects = first_present + rest_present;
 
     let transactions = TransactionRepository::new(target);
     let order = topological_order(&preflight.receipts)?;
@@ -1739,19 +1799,38 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
         .iter()
         .map(|transaction_id| preflight.receipts[transaction_id].stored_bytes.as_slice())
         .collect::<Vec<&[u8]>>();
+    let head_id = preflight.decoded.accepted_head.transaction_id;
+    let first_receipts = receipt_bytes.len().min(1);
+    transactions.initialize_trusted_clone_receipts_with_maintenance(
+        &maintenance,
+        head_id,
+        &receipt_bytes[..first_receipts],
+    )?;
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X04DuringReceiptInstallation)?;
     let receipts = transactions.initialize_trusted_clone_receipts_with_maintenance(
         &maintenance,
-        preflight.decoded.accepted_head.transaction_id,
+        head_id,
         &receipt_bytes,
     )?;
 
     let branch_repository = BranchRepository::new(target);
+    let first_branches = preflight.branches.len().min(1);
+    install_branches(
+        target,
+        &preflight.branches[..first_branches],
+        &branch_repository,
+    )?;
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X05DuringBranchInstallation)?;
     install_branches(target, &preflight.branches, &branch_repository)?;
 
-    let accepted_head = transactions.initialize_trusted_clone_head_with_maintenance(
-        &maintenance,
-        preflight.decoded.accepted_head.transaction_id,
-    )?;
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X06BeforeHeadRename)?;
+    let accepted_head =
+        transactions.initialize_trusted_clone_head_with_maintenance(&maintenance, head_id)?;
+    #[cfg(test)]
+    fail_at(ExchangeInterruption::X07AfterHeadBeforeMarkerRemoval)?;
 
     fs::remove_file(&marker)?;
     let versioned = target
@@ -2289,6 +2368,162 @@ mod tests {
         let error =
             import_repository_exchange(&extra, &exchange.stored_bytes, &verify).unwrap_err();
         assert_eq!(error.code(), "EXCHANGE_TARGET_INCOMPLETE_MISMATCH");
+    }
+
+    #[test]
+    fn interruption_rows_x01_to_x07_converge_on_retry() {
+        let source = Source::new("cuts");
+        let exchange = source.export();
+        let verify = verifier(source.epoch);
+        let marker_of = |target: &Path| {
+            target
+                .join(EXCHANGE_DIRECTORY)
+                .join(EXCHANGE_VERSION_DIRECTORY)
+                .join(format!(
+                    "{}{STAGE_SUFFIX}",
+                    hex_id(exchange.exchange_id.as_bytes())
+                ))
+        };
+        let rows = [
+            ExchangeInterruption::X01BeforeMarkerRename,
+            ExchangeInterruption::X02AfterMarkerBeforeObjects,
+            ExchangeInterruption::X03DuringObjectPromotion,
+            ExchangeInterruption::X04DuringReceiptInstallation,
+            ExchangeInterruption::X05DuringBranchInstallation,
+            ExchangeInterruption::X06BeforeHeadRename,
+            ExchangeInterruption::X07AfterHeadBeforeMarkerRemoval,
+        ];
+        for (index, row) in rows.into_iter().enumerate() {
+            let target = source.target(&format!("cut-{index}"));
+            select_interruption(row);
+            let error =
+                import_repository_exchange(&target, &exchange.stored_bytes, &verify).unwrap_err();
+            assert_eq!(error.code(), "EXCHANGE_IO", "{row:?}");
+            let marker_present = marker_of(&target).exists();
+            let head_present = target.join("heads").join("accepted").exists();
+            match row {
+                ExchangeInterruption::X01BeforeMarkerRename => {
+                    assert!(!marker_present, "{row:?}");
+                    assert!(!head_present, "{row:?}");
+                    let temporary = target
+                        .join(EXCHANGE_DIRECTORY)
+                        .join(EXCHANGE_VERSION_DIRECTORY)
+                        .join(format!(
+                            "{}{STAGE_TEMPORARY_SUFFIX}",
+                            hex_id(exchange.exchange_id.as_bytes())
+                        ));
+                    assert!(temporary.exists(), "{row:?}");
+                }
+                ExchangeInterruption::X07AfterHeadBeforeMarkerRemoval => {
+                    assert!(marker_present, "{row:?}");
+                    assert!(head_present, "{row:?}");
+                }
+                _ => {
+                    assert!(marker_present, "{row:?}");
+                    assert!(!head_present, "{row:?}");
+                    assert!(
+                        TransactionRepository::new(&target).accepted_head().is_err(),
+                        "{row:?}"
+                    );
+                    let error = BranchRepository::new(&target)
+                        .create_branch("blocked", source.genesis)
+                        .unwrap_err();
+                    assert_eq!(error.code(), "TXN_INCOMPLETE_CLONE", "{row:?}");
+                }
+            }
+            let report = import_repository_exchange(&target, &exchange.stored_bytes, &verify)
+                .unwrap_or_else(|error| panic!("{row:?} retry failed: {}", error.code()));
+            assert_eq!(report.receipts, 2, "{row:?}");
+            assert_clone_equivalent(&source, &target, &exchange);
+        }
+    }
+
+    #[test]
+    fn decode_limits_bind_before_allocation_and_a_maximal_shape_decodes() {
+        let source = Source::new("limits");
+        let exchange = source.export();
+        let oversized_pack = vec![0_u8; MAX_EMBEDDED_PACK_BYTES + 1];
+        let error = build_exchange(
+            exchange.pack_id,
+            oversized_pack,
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            exchange.branches.clone(),
+        )
+        .map(|built| {
+            import_repository_exchange(
+                &source.target("never"),
+                &built.stored_bytes,
+                &verifier(source.epoch),
+            )
+            .map(|_| ())
+        })
+        .map(|result| result.unwrap_err().code())
+        .unwrap_or("EXCHANGE_RESOURCE_LIMIT");
+        assert_eq!(error, "EXCHANGE_RESOURCE_LIMIT");
+
+        let too_many_receipts = (0..=MAX_EXCHANGE_RECEIPTS)
+            .map(|index| ExchangeReceiptEntry {
+                transaction_id: TransactionId::from_bytes({
+                    let mut bytes = [0_u8; 32];
+                    bytes[..4].copy_from_slice(&(index as u32).to_be_bytes());
+                    bytes
+                }),
+                receipt_id: fixed(1, ReceiptId::from_bytes),
+                stored_bytes: vec![7],
+            })
+            .collect::<Vec<_>>();
+        let error = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            too_many_receipts,
+            exchange.accepted_head,
+            Vec::new(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "EXCHANGE_RESOURCE_LIMIT");
+
+        let maximal_receipts = (0..MAX_EXCHANGE_RECEIPTS)
+            .map(|index| ExchangeReceiptEntry {
+                transaction_id: TransactionId::from_bytes({
+                    let mut bytes = [0_u8; 32];
+                    bytes[..4].copy_from_slice(&(index as u32).to_be_bytes());
+                    bytes
+                }),
+                receipt_id: fixed(1, ReceiptId::from_bytes),
+                stored_bytes: vec![7],
+            })
+            .collect::<Vec<_>>();
+        let maximal_branches = (0..MAX_EXCHANGE_BRANCHES)
+            .map(|index| ExchangeBranchEntry {
+                branch_name: format!("b{index:04}").into_bytes(),
+                stored_origin: vec![1],
+                stored_ref: vec![2],
+            })
+            .collect::<Vec<_>>();
+        let leaves = compute_leaves(
+            exchange.pack_id,
+            &exchange.object_pack,
+            &maximal_receipts,
+            exchange.accepted_head,
+            &maximal_branches,
+        )
+        .unwrap();
+        assert_eq!(leaves.len(), MAX_EXCHANGE_LEAVES);
+        let root = merkle_root(&leaves).unwrap();
+        let payload = encode_payload(
+            &exchange.object_pack,
+            &maximal_receipts,
+            exchange.accepted_head,
+            &maximal_branches,
+            &leaves,
+            root,
+        )
+        .unwrap();
+        let decoded = decode_payload(&payload).unwrap();
+        assert_eq!(decoded.receipts.len(), MAX_EXCHANGE_RECEIPTS);
+        assert_eq!(decoded.branches.len(), MAX_EXCHANGE_BRANCHES);
+        assert_eq!(decoded.leaves.len(), MAX_EXCHANGE_LEAVES);
     }
 
     #[test]

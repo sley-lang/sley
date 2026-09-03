@@ -753,7 +753,11 @@
     "fixture_receipts": 2,
     "fixture_branches": 2,
     "independent_python_vector": "PASS",
-    "rejection_vectors": 5
+    "rejection_vectors": 5,
+    "ariadne_contract_review_revision_7": "PASS_CONTRACT_DRAFT_FRAMING_CONFIRMED",
+    "ariadne_contract_review_revision_7_session": "forge-ariadne-s20-540-pass6-20260903T030956-34fa856b",
+    "interruption_rows_tested": 7,
+    "rust_unit_tests": 10
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
