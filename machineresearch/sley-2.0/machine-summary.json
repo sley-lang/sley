@@ -997,7 +997,28 @@
     "v2_required": false
   },
   "protocol": {
-    "status": "DRAFT"
+    "status": "S20_400_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SMP1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
+    "checker": "scripts/check_smp1_contract.py",
+    "method_count": 40,
+    "method_families": 6,
+    "new_stable_error_codes": 12,
+    "new_error_code_range": "40000 through 40011",
+    "frame_domain": "sley2.protocol-frame.v1",
+    "handshake_domain": "sley2.protocol-handshake.v1",
+    "frame_contract_tags": [
+      400,
+      401,
+      402
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "contract_complete": false,
+    "implementation_package": "S20-410"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",

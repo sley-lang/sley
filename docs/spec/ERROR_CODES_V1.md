@@ -348,6 +348,14 @@ advance the head. S20-390 codes do not claim S20-500 named refs, S20-530 full
 cross-process recovery, selected-test execution, policy transitions, M3/M4, or
 GA.
 
+S20-400 reserves numeric codes 40000 through 40011 for the exact `PROTOCOL_*`
+failures of `SMP1.md`: frame length and envelope, version and downgrade,
+session closure and request-identity conflict, unsupported methods, payload
+decoding, negotiated limits, cancellation, and the internal invariant. Every
+body keeps its owning contract's code; `SESSION_*` codes belong to S20-330.
+The contract is a draft with Council review pending and reserves, rather than
+freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:
