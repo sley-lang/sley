@@ -70,7 +70,7 @@ non-reserved method since SMP1 revision 7; S20-440 is implemented
 (`docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md` revision 2, unsigned, the S20-710 audit still blocked); the S20-740 finding register is implemented
 (`docs/spec/FINDING_REGISTER_V1.md` revision 1, sixty open reviews, the independent review still pending); the S20-750 decision dossier is implemented
 (`docs/spec/DECISION_DOSSIER_V1.md` revision 1, thirty-four items, decision state BLOCKED); the full S20-360 operation analysis and the extended semantic profile are implemented
-(ADR-0044 and ADR-0045, reviews pending). Now
+(ADR-0044 and ADR-0045, reviews pending); the extended VM fuzz lanes cover families E1 through E6, and the local implementation frontier is exhausted: every remaining boundary waits on Council model access, a schema epoch decision, or operator authority. Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5
