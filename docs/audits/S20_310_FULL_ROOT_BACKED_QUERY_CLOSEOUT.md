@@ -44,7 +44,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1 and ADR-0030 at `d7065ee`; implementation,
-  corpus, oracle, and fuzz slice in the commit after it.
+  corpus, oracle, and fuzz slice at `76cf2a2`.
 - Conformance corpus: `conformance/root-backed-query/v1/accepted.json`
   (twenty-three vectors: all nineteen classes over the frozen S20-250
   fixture with the S20-300 snapshot, root, epoch, workspace, synthetic
@@ -104,9 +104,13 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at every commit of the slice. Tier 2 is recorded
-in `machineresearch/sley-2.0/s20-310-full-root-backed-query-campaign-2026-09-03.md`
-after the implementation commit. The full `make v1` gate was skipped
+Tier 1 `make quick` passed at every commit of the slice. Tier 2 ran on
+2026-09-03 at `76cf2a2`: `make core` (945 tests), `make conformance`
+(including the root-backed query oracle line), `make adversarial`,
+`make fuzz-smoke`, and `make root-query-persistent-fuzz-smoke` all exited 0
+in 38 seconds; the per-gate record is in
+`machineresearch/sley-2.0/s20-310-full-root-backed-query-campaign-2026-09-03.md`.
+The full `make v1` gate was skipped
 because this is a subsystem handoff, not a release boundary; `make v2` and
 `make release-check` remain intentionally fail closed.
 
