@@ -379,6 +379,14 @@ owning code inside the response frame and is never a CLI failure. The
 contract is a draft with Council review pending and reserves, rather than
 freezes, these codes.
 
+S20-620 reserves numeric codes 62000 through 62009 for the exact `SLEY2_TRIAL_*`
+failures of `SLEY2_TRIAL_RUNNER_V1.md`: the run manifest, endpoint
+availability, handshake, frame, trace, and claim validity, the
+privileged-context guard, duplicate trials, timeouts, and the internal
+invariant. They name only the runner's own failures; every frame keeps its
+owning code inside the trace. The contract is a draft with Council review
+pending and reserves, rather than freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:

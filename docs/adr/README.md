@@ -42,3 +42,4 @@ Current records:
 - ADR-0033: negotiated session, binding checks, and positional handles
 - ADR-0034: JSON bridge as a generated, non-canonical representation
 - ADR-0035: the CLI as a transport endpoint with no semantics
+- ADR-0036: the Sley 2 arm as an endpoint-only, trace-complete runner
