@@ -150,9 +150,11 @@ extended bytecode container and cache identity are checked by
 container rejections, and the release demo identities by
 `scripts/check_release_demo_vector.py`, so no fixture family is native-only
 and the report reads `INDEPENDENT_CONFORMANCE_COMPLETE`. What remains is not
-implementation. The exact gates are Council model access (every specialist lane answers HTTP 401
-with an invalid API key, so the recorded review obligations, the S20-740
-independent review, and the security review cannot run), a schema epoch
+implementation. The exact gates are Council model access (diagnosed on 2026-09-03: the
+OpenAI lane holds valid OAuth credentials but sits in a rate-limit cooldown,
+while the Claude lanes answer HTTP 401 because the gateway auth store holds
+no Anthropic profile, so the recorded review obligations, the S20-740
+independent review, and the security review cannot run yet), a schema epoch
 decision for the four unsupported S20-240 contract kinds and the S20-360
 production-epoch fingerprint requirement, executed succession trials for the
 six per-arm metrics of the completion report, the operator-approved root
