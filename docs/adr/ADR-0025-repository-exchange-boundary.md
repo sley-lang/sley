@@ -33,20 +33,29 @@ unreachable receipt ceiling.
    `digest_domain_tag` 19) embeds one exact stored S20-170 pack and adds
    receipts, the accepted head, and visible branch pairs as new sections. The
    S20-170 decoder, limits hash, and fixture are untouched. An exchange never
-   nests an exchange, and the embedded pack is capped at `33,554,432` bytes,
-   strictly below the `67,108,864` outer ceiling, with one shared top-down
-   allocation budget.
+   nests an exchange, and the embedded pack is a single SCB1 `Bytes` field,
+   so it is capped at the frozen epoch-1 `Bytes` ceiling of `16,777,216`
+   bytes, below the `67,108,864` outer ceiling, with one shared top-down
+   allocation budget charged to both decoders.
 2. **Trust boundary.** Import targets only a fresh location or an incomplete
-   clone of the same `RepositoryExchangeId`, proven by a stage marker.
+   clone of the same `RepositoryExchangeId`, proven by a stage marker that is
+   the first regular file written into the target and whose contents are the
+   identifier itself; a present head must equal the exchange's head.
    `EXCHANGE_TARGET_NOT_EMPTY` and `EXCHANGE_TARGET_INCOMPLETE_MISMATCH` fire
-   before any write. The fixed accepted head is written last and is the sole
-   completion witness; a target without it is not a repository to any reader.
-   Imported bytes never become authority inside an existing repository.
+   before any write. The importer holds exclusive repository maintenance
+   ownership for the whole persistence phase under the frozen lock order
+   `maintenance -> refs -> accepted`. The fixed accepted head is written last
+   and is the sole completion witness; a target without it is not a
+   repository to any reader; every persistence step is re-entrant over exact
+   bytes. Imported bytes never become authority inside an existing
+   repository.
 3. **Transaction-owner API.** `sley-txn` gains a two-phase
    `initialize_trusted_clone` boundary (receipts, then head), the explicit
-   root-of-trust analogue of `initialize_trusted_genesis`: exclusive
-   maintenance, absent head, strict decoding and verification of every receipt
-   against the durable store and its installed parents, S20-390 durability
+   root-of-trust analogue of `initialize_trusted_genesis`: the caller's
+   exclusive maintenance guard plus the exclusive accepted lock, a head that
+   is absent or already exactly the exchange's head, parent-before-child
+   installation with strict decoding and verification of every receipt
+   against the durable store and its durable parent, S20-390 durability
    orders, no candidate or policy authority. The dependency direction stays
    `sley-repo -> sley-txn`. This is transaction-owner work inside the S20-540
    slice, exactly as S20-500 added the verified revision lookup; the
@@ -69,6 +78,16 @@ unreachable receipt ceiling.
 7. **Limits.** `4,096` receipts and `4,096` branches are clone-profile
    limits consistent with the outer byte ceiling; deeper histories need a
    later streamed or compressed profile.
+8. **First contract review.** Ariadne's first review of revision 1
+   (session `forge-ariadne-s20-540-contract-20260903T014755-7931f8f9`)
+   returned `FAIL_CONTRACT_DRAFT` with four P0 findings (the 32 MiB pack cap
+   above the frozen 16 MiB `Bytes` ceiling, raw-name branch order against
+   canonical-set order, a marker-after-layout cut that stranded targets, and
+   a clone-API precondition that contradicted retry row X-07) plus four P1
+   findings (marker contents and foreign heads, an undefined root-closure
+   operator and code, untestable multi-genesis, and a double length
+   encoding). Revision 2 applies every P0, P1, P2, and P3 item; codes 54020
+   and 54021 are added.
 
 ## Consequences
 

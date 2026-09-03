@@ -166,3 +166,14 @@ Numeric codes 54000 through 54020: `EXCHANGE_VERSION_UNSUPPORTED`,
 4. Whether the equivalence definition above is complete for "clone
    equivalence per profile", and what the M4 exit needs beyond it.
 5. Limits and whether the exchange needs its own larger byte ceiling.
+
+## Superseded by the contract draft (2026-09-03, after the first Ariadne review)
+
+The contract (`docs/spec/REPOSITORY_EXCHANGE_V1.md`, revision 2) supersedes
+these points of the brief: the embedded pack is capped at the frozen epoch-1
+`Bytes` ceiling of 16,777,216 bytes, not 32 MiB; branch entries are ordered by
+SCB1 canonical-set order over the complete entry (length-then-bytes of the
+name), not raw name bytes; the stage marker is the first file written into the
+target and carries the identifier as its contents; the clone API is two-phase
+with `_with_maintenance` variants under the importer's exclusive maintenance
+ownership; receipts are limited to 4,096; codes run 54000 to 54021.
