@@ -403,6 +403,15 @@ report, and the internal invariant. A zero denominator is a named null, not
 a failure. The contract is a draft with Council review pending and reserves,
 rather than freezes, these codes.
 
+S20-720 reserves numeric codes 72000 through 72007 for the exact `PACKAGE_*`
+failures of `RELEASE_CANDIDATE_PACKAGING_V1.md`: a failed clean build, an
+invalid manifest, forbidden content (local paths or secrets), a failed
+conformance subset or demo from the unpacked artifact, a non-reproducible
+second build, a dirty working tree, and the internal invariant. They name
+the candidate mechanics only; `release-check` stays fail-closed. The contract
+is a draft with Council review pending and reserves, rather than freezes,
+these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:

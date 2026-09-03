@@ -2090,6 +2090,34 @@
     "final_vulcan_disposition": "DEFERRED_FORGE_OAUTH_401",
     "publication_authorized": false
   },
+  "release_candidate_packaging": {
+    "status": "S20_720_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
+    "checker": "scripts/check_release_candidate_packaging.py",
+    "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+    "manifest_contract": "sley2.release-candidate-manifest.v1",
+    "demo_fixture": "conformance/release-demo/v1/demo.json",
+    "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
+    "new_stable_error_codes": 8,
+    "new_error_code_range": "72000 through 72007",
+    "ga_claimed": false,
+    "publication_authorized": false,
+    "blockers": [
+      "root_license_text_operator_approval",
+      "standards_sbom_and_provenance_s20_710_full",
+      "succession_thresholds_s20_640",
+      "council_reviews"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": false,
+    "implementation": []
+  },
   "local_completion_frontier": {
     "status": "S20_410_SLICE_C_IMPLEMENTED_REVIEWS_PENDING_S20_720_NEXT",
     "goal_complete": false,
