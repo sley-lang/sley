@@ -12,6 +12,9 @@ use sley_id::{
     TransactionId, WorkspaceId,
 };
 use sley_mutate::{EntityObject, import_entity_object};
+
+/// SSMC1 kind tag of a semantic `Operation` entity.
+const OPERATION_ENTITY_KIND_TAG: u16 = 8;
 use sley_policy::{
     AcceptedPolicyRoot, CandidateDecision, CandidateValidationContext, CandidateValidationError,
     CandidateValidationLimits, CandidateValidationOutput, ImportedCandidateResult,
@@ -1870,6 +1873,22 @@ impl TransactionRepository {
                 TransactionErrorCode::TestEvidenceUnsupported,
             ));
         }
+        // The S20-360 full operation analysis (ADR-0044) judges programs that
+        // carry semantic operations, but the frozen receipt has exactly one
+        // semantic profile value and it names the operation-free profile, so
+        // committing such a program would state a profile the transaction did
+        // not run under. The commit fails closed until the transaction model
+        // gains a value for the extended analysis.
+        if plan
+            .proposed_state()
+            .entities()
+            .iter()
+            .any(|object| object.record().body.kind_tag() == OPERATION_ENTITY_KIND_TAG)
+        {
+            return Err(txn_commit_error(
+                TransactionErrorCode::SemanticProfileUnsupported,
+            ));
+        }
         let changed_entity_bindings = derive_binding_diff(
             &base.state_root().record.entity_bindings,
             &plan.candidate_root().record.entity_bindings,
@@ -3635,13 +3654,19 @@ mod tests {
         MutationOperation,
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
         build_entity_object, full_validation_profile_id,
-        value::{ConstantBody, EntityBodyValue, EntityIdSet, NamespaceBody},
+        value::{
+            BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody,
+            OperationBody,
+        },
     };
     use sley_policy::{
         PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
         build_capability_summary_projection, conformance_registry as policy_registry,
     };
-    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    use sley_ssmc::{
+        ConstData, ConstValue, Immediate, Opcode, OperationResultRef, Reachability, ReturnTerminator,
+        Terminator, TypeExpr, ValueRef, Visibility,
+    };
     use sley_state_root::{
         StateRootBuilder, StateRootRecord, conformance_epoch_id as state_epoch_id,
         conformance_registry as state_registry,
@@ -3899,6 +3924,126 @@ mod tests {
                     entity_id: target,
                 }),
             }],
+            validation_profile_id: full_validation_profile_id().unwrap(),
+            candidate_nonce: nonce,
+            expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+        })
+        .unwrap()
+    }
+
+    /// A candidate that creates a Function whose block runs one `constant_ref`
+    /// operation: the S20-360 full operation analysis judges it (ADR-0044), so
+    /// the commit path must accept an operation-carrying program.
+    fn program_candidate_for(
+        workspace_id: WorkspaceId,
+        principal_id: PrincipalId,
+        base_transaction_id: TransactionId,
+        base_state: &AcceptedStateRoot,
+        policy: &AcceptedPolicyRoot,
+        nonce_byte: u8,
+    ) -> ImportedCandidate {
+        let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+        let entity =
+            |kind: u16, ordinal: u64| EntityId::derive(workspace_id, nonce, u32::from(kind), ordinal);
+        let function = entity(5, 0);
+        let block = entity(7, 1);
+        let constant = entity(9, 2);
+        let operation = entity(8, 3);
+        let summary = build_capability_summary_projection(
+            principal_id,
+            workspace_id,
+            policy.root(),
+            base_state.root,
+            &[],
+        )
+        .unwrap();
+        let bodies = [
+            (
+                5_u16,
+                function,
+                EntityBodyValue::Function(FunctionBody {
+                    type_parameters: vec![],
+                    parameters: vec![],
+                    result_type: TypeExpr::Unit,
+                    effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    entry_block: block,
+                    blocks: vec![block],
+                    contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            ),
+            (
+                7,
+                block,
+                EntityBodyValue::Block(BlockBody {
+                    function,
+                    parameters: vec![],
+                    operations: vec![operation],
+                    terminator: Terminator::Return(ReturnTerminator {
+                        value: ValueRef::OperationResult(OperationResultRef {
+                            operation,
+                            result_index: 0,
+                        }),
+                    }),
+                    reachability: Reachability::Required,
+                }),
+            ),
+            (
+                9,
+                constant,
+                EntityBodyValue::Constant(ConstantBody {
+                    value: ConstValue {
+                        value_type: TypeExpr::Unit,
+                        data: ConstData::Unit,
+                    },
+                }),
+            ),
+            (
+                8,
+                operation,
+                EntityBodyValue::Operation(OperationBody {
+                    block,
+                    ordinal: 0,
+                    opcode: Opcode::ConstantRef.tag(),
+                    operands: vec![],
+                    result_types: vec![TypeExpr::Unit],
+                    immediate: Immediate::Entity(constant),
+                }),
+            ),
+        ];
+        build_candidate(&CandidateRecord {
+            format_version: 1,
+            workspace_id,
+            base_transaction_id,
+            base_root: base_state.root,
+            schema_epoch_id: base_state.record.schema_epoch_id,
+            policy_root_id: policy.root(),
+            principal_id,
+            capability_summary_digest: summary.digest(),
+            operations: bodies
+                .iter()
+                .enumerate()
+                .map(|(index, (kind, target, body))| MutationOperation {
+                    ordinal: u32::try_from(index).unwrap(),
+                    class: MutationClass::CreateEntity,
+                    target_kind: *kind,
+                    target_entity: *target,
+                    field_tag: None,
+                    payload: MutationPayload::CreateEntity(body.clone()),
+                    precondition_ordinal: u32::try_from(index).unwrap(),
+                })
+                .collect(),
+            preconditions: bodies
+                .iter()
+                .enumerate()
+                .map(|(index, (_, target, _))| BoundPrecondition {
+                    operation_ordinal: u32::try_from(index).unwrap(),
+                    requirement: PreimageRequirement::ExpectedIdentityAbsent,
+                    payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                        entity_id: *target,
+                    }),
+                })
+                .collect(),
             validation_profile_id: full_validation_profile_id().unwrap(),
             candidate_nonce: nonce,
             expiry: CandidateExpiry::unix_millis(NOW + 1_000),
@@ -4856,6 +5001,61 @@ mod tests {
         assert_eq!(recovery.removed_receipt_stages, 0);
         assert_eq!(recovery.removed_head_stages, 0);
         assert_eq!(recovery.verified_ancestry_transactions, 2);
+    }
+
+    /// S20-390 with the S20-360 full operation analysis (ADR-0044): the
+    /// validator now judges a program that carries semantic operations, but
+    /// the frozen receipt states one semantic profile and it names the
+    /// operation-free profile, so the commit fails closed instead of claiming
+    /// a profile it did not run under. The candidate itself validates.
+    #[test]
+    fn commit_refuses_an_operation_carrying_program_until_the_receipt_can_name_it() {
+        let fixture = Fixture::new("operation-program");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = program_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            0x5c,
+        );
+        let head_before = fixture.repository.accepted_head().unwrap();
+        let error = fixture
+            .repository
+            .commit(CommitInput::new(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .unwrap_err();
+        assert_eq!(error.code(), "TXN_SEMANTIC_PROFILE_UNSUPPORTED");
+        assert_eq!(error.numeric_code(), Some(39_023));
+
+        // The refusal is the transaction owner's, not the validator's: the
+        // candidate is valid under the full operation analysis.
+        let context = CandidateValidationContext::new(
+            fixture.genesis_transaction_id,
+            head_before.state_root(),
+            head_before.objects(),
+            head_before.tombstoned_entities(),
+            head_before.policy_root(),
+            fixture.principal_id,
+            &[],
+            NOW,
+            CandidateValidationLimits::full_v1(),
+        )
+        .unwrap();
+        let validation = validate_candidate_bytes(&context, &candidate.stored_bytes).unwrap();
+        assert!(validation.is_valid());
+
+        // Accepted state did not move.
+        let accepted = fixture.repository.accepted_head().unwrap();
+        assert_eq!(accepted.transaction_id(), head_before.transaction_id());
+        assert_eq!(accepted.objects().len(), head_before.objects().len());
     }
 
     #[test]

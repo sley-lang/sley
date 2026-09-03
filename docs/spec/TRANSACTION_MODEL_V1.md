@@ -155,6 +155,14 @@ Commit metadata contains only deterministic profile tags:
 |---:|---|---:|
 | 1 | commit_profile | `1` |
 | 2 | semantic_profile | `1` for executable-program-operation-free |
+
+The decoder accepts exactly this metadata triple. Since the S20-360 full
+operation analysis (ADR-0044) a candidate whose program carries semantic
+operation entities can validate, but no semantic profile value names that
+analysis, so `commit` refuses such a candidate with
+`TXN_SEMANTIC_PROFILE_UNSUPPORTED` (39023) rather than emit a receipt stating
+a profile the transaction did not run under. A value for the extended analysis
+is a contract revision this package does not take.
 | 3 | durability_profile | `1` for receipt-before-head CAS |
 
 No timestamp, ref name, host fact, filesystem path, label, source, Git fact,

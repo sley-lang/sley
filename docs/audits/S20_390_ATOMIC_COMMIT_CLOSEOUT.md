@@ -138,3 +138,24 @@ This closeout does not complete:
 S20-500 is the next dependency-complete local package. The local-write gate
 remained in force: no runtime deployment, provider call, publication, spend,
 trading action, push, or external system mutation occurred.
+
+## Operation-carrying candidates addendum (2026-09-03)
+
+The S20-360 full operation analysis (ADR-0044) removed the validator's refusal
+of programs containing semantic operation entities, which silently widened what
+this package's frozen receipt would have described: `commit` builds
+`CommitMetadata::restricted_v1()`, whose `semantic_profile` value 1 names the
+executable-program-operation-free profile, and the decoder accepts exactly that
+triple.
+
+`commit` therefore refuses a validated candidate whose proposed state contains
+an `Operation` entity with `TXN_SEMANTIC_PROFILE_UNSUPPORTED` (39023), and
+`commit_refuses_an_operation_carrying_program_until_the_receipt_can_name_it`
+records both halves: the transaction owner refuses, and the same candidate is
+`VALID` under the validator. Accepted state does not move.
+
+The frozen boundary of this package is therefore unchanged: the receipt still
+describes exactly what it did. Naming the extended analysis needs a transaction
+model revision that adds a semantic profile value, regenerates the receipt and
+exchange vectors, and passes Council review; it is recorded as the follow-on
+package rather than taken here.

@@ -268,6 +268,14 @@ pub enum TransactionErrorCode {
     /// exchange stage marker, so no acceptance-establishing, ref-mutating, or
     /// deleting path may proceed.
     IncompleteClone,
+    /// `TXN_SEMANTIC_PROFILE_UNSUPPORTED`: the validated program carries
+    /// semantic operation entities, which the S20-360 full operation analysis
+    /// now judges, but the frozen receipt has one semantic profile value and
+    /// it names the executable-program-operation-free profile. Committing such
+    /// a candidate would state a profile the transaction did not run under, so
+    /// the commit fails closed until the transaction model gains a value for
+    /// the extended analysis.
+    SemanticProfileUnsupported,
 }
 
 impl TransactionErrorCode {
@@ -298,6 +306,7 @@ impl TransactionErrorCode {
             Self::InternalInvariant => "TXN_INTERNAL_INVARIANT",
             Self::ResourceLimit => "TXN_RESOURCE_LIMIT",
             Self::IncompleteClone => "TXN_INCOMPLETE_CLONE",
+            Self::SemanticProfileUnsupported => "TXN_SEMANTIC_PROFILE_UNSUPPORTED",
         }
     }
 
@@ -328,6 +337,7 @@ impl TransactionErrorCode {
             Self::InternalInvariant => 39_020,
             Self::ResourceLimit => 39_021,
             Self::IncompleteClone => 39_022,
+            Self::SemanticProfileUnsupported => 39_023,
         }
     }
 }
