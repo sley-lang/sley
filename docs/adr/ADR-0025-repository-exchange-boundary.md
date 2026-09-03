@@ -1,7 +1,7 @@
 # ADR-0025: Repository exchange composition and clone trust boundary
 
-Status: accepted for the S20-540 contract draft; implementation pending
-contract review
+Status: accepted; the S20-540 contract is frozen at revision 6 (Ariadne and
+Vulcan PASS); implementation pending
 
 Date: 2026-09-03
 
@@ -123,7 +123,10 @@ unreachable receipt ceiling.
    `TXN_RESOURCE_LIMIT` `39021`), on an owned re-classification rule that
    would have aborted every fresh import, and on the amendment naming
    `TRANSACTION_MODEL_V1.md` instead of `ERROR_CODES_V1.md` and the enum;
-   revision 6 applies those and its P2 and P3 items.
+   revision 6 applies those and its P2 and P3 items. The fifth Ariadne pass
+   (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) returned
+   `PASS_CONTRACT_DRAFT` on revision 6 with both frozen hashes byte-identical
+   to revision 2, and the contract is frozen.
 
 ## Consequences
 

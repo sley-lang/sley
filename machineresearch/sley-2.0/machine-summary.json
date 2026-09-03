@@ -702,7 +702,7 @@
     "implementation_complete": true
   },
   "repository_exchange": {
-    "status": "S20_540_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
     "contract": "docs/spec/REPOSITORY_EXCHANGE_V1.md",
     "adr": "docs/adr/ADR-0025-repository-exchange-boundary.md",
     "design_brief": "machineresearch/sley-2.0/s20-540-pack-exchange-design-brief-2026-09-03.md",
@@ -722,7 +722,7 @@
     "transaction_owner_api": "initialize_trusted_clone_receipts_with_maintenance/initialize_trusted_clone_head_with_maintenance",
     "nabu_design_consult": "PASS_EMBED_SLEY_TXN_API_BYTE_EXACT_CONCERNS_APPLIED",
     "nabu_design_consult_session": "forge-nabu-s20-540-design-20260903T013712-0fb98776",
-    "ariadne_contract_review": "PENDING_FINAL_PASS_ON_REVISION_6",
+    "ariadne_contract_review": "PASS_CONTRACT_DRAFT_REVISION_6",
     "vulcan_import_surface_review": "PASS_CONTRACT_DRAFT_REVISION_4_NOTES_APPLIED_IN_REVISION_5",
     "implementation_complete": false,
     "contract_revision": 6,
@@ -737,7 +737,9 @@
     "incomplete_clone_write_guard_code": "TXN_INCOMPLETE_CLONE:39022",
     "vulcan_import_surface_review_session": "forge-vulcan-s20-540-rereview-20260903T022707-896ec8f9",
     "ariadne_contract_review_revision_5": "FAIL_CONTRACT_DRAFT_1_P0_2_P1_4_P2_2_P3_ALL_APPLIED_IN_REVISION_6",
-    "ariadne_contract_review_revision_5_session": "forge-ariadne-s20-540-pass4-20260903T022707-997681c9"
+    "ariadne_contract_review_revision_5_session": "forge-ariadne-s20-540-pass4-20260903T022707-997681c9",
+    "contract_frozen_at_commit": "5e5d593",
+    "ariadne_contract_review_session": "forge-ariadne-s20-540-pass5-20260903T023812-51133a3e"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",

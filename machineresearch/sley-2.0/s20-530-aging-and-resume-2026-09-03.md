@@ -92,6 +92,31 @@ consult on its five questions follows the aging reviews; the contract draft
 (`docs/spec/REPOSITORY_EXCHANGE_V1.md`, ADR-0025, structural checker) is
 written after that consult.
 
+## S20-540 contract freeze (2026-09-03T02:41Z)
+
+Repository Exchange v1 is frozen at revision 6 (`5e5d593`, freeze flip in the
+next commit). Review trail, all on `claude-cli/claude-opus-5`, sequential:
+
+| Pass | Session | Result |
+|---|---|---|
+| Nabu design consult | `forge-nabu-s20-540-design-20260903T013712-0fb98776` | embed, sley-txn API, byte-exact branches; concerns applied |
+| Ariadne 1 (rev 1) | `forge-ariadne-s20-540-contract-20260903T014755-7931f8f9` | FAIL: 4 P0, 4 P1, 10 P2, 7 P3 |
+| Ariadne 2 (rev 2) | `forge-ariadne-s20-540-rereview-20260903T020340-91f5e854` | FAIL: 2 P1, 1 P2, 3 P3 |
+| Ariadne 3 (rev 3) | `forge-ariadne-s20-540-pass3-20260903T021306-68bdb08f` | PASS |
+| Vulcan 1 (rev 3) | `forge-vulcan-s20-540-contract-20260903T014755-d837d5c4` | FAIL: 1 P1, 4 P2, 3 P3 |
+| Vulcan 2 (rev 4) | `forge-vulcan-s20-540-rereview-20260903T022707-896ec8f9` | PASS with four text notes (rev 5) |
+| Ariadne 4 (rev 5) | `forge-ariadne-s20-540-pass4-20260903T022707-997681c9` | FAIL: 1 P0 (stale 39021), 2 P1, 4 P2, 2 P3 |
+| Ariadne 5 (rev 6) | `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e` | PASS; ready to freeze |
+
+Commits: `a3d6d2b` (rev 1), `b78c94b` and `b5fa5a0` (rev 2), `74a393c`
+(rev 3), `e3ad315` (rev 4), `7c377c1` (rev 5), `c826f62` (39022),
+`5e5d593` (rev 6). Frozen hashes: field schema `a843405b…` (unchanged since
+rev 1), decoder limits `808eaba9…` (since rev 2). The implementation plan is
+`s20-540-implementation-plan-2026-09-03.md`. Lessons recorded in memory:
+absolute paths in Council requests; check SCB1 section 9 and canonical-set
+element order before writing a contract; S20-390 numerics live in
+`ERROR_CODES_V1.md`.
+
 ## Isolated verification
 
 `make s20-530-verify` was launched at 2026-09-03T01:23:36Z (clone at

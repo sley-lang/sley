@@ -1,10 +1,12 @@
 # Repository Exchange v1
 
-Status: S20-540 contract draft, revision 6. Nabu design consult applied; four
-Ariadne contract passes (revision 3 `PASS_CONTRACT_DRAFT`; revision 5
-`FAIL_CONTRACT_DRAFT`, 1 P0, 2 P1, 4 P2, 2 P3, applied here) and the Vulcan
-import-surface reviews (revision 4 `PASS_CONTRACT_DRAFT`) are applied in
-full; a final limited Ariadne pass is pending; no implementation exists.
+Status: S20-540 contract frozen at revision 6 (2026-09-03). Nabu design
+consult applied; Ariadne contract review `PASS_CONTRACT_DRAFT` on revision 6
+(session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) after five
+passes; Vulcan import-surface review `PASS_CONTRACT_DRAFT` on revision 4
+(session `forge-vulcan-s20-540-rereview-20260903T022707-896ec8f9`) with its
+text notes applied in revision 5. Implementation state is tracked separately
+in the machine summary; no implementation exists at the freeze.
 
 ## Notation
 
