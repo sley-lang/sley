@@ -58,7 +58,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1 and ADR-0034 at `be9843c`; revision 2 and the
-  implementation in the commit recorded in the campaign record.
+  implementation at `7722d33`.
 - Native tests (`cargo test -p sley-json-bridge`): eight tests pass and the
   fixture emitter is ignored. They cover the embedded table against
   `Method::ALL` (41 methods, 4 reserved, six families), every SMP1 fixture
@@ -106,7 +106,10 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 is recorded in
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`7722d33` (`make core` 973 tests, `make conformance` 19 oracles,
+`make adversarial` 596 tests, `make fuzz-smoke`, and both SMP1 persistent
+smoke gates, all exit 0 in 35 seconds of wall time) and is recorded in
 `machineresearch/sley-2.0/s20-420-json-bridge-campaign-2026-09-03.md`. The
 full `make v1` gate was skipped because this is a subsystem handoff, not a
 release boundary; `make v2` and `make release-check` remain intentionally

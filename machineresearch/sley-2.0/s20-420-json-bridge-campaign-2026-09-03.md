@@ -47,7 +47,20 @@ Contract: `docs/spec/SMP1_JSON_BRIDGE_V1.md`, ADR-0034, stage checker
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
 | Contract draft revision 1 | `be9843c` | green | ADR-0034, checker, generator, method table |
-| Implementation, revision 2, fixture, oracle, fuzz slice | pending | pending | `crates/sley-json-bridge`; 8 native tests; oracle 5 vectors, 31 rejections; fuzz smoke 631 seeds, 632 runs, 12.9 s |
+| Implementation, revision 2, fixture, oracle, fuzz slice | `7722d33` | green | `crates/sley-json-bridge`; 8 native tests; oracle 5 vectors, 31 rejections; fuzz smoke 631 seeds, 632 runs, 12.9 s |
+
+## Tier 2 handoff record (2026-09-03, at `7722d33`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 12 s | 973 tests passed, 0 failed across 35 test binaries |
+| `make conformance` | exit 0 | 10 s | 19 oracle results PASS, including `check_smp1_json_bridge_vector.py` |
+| `make adversarial` | exit 0 | 9 s | 596 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | 1 s | 5 bounded smoke tests passed |
+| `make smp1-json-bridge-persistent-fuzz-smoke` | exit 0 | under 1 s (cached build) | 632 runs, PASS |
+| `make smp1-persistent-fuzz-smoke` | exit 0 | 3 s | 653 runs, PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
 
 ## Observations outside the package
 
