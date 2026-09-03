@@ -1,9 +1,9 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 3 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 4 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). Revision 2 records the clarifications of slice E1
-and revision 3 those of slice E2 (section 7). Implementation lands in family slices E1 through E6 tracked in
+Vulcan surface review). Revision 2 records the clarifications of slice E1,
+revision 3 those of slice E2, and revision 4 those of slice E3 (section 7). Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -102,8 +102,8 @@ rounding; every result that is a NaN is canonicalized to the quiet NaN with
 a zero sign and zero payload (`0x7fc00000`, `0x7ff8000000000000`), and the
 result bits are stored exactly. The order predicates over floats follow
 IEEE: an unordered pair makes `equal`, `less_than`, `less_equal`,
-`greater_than`, and `greater_equal` false and `not_equal` true; `-0` and
-`+0` are equal.
+`greater_than`, and `greater_equal` false and `not_equal` true; negative
+zero cannot occur (section 7).
 
 ### E4 aggregates and maps (18 to 21, 36 to 40)
 
@@ -201,3 +201,12 @@ S20-360 full operation analysis; or GA.
   narrower width overflows at its own bounds and width 128 at the native
   ones; the shift amount is `UInt(32)` and a shift of `width` or more is
   the invalid-shift code before any overflow check.
+- E3: `equal` and `not_equal` admit bare `F32` and `F64` operands with IEEE
+  meaning (an unordered pair is unequal, the zeros are equal) while a
+  float nested in an aggregate stays excluded from equality; every input
+  float is an S20-210 canonical constant (one quiet NaN, no negative zero),
+  a NaN result becomes that canonical NaN, and a negative-zero result
+  becomes positive zero, so `-0` never appears in a value; the subnormal
+  and rounding rules are the host's IEEE-754 binary32 and binary64
+  arithmetic under round-to-nearest-ties-to-even, with `float_fma` a single
+  fused rounding.

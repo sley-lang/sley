@@ -615,7 +615,10 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
         (
             "equality over a non-hashable type",
             Fixture::new(
-                &[TypeExpr::F64, TypeExpr::F64],
+                &[
+                    TypeExpr::LocalCell(Box::new(TypeExpr::Bool)),
+                    TypeExpr::LocalCell(Box::new(TypeExpr::Bool)),
+                ],
                 &[step(
                     Opcode::Equal,
                     vec![Arg::P(0), Arg::P(1)],
@@ -643,12 +646,18 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
         (
             "an opcode of a later slice",
             Fixture::new(
-                &[TypeExpr::F64, TypeExpr::F64],
+                &[u64_type(), TypeExpr::Text],
                 &[step(
-                    Opcode::FloatAdd,
+                    Opcode::MapNew,
                     vec![Arg::P(0), Arg::P(1)],
                     Immediate::None,
-                    TypeExpr::F64,
+                    TypeExpr::Result {
+                        ok: Box::new(TypeExpr::OrderedMap {
+                            key: Box::new(u64_type()),
+                            value: Box::new(TypeExpr::Text),
+                        }),
+                        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+                    },
                 )],
                 Vec::new(),
             ),
@@ -1028,6 +1037,212 @@ fn e2_checked_integers_overflow_divide_and_shift_exactly() {
     assert_eq!(lowering_code(&bare), LowerErrorCode::SignatureMismatch);
 }
 
+fn f64v(value: f64) -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::F64,
+        data: ConstData::F64Bits(value.to_bits()),
+    }
+}
+
+fn f32v(value: f32) -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::F32,
+        data: ConstData::F32Bits(value.to_bits()),
+    }
+}
+
+fn float_fixture(opcode: Opcode, value_type: TypeExpr, arity: usize) -> Fixture {
+    let operand_types = vec![value_type.clone(); arity];
+    let operands: Vec<Arg> = (0..arity).map(Arg::P).collect();
+    let result = if matches!(
+        opcode,
+        Opcode::Equal
+            | Opcode::NotEqual
+            | Opcode::LessThan
+            | Opcode::LessEqual
+            | Opcode::GreaterThan
+            | Opcode::GreaterEqual
+    ) {
+        TypeExpr::Bool
+    } else {
+        value_type
+    };
+    Fixture::new(
+        &operand_types,
+        &[step(opcode, operands, Immediate::None, result)],
+        Vec::new(),
+    )
+}
+
+fn f64_bits(fixture: &Fixture, inputs: Vec<ConstValue>) -> u64 {
+    match success(fixture, inputs).data {
+        ConstData::F64Bits(bits) => bits,
+        other => panic!("not f64: {other:?}"),
+    }
+}
+
+#[test]
+fn e3_floats_round_to_nearest_canonicalize_nan_and_compare_by_ieee() {
+    let add = float_fixture(Opcode::FloatAdd, TypeExpr::F64, 2);
+    assert_eq!(
+        f64_bits(&add, vec![f64v(0.1), f64v(0.2)]),
+        (0.1_f64 + 0.2).to_bits()
+    );
+    let div = float_fixture(Opcode::FloatDiv, TypeExpr::F64, 2);
+    assert_eq!(
+        f64_bits(&div, vec![f64v(1.0), f64v(0.0)]),
+        f64::INFINITY.to_bits()
+    );
+    assert_eq!(
+        f64_bits(&div, vec![f64v(0.0), f64v(0.0)]),
+        0x7ff8_0000_0000_0000
+    );
+    let sub = float_fixture(Opcode::FloatSub, TypeExpr::F64, 2);
+    assert_eq!(
+        f64_bits(&sub, vec![f64v(f64::INFINITY), f64v(f64::INFINITY)]),
+        0x7ff8_0000_0000_0000,
+        "every NaN result is the canonical quiet NaN"
+    );
+    // A NaN input with a payload is not canonical and never reaches execution.
+    let payload_nan = ConstValue {
+        value_type: TypeExpr::F64,
+        data: ConstData::F64Bits(0x7ff8_dead_beef_0001),
+    };
+    let refused = execute_function(
+        add.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![payload_nan, f64v(1.0)],
+            limits: limits(),
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(refused, ExecutionError::Type(_)), "{refused:?}");
+    // Negative zero is not a canonical constant, so a negative-zero result
+    // is canonicalized to positive zero.
+    let neg = float_fixture(Opcode::FloatNeg, TypeExpr::F64, 1);
+    assert_eq!(f64_bits(&neg, vec![f64v(0.0)]), 0.0_f64.to_bits());
+    assert_eq!(f64_bits(&neg, vec![f64v(2.5)]), (-2.5_f64).to_bits());
+    let fma = float_fixture(Opcode::FloatFma, TypeExpr::F64, 3);
+    let fused = f64_bits(&fma, vec![f64v(0.1), f64v(10.0), f64v(-1.0)]);
+    assert_eq!(fused, 0.1_f64.mul_add(10.0, -1.0).to_bits());
+    assert_ne!(
+        fused,
+        ((0.1_f64 * 10.0) - 1.0).to_bits(),
+        "a single rounding differs from two"
+    );
+    // F32 preserves subnormals.
+    let mul32 = float_fixture(Opcode::FloatMul, TypeExpr::F32, 2);
+    let smallest = f32::from_bits(1);
+    match success(&mul32, vec![f32v(smallest), f32v(1.0)]).data {
+        ConstData::F32Bits(bits) => assert_eq!(bits, 1),
+        other => panic!("not f32: {other:?}"),
+    }
+    // IEEE comparisons: NaN is unordered, zeros are equal.
+    let compare = |opcode: Opcode, left: f64, right: f64| -> bool {
+        match success(
+            &float_fixture(opcode, TypeExpr::F64, 2),
+            vec![f64v(left), f64v(right)],
+        )
+        .data
+        {
+            ConstData::Bool(value) => value,
+            other => panic!("not bool: {other:?}"),
+        }
+    };
+    assert!(!compare(Opcode::Equal, f64::NAN, f64::NAN));
+    assert!(compare(Opcode::NotEqual, f64::NAN, f64::NAN));
+    assert!(!compare(Opcode::LessThan, f64::NAN, 1.0));
+    assert!(!compare(Opcode::GreaterEqual, 1.0, f64::NAN));
+    assert!(compare(Opcode::Equal, 0.0, 0.0));
+    let negative_zero = ConstValue {
+        value_type: TypeExpr::F64,
+        data: ConstData::F64Bits((-0.0_f64).to_bits()),
+    };
+    let refused_zero = execute_function(
+        add.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![negative_zero, f64v(1.0)],
+            limits: limits(),
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(refused_zero, ExecutionError::Type(_)));
+    assert!(compare(Opcode::LessThan, f64::NEG_INFINITY, -1.0e308));
+    assert!(compare(Opcode::LessEqual, 2.5, 2.5));
+    assert!(compare(Opcode::GreaterThan, f64::INFINITY, f64::MAX));
+    // Repeat determinism over a NaN-producing path.
+    let first = execute_function(
+        div.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![f64v(0.0), f64v(0.0)],
+            limits: limits(),
+        },
+    )
+    .unwrap();
+    for _ in 0..128 {
+        let again = execute_function(
+            div.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![f64v(0.0), f64v(0.0)],
+                limits: limits(),
+            },
+        )
+        .unwrap();
+        assert_eq!(again, first);
+    }
+    // Rejections: mixed widths, a two-operand fma, and nested floats in equality.
+    let mixed = Fixture::new(
+        &[TypeExpr::F32, TypeExpr::F64],
+        &[step(
+            Opcode::FloatAdd,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::F64,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&mixed), LowerErrorCode::SignatureMismatch);
+    let short_fma = Fixture::new(
+        &[TypeExpr::F64, TypeExpr::F64],
+        &[step(
+            Opcode::FloatFma,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::F64,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&short_fma), LowerErrorCode::SignatureMismatch);
+    let nested = Fixture::new(
+        &[
+            TypeExpr::Tuple(vec![TypeExpr::F64]),
+            TypeExpr::Tuple(vec![TypeExpr::F64]),
+        ],
+        &[step(
+            Opcode::Equal,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&nested), LowerErrorCode::SignatureMismatch);
+    let int_operand = Fixture::new(
+        &[int_type(false, 64), int_type(false, 64)],
+        &[step(
+            Opcode::FloatMul,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            int_type(false, 64),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&int_operand),
+        LowerErrorCode::SignatureMismatch
+    );
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -1136,6 +1351,21 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             "int-shl-signed",
             checked_fixture(Opcode::IntShlChecked, true, 32),
             vec![int_value(true, 32, -3), int_value(false, 32, 4)],
+        ),
+        (
+            "float-div-canonical-nan",
+            float_fixture(Opcode::FloatDiv, TypeExpr::F64, 2),
+            vec![f64v(0.0), f64v(0.0)],
+        ),
+        (
+            "float-fma-single-rounding",
+            float_fixture(Opcode::FloatFma, TypeExpr::F64, 3),
+            vec![f64v(0.1), f64v(10.0), f64v(-1.0)],
+        ),
+        (
+            "float-less-than-nan",
+            float_fixture(Opcode::LessThan, TypeExpr::F32, 2),
+            vec![f32v(f32::NAN), f32v(1.0)],
         ),
         (
             "result-err",

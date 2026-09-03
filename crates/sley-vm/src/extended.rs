@@ -66,8 +66,18 @@ fn arithmetic_result(value: &TypeExpr) -> TypeExpr {
 fn ordered(value: &TypeExpr) -> bool {
     matches!(
         value,
-        TypeExpr::Bool | TypeExpr::SInt(_) | TypeExpr::UInt(_) | TypeExpr::Bytes | TypeExpr::Text
+        TypeExpr::Bool
+            | TypeExpr::SInt(_)
+            | TypeExpr::UInt(_)
+            | TypeExpr::Bytes
+            | TypeExpr::Text
+            | TypeExpr::F32
+            | TypeExpr::F64
     )
+}
+
+fn is_float(value: &TypeExpr) -> bool {
+    matches!(value, TypeExpr::F32 | TypeExpr::F64)
 }
 
 /// Derives the exact result type of one extended-profile operation from its
@@ -217,12 +227,45 @@ pub fn judge_extended_operation(
             }
             arithmetic_result(value)
         }
+        Opcode::FloatAdd | Opcode::FloatSub | Opcode::FloatMul | Opcode::FloatDiv => {
+            immediate_none(immediate)?;
+            let [left, right] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if left != right || !is_float(left) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            (*left).clone()
+        }
+        Opcode::FloatNeg => {
+            immediate_none(immediate)?;
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if !is_float(value) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            (*value).clone()
+        }
+        Opcode::FloatFma => {
+            immediate_none(immediate)?;
+            let [a, b, c] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if a != b || b != c || !is_float(a) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            (*a).clone()
+        }
         Opcode::Equal | Opcode::NotEqual => {
             immediate_none(immediate)?;
             let [left, right] = operands else {
                 return fail(LowerErrorCode::SignatureMismatch);
             };
-            if left != right || types.require_hashable(left).is_err() || contains_float(left) {
+            if left != right
+                || types.require_hashable(left).is_err()
+                || (contains_float(left) && !is_float(left))
+            {
                 return fail(LowerErrorCode::SignatureMismatch);
             }
             TypeExpr::Bool
@@ -299,6 +342,107 @@ pub fn judge_extended_operation(
 /// Runtime fault: state impossible after successful lowering.
 #[derive(Clone, Copy, Debug)]
 pub struct ExtendedFault;
+
+/// The canonical quiet NaN bit patterns (contract E3).
+const CANONICAL_NAN_F32: u32 = 0x7fc0_0000;
+const CANONICAL_NAN_F64: u64 = 0x7ff8_0000_0000_0000;
+
+/// S20-210 canonical floats admit one quiet NaN and no negative zero, so a
+/// NaN result becomes the canonical NaN and a negative-zero result becomes
+/// positive zero; every other bit pattern is stored exactly.
+fn canonical_f32(value: f32) -> u32 {
+    if value.is_nan() {
+        CANONICAL_NAN_F32
+    } else if value == 0.0 {
+        0
+    } else {
+        value.to_bits()
+    }
+}
+
+fn canonical_f64(value: f64) -> u64 {
+    if value.is_nan() {
+        CANONICAL_NAN_F64
+    } else if value == 0.0 {
+        0
+    } else {
+        value.to_bits()
+    }
+}
+
+/// One float family operation over operands of one width, IEEE-754
+/// round-to-nearest-ties-to-even with canonicalized NaN results.
+fn float_operation(
+    opcode: Opcode,
+    operands: &[ConstValue],
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
+    let data = match result_type {
+        TypeExpr::F32 => {
+            let values: Vec<f32> = operands
+                .iter()
+                .map(|value| match value.data {
+                    ConstData::F32Bits(bits) => Ok(f32::from_bits(bits)),
+                    _ => Err(ExtendedFault),
+                })
+                .collect::<Result<_, _>>()?;
+            let result = match (opcode, values.as_slice()) {
+                (Opcode::FloatAdd, [a, b]) => a + b,
+                (Opcode::FloatSub, [a, b]) => a - b,
+                (Opcode::FloatMul, [a, b]) => a * b,
+                (Opcode::FloatDiv, [a, b]) => a / b,
+                (Opcode::FloatNeg, [a]) => -a,
+                (Opcode::FloatFma, [a, b, c]) => a.mul_add(*b, *c),
+                _ => return Err(ExtendedFault),
+            };
+            ConstData::F32Bits(canonical_f32(result))
+        }
+        TypeExpr::F64 => {
+            let values: Vec<f64> = operands
+                .iter()
+                .map(|value| match value.data {
+                    ConstData::F64Bits(bits) => Ok(f64::from_bits(bits)),
+                    _ => Err(ExtendedFault),
+                })
+                .collect::<Result<_, _>>()?;
+            let result = match (opcode, values.as_slice()) {
+                (Opcode::FloatAdd, [a, b]) => a + b,
+                (Opcode::FloatSub, [a, b]) => a - b,
+                (Opcode::FloatMul, [a, b]) => a * b,
+                (Opcode::FloatDiv, [a, b]) => a / b,
+                (Opcode::FloatNeg, [a]) => -a,
+                (Opcode::FloatFma, [a, b, c]) => a.mul_add(*b, *c),
+                _ => return Err(ExtendedFault),
+            };
+            ConstData::F64Bits(canonical_f64(result))
+        }
+        _ => return Err(ExtendedFault),
+    };
+    Ok(ConstValue {
+        value_type: result_type.clone(),
+        data,
+    })
+}
+
+/// IEEE comparison of two floats of one width: `None` when unordered.
+fn float_partial_order(
+    left: &ConstData,
+    right: &ConstData,
+) -> Result<Option<core::cmp::Ordering>, ExtendedFault> {
+    match (left, right) {
+        (ConstData::F32Bits(a), ConstData::F32Bits(b)) => {
+            Ok(f32::from_bits(*a).partial_cmp(&f32::from_bits(*b)))
+        }
+        (ConstData::F64Bits(a), ConstData::F64Bits(b)) => {
+            Ok(f64::from_bits(*a).partial_cmp(&f64::from_bits(*b)))
+        }
+        _ => Err(ExtendedFault),
+    }
+}
+
+fn is_float_data(value: &ConstData) -> bool {
+    matches!(value, ConstData::F32Bits(_) | ConstData::F64Bits(_))
+}
 
 fn compare_data(left: &ConstData, right: &ConstData) -> Result<core::cmp::Ordering, ExtendedFault> {
     Ok(match (left, right) {
@@ -613,6 +757,34 @@ pub fn execute_extended_instruction(
                 signed,
                 result_type,
             )?
+        }
+        (
+            Opcode::FloatAdd
+            | Opcode::FloatSub
+            | Opcode::FloatMul
+            | Opcode::FloatDiv
+            | Opcode::FloatNeg
+            | Opcode::FloatFma,
+            values,
+        ) => float_operation(opcode, values, result_type)?,
+        (
+            Opcode::Equal
+            | Opcode::NotEqual
+            | Opcode::LessThan
+            | Opcode::LessEqual
+            | Opcode::GreaterThan
+            | Opcode::GreaterEqual,
+            [left, right],
+        ) if is_float_data(&left.data) => {
+            let order = float_partial_order(&left.data, &right.data)?;
+            bool_value(match opcode {
+                Opcode::Equal => order == Some(core::cmp::Ordering::Equal),
+                Opcode::NotEqual => order != Some(core::cmp::Ordering::Equal),
+                Opcode::LessThan => order.is_some_and(core::cmp::Ordering::is_lt),
+                Opcode::LessEqual => order.is_some_and(core::cmp::Ordering::is_le),
+                Opcode::GreaterThan => order.is_some_and(core::cmp::Ordering::is_gt),
+                _ => order.is_some_and(core::cmp::Ordering::is_ge),
+            })
         }
         (Opcode::Equal, [left, right]) => bool_value(left == right),
         (Opcode::NotEqual, [left, right]) => bool_value(left != right),

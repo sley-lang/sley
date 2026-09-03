@@ -299,7 +299,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_SLICES_IN_PROGRESS",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -357,7 +357,7 @@
         "tests": 1
       },
       "E3": {
-        "status": "PENDING",
+        "status": "IMPLEMENTED",
         "opcodes": [
           80,
           81,
@@ -365,7 +365,10 @@
           83,
           84,
           85
-        ]
+        ],
+        "fixture": "conformance/vm-extended/v1/accepted.json",
+        "vectors": 3,
+        "tests": 1
       },
       "E4": {
         "status": "PENDING",
