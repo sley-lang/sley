@@ -165,7 +165,10 @@ now names the full S20-250 entity bodies as the next dependency-complete
 work, because S20-510 and S20-520 (the remaining M4 packages) are blocked by
 them. Choosing whether to open that semantics lane next, or another lane,
 is an operator roadmap decision; this record recommends the S20-250 entity
-bodies because they unblock both the repository lane and S20-300.
+bodies because they unblock both the repository lane and S20-300. The
+design brief for that package is
+`s20-250-full-entity-bodies-design-brief-2026-09-03.md`; nothing of it has
+been consulted, frozen, or implemented.
 
 ## Isolated verification
 
