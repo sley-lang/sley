@@ -114,7 +114,9 @@ class OracleTests(unittest.TestCase):
     def test_s20_390_transaction_receipt_corpus_gate_passes(self) -> None:
         result = check_transaction_receipt(TRANSACTION_ACCEPTED, TRANSACTION_REJECTED)
         self.assertEqual(result["result"], "PASS", result["problems"])
-        self.assertEqual(result["accepted_vectors"], 2)
+        # GENESIS, ORDINARY, and the ORDINARY_EXTENDED vector of semantic
+        # profile 2 (transaction model revision 2).
+        self.assertEqual(result["accepted_vectors"], 3)
         self.assertEqual(result["rejected_vectors"], 9)
 
 
