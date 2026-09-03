@@ -17,7 +17,7 @@ use sley_ssmc::{
 
 use crate::{
     CacheProfile, ExecutionError, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    LowerErrorCode, LoweringError, LoweringInput, execute_function, lower_function,
+    LowerErrorCode, LoweringError, LoweringInput, ResourceKind, execute_function, lower_function,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -108,13 +108,25 @@ impl Fixture {
         constants: Vec<ConstantDefinition>,
         definitions: Vec<TypeDefinition>,
     ) -> Self {
-        let function = id(1);
-        let block = id(2);
+        Self::with_base(0, parameter_types, steps, constants, definitions)
+    }
+
+    /// Builds a fixture whose entity ids are offset by `base` so several
+    /// fixtures can share one inventory (direct calls).
+    fn with_base(
+        base: u8,
+        parameter_types: &[TypeExpr],
+        steps: &[Step],
+        constants: Vec<ConstantDefinition>,
+        definitions: Vec<TypeDefinition>,
+    ) -> Self {
+        let function = id(base + 1);
+        let block = id(base + 2);
         let parameter_ids: Vec<EntityId> = (0..parameter_types.len())
-            .map(|index| id(u8::try_from(10 + index).unwrap()))
+            .map(|index| id(base + u8::try_from(10 + index).unwrap()))
             .collect();
         let operation_ids: Vec<EntityId> = (0..steps.len())
-            .map(|index| id(u8::try_from(100 + index).unwrap()))
+            .map(|index| id(base + u8::try_from(100 + index).unwrap()))
             .collect();
         let resolve = |arg: &Arg| match arg {
             Arg::P(index) => ValueRef::Parameter(parameter_ids[*index]),
@@ -193,6 +205,22 @@ impl Fixture {
 
     fn with_functions(mut self, functions: Vec<FunctionGraph>) -> Self {
         self.functions = functions;
+        self
+    }
+
+    /// Merges a callee fixture into this inventory and Function list.
+    fn with_callee(mut self, callee: Fixture) -> Self {
+        self.parameters.extend(callee.parameters);
+        self.blocks.extend(callee.blocks);
+        self.operations.extend(callee.operations);
+        self.constants.extend(callee.constants);
+        self.functions.push(callee.function);
+        self
+    }
+
+    /// Lists the entry Function in its own inventory (self-calls).
+    fn with_self(mut self) -> Self {
+        self.functions.push(self.function.clone());
         self
     }
 
@@ -674,16 +702,13 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
             LowerErrorCode::ImmediateMismatch,
         ),
         (
-            "an opcode of a later slice",
+            "an opcode outside the profile",
             Fixture::new(
                 &[u64_type()],
                 &[step(
-                    Opcode::CallDirect,
+                    Opcode::ContractAssert,
                     vec![Arg::P(0)],
-                    Immediate::Function(FunctionRefValue {
-                        function: id(70),
-                        type_arguments: Vec::new(),
-                    }),
+                    Immediate::None,
                     u64_type(),
                 )],
                 Vec::new(),
@@ -2033,6 +2058,204 @@ fn e5_cells_hashes_globals_and_references_follow_the_contract() {
     );
 }
 
+fn call(function: u8) -> Immediate {
+    Immediate::Function(FunctionRefValue {
+        function: id(function),
+        type_arguments: Vec::new(),
+    })
+}
+
+/// Function 41: `(a, b) -> b` through a tuple.
+fn second_of_two() -> Fixture {
+    Fixture::with_base(
+        40,
+        &[u64_type(), u64_type()],
+        &[
+            step(
+                Opcode::TupleNew,
+                vec![Arg::P(0), Arg::P(1)],
+                Immediate::None,
+                TypeExpr::Tuple(vec![u64_type(), u64_type()]),
+            ),
+            step(
+                Opcode::TupleGet,
+                vec![Arg::R(0)],
+                Immediate::Index(1),
+                u64_type(),
+            ),
+        ],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// Function 81: `(a, b) -> second_of_two(b, a)`.
+fn swapped_call() -> Fixture {
+    Fixture::with_base(
+        80,
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(1), Arg::P(0)],
+            call(41),
+            u64_type(),
+        )],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+fn calling_entry(callee: u8) -> Fixture {
+    Fixture::new(
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0), Arg::P(1)],
+            call(callee),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+}
+
+#[test]
+fn e6_direct_calls_open_frames_share_budgets_and_stop_at_the_depth_ceiling() {
+    let entry = calling_entry(41).with_callee(second_of_two());
+    let outcome = execute_function(
+        entry.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![uint(3), uint(4)],
+            limits: limits(),
+        },
+    )
+    .unwrap();
+    assert_eq!(outcome.termination, ExecutionTermination::Success(uint(4)));
+    // One call instruction plus the callee's two instructions.
+    assert_eq!(outcome.instruction_count, 3);
+    let lowered = lower_function(entry.input(CacheProfile::EXTENDED_V1)).unwrap();
+    assert_eq!(lowered.callees.len(), 1);
+    assert_eq!(lowered.callees[0].function, id(41));
+
+    let nested = calling_entry(81)
+        .with_callee(second_of_two())
+        .with_callee(swapped_call());
+    assert_eq!(success(&nested, vec![uint(3), uint(4)]), uint(3));
+    let lowered = lower_function(nested.input(CacheProfile::EXTENDED_V1)).unwrap();
+    assert_eq!(
+        lowered
+            .callees
+            .iter()
+            .map(|callee| callee.function)
+            .collect::<Vec<_>>(),
+        vec![id(41), id(81)]
+    );
+    // The callee table is part of the bytes: the same entry without the
+    // nested callee encodes differently.
+    let direct = lower_function(entry.input(CacheProfile::EXTENDED_V1)).unwrap();
+    assert_ne!(direct.bytes, lowered.bytes);
+
+    let recursive = Fixture::new(
+        &[u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0)],
+            call(1),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_self();
+    let outcome = execute_function(
+        recursive.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![uint(1)],
+            limits: ExecutionLimits {
+                max_instructions: 100_000,
+                max_fuel: 100_000,
+                max_value_units: 100_000_000,
+                max_output_units: 10_000,
+                cancel_at_fuel: None,
+            },
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        outcome.termination,
+        ExecutionTermination::ResourceLimit(ResourceKind::CallDepth)
+    );
+    // Fuel is charged per call up front and shared across frames; the
+    // instruction count of a call lands when the callee returns.
+    let starved = execute_function(
+        recursive.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![uint(1)],
+            limits: ExecutionLimits {
+                max_instructions: 100_000,
+                max_fuel: 10,
+                max_value_units: 100_000_000,
+                max_output_units: 10_000,
+                cancel_at_fuel: None,
+            },
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        starved.termination,
+        ExecutionTermination::ResourceLimit(ResourceKind::Fuel)
+    );
+
+    // Rejections.
+    let wrong_types = Fixture::new(
+        &[u64_type(), TypeExpr::Text],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0), Arg::P(1)],
+            call(41),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_callee(second_of_two());
+    assert_eq!(
+        lowering_code(&wrong_types),
+        LowerErrorCode::SignatureMismatch
+    );
+    let unknown = calling_entry(66);
+    assert_eq!(lowering_code(&unknown), LowerErrorCode::ImmediateMismatch);
+    let generic = Fixture::new(
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::CallDirect,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::Function(FunctionRefValue {
+                function: id(41),
+                type_arguments: vec![u64_type()],
+            }),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_callee(second_of_two());
+    assert_eq!(lowering_code(&generic), LowerErrorCode::ImmediateMismatch);
+    let broken_callee = Fixture::with_base(
+        40,
+        &[u64_type(), u64_type()],
+        &[step(
+            Opcode::TupleGet,
+            vec![Arg::P(0)],
+            Immediate::Index(0),
+            u64_type(),
+        )],
+        Vec::new(),
+        Vec::new(),
+    );
+    let propagated = calling_entry(41).with_callee(broken_callee);
+    assert_eq!(
+        lowering_code(&propagated),
+        LowerErrorCode::SignatureMismatch
+    );
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -2271,6 +2494,18 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
                 .with_globals(globals, constants)
             },
             vec![boolean(true)],
+        ),
+        (
+            "call-direct-second",
+            calling_entry(41).with_callee(second_of_two()),
+            vec![uint(3), uint(4)],
+        ),
+        (
+            "call-direct-nested",
+            calling_entry(81)
+                .with_callee(second_of_two())
+                .with_callee(swapped_call()),
+            vec![uint(3), uint(4)],
         ),
         (
             "result-err",

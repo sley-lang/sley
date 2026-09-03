@@ -297,9 +297,9 @@
     "implementation_complete": true
   },
   "vm_extended_opcode_profile": {
-    "status": "S20_260_270_EXTENDED_SLICES_IN_PROGRESS",
+    "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -402,10 +402,13 @@
         "tests": 1
       },
       "E6": {
-        "status": "PENDING",
+        "status": "IMPLEMENTED",
         "opcodes": [
           112
-        ]
+        ],
+        "fixture": "conformance/vm-extended/v1/accepted.json",
+        "vectors": 2,
+        "tests": 1
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",

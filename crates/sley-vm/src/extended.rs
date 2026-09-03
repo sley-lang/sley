@@ -605,6 +605,24 @@ pub fn judge_extended_operation(
             }
             TypeExpr::FunctionRef(function_signature(context, reference.function)?)
         }
+        Opcode::CallDirect => {
+            let Immediate::Function(reference) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            if !reference.type_arguments.is_empty() {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            }
+            let signature = function_signature(context, reference.function)?;
+            if operands.len() != signature.parameters.len()
+                || operands
+                    .iter()
+                    .zip(&signature.parameters)
+                    .any(|(operand, parameter)| *operand != parameter)
+            {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            *signature.result
+        }
         Opcode::Equal | Opcode::NotEqual => {
             immediate_none(immediate)?;
             let [left, right] = operands else {

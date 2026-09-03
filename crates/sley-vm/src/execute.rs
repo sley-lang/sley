@@ -12,8 +12,8 @@ use sley_ssmc::{
 
 use crate::{
     BytecodeSwitchArgument, BytecodeSwitchEdge, BytecodeTargetEdge, BytecodeTerminator,
-    CacheProfile, LoweringError, LoweringInput, Register, SSMC1_DECODER_LIMITS_HASH,
-    SSMC1_FIELD_SCHEMA_HASH, lower::lower_function,
+    CacheProfile, LoweredFunction, LoweringError, LoweringInput, Register,
+    SSMC1_DECODER_LIMITS_HASH, SSMC1_FIELD_SCHEMA_HASH, lower::lower_function,
 };
 
 /// Maximum canonical S20-270 observation preimage bytes.
@@ -58,6 +58,8 @@ pub enum ResourceKind {
     ValueUnits,
     /// Output value-unit ceiling.
     OutputUnits,
+    /// Extended profile only: the `call_direct` frame ceiling (contract E6).
+    CallDepth,
 }
 
 impl ResourceKind {
@@ -69,6 +71,7 @@ impl ResourceKind {
             Self::Fuel => 2,
             Self::ValueUnits => 3,
             Self::OutputUnits => 4,
+            Self::CallDepth => 5,
         }
     }
 }
@@ -418,6 +421,7 @@ pub fn execute_function(
         &lowered.bytecode.result_type,
         &lowered.bytecode.register_types,
         input,
+        Some(&lowered),
     ) {
         Ok(termination) => termination,
         Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
@@ -439,58 +443,280 @@ fn run(
     result_type: &TypeExpr,
     register_types: &[TypeExpr],
     input: LoweringInput<'_>,
+    lowered: Option<&LoweredFunction>,
 ) -> RuntimeResult<ExecutionTermination> {
+    let mut stack: Vec<Suspended<'_>> = Vec::new();
+    let mut current = Current {
+        blocks,
+        result_type,
+        register_types,
+        pc: 0,
+    };
     loop {
-        let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
-        for instruction in &block.instructions {
+        let block = current.blocks.get(runtime.block).ok_or(RuntimeFault)?;
+        if let Some(instruction) = block.instructions.get(current.pc) {
+            current.pc += 1;
             if let Some(termination) =
                 charge_action(runtime, &limits, Some(ResourceKind::Instruction))
             {
-                return Ok(termination);
+                return Ok(unwind(runtime, stack, termination));
             }
             if input.profile.is_extended() {
+                if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
+                    match prepare_call(
+                        runtime,
+                        &limits,
+                        instruction,
+                        current.register_types,
+                        lowered,
+                        stack.len().saturating_add(1),
+                    )? {
+                        CallStep::Terminated(termination) => {
+                            return Ok(unwind(runtime, stack, termination));
+                        }
+                        CallStep::Enter {
+                            child,
+                            callee,
+                            result_register,
+                        } => {
+                            stack.push(Suspended {
+                                runtime: core::mem::replace(runtime, child),
+                                blocks: current.blocks,
+                                result_type: current.result_type,
+                                register_types: current.register_types,
+                                pc: current.pc,
+                                result_register,
+                            });
+                            current = Current {
+                                blocks: &callee.blocks,
+                                result_type: &callee.result_type,
+                                register_types: &callee.register_types,
+                                pc: 0,
+                            };
+                        }
+                    }
+                    continue;
+                }
                 if let Some(termination) =
-                    execute_extended(runtime, &limits, instruction, register_types, input)?
+                    execute_extended(runtime, &limits, instruction, current.register_types, input)?
                 {
-                    return Ok(termination);
+                    return Ok(unwind(runtime, stack, termination));
                 }
                 continue;
             }
-            let operands = read_bool_operands(runtime, &instruction.operands)?;
-            if instruction.results.len() != 1 {
-                return Err(RuntimeFault);
+            if let Some(termination) = execute_restricted(runtime, &limits, instruction)? {
+                return Ok(termination);
             }
-            let result_units = value_units_const(&ConstValue {
-                value_type: TypeExpr::Bool,
-                data: ConstData::Bool(false),
-            });
-            if !charge_value(runtime, result_units, limits.max_value_units) {
-                return Ok(ExecutionTermination::ResourceLimit(
-                    ResourceKind::ValueUnits,
-                ));
-            }
-            let value = match (instruction.opcode, operands.as_slice()) {
-                (102, [value]) => !value,
-                (103, [left, right]) => *left && *right,
-                (104, [left, right]) => *left || *right,
-                _ => return Err(RuntimeFault),
-            };
-            let result = ConstValue {
-                value_type: TypeExpr::Bool,
-                data: ConstData::Bool(value),
-            };
-            runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-            let register = usize::try_from(instruction.results[0]).map_err(|_| RuntimeFault)?;
-            write_register(runtime, register, RuntimeValue::new(result))?;
+            continue;
         }
 
-        let Some(termination) =
-            dispatch_terminator(&limits, runtime, &block.terminator, blocks, result_type)?
+        let Some(termination) = dispatch_terminator(
+            &limits,
+            runtime,
+            &block.terminator,
+            current.blocks,
+            current.result_type,
+        )?
         else {
+            current.pc = 0;
             continue;
         };
-        return Ok(termination);
+        let Some(parent) = stack.pop() else {
+            return Ok(termination);
+        };
+        match return_to_caller(runtime, &limits, parent, termination)? {
+            Ok(resumed) => current = resumed,
+            Err(termination) => return Ok(unwind(runtime, stack, termination)),
+        }
     }
+}
+
+/// Closes a callee frame: adopts the shared budgets, and on success charges
+/// and writes the call result into the caller and resumes it.
+fn return_to_caller<'a>(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    parent: Suspended<'a>,
+    termination: ExecutionTermination,
+) -> RuntimeResult<Result<Current<'a>, ExecutionTermination>> {
+    let child = core::mem::replace(runtime, parent.runtime);
+    adopt_frame(runtime, child);
+    let ExecutionTermination::Success(value) = termination else {
+        return Ok(Err(termination));
+    };
+    if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
+        return Ok(Err(ExecutionTermination::ResourceLimit(
+            ResourceKind::ValueUnits,
+        )));
+    }
+    runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+    write_register(runtime, parent.result_register, RuntimeValue::new(value))?;
+    Ok(Ok(Current {
+        blocks: parent.blocks,
+        result_type: parent.result_type,
+        register_types: parent.register_types,
+        pc: parent.pc,
+    }))
+}
+
+/// Executes one restricted-v1 boolean instruction.
+fn execute_restricted(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    instruction: &crate::Instruction,
+) -> RuntimeResult<Option<ExecutionTermination>> {
+    let operands = read_bool_operands(runtime, &instruction.operands)?;
+    if instruction.results.len() != 1 {
+        return Err(RuntimeFault);
+    }
+    let result_units = value_units_const(&ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(false),
+    });
+    if !charge_value(runtime, result_units, limits.max_value_units) {
+        return Ok(Some(ExecutionTermination::ResourceLimit(
+            ResourceKind::ValueUnits,
+        )));
+    }
+    let value = match (instruction.opcode, operands.as_slice()) {
+        (102, [value]) => !value,
+        (103, [left, right]) => *left && *right,
+        (104, [left, right]) => *left || *right,
+        _ => return Err(RuntimeFault),
+    };
+    let result = ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(value),
+    };
+    runtime.instruction_count = runtime.instruction_count.saturating_add(1);
+    let register = usize::try_from(instruction.results[0]).map_err(|_| RuntimeFault)?;
+    write_register(runtime, register, RuntimeValue::new(result))?;
+    Ok(None)
+}
+
+/// Restores the entry frame's runtime (with the shared budgets) after a
+/// termination inside a callee frame.
+fn unwind(
+    runtime: &mut Runtime,
+    mut stack: Vec<Suspended<'_>>,
+    termination: ExecutionTermination,
+) -> ExecutionTermination {
+    while let Some(parent) = stack.pop() {
+        let child = core::mem::replace(runtime, parent.runtime);
+        adopt_frame(runtime, child);
+    }
+    termination
+}
+
+/// Contract E6: at most 256 frames, the entry frame included.
+const MAX_CALL_DEPTH: usize = 256;
+
+/// One suspended caller frame of the explicit call stack.
+struct Suspended<'a> {
+    runtime: Runtime,
+    blocks: &'a [crate::BytecodeBlock],
+    result_type: &'a TypeExpr,
+    register_types: &'a [TypeExpr],
+    pc: usize,
+    result_register: usize,
+}
+
+/// The code the current frame executes.
+#[derive(Clone, Copy)]
+struct Current<'a> {
+    blocks: &'a [crate::BytecodeBlock],
+    result_type: &'a TypeExpr,
+    register_types: &'a [TypeExpr],
+    pc: usize,
+}
+
+/// What a `call_direct` instruction does next.
+enum CallStep<'a> {
+    Terminated(ExecutionTermination),
+    Enter {
+        child: Runtime,
+        callee: &'a crate::BytecodeFunction,
+        result_register: usize,
+    },
+}
+
+/// Copies the shared budgets and cells back from a finished callee frame.
+fn adopt_frame(runtime: &mut Runtime, child: Runtime) {
+    runtime.instruction_count = child.instruction_count;
+    runtime.fuel_used = child.fuel_used;
+    runtime.live_value_units = child.live_value_units;
+    runtime.peak_value_units = child.peak_value_units;
+    runtime.cells = child.cells;
+}
+
+/// Prepares `call_direct` (contract E6): refuses a frame beyond the ceiling,
+/// charges one fuel, and opens a callee register file that shares the
+/// budgets and cells with the caller.
+fn prepare_call<'a>(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    instruction: &crate::Instruction,
+    register_types: &[TypeExpr],
+    lowered: Option<&'a LoweredFunction>,
+    frames: usize,
+) -> RuntimeResult<CallStep<'a>> {
+    let sley_ssmc::Immediate::Function(reference) = &instruction.immediate else {
+        return Err(RuntimeFault);
+    };
+    if frames.saturating_add(1) >= MAX_CALL_DEPTH {
+        return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
+            ResourceKind::CallDepth,
+        )));
+    }
+    if let Some(termination) = charge_action(runtime, limits, None) {
+        return Ok(CallStep::Terminated(termination));
+    }
+    let lowered = lowered.ok_or(RuntimeFault)?;
+    let callee = lowered
+        .callees
+        .iter()
+        .find(|callee| callee.function == reference.function)
+        .or_else(|| (lowered.bytecode.function == reference.function).then_some(&lowered.bytecode))
+        .ok_or(RuntimeFault)?;
+    let [result_register] = instruction.results.as_slice() else {
+        return Err(RuntimeFault);
+    };
+    let result_register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
+    let result_type = register_types.get(result_register).ok_or(RuntimeFault)?;
+    if callee.result_type != *result_type
+        || instruction.operands.len() != callee.parameter_registers.len()
+    {
+        return Err(RuntimeFault);
+    }
+    let mut child = Runtime {
+        registers: vec![None; callee.register_types.len()],
+        block: usize::try_from(callee.entry_block).map_err(|_| RuntimeFault)?,
+        instruction_count: runtime.instruction_count,
+        fuel_used: runtime.fuel_used,
+        live_value_units: runtime.live_value_units,
+        peak_value_units: runtime.peak_value_units,
+        cells: core::mem::take(&mut runtime.cells),
+    };
+    for (operand, parameter) in instruction.operands.iter().zip(&callee.parameter_registers) {
+        let value = read_register(runtime, *operand)?.value()?.clone();
+        if !charge_value(
+            &mut child,
+            value_units_const(&value),
+            limits.max_value_units,
+        ) {
+            adopt_frame(runtime, child);
+            return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
+                ResourceKind::ValueUnits,
+            )));
+        }
+        let parameter = usize::try_from(*parameter).map_err(|_| RuntimeFault)?;
+        write_register(&mut child, parameter, RuntimeValue::new(value))?;
+    }
+    Ok(CallStep::Enter {
+        child,
+        callee,
+        result_register,
+    })
 }
 
 /// Executes one instruction under the extended profile: reads every operand,
@@ -1944,7 +2170,8 @@ mod tests {
                 &blocks,
                 &TypeExpr::Bool,
                 &[TypeExpr::Bool],
-                fixture.input()
+                fixture.input(),
+                None,
             )
             .is_err()
         );

@@ -1,9 +1,9 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 6 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 7 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). Revisions 2 through 6 record the clarifications of
-slices E1 through E5 (section 7). Implementation lands in family slices E1 through E6 tracked in
+Vulcan surface review). Revisions 2 through 7 record the clarifications of
+slices E1 through E6 (section 7); every slice is implemented. Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -234,3 +234,22 @@ S20-360 full operation analysis; or GA.
   empty type-argument list and a zero-type-parameter Function of the
   inventory, and the derived `FunctionRef` carries the callee's parameter
   types in ordinal order, its result type, and its effects.
+- E6: lowering collects the transitive `call_direct` closure of the entry
+  through the Function inventory (an unknown callee is
+  `VM_LOWER_IMMEDIATE_MISMATCH`, a generic, effectful, or contracted callee
+  is `VM_LOWER_PROFILE_UNSUPPORTED`, and a callee's own lowering failure is
+  the entry's failure), lowers each callee under the entry's profile, cache
+  key, and work budget, and appends a callee table to `SLEYBC02` after the
+  entry body: a u64 count followed by each callee body in ascending
+  function-id order (the entry never repeats itself in the table; a
+  self-call resolves to the entry body). Execution opens one register file
+  per frame, copies the arguments into the callee's parameter registers
+  (charging their value units), shares the instruction, fuel, value-unit,
+  and cell state across frames, charges one fuel per call up front, counts
+  the call instruction only when the callee returns (a call chain cut by a
+  termination counts no call instructions), and refuses a frame beyond the
+  256-frame ceiling (entry frame included) with `ResourceLimit(CallDepth)`,
+  tag 5, which occurs only under `EXTENDED_V1`; the restricted profile's
+  closed `ResourceKind` set is unchanged. The call stack is explicit
+  (suspended caller frames in a list), so the ceiling never depends on the
+  host stack.

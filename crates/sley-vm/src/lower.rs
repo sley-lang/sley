@@ -1,7 +1,7 @@
 //! Restricted S20-260 O0 register lowering and canonical byte encoding.
 
 use core::fmt;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use sley_check::{
     TypeEnvironment,
@@ -157,6 +157,8 @@ pub struct LoweredFunction {
     pub cache_key: BytecodeCacheKey,
     /// Charged lowering work.
     pub lowering_work: u64,
+    /// Transitively called Functions (extended profile), ascending by id.
+    pub callees: Vec<BytecodeFunction>,
 }
 
 /// Complete integrated lowering request.
@@ -223,7 +225,12 @@ impl From<LowerError> for LoweringError {
 /// # Errors
 ///
 /// Returns the first failure in the frozen S20-260 order.
-pub fn lower_function(input: LoweringInput<'_>) -> Result<LoweredFunction, LoweringError> {
+pub fn lower_function(root: LoweringInput<'_>) -> Result<LoweredFunction, LoweringError> {
+    let owned = root
+        .profile
+        .is_extended()
+        .then(|| owned_inventory(root, root.function));
+    let input = owned.as_ref().map_or(root, |owned| owned.narrow(root));
     validate_function_graph(
         input.types,
         input.function,
@@ -246,18 +253,133 @@ pub fn lower_function(input: LoweringInput<'_>) -> Result<LoweredFunction, Lower
     let mut work = preflight_resources(input)?;
     let maps = Maps::build(input, &mut work)?;
     if input.profile.is_extended() {
-        judge_extended(input, &maps, &mut work)?;
+        judge_extended(input, root, &maps, &mut work)?;
     } else {
         validate_operations(input, &maps, &mut work)?;
     }
     let bytecode = emit_function(input, &maps, &mut work)?;
-    let bytes = encode_function(&bytecode, input.profile.is_extended())?;
+    let callees = if input.profile.is_extended() {
+        lower_callees(root, &bytecode, &mut work)?
+    } else {
+        Vec::new()
+    };
+    let bytes = encode_function(&bytecode, &callees, input.profile.is_extended())?;
     Ok(LoweredFunction {
         bytecode,
         bytes,
         cache_key,
         lowering_work: work,
+        callees,
     })
+}
+
+/// The entities one Function owns inside root-wide inventories.
+struct OwnedInventory {
+    parameters: Vec<Parameter>,
+    blocks: Vec<Block>,
+    operations: Vec<Operation>,
+}
+
+/// Narrows root-wide inventories to one Function (extended profile): S20-220
+/// validation requires the exact inventory of the Function it checks.
+fn owned_inventory(input: LoweringInput<'_>, graph: &FunctionGraph) -> OwnedInventory {
+    let blocks: Vec<Block> = input
+        .blocks
+        .iter()
+        .filter(|block| block.function == graph.entity_id)
+        .cloned()
+        .collect();
+    let block_ids: BTreeSet<sley_id::EntityId> =
+        blocks.iter().map(|block| block.entity_id).collect();
+    OwnedInventory {
+        parameters: input
+            .parameters
+            .iter()
+            .filter(|parameter| {
+                parameter.owner == graph.entity_id || block_ids.contains(&parameter.owner)
+            })
+            .cloned()
+            .collect(),
+        blocks,
+        operations: input
+            .operations
+            .iter()
+            .filter(|operation| block_ids.contains(&operation.block))
+            .cloned()
+            .collect(),
+    }
+}
+
+impl OwnedInventory {
+    fn narrow<'a>(&'a self, input: LoweringInput<'a>) -> LoweringInput<'a> {
+        LoweringInput {
+            parameters: &self.parameters,
+            blocks: &self.blocks,
+            operations: &self.operations,
+            ..input
+        }
+    }
+}
+
+/// The Functions named by `call_direct` immediates of one lowered body.
+fn called_functions(bytecode: &BytecodeFunction) -> Vec<sley_id::EntityId> {
+    bytecode
+        .blocks
+        .iter()
+        .flat_map(|block| block.instructions.iter())
+        .filter(|instruction| instruction.opcode == Opcode::CallDirect.tag())
+        .filter_map(|instruction| match &instruction.immediate {
+            Immediate::Function(reference) => Some(reference.function),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Lowers the transitive `call_direct` closure of the entry (contract E6)
+/// under the entry's profile and work budget, ascending by function id.
+fn lower_callees(
+    input: LoweringInput<'_>,
+    entry: &BytecodeFunction,
+    work: &mut u64,
+) -> Result<Vec<BytecodeFunction>, LoweringError> {
+    let mut pending = called_functions(entry);
+    let mut done: BTreeMap<sley_id::EntityId, BytecodeFunction> = BTreeMap::new();
+    while let Some(function) = pending.pop() {
+        if function == input.function.entity_id || done.contains_key(&function) {
+            continue;
+        }
+        let Some(graph) = input
+            .functions
+            .iter()
+            .find(|graph| graph.entity_id == function)
+        else {
+            return lower_fail(LowerErrorCode::ImmediateMismatch);
+        };
+        let owned = owned_inventory(input, graph);
+        let callee_input = owned.narrow(LoweringInput {
+            function: graph,
+            ..input
+        });
+        validate_function_graph(
+            callee_input.types,
+            graph,
+            callee_input.parameters,
+            callee_input.blocks,
+            callee_input.operations,
+        )?;
+        if !graph.type_parameters.is_empty()
+            || !graph.effects.is_empty()
+            || !graph.contracts.is_empty()
+        {
+            return lower_fail(LowerErrorCode::ProfileUnsupported);
+        }
+        let maps = Maps::build(callee_input, work)?;
+        judge_extended(callee_input, input, &maps, work)?;
+        let bytecode = emit_function(callee_input, &maps, work)?;
+        pending.extend(called_functions(&bytecode));
+        done.insert(function, bytecode);
+    }
+    Ok(done.into_values().collect())
 }
 
 fn preflight_resources(input: LoweringInput<'_>) -> Result<u64, LoweringError> {
@@ -460,16 +582,17 @@ fn validate_operations(
 /// the derived result type must equal the declared one exactly.
 fn judge_extended(
     input: LoweringInput<'_>,
+    root: LoweringInput<'_>,
     maps: &Maps<'_>,
     work: &mut u64,
 ) -> Result<(), LoweringError> {
     crate::extended::check_result_type(&input.function.result_type)?;
     let context = crate::extended::LoweringContext {
-        types: input.types,
-        constants: input.constants,
-        globals: input.globals,
-        functions: input.functions,
-        parameters: input.parameters,
+        types: root.types,
+        constants: root.constants,
+        globals: root.globals,
+        functions: root.functions,
+        parameters: root.parameters,
     };
     for block_id in &input.function.blocks {
         let block = maps.blocks.get(block_id).ok_or_else(local_error)?.0;
@@ -628,10 +751,30 @@ fn lower_edge(
     })
 }
 
-fn encode_function(value: &BytecodeFunction, extended: bool) -> Result<Vec<u8>, LoweringError> {
+fn encode_function(
+    value: &BytecodeFunction,
+    callees: &[BytecodeFunction],
+    extended: bool,
+) -> Result<Vec<u8>, LoweringError> {
     let mut output = Encoder::new();
     output.raw(if extended { b"SLEYBC02" } else { b"SLEYBC01" })?;
     output.u32(1)?;
+    encode_body(&mut output, value, extended)?;
+    if extended {
+        output.len(callees.len())?;
+        for callee in callees {
+            encode_body(&mut output, callee, extended)?;
+        }
+    }
+    Ok(output.bytes)
+}
+
+/// One function body: identity, registers, result, and blocks.
+fn encode_body(
+    output: &mut Encoder,
+    value: &BytecodeFunction,
+    extended: bool,
+) -> Result<(), LoweringError> {
     output.raw(value.function.as_bytes())?;
     output.registers(&value.parameter_registers)?;
     output.len(value.register_types.len())?;
@@ -656,7 +799,7 @@ fn encode_function(value: &BytecodeFunction, extended: bool) -> Result<Vec<u8>, 
         output.terminator(&block.terminator)?;
         output.u32(block.reachability)?;
     }
-    Ok(output.bytes)
+    Ok(())
 }
 
 struct Encoder {
