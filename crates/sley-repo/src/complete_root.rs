@@ -73,6 +73,10 @@ impl From<ImpactError> for CompleteRootError {
 #[derive(Clone, Debug)]
 pub struct CompleteRootRequest {
     entities: CompleteEntities,
+    root: sley_id::StateRoot,
+    workspace_id: sley_id::WorkspaceId,
+    schema_epoch_id: sley_id::SchemaEpochId,
+    bound_objects: Vec<(EntityId, sley_id::ObjectId)>,
     bound_entities: Vec<EntityId>,
     entry_points: Vec<EntityId>,
     dependency_roots: Vec<sley_id::StateRoot>,
@@ -108,16 +112,68 @@ impl CompleteRootRequest {
         let entities = project_complete_entities(objects)?;
         Ok(Self {
             entities,
+            root: revision.state_root().root,
+            workspace_id: record.workspace_id,
+            schema_epoch_id: record.schema_epoch_id,
+            bound_objects: record.entity_bindings.clone(),
             bound_entities: record.entity_bindings.iter().map(|(id, _)| *id).collect(),
             entry_points: record.entry_points.clone(),
             dependency_roots: record.dependency_roots.clone(),
         })
     }
 
+    /// Assembles a request from already projected definitions and record
+    /// facts (for callers that hold a complete root outside a repository).
+    #[must_use]
+    pub fn from_parts(
+        entities: CompleteEntities,
+        root: sley_id::StateRoot,
+        workspace_id: sley_id::WorkspaceId,
+        schema_epoch_id: sley_id::SchemaEpochId,
+        bound_objects: Vec<(EntityId, sley_id::ObjectId)>,
+        entry_points: Vec<EntityId>,
+        dependency_roots: Vec<sley_id::StateRoot>,
+    ) -> Self {
+        Self {
+            entities,
+            root,
+            workspace_id,
+            schema_epoch_id,
+            bound_entities: bound_objects.iter().map(|(id, _)| *id).collect(),
+            bound_objects,
+            entry_points,
+            dependency_roots,
+        }
+    }
+
     /// Returns the projected definitions.
     #[must_use]
     pub const fn entities(&self) -> &CompleteEntities {
         &self.entities
+    }
+
+    /// Returns the exact root identity.
+    #[must_use]
+    pub const fn root(&self) -> sley_id::StateRoot {
+        self.root
+    }
+
+    /// Returns the record's workspace identity.
+    #[must_use]
+    pub const fn workspace_id(&self) -> sley_id::WorkspaceId {
+        self.workspace_id
+    }
+
+    /// Returns the record's schema epoch identity.
+    #[must_use]
+    pub const fn schema_epoch_id(&self) -> sley_id::SchemaEpochId {
+        self.schema_epoch_id
+    }
+
+    /// Returns the record's canonical entity-to-object bindings.
+    #[must_use]
+    pub fn bound_objects(&self) -> &[(EntityId, sley_id::ObjectId)] {
+        &self.bound_objects
     }
 
     /// Returns the raw-ID-sorted borrowed request over all eighteen kinds.
@@ -199,7 +255,7 @@ pub fn borrow_entities(entities: &CompleteEntities) -> Vec<ImpactEntity<'_>> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
 
     use sley_id::{EntityId, PrincipalId, StateRoot, WorkspaceId};
@@ -225,7 +281,7 @@ mod tests {
     use super::*;
     use crate::exchange::tests::{TempDir, fixed, namespace_body, verifier};
 
-    fn set(ids: &[u8]) -> EntityIdSet {
+    pub(crate) fn set(ids: &[u8]) -> EntityIdSet {
         EntityIdSet::from_unsorted(
             ids.iter()
                 .map(|byte| fixed(*byte, EntityId::from_bytes))
@@ -234,13 +290,13 @@ mod tests {
         .unwrap()
     }
 
-    fn id(byte: u8) -> EntityId {
+    pub(crate) fn id(byte: u8) -> EntityId {
         fixed(byte, EntityId::from_bytes)
     }
 
     /// A trusted genesis whose root binds the given bodies (by entity byte)
     /// and carries the given dependency roots.
-    fn genesis(
+    pub(crate) fn genesis(
         label: &str,
         bodies: Vec<(u8, EntityBodyValue)>,
         dependency_roots: &[StateRoot],
@@ -311,7 +367,7 @@ mod tests {
         (temp, transactions, genesis)
     }
 
-    fn complete_bodies() -> Vec<(u8, EntityBodyValue)> {
+    pub(crate) fn complete_bodies() -> Vec<(u8, EntityBodyValue)> {
         vec![
             (
                 1,

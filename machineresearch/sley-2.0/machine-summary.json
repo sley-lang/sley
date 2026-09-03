@@ -798,7 +798,7 @@
     "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773"
   },
   "semantic_comparison": {
-    "status": "S20_510_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_510_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
     "contract": "docs/spec/SEMANTIC_COMPARISON_V1.md",
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0027-semantic-comparison-boundary.md",
@@ -816,7 +816,8 @@
     "ariadne_contract_review": "PENDING",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "implementation_complete": false,
+    "implementation_started": "2026-09-03"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1023,6 +1024,23 @@
     "manual_command": "python3 scripts/run_complete_root_persistent_fuzz.py --manual",
     "vulcan_review": "PENDING",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md"
+  },
+  "s20_700_semantic_delta_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_510_SEMANTIC_DELTA_DECODER_ONLY",
+    "target": "fuzz/targets/semantic_delta_decoder.rs",
+    "runner": "scripts/run_semantic_delta_persistent_fuzz.py",
+    "checker": "scripts/check_semantic_delta_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 2,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/semantic-comparison/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-semantic-delta-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-semantic-delta-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_semantic_delta_persistent_fuzz.py --manual",
+    "outer_trailer_rehash_lane": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md"
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
@@ -1411,8 +1429,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "BLOCKED_MISSING_MERGE_BOUNDARY",
     "master_required_surface_count": 11,
-    "scoped_target_count": 13,
-    "scoped_landed_surface_count": 14,
+    "scoped_target_count": 14,
+    "scoped_landed_surface_count": 15,
     "remaining_required_surface_count": 1,
     "remaining_required_surfaces": [
       "merge engine"
@@ -1439,7 +1457,8 @@
     "next_dependency_complete_package": "S20-250-FULL-ENTITY-BODIES",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
-    "complete_root_judgment_persistent_fuzz_target": true
+    "complete_root_judgment_persistent_fuzz_target": true,
+    "semantic_delta_decoder_persistent_fuzz_target": true
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",

@@ -58,6 +58,10 @@ path = "targets/repository_exchange_importer.rs"
 name = "complete_root_judgment"
 path = "targets/complete_root_judgment.rs"
 
+[[bin]]
+name = "semantic_delta_decoder"
+path = "targets/semantic_delta_decoder.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }
