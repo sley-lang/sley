@@ -162,3 +162,9 @@ unknown-function and malformed-value payload failures), the report store
 unit test, and the offered-hello test now asserting thirty-seven methods.
 The genesis of the main harness names a dependency root the repository
 does not hold, so its dry run fails closed with `GC_DEPENDENCY_MISSING`.
+
+Slice C landed at `49c06f7` with `make quick` green; Tier 2 at that commit
+(`make core` 985 tests, `make conformance` 19 oracles, `make adversarial`
+597 tests, `make fuzz-smoke`, both SMP1 persistent smoke gates, and the
+S20-620 and S20-630 smokes, all exit 0) is recorded in
+`machineresearch/sley-2.0/s20-410-smp1-frame-campaign-2026-09-03.md`.

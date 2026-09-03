@@ -159,6 +159,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-conformance"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "sley-check",
+ "sley-id",
+ "sley-ssmc",
+ "sley-vm",
+]
+
+[[package]]
 name = "sley-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -225,6 +235,8 @@ name = "sley-protocol"
 version = "2.0.0-alpha.0"
 dependencies = [
  "blake3",
+ "sley-check",
+ "sley-conformance",
  "sley-id",
  "sley-mutate",
  "sley-policy",
@@ -233,7 +245,9 @@ dependencies = [
  "sley-scb1",
  "sley-schema",
  "sley-state-root",
+ "sley-store",
  "sley-txn",
+ "sley-vm",
 ]
 
 [[package]]

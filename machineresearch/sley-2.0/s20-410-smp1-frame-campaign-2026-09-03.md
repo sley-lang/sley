@@ -175,4 +175,19 @@ Appendix C defines the bodies of `gc.dry_run`, `gc.collect`, `execute`, and `rep
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Slice C implementation, SMP1 revision 7 | pending | pending | 18 protocol tests (two new), report store test, executable test genesis |
+| Slice C implementation, SMP1 revision 7 | `49c06f7` | green | 18 protocol tests (two new), report store test, executable test genesis |
+
+### Slice C Tier 2 handoff record (2026-09-03, at `49c06f7`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 985 tests passed, 0 failed across 39 test binaries |
+| `make conformance` | exit 0 | 12 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 11 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make smp1-json-bridge-persistent-fuzz-smoke` | exit 0 | 9 s | 633 runs, PASS |
+| `make smp1-persistent-fuzz-smoke` | exit 0 | 8 s | 653 runs, PASS |
+| `make sley2-runner-smoke` | exit 0 | 1 s | scripted and intruding trials over the endpoint now offering 37 methods; evidence PASS |
+| `make accounting-smoke` | exit 0 | 1 s | report PARTIAL over the S20-620 run; evidence PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
