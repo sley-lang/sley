@@ -206,6 +206,15 @@ would omit a required fact. They return no partial payload and do not implement
 the nineteen root-backed query classes, truncation, continuation, capsules,
 SMP1, full S20-310, the M3 blocker, or GA.
 
+S20-310 full reserves numeric codes 31008 through 31010 for the exact
+`QUERY_ROOT_MISMATCH`, `QUERY_CONTINUATION_INVALID`, and
+`QUERY_CLASS_NOT_APPLICABLE` failures of `ROOT_BACKED_QUERY_PROFILE_V1.md`.
+They cover the input binding between an arm-2 snapshot, verified bodies,
+bindings, and root facts, typed continuation cursors, and the class-kind
+applicability table of the nineteen root-backed classes. Codes 31000 through
+31007 keep their restricted meanings unchanged. The contract is a draft with
+Council review pending and reserves, rather than freezes, these codes.
+
 S20-320 restricted freezes numeric codes 32000 through 32007 for the exact
 `RESTRICTED_CAPSULE_*` failures listed in
 `RESTRICTED_QUERY_CAPSULE_PROFILE_V1.md`. They cover derived dictionaries,
