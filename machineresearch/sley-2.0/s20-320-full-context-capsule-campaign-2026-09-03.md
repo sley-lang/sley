@@ -70,4 +70,17 @@ full profile under contract draft revision 1 with the reviews queued:
   status `S20_320_FULL_IMPLEMENTED_REVIEW_PENDING`; frontier re-anchored to
   the S20-400 SMP1 protocol contract.
 
-Tier 2 results are appended below when the handoff gate runs.
+Implementation commit: `e695c7d`.
+
+## Tier 2 handoff gate (2026-09-03, at `e695c7d`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (949 tests) |
+| `make conformance` | PASS (context capsule oracle line included) |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make context-capsule-persistent-fuzz-smoke` | PASS (971 seeds) |
+
+Total 31 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary. Council reviews remain pending; the package is not complete.

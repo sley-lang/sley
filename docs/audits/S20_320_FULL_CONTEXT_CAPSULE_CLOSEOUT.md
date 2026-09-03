@@ -38,7 +38,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1 and ADR-0031 at `1c1f2e4`; implementation,
-  corpus, oracle, and fuzz slice in the commit after it.
+  corpus, oracle, and fuzz slice at `e695c7d`.
 - Conformance corpus: `conformance/context-capsule/v1/accepted.json`
   (twenty-three vectors: all nineteen classes and both pages of the
   entity and edge continuation walks, each bound to its S20-310 fixture
@@ -84,9 +84,13 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at every commit of the slice. Tier 2 is recorded
-in `machineresearch/sley-2.0/s20-320-full-context-capsule-campaign-2026-09-03.md`
-after the implementation commit. The full `make v1` gate was skipped
+Tier 1 `make quick` passed at every commit of the slice. Tier 2 ran on
+2026-09-03 at `e695c7d`: `make core` (949 tests), `make conformance`
+(including the context capsule oracle line), `make adversarial`,
+`make fuzz-smoke`, and `make context-capsule-persistent-fuzz-smoke` all
+exited 0 in 31 seconds; the per-gate record is in
+`machineresearch/sley-2.0/s20-320-full-context-capsule-campaign-2026-09-03.md`.
+The full `make v1` gate was skipped
 because this is a subsystem handoff, not a release boundary; `make v2` and
 `make release-check` remain intentionally fail closed.
 
