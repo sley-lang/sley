@@ -43,4 +43,19 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
 | Contract draft revision 1 | `d1217ad` | green | ADR-0039, stage checker |
-| Slice E1 (data), revision 2 | pending | pending | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
+| Slice E1 (data), revision 2 | `f1a5e6f` | green | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
+
+## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 12 s | 989 tests passed, 0 failed across 39 test binaries |
+| `make conformance` | exit 0 | 12 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make vm-persistent-fuzz-smoke` | exit 0 | 12 s | 626 runs with the profile-toggle lane, PASS; the checker re-anchored at `59162e7` after a stale marker had kept it red since 2026-08-27 |
+| `make release-candidate-smoke` | exit 0 | 24 s | artifact REPRODUCIBLE, demo PASS |
+| `make sley2-runner-smoke` | exit 0 | 1 s | evidence PASS |
+| `make accounting-smoke` | exit 0 | 1 s | evidence PASS |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
