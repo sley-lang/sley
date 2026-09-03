@@ -13,7 +13,8 @@ use std::path::Path;
 
 use sley_id::{EntityId, SemanticFingerprint};
 use sley_query::{
-    Cursor, QueryLimits, RootQuery, RootQueryError, RootQueryInput, RootQueryResponse,
+    ContextCapsule, ContextCapsuleError, Cursor, QueryLimits, RootQuery, RootQueryError,
+    RootQueryInput, RootQueryRequest, RootQueryResponse, build_context_capsule,
     build_root_query_request, execute_root_query,
 };
 use sley_txn::VerifiedRevision;
@@ -30,6 +31,8 @@ pub enum RepositoryQueryError {
     Cache(IndexCacheError),
     /// The engine rejected the query.
     Query(RootQueryError),
+    /// The S20-320 capsule could not be built.
+    Capsule(ContextCapsuleError),
 }
 
 impl RepositoryQueryError {
@@ -40,6 +43,7 @@ impl RepositoryQueryError {
             Self::Extraction(error) => error.code().to_string(),
             Self::Cache(error) => error.code(),
             Self::Query(error) => error.code().as_str().to_string(),
+            Self::Capsule(error) => error.code().as_str().to_string(),
         }
     }
 }
@@ -64,6 +68,12 @@ impl From<IndexCacheError> for RepositoryQueryError {
     }
 }
 
+impl From<ContextCapsuleError> for RepositoryQueryError {
+    fn from(value: ContextCapsuleError) -> Self {
+        Self::Capsule(value)
+    }
+}
+
 impl From<RootQueryError> for RepositoryQueryError {
     fn from(value: RootQueryError) -> Self {
         Self::Query(value)
@@ -73,6 +83,8 @@ impl From<RootQueryError> for RepositoryQueryError {
 /// One answered query and the cache outcome that supplied its edges.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryQueryOutcome {
+    /// The canonical request the engine answered.
+    pub request: RootQueryRequest,
     /// The exact response.
     pub response: RootQueryResponse,
     /// Whether the snapshot came from the cache or a rebuild.
@@ -113,7 +125,37 @@ pub fn run_root_query(
     };
     let request = build_root_query_request(&input, query, limits, allow_continuation, after)?;
     let response = execute_root_query(&input, &request)?;
-    Ok(RepositoryQueryOutcome { response, cache })
+    Ok(RepositoryQueryOutcome {
+        request,
+        response,
+        cache,
+    })
+}
+
+/// Answers one root-backed query and wraps it in the master context capsule
+/// (S20-320 full, contract section 8).
+///
+/// # Errors
+///
+/// Preserves extraction, cache, query, and capsule failure namespaces.
+pub fn run_context_capsule(
+    repository: &Path,
+    revision: &VerifiedRevision,
+    query: RootQuery,
+    limits: QueryLimits,
+    allow_continuation: bool,
+    after: Option<Cursor>,
+) -> Result<(ContextCapsule, CacheOutcome), RepositoryQueryError> {
+    let outcome = run_root_query(
+        repository,
+        revision,
+        query,
+        limits,
+        allow_continuation,
+        after,
+    )?;
+    let capsule = build_context_capsule(&outcome.request, &outcome.response)?;
+    Ok((capsule, outcome.cache))
 }
 
 /// Field-4 fingerprints carried by the verified objects, in binding order.
@@ -226,5 +268,48 @@ mod tests {
         let cached = complete_root_snapshot(&repository, &revision).unwrap();
         assert_eq!(cached.1, CacheOutcome::Hit);
         assert_eq!(cached.0.direct_edges().len(), summary.direct_edges as usize);
+    }
+
+    #[test]
+    fn capsules_from_a_rebuild_and_a_cache_hit_are_identical() {
+        let (temp, transactions, genesis_id) = genesis(
+            "context-capsule",
+            complete_bodies(),
+            &[StateRoot::from_bytes([9; 32])],
+        );
+        let repository = temp.child("repo");
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let limits = QueryLimits::profile_maximum();
+        let (first, outcome) = run_context_capsule(
+            &repository,
+            &revision,
+            RootQuery::ListEntitiesByKind {
+                kind: ModeledEntityKind::TypeDef,
+            },
+            limits,
+            false,
+            None,
+        )
+        .unwrap();
+        assert!(matches!(outcome, CacheOutcome::Rebuilt(_)));
+        let (second, outcome) = run_context_capsule(
+            &repository,
+            &revision,
+            RootQuery::ListEntitiesByKind {
+                kind: ModeledEntityKind::TypeDef,
+            },
+            limits,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(outcome, CacheOutcome::Hit);
+        assert_eq!(second, first);
+        assert_eq!(first.root(), revision.state_root().root);
+        assert_eq!(
+            first.workspace_id(),
+            revision.state_root().record.workspace_id
+        );
+        assert!(!first.entities().is_empty());
     }
 }

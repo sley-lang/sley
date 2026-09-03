@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_310_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_320_FULL_NEXT",
+            "status": "S20_320_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_400_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-320-FULL-CONTEXT-CAPSULE",
+            "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -103,6 +103,7 @@ def main() -> int:
             "s20_520_implemented": True,
             "s20_300_full_implemented": True,
             "s20_310_full_implemented": True,
+            "s20_320_full_implemented": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
@@ -164,7 +165,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-320-FULL-CONTEXT-CAPSULE",
+            "S20-400-SMP1-PROTOCOL",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -320,6 +321,7 @@ def main() -> int:
             "S20-520 merge is implemented",
             "the full S20-300 complete-root snapshot is implemented",
             "the full S20-310 root-backed queries are implemented",
+            "the full S20-320 context capsule is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -341,7 +343,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-320-FULL-CONTEXT-CAPSULE",
+                "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
                 "result": "PASS",
             },
             indent=2,

@@ -51,7 +51,9 @@ S20-540 pack exchange is complete
 the full S20-300 complete-root snapshot is implemented
 (`docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md`) and
 the full S20-310 root-backed queries are implemented
-(`docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md`), each under its
+(`docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md`), and
+the full S20-320 context capsule is implemented
+(`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`), each under its
 draft contract with reviews pending. Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;

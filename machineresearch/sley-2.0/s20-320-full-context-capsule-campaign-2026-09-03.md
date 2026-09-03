@@ -48,3 +48,26 @@ checker `scripts/check_context_capsule_profile.py`.
 ## Commits
 
 - contract draft revision 1: the commit that adds this file.
+
+## Implementation under the draft (2026-09-03)
+
+The Council lanes were still unavailable, so the integrator implemented the
+full profile under contract draft revision 1 with the reviews queued:
+
+- `crates/sley-query/src/context_capsule.rs`: `build_context_capsule` over a
+  bound request and response, question, provenance, status, copied record,
+  fact dictionaries, `SLEYCCP1` record under `sley2.context-capsule.v1`,
+  codes 32008 through 32011; the S20-310 question encoder is shared inside
+  the crate.
+- `crates/sley-repo/src/root_query.rs`: `run_context_capsule`; the
+  repository query outcome now carries the request.
+- Fixture `conformance/context-capsule/v1` (23 vectors bound to the S20-310
+  fixture by query identity); independent oracle
+  `scripts/check_context_capsule_vector.py` PASS from the S20-310 records.
+- Persistent fuzz `fuzz/targets/context_capsule_builder.rs`, smoke PASS
+  over 971 seeds.
+- Closeout `docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`; summary
+  status `S20_320_FULL_IMPLEMENTED_REVIEW_PENDING`; frontier re-anchored to
+  the S20-400 SMP1 protocol contract.
+
+Tier 2 results are appended below when the handoff gate runs.

@@ -74,6 +74,10 @@ path = "targets/complete_root_snapshot_decoder.rs"
 name = "root_query_engine"
 path = "targets/root_query_engine.rs"
 
+[[bin]]
+name = "context_capsule_builder"
+path = "targets/context_capsule_builder.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }

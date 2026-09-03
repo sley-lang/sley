@@ -3,12 +3,14 @@
 
 mod capsule;
 mod complete_root;
+mod context_capsule;
 mod query;
 mod root_query;
 mod snapshot;
 
 pub use capsule::*;
 pub use complete_root::*;
+pub use context_capsule::*;
 pub use query::*;
 pub use root_query::*;
 pub use snapshot::*;

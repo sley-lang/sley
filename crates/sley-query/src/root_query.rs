@@ -377,7 +377,7 @@ impl RootQuery {
         }
     }
 
-    fn named_entities(&self) -> Vec<EntityId> {
+    pub(crate) fn named_entities(&self) -> Vec<EntityId> {
         match self {
             Self::GetRootSummary
             | Self::ListEntitiesByKind { .. }
@@ -569,6 +569,16 @@ impl RootQueryResponse {
     }
 
     #[must_use]
+    pub const fn schema_epoch(&self) -> SchemaEpochId {
+        self.schema_epoch
+    }
+
+    #[must_use]
+    pub const fn workspace_id(&self) -> WorkspaceId {
+        self.workspace_id
+    }
+
+    #[must_use]
     pub const fn class_tag(&self) -> u32 {
         self.class_tag
     }
@@ -697,6 +707,41 @@ fn encode_preimage(
     push_request_u32(&mut out, flag(allow_continuation))?;
     encode_cursor_request(&mut out, after)?;
     push_request_u32(&mut out, query.tag())?;
+    encode_class_body(&mut out, query)?;
+    Ok(out)
+}
+
+/// Encodes the question section shared by the request preimage and the
+/// S20-320 context capsule: class tag, class body, limits, continuation
+/// flag, and cursor.
+pub(crate) fn encode_question(
+    out: &mut Vec<u8>,
+    request: &RootQueryRequest,
+) -> Result<(), QueryError> {
+    encode_question_parts(
+        out,
+        request.limits,
+        request.allow_continuation,
+        request.after,
+        &request.query,
+    )
+}
+
+fn encode_question_parts(
+    out: &mut Vec<u8>,
+    limits: QueryLimits,
+    allow_continuation: bool,
+    after: Option<Cursor>,
+    query: &RootQuery,
+) -> Result<(), QueryError> {
+    push_request_u32(out, query.tag())?;
+    encode_class_body(out, query)?;
+    encode_limits_request(out, limits)?;
+    push_request_u32(out, flag(allow_continuation))?;
+    encode_cursor_request(out, after)
+}
+
+fn encode_class_body(out: &mut Vec<u8>, query: &RootQuery) -> Result<(), QueryError> {
     match query {
         RootQuery::GetRootSummary
         | RootQuery::ListWorkspacePackages
@@ -706,41 +751,41 @@ fn encode_preimage(
         | RootQuery::GetSemanticFingerprint { entity }
         | RootQuery::ListOwningNamespaces { entity }
         | RootQuery::ListDeclaredEffects { entity } => {
-            append_request(&mut out, entity.as_bytes())?;
+            append_request(out, entity.as_bytes())?;
         }
         RootQuery::ListPackageExports { package }
         | RootQuery::ListPackageDependencies { package } => {
-            append_request(&mut out, package.as_bytes())?;
+            append_request(out, package.as_bytes())?;
         }
         RootQuery::ListNamespaceMembers { namespace } => {
-            append_request(&mut out, namespace.as_bytes())?;
+            append_request(out, namespace.as_bytes())?;
         }
         RootQuery::ListContractsFor { target } | RootQuery::ListTestsFor { target } => {
-            append_request(&mut out, target.as_bytes())?;
+            append_request(out, target.as_bytes())?;
         }
         RootQuery::ListCapabilityRequirementsFor { subject } => {
-            append_request(&mut out, subject.as_bytes())?;
+            append_request(out, subject.as_bytes())?;
         }
         RootQuery::ListEntitiesByKind { kind } => {
-            push_request_u32(&mut out, kind.tag())?;
+            push_request_u32(out, kind.tag())?;
         }
         RootQuery::ListDirectDependencies { entity, kinds }
         | RootQuery::ListDirectDependents { entity, kinds } => {
-            append_request(&mut out, entity.as_bytes())?;
-            push_request_u64(&mut out, to_u64(kinds.len())?)?;
+            append_request(out, entity.as_bytes())?;
+            push_request_u64(out, to_u64(kinds.len())?)?;
             for kind in kinds {
-                push_request_u32(&mut out, kind.tag())?;
+                push_request_u32(out, kind.tag())?;
             }
         }
         RootQuery::ReverseImpactClosure { seeds }
         | RootQuery::ForwardDependencyClosure { seeds } => {
-            push_request_u64(&mut out, to_u64(seeds.len())?)?;
+            push_request_u64(out, to_u64(seeds.len())?)?;
             for seed in seeds {
-                append_request(&mut out, seed.as_bytes())?;
+                append_request(out, seed.as_bytes())?;
             }
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 const fn flag(value: bool) -> u32 {

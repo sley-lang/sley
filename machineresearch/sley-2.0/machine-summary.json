@@ -520,10 +520,10 @@
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
     "implementation_complete": true,
     "full_profile": "context_capsule_profile",
-    "full_profile_status": "S20_320_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
+    "full_profile_status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING"
   },
   "context_capsule_profile": {
-    "status": "S20_320_FULL_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
@@ -538,7 +538,16 @@
     "ariadne_contract_review": "PENDING",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "implementation_complete": false,
+    "implementation": [
+      "crates/sley-query/src/context_capsule.rs",
+      "crates/sley-repo/src/root_query.rs"
+    ],
+    "fixture": "conformance/context-capsule/v1",
+    "oracle": "scripts/check_context_capsule_vector.py",
+    "persistent_fuzz_target": "fuzz/targets/context_capsule_builder.rs",
+    "closeout": "docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md",
+    "fixture_vectors": 23
   },
   "session_handle_profile": {
     "status": "S20_330_DEFERRED_AUTHORITY_PREREQUISITES_MISSING",
@@ -1219,6 +1228,23 @@
     "vulcan_review": "PENDING",
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md"
   },
+  "s20_700_context_capsule_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_320_FULL_CONTEXT_CAPSULE_BUILDER_ONLY",
+    "target": "fuzz/targets/context_capsule_builder.rs",
+    "runner": "scripts/run_context_capsule_persistent_fuzz.py",
+    "checker": "scripts/check_context_capsule_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "query_classes": 19,
+    "max_input_bytes": 4096,
+    "seed_source": "conformance/context-capsule/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-context-capsule-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-context-capsule-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_context_capsule_persistent_fuzz.py --manual",
+    "continuation_walk": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md"
+  },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
     "targets": [
@@ -1606,8 +1632,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
     "master_required_surface_count": 11,
-    "scoped_target_count": 17,
-    "scoped_landed_surface_count": 18,
+    "scoped_target_count": 18,
+    "scoped_landed_surface_count": 19,
     "remaining_required_surface_count": 0,
     "remaining_required_surfaces": [],
     "mutation_candidate_production_boundary": true,
@@ -1629,7 +1655,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-320-FULL-CONTEXT-CAPSULE",
+    "next_dependency_complete_package": "S20-400-SMP1-PROTOCOL",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1637,7 +1663,8 @@
     "merge_engine_persistent_fuzz_target": true,
     "merge_engine_reviews": "S20-520 Council reviews pending",
     "complete_root_snapshot_decoder_persistent_fuzz_target": true,
-    "root_query_engine_persistent_fuzz_target": true
+    "root_query_engine_persistent_fuzz_target": true,
+    "context_capsule_builder_persistent_fuzz_target": true
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -1761,9 +1788,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_310_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_320_FULL_NEXT",
+    "status": "S20_320_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_400_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-320-FULL-CONTEXT-CAPSULE",
+    "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1816,7 +1843,8 @@
     "s20_510_implemented": true,
     "s20_520_implemented": true,
     "s20_300_full_implemented": true,
-    "s20_310_full_implemented": true
+    "s20_310_full_implemented": true,
+    "s20_320_full_implemented": true
   },
   "succession": {
     "corpus_version": 1,
