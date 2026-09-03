@@ -51,7 +51,20 @@ checker `scripts/check_session_handle_profile.py`.
   status `S20_330_IMPLEMENTED_REVIEW_PENDING`; frontier re-anchored to the
   S20-420 JSON bridge.
 
-Tier 2 results are appended below when the handoff gate runs.
+Implementation commit: `a0c9a70`.
+
+## Tier 2 handoff gate (2026-09-03, at `a0c9a70`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (965 tests) |
+| `make conformance` | PASS |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make smp1-persistent-fuzz-smoke` | PASS |
+
+Total 41 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary. Council reviews remain pending; the package is not complete.
 
 ## Commits
 

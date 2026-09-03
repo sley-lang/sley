@@ -43,7 +43,7 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1 and ADR-0033 at `c018cc8` (guard fix
-  `3f598b4`); implementation in the commit after this file.
+  `3f598b4`); implementation at `a0c9a70`.
 - Native tests: three authority tests (deterministic issuance binding the
   head, the ordered check matrix with T47 first and the T15 handle
   lifecycle across a root advance and renewal, the exact renewal limit),
@@ -87,9 +87,9 @@ The implementation provides:
 
 ## Validation record
 
-Tier 1 `make quick` passed at the commit. Tier 2 (`make core`,
-`make conformance`, `make adversarial`, `make fuzz-smoke`,
-`make smp1-persistent-fuzz-smoke`) is recorded in
+Tier 1 `make quick` passed at the commit. Tier 2 ran on 2026-09-03 at
+`a0c9a70` (`make core` 965 tests, all gates exit 0 in 41 seconds) and is
+recorded in
 `machineresearch/sley-2.0/s20-330-negotiated-session-campaign-2026-09-03.md`.
 The full `make v1` gate was skipped because this is a subsystem handoff,
 not a release boundary; `make v2` and `make release-check` remain
