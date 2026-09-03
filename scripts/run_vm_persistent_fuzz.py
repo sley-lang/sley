@@ -28,7 +28,7 @@ SMOKE_RUNS = 256
 SMOKE_TIMEOUT_SECONDS = 60
 FIXTURE_COUNT = 9
 # Extended-profile fixtures, one per landed opcode family beyond E1.
-EXTENDED_FIXTURE_COUNT = 5
+EXTENDED_FIXTURE_COUNT = 7
 
 
 def main() -> int:

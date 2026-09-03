@@ -1683,7 +1683,7 @@
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 715,
+    "generated_seed_count": 751,
     "synthetic_seed_grammar": "bounded fuzz-only typed VM input constructors v1",
     "runtime_evidence": "evidence/runtime/s20-700-vm-input-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
@@ -1693,12 +1693,14 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "extended_family_fixture_count": 5,
+    "extended_family_fixture_count": 7,
     "extended_family_lanes": [
+      "E1 constant reference under the extended profile",
       "E2 checked integer add and divide",
       "E3 deterministic float add",
+      "E4 ordered map construction with duplicate-key failure values",
       "E5 per-execution cell write and read",
-      "E6 constant reference under the extended profile"
+      "E6 direct call to a zero-parameter callee"
     ]
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {

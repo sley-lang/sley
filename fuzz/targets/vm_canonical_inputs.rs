@@ -21,7 +21,7 @@ const MAX_COLLECTION_ITEMS: usize = 4;
 const MAX_PAYLOAD_BYTES: usize = 32;
 const FIXTURE_COUNT: u8 = 9;
 /// Extended-profile fixtures, one per landed opcode family beyond E1.
-const EXTENDED_FIXTURE_COUNT: u8 = 5;
+const EXTENDED_FIXTURE_COUNT: u8 = 7;
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -146,6 +146,7 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         &types,
         CacheProfile::EXTENDED_V1,
         &fixture.constants,
+        &fixture.functions,
     );
     let first = execute_function(extended, request.clone());
     let second = execute_function(extended, request.clone());
@@ -159,6 +160,7 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         &types,
         CacheProfile::RESTRICTED_V1,
         &fixture.constants,
+        &fixture.functions,
     );
     assert!(
         execute_function(restricted, request.clone()).is_err(),
@@ -191,6 +193,10 @@ struct ExtendedFixture {
     fixture: VmFixture,
     constants: Vec<ConstantDefinition>,
     definitions: Vec<sley_ssmc::TypeDefinition>,
+    /// Callee inventory for the direct-call family; the callee's parameters,
+    /// blocks, and operations live in the fixture's own inventories, which the
+    /// lowerer narrows per function.
+    functions: Vec<sley_ssmc::FunctionGraph>,
 }
 
 fn extended_fixture(selector: u8) -> ExtendedFixture {
@@ -201,10 +207,14 @@ fn extended_fixture(selector: u8) -> ExtendedFixture {
         1 => arithmetic_fixture(1, Opcode::IntDivChecked, IntegerWidth::from_bits(64)),
         // E3: a deterministic float addition.
         2 => float_fixture(2, Opcode::FloatAdd),
+        // E4: an ordered map built from two key/value pairs.
+        3 => map_fixture(3),
         // E5: a per-execution cell written and read back.
-        3 => cell_fixture(3),
+        4 => cell_fixture(4),
+        // E1: a constant reference under the extended profile.
+        5 => constant_fixture(5),
         // E6: a direct call to a zero-parameter callee.
-        4 => call_fixture(4),
+        6 => call_fixture(6),
         _ => unreachable!(),
     }
 }
@@ -225,6 +235,7 @@ fn arithmetic_fixture(selector: u8, opcode: Opcode, width: IntegerWidth) -> Exte
         ),
         constants: Vec::new(),
         definitions: Vec::new(),
+        functions: Vec::new(),
     }
 }
 
@@ -239,6 +250,7 @@ fn float_fixture(selector: u8, opcode: Opcode) -> ExtendedFixture {
         ),
         constants: Vec::new(),
         definitions: Vec::new(),
+        functions: Vec::new(),
     }
 }
 
@@ -295,11 +307,37 @@ fn cell_fixture(selector: u8) -> ExtendedFixture {
         },
         constants: Vec::new(),
         definitions: Vec::new(),
+        functions: Vec::new(),
     }
 }
 
-/// E6: one `call_direct` to a zero-parameter callee that returns a constant.
-fn call_fixture(selector: u8) -> ExtendedFixture {
+/// E4: `map_new` over two key/value pairs, which yields a duplicate-key
+/// failure as a value when the fuzzer supplies equal keys.
+fn map_fixture(selector: u8) -> ExtendedFixture {
+    let key = TypeExpr::UInt(IntegerWidth::from_bits(64));
+    let value = TypeExpr::Text;
+    ExtendedFixture {
+        fixture: operation_fixture(
+            300 + u32::from(selector) * 10,
+            Opcode::MapNew,
+            Immediate::None,
+            vec![key.clone(), value.clone(), key.clone(), value.clone()],
+            TypeExpr::Result {
+                ok: Box::new(TypeExpr::OrderedMap {
+                    key: Box::new(key),
+                    value: Box::new(value),
+                }),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+            },
+        ),
+        constants: Vec::new(),
+        definitions: Vec::new(),
+        functions: Vec::new(),
+    }
+}
+
+/// E1 under the extended profile: a constant reference.
+fn constant_fixture(selector: u8) -> ExtendedFixture {
     let base = 300 + u32::from(selector) * 10;
     let constant = id(base + 5);
     ExtendedFixture {
@@ -318,6 +356,61 @@ fn call_fixture(selector: u8) -> ExtendedFixture {
             },
         }],
         definitions: Vec::new(),
+        functions: Vec::new(),
+    }
+}
+
+/// E6: one `call_direct` to a zero-parameter callee that returns a constant.
+fn call_fixture(selector: u8) -> ExtendedFixture {
+    let base = 300 + u32::from(selector) * 10;
+    let callee = id(base + 20);
+    let callee_block = id(base + 21);
+    let callee_operation = id(base + 22);
+    let constant = id(base + 23);
+    let mut fixture = operation_fixture(
+        base,
+        Opcode::CallDirect,
+        Immediate::Function(sley_ssmc::FunctionRefValue {
+            function: callee,
+            type_arguments: Vec::new(),
+        }),
+        Vec::new(),
+        TypeExpr::Bool,
+    );
+    let callee_graph = function_body(callee, Vec::new(), TypeExpr::Bool, callee_block);
+    fixture.blocks.push(Block {
+        entity_id: callee_block,
+        function: callee,
+        parameters: Vec::new(),
+        operations: vec![callee_operation],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: callee_operation,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    });
+    fixture.operations.push(Operation {
+        entity_id: callee_operation,
+        block: callee_block,
+        ordinal: 0,
+        opcode: Opcode::ConstantRef,
+        operands: Vec::new(),
+        result_types: vec![TypeExpr::Bool],
+        immediate: Immediate::Entity(constant),
+    });
+    ExtendedFixture {
+        fixture,
+        constants: vec![ConstantDefinition {
+            entity_id: constant,
+            value: ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        }],
+        definitions: Vec::new(),
+        functions: vec![callee_graph],
     }
 }
 
@@ -411,9 +504,11 @@ impl VmFixture {
         types: &'a TypeEnvironment,
         profile: CacheProfile,
         constants: &'a [ConstantDefinition],
+        functions: &'a [sley_ssmc::FunctionGraph],
     ) -> LoweringInput<'a> {
         LoweringInput {
             constants,
+            functions,
             ..self.lowering_input(types, profile)
         }
     }

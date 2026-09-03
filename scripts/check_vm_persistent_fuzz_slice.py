@@ -32,7 +32,9 @@ for marker in [
     "cross-profile termination drifted",
     "assert_eq!(hashes.len(), request.inputs.len())",
     "FIXTURE_COUNT: u8 = 9",
-    "EXTENDED_FIXTURE_COUNT: u8 = 5",
+    "EXTENDED_FIXTURE_COUNT: u8 = 7",
+    "Opcode::MapNew",
+    "Opcode::CallDirect",
     "extended-family execution judgment was not deterministic",
     "the restricted profile accepted an extended family opcode",
     "extended observation identity drifted",
@@ -101,12 +103,12 @@ expected = {
     "fixture_count": 9,
     "identity_fixture_count": 6,
     "boolean_opcode_fixture_count": 3,
-    "extended_family_fixture_count": 5,
+    "extended_family_fixture_count": 7,
     "max_input_bytes": 4096,
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 715,
+    "generated_seed_count": 751,
 }
 for key, value in expected.items():
     if slice_status.get(key) != value:
