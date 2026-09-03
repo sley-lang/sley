@@ -1,4 +1,4 @@
-.PHONY: quick core conformance adversarial fuzz-smoke legacy-runner-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -124,6 +124,11 @@ fuzz-smoke:
 	cargo test -p sley-store randomized_invalid_records_never_promote --locked
 	cargo test -p sley-repo bounded_pack_import_fuzz_smoke --locked
 	python3 scripts/check_m1_gate.py fuzz-smoke
+
+sley2-runner-smoke:
+	cargo build -p sley-cli --locked
+	python3 -m bench.sley2.runner smoke --sley target/debug/sley --evidence-dir evidence/runtime/s20-620-sley2-smoke --timeout-seconds 90
+	python3 scripts/check_sley2_trial_runner.py
 
 legacy-runner-smoke:
 	python3 -m bench.legacy.runner smoke --timeout-seconds 90 --output-limit-bytes 65536 --evidence-dir evidence/runtime/s20-600-legacy-smoke

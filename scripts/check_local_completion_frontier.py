@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_430_IMPLEMENTED_REVIEWS_PENDING_S20_620_NEXT",
+            "status": "S20_620_IMPLEMENTED_REVIEWS_PENDING_S20_630_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-620-SLEY2-TRIAL-RUNNER",
+            "next_authority_safe_package": "S20-630-ACCOUNTING",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -110,9 +110,11 @@ def main() -> int:
             "s20_330_implemented": True,
             "s20_420_implemented": True,
             "s20_430_implemented": True,
+            "s20_620_implemented": True,
             "session_authority_available": True,
             "json_bridge_available": True,
             "cli_available": True,
+            "sley2_trial_runner_available": True,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
             "named_ref_boundary_available": True,
@@ -190,7 +192,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-620-SLEY2-TRIAL-RUNNER",
+            "S20-630-ACCOUNTING",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -378,6 +380,7 @@ def main() -> int:
             "S20-330 is implemented",
             "S20-420 is implemented",
             "S20-430 is implemented",
+            "S20-620 is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -399,7 +402,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-620-SLEY2-TRIAL-RUNNER",
+                "next_authority_safe_package": "S20-630-ACCOUNTING",
                 "result": "PASS",
             },
             indent=2,

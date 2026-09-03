@@ -1877,7 +1877,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-620-SLEY2-TRIAL-RUNNER",
+    "next_dependency_complete_package": "S20-630-ACCOUNTING",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1960,9 +1960,9 @@
     "nabu_review": "REVISE_TO_OFFLINE_APPEND_ONLY_CONTRACT"
   },
   "sley2_trial_runner": {
-    "status": "S20_620_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",
@@ -1981,8 +1981,16 @@
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
-    "implementation_started": false,
-    "implementation": []
+    "implementation_started": true,
+    "implementation": [
+      "bench/sley2/runner.py",
+      "bench/sley2/tests/test_runner.py"
+    ],
+    "offline_tests": 5,
+    "smoke_target": "make sley2-runner-smoke",
+    "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
+    "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
+    "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md"
   },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",
@@ -2036,9 +2044,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_430_IMPLEMENTED_REVIEWS_PENDING_S20_620_NEXT",
+    "status": "S20_620_IMPLEMENTED_REVIEWS_PENDING_S20_630_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-620-SLEY2-TRIAL-RUNNER",
+    "next_authority_safe_package": "S20-630-ACCOUNTING",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -2100,7 +2108,9 @@
     "s20_420_implemented": true,
     "json_bridge_available": true,
     "s20_430_implemented": true,
-    "cli_available": true
+    "cli_available": true,
+    "s20_620_implemented": true,
+    "sley2_trial_runner_available": true
   },
   "succession": {
     "corpus_version": 1,

@@ -29,3 +29,11 @@ append-only digest-chained, explicitly unverified trial claims using injected in
 no external command, provider, model, oracle, workspace-copy, or Sley 1.x
 adapter. The raw fixture and every actual benchmark run remain pending explicit
 run-specific freeze and approval.
+
+S20-620 adds the endpoint-only Sley 2 trial runner under `bench/sley2`. It
+drives the S20-430 `sley` binary in JSON mode over a repository seeded
+through the endpoint, hands the agent adapter a two-operation handle and
+nothing else, chains every frame into a trace before the next request, and
+appends unverified claims under the `sley_2_0` arm with the S20-610
+mechanics. Its smoke uses a scripted agent that attempts no task; models,
+oracles, and real trials remain injected and unapproved.

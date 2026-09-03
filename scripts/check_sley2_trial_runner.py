@@ -159,6 +159,19 @@ def main() -> int:
                 problems.append(f"runner-code:{symbol}")
         if not TESTS.exists():
             problems.append("runner-tests:missing")
+        else:
+            import subprocess
+            import sys
+
+            completed = subprocess.run(
+                [sys.executable, "-m", "unittest", "discover", "-s", "bench/sley2/tests", "-t", "."],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if completed.returncode != 0:
+                problems.append("runner-tests:failed:" + completed.stderr.strip().splitlines()[-1][:200])
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):

@@ -47,4 +47,6 @@ Contract: `docs/spec/SLEY2_TRIAL_RUNNER_V1.md`, ADR-0036, stage checker
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0036, stage checker |
+| Contract draft revision 1 | `51a8e22` | green | ADR-0036, stage checker |
+| SMP1 revision 6 `failed` flag (S20-620 finding) | `aea2d11` | green | codec, server, bridge revision 4, fixtures, oracles |
+| Implementation, revision 2 | pending | pending | `bench/sley2`; 5 offline tests; smoke: 18 trace records, 4 tool calls, guard refused, 2 claims verified |

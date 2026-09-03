@@ -1,9 +1,10 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-620 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). Revision 2 records the clarifications found while implementing
+revision 1 (section 9). The implementation is `bench/sley2/runner.py`;
+implementation state is tracked in the machine summary.
 
 ## Boundary
 
@@ -38,7 +39,9 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
   `sley frame decode`), so the negotiated profile is the full offer.
 - The disposable repository is seeded through the endpoint by
   `exchange.import` of the arm fixture's exchange bytes; the runner writes
-  no repository file itself and reads none.
+  no repository file itself and reads none. The runner then opens the
+  session with the handshake identity and closes it after the agent
+  returns; the agent never sees an identity.
 - Every frame in either direction is recorded in order (section 2) before
   the next request is written.
 
@@ -52,12 +55,15 @@ exchange(frame_object) -> [frame_object]   // events then the response
 affordances() -> [method_name]             // the negotiated method names
 ```
 
-It receives no repository path, file handle, environment, clock, random
-source, task fixture bytes, or trace. The runner owns all of those. A
-handle that exposes anything else, an adapter invocation with any other
-argument, or an agent frame that names a session or request identifier the
-runner did not issue is `SLEY2_TRIAL_PRIVILEGED_CONTEXT`, and the trial is
-recorded as a harness failure. The context the agent saw is exactly the
+The agent's `frame_object` names only `method`, `body` (hex), and an
+optional `cancel` flag; the runner issues the session and request
+identifiers and builds the frame. It receives no repository path, file
+handle, environment, clock, random source, task fixture bytes, or trace.
+The runner owns all of those. A handle that exposes anything else, or an
+agent request that names any other field (a session, an identifier, a
+kind), is `SLEY2_TRIAL_PRIVILEGED_CONTEXT`, and the trial is recorded as a
+harness failure; a request naming a method outside the affordances or a
+body that is not hex is `SLEY2_TRIAL_FRAME_INVALID`. The context the agent saw is exactly the
 recorded responses; nothing else existed.
 
 ## 3. Complete trace
@@ -71,7 +77,7 @@ digest.
 
 ```text
 header  { kind: "header", trial_id, run_manifest_digest, task_id, seed,
-          fixture_digest, endpoint_version, handshake_id }
+          fixture_digest, endpoint_sha256, endpoint_version, handshake_id }
 frame   { kind: "frame", seq, direction: "request"|"response"|"event",
           frame: Frame, frame_sha256 }
 footer  { kind: "footer", frames_recorded, report: Report (the endpoint's
@@ -85,7 +91,7 @@ Trace-derived quantities are computed only from frame records:
 
 | Metric | Derivation |
 |---|---|
-| `tool_calls` | request frames written after the session opened |
+| `tool_calls` | session-scoped request frames other than the runner's `session.close` |
 | `context_bytes` | body bytes of every response to `capsule` and `query.*` |
 | `entities_inspected` | sum of `bounds.returned_entities` over responses |
 | `relationships_inspected` | sum of `bounds.returned_edges` over responses |
@@ -119,10 +125,12 @@ not that a model ran or an oracle judged.
 ## 5. Smoke and control audit
 
 `make sley2-runner-smoke` builds the `sley` binary, runs one scripted
-trial (a scripted agent that opens the session, asks one root query,
-requests one capsule, and closes; no model) over the frozen S20-540
-exchange fixture in a private temporary directory, verifies the trace
-chain, the guard, and the claim, and writes evidence under
+trial (a scripted agent that asks `session.capabilities`, `refs.list`,
+`handle.expand`, and `session.budgets`; no model, no task) and one
+intruding trial (an agent naming a session field, refused as
+`SLEY2_TRIAL_PRIVILEGED_CONTEXT`) over the frozen S20-540 exchange fixture
+in a private run directory, verifies both trace chains, the handle
+surface, and both claims, and writes evidence under
 `evidence/runtime/s20-620-sley2-smoke/`. `scripts/check_sley2_trial_runner.py`
 in `make quick` audits the contract markers, the runner's dependency
 surface (the `sley` binary and the S20-610 module only; no kernel crate,
@@ -161,3 +169,26 @@ This contract does not claim: model or provider execution; a real trial;
 the raw and legacy arms; Accepted Change Tokens and accounting (S20-630);
 statistics and trial sets (S20-640); succession thresholds; artifact
 provenance; publication; runtime, packaging, release, or GA.
+
+## 9. Revision 2 clarifications
+
+- The shared S20-610 manifest's `execution_mode: offline_injected` and
+  `external_command_policy: forbidden` bind the model, oracle, and agent
+  tooling, which stay injected and command-free; the runner's only process
+  is the endpoint binary, whose SHA-256 the trace header and every claim
+  carry as `endpoint_sha256`, so the exact endpoint is part of the record.
+- The client hello is `sley hello` decoded with `sley frame decode`, and
+  the affordances are the `methods` of `sley hello --json`; both come from
+  the same binary, so the negotiated profile is that offer.
+- `tool_calls` counts the agent's session-scoped requests and excludes the
+  runner's `session.close`; seeding and opening carry no session and are
+  not counted either.
+- The scripted smoke attempts no task, so its oracle claim is `rejected`
+  with `SLEY2_SMOKE_NO_TASK_ATTEMPTED`; a capsule round trip joins the
+  script once a request builder is reachable through the endpoint.
+- A claim's `handshake_id`, `report_digest`, `model_output_digest`, and
+  `oracle_report_digest` may be null only for timeouts and harness
+  failures; `trace_record_count` is at least two (header and footer).
+- Unexpected adapter exceptions are recorded as
+  `SLEY2_TRIAL_INTERNAL_INVARIANT` harness failures; the trace footer and
+  the claim are still written.
