@@ -702,7 +702,7 @@
     "implementation_complete": true
   },
   "repository_exchange": {
-    "status": "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
+    "status": "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
     "contract": "docs/spec/REPOSITORY_EXCHANGE_V1.md",
     "adr": "docs/adr/ADR-0025-repository-exchange-boundary.md",
     "design_brief": "machineresearch/sley-2.0/s20-540-pack-exchange-design-brief-2026-09-03.md",
@@ -725,7 +725,7 @@
     "ariadne_contract_review": "PASS_CONTRACT_DRAFT_REVISION_6",
     "vulcan_import_surface_review": "PASS_CONTRACT_DRAFT_REVISION_4_NOTES_APPLIED_IN_REVISION_5",
     "implementation_complete": false,
-    "contract_revision": 6,
+    "contract_revision": 7,
     "ariadne_contract_review_revision_1": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
     "ariadne_contract_review_revision_1_session": "forge-ariadne-s20-540-contract-20260903T014755-7931f8f9",
     "ariadne_contract_review_revision_2": "FAIL_CONTRACT_DRAFT_2_P1_1_P2_3_P3_ALL_APPLIED_IN_REVISION_3",
@@ -739,7 +739,10 @@
     "ariadne_contract_review_revision_5": "FAIL_CONTRACT_DRAFT_1_P0_2_P1_4_P2_2_P3_ALL_APPLIED_IN_REVISION_6",
     "ariadne_contract_review_revision_5_session": "forge-ariadne-s20-540-pass4-20260903T022707-997681c9",
     "contract_frozen_at_commit": "5e5d593",
-    "ariadne_contract_review_session": "forge-ariadne-s20-540-pass5-20260903T023812-51133a3e"
+    "ariadne_contract_review_session": "forge-ariadne-s20-540-pass5-20260903T023812-51133a3e",
+    "revision_7_note": "branch-order framing corrected to the realized single Bytes framing; no preimage change; limited Ariadne confirmation pending",
+    "implementation": "crates/sley-repo/src/exchange.rs",
+    "transaction_owner_implementation": "crates/sley-txn/src/repository.rs"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1485,7 +1488,7 @@
     "s20_530_implementation_complete": true,
     "s20_530_final_checker_confirmed": true,
     "s20_530_aging_rule": "ADR-0024",
-    "s20_540_implementation_started": false,
+    "s20_540_implementation_started": true,
     "s20_510_blocked_by_full_s20_250": true,
     "session_authority_available": false,
     "transaction_boundary_available": true,

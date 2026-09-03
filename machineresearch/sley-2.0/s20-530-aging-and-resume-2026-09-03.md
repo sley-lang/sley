@@ -117,6 +117,42 @@ absolute paths in Council requests; check SCB1 section 9 and canonical-set
 element order before writing a contract; S20-390 numerics live in
 `ERROR_CODES_V1.md`.
 
+## S20-540 implementation status (2026-09-03T03:45Z)
+
+Landed after the freeze, each gated by `make quick`:
+
+- `5076791` sley-id domain `sley2.repository-exchange.v1` (thirtieth domain,
+  S20-345 registry marker moved to 30).
+- `43421d0` sley-txn: `TXN_INCOMPLETE_CLONE` (39022) guard on genesis, commit,
+  and recovery; two-phase `initialize_trusted_clone_*_with_maintenance` API;
+  five tests.
+- this commit: `crates/sley-repo/src/exchange.rs` (export, preflight with all
+  six closure rules and work ceilings, target classification with symlink
+  discipline and subset proofs, persistence 8.1 to 8.7 with the non-blocking
+  exclusive maintenance acquisition added to sley-txn), the ref and GC guards,
+  the pure `verify_receipt_against_objects` API, the S20-170 preflight
+  factoring, and eight tests including the clone-equivalent round trip with
+  byte-identical re-export, X-02 and X-07 retry convergence, the target
+  matrix, the write-guard matrix, the rejection matrix, and the canonical
+  order test over 1/2/127/128/253/254/255-byte names.
+- Implementation proved that a `Bytes` record field is framed once by the
+  frozen SCB1 encoder and the S20-170 oracle, so the revision-3 branch-order
+  wording (double prefix, 254/255 anomaly) was wrong; revision 7 corrects the
+  paragraph without touching any preimage (ADR-0025 decision 10); a limited
+  Ariadne confirmation is requested.
+- Found and fixed in flight: S20-170's object-closure rule requires the state
+  roots' contract-root and test-root objects to be real store objects, so a
+  repository built with placeholder anchors cannot be exported; the fixture
+  uses real objects, and the same holds for any production repository.
+
+Remaining for S20-540: the frozen conformance fixture and independent Python
+oracle (`conformance/repository-exchange/v1`, `scripts/check_repository_exchange_vector.py`),
+the X-01 to X-07 injected-cut matrix beyond the two retry rows exercised,
+the preflight-cost and maximal-decode tests, the persistent fuzz target, the
+strict clippy debt in pre-existing S20-390/S20-530 code (pedantic lints in
+production functions), the S20-540 closeout audit, Tier 2, and the three
+implementation reviews.
+
 ## Isolated verification
 
 `make s20-530-verify` was launched at 2026-09-03T01:23:36Z (clone at

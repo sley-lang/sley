@@ -127,6 +127,16 @@ unreachable receipt ceiling.
    (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) returned
    `PASS_CONTRACT_DRAFT` on revision 6 with both frozen hashes byte-identical
    to revision 2, and the contract is frozen.
+10. **Framing correction (revision 7).** Implementation proved that the
+   revision-3 wording for branch order assumed a double length prefix on a
+   `Bytes` record field. The frozen SCB1 encoder (`encode_record` over
+   `encode_sized`), its decoder, and the independent S20-170 Python oracle
+   frame a `Bytes` field once (`uvar(tag) || len(bytes) || bytes`), so the
+   canonical-set order of branch entries is plain length-then-bytes for
+   every legal name length; the 254 and 255 byte anomaly does not exist.
+   Revision 7 restates the paragraph, keeps the 127/128/253/254/255 order
+   test, and changes no preimage or hash; it is submitted for a limited
+   Ariadne confirmation with the encoder and oracle evidence.
 
 ## Consequences
 

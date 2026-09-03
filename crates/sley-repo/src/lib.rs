@@ -1,9 +1,11 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
+mod exchange;
 mod gc;
 mod refs;
 
+pub use exchange::*;
 pub use gc::*;
 pub use refs::*;
 
@@ -128,13 +130,13 @@ pub struct PackError {
 }
 
 impl PackError {
-    const fn pack(code: PackErrorCode) -> Self {
+    pub(crate) const fn pack(code: PackErrorCode) -> Self {
         Self {
             symbol: code.as_str(),
         }
     }
 
-    const fn upstream(symbol: &'static str) -> Self {
+    pub(crate) const fn upstream(symbol: &'static str) -> Self {
         Self { symbol }
     }
 
@@ -213,11 +215,11 @@ pub struct ImportReport {
 }
 
 #[derive(Clone, Debug)]
-struct DecodedPack {
+pub(crate) struct DecodedPack {
     version: u64,
     epochs: Vec<PackEpochEntry>,
     roots: Vec<PackRootEntry>,
-    objects: Vec<PackObjectEntry>,
+    pub(crate) objects: Vec<PackObjectEntry>,
     compression_profile: u64,
     leaves: Vec<[u8; ID_LEN]>,
     digest_tree_root: [u8; ID_LEN],
@@ -395,6 +397,32 @@ pub fn import_conformance_pack<V: CanonicalVerifier>(
     input: &[u8],
     verifier: &V,
 ) -> Result<ImportReport> {
+    let preflighted = preflight_conformance_pack(input, verifier)?;
+    let (promoted_objects, present_objects) =
+        promote_pack_objects(store, &preflighted.decoded.objects, verifier)?;
+    Ok(ImportReport {
+        pack_id: preflighted.pack_id,
+        roots: preflighted.roots,
+        promoted_objects,
+        present_objects,
+    })
+}
+
+/// A pack that passed the complete S20-170 preflight (steps 1 through 5)
+/// without any store write.
+pub(crate) struct PreflightedPack {
+    pub(crate) pack_id: RepositoryPackId,
+    pub(crate) decoded: DecodedPack,
+    pub(crate) roots: Vec<AcceptedStateRoot>,
+}
+
+/// Runs S20-170 import steps 1 through 5 (envelope, payload, profile,
+/// registry, epochs, digest tree, roots, dependency and object closure, and
+/// canonical object verification) without writing to any store.
+pub(crate) fn preflight_conformance_pack<V: CanonicalVerifier>(
+    input: &[u8],
+    verifier: &V,
+) -> Result<PreflightedPack> {
     let (pack_epoch, payload, pack_id) = decode_envelope(input)?;
     let decoded = decode_payload(payload)?;
     validate_profile(&decoded)?;
@@ -430,10 +458,22 @@ pub fn import_conformance_pack<V: CanonicalVerifier>(
     for object in &decoded.objects {
         preflight_object(object, verifier)?;
     }
+    Ok(PreflightedPack {
+        pack_id,
+        decoded,
+        roots,
+    })
+}
 
+/// Promotes preflighted objects through the store (S20-170 step 6).
+pub(crate) fn promote_pack_objects<V: CanonicalVerifier>(
+    store: &ObjectStore,
+    objects: &[PackObjectEntry],
+    verifier: &V,
+) -> Result<(usize, usize)> {
     let mut promoted_objects = 0;
     let mut present_objects = 0;
-    for object in &decoded.objects {
+    for object in objects {
         match store
             .put(object.object_id, &object.stored_bytes, verifier)
             .map_err(|error| PackError::upstream(error.symbol()))?
@@ -442,12 +482,7 @@ pub fn import_conformance_pack<V: CanonicalVerifier>(
             PutStatus::Present => present_objects += 1,
         }
     }
-    Ok(ImportReport {
-        pack_id,
-        roots,
-        promoted_objects,
-        present_objects,
-    })
+    Ok((promoted_objects, present_objects))
 }
 
 fn epoch_entry(record: &SchemaEpochRecordV1) -> Result<PackEpochEntry> {
@@ -976,7 +1011,7 @@ fn decode_empty_section(input: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn decode_absent_signature(input: &[u8]) -> Result<()> {
+pub(crate) fn decode_absent_signature(input: &[u8]) -> Result<()> {
     let mut reader = Reader::new(input);
     let tag = reader.read_uvar()?;
     let payload_len = reader.read_len(MAX_PACK_BYTES)?;
@@ -991,7 +1026,7 @@ fn decode_absent_signature(input: &[u8]) -> Result<()> {
     }
 }
 
-fn decode_list(input: &[u8], maximum: usize) -> Result<Vec<&[u8]>> {
+pub(crate) fn decode_list(input: &[u8], maximum: usize) -> Result<Vec<&[u8]>> {
     let mut reader = Reader::new(input);
     let count = usize::try_from(reader.read_uvar()?)
         .map_err(|_| PackError::pack(PackErrorCode::ResourceLimit))?;
@@ -1009,7 +1044,7 @@ fn decode_list(input: &[u8], maximum: usize) -> Result<Vec<&[u8]>> {
     Ok(out)
 }
 
-fn read_single_uvar(input: &[u8]) -> Result<u64> {
+pub(crate) fn read_single_uvar(input: &[u8]) -> Result<u64> {
     let mut reader = Reader::new(input);
     let value = reader.read_uvar()?;
     if !reader.is_finished() {
@@ -1018,35 +1053,35 @@ fn read_single_uvar(input: &[u8]) -> Result<u64> {
     Ok(value)
 }
 
-fn exact_array<const N: usize>(input: &[u8]) -> Result<[u8; N]> {
+pub(crate) fn exact_array<const N: usize>(input: &[u8]) -> Result<[u8; N]> {
     input
         .try_into()
         .map_err(|_| PackError::upstream(ScbErrorCode::LengthOverflow.as_str()))
 }
 
-fn scb_error(error: &ScbError) -> PackError {
+pub(crate) fn scb_error(error: &ScbError) -> PackError {
     PackError::upstream(error.code().as_str())
 }
 
-struct Reader<'a> {
+pub(crate) struct Reader<'a> {
     input: &'a [u8],
     offset: usize,
 }
 
 impl<'a> Reader<'a> {
-    const fn new(input: &'a [u8]) -> Self {
+    pub(crate) const fn new(input: &'a [u8]) -> Self {
         Self { input, offset: 0 }
     }
 
-    fn remaining(&self) -> usize {
+    pub(crate) fn remaining(&self) -> usize {
         self.input.len().saturating_sub(self.offset)
     }
 
-    fn is_finished(&self) -> bool {
+    pub(crate) fn is_finished(&self) -> bool {
         self.offset == self.input.len()
     }
 
-    fn take_exact(&mut self, count: usize) -> Result<&'a [u8]> {
+    pub(crate) fn take_exact(&mut self, count: usize) -> Result<&'a [u8]> {
         let end = self
             .offset
             .checked_add(count)
@@ -1059,11 +1094,11 @@ impl<'a> Reader<'a> {
         Ok(bytes)
     }
 
-    fn take_array<const N: usize>(&mut self) -> Result<[u8; N]> {
+    pub(crate) fn take_array<const N: usize>(&mut self) -> Result<[u8; N]> {
         exact_array(self.take_exact(N)?)
     }
 
-    fn read_len(&mut self, maximum: usize) -> Result<usize> {
+    pub(crate) fn read_len(&mut self, maximum: usize) -> Result<usize> {
         let value = self.read_uvar()?;
         let value = usize::try_from(value)
             .map_err(|_| PackError::upstream(ScbErrorCode::LengthOverflow.as_str()))?;
@@ -1073,7 +1108,7 @@ impl<'a> Reader<'a> {
         Ok(value)
     }
 
-    fn read_uvar(&mut self) -> Result<u64> {
+    pub(crate) fn read_uvar(&mut self) -> Result<u64> {
         let start = self.offset;
         let mut value = 0_u64;
         for shift in (0..70).step_by(7) {
@@ -1097,14 +1132,14 @@ impl<'a> Reader<'a> {
     }
 }
 
-struct RecordReader<'a> {
+pub(crate) struct RecordReader<'a> {
     reader: Reader<'a>,
     remaining: u64,
     previous_tag: Option<u64>,
 }
 
 impl<'a> RecordReader<'a> {
-    fn new(input: &'a [u8]) -> Result<Self> {
+    pub(crate) fn new(input: &'a [u8]) -> Result<Self> {
         let mut reader = Reader::new(input);
         let remaining = reader.read_uvar()?;
         if remaining > FIELD_COUNT.max(65_535) {
@@ -1117,7 +1152,7 @@ impl<'a> RecordReader<'a> {
         })
     }
 
-    fn required(&mut self, expected: u64) -> Result<&'a [u8]> {
+    pub(crate) fn required(&mut self, expected: u64) -> Result<&'a [u8]> {
         if self.remaining == 0 {
             return Err(PackError::upstream(ScbErrorCode::FieldMissing.as_str()));
         }
@@ -1143,7 +1178,7 @@ impl<'a> RecordReader<'a> {
         Ok(value)
     }
 
-    fn finish(self) -> Result<()> {
+    pub(crate) fn finish(self) -> Result<()> {
         if self.remaining != 0 {
             return Err(PackError::upstream(ScbErrorCode::FieldUnknown.as_str()));
         }

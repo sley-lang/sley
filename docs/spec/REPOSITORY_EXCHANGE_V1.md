@@ -1,6 +1,8 @@
 # Repository Exchange v1
 
-Status: S20-540 contract frozen at revision 6 (2026-09-03). Nabu design
+Status: S20-540 contract frozen at revision 6 (2026-09-03); revision 7 corrects the
+branch-order framing sentence to the realized single framing (see ADR-0025
+decision 10) and changes no preimage. Nabu design
 consult applied; Ariadne contract review `PASS_CONTRACT_DRAFT` on revision 6
 (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) after five
 passes; Vulcan import-surface review `PASS_CONTRACT_DRAFT` on revision 4
@@ -99,16 +101,19 @@ The payload is a closed SCB1 Record with all fields required:
 | 7 | `digest_tree` | digest-tree record below |
 | 8 | `signature_metadata` | `Option<Bytes>`; MUST be present as `Option` union tag `0` (absent value), never omitted and never tag `1` |
 
-Because `branch_entry` field 1 encodes as
-`uvar(1) || len(encode_bytes(branch_name)) || encode_bytes(branch_name)`, the
-branch order is by the varint bytes of `byte_length(encode_bytes(branch_name))`,
-then by the raw name bytes. This equals ordering by `byte_length(branch_name)`
-and then the raw name bytes only for names of at most 253 bytes; because
-S20-500 permits names up to 255 bytes, the exact order by name length is 1
-through 127, then 254, then 255, then 128 through 253. The names `b` and `aa`
-sort `b` first. This is deliberately not the raw-name order of
-`list_branches` (S20-500 section 8.3); exporters MUST re-sort into this order
-and MUST NOT sort by raw name bytes or by name length.
+A `Bytes`-typed record field is framed exactly once: the frozen SCB1
+encoder (`encode_record` with `encode_sized`), decoder, and the independent
+S20-170 Python oracle all realize SCB1 section 4 so that the field's length
+prefix is the `Bytes` length, `uvar(tag) || len(bytes) || bytes`, as the
+frozen S20-170 fixture proves for its `stored_bytes` fields. `branch_entry`
+field 1 therefore encodes as `uvar(1) || len(branch_name) || branch_name`,
+and the branch order is by the varint bytes of `byte_length(branch_name)`,
+then by the raw name bytes. For every legal name length (1 through 255) this
+is length-then-bytes order: one-byte varints (1 through 127) precede
+two-byte varints (128 through 255), whose first byte exceeds `0x7f`. The
+names `b` and `aa` sort `b` first. This is deliberately not the raw-name
+order of `list_branches` (S20-500 section 8.3); exporters MUST re-sort into
+this order and MUST NOT sort by raw name bytes alone.
 
 A receipt entry carries the declared `TransactionId`, the declared `ReceiptId`,
 and the exact stored S20-390 receipt bytes including the trailer. The stored

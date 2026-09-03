@@ -926,6 +926,7 @@ fn fail_selected_object_recovery_cut(leaf_directory: &Path) -> Result<()> {
 #[cfg(test)]
 #[rustfmt::skip]
 #[allow(unused_variables, unused_mut, unused_parens, non_snake_case, dead_code)]
+#[allow(clippy::all, clippy::pedantic)]
 mod tests {
     use super::*;
     use sley_scb1::{

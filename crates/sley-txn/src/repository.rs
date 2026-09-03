@@ -1971,9 +1971,30 @@ impl TransactionRepository {
         &self,
         receipt: &ImportedTransactionReceipt,
     ) -> Result<(), CommitError> {
+        let parent = match receipt.transaction.record.transaction_kind {
+            TransactionKind::TrustedGenesis => None,
+            TransactionKind::OrdinaryCandidate => Some(
+                self.read_receipt_readonly(receipt.transaction.record.parent_transaction_ids[0])?,
+            ),
+        };
+        verify_transaction_relationship_with_parent(receipt, parent.as_ref())
+    }
+}
+
+/// Verifies a receipt's transaction relationship against its supplied parent
+/// receipt without repository reads (S20-540 preflight; shared with the
+/// repository path).
+fn verify_transaction_relationship_with_parent(
+    receipt: &ImportedTransactionReceipt,
+    parent: Option<&ImportedTransactionReceipt>,
+) -> Result<(), CommitError> {
+    {
         let record = &receipt.transaction.record;
         match record.transaction_kind {
             TransactionKind::TrustedGenesis => {
+                if parent.is_some() {
+                    return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+                }
                 let expected =
                     derive_binding_diff(&[], &receipt.state_root.record.entity_bindings, None)?;
                 if expected != record.changed_entity_bindings {
@@ -1982,7 +2003,8 @@ impl TransactionRepository {
             }
             TransactionKind::OrdinaryCandidate => {
                 let parent_id = record.parent_transaction_ids[0];
-                let parent = self.read_receipt_readonly(parent_id)?;
+                let parent =
+                    parent.ok_or_else(|| txn_commit_error(TransactionErrorCode::ParentShape))?;
                 if parent.transaction.transaction_id != parent_id
                     || parent.state_root.root != record.parent_roots[0]
                     || parent.state_root.record.workspace_id != record.workspace_id
@@ -2016,7 +2038,58 @@ impl TransactionRepository {
         }
         Ok(())
     }
+}
 
+/// Verifies a decoded receipt against its supplied parent receipt and a set
+/// of candidate object bytes without any repository read or write (S20-540
+/// exchange preflight).
+///
+/// The check reproduces the verified revision lookup: transaction
+/// relationship against the parent, exact object identity and entity binding
+/// for every root binding, manifest lengths, and the registry-authorized
+/// state root, policy root, and tombstone inventory.
+///
+/// # Errors
+///
+/// Returns the exact `TXN_*` or SCB1 failure that the verified revision lookup
+/// would return, with `TXN_OBJECT_INVENTORY_MISMATCH` for a bound object that
+/// is absent from `objects` or that does not derive its declared identity.
+pub fn verify_receipt_against_objects(
+    receipt: &ImportedTransactionReceipt,
+    parent: Option<&ImportedTransactionReceipt>,
+    objects: &[(ObjectId, &[u8])],
+) -> Result<(), CommitError> {
+    verify_transaction_relationship_with_parent(receipt, parent)?;
+    let by_id: BTreeMap<ObjectId, &[u8]> = objects.iter().copied().collect();
+    let epoch = receipt.state_root.record.schema_epoch_id;
+    let verifier = entity_verifier(epoch);
+    let mut bound = Vec::with_capacity(receipt.state_root.record.entity_bindings.len());
+    for (entity_id, object_id) in &receipt.state_root.record.entity_bindings {
+        let bytes = by_id
+            .get(object_id)
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::ObjectInventoryMismatch))?;
+        let derived = verifier(bytes).map_err(TransactionCodecError::Scb)?;
+        let object = import_entity_object(epoch, bytes).map_err(TransactionCodecError::Scb)?;
+        if derived != *object_id
+            || object.record().entity_id != *entity_id
+            || object.object_id() != *object_id
+        {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ObjectInventoryMismatch,
+            ));
+        }
+        bound.push(object);
+    }
+    verify_manifest_lengths(&receipt.record.object_manifest, &bound)?;
+    validate_inventory(
+        &receipt.state_root,
+        &receipt.policy_root,
+        &bound,
+        &receipt.transaction.record.tombstoned_entities,
+    )
+}
+
+impl TransactionRepository {
     fn load_objects(&self, root: &AcceptedStateRoot) -> Result<Vec<EntityObject>, CommitError> {
         let verifier = entity_verifier(root.record.schema_epoch_id);
         root.record
@@ -3538,6 +3611,7 @@ fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
 #[cfg(test)]
 #[rustfmt::skip]
 #[allow(unused_variables, unused_mut, unused_parens, non_snake_case, dead_code)]
+#[allow(clippy::all, clippy::pedantic)]
 mod tests {
     use std::sync::{Arc, Barrier};
 

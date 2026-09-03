@@ -454,6 +454,17 @@ impl Drop for ExclusiveGcGuard {
     }
 }
 
+/// Fails closed with the S20-390 code `TXN_INCOMPLETE_CLONE` while the store
+/// root carries an S20-540 exchange stage marker.
+fn require_not_incomplete_clone(root: &Path) -> Result<()> {
+    if ::sley_txn::incomplete_clone_marker_present(root)
+        .map_err(|error| GcError::upstream(error.code()))?
+    {
+        return Err(GcError::upstream("TXN_INCOMPLETE_CLONE"));
+    }
+    Ok(())
+}
+
 /// Atomically acquires the local exclusive GC guard.
 ///
 /// The returned guard owns both the durable GC witness and the exclusive
@@ -492,6 +503,7 @@ fn acquire_exclusive_gc_with_maintenance(
     {
         return Err(GcError::gc(GcErrorCode::ExclusiveLockRequired));
     }
+    require_not_incomplete_clone(&store_root)?;
     let lock_dir = store_root.join(GC_LOCK_DIR);
     create_real_dir(&store_root, &lock_dir)?;
     let lock_path = lock_dir.join(GC_LOCK_FILE);
@@ -605,6 +617,7 @@ pub fn recover_gc_witness(
     maintenance: &RepositoryMaintenanceGuard,
 ) -> Result<GcWitnessRecoveryStatus> {
     let store_root = validate_gc_recovery_maintenance(store, maintenance)?;
+    require_not_incomplete_clone(&store_root)?;
     let lock_dir = store_root.join(GC_LOCK_DIR);
     ensure_real_dir(&lock_dir, GcErrorCode::ExclusiveLockRequired)?;
     let lock_path = lock_dir.join(GC_LOCK_FILE);

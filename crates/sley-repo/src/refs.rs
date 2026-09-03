@@ -29,12 +29,12 @@ const DIGEST_LEN: usize = 32;
 const MAX_BRANCH_NAME_BYTES: usize = 255;
 const MAX_BRANCH_COMPONENTS: usize = 8;
 const MAX_BRANCH_COMPONENT_BYTES: usize = 63;
-const MAX_BRANCHES: usize = 4_096;
+pub(crate) const MAX_BRANCHES: usize = 4_096;
 const MAX_BRANCH_ORIGINS: usize = 65_536;
 const MAX_ANCESTRY_NODES: usize = 65_536;
 const MAX_STAGE_ATTEMPTS: u64 = 1_024;
-const BRANCH_STAGE_PREFIX: &str = ".sley-branch-stage-";
-const REF_STAGE_PREFIX: &str = ".sley-ref-stage-";
+pub(crate) const BRANCH_STAGE_PREFIX: &str = ".sley-branch-stage-";
+pub(crate) const REF_STAGE_PREFIX: &str = ".sley-ref-stage-";
 const STAGE_SUFFIX: &str = ".tmp";
 const ORIGIN_RECOVERY_MAX_FANOUT_DIRECTORIES: u64 = 65_792;
 const ORIGIN_RECOVERY_MAX_LEAF_ENTRIES: u64 = 131_072;
@@ -942,6 +942,7 @@ impl BranchRepository {
         let name = BranchName::parse(name)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
+        self.require_not_incomplete_clone()?;
         let branch_path = ensure_key_path(&self.branches_dir(), &name, ".branch.scb1", 2, 3)?;
         let ref_path = ensure_key_path(&self.refs_dir(), &name, ".ref.scb1", 0, 0)?;
         let branch_exists = path_exists(&branch_path)?;
@@ -1178,6 +1179,7 @@ impl BranchRepository {
         let name = BranchName::parse(name)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
+        self.require_not_incomplete_clone()?;
         let current = self.resolve_locked(maintenance, &name)?;
         if current.reference.record.head_transaction_id == new_head {
             redurabilize_branch(&self.checked_branch_path(&name)?, &current.origin)?;
@@ -1300,6 +1302,7 @@ impl BranchRepository {
             );
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_refs_lock()?;
+        self.require_not_incomplete_clone()?;
 
         let mut usage = RefRecoveryUsage::default();
         let mut pending_origin_directories = vec![(self.branches_dir(), 0_usize)];
@@ -1687,7 +1690,7 @@ impl BranchRepository {
         })
     }
 
-    fn list_branches_locked(
+    pub(crate) fn list_branches_locked(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
         limit: usize,
@@ -1740,7 +1743,7 @@ impl BranchRepository {
         Ok(self.transactions.acquire_exclusive_maintenance()?)
     }
 
-    fn validate_maintenance(
+    pub(crate) fn validate_maintenance(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
     ) -> Result<(), BranchError> {
@@ -1765,13 +1768,26 @@ impl BranchRepository {
         Ok(())
     }
 
+    /// Fails closed with the S20-390 code `TXN_INCOMPLETE_CLONE` while the
+    /// repository root carries an S20-540 exchange stage marker.
+    pub(crate) fn require_not_incomplete_clone(&self) -> Result<(), BranchError> {
+        if ::sley_txn::incomplete_clone_marker_present(&self.root)
+            .map_err(BranchError::Transaction)?
+        {
+            return Err(BranchError::Transaction(CommitError::Transaction(
+                ::sley_txn::TransactionErrorCode::IncompleteClone,
+            )));
+        }
+        Ok(())
+    }
+
     #[cfg(test)]
     fn ensure_layout(&self) -> Result<(), BranchError> {
         let _maintenance = self.prepare_operation()?;
         Ok(())
     }
 
-    fn ensure_layout_under_maintenance(&self) -> Result<(), BranchError> {
+    pub(crate) fn ensure_layout_under_maintenance(&self) -> Result<(), BranchError> {
         ensure_existing_directory(&self.root)?;
         let branches = create_dir_component(&self.root, "branches", 0)?;
         create_dir_component(&branches, "v1", 1)?;
@@ -1781,7 +1797,7 @@ impl BranchRepository {
         Ok(())
     }
 
-    fn acquire_refs_lock(&self) -> Result<File, BranchError> {
+    pub(crate) fn acquire_refs_lock(&self) -> Result<File, BranchError> {
         let path = self.root.join("locks").join("refs.lock");
         reject_symlink_if_present(&path)?;
         let file = OpenOptions::new()
@@ -1823,11 +1839,11 @@ impl BranchRepository {
         key_path(&self.refs_dir(), name, ".ref.scb1")
     }
 
-    fn branches_dir(&self) -> PathBuf {
+    pub(crate) fn branches_dir(&self) -> PathBuf {
         self.root.join("branches").join("v1")
     }
 
-    fn refs_dir(&self) -> PathBuf {
+    pub(crate) fn refs_dir(&self) -> PathBuf {
         self.root.join("refs").join("v1")
     }
 
@@ -1904,7 +1920,7 @@ fn ref_record(
     }
 }
 
-fn verify_origin_target(
+pub(crate) fn verify_origin_target(
     record: &BranchRecord,
     revision: &VerifiedRevision,
 ) -> Result<(), BranchError> {
@@ -1916,7 +1932,7 @@ fn verify_origin_target(
     }
 }
 
-fn verify_ref_target(
+pub(crate) fn verify_ref_target(
     record: &BranchRefRecord,
     revision: &VerifiedRevision,
 ) -> Result<(), BranchError> {
@@ -1928,7 +1944,7 @@ fn verify_ref_target(
     }
 }
 
-fn validate_origin_ref_binding(
+pub(crate) fn validate_origin_ref_binding(
     origin: &ImportedBranchRecord,
     reference: &ImportedBranchRef,
 ) -> Result<(), BranchError> {
@@ -2205,7 +2221,7 @@ fn key_path(root: &Path, name: &BranchName, suffix: &str) -> PathBuf {
         .join(format!("{hex}{suffix}"))
 }
 
-fn ensure_key_path(
+pub(crate) fn ensure_key_path(
     root: &Path,
     name: &BranchName,
     suffix: &str,
@@ -2397,7 +2413,7 @@ fn reserve_stage(dir: &Path, prefix: &str) -> Result<(PathBuf, File), BranchErro
     Err(branch_error(BranchErrorCode::RefIo))
 }
 
-fn persist_no_overwrite<F>(
+pub(crate) fn persist_no_overwrite<F>(
     final_path: &Path,
     bytes: &[u8],
     stage_prefix: &str,
@@ -2451,7 +2467,10 @@ where
     verify(&final_bytes)
 }
 
-fn persist_expected_ref(path: &Path, expected: &ImportedBranchRef) -> Result<(), BranchError> {
+pub(crate) fn persist_expected_ref(
+    path: &Path,
+    expected: &ImportedBranchRef,
+) -> Result<(), BranchError> {
     persist_no_overwrite(
         path,
         &expected.stored_bytes,
@@ -3012,6 +3031,7 @@ fn fail_selected_ref_recovery_stage_cut(stage_path: &Path) -> Result<(), BranchE
 #[cfg(test)]
 #[rustfmt::skip]
 #[allow(unused_variables, unused_mut, unused_parens, non_snake_case, dead_code)]
+#[allow(clippy::all, clippy::pedantic)]
 mod tests {
     use std::collections::BTreeMap;
     use std::sync::{Arc, Barrier, mpsc};

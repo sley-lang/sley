@@ -107,7 +107,7 @@ fn initialize_repository_maintenance_inner(
 pub fn acquire_shared_repository_maintenance(
     root: &Path,
 ) -> io::Result<RepositoryMaintenanceGuard> {
-    acquire_repository_maintenance(root, false)
+    acquire_repository_maintenance(root, false, true)
 }
 
 /// Acquires exclusive maintenance ownership using an existing lock boundary.
@@ -118,12 +118,25 @@ pub fn acquire_shared_repository_maintenance(
 pub fn acquire_exclusive_repository_maintenance(
     root: &Path,
 ) -> io::Result<RepositoryMaintenanceGuard> {
-    acquire_repository_maintenance(root, true)
+    acquire_repository_maintenance(root, true, true)
+}
+
+/// Acquires exclusive maintenance ownership without waiting (S20-540 import).
+///
+/// # Errors
+///
+/// Returns an I/O error of kind `WouldBlock` when another owner holds the
+/// boundary, and the same errors as the blocking form otherwise.
+pub fn acquire_exclusive_repository_maintenance_nonblocking(
+    root: &Path,
+) -> io::Result<RepositoryMaintenanceGuard> {
+    acquire_repository_maintenance(root, true, false)
 }
 
 fn acquire_repository_maintenance(
     root: &Path,
     exclusive: bool,
+    wait: bool,
 ) -> io::Result<RepositoryMaintenanceGuard> {
     let repository_root = canonical_real_directory(root)?;
     let lock_directory = repository_root.join(LOCK_DIRECTORY);
@@ -139,7 +152,15 @@ fn acquire_repository_maintenance(
             "maintenance lock is not a regular file",
         ));
     }
-    if exclusive {
+    if exclusive && !wait {
+        ::std::fs::File::try_lock(&file).map_err(|error| match error {
+            ::std::fs::TryLockError::WouldBlock => ::std::io::Error::new(
+                ::std::io::ErrorKind::WouldBlock,
+                "repository maintenance boundary is held by another owner",
+            ),
+            ::std::fs::TryLockError::Error(error) => error,
+        })?;
+    } else if exclusive {
         ::std::fs::File::lock(&file)?;
     } else {
         ::std::fs::File::lock_shared(&file)?;

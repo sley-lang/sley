@@ -28,11 +28,12 @@ pub use codec::{
 };
 pub use maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
-    acquire_shared_repository_maintenance, initialize_repository_maintenance,
+    acquire_exclusive_repository_maintenance_nonblocking, acquire_shared_repository_maintenance,
+    initialize_repository_maintenance,
 };
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
     RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,
     RecoveryRevisionClaim, RecoveryWorkUsage, TransactionRepository, TrustedGenesisInput,
-    VerifiedRevision, incomplete_clone_marker_present,
+    VerifiedRevision, incomplete_clone_marker_present, verify_receipt_against_objects,
 };

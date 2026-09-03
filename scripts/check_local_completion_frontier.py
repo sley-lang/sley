@@ -95,7 +95,7 @@ def main() -> int:
             "s20_530_implementation_complete": True,
             "s20_530_final_checker_confirmed": True,
             "s20_530_aging_rule": "ADR-0024",
-            "s20_540_implementation_started": False,
+            "s20_540_implementation_started": True,
             "s20_510_blocked_by_full_s20_250": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,

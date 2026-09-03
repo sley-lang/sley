@@ -29,6 +29,30 @@ FIELD_SCHEMA_HASH = "a843405be5e34d979bb4889b0e98c152dd01f86d9c614c1afda4cf88dd8
 DECODER_LIMITS_HASH = "808eaba936f09b2a938306c538e0dff636a1a6d2617ed0b4298d929891db9d09"
 DRAFT_STATUS = "S20_540_CONTRACT_DRAFT_REVIEW_PENDING"
 FROZEN_STATUS = "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_PENDING"
+IN_PROGRESS_STATUS = "S20_540_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS"
+COMPLETE_STATUS = "S20_540_COMPLETE"
+SOURCE = ROOT / "crates/sley-repo/src/exchange.rs"
+SOURCE_MARKERS = (
+    "pub fn export_repository_exchange",
+    "pub fn import_repository_exchange",
+    'const LEAF_DOMAIN: &[u8] = b"sley2.repository-exchange-leaf.v1";',
+    "const CONTRACT_TAG: u32 = 540;",
+    "const DIGEST_DOMAIN_TAG: u32 = 19;",
+    "pub const MAX_EMBEDDED_PACK_BYTES: usize = 16_777_216;",
+    "pub const MAX_EXCHANGE_RECEIPTS: usize = 4_096;",
+    "pub const MAX_EXCHANGE_LEAVES: usize = 8_194;",
+    "Self::WorkspaceMismatch => 54_021,",
+    "fn install_stage_marker",
+    "fn verify_incomplete_clone",
+    "acquire_exclusive_repository_maintenance_nonblocking",
+)
+TXN_SOURCE = ROOT / "crates/sley-txn/src/repository.rs"
+TXN_MARKERS = (
+    "pub fn incomplete_clone_marker_present",
+    "pub fn initialize_trusted_clone_receipts_with_maintenance",
+    "pub fn initialize_trusted_clone_head_with_maintenance",
+    "pub fn verify_receipt_against_objects",
+)
 
 SPEC_MARKERS = (
     'contract_domain   = "sley2.repository-exchange.v1"',
@@ -50,7 +74,7 @@ SPEC_MARKERS = (
     "| 54020 | `EXCHANGE_ROOT_CLOSURE` |",
     "| 54021 | `EXCHANGE_WORKSPACE_MISMATCH` |",
     "`maintenance -> refs -> accepted`",
-    "1\nthrough 127, then 254, then 255, then 128 through 253",
+    "length-then-bytes order: one-byte varints (1 through 127) precede",
     "atomically rename it over `exchange/v1/<hex>.stage`",
     "`TXN_INCOMPLETE_CLONE` (`39022`",
     "code table in `ERROR_CODES_V1.md`, whose frozen range then extends to\n`39022`",
@@ -166,13 +190,24 @@ def main() -> int:
         if type(actual) is not type(value) or actual != value:
             problems.append(f"machine-summary:{key}")
     status = section.get("status")
-    if status not in (DRAFT_STATUS, FROZEN_STATUS):
+    if status not in (DRAFT_STATUS, FROZEN_STATUS, IN_PROGRESS_STATUS, COMPLETE_STATUS):
         problems.append("machine-summary:status")
     present = [
         str(path.relative_to(ROOT)) for path in IMPLEMENTATION_SURFACES if path.exists()
     ]
-    if present:
+    if status in (DRAFT_STATUS, FROZEN_STATUS) and present:
         problems.append(f"implementation-before-freeze:{present}")
+    if status in (IN_PROGRESS_STATUS, COMPLETE_STATUS):
+        source = SOURCE.read_text(encoding="utf-8") if SOURCE.is_file() else ""
+        for marker in SOURCE_MARKERS:
+            if marker not in source:
+                problems.append(f"source-marker:{marker}")
+        txn_source = TXN_SOURCE.read_text(encoding="utf-8") if TXN_SOURCE.is_file() else ""
+        for marker in TXN_MARKERS:
+            if marker not in txn_source:
+                problems.append(f"txn-source-marker:{marker}")
+        if "pub(crate) fn list_branches_locked" not in (ROOT / "crates/sley-repo/src/refs.rs").read_text(encoding="utf-8"):
+            problems.append("refs-source-marker:list_branches_locked")
 
     print(
         json.dumps(
