@@ -43,6 +43,26 @@ fn contains_float(value: &TypeExpr) -> bool {
     }
 }
 
+/// The signedness and width of an epoch-1 integer type.
+fn integer_width(value: &TypeExpr) -> Option<(bool, u16)> {
+    match value {
+        TypeExpr::SInt(width) if width.is_epoch_1() => Some((true, width.bits())),
+        TypeExpr::UInt(width) if width.is_epoch_1() => Some((false, width.bits())),
+        _ => None,
+    }
+}
+
+fn u32_type() -> TypeExpr {
+    TypeExpr::UInt(IntegerWidth::from_bits(32))
+}
+
+fn arithmetic_result(value: &TypeExpr) -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(value.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+    }
+}
+
 fn ordered(value: &TypeExpr) -> bool {
     matches!(
         value,
@@ -163,6 +183,40 @@ pub fn judge_extended_operation(
                 error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
             }
         }
+        Opcode::IntAddChecked
+        | Opcode::IntSubChecked
+        | Opcode::IntMulChecked
+        | Opcode::IntDivChecked
+        | Opcode::IntRemChecked => {
+            immediate_none(immediate)?;
+            let [left, right] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if left != right || integer_width(left).is_none() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            arithmetic_result(left)
+        }
+        Opcode::IntNegChecked => {
+            immediate_none(immediate)?;
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if !matches!(integer_width(value), Some((true, _))) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            arithmetic_result(value)
+        }
+        Opcode::IntShlChecked | Opcode::IntShrChecked => {
+            immediate_none(immediate)?;
+            let [value, amount] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if integer_width(value).is_none() || **amount != u32_type() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            arithmetic_result(value)
+        }
         Opcode::Equal | Opcode::NotEqual => {
             immediate_none(immediate)?;
             let [left, right] = operands else {
@@ -254,6 +308,192 @@ fn compare_data(left: &ConstData, right: &ConstData) -> Result<core::cmp::Orderi
         (ConstData::Bytes(a), ConstData::Bytes(b)) => a.as_slice().cmp(b.as_slice()),
         (ConstData::Text(a), ConstData::Text(b)) => a.as_bytes().cmp(b.as_bytes()),
         _ => return Err(ExtendedFault),
+    })
+}
+
+/// Arithmetic failure codes (S20-210 closed set).
+const ARITHMETIC_OVERFLOW: u16 = 1;
+const ARITHMETIC_DIVIDE_BY_ZERO: u16 = 2;
+const ARITHMETIC_INVALID_SHIFT: u16 = 3;
+
+/// One checked-integer outcome: the exact value or the arithmetic code.
+#[derive(Clone, Copy)]
+enum Checked {
+    Value(i128, u128),
+    Failure(u16),
+}
+
+fn signed_bounds(bits: u16) -> (i128, i128) {
+    if bits >= 128 {
+        (i128::MIN, i128::MAX)
+    } else {
+        let half = 1_i128 << (bits - 1);
+        (-half, half - 1)
+    }
+}
+
+fn unsigned_max(bits: u16) -> u128 {
+    if bits >= 128 {
+        u128::MAX
+    } else {
+        (1_u128 << bits) - 1
+    }
+}
+
+fn fits(signed: bool, bits: u16, signed_value: i128, unsigned_value: u128) -> bool {
+    if signed {
+        let (low, high) = signed_bounds(bits);
+        (low..=high).contains(&signed_value)
+    } else {
+        unsigned_value <= unsigned_max(bits)
+    }
+}
+
+#[allow(clippy::too_many_lines)] // one arm per checked operation of the contract table
+fn checked_integer(
+    opcode: Opcode,
+    signed: bool,
+    bits: u16,
+    operands: &[ConstValue],
+) -> Result<Checked, ExtendedFault> {
+    let read = |value: &ConstValue| -> Result<(i128, u128), ExtendedFault> {
+        match value.data {
+            ConstData::SInt(value) if signed => Ok((value, 0)),
+            ConstData::UInt(value) if !signed => Ok((0, value)),
+            _ => Err(ExtendedFault),
+        }
+    };
+    let overflow = Ok(Checked::Failure(ARITHMETIC_OVERFLOW));
+    let ranged = |signed_value: Option<i128>, unsigned_value: Option<u128>| -> Checked {
+        match (signed, signed_value, unsigned_value) {
+            (true, Some(value), _) if fits(true, bits, value, 0) => Checked::Value(value, 0),
+            (false, _, Some(value)) if fits(false, bits, 0, value) => Checked::Value(0, value),
+            _ => Checked::Failure(ARITHMETIC_OVERFLOW),
+        }
+    };
+    match opcode {
+        Opcode::IntAddChecked | Opcode::IntSubChecked | Opcode::IntMulChecked => {
+            let [left, right] = operands else {
+                return Err(ExtendedFault);
+            };
+            let (ls, lu) = read(left)?;
+            let (rs, ru) = read(right)?;
+            let (signed_value, unsigned_value) = match opcode {
+                Opcode::IntAddChecked => (ls.checked_add(rs), lu.checked_add(ru)),
+                Opcode::IntSubChecked => (ls.checked_sub(rs), lu.checked_sub(ru)),
+                _ => (ls.checked_mul(rs), lu.checked_mul(ru)),
+            };
+            Ok(ranged(signed_value, unsigned_value))
+        }
+        Opcode::IntDivChecked | Opcode::IntRemChecked => {
+            let [left, right] = operands else {
+                return Err(ExtendedFault);
+            };
+            let (ls, lu) = read(left)?;
+            let (rs, ru) = read(right)?;
+            if (signed && rs == 0) || (!signed && ru == 0) {
+                return Ok(Checked::Failure(ARITHMETIC_DIVIDE_BY_ZERO));
+            }
+            if signed && rs == -1 && ls == signed_bounds(bits).0 {
+                return overflow;
+            }
+            if signed {
+                let value = if opcode == Opcode::IntDivChecked {
+                    ls / rs
+                } else {
+                    ls % rs
+                };
+                Ok(ranged(Some(value), None))
+            } else {
+                let value = if opcode == Opcode::IntDivChecked {
+                    lu / ru
+                } else {
+                    lu % ru
+                };
+                Ok(ranged(None, Some(value)))
+            }
+        }
+        Opcode::IntNegChecked => {
+            let [value] = operands else {
+                return Err(ExtendedFault);
+            };
+            let (signed_value, _) = read(value)?;
+            if signed_value == signed_bounds(bits).0 {
+                return overflow;
+            }
+            Ok(ranged(Some(-signed_value), None))
+        }
+        Opcode::IntShlChecked | Opcode::IntShrChecked => {
+            let [value, amount] = operands else {
+                return Err(ExtendedFault);
+            };
+            let (signed_value, unsigned_value) = read(value)?;
+            let ConstData::UInt(amount) = amount.data else {
+                return Err(ExtendedFault);
+            };
+            let Some(amount) = u32::try_from(amount)
+                .ok()
+                .filter(|amount| *amount < u32::from(bits))
+            else {
+                return Ok(Checked::Failure(ARITHMETIC_INVALID_SHIFT));
+            };
+            if opcode == Opcode::IntShrChecked {
+                return Ok(if signed {
+                    Checked::Value(signed_value >> amount, 0)
+                } else {
+                    Checked::Value(0, unsigned_value >> amount)
+                });
+            }
+            // Left shift: bits shifted out must be the sign fill (signed) or
+            // zero (unsigned); the result stays within the width.
+            if signed {
+                let shifted = signed_value.checked_mul(1_i128 << amount);
+                Ok(match shifted {
+                    Some(result) if fits(true, bits, result, 0) => Checked::Value(result, 0),
+                    _ => Checked::Failure(ARITHMETIC_OVERFLOW),
+                })
+            } else {
+                let shifted = unsigned_value.checked_mul(1_u128 << amount);
+                Ok(match shifted {
+                    Some(result) if fits(false, bits, 0, result) => Checked::Value(0, result),
+                    _ => Checked::Failure(ARITHMETIC_OVERFLOW),
+                })
+            }
+        }
+        _ => Err(ExtendedFault),
+    }
+}
+
+fn arithmetic_value(
+    outcome: Checked,
+    signed: bool,
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
+    let TypeExpr::Result { ok, error } = result_type else {
+        return Err(ExtendedFault);
+    };
+    let data = match outcome {
+        Checked::Value(signed_value, unsigned_value) => {
+            ConstData::Result(ResultConst::Ok(Box::new(ConstValue {
+                value_type: ok.as_ref().clone(),
+                data: if signed {
+                    ConstData::SInt(signed_value)
+                } else {
+                    ConstData::UInt(unsigned_value)
+                },
+            })))
+        }
+        Checked::Failure(code) => ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+            value_type: error.as_ref().clone(),
+            data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                kind: BuiltinFailureKind::Arithmetic,
+                code,
+            }),
+        }))),
+    };
+    Ok(ConstValue {
+        value_type: result_type.clone(),
+        data,
     })
 }
 
@@ -354,6 +594,25 @@ pub fn execute_extended_instruction(
                     }),
                 })))),
             }
+        }
+        (
+            Opcode::IntAddChecked
+            | Opcode::IntSubChecked
+            | Opcode::IntMulChecked
+            | Opcode::IntDivChecked
+            | Opcode::IntRemChecked
+            | Opcode::IntNegChecked
+            | Opcode::IntShlChecked
+            | Opcode::IntShrChecked,
+            values,
+        ) => {
+            let (signed, bits) = integer_width(&values.first().ok_or(ExtendedFault)?.value_type)
+                .ok_or(ExtendedFault)?;
+            arithmetic_value(
+                checked_integer(opcode, signed, bits, values)?,
+                signed,
+                result_type,
+            )?
         }
         (Opcode::Equal, [left, right]) => bool_value(left == right),
         (Opcode::NotEqual, [left, right]) => bool_value(left != right),

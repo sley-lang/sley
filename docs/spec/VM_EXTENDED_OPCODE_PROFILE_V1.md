@@ -1,9 +1,9 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 2 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 3 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
 Vulcan surface review). Revision 2 records the clarifications of slice E1
-(section 7). Implementation lands in family slices E1 through E6 tracked in
+and revision 3 those of slice E2 (section 7). Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -194,3 +194,10 @@ S20-360 full operation analysis; or GA.
 - `constant_ref` reads the root's Constant inventory carried by the
   lowering input; the restricted profile ignores the new inventories.
 - The S20-290 report builder accepts `EXTENDED_V1` beside `RESTRICTED_V1`.
+- E2: `int_div_checked` truncates toward zero and `int_rem_checked` takes
+  the dividend's sign (the truncated remainder), so `rem` overflows exactly
+  when `div` overflows (signed minimum by minus one); every checked
+  operation computes in 128 bits and then checks the operand width, so a
+  narrower width overflows at its own bounds and width 128 at the native
+  ones; the shift amount is `UInt(32)` and a shift of `width` or more is
+  the invalid-shift code before any overflow check.

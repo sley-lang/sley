@@ -643,15 +643,12 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
         (
             "an opcode of a later slice",
             Fixture::new(
-                &[u64_type(), u64_type()],
+                &[TypeExpr::F64, TypeExpr::F64],
                 &[step(
-                    Opcode::IntAddChecked,
+                    Opcode::FloatAdd,
                     vec![Arg::P(0), Arg::P(1)],
                     Immediate::None,
-                    TypeExpr::Result {
-                        ok: Box::new(u64_type()),
-                        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
-                    },
+                    TypeExpr::F64,
                 )],
                 Vec::new(),
             ),
@@ -794,6 +791,243 @@ fn e1_bytecode_carries_immediates_and_executions_repeat_exactly() {
     assert!(matches!(mismatch, ExecutionError::Exec(_)));
 }
 
+fn int_type(signed: bool, bits: u16) -> TypeExpr {
+    if signed {
+        TypeExpr::SInt(IntegerWidth::from_bits(bits))
+    } else {
+        TypeExpr::UInt(IntegerWidth::from_bits(bits))
+    }
+}
+
+fn int_value(signed: bool, bits: u16, value: i128) -> ConstValue {
+    ConstValue {
+        value_type: int_type(signed, bits),
+        data: if signed {
+            ConstData::SInt(value)
+        } else {
+            ConstData::UInt(u128::try_from(value).unwrap())
+        },
+    }
+}
+
+fn arithmetic(value_type: TypeExpr) -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(value_type),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+    }
+}
+
+fn checked_fixture(opcode: Opcode, signed: bool, bits: u16) -> Fixture {
+    let value = int_type(signed, bits);
+    let operand_types: Vec<TypeExpr> = match opcode {
+        Opcode::IntNegChecked => vec![value.clone()],
+        Opcode::IntShlChecked | Opcode::IntShrChecked => vec![value.clone(), int_type(false, 32)],
+        _ => vec![value.clone(), value.clone()],
+    };
+    let operands: Vec<Arg> = (0..operand_types.len()).map(Arg::P).collect();
+    Fixture::new(
+        &operand_types,
+        &[step(opcode, operands, Immediate::None, arithmetic(value))],
+        Vec::new(),
+    )
+}
+
+/// Runs one checked operation and returns `Ok(value)` or `Err(code)`.
+fn checked(opcode: Opcode, signed: bool, bits: u16, inputs: Vec<ConstValue>) -> Result<i128, u16> {
+    let fixture = checked_fixture(opcode, signed, bits);
+    match success(&fixture, inputs).data {
+        ConstData::Result(ResultConst::Ok(value)) => match value.data {
+            ConstData::SInt(value) => Ok(value),
+            ConstData::UInt(value) => Ok(i128::try_from(value).unwrap()),
+            other => panic!("unexpected ok data {other:?}"),
+        },
+        ConstData::Result(ResultConst::Err(failure)) => match failure.data {
+            ConstData::BuiltinFailure(BuiltinFailureValue {
+                kind: BuiltinFailureKind::Arithmetic,
+                code,
+            }) => Err(code),
+            other => panic!("unexpected failure data {other:?}"),
+        },
+        other => panic!("unexpected result {other:?}"),
+    }
+}
+
+#[test]
+fn e2_checked_integers_overflow_divide_and_shift_exactly() {
+    let u8v = |value: i128| int_value(false, 8, value);
+    let i8v = |value: i128| int_value(true, 8, value);
+    let amount = |value: i128| int_value(false, 32, value);
+    assert_eq!(
+        checked(Opcode::IntAddChecked, false, 8, vec![u8v(200), u8v(55)]),
+        Ok(255)
+    );
+    assert_eq!(
+        checked(Opcode::IntAddChecked, false, 8, vec![u8v(200), u8v(56)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntSubChecked, false, 8, vec![u8v(0), u8v(1)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntSubChecked, true, 8, vec![i8v(-100), i8v(28)]),
+        Ok(-128)
+    );
+    assert_eq!(
+        checked(Opcode::IntSubChecked, true, 8, vec![i8v(-100), i8v(29)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntMulChecked, true, 8, vec![i8v(-8), i8v(16)]),
+        Ok(-128)
+    );
+    assert_eq!(
+        checked(Opcode::IntMulChecked, true, 8, vec![i8v(8), i8v(16)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntDivChecked, true, 8, vec![i8v(-7), i8v(2)]),
+        Ok(-3)
+    );
+    assert_eq!(
+        checked(Opcode::IntRemChecked, true, 8, vec![i8v(-7), i8v(2)]),
+        Ok(-1)
+    );
+    assert_eq!(
+        checked(Opcode::IntDivChecked, false, 8, vec![u8v(7), u8v(0)]),
+        Err(2)
+    );
+    assert_eq!(
+        checked(Opcode::IntRemChecked, true, 8, vec![i8v(7), i8v(0)]),
+        Err(2)
+    );
+    assert_eq!(
+        checked(Opcode::IntDivChecked, true, 8, vec![i8v(-128), i8v(-1)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntRemChecked, true, 8, vec![i8v(-128), i8v(-1)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntNegChecked, true, 8, vec![i8v(-128)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntNegChecked, true, 8, vec![i8v(127)]),
+        Ok(-127)
+    );
+    assert_eq!(
+        checked(Opcode::IntShlChecked, false, 8, vec![u8v(3), amount(2)]),
+        Ok(12)
+    );
+    assert_eq!(
+        checked(Opcode::IntShlChecked, false, 8, vec![u8v(0x80), amount(1)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntShlChecked, false, 8, vec![u8v(1), amount(8)]),
+        Err(3)
+    );
+    assert_eq!(
+        checked(Opcode::IntShlChecked, true, 8, vec![i8v(-1), amount(7)]),
+        Ok(-128)
+    );
+    assert_eq!(
+        checked(Opcode::IntShlChecked, true, 8, vec![i8v(1), amount(7)]),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntShrChecked, true, 8, vec![i8v(-8), amount(1)]),
+        Ok(-4)
+    );
+    assert_eq!(
+        checked(Opcode::IntShrChecked, false, 8, vec![u8v(0x80), amount(7)]),
+        Ok(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntShrChecked, false, 8, vec![u8v(1), amount(9)]),
+        Err(3)
+    );
+    // Width 128 uses the native bounds.
+    let big = |value: i128| int_value(true, 128, value);
+    assert_eq!(
+        checked(
+            Opcode::IntAddChecked,
+            true,
+            128,
+            vec![big(i128::MAX), big(1)]
+        ),
+        Err(1)
+    );
+    assert_eq!(
+        checked(Opcode::IntMulChecked, true, 128, vec![big(1 << 62), big(4)]),
+        Ok(1 << 64)
+    );
+    let ubig = |value: u128| ConstValue {
+        value_type: int_type(false, 128),
+        data: ConstData::UInt(value),
+    };
+    let fixture = checked_fixture(Opcode::IntAddChecked, false, 128);
+    let ConstData::Result(ResultConst::Err(_)) =
+        success(&fixture, vec![ubig(u128::MAX), ubig(1)]).data
+    else {
+        panic!("u128 overflow expected");
+    };
+    // Rejections: width mismatch, negation of an unsigned value, a signed
+    // shift amount, and a declared result that is not the arithmetic Result.
+    let mismatch = Fixture::new(
+        &[int_type(true, 32), int_type(true, 64)],
+        &[step(
+            Opcode::IntAddChecked,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            arithmetic(int_type(true, 32)),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&mismatch), LowerErrorCode::SignatureMismatch);
+    let unsigned_neg = Fixture::new(
+        &[int_type(false, 16)],
+        &[step(
+            Opcode::IntNegChecked,
+            vec![Arg::P(0)],
+            Immediate::None,
+            arithmetic(int_type(false, 16)),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&unsigned_neg),
+        LowerErrorCode::SignatureMismatch
+    );
+    let signed_amount = Fixture::new(
+        &[int_type(false, 16), int_type(true, 32)],
+        &[step(
+            Opcode::IntShlChecked,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            arithmetic(int_type(false, 16)),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&signed_amount),
+        LowerErrorCode::SignatureMismatch
+    );
+    let bare = Fixture::new(
+        &[int_type(false, 16), int_type(false, 16)],
+        &[step(
+            Opcode::IntAddChecked,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            int_type(false, 16),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&bare), LowerErrorCode::SignatureMismatch);
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -887,6 +1121,21 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
                 }],
             ),
             vec![boolean(true)],
+        ),
+        (
+            "int-add-overflow",
+            checked_fixture(Opcode::IntAddChecked, false, 8),
+            vec![int_value(false, 8, 200), int_value(false, 8, 56)],
+        ),
+        (
+            "int-div-signed-min",
+            checked_fixture(Opcode::IntDivChecked, true, 16),
+            vec![int_value(true, 16, -32_768), int_value(true, 16, -1)],
+        ),
+        (
+            "int-shl-signed",
+            checked_fixture(Opcode::IntShlChecked, true, 32),
+            vec![int_value(true, 32, -3), int_value(false, 32, 4)],
         ),
         (
             "result-err",

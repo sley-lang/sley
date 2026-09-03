@@ -1,8 +1,8 @@
 # ADR-0039: the extended opcode profile as a second, explicit VM profile
 
 Status: proposed; the S20-260/S20-270 full-profile contract is a draft at
-revision 2 with Council review pending; slice E1 implemented (2026-09-03),
-slices E2 through E6 pending
+revision 3 with Council review pending; slices E1 and E2 implemented
+(2026-09-03), slices E3 through E6 pending
 
 Date: 2026-09-03
 

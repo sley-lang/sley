@@ -44,6 +44,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 |---|---|---|---|
 | Contract draft revision 1 | `d1217ad` | green | ADR-0039, stage checker |
 | Slice E1 (data), revision 2 | `f1a5e6f` | green | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
+| Slice E2 (checked integers), revision 3 | pending | pending | `checked_integer` in `extended.rs`; 24 exact outcomes over widths 8 and 128, 4 rejections; 3 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
