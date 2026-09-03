@@ -43,3 +43,35 @@ S20-520 reviews first. This package's reviews follow.
 ## Commits
 
 - contract draft revision 1: the commit that adds this file.
+
+## Implementation under the draft (2026-09-03)
+
+The Council lanes were still unavailable, so the integrator implemented the
+full profile under contract draft revision 1 with the reviews queued:
+
+- `crates/sley-query/src/snapshot.rs`: arm `2` (`CompleteRoot`) on the
+  frozen `SLEYIDX1` record, `build_complete_root_snapshot`,
+  `admit_complete_root_snapshot`, `decode_complete_root_snapshot`, the
+  arm-aware inspector, `CacheDiscardReason::RootMismatch`, codes 30008
+  through 30010; restricted query and capsule consumers fail closed on
+  arm `2`.
+- `crates/sley-repo/src/index_cache.rs`: `index/v1/<root hex>.idx.scb1`
+  cache with `complete_root_snapshot` (hit without object access under the
+  four acceptance rules, else rebuild and rewrite) and
+  `verify_cached_snapshot`; `index` joins the incomplete-clone layout
+  allowlist.
+- Fixed vector over the frozen S20-250 fixture: 5,888 bytes, identity
+  `8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d`;
+  `conformance/complete-root-index-snapshot/v1` with six discard
+  candidates; independent oracle
+  `scripts/check_complete_root_index_snapshot_vector.py` PASS (record,
+  identity, and all six codes reproduced from the S20-250 fixture edges).
+- Persistent fuzz `fuzz/targets/complete_root_snapshot_decoder.rs`, smoke
+  PASS over 480 seeds in 11 seconds.
+- Native: `sley-query` 54 tests, `sley-repo` 344 tests; clippy clean on the
+  new paths (pre-existing exchange and GC test debt unchanged).
+- Closeout: `docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md`;
+  summary status `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`; frontier
+  re-anchored to full root-backed S20-310.
+
+Tier 2 results are appended below when the handoff gate runs.

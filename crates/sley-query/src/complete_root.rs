@@ -374,7 +374,7 @@ fn require_sorted_unique_roots(values: &[StateRoot], work: &mut u64) -> Result<(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
         ImpactEdge, ImpactKind, IndexSnapshotBuildError, IndexSnapshotErrorCode, SnapshotContext,
@@ -402,35 +402,38 @@ mod tests {
     /// Owned eighteen-kind complete root: one workspace (1) with root
     /// namespace (2), one package (3) with root namespace (4) and child
     /// namespace (5), and one entity of every other kind.
-    struct Fixture {
-        workspace: WorkspaceDefinition,
-        workspace_namespace: NamespaceDefinition,
-        package: PackageDefinition,
-        package_namespace: NamespaceDefinition,
-        child_namespace: NamespaceDefinition,
-        type_definition: TypeDefinition,
-        function: FunctionGraph,
-        parameter: Parameter,
-        block: Block,
-        entry_point: EntryPointDefinition,
-        requirement: CapabilityRequirement,
-        effect: EffectDefinition,
-        contract: ContractDefinition,
-        test: TestCaseDefinition,
-        adapter: AdapterImport,
-        policy_binding: PolicyBindingDefinition,
-        dependency_binding: DependencyBindingDefinition,
-        constant: ConstantDefinition,
-        global: GlobalValueDefinition,
-        extra_workspace: Option<WorkspaceDefinition>,
-        extra_namespaces: Vec<NamespaceDefinition>,
-        bound_entities: Vec<EntityId>,
-        entry_points: Vec<EntityId>,
-        dependency_roots: Vec<StateRoot>,
+    pub(crate) struct Fixture {
+        pub(crate) workspace: WorkspaceDefinition,
+        pub(crate) workspace_namespace: NamespaceDefinition,
+        pub(crate) package: PackageDefinition,
+        pub(crate) package_namespace: NamespaceDefinition,
+        pub(crate) child_namespace: NamespaceDefinition,
+        pub(crate) type_definition: TypeDefinition,
+        pub(crate) function: FunctionGraph,
+        pub(crate) parameter: Parameter,
+        pub(crate) block: Block,
+        pub(crate) entry_point: EntryPointDefinition,
+        pub(crate) requirement: CapabilityRequirement,
+        pub(crate) effect: EffectDefinition,
+        pub(crate) contract: ContractDefinition,
+        pub(crate) test: TestCaseDefinition,
+        pub(crate) adapter: AdapterImport,
+        pub(crate) policy_binding: PolicyBindingDefinition,
+        pub(crate) dependency_binding: DependencyBindingDefinition,
+        pub(crate) constant: ConstantDefinition,
+        pub(crate) global: GlobalValueDefinition,
+        pub(crate) extra_workspace: Option<WorkspaceDefinition>,
+        pub(crate) extra_namespaces: Vec<NamespaceDefinition>,
+        pub(crate) bound_entities: Vec<EntityId>,
+        pub(crate) entry_points: Vec<EntityId>,
+        pub(crate) dependency_roots: Vec<StateRoot>,
     }
 
+    type Rejection = Box<dyn Fn(&mut Fixture)>;
+
     impl Fixture {
-        fn new() -> Self {
+        #[allow(clippy::too_many_lines)]
+        pub(crate) fn new() -> Self {
             Self {
                 workspace: WorkspaceDefinition {
                     entity_id: id(1),
@@ -592,7 +595,7 @@ mod tests {
             }
         }
 
-        fn entities(&self) -> Vec<ImpactEntity<'_>> {
+        pub(crate) fn entities(&self) -> Vec<ImpactEntity<'_>> {
             let mut entities = vec![
                 ImpactEntity::Workspace(&self.workspace),
                 ImpactEntity::Namespace(&self.workspace_namespace),
@@ -624,7 +627,7 @@ mod tests {
             entities
         }
 
-        fn facts(&self) -> CompleteRootFacts<'_> {
+        pub(crate) fn facts(&self) -> CompleteRootFacts<'_> {
             CompleteRootFacts {
                 bound_entities: &self.bound_entities,
                 entry_points: &self.entry_points,
@@ -713,8 +716,14 @@ mod tests {
 
     #[test]
     fn six_kind_tags_and_codes_are_exact() {
-        assert_eq!(ModeledEntityKind::from_ssmc_tag(1).unwrap(), ModeledEntityKind::Workspace);
-        assert_eq!(ModeledEntityKind::from_ssmc_tag(18).unwrap(), ModeledEntityKind::DependencyBinding);
+        assert_eq!(
+            ModeledEntityKind::from_ssmc_tag(1).unwrap(),
+            ModeledEntityKind::Workspace
+        );
+        assert_eq!(
+            ModeledEntityKind::from_ssmc_tag(18).unwrap(),
+            ModeledEntityKind::DependencyBinding
+        );
         assert_eq!(
             ModeledEntityKind::from_ssmc_tag(19).unwrap_err().code(),
             ImpactErrorCode::EntityUnsupported
@@ -723,7 +732,10 @@ mod tests {
             assert_eq!(code.numeric(), 25_008 + u32::try_from(offset).unwrap());
             assert!(code.as_str().starts_with("IMPACT_"));
         }
-        assert_eq!(ImpactErrorCode::RootDependencyBindingUnowned.numeric(), 25_024);
+        assert_eq!(
+            ImpactErrorCode::RootDependencyBindingUnowned.numeric(),
+            25_024
+        );
         for kind in [
             ModeledEntityKind::Workspace,
             ModeledEntityKind::Package,
@@ -945,11 +957,19 @@ mod tests {
     }
 
     fn hex(id: EntityId) -> String {
-        id.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect()
+        hex_bytes(id.as_bytes())
     }
 
     fn hex_root(root: StateRoot) -> String {
-        root.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect()
+        hex_bytes(root.as_bytes())
+    }
+
+    fn hex_bytes(bytes: &[u8]) -> String {
+        use core::fmt::Write as _;
+        bytes.iter().fold(String::new(), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
     }
 
     fn json_ids(ids: &[EntityId]) -> String {
@@ -981,9 +1001,10 @@ mod tests {
             ),
             ImpactEntity::Namespace(value) => format!(
                 "\"parent\":{},\"members\":{}",
-                value
-                    .parent
-                    .map_or_else(|| "null".to_owned(), |parent| format!("\"{}\"", hex(parent))),
+                value.parent.map_or_else(
+                    || "null".to_owned(),
+                    |parent| format!("\"{}\"", hex(parent))
+                ),
                 json_ids(&value.members)
             ),
             ImpactEntity::TypeDef(value) => {
@@ -1083,6 +1104,7 @@ mod tests {
     /// `scripts/generate_complete_entity_impact_fixtures.py`.
     #[test]
     #[ignore = "fixture refresh emitter; run through the generator script"]
+    #[allow(clippy::too_many_lines)]
     fn emit_complete_entity_impact_vector_for_fixture_refresh() {
         let fixture = Fixture::new();
         let judged = fixture.judge().unwrap();
@@ -1110,13 +1132,30 @@ mod tests {
             judged.bound_entities(),
             json_ids(&reverse)
         );
-        let rejections: Vec<(&str, Box<dyn Fn(&mut Fixture)>)> = vec![
-            ("inventory-missing", Box::new(|f| { f.bound_entities.pop(); })),
+        let rejections: Vec<(&str, Rejection)> = vec![
+            (
+                "inventory-missing",
+                Box::new(|f| {
+                    f.bound_entities.pop();
+                }),
+            ),
             ("inventory-surplus", Box::new(|f| f.add_entity(id(40)))),
-            ("facts-not-canonical", Box::new(|f| f.bound_entities.reverse())),
-            ("exports-not-canonical", Box::new(|f| f.package.exports = vec![id(7), id(6)])),
-            ("dependency-wrong-kind", Box::new(|f| f.package.dependencies = vec![id(6)])),
-            ("subject-unresolved", Box::new(|f| f.policy_binding.subject = id(42))),
+            (
+                "facts-not-canonical",
+                Box::new(|f| f.bound_entities.reverse()),
+            ),
+            (
+                "exports-not-canonical",
+                Box::new(|f| f.package.exports = vec![id(7), id(6)]),
+            ),
+            (
+                "dependency-wrong-kind",
+                Box::new(|f| f.package.dependencies = vec![id(6)]),
+            ),
+            (
+                "subject-unresolved",
+                Box::new(|f| f.policy_binding.subject = id(42)),
+            ),
             (
                 "workspace-ambiguous",
                 Box::new(|f| {
@@ -1131,7 +1170,10 @@ mod tests {
                     f.add_entity(id(20));
                 }),
             ),
-            ("package-membership", Box::new(|f| f.workspace.packages = Vec::new())),
+            (
+                "package-membership",
+                Box::new(|f| f.workspace.packages = Vec::new()),
+            ),
             (
                 "namespace-root-parent",
                 Box::new(|f| {
@@ -1139,7 +1181,10 @@ mod tests {
                     f.package_namespace.members.insert(0, id(2));
                 }),
             ),
-            ("namespace-root-shared", Box::new(|f| f.package.root_namespace = id(2))),
+            (
+                "namespace-root-shared",
+                Box::new(|f| f.package.root_namespace = id(2)),
+            ),
             (
                 "namespace-tree-parent",
                 Box::new(|f| f.child_namespace.parent = Some(id(2))),
@@ -1169,10 +1214,22 @@ mod tests {
                 "member-forbidden-kind",
                 Box::new(|f| f.child_namespace.members = vec![id(7), id(8), id(18), id(19)]),
             ),
-            ("export-unscoped", Box::new(|f| f.package.exports = vec![id(2)])),
-            ("entry-points-mismatch", Box::new(|f| f.entry_points = Vec::new())),
-            ("dependency-roots-mismatch", Box::new(|f| f.dependency_roots = vec![root(8)])),
-            ("binding-unowned", Box::new(|f| f.package.dependencies = Vec::new())),
+            (
+                "export-unscoped",
+                Box::new(|f| f.package.exports = vec![id(2)]),
+            ),
+            (
+                "entry-points-mismatch",
+                Box::new(|f| f.entry_points = Vec::new()),
+            ),
+            (
+                "dependency-roots-mismatch",
+                Box::new(|f| f.dependency_roots = vec![root(8)]),
+            ),
+            (
+                "binding-unowned",
+                Box::new(|f| f.package.dependencies = Vec::new()),
+            ),
             (
                 "binding-outside-tree",
                 Box::new(|f| f.dependency_binding.local_namespace = id(2)),
@@ -1215,7 +1272,10 @@ mod tests {
             );
         }
         // The restricted arm itself is unchanged for kinds 4 through 15.
-        assert!(build_index_snapshot(context, &[ImpactEntity::TypeDef(&fixture.type_definition)]).is_err());
+        assert!(
+            build_index_snapshot(context, &[ImpactEntity::TypeDef(&fixture.type_definition)])
+                .is_err()
+        );
         let restricted = [
             ImpactEntity::TypeDef(&fixture.type_definition),
             ImpactEntity::Function(&fixture.function),

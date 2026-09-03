@@ -5,6 +5,7 @@ mod compare;
 mod complete_root;
 mod exchange;
 mod gc;
+mod index_cache;
 mod merge;
 mod refs;
 
@@ -12,6 +13,7 @@ pub use compare::*;
 pub use complete_root::*;
 pub use exchange::*;
 pub use gc::*;
+pub use index_cache::*;
 pub use merge::*;
 pub use refs::*;
 

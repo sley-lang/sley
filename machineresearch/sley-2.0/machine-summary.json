@@ -387,10 +387,12 @@
     "nabu_architecture_review": "PASS_RESTRICTED_CONFORMANCE_CACHE_ONLY",
     "ariadne_review": "PASS_NO_OPEN_P0_P1_P2",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "full_profile": "complete_root_index_snapshot",
+    "full_profile_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING"
   },
   "complete_root_index_snapshot": {
-    "status": "S20_300_FULL_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
@@ -405,7 +407,17 @@
     "ariadne_contract_review": "PENDING",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "implementation_complete": false,
+    "implementation": [
+      "crates/sley-query/src/snapshot.rs",
+      "crates/sley-repo/src/index_cache.rs"
+    ],
+    "fixture": "conformance/complete-root-index-snapshot/v1",
+    "oracle": "scripts/check_complete_root_index_snapshot_vector.py",
+    "persistent_fuzz_target": "fuzz/targets/complete_root_snapshot_decoder.rs",
+    "closeout": "docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md",
+    "fixed_complete_root_snapshot_id": "8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d",
+    "fixed_complete_root_record_bytes": 5888
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -1121,6 +1133,23 @@
     "vulcan_review": "PENDING",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
   },
+  "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY",
+    "target": "fuzz/targets/complete_root_snapshot_decoder.rs",
+    "runner": "scripts/run_complete_root_snapshot_persistent_fuzz.py",
+    "checker": "scripts/check_complete_root_snapshot_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 2,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/complete-root-index-snapshot/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-complete-root-snapshot-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-complete-root-snapshot-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_complete_root_snapshot_persistent_fuzz.py --manual",
+    "outer_trailer_rehash_lane": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md"
+  },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
     "targets": [
@@ -1508,8 +1537,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
     "master_required_surface_count": 11,
-    "scoped_target_count": 15,
-    "scoped_landed_surface_count": 16,
+    "scoped_target_count": 16,
+    "scoped_landed_surface_count": 17,
     "remaining_required_surface_count": 0,
     "remaining_required_surfaces": [],
     "mutation_candidate_production_boundary": true,
@@ -1531,13 +1560,14 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
+    "next_dependency_complete_package": "S20-310-FULL-ROOT-BACKED-QUERIES",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
     "semantic_delta_decoder_persistent_fuzz_target": true,
     "merge_engine_persistent_fuzz_target": true,
-    "merge_engine_reviews": "S20-520 Council reviews pending"
+    "merge_engine_reviews": "S20-520 Council reviews pending",
+    "complete_root_snapshot_decoder_persistent_fuzz_target": true
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -1661,9 +1691,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_520_IMPLEMENTED_REVIEWS_PENDING_S20_300_FULL_NEXT",
+    "status": "S20_300_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_310_FULL_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
+    "next_authority_safe_package": "S20-310-FULL-ROOT-BACKED-QUERIES",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1714,7 +1744,8 @@
     "s20_540_complete": true,
     "s20_250_full_implemented": true,
     "s20_510_implemented": true,
-    "s20_520_implemented": true
+    "s20_520_implemented": true,
+    "s20_300_full_implemented": true
   },
   "succession": {
     "corpus_version": 1,

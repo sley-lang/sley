@@ -68,7 +68,7 @@ const STAGE_TEMPORARY_SUFFIX: &str = ".stage.tmp";
 const RECEIPT_SUFFIX: &str = ".receipt.scb1";
 /// The only root entries an incomplete clone may carry besides the exchange
 /// directory: the S20-390, S20-500, and S20-180 owned layout.
-const REPOSITORY_LAYOUT_ENTRIES: [&str; 7] = [
+const REPOSITORY_LAYOUT_ENTRIES: [&str; 8] = [
     EXCHANGE_DIRECTORY,
     "objects",
     "transactions",
@@ -76,6 +76,7 @@ const REPOSITORY_LAYOUT_ENTRIES: [&str; 7] = [
     "locks",
     "branches",
     "refs",
+    "index",
 ];
 const ORIGIN_SUFFIX: &str = ".branch.scb1";
 const REF_SUFFIX: &str = ".ref.scb1";
@@ -2401,6 +2402,28 @@ pub(crate) mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code(), "EXCHANGE_TARGET_INCOMPLETE_MISMATCH");
+    }
+
+    #[test]
+    fn an_incomplete_clone_carrying_an_index_directory_still_resumes() {
+        let source = Source::new("index-layout");
+        let exchange = source.export();
+        let target = source.target("clone");
+        mark(&target, exchange.exchange_id);
+        let index = target.join("index").join("v1");
+        fs::create_dir_all(&index).unwrap();
+        fs::write(index.join("stale.idx.scb1"), b"derived and disposable").unwrap();
+        import_repository_exchange(&target, &exchange.stored_bytes, &verifier(source.epoch))
+            .unwrap();
+        assert!(index.join("stale.idx.scb1").is_file());
+
+        let stray = source.target("stray");
+        mark(&stray, exchange.exchange_id);
+        fs::create_dir_all(stray.join("cache")).unwrap();
+        let error =
+            import_repository_exchange(&stray, &exchange.stored_bytes, &verifier(source.epoch))
+                .unwrap_err();
+        assert_eq!(error.code(), "EXCHANGE_TARGET_NOT_EMPTY");
     }
 
     #[test]

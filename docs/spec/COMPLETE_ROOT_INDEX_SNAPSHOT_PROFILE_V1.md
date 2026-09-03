@@ -1,9 +1,10 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 1 (2026-09-03); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+Status: S20-300 full contract draft, revision 1 (2026-09-03); implemented
+under this draft with Council review pending (Ariadne contract review, Nabu
+architecture review, Vulcan surface review), so the contract is not frozen
+and the package is not complete. Implementation state is tracked in the
+machine summary.
 
 This profile completes S20-300. It adds the complete-root completeness arm
 to the frozen `SLEYIDX1` record, binds every complete-root snapshot to the

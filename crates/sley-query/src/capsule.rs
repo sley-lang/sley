@@ -501,6 +501,7 @@ fn encode_limits(
 const fn completeness_tag(value: IndexCompleteness) -> u32 {
     match value {
         IndexCompleteness::RestrictedModeledKinds4To15Only => INDEX_COMPLETENESS_RESTRICTED,
+        IndexCompleteness::CompleteRoot => value.tag(),
     }
 }
 

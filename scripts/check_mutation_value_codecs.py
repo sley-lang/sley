@@ -386,7 +386,7 @@ def check_partial_fixtures() -> None:
             raise SystemExit(f"partial mutation adversarial summary drift: {key}")
     dossier = ADVERSARIAL_DOSSIER.read_text(encoding="utf-8")
     for marker in (
-        "Status: bounded partial S20-700 evidence with fifteen scoped persistent libFuzzer",
+        "Status: bounded partial S20-700 evidence with sixteen scoped persistent libFuzzer",
         "scoped persistent libFuzzer",
         "all 126 accepted fixtures seed 252 trailing-byte and",
         "446 distinct proper-prefix cases, for 698 deterministic derived mutations",

@@ -47,7 +47,10 @@ S20-250 bodies (`e78a1ab`), all three under draft contracts awaiting Council
 reviews and contract freeze. S20-530 crash recovery is complete
 (`docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md`, aging under ADR-0024);
 S20-540 pack exchange is complete
-(`docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`). Now
+(`docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`);
+the full S20-300 complete-root snapshot is implemented
+(`docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md`) under its draft
+contract with reviews pending. Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5

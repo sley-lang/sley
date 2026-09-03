@@ -1,7 +1,8 @@
 # ADR-0029: Complete-root index snapshot and cache reuse boundary
 
 Status: proposed; the S20-300 full contract is a draft at revision 1 with
-Council review pending; implementation pending
+Council review pending; implemented under the draft
+(`docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md`)
 
 Date: 2026-09-03
 

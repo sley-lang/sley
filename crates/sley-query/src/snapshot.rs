@@ -7,8 +7,8 @@ use sley_id::{EntityId, IndexSnapshotId, SchemaEpochId, StateRoot};
 use sley_ssmc::fingerprint::SSMC1_FIELD_SCHEMA_HASH;
 
 use crate::{
-    ImpactEdge, ImpactEntity, ImpactError, ImpactIndex, ImpactKind, MAX_IMPACT_ENTITIES,
-    ModeledEntityKind,
+    CompleteRootFacts, ImpactEdge, ImpactEntity, ImpactError, ImpactIndex, ImpactKind,
+    MAX_IMPACT_ENTITIES, ModeledEntityKind, judge_complete_root,
 };
 
 const MAGIC: &[u8; 8] = b"SLEYIDX1";
@@ -16,6 +16,7 @@ const FORMAT_VERSION: u32 = 1;
 const PROFILE_VERSION: u32 = 1;
 const LIMITS_PROFILE: u32 = 1;
 const COMPLETENESS_RESTRICTED: u32 = 1;
+const COMPLETENESS_COMPLETE_ROOT: u32 = 2;
 const OPTION_NONE: u32 = 1;
 const OPTION_SOME: u32 = 2;
 const TRAILER_BYTES: usize = 32;
@@ -50,6 +51,12 @@ pub enum IndexSnapshotErrorCode {
     ResourceLimit,
     /// `INDEX_SNAPSHOT_INTERNAL_INVARIANT`.
     InternalInvariant,
+    /// `INDEX_SNAPSHOT_ROOT_INCOMPLETE` (S20-300 full).
+    RootIncomplete,
+    /// `INDEX_SNAPSHOT_ROOT_MISMATCH` (S20-300 full).
+    RootMismatch,
+    /// `INDEX_SNAPSHOT_IO` (S20-300 full).
+    RootIo,
 }
 
 impl IndexSnapshotErrorCode {
@@ -65,6 +72,9 @@ impl IndexSnapshotErrorCode {
             Self::CompletenessUnsupported => "INDEX_SNAPSHOT_COMPLETENESS_UNSUPPORTED",
             Self::ResourceLimit => "INDEX_SNAPSHOT_RESOURCE_LIMIT",
             Self::InternalInvariant => "INDEX_SNAPSHOT_INTERNAL_INVARIANT",
+            Self::RootIncomplete => "INDEX_SNAPSHOT_ROOT_INCOMPLETE",
+            Self::RootMismatch => "INDEX_SNAPSHOT_ROOT_MISMATCH",
+            Self::RootIo => "INDEX_SNAPSHOT_IO",
         }
     }
 
@@ -80,6 +90,9 @@ impl IndexSnapshotErrorCode {
             Self::CompletenessUnsupported => 30_005,
             Self::ResourceLimit => 30_006,
             Self::InternalInvariant => 30_007,
+            Self::RootIncomplete => 30_008,
+            Self::RootMismatch => 30_009,
+            Self::RootIo => 30_010,
         }
     }
 }
@@ -162,6 +175,19 @@ pub struct SnapshotContext {
 pub enum IndexCompleteness {
     /// Only SSMC kinds 4 through 15 are represented.
     RestrictedModeledKinds4To15Only,
+    /// Every entity bound by the exact context root (S20-300 full arm 2).
+    CompleteRoot,
+}
+
+impl IndexCompleteness {
+    /// Returns the frozen arm tag.
+    #[must_use]
+    pub const fn tag(self) -> u32 {
+        match self {
+            Self::RestrictedModeledKinds4To15Only => COMPLETENESS_RESTRICTED,
+            Self::CompleteRoot => COMPLETENESS_COMPLETE_ROOT,
+        }
+    }
 }
 
 /// One canonical modeled-entity inventory entry.
@@ -262,6 +288,8 @@ pub enum CacheDiscardReason {
     DigestMismatch,
     /// Candidate claimed an unsupported completeness arm.
     CompletenessUnsupported,
+    /// Candidate inventory differs from the root's bindings (arm 2).
+    RootMismatch,
     /// Candidate exceeded a bounded decode limit.
     ResourceLimit,
     /// Candidate was valid but did not equal the fresh rebuild.
@@ -305,6 +333,21 @@ pub fn build_index_snapshot(
         return snapshot_fail(IndexSnapshotErrorCode::ResourceLimit).map_err(Into::into);
     }
 
+    finish_snapshot(
+        context,
+        IndexCompleteness::RestrictedModeledKinds4To15Only,
+        entities,
+        &index,
+    )
+    .map_err(Into::into)
+}
+
+fn finish_snapshot(
+    context: SnapshotContext,
+    completeness: IndexCompleteness,
+    entities: &[ImpactEntity<'_>],
+    index: &ImpactIndex,
+) -> Result<IndexSnapshot, IndexSnapshotError> {
     let inventory: Vec<_> = entities
         .iter()
         .map(|entity| IndexInventoryEntry {
@@ -317,6 +360,7 @@ pub fn build_index_snapshot(
     let mut work = 0_u64;
     let mut record = encode_preimage(
         context,
+        completeness,
         &inventory,
         &direct_edges,
         &reverse_groups,
@@ -325,16 +369,111 @@ pub fn build_index_snapshot(
     let snapshot_id = IndexSnapshotId::derive(&record);
     append(&mut record, snapshot_id.as_bytes(), &mut work)?;
     if u64::try_from(record.len()).map_or(true, |len| len > MAX_SNAPSHOT_RECORD_BYTES) {
-        return snapshot_fail(IndexSnapshotErrorCode::ResourceLimit).map_err(Into::into);
+        return snapshot_fail(IndexSnapshotErrorCode::ResourceLimit);
     }
     Ok(IndexSnapshot {
         snapshot_id,
         context,
-        completeness: IndexCompleteness::RestrictedModeledKinds4To15Only,
+        completeness,
         inventory,
         direct_edges,
         reverse_groups,
         record,
+    })
+}
+
+/// Builds a fresh complete-root snapshot (arm 2) bound to `root` from the
+/// S20-250 full complete-root request.
+///
+/// # Errors
+///
+/// Preserves the first `IMPACT_*` failure (`INDEX_SNAPSHOT_ROOT_INCOMPLETE`)
+/// or returns a bounded projection/encoding error.
+pub fn build_complete_root_snapshot(
+    schema_epoch: SchemaEpochId,
+    root: StateRoot,
+    entities: &[ImpactEntity<'_>],
+    facts: CompleteRootFacts<'_>,
+) -> Result<IndexSnapshot, IndexSnapshotBuildError> {
+    let judged = judge_complete_root(entities, facts)?;
+    if judged.index().direct_edges().len() > MAX_SNAPSHOT_EDGES {
+        return snapshot_fail(IndexSnapshotErrorCode::ResourceLimit).map_err(Into::into);
+    }
+    let context = SnapshotContext {
+        schema_epoch,
+        claimed_root_context: Some(root),
+    };
+    finish_snapshot(
+        context,
+        IndexCompleteness::CompleteRoot,
+        entities,
+        judged.index(),
+    )
+    .map_err(Into::into)
+}
+
+/// Admits candidate bytes for a complete root only after a fresh rebuild.
+///
+/// # Errors
+///
+/// Returns only fresh-build failures. Candidate failures are discard outcomes.
+pub fn admit_complete_root_snapshot(
+    schema_epoch: SchemaEpochId,
+    root: StateRoot,
+    entities: &[ImpactEntity<'_>],
+    facts: CompleteRootFacts<'_>,
+    candidate: Option<&[u8]>,
+) -> Result<CacheAdmission, IndexSnapshotBuildError> {
+    let fresh = build_complete_root_snapshot(schema_epoch, root, entities, facts)?;
+    let Some(candidate) = candidate else {
+        return Ok(CacheAdmission::Rebuilt {
+            reason: CacheDiscardReason::Missing,
+            snapshot: fresh,
+        });
+    };
+    if let Err(error) =
+        inspect_candidate_for_arm(fresh.context(), IndexCompleteness::CompleteRoot, candidate)
+    {
+        return Ok(CacheAdmission::Rebuilt {
+            reason: discard_reason(error.code()),
+            snapshot: fresh,
+        });
+    }
+    if candidate != fresh.record() {
+        return Ok(CacheAdmission::Rebuilt {
+            reason: CacheDiscardReason::ContentMismatch,
+            snapshot: fresh,
+        });
+    }
+    Ok(CacheAdmission::Hit(fresh))
+}
+
+/// Decodes an arm-2 record into a snapshot under the expected context without
+/// any object or root access (the repository index cache's hit path).
+///
+/// # Errors
+///
+/// Returns the exact bounded-inspection failure.
+pub fn decode_complete_root_snapshot(
+    context: SnapshotContext,
+    record: &[u8],
+) -> Result<IndexSnapshot, IndexSnapshotError> {
+    if context.claimed_root_context.is_none() {
+        return snapshot_fail(IndexSnapshotErrorCode::ContextMismatch);
+    }
+    let decoded = inspect_candidate_for_arm(context, IndexCompleteness::CompleteRoot, record)?;
+    Ok(IndexSnapshot {
+        snapshot_id: IndexSnapshotId::from_bytes(
+            record[record.len() - TRAILER_BYTES..]
+                .try_into()
+                .map_err(|_| IndexSnapshotError::new(IndexSnapshotErrorCode::FormatInvalid))?,
+        ),
+        context,
+        completeness: IndexCompleteness::CompleteRoot,
+        inventory: decoded.inventory,
+        direct_edges: decoded.direct,
+        reverse_groups: decoded.reverse,
+        record: record.to_vec(),
     })
 }
 
@@ -395,6 +534,7 @@ fn invert_edges(direct: &[ImpactEdge]) -> Result<Vec<ReverseGroup>, IndexSnapsho
 
 fn encode_preimage(
     context: SnapshotContext,
+    completeness: IndexCompleteness,
     inventory: &[IndexInventoryEntry],
     direct: &[ImpactEdge],
     reverse: &[ReverseGroup],
@@ -414,7 +554,7 @@ fn encode_preimage(
             append(&mut out, root.as_bytes(), work)?;
         }
     }
-    push_u32(&mut out, COMPLETENESS_RESTRICTED, work)?;
+    push_u32(&mut out, completeness.tag(), work)?;
     push_u64(&mut out, to_u64(inventory.len())?, work)?;
     for entry in inventory {
         charge(work, 1)?;
@@ -450,11 +590,30 @@ fn encode_preimage(
     Ok(out)
 }
 
-#[allow(clippy::too_many_lines)]
+struct DecodedCandidate {
+    inventory: Vec<IndexInventoryEntry>,
+    direct: Vec<ImpactEdge>,
+    reverse: Vec<ReverseGroup>,
+}
+
+/// Bounded inspection of a restricted arm-1 candidate.
 fn inspect_candidate(
     expected_context: SnapshotContext,
     record: &[u8],
-) -> Result<(), IndexSnapshotError> {
+) -> Result<DecodedCandidate, IndexSnapshotError> {
+    inspect_candidate_for_arm(
+        expected_context,
+        IndexCompleteness::RestrictedModeledKinds4To15Only,
+        record,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn inspect_candidate_for_arm(
+    expected_context: SnapshotContext,
+    expected_completeness: IndexCompleteness,
+    record: &[u8],
+) -> Result<DecodedCandidate, IndexSnapshotError> {
     if record.len() < MIN_RECORD_BYTES {
         return snapshot_fail(IndexSnapshotErrorCode::FormatInvalid);
     }
@@ -490,21 +649,30 @@ fn inspect_candidate(
     {
         return snapshot_fail(IndexSnapshotErrorCode::ContextMismatch);
     }
-    if cursor.u32()? != COMPLETENESS_RESTRICTED {
+    let completeness = match cursor.u32()? {
+        COMPLETENESS_RESTRICTED => IndexCompleteness::RestrictedModeledKinds4To15Only,
+        COMPLETENESS_COMPLETE_ROOT => IndexCompleteness::CompleteRoot,
+        _ => return snapshot_fail(IndexSnapshotErrorCode::CompletenessUnsupported),
+    };
+    if completeness != expected_completeness {
         return snapshot_fail(IndexSnapshotErrorCode::CompletenessUnsupported);
+    }
+    if completeness == IndexCompleteness::CompleteRoot && claimed_root_context.is_none() {
+        return snapshot_fail(IndexSnapshotErrorCode::FormatInvalid);
     }
 
     let inventory_count = cursor.bounded_count(MAX_IMPACT_ENTITIES, INVENTORY_ENTRY_BYTES)?;
     let mut inventory = BTreeSet::new();
+    let mut entries = Vec::with_capacity(inventory_count);
     let mut prior = None;
     for _ in 0..inventory_count {
         let entity = EntityId::from_bytes(cursor.fixed::<32>()?);
-        let kind = modeled_kind(cursor.u32()?)?;
+        let kind = modeled_kind(cursor.u32()?, completeness)?;
         if prior.is_some_and(|value| value >= entity) || !inventory.insert(entity) {
             return snapshot_fail(IndexSnapshotErrorCode::FormatInvalid);
         }
         prior = Some(entity);
-        let _ = kind;
+        entries.push(IndexInventoryEntry { entity, kind });
     }
 
     let direct_count = cursor.bounded_count(MAX_SNAPSHOT_EDGES, DIRECT_EDGE_BYTES)?;
@@ -576,10 +744,21 @@ fn inspect_candidate(
     if IndexSnapshotId::derive(preimage).as_bytes() != trailer {
         return snapshot_fail(IndexSnapshotErrorCode::DigestMismatch);
     }
-    Ok(())
+    Ok(DecodedCandidate {
+        inventory: entries,
+        direct,
+        reverse: decoded_reverse,
+    })
 }
 
-fn modeled_kind(tag: u32) -> Result<ModeledEntityKind, IndexSnapshotError> {
+fn modeled_kind(
+    tag: u32,
+    completeness: IndexCompleteness,
+) -> Result<ModeledEntityKind, IndexSnapshotError> {
+    if completeness == IndexCompleteness::CompleteRoot {
+        return ModeledEntityKind::from_ssmc_tag(tag)
+            .map_err(|_| IndexSnapshotError::new(IndexSnapshotErrorCode::FormatInvalid));
+    }
     match tag {
         4 => Ok(ModeledEntityKind::TypeDef),
         5 => Ok(ModeledEntityKind::Function),
@@ -620,15 +799,17 @@ fn discard_reason(code: IndexSnapshotErrorCode) -> CacheDiscardReason {
         IndexSnapshotErrorCode::ProfileUnsupported | IndexSnapshotErrorCode::VersionUnsupported => {
             CacheDiscardReason::VersionUnsupported
         }
-        IndexSnapshotErrorCode::FormatInvalid | IndexSnapshotErrorCode::InternalInvariant => {
-            CacheDiscardReason::FormatInvalid
-        }
+        IndexSnapshotErrorCode::FormatInvalid
+        | IndexSnapshotErrorCode::InternalInvariant
+        | IndexSnapshotErrorCode::RootIncomplete
+        | IndexSnapshotErrorCode::RootIo => CacheDiscardReason::FormatInvalid,
         IndexSnapshotErrorCode::ContextMismatch => CacheDiscardReason::ContextMismatch,
         IndexSnapshotErrorCode::DigestMismatch => CacheDiscardReason::DigestMismatch,
         IndexSnapshotErrorCode::CompletenessUnsupported => {
             CacheDiscardReason::CompletenessUnsupported
         }
         IndexSnapshotErrorCode::ResourceLimit => CacheDiscardReason::ResourceLimit,
+        IndexSnapshotErrorCode::RootMismatch => CacheDiscardReason::RootMismatch,
     }
 }
 
@@ -853,6 +1034,9 @@ mod tests {
             IndexSnapshotErrorCode::CompletenessUnsupported,
             IndexSnapshotErrorCode::ResourceLimit,
             IndexSnapshotErrorCode::InternalInvariant,
+            IndexSnapshotErrorCode::RootIncomplete,
+            IndexSnapshotErrorCode::RootMismatch,
+            IndexSnapshotErrorCode::RootIo,
         ];
         for (offset, code) in codes.into_iter().enumerate() {
             assert_eq!(code.numeric(), 30_000 + u32::try_from(offset).unwrap());
@@ -1110,5 +1294,280 @@ mod tests {
             rebuilt_reason(admit_index_snapshot(context(), &entities, Some(&oversized)).unwrap()),
             CacheDiscardReason::ResourceLimit
         );
+    }
+    // ---- S20-300 full: complete-root arm ----
+
+    fn complete_fixture() -> crate::complete_root::tests::Fixture {
+        crate::complete_root::tests::Fixture::new()
+    }
+
+    fn complete_root() -> StateRoot {
+        StateRoot::from_bytes([0x33; 32])
+    }
+
+    fn complete_epoch() -> SchemaEpochId {
+        SchemaEpochId::from_bytes([0x11; 32])
+    }
+
+    #[test]
+    fn complete_root_arm_has_a_fixed_vector_and_differs_from_the_restricted_arm() {
+        let fixture = complete_fixture();
+        let entities = fixture.entities();
+        let snapshot = build_complete_root_snapshot(
+            complete_epoch(),
+            complete_root(),
+            &entities,
+            fixture.facts(),
+        )
+        .unwrap();
+        assert_eq!(snapshot.completeness(), IndexCompleteness::CompleteRoot);
+        assert_eq!(
+            snapshot.context().claimed_root_context,
+            Some(complete_root())
+        );
+        assert_eq!(snapshot.inventory().len(), 19);
+        assert_eq!(snapshot.record().len(), 5888);
+        assert_eq!(
+            hex(snapshot.snapshot_id().as_bytes()),
+            "8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d"
+        );
+        for _ in 0..128 {
+            let again = build_complete_root_snapshot(
+                complete_epoch(),
+                complete_root(),
+                &entities,
+                fixture.facts(),
+            )
+            .unwrap();
+            assert_eq!(again, snapshot);
+        }
+        let other_root = build_complete_root_snapshot(
+            complete_epoch(),
+            StateRoot::from_bytes([0x34; 32]),
+            &entities,
+            fixture.facts(),
+        )
+        .unwrap();
+        assert_ne!(other_root.snapshot_id(), snapshot.snapshot_id());
+        assert_eq!(
+            decode_complete_root_snapshot(snapshot.context(), snapshot.record()).unwrap(),
+            snapshot
+        );
+        assert_eq!(
+            decode_complete_root_snapshot(
+                SnapshotContext {
+                    schema_epoch: complete_epoch(),
+                    claimed_root_context: None,
+                },
+                snapshot.record(),
+            )
+            .unwrap_err()
+            .code(),
+            IndexSnapshotErrorCode::ContextMismatch
+        );
+        // An arm-2 record is never accepted where arm 1 is expected.
+        let restricted_context = SnapshotContext {
+            schema_epoch: complete_epoch(),
+            claimed_root_context: Some(complete_root()),
+        };
+        let restricted = build_index_snapshot(restricted_context, &[]).unwrap();
+        assert_eq!(
+            rebuilt_reason(
+                admit_index_snapshot(restricted_context, &[], Some(snapshot.record())).unwrap()
+            ),
+            CacheDiscardReason::CompletenessUnsupported
+        );
+        assert_ne!(restricted.snapshot_id(), snapshot.snapshot_id());
+    }
+
+    #[test]
+    fn complete_root_build_preserves_impact_failures_and_restricted_queries_reject_the_arm() {
+        let mut fixture = complete_fixture();
+        fixture.bound_entities.pop();
+        let entities = fixture.entities();
+        let error = build_complete_root_snapshot(
+            complete_epoch(),
+            complete_root(),
+            &entities,
+            fixture.facts(),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            IndexSnapshotBuildError::Impact(ref impact)
+                if impact.code() == crate::ImpactErrorCode::RootInventoryMismatch
+        ));
+        let fixture = complete_fixture();
+        let entities = fixture.entities();
+        let snapshot = build_complete_root_snapshot(
+            complete_epoch(),
+            complete_root(),
+            &entities,
+            fixture.facts(),
+        )
+        .unwrap();
+        let error = crate::build_restricted_query_request(
+            &snapshot,
+            crate::RestrictedQuery::GetModeledEntityKind {
+                entity: EntityId::from_bytes([6; 32]),
+            },
+            crate::QueryLimits::profile_maximum(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), crate::QueryErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn complete_root_admission_discards_every_candidate_defect() {
+        let fixture = complete_fixture();
+        let entities = fixture.entities();
+        let facts = fixture.facts();
+        let fresh =
+            build_complete_root_snapshot(complete_epoch(), complete_root(), &entities, facts)
+                .unwrap();
+        let admit = |candidate: Option<&[u8]>| {
+            admit_complete_root_snapshot(
+                complete_epoch(),
+                complete_root(),
+                &entities,
+                facts,
+                candidate,
+            )
+            .unwrap()
+        };
+        assert!(matches!(
+            admit(Some(fresh.record())),
+            CacheAdmission::Hit(_)
+        ));
+        assert_eq!(rebuilt_reason(admit(None)), CacheDiscardReason::Missing);
+        let mut digest = fresh.record().to_vec();
+        let last = digest.len() - 1;
+        digest[last] ^= 1;
+        assert_eq!(
+            rebuilt_reason(admit(Some(&digest))),
+            CacheDiscardReason::DigestMismatch
+        );
+        let mut version = fresh.record().to_vec();
+        version[11] = 2;
+        assert_eq!(
+            rebuilt_reason(admit(Some(&version))),
+            CacheDiscardReason::VersionUnsupported
+        );
+        let other = build_complete_root_snapshot(
+            complete_epoch(),
+            StateRoot::from_bytes([0x34; 32]),
+            &entities,
+            facts,
+        )
+        .unwrap();
+        assert_eq!(
+            rebuilt_reason(admit(Some(other.record()))),
+            CacheDiscardReason::ContextMismatch
+        );
+        let restricted = build_index_snapshot(
+            SnapshotContext {
+                schema_epoch: complete_epoch(),
+                claimed_root_context: Some(complete_root()),
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            rebuilt_reason(admit(Some(restricted.record()))),
+            CacheDiscardReason::CompletenessUnsupported
+        );
+        assert_eq!(
+            rebuilt_reason(admit(Some(b"garbage"))),
+            CacheDiscardReason::FormatInvalid
+        );
+        let huge = vec![0_u8; usize::try_from(MAX_SNAPSHOT_RECORD_BYTES).unwrap() + 1];
+        assert_eq!(
+            rebuilt_reason(admit(Some(&huge))),
+            CacheDiscardReason::ResourceLimit
+        );
+        // Same context and arm, different content: a rebuilt fixture whose
+        // policy binding lost its requirement.
+        let mut changed = complete_fixture();
+        changed.policy_binding.requirements = Vec::new();
+        let changed_entities = changed.entities();
+        let content = build_complete_root_snapshot(
+            complete_epoch(),
+            complete_root(),
+            &changed_entities,
+            changed.facts(),
+        )
+        .unwrap();
+        assert_eq!(
+            rebuilt_reason(admit(Some(content.record()))),
+            CacheDiscardReason::ContentMismatch
+        );
+    }
+
+    /// Emits the frozen complete-root snapshot vector for
+    /// `scripts/generate_complete_root_index_snapshot_fixtures.py`.
+    #[test]
+    #[ignore = "fixture refresh emitter; run through the generator script"]
+    fn emit_complete_root_snapshot_vector_for_fixture_refresh() {
+        let fixture = complete_fixture();
+        let entities = fixture.entities();
+        let snapshot = build_complete_root_snapshot(
+            complete_epoch(),
+            complete_root(),
+            &entities,
+            fixture.facts(),
+        )
+        .unwrap();
+        println!(
+            "COMPLETE_ROOT_SNAPSHOT_VECTOR|{}|{}|{}|{}|{}",
+            hex(snapshot.record()),
+            hex(snapshot.snapshot_id().as_bytes()),
+            hex(complete_root().as_bytes()),
+            hex(complete_epoch().as_bytes()),
+            snapshot.inventory().len()
+        );
+        let facts = fixture.facts();
+        let mut digest = snapshot.record().to_vec();
+        let last = digest.len() - 1;
+        digest[last] ^= 1;
+        let mut version = snapshot.record().to_vec();
+        version[11] = 2;
+        let mut arm = snapshot.record().to_vec();
+        let arm_offset = 8 + 4 + 4 + 32 + 32 + 4 + 4 + 32;
+        arm[arm_offset + 3] = 1;
+        let other_root = build_complete_root_snapshot(
+            complete_epoch(),
+            StateRoot::from_bytes([0x34; 32]),
+            &entities,
+            facts,
+        )
+        .unwrap();
+        let mut rootless = snapshot.record()[..8 + 4 + 4 + 32 + 32 + 4].to_vec();
+        rootless.extend_from_slice(&[0, 0, 0, 1]);
+        rootless.extend_from_slice(&snapshot.record()[8 + 4 + 4 + 32 + 32 + 4 + 4 + 32..]);
+        let truncated = snapshot.record()[..snapshot.record().len() - 40].to_vec();
+        let candidates: [(&str, Vec<u8>); 6] = [
+            ("digest-trailer-bit", digest),
+            ("format-version-two", version),
+            ("restricted-arm-tag", arm),
+            ("other-root-context", other_root.record().to_vec()),
+            ("rootless-context", rootless),
+            ("truncated-record", truncated),
+        ];
+        for (id, candidate) in candidates {
+            let CacheAdmission::Rebuilt { reason, .. } = admit_complete_root_snapshot(
+                complete_epoch(),
+                complete_root(),
+                &entities,
+                facts,
+                Some(&candidate),
+            )
+            .unwrap() else {
+                panic!("{id} must be discarded");
+            };
+            println!(
+                "COMPLETE_ROOT_SNAPSHOT_REJECT|{id}|{reason:?}|{}",
+                hex(&candidate)
+            );
+        }
     }
 }

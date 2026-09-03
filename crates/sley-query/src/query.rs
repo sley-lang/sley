@@ -406,6 +406,11 @@ pub fn build_restricted_query_request(
 ) -> Result<RestrictedQueryRequest, QueryError> {
     validate_limits(limits)?;
     validate_query_shape(&query)?;
+    if snapshot.completeness() != IndexCompleteness::RestrictedModeledKinds4To15Only {
+        // The restricted S20-310 profile binds arm 1 only; the S20-300 full
+        // complete-root arm is a later root-backed package.
+        return query_fail(QueryErrorCode::Unsupported);
+    }
     let preimage = encode_query_preimage(
         snapshot.snapshot_id(),
         snapshot.context(),
@@ -859,6 +864,7 @@ fn encode_limits_response(
 const fn completeness_tag(value: IndexCompleteness) -> u32 {
     match value {
         IndexCompleteness::RestrictedModeledKinds4To15Only => COMPLETENESS_RESTRICTED,
+        IndexCompleteness::CompleteRoot => value.tag(),
     }
 }
 
