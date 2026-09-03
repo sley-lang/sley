@@ -45,3 +45,4 @@ Current records:
 - ADR-0036: the Sley 2 arm as an endpoint-only, trace-complete runner
 - ADR-0037: accounting as exact derivation from immutable claims
 - ADR-0038: release candidate mechanics without a release
+- ADR-0039: the extended opcode profile as a second, explicit VM profile

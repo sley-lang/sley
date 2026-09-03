@@ -296,6 +296,109 @@
     "vulcan_review": "PASS",
     "implementation_complete": true
   },
+  "vm_extended_opcode_profile": {
+    "status": "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
+    "checker": "scripts/check_vm_extended_opcode_profile.py",
+    "cache_profile": "EXTENDED_V1",
+    "bytecode_magic": "SLEYBC02",
+    "restricted_profile_unchanged": true,
+    "new_stable_error_codes": 0,
+    "e7_excluded": true,
+    "e7_opcodes": [
+      144,
+      145,
+      160,
+      161,
+      162
+    ],
+    "slices": {
+      "E1": {
+        "status": "PENDING",
+        "opcodes": [
+          1,
+          16,
+          17,
+          32,
+          33,
+          34,
+          35,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          128,
+          129,
+          130,
+          131
+        ]
+      },
+      "E2": {
+        "status": "PENDING",
+        "opcodes": [
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71
+        ]
+      },
+      "E3": {
+        "status": "PENDING",
+        "opcodes": [
+          80,
+          81,
+          82,
+          83,
+          84,
+          85
+        ]
+      },
+      "E4": {
+        "status": "PENDING",
+        "opcodes": [
+          18,
+          19,
+          20,
+          21,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      "E5": {
+        "status": "PENDING",
+        "opcodes": [
+          176,
+          177,
+          178,
+          192,
+          193,
+          194
+        ]
+      },
+      "E6": {
+        "status": "PENDING",
+        "opcodes": [
+          112
+        ]
+      }
+    },
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
+  },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
     "full_ga_complete": false,

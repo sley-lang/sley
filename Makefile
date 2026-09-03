@@ -46,6 +46,7 @@ quick:
 	python3 scripts/check_smp1_json_bridge_persistent_fuzz_slice.py
 	python3 scripts/check_vm_lowering_profile.py
 	python3 scripts/check_vm_execution_profile.py
+	python3 scripts/check_vm_extended_opcode_profile.py
 	python3 scripts/check_reference_adapter_profile.py
 	python3 scripts/check_report_envelope_profile.py
 	python3 scripts/check_index_snapshot_profile.py
