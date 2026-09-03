@@ -299,7 +299,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_SLICES_IN_PROGRESS",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -371,7 +371,7 @@
         "tests": 1
       },
       "E4": {
-        "status": "PENDING",
+        "status": "IMPLEMENTED",
         "opcodes": [
           18,
           19,
@@ -382,7 +382,10 @@
           38,
           39,
           40
-        ]
+        ],
+        "fixture": "conformance/vm-extended/v1/accepted.json",
+        "vectors": 3,
+        "tests": 1
       },
       "E5": {
         "status": "PENDING",
@@ -2184,13 +2187,13 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
-    "cargo_lock_sha256": "f6663cb570279573e022e244b1b29ead1f915e1def22f435d8e3bfe5b9f7e65d",
+    "cargo_lock_sha256": "0dc09f8a4c472bf0772ab444e86ebed796878960c9218e5d99dc659de1605d13",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 18,
     "cargo_registry_packages": 22,
     "python_workspace_packages": 1,
     "python_registry_packages": 2,
-    "dependency_relationships": 114,
+    "dependency_relationships": 118,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 499,

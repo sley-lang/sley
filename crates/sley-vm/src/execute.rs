@@ -512,6 +512,7 @@ fn execute_extended(
     let register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
     let result_type = register_types.get(register).ok_or(RuntimeFault)?;
     let value = crate::extended::execute_extended_instruction(
+        input.types,
         opcode,
         &instruction.immediate,
         &operands,

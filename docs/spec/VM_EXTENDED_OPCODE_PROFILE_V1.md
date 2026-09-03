@@ -1,9 +1,9 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 4 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 5 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). Revision 2 records the clarifications of slice E1,
-revision 3 those of slice E2, and revision 4 those of slice E3 (section 7). Implementation lands in family slices E1 through E6 tracked in
+Vulcan surface review). Revisions 2 through 5 record the clarifications of
+slices E1 through E4 (section 7). Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -210,3 +210,14 @@ S20-360 full operation analysis; or GA.
   and rounding rules are the host's IEEE-754 binary32 and binary64
   arithmetic under round-to-nearest-ties-to-even, with `float_fma` a single
   fused rounding.
+- E4: record and variant immediates must name non-generic definitions of
+  the lowering environment (a generic definition, an unknown member, a
+  record named as a variant, or `variant_get` on a payload-less case is
+  `VM_LOWER_IMMEDIATE_MISMATCH`); a map key type needs the S20-210 total
+  order and no float (a float key already fails the S20-220 graph check
+  with `TYPE_NOT_ORDERABLE`, so the lowering guard is defense in depth); `map_new` with no operands takes its key and value
+  types from the declared result; the runtime map order is the
+  lexicographic order of the keys' S20-350 canonical bytes, obtained
+  through `sley_mutate::encode_const_value` (the VM crate now depends on
+  the mutation crate, which the dependency direction allows), and
+  `map_insert` of an existing key replaces its value in place.

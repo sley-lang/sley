@@ -8,9 +8,10 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    FunctionGraph, Immediate, IntegerWidth, Opcode, Operation, OperationResultRef, Parameter,
-    ParameterRole, Reachability, ResultConst, ReturnTerminator, Terminator, TypeExpr, ValueRef,
-    Visibility,
+    FieldConst, FunctionGraph, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode,
+    Operation, OperationResultRef, Parameter, ParameterRole, Reachability, RecordConst,
+    RecordField, ResultConst, ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr,
+    ValueRef, VariantCase, VariantConst, VariantImmediate, Visibility,
 };
 
 use crate::{
@@ -95,6 +96,15 @@ impl Fixture {
         steps: &[Step],
         constants: Vec<ConstantDefinition>,
     ) -> Self {
+        Self::with_types(parameter_types, steps, constants, Vec::new())
+    }
+
+    fn with_types(
+        parameter_types: &[TypeExpr],
+        steps: &[Step],
+        constants: Vec<ConstantDefinition>,
+        definitions: Vec<TypeDefinition>,
+    ) -> Self {
         let function = id(1);
         let block = id(2);
         let parameter_ids: Vec<EntityId> = (0..parameter_types.len())
@@ -125,7 +135,7 @@ impl Fixture {
             .collect();
         let last = steps.last().expect("at least one step");
         Self {
-            types: TypeEnvironment::new(Vec::new()).unwrap(),
+            types: TypeEnvironment::new(definitions).unwrap(),
             function: FunctionGraph {
                 entity_id: function,
                 type_parameters: Vec::new(),
@@ -646,18 +656,12 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
         (
             "an opcode of a later slice",
             Fixture::new(
-                &[u64_type(), TypeExpr::Text],
+                &[u64_type()],
                 &[step(
-                    Opcode::MapNew,
-                    vec![Arg::P(0), Arg::P(1)],
+                    Opcode::CellNew,
+                    vec![Arg::P(0)],
                     Immediate::None,
-                    TypeExpr::Result {
-                        ok: Box::new(TypeExpr::OrderedMap {
-                            key: Box::new(u64_type()),
-                            value: Box::new(TypeExpr::Text),
-                        }),
-                        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
-                    },
+                    TypeExpr::LocalCell(Box::new(u64_type())),
                 )],
                 Vec::new(),
             ),
@@ -1243,6 +1247,447 @@ fn e3_floats_round_to_nearest_canonicalize_nan_and_compare_by_ieee() {
     );
 }
 
+fn member(byte: u8) -> MemberId {
+    MemberId::from_bytes([byte; 32])
+}
+
+/// `Pair { a: UInt64, b: Text }` at entity 50 and `Shape { Circle(UInt64), Empty }` at 51.
+fn definitions() -> Vec<TypeDefinition> {
+    vec![
+        TypeDefinition {
+            entity_id: id(50),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(vec![
+                RecordField {
+                    member_id: member(0xA1),
+                    value_type: u64_type(),
+                    visibility: Visibility::Private,
+                },
+                RecordField {
+                    member_id: member(0xB2),
+                    value_type: TypeExpr::Text,
+                    visibility: Visibility::Private,
+                },
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        TypeDefinition {
+            entity_id: id(51),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Variant(vec![
+                VariantCase {
+                    member_id: member(0xC1),
+                    payload_type: Some(u64_type()),
+                },
+                VariantCase {
+                    member_id: member(0xC2),
+                    payload_type: None,
+                },
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+    ]
+}
+
+fn pair_type() -> TypeExpr {
+    TypeExpr::Named(NamedType {
+        definition: id(50),
+        arguments: Vec::new(),
+    })
+}
+
+fn shape_type() -> TypeExpr {
+    TypeExpr::Named(NamedType {
+        definition: id(51),
+        arguments: Vec::new(),
+    })
+}
+
+fn circle(member_byte: u8) -> Immediate {
+    Immediate::Variant(VariantImmediate {
+        definition: id(51),
+        member_id: member(member_byte),
+    })
+}
+
+fn map_type() -> TypeExpr {
+    TypeExpr::OrderedMap {
+        key: Box::new(u64_type()),
+        value: Box::new(TypeExpr::Text),
+    }
+}
+
+fn map_new_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(map_type()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    }
+}
+
+fn map_of(entries: Vec<(u128, &str)>) -> ConstValue {
+    ConstValue {
+        value_type: map_type(),
+        data: ConstData::Map(
+            entries
+                .into_iter()
+                .map(|(key, value)| MapEntryConst {
+                    key: uint(key),
+                    value: text(value),
+                })
+                .collect(),
+        ),
+    }
+}
+
+#[test]
+fn e4_records_variants_and_maps_construct_project_and_keep_canonical_order() {
+    let record = Fixture::with_types(
+        &[u64_type(), TypeExpr::Text],
+        &[
+            step(
+                Opcode::RecordNew,
+                vec![Arg::P(0), Arg::P(1)],
+                Immediate::Entity(id(50)),
+                pair_type(),
+            ),
+            step(
+                Opcode::RecordGet,
+                vec![Arg::R(0)],
+                Immediate::Field(member(0xB2)),
+                TypeExpr::Text,
+            ),
+        ],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(success(&record, vec![uint(4), text("four")]), text("four"));
+    let built = Fixture::with_types(
+        &[u64_type(), TypeExpr::Text],
+        &[step(
+            Opcode::RecordNew,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::Entity(id(50)),
+            pair_type(),
+        )],
+        Vec::new(),
+        definitions(),
+    );
+    let value = success(&built, vec![uint(4), text("four")]);
+    assert_eq!(
+        value.data,
+        ConstData::Record(RecordConst {
+            definition: id(50),
+            fields: vec![
+                FieldConst {
+                    member_id: member(0xA1),
+                    value: uint(4)
+                },
+                FieldConst {
+                    member_id: member(0xB2),
+                    value: text("four")
+                },
+            ],
+        })
+    );
+    built
+        .types
+        .check_constant(&value)
+        .expect("a constructed record is a canonical constant");
+
+    let variant = Fixture::with_types(
+        &[u64_type()],
+        &[
+            step(
+                Opcode::VariantNew,
+                vec![Arg::P(0)],
+                circle(0xC1),
+                shape_type(),
+            ),
+            step(
+                Opcode::VariantGet,
+                vec![Arg::R(0)],
+                circle(0xC1),
+                TypeExpr::Option(Box::new(u64_type())),
+            ),
+        ],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        success(&variant, vec![uint(9)]).data,
+        ConstData::Option(Some(Box::new(uint(9))))
+    );
+    let empty = Fixture::with_types(
+        &[TypeExpr::Bool],
+        &[
+            step(Opcode::VariantNew, vec![], circle(0xC2), shape_type()),
+            step(
+                Opcode::VariantGet,
+                vec![Arg::R(0)],
+                circle(0xC1),
+                TypeExpr::Option(Box::new(u64_type())),
+            ),
+        ],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        success(&empty, vec![boolean(true)]).data,
+        ConstData::Option(None)
+    );
+    let empty_value = Fixture::with_types(
+        &[TypeExpr::Bool],
+        &[step(Opcode::VariantNew, vec![], circle(0xC2), shape_type())],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        success(&empty_value, vec![boolean(true)]).data,
+        ConstData::Variant(VariantConst {
+            definition: id(51),
+            member_id: member(0xC2),
+            payload: None
+        })
+    );
+
+    // Maps: construction sorts by canonical key bytes, duplicates fail as values.
+    let map_new = Fixture::new(
+        &[u64_type(), TypeExpr::Text, u64_type(), TypeExpr::Text],
+        &[step(
+            Opcode::MapNew,
+            vec![Arg::P(0), Arg::P(1), Arg::P(2), Arg::P(3)],
+            Immediate::None,
+            map_new_type(),
+        )],
+        Vec::new(),
+    );
+    let ordered = success(
+        &map_new,
+        vec![uint(300), text("big"), uint(7), text("small")],
+    );
+    let expected = {
+        let mut entries = vec![(300_u128, "big"), (7, "small")];
+        entries.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+        map_of(entries)
+    };
+    assert_eq!(
+        ordered.data,
+        ConstData::Result(ResultConst::Ok(Box::new(expected.clone())))
+    );
+    let duplicate = success(&map_new, vec![uint(7), text("a"), uint(7), text("b")]);
+    let ConstData::Result(ResultConst::Err(failure)) = duplicate.data else {
+        panic!("duplicate key must fail as a value");
+    };
+    assert_eq!(
+        failure.data,
+        ConstData::BuiltinFailure(BuiltinFailureValue {
+            kind: BuiltinFailureKind::DuplicateKey,
+            code: 1
+        })
+    );
+    let lookup = Fixture::new(
+        &[map_type(), u64_type()],
+        &[step(
+            Opcode::MapGet,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Option(Box::new(TypeExpr::Text)),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        success(&lookup, vec![expected.clone(), uint(7)]).data,
+        ConstData::Option(Some(Box::new(text("small"))))
+    );
+    assert_eq!(
+        success(&lookup, vec![expected.clone(), uint(8)]).data,
+        ConstData::Option(None)
+    );
+    let contains = Fixture::new(
+        &[map_type(), u64_type()],
+        &[step(
+            Opcode::MapContains,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        success(&contains, vec![expected.clone(), uint(300)]),
+        boolean(true)
+    );
+    let insert = Fixture::new(
+        &[map_type(), u64_type(), TypeExpr::Text],
+        &[step(
+            Opcode::MapInsert,
+            vec![Arg::P(0), Arg::P(1), Arg::P(2)],
+            Immediate::None,
+            map_type(),
+        )],
+        Vec::new(),
+    );
+    let replaced = success(&insert, vec![expected.clone(), uint(7), text("replaced")]);
+    let ConstData::Map(entries) = &replaced.data else {
+        panic!("map expected");
+    };
+    assert_eq!(entries.len(), 2);
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.key == uint(7) && entry.value == text("replaced"))
+    );
+    let grown = success(&insert, vec![expected.clone(), uint(1), text("new")]);
+    let ConstData::Map(entries) = &grown.data else {
+        panic!("map expected");
+    };
+    let keys: Vec<Vec<u8>> = entries
+        .iter()
+        .map(|entry| sley_mutate::encode_const_value(&entry.key).unwrap())
+        .collect();
+    assert!(
+        keys.windows(2).all(|pair| pair[0] < pair[1]),
+        "entries stay sorted by canonical key bytes"
+    );
+    assert_eq!(entries.len(), 3);
+    let remove = Fixture::new(
+        &[map_type(), u64_type()],
+        &[step(
+            Opcode::MapRemove,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            map_type(),
+        )],
+        Vec::new(),
+    );
+    let ConstData::Map(entries) = success(&remove, vec![expected, uint(300)]).data else {
+        panic!("map expected");
+    };
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].key, uint(7));
+    // The empty map takes its type from the declared result.
+    let empty_map = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::MapNew,
+            vec![],
+            Immediate::None,
+            map_new_type(),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        success(&empty_map, vec![boolean(true)]).data,
+        ConstData::Result(ResultConst::Ok(Box::new(map_of(Vec::new()))))
+    );
+
+    // Rejections.
+    let short_record = Fixture::with_types(
+        &[u64_type()],
+        &[step(
+            Opcode::RecordNew,
+            vec![Arg::P(0)],
+            Immediate::Entity(id(50)),
+            pair_type(),
+        )],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        lowering_code(&short_record),
+        LowerErrorCode::SignatureMismatch
+    );
+    let unknown_field = Fixture::with_types(
+        &[u64_type(), TypeExpr::Text],
+        &[
+            step(
+                Opcode::RecordNew,
+                vec![Arg::P(0), Arg::P(1)],
+                Immediate::Entity(id(50)),
+                pair_type(),
+            ),
+            step(
+                Opcode::RecordGet,
+                vec![Arg::R(0)],
+                Immediate::Field(member(0xEE)),
+                TypeExpr::Text,
+            ),
+        ],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        lowering_code(&unknown_field),
+        LowerErrorCode::ImmediateMismatch
+    );
+    let record_as_variant = Fixture::with_types(
+        &[u64_type()],
+        &[step(
+            Opcode::VariantNew,
+            vec![Arg::P(0)],
+            Immediate::Variant(VariantImmediate {
+                definition: id(50),
+                member_id: member(0xA1),
+            }),
+            pair_type(),
+        )],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        lowering_code(&record_as_variant),
+        LowerErrorCode::ImmediateMismatch
+    );
+    let payload_missing = Fixture::with_types(
+        &[TypeExpr::Bool],
+        &[step(Opcode::VariantNew, vec![], circle(0xC1), shape_type())],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        lowering_code(&payload_missing),
+        LowerErrorCode::SignatureMismatch
+    );
+    let payload_less_get = Fixture::with_types(
+        &[u64_type()],
+        &[
+            step(
+                Opcode::VariantNew,
+                vec![Arg::P(0)],
+                circle(0xC1),
+                shape_type(),
+            ),
+            step(
+                Opcode::VariantGet,
+                vec![Arg::R(0)],
+                circle(0xC2),
+                TypeExpr::Option(Box::new(TypeExpr::Unit)),
+            ),
+        ],
+        Vec::new(),
+        definitions(),
+    );
+    assert_eq!(
+        lowering_code(&payload_less_get),
+        LowerErrorCode::ImmediateMismatch
+    );
+    // A float map key never reaches lowering: S20-220 refuses the map type
+    // itself with TYPE_NOT_ORDERABLE, so the float guard is defense in depth.
+    let odd = Fixture::new(
+        &[u64_type(), TypeExpr::Text, u64_type()],
+        &[step(
+            Opcode::MapNew,
+            vec![Arg::P(0), Arg::P(1), Arg::P(2)],
+            Immediate::None,
+            map_new_type(),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(lowering_code(&odd), LowerErrorCode::SignatureMismatch);
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -1366,6 +1811,61 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             "float-less-than-nan",
             float_fixture(Opcode::LessThan, TypeExpr::F32, 2),
             vec![f32v(f32::NAN), f32v(1.0)],
+        ),
+        (
+            "record-get-field",
+            Fixture::with_types(
+                &[u64_type(), TypeExpr::Text],
+                &[
+                    step(
+                        Opcode::RecordNew,
+                        vec![Arg::P(0), Arg::P(1)],
+                        Immediate::Entity(id(50)),
+                        pair_type(),
+                    ),
+                    step(
+                        Opcode::RecordGet,
+                        vec![Arg::R(0)],
+                        Immediate::Field(member(0xB2)),
+                        TypeExpr::Text,
+                    ),
+                ],
+                Vec::new(),
+                definitions(),
+            ),
+            vec![uint(4), text("four")],
+        ),
+        (
+            "variant-get-none",
+            Fixture::with_types(
+                &[TypeExpr::Bool],
+                &[
+                    step(Opcode::VariantNew, vec![], circle(0xC2), shape_type()),
+                    step(
+                        Opcode::VariantGet,
+                        vec![Arg::R(0)],
+                        circle(0xC1),
+                        TypeExpr::Option(Box::new(u64_type())),
+                    ),
+                ],
+                Vec::new(),
+                definitions(),
+            ),
+            vec![boolean(true)],
+        ),
+        (
+            "map-new-sorted",
+            Fixture::new(
+                &[u64_type(), TypeExpr::Text, u64_type(), TypeExpr::Text],
+                &[step(
+                    Opcode::MapNew,
+                    vec![Arg::P(0), Arg::P(1), Arg::P(2), Arg::P(3)],
+                    Immediate::None,
+                    map_new_type(),
+                )],
+                Vec::new(),
+            ),
+            vec![uint(300), text("big"), uint(7), text("small")],
         ),
         (
             "result-err",

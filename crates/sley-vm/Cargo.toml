@@ -8,6 +8,7 @@ description = "Sley 2 deterministic derived bytecode and reference VM."
 
 [dependencies]
 sley-check = { path = "../sley-check" }
+sley-mutate = { path = "../sley-mutate" }
 sley-id = { path = "../sley-id" }
 sley-ssmc = { path = "../sley-ssmc" }
 

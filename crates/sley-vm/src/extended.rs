@@ -7,8 +7,9 @@
 use sley_check::TypeEnvironment;
 use sley_id::EntityId;
 use sley_ssmc::{
-    BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition, Immediate,
-    IntegerWidth, Opcode, ResultConst, TypeExpr,
+    BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition, FieldConst,
+    Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, RecordConst, RecordField,
+    ResultConst, TypeDefForm, TypeExpr, VariantCase, VariantConst,
 };
 
 use crate::{LowerError, LowerErrorCode};
@@ -61,6 +62,63 @@ fn arithmetic_result(value: &TypeExpr) -> TypeExpr {
         ok: Box::new(value.clone()),
         error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
     }
+}
+
+fn named(definition: EntityId) -> TypeExpr {
+    TypeExpr::Named(NamedType {
+        definition,
+        arguments: Vec::new(),
+    })
+}
+
+fn named_definition(value: &TypeExpr) -> Option<EntityId> {
+    match value {
+        TypeExpr::Named(named) if named.arguments.is_empty() => Some(named.definition),
+        _ => None,
+    }
+}
+
+/// The fields of a non-generic record definition, or an immediate failure.
+fn record_fields(
+    types: &TypeEnvironment,
+    definition: EntityId,
+) -> Result<&[RecordField], LowerError> {
+    match types.definition(definition) {
+        Ok(found) if found.type_parameters.is_empty() => match &found.form {
+            TypeDefForm::Record(fields) => Ok(fields),
+            TypeDefForm::Variant(_) => fail(LowerErrorCode::ImmediateMismatch),
+        },
+        _ => fail(LowerErrorCode::ImmediateMismatch),
+    }
+}
+
+/// The cases of a non-generic variant definition, or an immediate failure.
+fn variant_cases(
+    types: &TypeEnvironment,
+    definition: EntityId,
+) -> Result<&[VariantCase], LowerError> {
+    match types.definition(definition) {
+        Ok(found) if found.type_parameters.is_empty() => match &found.form {
+            TypeDefForm::Variant(cases) => Ok(cases),
+            TypeDefForm::Record(_) => fail(LowerErrorCode::ImmediateMismatch),
+        },
+        _ => fail(LowerErrorCode::ImmediateMismatch),
+    }
+}
+
+fn map_result(key: &TypeExpr, value: &TypeExpr) -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::OrderedMap {
+            key: Box::new(key.clone()),
+            value: Box::new(value.clone()),
+        }),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    }
+}
+
+/// Map keys need the S20-210 total order and, like equality, no float.
+fn map_key_admissible(types: &TypeEnvironment, key: &TypeExpr) -> bool {
+    types.traits(key).is_ok_and(|traits| traits.total_order) && !contains_float(key)
 }
 
 fn ordered(value: &TypeExpr) -> bool {
@@ -256,6 +314,129 @@ pub fn judge_extended_operation(
                 return fail(LowerErrorCode::SignatureMismatch);
             }
             (*a).clone()
+        }
+        Opcode::RecordNew => {
+            let Immediate::Entity(definition) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let fields = record_fields(types, *definition)?;
+            if operands.len() != fields.len()
+                || operands
+                    .iter()
+                    .zip(fields)
+                    .any(|(operand, field)| **operand != field.value_type)
+            {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            named(*definition)
+        }
+        Opcode::RecordGet => {
+            let Immediate::Field(member) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            let Some(definition) = named_definition(value) else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            record_fields(types, definition)?
+                .iter()
+                .find(|field| field.member_id == *member)
+                .map(|field| field.value_type.clone())
+                .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?
+        }
+        Opcode::VariantNew => {
+            let Immediate::Variant(variant) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let case = variant_cases(types, variant.definition)?
+                .iter()
+                .find(|case| case.member_id == variant.member_id)
+                .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+            match (&case.payload_type, operands) {
+                (Some(payload), [operand]) if *operand == payload => {}
+                (None, []) => {}
+                _ => return fail(LowerErrorCode::SignatureMismatch),
+            }
+            named(variant.definition)
+        }
+        Opcode::VariantGet => {
+            let Immediate::Variant(variant) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if named_definition(value) != Some(variant.definition) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            let case = variant_cases(types, variant.definition)?
+                .iter()
+                .find(|case| case.member_id == variant.member_id)
+                .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+            let Some(payload) = &case.payload_type else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            TypeExpr::Option(Box::new(payload.clone()))
+        }
+        Opcode::MapNew => {
+            immediate_none(immediate)?;
+            if !operands.len().is_multiple_of(2) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            if operands.is_empty() {
+                let declared = single_declared()?;
+                let TypeExpr::Result { ok, error } = declared else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                let (
+                    TypeExpr::OrderedMap { key, .. },
+                    TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey),
+                ) = (ok.as_ref(), error.as_ref())
+                else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                if !map_key_admissible(types, key) {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                }
+                declared.clone()
+            } else {
+                let key = operands[0];
+                let value = operands[1];
+                let aligned = operands
+                    .iter()
+                    .enumerate()
+                    .all(|(index, operand)| *operand == if index % 2 == 0 { key } else { value });
+                if !aligned || !map_key_admissible(types, key) {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                }
+                map_result(key, value)
+            }
+        }
+        Opcode::MapGet | Opcode::MapContains | Opcode::MapRemove => {
+            immediate_none(immediate)?;
+            let [TypeExpr::OrderedMap { key, value }, probe] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if *probe != key.as_ref() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            match opcode {
+                Opcode::MapGet => TypeExpr::Option(value.clone()),
+                Opcode::MapContains => TypeExpr::Bool,
+                _ => (*operands[0]).clone(),
+            }
+        }
+        Opcode::MapInsert => {
+            immediate_none(immediate)?;
+            let [TypeExpr::OrderedMap { key, value }, probe, replacement] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if *probe != key.as_ref() || *replacement != value.as_ref() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            (*operands[0]).clone()
         }
         Opcode::Equal | Opcode::NotEqual => {
             immediate_none(immediate)?;
@@ -641,6 +822,37 @@ fn arithmetic_value(
     })
 }
 
+fn key_bytes(value: &ConstValue) -> Result<Vec<u8>, ExtendedFault> {
+    sley_mutate::encode_const_value(value).map_err(|_| ExtendedFault)
+}
+
+/// Sorts map entries by their keys' S20-350 canonical bytes (contract E4).
+fn sorted_map(entries: Vec<MapEntryConst>) -> Result<Vec<MapEntryConst>, ExtendedFault> {
+    let mut keyed = entries
+        .into_iter()
+        .map(|entry| key_bytes(&entry.key).map(|bytes| (bytes, entry)))
+        .collect::<Result<Vec<_>, _>>()?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(keyed.into_iter().map(|(_, entry)| entry).collect())
+}
+
+fn map_entries(value: &ConstValue) -> Result<&[MapEntryConst], ExtendedFault> {
+    match &value.data {
+        ConstData::Map(entries) => Ok(entries),
+        _ => Err(ExtendedFault),
+    }
+}
+
+fn map_value(
+    result_type: &TypeExpr,
+    entries: Vec<MapEntryConst>,
+) -> Result<ConstValue, ExtendedFault> {
+    Ok(ConstValue {
+        value_type: result_type.clone(),
+        data: ConstData::Map(sorted_map(entries)?),
+    })
+}
+
 fn bool_value(value: bool) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Bool,
@@ -657,6 +869,7 @@ fn bool_value(value: bool) -> ConstValue {
 /// `ExtendedFault` for any operand form the successful judgment excludes.
 #[allow(clippy::too_many_lines)] // one arm per opcode of the contract table
 pub fn execute_extended_instruction(
+    environment: &TypeEnvironment,
     opcode: Opcode,
     immediate: &Immediate,
     operands: &[ConstValue],
@@ -677,6 +890,124 @@ pub fn execute_extended_instruction(
                 .find(|constant| constant.entity_id == *id)
                 .map(|constant| constant.value.clone())
                 .ok_or(ExtendedFault)?
+        }
+        (Opcode::RecordNew, values) => {
+            let Immediate::Entity(definition) = immediate else {
+                return Err(ExtendedFault);
+            };
+            let fields = record_fields(environment, *definition).map_err(|_| ExtendedFault)?;
+            if fields.len() != values.len() {
+                return Err(ExtendedFault);
+            }
+            typed(ConstData::Record(RecordConst {
+                definition: *definition,
+                fields: fields
+                    .iter()
+                    .zip(values)
+                    .map(|(field, value)| FieldConst {
+                        member_id: field.member_id,
+                        value: value.clone(),
+                    })
+                    .collect(),
+            }))
+        }
+        (Opcode::RecordGet, [record]) => {
+            let (Immediate::Field(member), ConstData::Record(record)) = (immediate, &record.data)
+            else {
+                return Err(ExtendedFault);
+            };
+            record
+                .fields
+                .iter()
+                .find(|field| field.member_id == *member)
+                .map(|field| field.value.clone())
+                .ok_or(ExtendedFault)?
+        }
+        (Opcode::VariantNew, values) => {
+            let Immediate::Variant(variant) = immediate else {
+                return Err(ExtendedFault);
+            };
+            let payload = match values {
+                [] => None,
+                [value] => Some(Box::new(value.clone())),
+                _ => return Err(ExtendedFault),
+            };
+            typed(ConstData::Variant(VariantConst {
+                definition: variant.definition,
+                member_id: variant.member_id,
+                payload,
+            }))
+        }
+        (Opcode::VariantGet, [value]) => {
+            let (Immediate::Variant(variant), ConstData::Variant(found)) = (immediate, &value.data)
+            else {
+                return Err(ExtendedFault);
+            };
+            let payload = if found.member_id == variant.member_id {
+                found.payload.clone()
+            } else {
+                None
+            };
+            typed(ConstData::Option(payload))
+        }
+        (Opcode::MapNew, values) => {
+            let TypeExpr::Result { ok, error } = result_type else {
+                return Err(ExtendedFault);
+            };
+            let mut entries: Vec<MapEntryConst> = Vec::with_capacity(values.len() / 2);
+            for pair in values.chunks(2) {
+                let [key, value] = pair else {
+                    return Err(ExtendedFault);
+                };
+                if entries.iter().any(|entry| entry.key == *key) {
+                    return Ok(typed(ConstData::Result(ResultConst::Err(Box::new(
+                        ConstValue {
+                            value_type: error.as_ref().clone(),
+                            data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                                kind: BuiltinFailureKind::DuplicateKey,
+                                code: 1,
+                            }),
+                        },
+                    )))));
+                }
+                entries.push(MapEntryConst {
+                    key: key.clone(),
+                    value: value.clone(),
+                });
+            }
+            typed(ConstData::Result(ResultConst::Ok(Box::new(map_value(
+                ok, entries,
+            )?))))
+        }
+        (Opcode::MapGet, [map, key]) => {
+            let found = map_entries(map)?
+                .iter()
+                .find(|entry| entry.key == *key)
+                .map(|entry| Box::new(entry.value.clone()));
+            typed(ConstData::Option(found))
+        }
+        (Opcode::MapContains, [map, key]) => {
+            bool_value(map_entries(map)?.iter().any(|entry| entry.key == *key))
+        }
+        (Opcode::MapInsert, [map, key, value]) => {
+            let mut entries: Vec<MapEntryConst> = map_entries(map)?
+                .iter()
+                .filter(|entry| entry.key != *key)
+                .cloned()
+                .collect();
+            entries.push(MapEntryConst {
+                key: key.clone(),
+                value: value.clone(),
+            });
+            map_value(result_type, entries)?
+        }
+        (Opcode::MapRemove, [map, key]) => {
+            let entries: Vec<MapEntryConst> = map_entries(map)?
+                .iter()
+                .filter(|entry| entry.key != *key)
+                .cloned()
+                .collect();
+            map_value(result_type, entries)?
         }
         (Opcode::TupleNew | Opcode::VectorNew, items) => typed(ConstData::Sequence(items.to_vec())),
         (Opcode::TupleGet, [tuple]) => {

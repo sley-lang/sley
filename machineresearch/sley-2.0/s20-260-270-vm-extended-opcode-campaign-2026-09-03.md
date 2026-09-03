@@ -46,6 +46,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Slice E1 (data), revision 2 | `f1a5e6f` | green | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
 | Slice E2 (checked integers), revision 3 | `2ff19c0` | green | `checked_integer` in `extended.rs`; 24 exact outcomes over widths 8 and 128, 4 rejections; 3 vectors |
 | Slice E3 (floats), revision 4 | `785b92d` | green | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
+| Slice E4 (records, variants, maps), revision 5 | pending | pending | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
