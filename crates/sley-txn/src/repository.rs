@@ -3327,8 +3327,16 @@ fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
     })
 }
 
+// The S20-530 mapped-test module below is frozen, reviewed contract material
+// (ADR-0023 v13, accepted at 034cc75): its exact statement forms and
+// row-encoded names are parsed by scripts/check_s20_530_crash_recovery.py at
+// the accepted state (ADR-0024). The rustc lints it trips (unused variables
+// and mut bindings, parenthesized matches! scrutinees, row-encoded function
+// names, and a few unused helpers) are expected there and are allowed at this
+// controlling surface; lint hygiene for the module is a separate deferred slice.
 #[cfg(test)]
 #[rustfmt::skip]
+#[allow(unused_variables, unused_mut, unused_parens, non_snake_case, dead_code)]
 mod tests {
     use std::sync::{Arc, Barrier};
 
@@ -3389,18 +3397,31 @@ mod tests {
 
     impl Fixture {
         fn new(label: &str) -> Self {
+            Self::with_mutation_classes(
+                label,
+                &[
+                    MutationClass::CreateEntity,
+                    MutationClass::DeleteEntityBinding,
+                ],
+            )
+        }
+
+        /// The S20-390 conformance vectors were frozen from a grant that
+        /// carried only `CreateEntity`; the recovery tests later widened the
+        /// default grant. The fixture-refresh emitter keeps the frozen grant.
+        fn with_mutation_classes(label: &str, classes: &[MutationClass]) -> Self {
             let temp = TempDir::new(label);
             let repository = super::TransactionRepository::new(&temp.path);
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let base_entity = fixed(10, EntityId::from_bytes);
-            let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+            let mut grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
                 1_000, 1_000, 1_000, 100, 100, 100,
-            ))
-            .mutation_class(MutationClass::CreateEntity)
-            .mutation_class(MutationClass::DeleteEntityBinding)
-            .build()
-            .unwrap();
+            ));
+            for class in classes {
+                grant = grant.mutation_class(*class);
+            }
+            let grant = grant.build().unwrap();
             let policy = PolicyRootBuilder::new(workspace_id)
                 .principal_grant(principal_id, grant)
                 .build(&policy_registry().unwrap())
@@ -17921,7 +17942,7 @@ mod tests {
     #[test]
     #[ignore = "explicit S20-390 conformance fixture refresh helper"]
     fn emit_transaction_receipt_vectors_for_fixture_refresh() {
-        let fixture = Fixture::new("emit");
+        let fixture = Fixture::with_mutation_classes("emit", &[MutationClass::CreateEntity]);
         let genesis = fixture.repository.accepted_head().unwrap();
         emit_vector("GENESIS", genesis.receipt());
         fixture.repository.commit(fixture.input()).unwrap();

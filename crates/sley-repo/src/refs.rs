@@ -3003,8 +3003,15 @@ fn fail_selected_ref_recovery_stage_cut(stage_path: &Path) -> Result<(), BranchE
     })
 }
 
+// The S20-530 mapped-test module below is frozen, reviewed contract material
+// (ADR-0023 v13, accepted at 034cc75): its exact statement forms and
+// row-encoded names are parsed by scripts/check_s20_530_crash_recovery.py at
+// the accepted state (ADR-0024). The rustc lints it trips are expected there
+// and are allowed at this controlling surface; lint hygiene for the module is
+// a separate deferred slice.
 #[cfg(test)]
 #[rustfmt::skip]
+#[allow(unused_variables, unused_mut, unused_parens, non_snake_case, dead_code)]
 mod tests {
     use std::collections::BTreeMap;
     use std::sync::{Arc, Barrier, mpsc};
