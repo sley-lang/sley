@@ -72,6 +72,27 @@ def structural_entries() -> set[str]:
     return structural
 
 
+def recorded_exercises() -> dict[str, list[str]]:
+    """The addendum's "Exercised by" column, per threat.
+
+    A test may reference a failure by enum variant rather than by its string,
+    so a symbol search cannot see it. Where the register records the exercising
+    test or corpus, that record is the evidence.
+    """
+    text = REGISTER.read_text(encoding="utf-8")
+    if "## Realized codes" not in text:
+        return {}
+    section = text[text.index("## Realized codes") :]
+    mapping: dict[str, list[str]] = {}
+    for line in section.split("\n"):
+        if not line.startswith("| T"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) >= 5 and cells[4]:
+            mapping[cells[0]] = re.findall(r"`([^`]+)`", cells[4]) or [cells[4]]
+    return mapping
+
+
 def realized_codes() -> dict[str, list[str]]:
     """The register's addendum: threats whose shipped code differs from the plan."""
     text = REGISTER.read_text(encoding="utf-8")
@@ -179,6 +200,7 @@ def build_report() -> dict:
     families = family_symbols()
     realized = realized_codes()
     structural = structural_entries()
+    exercises = recorded_exercises()
     threats = []
     for row in rows:
         codes = realized.get(row["id"], [row["expected_failure_code"]])
@@ -193,8 +215,13 @@ def build_report() -> dict:
                 "state": (
                     "STRUCTURAL_CONTROL_RECORDED"
                     if row["id"] in structural
+                    else "SYMBOL_REALIZED_WITH_EXERCISE"
+                    if found
+                    and classify(found, evidence_present) == "SYMBOL_REALIZED_NO_EXERCISE_LOCATED"
+                    and row["id"] in exercises
                     else classify(found, evidence_present)
                 ),
+                "recorded_exercise": exercises.get(row["id"], []),
                 "searched_codes": codes,
                 "realized_code_recorded": row["id"] in realized,
                 "located_in": {area: paths[:4] for area, paths in sorted(found.items())},
