@@ -71,3 +71,7 @@ Logs were captured under the session scratchpad; `make v1` was skipped because t
   clippy against. The bridge lint reran with `--no-deps` and is clean; the
   sley-store finding is recorded here, untouched, because that crate is
   frozen under S20-530/S20-540.
+
+## Revision 4 (2026-09-03)
+
+Revision 4 names the SMP1 revision 6 `failed` response flag in the `Frame` object (`flags.failed`); the fixture, oracle, and tests were regenerated and pass. Revision 3 (method tag zero, `BridgeError::envelope`) landed with S20-430.

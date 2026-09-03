@@ -1,11 +1,11 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 5 (2026-09-03; revision 2 folds the
+Status: S20-400 contract draft, revision 6 (2026-09-03; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
 the exact body records of the methods S20-410 dispatches; revision 4 freezes
 the S20-440 cancellation, streaming, and budget rules of section 7 and
 appendix B; revision 5 hands `handle.expand` and session issuance to the
-S20-330 profile); Council review
+S20-330 profile; revision 6 marks failure envelopes with response flag bit 2); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -56,7 +56,7 @@ ProtocolFrame {
   request_id:       u64,                    // scoped to the session, strictly increasing
   kind:             u32 (1 request | 2 response | 3 event | 4 hello),
   method:           u32,                    // section 4; 0 for hello
-  flags:            u32,                    // bit 0 cancel, bit 1 stream, others reserved
+  flags:            u32,                    // bit 0 cancel, bit 1 stream, bit 2 failed (responses only), others reserved
   bounds:           BoundedContext,         // section 5, zero on requests
   body:             bytes                   // the method's frozen record, opaque here
 }
@@ -221,6 +221,12 @@ ProtocolFailure {
 Owner codes are never collapsed or renumbered; `INTERNAL_ERROR` is
 fail-closed, non-committable, and non-retryable unless the typed details
 establish `TRANSIENT_HOST`.
+
+The response frame carrying a failure envelope sets flag bit 2 (`failed`;
+revision 6), so a client distinguishes a failure envelope from an owner
+body without decoding either. A request or hello frame carrying bit 2 is
+`PROTOCOL_FRAME_INVALID`; an event frame of a streamed failed response
+may carry it.
 
 ## 7. Cancellation and streaming
 

@@ -164,3 +164,7 @@ complete.
 - slice C: `8cd39b3`.
 - slice B: `bb67ab9`.
 - slice A: `d4ff651`.
+
+## Revision 6 (2026-09-03, S20-620 finding)
+
+The S20-620 runner derives per-response failure counts from frames it cannot decode, and no wire signal distinguished a failure envelope from an owner body. SMP1 revision 6 sets response flag bit 2 (`failed`) on every failure envelope; requests and hellos carrying it are `PROTOCOL_FRAME_INVALID`. The codec, server, SMP1 fixture (failure vector), Python oracle, and the S20-420 bridge (revision 4, `flags.failed`) moved together; the S20-410 persistent slice and every oracle pass unchanged.

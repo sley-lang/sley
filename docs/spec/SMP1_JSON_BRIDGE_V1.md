@@ -1,17 +1,18 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 3 (2026-09-03); Council review
+Status: S20-420 contract draft, revision 4 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
-S20-430 endpoint. The implementation is `crates/sley-json-bridge`;
+S20-430 endpoint; revision 4 follows SMP1 revision 6 by naming the `failed`
+response flag. The implementation is `crates/sley-json-bridge`;
 implementation state is tracked in the machine summary.
 
 The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
 without an SCB1 encoder can read and write frames; it owns no semantics,
 performs no validation beyond shape, and never participates in any program
-identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 5):
+identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 6):
 the frame, hello, selected profile, limit profile, bounded context,
 failure envelope, stream chunk, and method table are the bridge's only
 subjects. Owner bodies (queries, capsules, candidates, receipts, exchange
@@ -52,7 +53,7 @@ Frame {
   "request_id": integer,
   "kind": "request" | "response" | "event" | "hello",
   "method": string,                   // the frozen method name, or "" for tag 0
-  "flags": { "cancel": bool, "stream": bool },
+  "flags": { "cancel": bool, "stream": bool, "failed": bool },
   "bounds": BoundedContext,
   "body": hex
 }

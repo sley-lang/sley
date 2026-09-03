@@ -41,7 +41,9 @@ const FEATURE_MASK: u32 = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_JSON_BRIDGE 
 /// Flag bits of a frame.
 pub const FLAG_CANCEL: u32 = 1;
 pub const FLAG_STREAM: u32 = 2;
-const FLAG_MASK: u32 = FLAG_CANCEL | FLAG_STREAM;
+/// Response flag bit 2: the body is a failure envelope (contract section 6).
+pub const FLAG_FAILED: u32 = 4;
+const FLAG_MASK: u32 = FLAG_CANCEL | FLAG_STREAM | FLAG_FAILED;
 /// Ceilings of the negotiable limits.
 pub const MAX_LIMIT_ENTITIES: u64 = 65_535;
 pub const MAX_LIMIT_EDGES: u64 = 400_000;
@@ -886,6 +888,11 @@ impl ProtocolFrame {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
         if self.flags & !FLAG_MASK != 0 {
+            return fail(ProtocolErrorCode::FrameInvalid);
+        }
+        if self.flags & FLAG_FAILED != 0
+            && !matches!(self.kind, FrameKind::Response | FrameKind::Event)
+        {
             return fail(ProtocolErrorCode::FrameInvalid);
         }
         if self.kind == FrameKind::Hello
@@ -2173,6 +2180,7 @@ mod tests {
         };
         let failure_frame = ProtocolFrame {
             kind: FrameKind::Response,
+            flags: FLAG_FAILED,
             body: failure.encode().unwrap(),
             ..req.clone()
         };

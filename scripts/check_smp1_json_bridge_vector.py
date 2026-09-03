@@ -38,7 +38,7 @@ LIMIT_CEILINGS = (67_108_864, 65_535, 400_000, 65_535, 67_108_864, 100_000_000, 
 U32_FIELDS = {"protocol_version", "max_depth", "max_inflight", "reached_depth"}
 BOUNDS_FIELDS = ("applied_limits", "returned_bytes", "returned_entities", "returned_edges", "reached_depth", "omitted", "truncated", "continuation")
 FRAME_FIELDS = ("protocol_version", "session", "request_id", "kind", "method", "flags", "bounds", "body")
-FLAG_FIELDS = ("cancel", "stream")
+FLAG_FIELDS = ("cancel", "stream", "failed")
 
 
 class Reject(Exception):
@@ -170,7 +170,7 @@ def render(frame: dict, names: dict[int, str]) -> str:
         method = names[frame["method"]]
     else:
         raise Reject("JSON_BRIDGE_METHOD_UNKNOWN")
-    if frame["flags"] & ~3:
+    if frame["flags"] & ~7:
         raise shape()
     returned_bytes, entities, edges, depth, omitted, truncated, continuation = frame["returned"]
     obj = {
@@ -179,7 +179,7 @@ def render(frame: dict, names: dict[int, str]) -> str:
         "request_id": integer(frame["request_id"]),
         "kind": KIND_NAMES[frame["kind"]],
         "method": method,
-        "flags": {"cancel": bool(frame["flags"] & 1), "stream": bool(frame["flags"] & 2)},
+        "flags": {"cancel": bool(frame["flags"] & 1), "stream": bool(frame["flags"] & 2), "failed": bool(frame["flags"] & 4)},
         "bounds": {
             "applied_limits": {name: integer(value) for name, value in zip(LIMIT_FIELDS, frame["limits"])},
             "returned_bytes": integer(returned_bytes),
@@ -305,7 +305,11 @@ def frame_from_json(text: str, names: dict[str, int]) -> dict:
     else:
         raise Reject("JSON_BRIDGE_METHOD_UNKNOWN")
     flag_fields = obj(fields["flags"], FLAG_FIELDS)
-    flags = (1 if bool_field(flag_fields["cancel"]) else 0) | (2 if bool_field(flag_fields["stream"]) else 0)
+    flags = (
+        (1 if bool_field(flag_fields["cancel"]) else 0)
+        | (2 if bool_field(flag_fields["stream"]) else 0)
+        | (4 if bool_field(flag_fields["failed"]) else 0)
+    )
     bounds = obj(fields["bounds"], BOUNDS_FIELDS)
     limits = limits_from(bounds["applied_limits"])
     returned = (
@@ -390,6 +394,8 @@ def decode_hello(body: bytes) -> dict:
 def encode_frame(frame: dict, epoch: bytes) -> bytes:
     if frame["protocol_version"] != 1:
         raise smp1.Failure("PROTOCOL_VERSION_UNSUPPORTED")
+    if frame["flags"] & 4 and frame["kind"] not in (2, 3):
+        raise smp1.Failure("PROTOCOL_FRAME_INVALID")
     if frame["kind"] == 4:
         hello = decode_hello(frame["body"])
         body = smp1.hello(hello)

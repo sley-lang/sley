@@ -259,7 +259,7 @@ def main() -> int:
     response_bounds = bounds(selected["limits"], (300, 3, 0, 0, 1, True, True))
     response_payload = frame_payload(SESSION, 7, 2, 300, 0, response_bounds, b"SLEYRQR1-body")
     failure_body = record([uvar(31006), sized(b"QUERY_REQUIRED_FACT_OMITTED"), uvar(7), uvar(4), union(0, b""), sized(bytes([1, 2, 3]))])
-    failure_payload = frame_payload(SESSION, 7, 2, 300, 0, zero, failure_body)
+    failure_payload = frame_payload(SESSION, 7, 2, 300, 4, zero, failure_body)
     expected_frames = {frame["id"]: frame for frame in accepted["frames"]}
     for label, payload in (("request", request_payload), ("response", response_payload), ("failure", failure_payload)):
         frame, frame_id = envelope(epoch, payload)

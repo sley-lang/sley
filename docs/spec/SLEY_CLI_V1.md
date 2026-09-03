@@ -11,7 +11,7 @@ between standard input, standard output, and the deterministic S20-410
 server over one repository path, in either the canonical byte form or the
 S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
-(`docs/spec/SMP1.md` revision 5, S20-440 batch admission, S20-330
+(`docs/spec/SMP1.md` revision 6, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
 (`docs/spec/SMP1_JSON_BRIDGE_V1.md`). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that

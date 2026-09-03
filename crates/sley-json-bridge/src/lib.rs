@@ -16,9 +16,10 @@ use serde_json::{Map, Value};
 use sley_id::SchemaEpochId;
 use sley_protocol::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_CHECKSUM,
-    FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_STREAM, FrameKind, Hello, LimitProfile,
-    MAX_FRAME_BYTES, Method, ProtocolError, ProtocolFailure, ProtocolFrame, Retryability,
-    SelectedProfile, SessionId, StreamChunk, decode_frame, encode_frame, encode_hello_frame,
+    FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FLAG_STREAM, FrameKind, Hello,
+    LimitProfile, MAX_FRAME_BYTES, Method, ProtocolError, ProtocolFailure, ProtocolFrame,
+    Retryability, SelectedProfile, SessionId, StreamChunk, decode_frame, encode_frame,
+    encode_hello_frame,
 };
 
 /// Largest JSON text the bridge parses (contract section 3).
@@ -421,7 +422,7 @@ const BOUNDS_FIELDS: [&str; 8] = [
     "truncated",
     "continuation",
 ];
-const FLAG_FIELDS: [&str; 2] = ["cancel", "stream"];
+const FLAG_FIELDS: [&str; 3] = ["cancel", "stream", "failed"];
 const FEATURE_FIELDS: [&str; 4] = ["cancel", "stream", "json_bridge", "checksum"];
 const FRAME_FIELDS: [&str; 8] = [
     "protocol_version",
@@ -557,7 +558,7 @@ fn bits_from_value(value: &Value, fields: &[&str], masks: &[u32]) -> Result<u32>
     Ok(bits)
 }
 
-const FLAG_MASKS: [u32; 2] = [FLAG_CANCEL, FLAG_STREAM];
+const FLAG_MASKS: [u32; 3] = [FLAG_CANCEL, FLAG_STREAM, FLAG_FAILED];
 const FEATURE_MASKS: [u32; 4] = [
     FEATURE_CANCEL,
     FEATURE_STREAM,

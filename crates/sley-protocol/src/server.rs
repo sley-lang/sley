@@ -40,9 +40,9 @@ use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, Verified
 use crate::session::{HeadBinding, SessionAuthority, SessionError};
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
-    FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode,
-    ProtocolFailure, ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId,
-    decode_frame, encode_frame, stream_response,
+    FLAG_FAILED, FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError,
+    ProtocolErrorCode, ProtocolFailure, ProtocolFrame, RequestRegistry, Retryability,
+    SelectedProfile, SessionId, decode_frame, encode_frame, stream_response,
 };
 
 /// Versioned reason carried by `PROTOCOL_METHOD_UNSUPPORTED` for methods
@@ -333,7 +333,7 @@ impl Server {
             request_id,
             kind: FrameKind::Response,
             method,
-            flags: 0,
+            flags: if failed { FLAG_FAILED } else { 0 },
             bounds,
             body,
         };
@@ -350,6 +350,7 @@ impl Server {
                 let failure =
                     ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
                 let refused = ProtocolFrame {
+                    flags: FLAG_FAILED,
                     bounds: BoundedContext {
                         applied_limits: self.profile.limits,
                         ..BoundedContext::none()

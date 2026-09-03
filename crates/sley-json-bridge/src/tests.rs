@@ -499,7 +499,7 @@ fn unknown_methods_and_flags_are_named_never_invented() {
         frame_from_json(&rendered).expect("parses").bytes,
         encode_frame(&no_method).expect("encodes").bytes
     );
-    let unnamed_flag = ProtocolFrame { flags: 4, ..frame };
+    let unnamed_flag = ProtocolFrame { flags: 8, ..frame };
     assert_eq!(
         frame_value(&unnamed_flag),
         Err(bridge(JsonBridgeErrorCode::ShapeInvalid))
