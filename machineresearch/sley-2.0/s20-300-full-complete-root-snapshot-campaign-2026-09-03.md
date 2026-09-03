@@ -74,4 +74,17 @@ full profile under contract draft revision 1 with the reviews queued:
   summary status `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`; frontier
   re-anchored to full root-backed S20-310.
 
-Tier 2 results are appended below when the handoff gate runs.
+Implementation commit: `094a7bf`.
+
+## Tier 2 handoff gate (2026-09-03, at `094a7bf`)
+
+| Gate | Result | Wall time |
+|---|---|---|
+| `make core` | PASS (941 tests) | 10 s |
+| `make conformance` | PASS (complete-root snapshot oracle line included) | 11 s |
+| `make adversarial` | PASS | 10 s |
+| `make fuzz-smoke` | PASS | under 1 s |
+| `make complete-root-snapshot-persistent-fuzz-smoke` | PASS (480 seeds) | 5 s |
+
+Total 36 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary. Council reviews remain pending; the package is not complete.

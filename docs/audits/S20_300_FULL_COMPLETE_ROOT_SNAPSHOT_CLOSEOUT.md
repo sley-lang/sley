@@ -49,7 +49,7 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
 ## Evidence
 
 - Contract draft revision 1 and ADR-0029 at `9111c0e`; implementation,
-  corpus, oracle, and fuzz slice in the commit after it.
+  corpus, oracle, and fuzz slice at `094a7bf`.
 - Fixed vector: the arm-`2` record over the frozen eighteen-kind S20-250
   fixture is 5,888 bytes with identity
   `8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d`,
@@ -114,10 +114,10 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
 ## Validation record
 
 Tier 1 `make quick` passed at every commit of the slice. Tier 2 ran on
-2026-09-03 after the implementation commit: `make core`, `make conformance`
+2026-09-03 at `094a7bf`: `make core` (941 tests), `make conformance`
 (including the complete-root snapshot oracle line), `make adversarial`,
-`make fuzz-smoke`, and `make complete-root-snapshot-persistent-fuzz-smoke`;
-results are recorded in the campaign record
+`make fuzz-smoke`, and `make complete-root-snapshot-persistent-fuzz-smoke`
+all exited 0 in 36 seconds; the per-gate record is in
 `machineresearch/sley-2.0/s20-300-full-complete-root-snapshot-campaign-2026-09-03.md`.
 The full `make v1` gate was skipped because this is a subsystem handoff, not
 a release boundary; `make v2` and `make release-check` remain intentionally
