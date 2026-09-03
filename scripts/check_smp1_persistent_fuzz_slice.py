@@ -27,7 +27,9 @@ for marker in [
     "re-encoding a decoded frame drifted",
     "handshake identity drifted",
     "ProtocolErrorCode::ALL.contains(&error.code())",
-    "SELECTOR_COUNT: u8 = 3",
+    "SELECTOR_COUNT: u8 = 4",
+    "reassemble_stream(&decoded)",
+    "streamed body drifted",
     "MAX_FUZZ_INPUT_BYTES: usize = 65_536",
 ]:
     if marker not in target:
@@ -48,9 +50,9 @@ for marker in [
     "nightly-2026-02-27",
     "conformance/smp1/v1/accepted.json",
     '"full_s20_700_complete": False',
-    '"SMP1_FRAME_HELLO_AND_NEGOTIATION_ONLY"',
+    '"SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY"',
     "MAX_PAYLOAD_LEN = 65_536",
-    "SELECTOR_COUNT = 3",
+    "SELECTOR_COUNT = 4",
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")
@@ -76,7 +78,7 @@ if slice_status.get("persistent_fuzz_harness") is not True:
     problems.append("machine-summary-persistent-harness-not-true")
 if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
-if slice_status.get("selector_count") != 3:
+if slice_status.get("selector_count") != 4:
     problems.append("machine-summary-selector-count-drift")
 if slice_status.get("seed_source") != "conformance/smp1/v1/accepted.json":
     problems.append("machine-summary-seed-source-drift")
@@ -94,7 +96,7 @@ print(
         {
             "contract": "s20-700-smp1-frame-decoder-persistent-libfuzzer-slice-v1",
             "result": "PASS",
-            "scope": "SMP1_FRAME_HELLO_AND_NEGOTIATION_ONLY",
+            "scope": "SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
             "full_s20_700_complete": False,
         },
         indent=2,

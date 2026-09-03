@@ -1490,6 +1490,167 @@ fn fixed32_list(input: &[u8]) -> Result<Vec<[u8; 32]>> {
         .collect()
 }
 
+// ---------------------------------------------------------------------------
+// Streaming (S20-440)
+// ---------------------------------------------------------------------------
+
+/// Bytes of a frame that are not body: length prefix, envelope header with
+/// the longest uvars, the frame record with a session, a full bounded
+/// context, and the trailer. Chunk sizing subtracts it from the ceiling.
+pub const STREAM_FRAME_OVERHEAD: u64 = 512;
+/// Smallest useful chunk; a ceiling that cannot carry it is not streamable.
+pub const MIN_STREAM_CHUNK_BYTES: u64 = 64;
+
+/// One event frame's chunk record (contract appendix B).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StreamChunk {
+    pub index: u64,
+    pub total: u64,
+    pub bytes: Vec<u8>,
+}
+
+impl StreamChunk {
+    /// Encodes the chunk record.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_INTERNAL_INVARIANT` on an encoding defect.
+    pub fn encode(&self) -> Result<Vec<u8>> {
+        scb(encode_record(&[
+            (1, encode_uvar(self.index)),
+            (2, encode_uvar(self.total)),
+            (3, scb(encode_bytes(&self.bytes))?),
+        ]))
+    }
+
+    /// Decodes a chunk record.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_FRAME_INVALID` on any shape defect.
+    pub fn decode(input: &[u8]) -> Result<Self> {
+        let fields = Reader::new(input).record(3)?;
+        Ok(Self {
+            index: single_uvar(fields[0])?,
+            total: single_uvar(fields[1])?,
+            bytes: Reader::new(fields[2]).bytes()?.to_vec(),
+        })
+    }
+}
+
+/// Splits one response into event frames plus a final response frame when
+/// its body does not fit the ceiling.
+///
+/// The final response carries the bounded context and an empty body; every
+/// event frame carries one chunk record under the `stream` flag. A body
+/// that fits is returned as the single response frame unchanged.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_LIMIT_EXCEEDED` when streaming is not negotiated or
+/// the ceiling cannot carry a chunk, and encoding failures otherwise.
+pub fn stream_response(
+    response: &ProtocolFrame,
+    max_frame_bytes: u64,
+    stream_negotiated: bool,
+) -> Result<Vec<EncodedFrame>> {
+    if response.kind != FrameKind::Response {
+        return fail(ProtocolErrorCode::FrameInvalid);
+    }
+    let ceiling = max_frame_bytes.min(MAX_FRAME_BYTES);
+    let single = encode_frame(response)?;
+    if u64::try_from(single.bytes.len()).is_ok_and(|len| len <= ceiling) {
+        return Ok(vec![single]);
+    }
+    if !stream_negotiated {
+        return fail(ProtocolErrorCode::LimitExceeded);
+    }
+    let chunk_bytes = ceiling
+        .checked_sub(STREAM_FRAME_OVERHEAD)
+        .filter(|bytes| *bytes >= MIN_STREAM_CHUNK_BYTES)
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let chunk_len = usize::try_from(chunk_bytes)
+        .map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let chunks: Vec<&[u8]> = response.body.chunks(chunk_len).collect();
+    let total =
+        u64::try_from(chunks.len()).map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let mut frames = Vec::with_capacity(chunks.len() + 1);
+    for (index, chunk) in chunks.iter().enumerate() {
+        let record = StreamChunk {
+            index: u64::try_from(index)
+                .map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?,
+            total,
+            bytes: chunk.to_vec(),
+        }
+        .encode()?;
+        let event = ProtocolFrame {
+            kind: FrameKind::Event,
+            flags: FLAG_STREAM,
+            bounds: BoundedContext::none(),
+            body: record,
+            ..response.clone()
+        };
+        let encoded = encode_frame(&event)?;
+        if u64::try_from(encoded.bytes.len()).map_or(true, |len| len > ceiling) {
+            return fail(ProtocolErrorCode::LimitExceeded);
+        }
+        frames.push(encoded);
+    }
+    let last = ProtocolFrame {
+        flags: FLAG_STREAM,
+        body: Vec::new(),
+        ..response.clone()
+    };
+    frames.push(encode_frame(&last)?);
+    Ok(frames)
+}
+
+/// Reassembles a streamed response from its event frames and final frame.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_FRAME_INVALID` when the chunks are not exactly
+/// `0..total` in order under one session, request, and method, or the
+/// final frame is not the stream's response.
+pub fn reassemble_stream(frames: &[ProtocolFrame]) -> Result<ProtocolFrame> {
+    let Some((last, events)) = frames.split_last() else {
+        return fail(ProtocolErrorCode::FrameInvalid);
+    };
+    if last.kind != FrameKind::Response || last.flags & FLAG_STREAM == 0 || !last.body.is_empty() {
+        return fail(ProtocolErrorCode::FrameInvalid);
+    }
+    let mut body = Vec::new();
+    let mut expected_total = None;
+    for (index, event) in events.iter().enumerate() {
+        if event.kind != FrameKind::Event
+            || event.flags != FLAG_STREAM
+            || event.session != last.session
+            || event.request_id != last.request_id
+            || event.method != last.method
+        {
+            return fail(ProtocolErrorCode::FrameInvalid);
+        }
+        let chunk = StreamChunk::decode(&event.body)?;
+        let position =
+            u64::try_from(index).map_err(|_| ProtocolError(ProtocolErrorCode::FrameInvalid))?;
+        if chunk.index != position || expected_total.is_some_and(|total| total != chunk.total) {
+            return fail(ProtocolErrorCode::FrameInvalid);
+        }
+        expected_total = Some(chunk.total);
+        body.extend_from_slice(&chunk.bytes);
+    }
+    let events_len =
+        u64::try_from(events.len()).map_err(|_| ProtocolError(ProtocolErrorCode::FrameInvalid))?;
+    if expected_total.is_none_or(|total| total != events_len) || events_len == 0 {
+        return fail(ProtocolErrorCode::FrameInvalid);
+    }
+    Ok(ProtocolFrame {
+        flags: 0,
+        body,
+        ..last.clone()
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
 mod tests {
@@ -1858,6 +2019,89 @@ mod tests {
         let epoch_id = protocol_epoch_id().unwrap();
         assert_eq!(protocol_epoch_id().unwrap(), epoch_id);
         assert_eq!(protocol_epoch_record().contracts.len(), 1);
+    }
+
+    #[test]
+    fn streaming_splits_reassembles_and_fails_closed_without_the_feature() {
+        let body = vec![0xAB; 5_000];
+        let response = ProtocolFrame {
+            kind: FrameKind::Response,
+            body: body.clone(),
+            bounds: BoundedContext {
+                applied_limits: client_hello().limits,
+                returned_bytes: 5_000,
+                ..BoundedContext::none()
+            },
+            ..request(b"")
+        };
+        let ceiling = 2_048;
+        let frames = stream_response(&response, ceiling, true).unwrap();
+        assert!(frames.len() >= 4, "{} frames", frames.len());
+        for frame in &frames {
+            assert!(frame.bytes.len() as u64 <= ceiling);
+        }
+        let decoded: Vec<ProtocolFrame> = frames
+            .iter()
+            .map(
+                |frame| match decode_frame(&frame.bytes, ceiling).unwrap().0 {
+                    DecodedFrame::Response(frame) => frame,
+                    DecodedFrame::Request(_) | DecodedFrame::Hello(_) => {
+                        panic!("event or response")
+                    }
+                },
+            )
+            .collect();
+        assert!(
+            decoded[..decoded.len() - 1]
+                .iter()
+                .all(|frame| frame.kind == FrameKind::Event)
+        );
+        let reassembled = reassemble_stream(&decoded).unwrap();
+        assert_eq!(reassembled.body, body);
+        assert_eq!(reassembled.bounds, response.bounds);
+        assert_eq!(reassembled.request_id, response.request_id);
+        // A body that fits is one frame; without the feature a large body fails closed.
+        let small = ProtocolFrame {
+            body: vec![1, 2, 3],
+            ..response.clone()
+        };
+        assert_eq!(stream_response(&small, ceiling, false).unwrap().len(), 1);
+        assert_eq!(
+            stream_response(&response, ceiling, false)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::LimitExceeded
+        );
+        assert_eq!(
+            stream_response(&response, 100, true).unwrap_err().code(),
+            ProtocolErrorCode::LimitExceeded
+        );
+        // Reassembly rejects reordering, missing chunks, and foreign frames.
+        let mut swapped = decoded.clone();
+        swapped.swap(0, 1);
+        assert_eq!(
+            reassemble_stream(&swapped).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        let mut missing = decoded.clone();
+        missing.remove(1);
+        assert_eq!(
+            reassemble_stream(&missing).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        let mut foreign = decoded.clone();
+        foreign[0].request_id += 1;
+        assert_eq!(
+            reassemble_stream(&foreign).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        assert_eq!(
+            reassemble_stream(&[]).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        for _ in 0..128 {
+            assert_eq!(stream_response(&response, ceiling, true).unwrap(), frames);
+        }
     }
 
     fn hex(bytes: &[u8]) -> String {

@@ -7,7 +7,7 @@ derived negotiation (`crates/sley-protocol/src/lib.rs`,
 `docs/spec/SMP1.md`). It does not cover the deterministic server dispatch,
 cancellation and streaming semantics (S20-440), or the JSON bridge.
 
-The libFuzzer target has three deterministic input lanes:
+The libFuzzer target has four deterministic input lanes:
 
 - direct bytes exercise the length prefix against the ceiling, the SCB1
   envelope magic, version, contract tag, epoch, digest trailer, the frame
@@ -17,7 +17,9 @@ The libFuzzer target has three deterministic input lanes:
   the outer digest;
 - bare hello bytes decode as a `Hello` record and negotiate against a fixed
   server hello, asserting a repeatable `ProtocolHandshakeId` and a selection
-  drawn only from the intersections.
+  drawn only from the intersections;
+- stream bytes decode as an S20-440 chunk record and reassemble, or are
+  split under a small ceiling and reassembled to the same body.
 
 Every accepted frame must bind the exact derived identity, re-encode to the
 same bytes, and decode again to the same value. Every rejected input must

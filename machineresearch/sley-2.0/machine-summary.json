@@ -999,7 +999,7 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -1074,7 +1074,12 @@
     "closeout": "docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md",
     "fixture": "conformance/smp1/v1",
     "oracle": "scripts/check_smp1_vector.py",
-    "persistent_fuzz_target": "fuzz/targets/smp1_frame_decoder.rs"
+    "persistent_fuzz_target": "fuzz/targets/smp1_frame_decoder.rs",
+    "s20_440_status": "S20_440_IMPLEMENTED_UNDER_S20_400_DRAFT_REVIEW_PENDING",
+    "s20_440_closeout": "docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md",
+    "cancel_latency_bound": "ONE_REQUEST_EXECUTION_NO_PARTIAL_BODY",
+    "streaming": "EVENT_CHUNKS_UNDER_NEGOTIATED_FEATURE_ELSE_LIMIT_EXCEEDED",
+    "budgets": "PER_SESSION_MAX_WORK_MINUS_ONE_PLUS_RETURNED_BYTES"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -1323,13 +1328,13 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md"
   },
   "s20_700_smp1_persistent_fuzz_slice": {
-    "status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_AND_NEGOTIATION_ONLY",
+    "status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
     "target": "fuzz/targets/smp1_frame_decoder.rs",
     "runner": "scripts/run_smp1_persistent_fuzz.py",
     "checker": "scripts/check_smp1_persistent_fuzz_slice.py",
     "persistent_fuzz_harness": true,
     "full_s20_700_complete": false,
-    "selector_count": 3,
+    "selector_count": 4,
     "max_payload_bytes": 65536,
     "seed_source": "conformance/smp1/v1/accepted.json",
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-smp1-libfuzzer/corpus",
@@ -1337,7 +1342,8 @@
     "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "PENDING",
-    "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
+    "stream_reassembly_lane": true
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
@@ -1749,7 +1755,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-440-SMP1-CANCEL-STREAM",
+    "next_dependency_complete_package": "S20-330-NEGOTIATED-SESSIONS",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1883,9 +1889,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_410_IMPLEMENTED_REVIEWS_PENDING_S20_440_NEXT",
+    "status": "S20_440_IMPLEMENTED_REVIEWS_PENDING_S20_330_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-440-SMP1-CANCEL-STREAM",
+    "next_authority_safe_package": "S20-330-NEGOTIATED-SESSIONS",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1941,7 +1947,8 @@
     "s20_310_full_implemented": true,
     "s20_320_full_implemented": true,
     "s20_400_contract_drafted": true,
-    "s20_410_implemented": true
+    "s20_410_implemented": true,
+    "s20_440_implemented": true
   },
   "succession": {
     "corpus_version": 1,

@@ -1,8 +1,10 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 3 (2026-09-03; revision 2 folds the
+Status: S20-400 contract draft, revision 4 (2026-09-03; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
-the exact body records of the methods S20-410 dispatches); Council review
+the exact body records of the methods S20-410 dispatches; revision 4 freezes
+the S20-440 cancellation, streaming, and budget rules of section 7 and
+appendix B); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -221,13 +223,36 @@ establish `TRANSIENT_HOST`.
 
 ## 7. Cancellation and streaming
 
-Flag bit 0 (`cancel`) on a request frame, or method 603 naming an
-outstanding request, asks the server to stop that request; the request is
-answered with `PROTOCOL_CANCELLED` or with its normal response if it had
-already completed, never with a partial body. Flag bit 1 (`stream`) marks
-event frames of a streaming response. S20-440 freezes the cancel latency
-bound, the streaming continuation rules, and the hard limits; this
-contract freezes only the flags, the method, and the no-partial-body rule.
+S20-440 freezes these rules (appendix B carries the exact records):
+
+- **Batch admission.** A server reads the frames available on its
+  transport as one batch, decodes and admits every request identifier in
+  order, then executes the surviving requests in order. Admission never
+  runs an engine.
+- **Cancellation.** Flag bit 0 (`cancel`) on a request frame, or method 603
+  whose body names a request identifier, cancels that request when it
+  belongs to the same session and has not started executing. A cancelled
+  request keeps its place in the identifier sequence and is answered
+  `PROTOCOL_CANCELLED` with no body; it never runs. A request that has
+  already completed is answered normally and the cancel acknowledges. The
+  cancel latency bound is therefore exactly one request execution: an
+  engine call is never interrupted and never yields a partial body.
+- **Streaming.** A response whose frame would exceed the negotiated
+  `max_frame_bytes` is delivered, only when feature bit 1 (`stream`) was
+  negotiated, as ordered event frames (kind 3, flag bit 1) each carrying one
+  chunk record, followed by the response frame with flag bit 1, the bounded
+  context, and an empty body. Chunks are exactly `0..total` under one
+  session, request identifier, and method, and every frame fits the
+  ceiling. Without the feature the response is `PROTOCOL_LIMIT_EXCEEDED`
+  with no partial body. A reader reassembles by concatenating the chunks in
+  order and rejects any reordering, gap, or foreign frame as
+  `PROTOCOL_FRAME_INVALID`.
+- **Budgets.** Each session starts with the negotiated `max_work` as its
+  budget; every successful response charges one unit plus one per returned
+  body byte. `session.budgets` reports the remaining budget in the
+  `max_work` field. A request admitted with an exhausted budget is
+  `PROTOCOL_LIMIT_EXCEEDED` before any engine runs. `max_inflight` bounds
+  admitted-but-unanswered requests as section 3 states.
 
 ## 8. JSON bridge
 
@@ -348,3 +373,27 @@ other body counts one item and its bytes. Owner failures keep their symbol
 and numeric code; a pack-owned failure whose numeric registry is not
 exposed by its crate carries numeric `0` at this revision, which S20-560's
 next revision closes.
+
+## Appendix B. Cancellation, streaming, and budget records (S20-440)
+
+```text
+stream_chunk = record(1: uvar(index), 2: uvar(total), 3: bytes(chunk))
+stream_frame_overhead = 512 bytes   // the largest non-body cost of a frame
+min_stream_chunk = 64 bytes         // a ceiling that cannot carry it is not streamable
+chunk_bytes = max_frame_bytes - stream_frame_overhead
+```
+
+Batch order for `n` frames: decode all; for each decoded request frame with
+a session, record `(session, request_id)` as cancelled when flag bit 0 is
+set, and `(session, target)` when the method is 603 and the body is
+`uvar(target)`; then answer frame by frame in order, where a request whose
+`(session, request_id)` is cancelled and whose method is not 603 is
+admitted, released, and answered `PROTOCOL_CANCELLED`. Frame-level failures
+are answered without a session and with identifier 0 in their batch
+position. Equal batches over equal repository state produce equal answer
+sequences.
+
+Budget accounting: `remaining := max_work` at `session.open`;
+`remaining := remaining - (1 + returned_bytes)` after each successful
+response, saturating at zero; a request that finds `remaining = 0` after
+admission is released and answered `PROTOCOL_LIMIT_EXCEEDED`.

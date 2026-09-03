@@ -9,7 +9,7 @@
 //! clock and no randomness, so equal requests over equal repository state
 //! produce byte-identical responses.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use sley_id::{EntityId, ProtocolHandshakeId, SchemaEpochId, StateRoot, TransactionId};
@@ -38,9 +38,10 @@ use sley_state_root::{conformance_registry as state_registry, import_state_root}
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
 
 use crate::{
-    BoundedContext, DecodedFrame, EncodedFrame, FrameKind, LimitProfile, Method, PROTOCOL_VERSION,
-    ProtocolError, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, RequestRegistry,
-    Retryability, SelectedProfile, SessionId, decode_frame, encode_frame,
+    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_STREAM, FLAG_CANCEL, FrameKind,
+    LimitProfile, Method, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure,
+    ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame,
+    encode_frame, stream_response,
 };
 
 /// Versioned reason carried by `PROTOCOL_METHOD_UNSUPPORTED` for methods
@@ -99,6 +100,9 @@ pub struct Server {
     registry: RequestRegistry,
     sessions_issued: u64,
     open_sessions: BTreeSet<SessionId>,
+    /// Bytes still available to each session under the negotiated
+    /// `max_work` budget (contract appendix B).
+    budgets: BTreeMap<SessionId, u64>,
 }
 
 /// One answered frame and the request identity it belongs to.
@@ -108,7 +112,10 @@ pub struct Answer {
     pub request_id: u64,
     pub method: u32,
     pub failed: bool,
+    /// The response frame (the last frame of a streamed answer).
     pub frame: EncodedFrame,
+    /// Event frames preceding the response when the body was streamed.
+    pub events: Vec<EncodedFrame>,
 }
 
 impl Server {
@@ -129,6 +136,7 @@ impl Server {
             registry: RequestRegistry::new(),
             sessions_issued: 0,
             open_sessions: BTreeSet::new(),
+            budgets: BTreeMap::new(),
         })
     }
 
@@ -158,22 +166,108 @@ impl Server {
     /// Returns `PROTOCOL_INTERNAL_INVARIANT` only when the response frame
     /// itself cannot be encoded.
     pub fn answer(&mut self, request_bytes: &[u8]) -> core::result::Result<Answer, ProtocolError> {
-        let frame = match decode_frame(request_bytes, self.profile.limits.max_frame_bytes) {
-            Ok((DecodedFrame::Request(frame), _)) => frame,
-            Ok(_) => {
-                return self.respond(
-                    None,
-                    0,
-                    0,
-                    Err(ProtocolFailure::protocol(ProtocolErrorCode::FrameInvalid)),
-                );
+        let mut answers = self.answer_batch(&[request_bytes])?;
+        answers
+            .pop()
+            .ok_or(ProtocolError::new(ProtocolErrorCode::InternalInvariant))
+    }
+
+    /// Answers a batch of request frames read together (contract appendix
+    /// B): every frame is decoded and admitted in order first, cancellations
+    /// (flag bit 0 or method 603) naming a request of the same batch that
+    /// has not yet executed take effect, then the surviving requests execute
+    /// in order. A cancelled request is answered `PROTOCOL_CANCELLED` and
+    /// never runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_INTERNAL_INVARIANT` only when a response frame
+    /// cannot be encoded.
+    pub fn answer_batch(
+        &mut self,
+        requests: &[&[u8]],
+    ) -> core::result::Result<Vec<Answer>, ProtocolError> {
+        let mut decoded: Vec<Option<ProtocolFrame>> = Vec::with_capacity(requests.len());
+        let mut early: Vec<Option<Answer>> = Vec::with_capacity(requests.len());
+        for request_bytes in requests {
+            match decode_frame(request_bytes, self.profile.limits.max_frame_bytes) {
+                Ok((DecodedFrame::Request(frame), _)) => {
+                    decoded.push(Some(frame));
+                    early.push(None);
+                }
+                Ok(_) => {
+                    decoded.push(None);
+                    early.push(Some(self.respond(
+                        None,
+                        0,
+                        0,
+                        Err(ProtocolFailure::protocol(ProtocolErrorCode::FrameInvalid)),
+                    )?));
+                }
+                Err(error) => {
+                    decoded.push(None);
+                    early.push(Some(self.respond(
+                        None,
+                        0,
+                        0,
+                        Err(ProtocolFailure::protocol(error.code())),
+                    )?));
+                }
             }
-            Err(error) => {
-                return self.respond(None, 0, 0, Err(ProtocolFailure::protocol(error.code())));
+        }
+        let mut cancelled: BTreeSet<(SessionId, u64)> = BTreeSet::new();
+        for frame in decoded.iter().flatten() {
+            let Some(session) = frame.session else {
+                continue;
+            };
+            if frame.flags & FLAG_CANCEL != 0 {
+                cancelled.insert((session, frame.request_id));
             }
-        };
-        let outcome = self.dispatch(&frame);
-        self.respond(frame.session, frame.request_id, frame.method, outcome)
+            if frame.method == Method::Cancel.tag()
+                && let Ok(target) = single_uvar(&frame.body)
+            {
+                cancelled.insert((session, target));
+            }
+        }
+        let mut answers = Vec::with_capacity(requests.len());
+        for (slot, frame) in decoded.into_iter().enumerate() {
+            if let Some(answer) = early[slot].take() {
+                answers.push(answer);
+                continue;
+            }
+            let Some(frame) = frame else {
+                return Err(ProtocolError::new(ProtocolErrorCode::InternalInvariant));
+            };
+            let is_cancel_method = frame.method == Method::Cancel.tag();
+            let outcome = match frame.session {
+                Some(session)
+                    if !is_cancel_method && cancelled.contains(&(session, frame.request_id)) =>
+                {
+                    self.admit_only(session, frame.request_id)
+                        .and_then(|()| protocol_failure(ProtocolErrorCode::Cancelled))
+                }
+                _ => self.dispatch(&frame),
+            };
+            answers.push(self.respond(frame.session, frame.request_id, frame.method, outcome)?);
+        }
+        Ok(answers)
+    }
+
+    /// Admits a cancelled request's identifier so the sequence stays exact,
+    /// then releases its slot without executing anything.
+    fn admit_only(&mut self, session: SessionId, request_id: u64) -> Result<()> {
+        self.registry
+            .admit(session, request_id, self.profile.limits.max_inflight)
+            .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        self.registry
+            .complete(session)
+            .map_err(|error| ProtocolFailure::protocol(error.code()))
+    }
+
+    /// Remaining budget of an open session, or `None` when unknown.
+    #[must_use]
+    pub fn remaining_budget(&self, session: SessionId) -> Option<u64> {
+        self.budgets.get(&session).copied()
     }
 
     fn respond(
@@ -204,13 +298,47 @@ impl Server {
             bounds,
             body,
         };
-        let encoded = encode_frame(&frame)?;
+        let stream_negotiated = self.profile.features & FEATURE_STREAM != 0;
+        let mut frames = match stream_response(
+            &frame,
+            self.profile.limits.max_frame_bytes,
+            stream_negotiated,
+        ) {
+            Ok(frames) => frames,
+            Err(error) if error.code() == ProtocolErrorCode::LimitExceeded && !failed => {
+                // The body cannot travel: answer the limit failure instead,
+                // with no partial body.
+                let failure =
+                    ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
+                let refused = ProtocolFrame {
+                    bounds: BoundedContext {
+                        applied_limits: self.profile.limits,
+                        ..BoundedContext::none()
+                    },
+                    body: failure,
+                    ..frame
+                };
+                return Ok(Answer {
+                    session,
+                    request_id,
+                    method,
+                    failed: true,
+                    frame: encode_frame(&refused)?,
+                    events: Vec::new(),
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        let last = frames
+            .pop()
+            .ok_or(ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
         Ok(Answer {
             session,
             request_id,
             method,
             failed,
-            frame: encoded,
+            frame: last,
+            events: frames,
         })
     }
 
@@ -232,12 +360,25 @@ impl Server {
         self.registry
             .admit(session, frame.request_id, self.profile.limits.max_inflight)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
+            self.registry
+                .complete(session)
+                .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+            return protocol_failure(ProtocolErrorCode::LimitExceeded);
+        }
         let outcome = self.dispatch_admitted(session, method, frame);
         // Synchronous server: the request completes before the next frame.
         if self.registry.is_open(session) {
             self.registry
                 .complete(session)
                 .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        }
+        if let Ok((body, _)) = &outcome {
+            // One unit per request plus one per returned byte, never below zero.
+            let charge = to_u64(body.len())?.saturating_add(1);
+            if let Some(remaining) = self.budgets.get_mut(&session) {
+                *remaining = remaining.saturating_sub(charge);
+            }
         }
         outcome
     }
@@ -264,6 +405,7 @@ impl Server {
                     .close(session)
                     .map_err(|error| ProtocolFailure::protocol(error.code()))?;
                 self.open_sessions.remove(&session);
+                self.budgets.remove(&session);
                 self.plain(Vec::new())
             }
             Method::SessionCapabilities => {
@@ -274,7 +416,11 @@ impl Server {
                 self.plain(preimage)
             }
             Method::SessionBudgets => {
-                let limits = encode_limits(&self.profile.limits)?;
+                let remaining = LimitProfile {
+                    max_work: self.budgets.get(&session).copied().unwrap_or(0),
+                    ..self.profile.limits
+                };
+                let limits = encode_limits(&remaining)?;
                 self.plain(limits)
             }
             Method::RefsList => self.refs_list(body),
@@ -353,6 +499,7 @@ impl Server {
             .open(session)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
         self.open_sessions.insert(session);
+        self.budgets.insert(session, self.profile.limits.max_work);
         self.plain(session.as_bytes().to_vec())
     }
 

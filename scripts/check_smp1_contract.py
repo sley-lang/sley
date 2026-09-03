@@ -62,6 +62,9 @@ SPEC_MARKERS = (
     "## 11. Explicit exclusions",
     "## Appendix A. Body records of the dispatched methods (S20-410)",
     "S20-410-SLICE-C-DEFERRED",
+    "## Appendix B. Cancellation, streaming, and budget records (S20-440)",
+    "stream_chunk = record(1: uvar(index), 2: uvar(total), 3: bytes(chunk))",
+    "cancel latency bound is therefore exactly one request execution",
 )
 ADR_MARKERS = (
     "# ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary",

@@ -10,16 +10,20 @@
 //! rewrites only the final `ProtocolFrameId` trailer so mutations reach the
 //! record rules instead of stopping at the digest. Lane 2 decodes the bytes
 //! as a bare hello record and negotiates it against a fixed server hello.
+//! Lane 3 decodes the bytes as a stream chunk record, wraps it as an event
+//! frame with a final response, and reassembles; when the bytes are not a
+//! chunk they are a body split under a small ceiling and reassembled.
 
 use core::slice;
 
 use sley_id::{ProtocolFrameId, SchemaEpochId};
 use sley_protocol::{
-    DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method, ProtocolErrorCode,
-    decode_frame, encode_frame, encode_hello_frame, negotiate,
+    BoundedContext, DecodedFrame, FLAG_STREAM, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES,
+    Method, PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFrame, StreamChunk, decode_frame,
+    encode_frame, encode_hello_frame, negotiate, reassemble_stream, stream_response,
 };
 
-const SELECTOR_COUNT: u8 = 3;
+const SELECTOR_COUNT: u8 = 4;
 const MAX_FUZZ_INPUT_BYTES: usize = 65_536;
 const TRAILER_BYTES: usize = 32;
 const LENGTH_PREFIX: usize = 8;
@@ -64,7 +68,8 @@ fn fuzz_one(input: &[u8]) {
     match selector {
         0 => check_frame(payload),
         1 => check_frame(&with_rehashed_trailer(payload)),
-        _ => check_hello(payload),
+        2 => check_hello(payload),
+        _ => check_stream(payload),
     }
 }
 
@@ -122,6 +127,63 @@ fn check_hello(candidate: &[u8]) {
                 ProtocolErrorCode::PayloadInvalid | ProtocolErrorCode::LimitExceeded
             ));
         }
+    }
+}
+
+fn check_stream(candidate: &[u8]) {
+    if let Ok(chunk) = StreamChunk::decode(candidate) {
+        assert_eq!(chunk.encode().expect("re-encode"), candidate, "chunk re-encoding drifted");
+        let response = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 1,
+            kind: FrameKind::Response,
+            method: 502,
+            flags: FLAG_STREAM,
+            bounds: BoundedContext::none(),
+            body: Vec::new(),
+        };
+        let event = ProtocolFrame {
+            kind: FrameKind::Event,
+            body: candidate.to_vec(),
+            ..response.clone()
+        };
+        match reassemble_stream(&[event, response]) {
+            Ok(frame) => {
+                assert_eq!(chunk.index, 0);
+                assert_eq!(chunk.total, 1);
+                assert_eq!(frame.body, chunk.bytes);
+            }
+            Err(error) => assert_eq!(error.code(), ProtocolErrorCode::FrameInvalid),
+        }
+        return;
+    }
+    let response = ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 1,
+        kind: FrameKind::Response,
+        method: 502,
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: candidate.to_vec(),
+    };
+    let ceiling = 640 + u64::from(candidate.first().copied().unwrap_or(0)) * 8;
+    match stream_response(&response, ceiling, true) {
+        Ok(frames) => {
+            let decoded: Vec<ProtocolFrame> = frames
+                .iter()
+                .map(|frame| match decode_frame(&frame.bytes, ceiling).expect("stream frames decode").0 {
+                    DecodedFrame::Response(frame) => frame,
+                    DecodedFrame::Request(_) | DecodedFrame::Hello(_) => panic!("stream frame kind"),
+                })
+                .collect();
+            if decoded.len() > 1 {
+                let reassembled = reassemble_stream(&decoded).expect("stream reassembles");
+                assert_eq!(reassembled.body, candidate, "streamed body drifted");
+            }
+        }
+        Err(error) => assert_eq!(error.code(), ProtocolErrorCode::LimitExceeded),
     }
 }
 

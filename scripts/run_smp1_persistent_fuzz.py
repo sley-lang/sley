@@ -29,7 +29,7 @@ MAX_PAYLOAD_LEN = 65_536
 MAX_LEN = MAX_PAYLOAD_LEN + 1
 SMOKE_RUNS = 512
 SMOKE_TIMEOUT_SECONDS = 90
-SELECTOR_COUNT = 3
+SELECTOR_COUNT = 4
 
 
 def main() -> int:
@@ -48,7 +48,7 @@ def main() -> int:
 
     evidence: dict[str, object] = {
         "contract": "s20-700-smp1-frame-decoder-persistent-libfuzzer-slice-v1",
-        "scope": "SMP1_FRAME_HELLO_AND_NEGOTIATION_ONLY",
+        "scope": "SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
         "full_s20_700_complete": False,
         "selector_count": SELECTOR_COUNT,
         "max_payload_bytes": MAX_PAYLOAD_LEN,

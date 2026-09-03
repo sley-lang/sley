@@ -800,3 +800,206 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let deferred = harness.fail(Method::Execute, Vec::new());
     assert_eq!(deferred.details, DEFERRED_DISPATCH_REASON);
 }
+
+#[test]
+fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
+    let mut harness = Harness::new("smp1-440");
+    let genesis_id = harness.genesis;
+    let session = harness.session;
+    // A cancel in the same batch that precedes execution wins; the target
+    // never runs and answers PROTOCOL_CANCELLED under its own identifier.
+    let target = request_frame(Some(session), 1, Method::RevisionRead, tx(genesis_id));
+    let cancel = request_frame(Some(session), 2, Method::Cancel, encode_uvar(1));
+    let answers = harness.server.answer_batch(&[&target, &cancel]).unwrap();
+    assert_eq!(answers.len(), 2);
+    assert!(answers[0].failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answers[0].frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::Cancelled.numeric()
+    );
+    assert!(!answers[1].failed, "the cancel itself acknowledges");
+    // The cancel flag on the request frame has the same effect.
+    let mut flagged = ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: Some(session),
+        request_id: 3,
+        kind: FrameKind::Request,
+        method: Method::RevisionRead.tag(),
+        flags: crate::FLAG_CANCEL,
+        bounds: BoundedContext::none(),
+        body: tx(genesis_id),
+    };
+    let flagged_bytes = encode_frame(&flagged).unwrap().bytes;
+    let answers = harness.server.answer_batch(&[&flagged_bytes]).unwrap();
+    assert!(answers[0].failed);
+    flagged.flags = 0;
+    // A cancel naming an already answered request acknowledges.
+    harness.next_request = 4;
+    let ack = harness.ok(Method::Cancel, encode_uvar(1));
+    assert!(ack.body.is_empty());
+    // Identifiers stay strictly increasing across cancelled requests: the
+    // next identifier after the cancelled ones is admitted normally.
+    let next = harness.ok(Method::RevisionRead, tx(genesis_id));
+    assert_eq!(next.bounds.returned_entities, 1);
+
+    // Streaming: a profile with a small ceiling and the stream feature.
+    let mut small_client = hello(all_methods(), 4);
+    small_client.limits.max_frame_bytes = 640;
+    small_client.features = 1 | 2;
+    let mut small_server = hello(all_methods(), 8);
+    small_server.features = 1 | 2;
+    let profile = negotiate(&small_client, &small_server).unwrap();
+    assert_eq!(profile.limits.max_frame_bytes, 640);
+    let mut streaming = Server::new(&harness.repository, profile.clone()).unwrap();
+    let open = streaming
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            streaming.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let stream_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let checkout = streaming
+        .answer(&request_frame(
+            Some(stream_session),
+            1,
+            Method::Checkout,
+            tx(genesis_id),
+        ))
+        .unwrap();
+    assert!(!checkout.failed);
+    assert!(
+        !checkout.events.is_empty(),
+        "the checkout body exceeds the ceiling and streams"
+    );
+    for event in &checkout.events {
+        assert!(event.bytes.len() as u64 <= 640);
+    }
+    let mut frames: Vec<ProtocolFrame> = checkout
+        .events
+        .iter()
+        .chain(core::iter::once(&checkout.frame))
+        .map(
+            |encoded| match decode_frame(&encoded.bytes, 640).unwrap().0 {
+                DecodedFrame::Response(frame) => frame,
+                _ => panic!("stream frame"),
+            },
+        )
+        .collect();
+    let reassembled = crate::reassemble_stream(&frames).unwrap();
+    // The reassembled body equals the unstreamed answer of the large-ceiling server.
+    let plain = harness.ok(Method::Checkout, tx(genesis_id));
+    assert_eq!(reassembled.body, plain.body);
+    assert_eq!(reassembled.bounds.returned_entities, 7);
+    frames.pop();
+    assert_eq!(
+        crate::reassemble_stream(&frames).unwrap_err().code(),
+        ProtocolErrorCode::FrameInvalid
+    );
+    // Without the stream feature the same body fails closed with no partial body.
+    let mut no_stream_client = small_client.clone();
+    no_stream_client.features = 1;
+    let profile = negotiate(&no_stream_client, &small_server).unwrap();
+    let mut refusing = Server::new(&harness.repository, profile).unwrap();
+    let open = refusing
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            refusing.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let refusing_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let refused = refusing
+        .answer(&request_frame(
+            Some(refusing_session),
+            1,
+            Method::Checkout,
+            tx(genesis_id),
+        ))
+        .unwrap();
+    assert!(refused.failed && refused.events.is_empty());
+    let (DecodedFrame::Response(frame), _) = decode_frame(&refused.frame.bytes, 640).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+
+    // Budgets: a session whose work budget is exhausted fails closed.
+    let mut tiny_client = hello(all_methods(), 4);
+    tiny_client.limits.max_work = 64;
+    let profile = negotiate(&tiny_client, &hello(all_methods(), 8)).unwrap();
+    let mut budgeted = Server::new(&harness.repository, profile).unwrap();
+    let open = budgeted
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            budgeted.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let budget_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    assert_eq!(budgeted.remaining_budget(budget_session), Some(64));
+    let first = budgeted
+        .answer(&request_frame(
+            Some(budget_session),
+            1,
+            Method::SessionRenew,
+            budget_session.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!first.failed);
+    assert_eq!(budgeted.remaining_budget(budget_session), Some(64 - 33));
+    let second = budgeted
+        .answer(&request_frame(
+            Some(budget_session),
+            2,
+            Method::SessionRenew,
+            budget_session.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!second.failed);
+    assert_eq!(budgeted.remaining_budget(budget_session), Some(0));
+    let exhausted = budgeted
+        .answer(&request_frame(
+            Some(budget_session),
+            3,
+            Method::SessionRenew,
+            budget_session.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(exhausted.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&exhausted.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+}
