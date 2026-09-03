@@ -21,11 +21,11 @@
         "buildType": "urn:sley2:buildtype:release-candidate/v1",
         "externalParameters": {
           "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-          "commit": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2",
+          "commit": "abb1daed25a09976268e6652fd5b330d8cf47726",
           "make_target": "release-candidate-smoke"
         },
         "internalParameters": {
-          "artifact_size_bytes": 2050870,
+          "artifact_size_bytes": 2050865,
           "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
           "locked": true,
           "member_count": 14,
@@ -40,7 +40,7 @@
         "resolvedDependencies": [
           {
             "digest": {
-              "sha1": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2"
+              "sha1": "abb1daed25a09976268e6652fd5b330d8cf47726"
             },
             "uri": "urn:sley2:git-commit"
           },
@@ -64,13 +64,13 @@
           },
           {
             "digest": {
-              "sha256": "ef9bd27f6747a1d33b7d4a96b28fadd510a963b75a37f0a90594342c6c0b6bed"
+              "sha256": "12f6ab0a345b4b7a4ca47b415ae441088ae3b4fb166b17aa8c5403b3399860fc"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "b890b9c58399152ddffa0f59011b27e6674724d050ad752288fa93d3c8d1f0ed"
+              "sha256": "054e71e714145b2179ec9a0742d3d16f871961f73d3c9f2304efd45dcef85891"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -83,7 +83,7 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "fd1f3a1847973cc17604f3fe4e2d93659ffd88a22a7c1e0a4592e5b2004fc60e"
+              "sha256": "7bcac94e632b69a9b118d959cc91ad7b0f4a59b0b74f10cabe8f26baebd351e4"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
@@ -95,7 +95,7 @@
           }
         ],
         "metadata": {
-          "invocationId": "510fe41c46976f0b91e29ab4a1fcf114c830a153e4b2b243967ad063567da230"
+          "invocationId": "8ebf47fa5c905e6976af75cfd25d80df6038e24d789379d1cc554189a079f37f"
         }
       }
     },
@@ -103,11 +103,11 @@
     "subject": [
       {
         "digest": {
-          "sha256": "8a76e09465bc7eda0e77cfc498c403e54c7cd10c6baf54eae9427ae6c1668a7f"
+          "sha256": "c6b619833ed899a331db7fec69dbc725e792deb3399a9c53fb2882f7afc280b8"
         },
         "name": "sley-2.0.0-linux-x86_64.tar.gz"
       }
     ]
   },
-  "statement_digest": "9ba74b291e016eacd3977906fd831dcff28fa839bed14906b8057aeee83a0c7f"
+  "statement_digest": "e30245907695dc4822f35adfc8b2565ef16b45c2fb6afa7fccf424cac3cb4e07"
 }
