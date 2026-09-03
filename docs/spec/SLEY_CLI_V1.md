@@ -1,9 +1,10 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-430 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). Revision 2 records the clarifications found while implementing
+revision 1 (section 8). The implementation is `crates/sley-cli`;
+implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
 between standard input, standard output, and the deterministic S20-410
@@ -24,6 +25,7 @@ sley frame decode                       # stdin: frames as bytes; stdout: one Fr
 sley frame encode                       # stdin: one Frame object per line; stdout: frames as bytes
 sley methods                            # stdout: the generated method table
 sley hello [--json]                     # stdout: the hello this endpoint offers, as a hello frame
+                                        # (under --json: the Hello object it offers in JSON mode)
 sley version                            # stdout: {"cli":"1","protocol_version":1,"contract":"sley2-cli-v1"}
 ```
 
@@ -152,3 +154,28 @@ multi-tenant isolation; a daemon or socket server; interactive use, prompts,
 colour, or prose; command-count parity with any legacy CLI (master goal
 section 15.2); the benchmark harness (`sley-bench`); runtime, packaging,
 release, or GA.
+
+## 8. Revision 2 clarifications
+
+- A short read (fewer than eight prefix bytes, or fewer body bytes than
+  the prefix names) is `CLI_INPUT_INVALID` whether it happens before or
+  after the handshake; only a complete frame that is not a client hello,
+  or no frame at all, is `CLI_HANDSHAKE_REQUIRED`.
+- A prefix above the ceiling is handed to the server as it stands, so the
+  answer carries the codec's `PROTOCOL_FRAME_TOO_LARGE`; because the body
+  was not read the stream cannot be resynchronised, and the invocation
+  treats it as end of input. A JSON line above the text ceiling is
+  answered with `JSON_BRIDGE_RESOURCE_LIMIT` and likewise ends the input.
+- `answers` and `failed_answers` count every response frame written,
+  including the endpoint's own failure responses (negotiation failure and
+  bridge rejections), and `codes` counts their codes; `frames_read` counts
+  every frame or line taken from the input, rejected lines included.
+- An endpoint failure the contract does not name (the offered hello or a
+  frame the codec cannot encode, both `PROTOCOL_INTERNAL_INVARIANT`, or a
+  server frame the bridge cannot render) is `CLI_IO_FAILURE` with the
+  underlying symbol as its cause.
+- `hello --json` writes the `Hello` object the endpoint offers in JSON
+  mode, which carries the `json_bridge` feature; `hello` writes the hello
+  frame it offers in byte mode.
+- Standard error is best effort: the exit status carries the code even
+  when the failure object cannot be written.

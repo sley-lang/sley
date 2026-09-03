@@ -135,7 +135,7 @@ expected = {
     "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-430-CLI",
+    "next_dependency_complete_package": "S20-620-SLEY2-TRIAL-RUNNER",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -166,6 +166,7 @@ for path, marker in [
     (AUDIT, "S20-440 is implemented"),
     (AUDIT, "S20-330 is implemented"),
     (AUDIT, "S20-420 is implemented"),
+    (AUDIT, "S20-430 is implemented"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

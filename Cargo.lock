@@ -160,6 +160,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-cli"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "serde_json",
+ "sley-id",
+ "sley-json-bridge",
+ "sley-protocol",
+ "sley-repo",
+ "sley-scb1",
+]
+
+[[package]]
 name = "sley-conformance"
 version = "2.0.0-alpha.0"
 dependencies = [

@@ -1,0 +1,558 @@
+//! S20-430 endpoint tests over a trusted genesis repository: every judgment
+//! observed through the CLI must equal a direct `Server` over the same
+//! repository, and every CLI failure must carry its exit status.
+
+use std::path::PathBuf;
+
+use serde_json::Value;
+use sley_id::SessionId;
+use sley_json_bridge::{METHOD_TABLE_JSON, frame_from_json, frame_to_json, hello_to_json};
+use sley_protocol::{
+    BoundedContext, DecodedFrame, FEATURE_JSON_BRIDGE, FLAG_CANCEL, FrameKind, Hello,
+    MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolFailure, ProtocolFrame, Server,
+    decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate,
+};
+use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
+use sley_scb1::encode_uvar;
+
+const BRIDGE_FIXTURE: &str =
+    include_str!("../../../conformance/smp1-json-bridge/v1/roundtrip.json");
+
+fn repository(label: &str) -> (TempDir, PathBuf) {
+    let (temp, _transactions, _genesis) =
+        genesis(label, complete_bodies(), &[complete_dependency_root()]);
+    let path = temp.child("repo");
+    (temp, path)
+}
+
+fn offered() -> Hello {
+    Server::offered_hello().unwrap()
+}
+
+fn request(
+    session: Option<SessionId>,
+    id: u64,
+    method: Method,
+    flags: u32,
+    body: Vec<u8>,
+) -> Vec<u8> {
+    encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session,
+        request_id: id,
+        kind: FrameKind::Request,
+        method: method.tag(),
+        flags,
+        bounds: BoundedContext::none(),
+        body,
+    })
+    .unwrap()
+    .bytes
+}
+
+fn run(args: &[&str], input: &[u8]) -> (i32, Vec<u8>, String) {
+    let args: Vec<String> = args.iter().map(ToString::to_string).collect();
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let mut stdin: &[u8] = input;
+    let status = sley_cli::run(&args, &mut stdin, &mut stdout, &mut stderr);
+    (status, stdout, String::from_utf8(stderr).unwrap())
+}
+
+fn split_frames(bytes: &[u8]) -> Vec<Vec<u8>> {
+    let mut frames = Vec::new();
+    let mut offset = 0;
+    while offset < bytes.len() {
+        let length = frame_length(&bytes[offset..offset + 8], MAX_FRAME_BYTES).unwrap();
+        frames.push(bytes[offset..offset + 8 + length].to_vec());
+        offset += 8 + length;
+    }
+    frames
+}
+
+fn response(bytes: &[u8]) -> ProtocolFrame {
+    match decode_frame(bytes, MAX_FRAME_BYTES).unwrap().0 {
+        DecodedFrame::Response(frame) => frame,
+        other => panic!("not a response: {other:?}"),
+    }
+}
+
+fn failure(bytes: &[u8]) -> ProtocolFailure {
+    ProtocolFailure::decode(&response(bytes).body).unwrap()
+}
+
+fn stderr_object(text: &str) -> Value {
+    serde_json::from_str(text.trim_end()).unwrap()
+}
+
+/// A direct server over the repository, its session, and the request
+/// frames the CLI tests send after the hello.
+struct Direct {
+    server: Server,
+    session: SessionId,
+    frames: Vec<Vec<u8>>,
+}
+
+fn direct(path: &PathBuf) -> Direct {
+    let client = offered();
+    let selected = negotiate(&client, &offered()).unwrap();
+    let handshake = selected.handshake_id().unwrap();
+    let mut server = Server::new(path, selected).unwrap();
+    let open_frame = request(
+        None,
+        1,
+        Method::SessionOpen,
+        0,
+        handshake.as_bytes().to_vec(),
+    );
+    let open = server.answer(&open_frame).unwrap();
+    assert!(!open.failed);
+    let session = SessionId::from_bytes(response(&open.frame.bytes).body.try_into().unwrap());
+    let frames = vec![
+        open_frame,
+        request(Some(session), 2, Method::SessionCapabilities, 0, Vec::new()),
+        request(Some(session), 3, Method::RefsList, 0, encode_uvar(16)),
+        request(Some(session), 4, Method::SessionBudgets, 0, Vec::new()),
+        request(Some(session), 5, Method::WorkspaceOpen, 0, Vec::new()),
+    ];
+    Direct {
+        server,
+        session,
+        frames,
+    }
+}
+
+#[test]
+fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
+    let (temp, path) = repository("cli-bytes");
+    let mut direct = direct(&path);
+    let mut expected = Vec::new();
+    for frame in &direct.frames[1..] {
+        let answer = direct.server.answer(frame).unwrap();
+        assert!(answer.events.is_empty());
+        expected.push(answer.frame.bytes);
+    }
+    let mut input = encode_hello_frame(&offered()).unwrap().bytes;
+    for frame in &direct.frames {
+        input.extend_from_slice(frame);
+    }
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 1 + direct.frames.len());
+    assert_eq!(frames[0], encode_hello_frame(&offered()).unwrap().bytes);
+    let open = response(&frames[1]);
+    assert_eq!(open.body, direct.session.as_bytes().to_vec());
+    assert_eq!(&frames[2..], &expected[..]);
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v1");
+    assert_eq!(report["mode"], "bytes");
+    assert_eq!(report["batch"], false);
+    assert_eq!(report["frames_read"], 6);
+    assert_eq!(report["frames_written"], 6);
+    assert_eq!(report["answers"], 5);
+    assert_eq!(report["events_written"], 0);
+    assert_eq!(report["exit_code"], 0);
+    assert_eq!(report["cli_failure"], Value::Null);
+    assert!(report["handshake_id"].as_str().unwrap().len() == 64);
+    let failed = report["failed_answers"].as_u64().unwrap();
+    let counted: u64 = report["codes"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|v| v.as_u64().unwrap())
+        .sum();
+    assert_eq!(failed, counted);
+    let text = std::fs::read_to_string(temp.child("report.json")).unwrap();
+    assert!(
+        !text.contains(' '),
+        "no insignificant whitespace in the report"
+    );
+}
+
+#[test]
+fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
+    let (temp, path) = repository("cli-json");
+    let direct = direct(&path);
+    let mut byte_input = encode_hello_frame(&offered()).unwrap().bytes;
+    for frame in &direct.frames {
+        byte_input.extend_from_slice(frame);
+    }
+    let (_, byte_output, _) = run(
+        &["serve", "--repository", path.to_str().unwrap()],
+        &byte_input,
+    );
+    let byte_frames = split_frames(&byte_output);
+
+    let mut offered_json = offered();
+    offered_json.features |= FEATURE_JSON_BRIDGE;
+    let mut lines = String::new();
+    lines.push_str(&frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap());
+    lines.push('\n');
+    for (index, frame) in direct.frames.iter().enumerate() {
+        if index == 2 {
+            lines.push_str("{\"nope\":1}\n");
+            lines.push_str("not json at all\n");
+        }
+        lines.push_str(&frame_to_json(frame).unwrap());
+        lines.push('\n');
+    }
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--json",
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        lines.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let text = String::from_utf8(stdout).unwrap();
+    let outputs: Vec<Vec<u8>> = text
+        .lines()
+        .map(|line| frame_from_json(line).unwrap().bytes)
+        .collect();
+    assert_eq!(outputs.len(), byte_frames.len() + 2);
+    assert_eq!(outputs[0], encode_hello_frame(&offered_json).unwrap().bytes);
+    // The two rejected lines are answered in place with the bridge's code.
+    for rejected in [&outputs[3], &outputs[4]] {
+        let frame = response(rejected);
+        assert_eq!(
+            (frame.session, frame.request_id, frame.method),
+            (None, 0, 0)
+        );
+        let failure = ProtocolFailure::decode(&frame.body).unwrap();
+        assert_eq!(
+            (failure.code, failure.symbol.as_str()),
+            (42_000, "JSON_BRIDGE_SHAPE_INVALID")
+        );
+    }
+    // Every other answer is byte-identical to byte mode; the handshake
+    // differs only by the json_bridge feature, which the session identity
+    // digests, so compare the answers after the session open by method,
+    // failure state, and body shape.
+    let byte_answers: Vec<ProtocolFrame> = byte_frames[2..].iter().map(|f| response(f)).collect();
+    let json_answers: Vec<ProtocolFrame> = [&outputs[2], &outputs[5], &outputs[6], &outputs[7]]
+        .iter()
+        .map(|f| response(f))
+        .collect();
+    assert_eq!(byte_answers.len(), json_answers.len());
+    for (bytes, json) in byte_answers.iter().zip(&json_answers) {
+        assert_eq!(bytes.method, json.method);
+        assert_eq!(bytes.request_id, json.request_id);
+        assert_eq!(bytes.bounds, json.bounds);
+        assert_eq!(bytes.body.len(), json.body.len());
+    }
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["mode"], "json");
+    assert_eq!(report["frames_read"], 8);
+    assert_eq!(report["answers"], 7);
+    assert_eq!(report["codes"]["42000"], 2);
+}
+
+#[test]
+fn batch_mode_lets_a_cancellation_precede_execution() {
+    let (_temp, path) = repository("cli-batch");
+    let direct = direct(&path);
+    let session = direct.session;
+    let mut input = encode_hello_frame(&offered()).unwrap().bytes;
+    input.extend_from_slice(&direct.frames[0]);
+    input.extend_from_slice(&request(
+        Some(session),
+        2,
+        Method::SessionCapabilities,
+        0,
+        Vec::new(),
+    ));
+    input.extend_from_slice(&request(
+        Some(session),
+        3,
+        Method::Cancel,
+        0,
+        encode_uvar(2),
+    ));
+    input.extend_from_slice(&request(
+        Some(session),
+        4,
+        Method::SessionBudgets,
+        FLAG_CANCEL,
+        Vec::new(),
+    ));
+
+    let (status, stdout, _) = run(
+        &["serve", "--repository", path.to_str().unwrap(), "--batch"],
+        &input,
+    );
+    assert_eq!(status, 0);
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 5);
+    let cancelled = failure(&frames[2]);
+    assert_eq!(
+        (cancelled.code, cancelled.symbol.as_str()),
+        (40_010, "PROTOCOL_CANCELLED")
+    );
+    assert_eq!(response(&frames[2]).request_id, 2);
+    let self_cancelled = failure(&frames[4]);
+    assert_eq!(self_cancelled.code, 40_010);
+
+    let (status, stdout, _) = run(&["serve", "--repository", path.to_str().unwrap()], &input);
+    assert_eq!(status, 0);
+    let frames = split_frames(&stdout);
+    let capabilities = response(&frames[2]);
+    assert_eq!(capabilities.request_id, 2);
+    assert!(
+        ProtocolFailure::decode(&capabilities.body)
+            .map(|f| f.code != 40_010)
+            .unwrap_or(true)
+    );
+}
+
+#[test]
+fn a_failed_negotiation_is_answered_once_and_ends_the_input() {
+    let (temp, path) = repository("cli-negotiation");
+    let direct = direct(&path);
+    let client = Hello {
+        protocol_versions: vec![2],
+        ..offered()
+    };
+    let mut input = encode_hello_frame(&client).unwrap().bytes;
+    input.extend_from_slice(&direct.frames[0]);
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 1);
+    let frame = response(&frames[0]);
+    assert_eq!(
+        (frame.session, frame.request_id, frame.method),
+        (None, 0, 0)
+    );
+    let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(
+        (failure.code, failure.symbol.as_str()),
+        (40_003, "PROTOCOL_NO_COMMON_PROFILE")
+    );
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["frames_read"], 1);
+    assert_eq!(report["handshake_id"], Value::Null);
+    assert_eq!(report["codes"]["40003"], 1);
+}
+
+#[test]
+fn a_prefix_above_the_ceiling_is_answered_without_reading_the_body() {
+    let (temp, path) = repository("cli-too-large");
+    let mut input = encode_hello_frame(&offered()).unwrap().bytes;
+    input.extend_from_slice(&(MAX_FRAME_BYTES + 1).to_be_bytes());
+    input.extend_from_slice(&[0xAA; 64]);
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 2);
+    let failure = failure(&frames[1]);
+    assert_eq!(
+        (failure.code, failure.symbol.as_str()),
+        (40_002, "PROTOCOL_FRAME_TOO_LARGE")
+    );
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["frames_read"], 2);
+    assert_eq!(report["failed_answers"], 1);
+    assert_eq!(report["codes"]["40002"], 1);
+}
+
+type Case<'a> = (Vec<&'a str>, Vec<u8>, i32, u32, Option<&'a str>);
+
+#[test]
+fn cli_failures_carry_their_exit_status_and_one_stderr_object() {
+    let (temp, path) = repository("cli-failures");
+    let repo = path.to_str().unwrap();
+    let cases: Vec<Case> = vec![
+        (vec![], vec![], 2, 43_000, None),
+        (vec!["bogus"], vec![], 2, 43_000, Some("bogus")),
+        (vec!["serve"], vec![], 2, 43_000, Some("--repository")),
+        (
+            vec!["serve", "--repository", repo, "--json", "--json"],
+            vec![],
+            2,
+            43_000,
+            Some("--json"),
+        ),
+        (
+            vec!["serve", "--repository", repo, "--report"],
+            vec![],
+            2,
+            43_000,
+            Some("--report"),
+        ),
+        (vec!["frame"], vec![], 2, 43_000, Some("frame")),
+        (vec!["frame", "both"], vec![], 2, 43_000, Some("both")),
+        (vec!["methods", "extra"], vec![], 2, 43_000, Some("extra")),
+        (vec!["serve", "--repository", repo], vec![], 5, 43_003, None),
+        (
+            vec!["serve", "--repository", repo, "--json"],
+            vec![],
+            5,
+            43_003,
+            None,
+        ),
+        (
+            vec!["serve", "--repository", repo],
+            direct(&path).frames[0].clone(),
+            5,
+            43_003,
+            Some("NOT_A_HELLO"),
+        ),
+        (
+            vec!["serve", "--repository", repo],
+            vec![0u8; 7],
+            3,
+            43_001,
+            Some("SHORT_PREFIX"),
+        ),
+        (
+            vec!["serve", "--repository", repo, "--json"],
+            b"{\"nope\":1}\n".to_vec(),
+            5,
+            43_003,
+            Some("JSON_BRIDGE_SHAPE_INVALID"),
+        ),
+    ];
+    for (args, input, status, code, cause) in cases {
+        let (observed, stdout, stderr) = run(&args, &input);
+        assert_eq!(observed, status, "{args:?}");
+        assert!(stdout.is_empty(), "{args:?}");
+        let object = stderr_object(&stderr);
+        assert_eq!(object["code"], code, "{args:?}");
+        assert_eq!(
+            object["cause"],
+            cause.map_or(Value::Null, Value::from),
+            "{args:?}"
+        );
+        assert_eq!(stderr.matches('\n').count(), 1);
+    }
+    // A short read inside a frame after the handshake fails the invocation
+    // and the report records it.
+    let mut input = encode_hello_frame(&offered()).unwrap().bytes;
+    input.extend_from_slice(&100u64.to_be_bytes());
+    input.extend_from_slice(&[0u8; 10]);
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        &input,
+    );
+    assert_eq!(status, 3);
+    assert_eq!(
+        split_frames(&stdout).len(),
+        1,
+        "the hello was answered before the short frame"
+    );
+    assert_eq!(stderr_object(&stderr)["symbol"], "CLI_INPUT_INVALID");
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["exit_code"], 3);
+    assert_eq!(report["cli_failure"]["code"], 43_001);
+    assert_eq!(report["cli_failure"]["cause"], "SHORT_FRAME");
+    assert_eq!(report["frames_read"], 1);
+    assert_eq!(report["frames_written"], 1);
+}
+
+#[test]
+fn frame_decode_and_encode_reproduce_the_bridge_fixture() {
+    let fixture: Value = serde_json::from_str(BRIDGE_FIXTURE).unwrap();
+    let vectors = fixture["vectors"].as_array().unwrap();
+    let mut bytes = Vec::new();
+    let mut lines = String::new();
+    for vector in vectors {
+        let hex = vector["frame_hex"].as_str().unwrap();
+        bytes.extend(
+            (0..hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap()),
+        );
+        lines.push_str(vector["json"].as_str().unwrap());
+        lines.push('\n');
+    }
+    let (status, stdout, stderr) = run(&["frame", "decode"], &bytes);
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(String::from_utf8(stdout).unwrap(), lines);
+    let (status, stdout, stderr) = run(&["frame", "encode"], lines.as_bytes());
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(stdout, bytes);
+    let (status, _, stderr) = run(&["frame", "encode"], b"{\"nope\":1}\n");
+    assert_eq!(status, 3);
+    assert_eq!(stderr_object(&stderr)["cause"], "JSON_BRIDGE_SHAPE_INVALID");
+    let (status, _, stderr) = run(&["frame", "decode"], &bytes[..bytes.len() - 1]);
+    assert_eq!(status, 3);
+    assert_eq!(stderr_object(&stderr)["cause"], "SHORT_FRAME");
+}
+
+#[test]
+fn methods_hello_and_version_expose_the_offer_without_judgment() {
+    let (status, stdout, _) = run(&["methods"], &[]);
+    assert_eq!(status, 0);
+    assert_eq!(String::from_utf8(stdout).unwrap(), METHOD_TABLE_JSON);
+
+    let (status, stdout, _) = run(&["hello"], &[]);
+    assert_eq!(status, 0);
+    assert_eq!(stdout, encode_hello_frame(&offered()).unwrap().bytes);
+    let (status, stdout, _) = run(&["hello", "--json"], &[]);
+    assert_eq!(status, 0);
+    let mut with_bridge = offered();
+    with_bridge.features |= FEATURE_JSON_BRIDGE;
+    assert_eq!(
+        String::from_utf8(stdout).unwrap(),
+        format!("{}\n", hello_to_json(&with_bridge).unwrap())
+    );
+
+    let (status, stdout, _) = run(&["version"], &[]);
+    assert_eq!(status, 0);
+    assert_eq!(
+        String::from_utf8(stdout).unwrap(),
+        "{\"cli\":\"1\",\"contract\":\"sley2-cli-v1\",\"protocol_version\":1}\n"
+    );
+    let parsed = sley_cli::parse(&["hello".to_string(), "--json".to_string()]).unwrap();
+    assert_eq!(parsed, sley_cli::Command::Hello { json: true });
+    for code in sley_cli::CliErrorCode::ALL {
+        assert_eq!(
+            code.numeric() - 43_000 + 2,
+            u32::try_from(code.exit_status()).unwrap()
+        );
+        assert!(code.as_str().starts_with("CLI_"));
+    }
+}

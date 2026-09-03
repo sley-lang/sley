@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_420_IMPLEMENTED_REVIEWS_PENDING_S20_430_NEXT",
+            "status": "S20_430_IMPLEMENTED_REVIEWS_PENDING_S20_620_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-430-CLI",
+            "next_authority_safe_package": "S20-620-SLEY2-TRIAL-RUNNER",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -109,8 +109,10 @@ def main() -> int:
             "s20_440_implemented": True,
             "s20_330_implemented": True,
             "s20_420_implemented": True,
+            "s20_430_implemented": True,
             "session_authority_available": True,
             "json_bridge_available": True,
+            "cli_available": True,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
             "named_ref_boundary_available": True,
@@ -188,7 +190,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-430-CLI",
+            "S20-620-SLEY2-TRIAL-RUNNER",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -300,8 +302,17 @@ def main() -> int:
             if bodies_allowed and not present:
                 fail(f"S20-250 core body missing while the full profile is in progress: {type_name}")
 
-        if (ROOT / "crates/sley-cli").exists():
-            fail("production boundary appeared; re-audit required: crates/sley-cli")
+        # Re-audited 2026-09-03 (ADR-0035): the CLI crate may exist only while
+        # the S20-430 staged checker says its implementation is in progress,
+        # implemented, or complete.
+        cli_status = summary.get("cli", {}).get("status")
+        if (ROOT / "crates/sley-cli").exists() and cli_status not in (
+            "S20_430_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+            "S20_430_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+            "S20_430_IMPLEMENTED_REVIEW_PENDING",
+            "S20_430_COMPLETE",
+        ):
+            fail("cli production boundary appeared before its staged checker allows it")
         # Re-audited 2026-09-03 (ADR-0034): the JSON bridge crate may exist only
         # while the S20-420 staged checker says its implementation is in
         # progress, implemented, or complete.
@@ -366,6 +377,7 @@ def main() -> int:
             "S20-440 is implemented",
             "S20-330 is implemented",
             "S20-420 is implemented",
+            "S20-430 is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -387,7 +399,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-430-CLI",
+                "next_authority_safe_package": "S20-620-SLEY2-TRIAL-RUNNER",
                 "result": "PASS",
             },
             indent=2,

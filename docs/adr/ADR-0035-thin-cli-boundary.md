@@ -1,7 +1,9 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 1 with
-Council review pending; implementation pending
+Status: proposed; the S20-430 contract is a draft at revision 2 with
+Council review pending; implemented at `crates/sley-cli` (2026-09-03)
+with endpoint tests over a trusted genesis repository and the mechanical
+rule audit in `make quick`
 
 Date: 2026-09-03
 

@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge is implemented with reviews pending; S20-430 CLI is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge and S20-430 CLI are implemented with reviews pending; the S20-620 Sley 2 trial runner is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -23,10 +23,10 @@ boundary without creating named refs or runtime authority.
 | Lane | Current boundary | Status |
 |---|---|---|
 | Semantics and queries | Full S20-240/S20-250 | The six entity bodies, the eighteen-kind impact request, and the complete-root closure judgment are implemented under the draft full profile (`docs/audits/S20_250_FULL_ENTITY_BODIES_CLOSEOUT.md`); the contract is not frozen and the package is not complete until the Ariadne, Nabu, and Vulcan reviews pass. Full S20-240 remains restricted. |
-| Sessions and protocol | S20-330/S20-400 | Negotiated-session authority binding workspace, verified root, and epoch is implemented (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`) and the SMP1 contract, server, cancellation, and streaming are implemented, all under draft contracts with Council reviews pending; the JSON bridge is implemented (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`) with reviews pending; the CLI is absent. |
+| Sessions and protocol | S20-330/S20-400 | Negotiated-session authority binding workspace, verified root, and epoch is implemented (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`) and the SMP1 contract, server, cancellation, and streaming are implemented, all under draft contracts with Council reviews pending; the JSON bridge (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`) and the CLI (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`) are implemented with reviews pending. |
 | Mutation and transactions | Full S20-360/S20-390 | Restricted fresh validation and fixed-head atomic commit pass for executable programs without semantic operation entities and with no selected tests. Full operation analysis, selected-test evidence, policy/epoch transitions, and runtime authority remain absent. |
 | Repository | Reviews of full S20-250, S20-510, and S20-520 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange exist with reviewed closeouts. S20-510 semantic comparison and S20-520 merge are implemented under draft contracts (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`, `docs/audits/S20_520_MERGE_CLOSEOUT.md`) with Council reviews pending; M4 exit waits on those reviews. |
-| Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. Approved fixtures, containment, live adapters, artifact/oracle/accounting verification, protocol/CLI, and real trials are absent. |
+| Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. Approved fixtures, containment, live adapters, artifact/oracle/accounting verification, the Sley 2 trial runner, and real trials are absent; the protocol and CLI now exist under draft contracts. |
 | Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all twenty scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
 | Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
 
@@ -93,8 +93,9 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   (`docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`);
   S20-330 is implemented
   (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`); S20-420 is implemented
-  (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), so the S20-430 CLI is the
-  next dependency-complete package.
+  (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`) and S20-430 is implemented
+  (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`), so the S20-620 Sley 2 trial
+  runner is the next dependency-complete package.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -107,14 +108,15 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   deferred Forge review retain their original evidence status.
 - `make v2` and `make release-check` remain fail-closed `NOT_IMPLEMENTED`
   gates and are not success evidence.
-- No `sley-cli` crate exists; the protocol, JSON bridge, comparison, and
-  merge production modules exist under draft contracts.
+- The protocol, JSON bridge, CLI, comparison, and merge production modules
+  exist under draft contracts; no `sley-bench` Sley 2 trial runner exists.
 - No real benchmark trial, release artifact, publication authority, provider
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is S20-430: the CLI wrapper over the
-protocol and the JSON bridge, reporting only what the protocol judges and
-duplicating no semantics, while the pending S20-250, S20-510, S20-520,
-S20-300, S20-310, S20-320, S20-400, S20-330, and S20-420 reviews land as
-revisions; nothing in it is treated as GA.
+boundary drifts. The next action is S20-620: the Sley 2 trial runner in
+`sley-bench` with a capsule-and-affordance-only agent arm and a complete
+trace, mechanics only until a real trial is authorized, while the pending
+S20-250, S20-510, S20-520, S20-300, S20-310, S20-320, S20-400, S20-330,
+S20-420, and S20-430 reviews land as revisions; nothing in it is treated
+as GA.
