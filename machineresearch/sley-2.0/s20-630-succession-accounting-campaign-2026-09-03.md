@@ -44,4 +44,5 @@ Contract: `docs/spec/SUCCESSION_ACCOUNTING_V1.md`, ADR-0037, stage checker
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0037, stage checker |
+| Contract draft revision 1 | `539c0f9` | green | ADR-0037, stage checker |
+| Implementation, revision 2 | pending | pending | `bench/accounting`; 4 offline tests; smoke over the S20-620 run: PARTIAL, 2 attempts, no accepted change, thresholds UNDETERMINED |

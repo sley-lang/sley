@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_620_IMPLEMENTED_REVIEWS_PENDING_S20_630_NEXT",
+            "status": "S20_630_IMPLEMENTED_REVIEWS_PENDING_S20_410_SLICE_C_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-630-ACCOUNTING",
+            "next_authority_safe_package": "S20-410-SLICE-C-DEFERRED-DISPATCH",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -111,10 +111,12 @@ def main() -> int:
             "s20_420_implemented": True,
             "s20_430_implemented": True,
             "s20_620_implemented": True,
+            "s20_630_implemented": True,
             "session_authority_available": True,
             "json_bridge_available": True,
             "cli_available": True,
             "sley2_trial_runner_available": True,
+            "succession_accounting_available": True,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
             "named_ref_boundary_available": True,
@@ -192,7 +194,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-630-ACCOUNTING",
+            "S20-410-SLICE-C-DEFERRED-DISPATCH",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -381,6 +383,7 @@ def main() -> int:
             "S20-420 is implemented",
             "S20-430 is implemented",
             "S20-620 is implemented",
+            "S20-630 is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -402,7 +405,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-630-ACCOUNTING",
+                "next_authority_safe_package": "S20-410-SLICE-C-DEFERRED-DISPATCH",
                 "result": "PASS",
             },
             indent=2,

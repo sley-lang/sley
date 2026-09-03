@@ -1,7 +1,8 @@
 # ADR-0037: accounting as exact derivation from immutable claims
 
-Status: proposed; the S20-630 contract is a draft at revision 1 with
-Council review pending; implementation pending
+Status: proposed; the S20-630 contract is a draft at revision 2 with
+Council review pending; implemented at `bench/accounting/report.py`
+(2026-09-03) with four offline tests and a smoke over the S20-620 run
 
 Date: 2026-09-03
 

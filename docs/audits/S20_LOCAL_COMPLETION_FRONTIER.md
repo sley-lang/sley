@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, and the S20-620 Sley 2 trial runner are implemented with reviews pending; S20-630 accounting is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the deferred S20-410 slice C dispatch (gc, execute, report) is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -26,7 +26,7 @@ boundary without creating named refs or runtime authority.
 | Sessions and protocol | S20-330/S20-400 | Negotiated-session authority binding workspace, verified root, and epoch is implemented (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`) and the SMP1 contract, server, cancellation, and streaming are implemented, all under draft contracts with Council reviews pending; the JSON bridge (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`) and the CLI (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`) are implemented with reviews pending. |
 | Mutation and transactions | Full S20-360/S20-390 | Restricted fresh validation and fixed-head atomic commit pass for executable programs without semantic operation entities and with no selected tests. Full operation analysis, selected-test evidence, policy/epoch transitions, and runtime authority remain absent. |
 | Repository | Reviews of full S20-250, S20-510, and S20-520 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange exist with reviewed closeouts. S20-510 semantic comparison and S20-520 merge are implemented under draft contracts (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`, `docs/audits/S20_520_MERGE_CLOSEOUT.md`) with Council reviews pending; M4 exit waits on those reviews. |
-| Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. The Sley 2 trial runner is implemented (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`) with reviews pending; approved fixtures, containment, live adapters, artifact/oracle/accounting verification, accounting (S20-630), and real trials are absent. |
+| Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. The Sley 2 trial runner (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`) and exact accounting (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`) are implemented with reviews pending; approved fixtures, containment, live adapters, a legacy claim chain, artifact/oracle/accounting verification, and real trials are absent. |
 | Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all twenty scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
 | Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
 
@@ -94,9 +94,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   S20-330 is implemented
   (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`); S20-420 is implemented
   (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), S20-430 is implemented
-  (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`), and S20-620 is implemented
-  (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`), so S20-630
-  accounting is the next dependency-complete package.
+  (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`), S20-620 is implemented
+  (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`), and S20-630 is implemented
+  (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`), so the
+  deferred S20-410 slice C dispatch is the next dependency-complete work.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -109,16 +110,16 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   deferred Forge review retain their original evidence status.
 - `make v2` and `make release-check` remain fail-closed `NOT_IMPLEMENTED`
   gates and are not success evidence.
-- The protocol, JSON bridge, CLI, comparison, merge, and Sley 2 trial
-  runner production modules exist under draft contracts; no accounting
-  module exists.
+- The protocol, JSON bridge, CLI, comparison, merge, Sley 2 trial runner,
+  and accounting production modules exist under draft contracts; the
+  server still defers four methods (212, 213, 600, 604) on owner gaps.
 - No real benchmark trial, release artifact, publication authority, provider
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is S20-630: Accepted Change Tokens and
-context accounting derived only from immutable trial manifests and claims,
-mechanics only until a real trial is authorized, while the pending S20-250,
-S20-510, S20-520, S20-300, S20-310, S20-320, S20-400, S20-330, S20-420,
-S20-430, and S20-620 reviews land as revisions; nothing in it is treated
-as GA.
+boundary drifts. The next action is the deferred S20-410 slice C
+dispatch: `gc.dry_run`, `gc.collect`, `execute`, and `report` over the
+frozen S20-180, S20-270, and S20-290 owners so the SMP1 table dispatches
+every non-reserved method, while the pending S20-250, S20-510, S20-520,
+S20-300, S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620,
+and S20-630 reviews land as revisions; nothing in it is treated as GA.

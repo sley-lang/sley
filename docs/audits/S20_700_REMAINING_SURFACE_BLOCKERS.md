@@ -62,7 +62,8 @@ owner gaps; S20-440 is implemented
 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`); S20-420 is implemented
 (`docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`); S20-430 is implemented
 (`docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`); S20-620 is implemented
-(`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`). Now
+(`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`); S20-630 is implemented
+(`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`). Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5

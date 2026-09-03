@@ -1,9 +1,10 @@
 # Succession Accounting v1
 
-Status: S20-630 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-630 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). Revision 2 records the clarifications found while implementing
+revision 1 (section 9). The implementation is `bench/accounting/report.py`;
+implementation state is tracked in the machine summary.
 
 ## Boundary
 
@@ -147,8 +148,9 @@ report (`--require-complete`) over partial chains.
   (both PASS and FAIL cases), `UNDETERMINED` on absent and partial arms, a
   tampered chain failing closed, and the report digest;
 - `scripts/check_succession_accounting.py` in `make quick`;
-- a report over the S20-620 smoke run directory reading
-  `NO_TRIALS`, retained as runtime evidence;
+- a report over the S20-620 smoke run directory (`make accounting-smoke`),
+  reading `PARTIAL` with two scripted attempts, no accepted change, and
+  every threshold `UNDETERMINED`, retained as runtime evidence;
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews
   with every report-grade finding closed.
 
@@ -158,3 +160,23 @@ This contract does not claim: any trial; model, provider, or oracle
 execution; artifact or provenance verification; statistics beyond exact
 sums, ratios, and medians (S20-640); the legacy arm's claim chain (S20-600);
 publication; runtime, packaging, release, or GA.
+
+## 9. Revision 2 clarifications
+
+- `ArmAccounting` carries `accepted_change_tokens_reason`
+  (`no_accepted_change` or null) beside the nullable ratio, so a null is
+  never silent.
+- The S20-620 smoke run holds two scripted claims (one rejected, one
+  harness failure), so the report over it is `PARTIAL`, not `NO_TRIALS`;
+  `NO_TRIALS` names a run whose every arm has no chain.
+- "Accepted correct changes increased by at least 20 percent" is
+  `(accepted_sley2 - accepted_legacy) / accepted_legacy`, null when the
+  legacy arm accepted nothing; the shared action budget makes counts
+  comparable directly.
+- `other_context_metric_max_regression_percent` reports the same result as
+  the context threshold it caps, with the cap as its fact.
+- Each arm's chain is loaded through that arm's runner (`raw_files` by
+  `bench.raw.runner`, `sley_2_0` by `bench.sley2.runner`); the legacy arm
+  has no chain producer yet and is always `NO_CLAIM_CHAIN`.
+- The runner's `Fraction` arithmetic is exact rational arithmetic over
+  integers; no float is constructed anywhere.
