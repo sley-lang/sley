@@ -1,9 +1,10 @@
 # Repository Exchange v1
 
-Status: S20-540 contract draft, revision 2. Nabu design consult applied; the
+Status: S20-540 contract draft, revision 3. Nabu design consult applied; the
 first Ariadne contract review (`FAIL_CONTRACT_DRAFT`, 4 P0, 4 P1, 10 P2, 7 P3)
-is applied in full; Ariadne re-review and Vulcan import-surface review
-pending; no implementation exists.
+and the second (`FAIL_CONTRACT_DRAFT`, 2 P1, 1 P2, 3 P3) are applied in full;
+the third Ariadne pass and the Vulcan import-surface review are pending; no
+implementation exists.
 
 ## Notation
 
@@ -91,14 +92,21 @@ The payload is a closed SCB1 Record with all fields required:
 | 2 | `object_pack` | `Bytes`; one exact stored S20-170 pack (tag 170, version 1) of at most `16,777,216` bytes; an exchange never nests an exchange |
 | 3 | `receipts` | `CanonicalSet` of receipt entries; because a receipt entry begins with `transaction_id fixed32`, canonical-set order equals raw `TransactionId` order |
 | 4 | `accepted_head` | head entry naming one receipt of tag 3 |
-| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding, which orders by `len(branch_name)` and then the raw name bytes, not by raw name bytes alone |
+| 5 | `branches` | `CanonicalSet` of branch entries in strictly increasing SCB1 canonical-set order over the complete `branch_entry` encoding excluding the element length prefix; see the ordering rule below |
 | 6 | `compression_profile` | `UInt<32>`; exactly `0` (`none`) |
 | 7 | `digest_tree` | digest-tree record below |
 | 8 | `signature_metadata` | `Option<Bytes>`; MUST be present as `Option` union tag `0` (absent value), never omitted and never tag `1` |
 
-The branch order is deliberately not the raw-name order of `list_branches`
-(S20-500 section 8.3); exporters MUST re-sort into canonical-set order, and
-the names `b` and `aa` sort `b` first.
+Because `branch_entry` field 1 encodes as
+`uvar(1) || len(encode_bytes(branch_name)) || encode_bytes(branch_name)`, the
+branch order is by the varint bytes of `byte_length(encode_bytes(branch_name))`,
+then by the raw name bytes. This equals ordering by `byte_length(branch_name)`
+and then the raw name bytes only for names of at most 253 bytes; because
+S20-500 permits names up to 255 bytes, the exact order by name length is 1
+through 127, then 254, then 255, then 128 through 253. The names `b` and `aa`
+sort `b` first. This is deliberately not the raw-name order of
+`list_branches` (S20-500 section 8.3); exporters MUST re-sort into this order
+and MUST NOT sort by raw name bytes or by name length.
 
 A receipt entry carries the declared `TransactionId`, the declared `ReceiptId`,
 and the exact stored S20-390 receipt bytes including the trailer. The stored
@@ -263,9 +271,10 @@ and durable bytes yield identical exchange bytes and the same
 The import target is a path. It MUST be one of:
 
 - a **fresh target**: the path does not exist; or it is a directory that
-  contains nothing; or it is a directory whose only entries are an empty
-  `exchange/` directory or an `exchange/v1/` directory that contains no
-  marker file;
+  contains nothing; or it is a directory whose only entry is an empty
+  `exchange/` directory, or an `exchange/v1/` directory containing nothing
+  except at most one `sley-repo`-owned marker temporary (removed on retry);
+  any other entry under `exchange/v1/` is `EXCHANGE_TARGET_NOT_EMPTY`;
 - an **incomplete clone** of this same exchange: the directory contains the
   stage marker for this `RepositoryExchangeId`, and the fixed accepted head is
   absent, or present, resolving, and equal to `accepted_head.transaction_id`.
@@ -303,9 +312,12 @@ Import is split into preflight and persistence:
 8. only after all preflight checks pass, persist in this exact order, where
    every step is re-entrant (an already-complete step reverifies exact bytes
    and returns success without rewriting):
-   1. create the target directory if absent, then create `exchange/v1/` and
-      write and fsync the stage marker as the first regular file in the
-      target, then fsync its directories;
+   1. create the target directory if absent, then create `exchange/v1/`,
+      write the marker to a same-directory `sley-repo`-owned temporary file,
+      fsync it, atomically rename it over `exchange/v1/<hex>.stage`, and
+      fsync `exchange/v1/` and its parent, so the marker is the first regular
+      file durably visible in the target; a marker is visible only after its
+      rename, so no partially written marker is observable;
    2. create the remaining repository layout, initialize repository
       maintenance, and acquire exclusive repository maintenance ownership
       without waiting; a held lock is `EXCHANGE_IO`. The importer holds that
@@ -332,8 +344,13 @@ composite-caller mode that recovery already uses), the branch step takes and
 releases `locks/refs.lock` before the head step, and each clone-API phase
 takes the exclusive `accepted.lock` inside the importer's maintenance
 ownership. Concurrent importers of the same bytes into one target serialize on
-the maintenance lock; the loser fails `EXCHANGE_IO` and may retry. Concurrent
-imports into one target are otherwise outside v1.
+the maintenance lock; the loser fails `EXCHANGE_IO` and may retry. Because
+the marker is written before maintenance ownership exists, two importers of
+different bytes can leave two markers and permanently jam a target as
+`EXCHANGE_TARGET_INCOMPLETE_MISMATCH`; concurrent imports into one target are
+otherwise outside v1. `sley-repo` owns `exchange/`; it lies outside the
+S20-500 ref fan-out and the GC `objects/scb1` inventory, so no existing
+unknown-entry rule fires on an X-07 clone.
 
 The head is the completion witness: a target without a head is not a
 repository to any reader, and only the importer may write into it. Every step
@@ -349,7 +366,7 @@ complete clone; retrying with different exchange bytes fails
 
 | Row | Interruption point | Retry result |
 |---|---|---|
-| X-01 | before the stage marker is durable (at most the empty `exchange/v1/` directory exists) | target is fresh; import restarts from step 8.1 |
+| X-01 | before the stage-marker rename is durable (at most the empty `exchange/v1/` directory and one owned temporary exist) | target is fresh; the owned temporary is removed; import restarts from step 8.1 |
 | X-02 | after the marker, before any object (layout may be partial) | incomplete clone; layout completed, objects, receipts, branches, head installed |
 | X-03 | during object promotion | S20-170 idempotent re-import; unreachable staged objects are S20-530 owner cleanup |
 | X-04 | during receipt installation | exact existing receipts reverified; missing receipts installed |
@@ -445,8 +462,9 @@ initialize_trusted_clone_head_with_maintenance(
 ) -> Result<AcceptedHead, CommitError>
 ```
 
-Both validate the caller's exclusive maintenance guard and take the exclusive
-`accepted.lock` for their duration. The receipt phase requires the fixed head
+Both require the caller's exclusive `RepositoryMaintenanceGuard` for this
+exact repository, exactly as `recover_with_maintenance` does, and take the
+exclusive `accepted.lock` for their duration. The receipt phase requires the fixed head
 to be absent, or present and equal to `expected_head` with that receipt
 already durable in this target; it never advances or replaces a present head.
 It strictly decodes every stored receipt, installs in a deterministic
@@ -483,8 +501,9 @@ Implementation acceptance requires at least:
   preimage texts in this document;
 - exact envelope, payload, and digest-tree round trips;
 - field-perturbation and section-perturbation rejection matrices for every
-  code in the table, including a test that distinguishes canonical-set branch
-  order from raw-name order;
+  code in the table, including a canonical-set order test covering branch
+  names of 127, 128, 253, 254, and 255 bytes together with the `b`-versus-`aa`
+  case;
 - ancestry closure, surplus, cycle, zero and multiple genesis, parent-shape,
   head-membership, root-closure, workspace, and branch fast-forward rejection
   tests;

@@ -87,7 +87,13 @@ unreachable receipt ceiling.
    findings (marker contents and foreign heads, an undefined root-closure
    operator and code, untestable multi-genesis, and a double length
    encoding). Revision 2 applies every P0, P1, P2, and P3 item; codes 54020
-   and 54021 are added.
+   and 54021 are added. The second review (session
+   `forge-ariadne-s20-540-rereview-20260903T020340-91f5e854`) closed every
+   first-review item except the branch order, which it found inexact for
+   254- and 255-byte names because of the double varint length prefix, and
+   found the marker install non-atomic; revision 3 states the exact length
+   order, installs the marker by temp-and-rename, constrains `exchange/v1/`
+   contents, and names the two-importer jam consequence.
 
 ## Consequences
 
