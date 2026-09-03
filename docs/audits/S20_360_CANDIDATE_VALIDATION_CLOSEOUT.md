@@ -7,10 +7,10 @@ Status: **PASS - restricted executable-program-operation-free validation complet
 This closeout covers the pure ordered candidate validator, closed trusted
 context, complete epoch-1 entity/reference projection, canonical result codec,
 independent result oracle and corpus, and candidate-result persistent fuzz
-target. The success subset is explicitly executable-program-operation-free;
-candidate mutation operations remain supported. An SSMC1 semantic `Operation`
-entity fails phase 12 with `RESOURCE_LIMIT` and source symbol
-`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`.
+target. The original success subset was explicitly
+executable-program-operation-free; the full operation analysis addendum below
+(2026-09-03) replaced that limit with the S20-260/S20-270 E1 through E6
+judgment.
 
 This slice does not cover complete operation semantics, mandatory
 production-epoch semantic fingerprints, accepted-state writes, capability
@@ -114,3 +114,30 @@ Restricted S20-360 validation is complete and independently reviewed. A
 evidence only. S20-390 is the first package allowed to recheck that evidence
 and attempt an atomic durable commit with a receipt. The full Sley 2 goal,
 complete S20-700, M3-M6 exits, succession proof, and GA remain incomplete.
+
+## Full operation analysis addendum (2026-09-03)
+
+The S20-260/S20-270 extended opcode profile supplied the judgment this slice
+waited for, so phase 7 now calls `sley_vm::judge_function_operations` (contract
+revision 8, judgment only: no bytecode, no cache key, no execution) once per
+function unit after the S20-220 graph report. The phase evidence gained the
+judged-operation count and the judgment work, and phase 12 adds the operation
+count to the graph work total, so the recorded result identity of the valid
+fixture changed with the evidence.
+
+Failure mapping keeps every owner's code: a signature or immediate mismatch is
+a phase 7 `CONTROL_FLOW_ERROR` carrying `VM_LOWER_SIGNATURE_MISMATCH` or
+`VM_LOWER_IMMEDIATE_MISMATCH`, a lowering resource ceiling is a phase 7
+`RESOURCE_LIMIT`, and anything else is a phase 7 `INTERNAL_ERROR`.
+
+The five E7 opcodes stay unowned, and the matrix test records that each is
+refused by the owner of its own phase before the phase 12 guard is reached
+(144 at phase 10 `CONTRACT_ASSERT_TYPE`; 145 at phase 11
+`TEST_PLAN_OBSERVATION_UNSUPPORTED`; 160, 161, and 162 at phase 8
+`EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
+`CAPABILITY_REQUIREMENT_TYPE`). The guard remains as defense in depth.
+
+Still absent: mandatory production-epoch semantic fingerprints, accepted-state
+writes, capability budget consumption, atomic commit, receipts, refs, CAS,
+runtime effects, and every publication gate. The package's Council reviews of
+the extended profile and of this addendum remain pending.

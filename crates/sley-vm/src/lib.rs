@@ -20,7 +20,8 @@ pub use execute::{
 pub use lower::{
     BlockSlot, BytecodeBlock, BytecodeFunction, BytecodeSwitchArgument, BytecodeSwitchCase,
     BytecodeSwitchEdge, BytecodeTargetEdge, BytecodeTerminator, Instruction, LoweredFunction,
-    LoweringError, LoweringInput, Register, lower_function,
+    LoweringError, LoweringInput, OperationJudgment, Register, judge_function_operations,
+    lower_function,
 };
 
 /// Frozen S20-260 SSMC1 field-schema hash.

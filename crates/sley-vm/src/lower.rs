@@ -220,6 +220,44 @@ impl From<LowerError> for LoweringError {
     }
 }
 
+/// The result of judging one Function's operations without emitting bytecode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OperationJudgment {
+    /// Operations judged.
+    pub operations: u64,
+    /// Judgment work charged under the frozen lowering budget.
+    pub work: u64,
+}
+
+/// Judges every operation of one Function under the extended profile, without
+/// emitting bytecode, lowering callees, or executing anything.
+///
+/// This is the S20-260 judgment surface external owners use (S20-360 candidate
+/// validation): unlike `lower_function` it does not refuse a Function that
+/// declares type parameters, effects, or contracts, because those are the
+/// S20-210, S20-230, and S20-240 owners' concerns, and it derives no cache key
+/// or bytecode.
+///
+/// # Errors
+///
+/// Returns the first failure in the frozen S20-260 order.
+pub fn judge_function_operations(
+    root: LoweringInput<'_>,
+) -> Result<OperationJudgment, LoweringError> {
+    if !root.profile.is_extended() {
+        return lower_fail(LowerErrorCode::ProfileUnsupported);
+    }
+    let owned = owned_inventory(root, root.function);
+    let input = owned.narrow(root);
+    let mut work = preflight_resources(input)?;
+    let maps = Maps::build(input, &mut work)?;
+    judge_extended(input, root, &maps, &mut work)?;
+    Ok(OperationJudgment {
+        operations: input.operations.len() as u64,
+        work,
+    })
+}
+
 /// Validates and lowers one restricted Function.
 ///
 /// # Errors

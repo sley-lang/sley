@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 184,
+  "obligation_count": 187,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -1371,19 +1371,49 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "ariadne_operation_analysis_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
+      "section": "s20_360_candidate_validation",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_AFTER_RESOURCE_LIMIT_DECISION_FIX",
       "field": "ariadne_review",
-      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_VALIDATION_BOUNDARY",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "section": "s20_360_candidate_validation",
       "severities": [],
       "state": "PASS"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "nabu_operation_analysis_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
+      "section": "s20_360_candidate_validation",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "vulcan_operation_analysis_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
+      "section": "s20_360_candidate_validation",
+      "severities": [],
+      "state": "PENDING"
     },
     {
       "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": true,
       "disposition": "PASS_P3_CORPUS_BREADTH_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
       "field": "vulcan_review",
-      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_VALIDATION_BOUNDARY",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -2130,7 +2160,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "4d9bdb70dfd265ada17981af304ac4c843fd3dc5d6f68a8fb6d8e3011c711916",
+  "obligations_digest": "7939635bfa038b267ca543cb0710d1572a6eb55b681e2726d4dc1820410efc5b",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2281,6 +2311,18 @@
       "section": "root_backed_query_profile"
     },
     {
+      "field": "ariadne_operation_analysis_review",
+      "section": "s20_360_candidate_validation"
+    },
+    {
+      "field": "nabu_operation_analysis_review",
+      "section": "s20_360_candidate_validation"
+    },
+    {
+      "field": "vulcan_operation_analysis_review",
+      "section": "s20_360_candidate_validation"
+    },
+    {
       "field": "vulcan_review",
       "section": "s20_700_complete_root_persistent_fuzz_slice"
     },
@@ -2385,7 +2427,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "213d28c9ec09fa9fc4d6faeb76aab72e731649302d772a239d5b5dcb360ace2c",
+  "register_digest": "03e4e759522edfd3173e0c89cf54c592c35a2a3b0c5598e2834a3fcc6c73f7d7",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2400,7 +2442,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 63
+    "PENDING": 66
   },
   "unclassified": [
     {

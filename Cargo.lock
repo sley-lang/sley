@@ -222,6 +222,7 @@ dependencies = [
  "sley-schema",
  "sley-ssmc",
  "sley-state-root",
+ "sley-vm",
 ]
 
 [[package]]

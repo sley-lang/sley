@@ -15,6 +15,7 @@ sley-scb1 = { path = "../sley-scb1" }
 sley-schema = { path = "../sley-schema" }
 sley-ssmc = { path = "../sley-ssmc" }
 sley-state-root = { path = "../sley-state-root" }
+sley-vm = { path = "../sley-vm" }
 
 [lints]
 workspace = true

@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:312cc54821956d54e73e4f8b5820d653d42ce3fa0fa359cbd9911b9499a45cf0",
+  "documentNamespace": "urn:sley2:spdx:e4789350323ec9b53236adc7f89926a37c65cc25895e7cbf55bd99855425befd",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "The Sley 2 workspace packages declare a proprietary license reference. The exact root license text, copyright holder, term, and notice language await an operator decision (S20-710), so no license text is asserted here.",
@@ -1225,6 +1225,11 @@
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
       "relationshipType": "DEPENDS_ON",
       "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
     },

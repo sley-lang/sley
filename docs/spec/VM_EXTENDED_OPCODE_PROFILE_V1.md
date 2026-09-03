@@ -1,9 +1,10 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 7 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 8 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
 Vulcan surface review). Revisions 2 through 7 record the clarifications of
-slices E1 through E6 (section 7); every slice is implemented. Implementation lands in family slices E1 through E6 tracked in
+slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
+the judgment-only entry external owners use (section 3.1). Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -149,6 +150,22 @@ resource termination terminates the whole execution.
 
 Excluded from this revision: they answer `VM_LOWER_OPCODE_UNSUPPORTED`
 until S20-240 full, S20-280 full, and S20-380 full own their runtime.
+
+### 3.1 Judgment without lowering (revision 8)
+
+`judge_function_operations(input)` judges every operation of one Function
+under `EXTENDED_V1` and returns the operation count and the judgment work,
+without emitting bytecode, deriving a cache key, lowering callees, or
+executing anything. It is the surface external owners use: S20-360 candidate
+validation calls it once per function unit after the S20-220 graph report.
+
+Unlike `lower_function` it does not refuse a Function that declares type
+parameters, effects, or contracts, because those belong to the S20-210,
+S20-230, and S20-240 owners; a caller that needs bytecode still uses
+`lower_function` and gets the frozen refusals. Failures keep their exact
+`VM_LOWER_*` codes, so a caller can map them onto its own decisions without
+inventing a code. A restricted-profile request is
+`VM_LOWER_PROFILE_UNSUPPORTED`.
 
 ## 4. Observation and reports
 

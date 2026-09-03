@@ -1,4 +1,4 @@
-.PHONY: quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: evidence-refresh quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -146,6 +146,21 @@ accounting-smoke:
 # Every builder runs before every checker: the release checkers run the shared
 # bench/release test suite, whose S20-710/S20-730 tests read the evidence a
 # candidate build has just replaced.
+# Regenerates every derived evidence document in dependency order: the T52
+# inventory feeds the SBOM, the SBOM and the conformance report feed the
+# provenance, and the machine summary feeds the register and the dossier. The
+# supply-chain generator runs again at the end because its T54 scan covers the
+# documents the earlier steps rewrote. The reproducibility report is rebuilt
+# only by the release smoke, because it attests a clean-tree candidate build.
+evidence-refresh:
+	python3 scripts/generate_supply_chain_evidence.py
+	python3 scripts/build_independent_conformance_report.py
+	python3 scripts/build_standards_sbom.py
+	python3 scripts/build_release_provenance.py
+	python3 scripts/build_finding_register.py
+	python3 scripts/build_decision_dossier.py
+	python3 scripts/generate_supply_chain_evidence.py
+
 release-candidate-smoke:
 	python3 scripts/build_release_candidate.py --timeout-seconds 900
 	python3 scripts/build_reproducibility_report.py

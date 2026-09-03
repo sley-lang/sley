@@ -50,3 +50,4 @@ Current records:
 - ADR-0041: standards SBOM and unsigned provenance derived from local evidence
 - ADR-0042: the finding register is derived from recorded dispositions
 - ADR-0043: the decision dossier is derived, and the decision is not
+- ADR-0044: candidate operation analysis runs through the VM judgment owner

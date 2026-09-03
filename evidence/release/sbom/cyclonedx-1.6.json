@@ -1598,7 +1598,8 @@
         "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
       ],
       "ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true"
     },
@@ -1776,7 +1777,7 @@
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "312cc54821956d54e73e4f8b5820d653d42ce3fa0fa359cbd9911b9499a45cf0"
+        "value": "e4789350323ec9b53236adc7f89926a37c65cc25895e7cbf55bd99855425befd"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -1805,7 +1806,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:a27dfaa1-eb50-86f3-899b-a9f1ed9ad4b2",
+  "serialNumber": "urn:uuid:07a0576a-f4b2-882b-8740-6a28655f73f1",
   "specVersion": "1.6",
   "version": 1
 }

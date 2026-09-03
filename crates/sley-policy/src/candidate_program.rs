@@ -187,8 +187,26 @@ impl CandidateProgram {
         self.edges.len()
     }
 
+    /// Whether every operation of the program has an owned analysis.
+    ///
+    /// The S20-260/S20-270 extended opcode profile judges families E1 through
+    /// E6; the E7 opcodes (contract assertions, test observations, effect
+    /// requests, adapter invocations, capability narrowing) answer
+    /// `VM_LOWER_OPCODE_UNSUPPORTED` until S20-240 full, S20-280 full, and
+    /// S20-380 full own their runtime, so a program that contains one is not
+    /// analyzable here.
     pub(crate) fn operation_analysis_supported(&self) -> bool {
-        self.operations.is_empty()
+        !self
+            .operations
+            .iter()
+            .any(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
+    }
+
+    /// The E7 opcodes no owner implements yet (contract section 3).
+    const EXCLUDED_OPERATION_OPCODES: [u32; 5] = [144, 145, 160, 161, 162];
+
+    pub(crate) fn operation_count(&self) -> u64 {
+        self.operations.len() as u64
     }
 
     pub(crate) fn dependency_roots(&self) -> Vec<StateRoot> {

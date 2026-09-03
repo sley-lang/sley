@@ -290,17 +290,17 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "59528022dafa017bf3760991989edb2a0f3d678c4470b0256c33312074aff4b7"
+          "sha256": "e2e4f8b84af2d3be666d9bc97b05e09195ef6bbda0b775986eab13db8e68314d"
         },
         {
           "bytes": 16407,
           "name": "accepted.json",
-          "sha256": "df142fa0dae2bb8ffc7cb093c6760e7ddb075dd0758d8c5bce956f404ced998b"
+          "sha256": "a5e229b7c31a85fcb810f35a15a04f283d933954a38dc127671aa9a0a32b8ff6"
         },
         {
           "bytes": 85093,
           "name": "rejected.json",
-          "sha256": "41daeb2a8d7dd84cceff312837e9c80ef1945aa38e56522cce4d1b2f92ce044e"
+          "sha256": "60684f703484df5f8f67c86bc0c04a4efdf8bdee36d920a9c0ec89efa51a00a7"
         }
       ],
       "shape": {
@@ -607,17 +607,17 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "c05383cc4ac1c9e2b67e6858f93032d90d71a2aac76328167a4232ede2b17fc3"
+          "sha256": "ea4eeb4b5395a96c78e66a294b20ddf5aaec52cd98407e60814bb9d050865433"
         },
         {
           "bytes": 11090,
           "name": "accepted.json",
-          "sha256": "4c37ea77d7f7f1e895b1c91695fd2544e716b332d5f2d45812ff250a813a327c"
+          "sha256": "4c2ea3997fc055cdeaa79760eeca65c9f3cab3918938075dd6d1329c8cada65c"
         },
         {
           "bytes": 7668,
           "name": "rejected.json",
-          "sha256": "7f0acf02553dc1e607f116253f2d064ddbc0d3f862e9da6b4aab0abd94936087"
+          "sha256": "6588c4a5d65c54c213f6173dfb2f0462dcce67fa8d81d148acbeee126c6e5a22"
         }
       ],
       "shape": {
@@ -681,7 +681,7 @@
     "problems": [],
     "python_sources": 8
   },
-  "report_digest": "2e41ddc614bfeb1b68f1a72c973ab4f833a67869f85709b016ed8528d0cb35b5",
+  "report_digest": "798210c3410c79d4c515e906d48f24b9adcc7b16cb1fa585d81777cf05096626",
   "result": "INDEPENDENT_CONFORMANCE_PARTIAL",
   "work_package": "S20-730"
 }

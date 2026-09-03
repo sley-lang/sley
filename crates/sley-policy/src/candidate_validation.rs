@@ -41,6 +41,9 @@ use sley_ssmc::{
 use sley_state_root::{
     AcceptedStateRoot, StateRootBuilder, StateRootError, conformance_registry, import_state_root,
 };
+use sley_vm::{
+    CacheProfile, LowerErrorCode, LoweringError, LoweringInput, judge_function_operations,
+};
 
 use crate::{
     AcceptedPolicyRoot, CapabilityError, CapabilityErrorCode, CapabilityToken,
@@ -799,6 +802,9 @@ pub fn validate_candidate_bytes(
     let owned_units = program.function_units();
     let mut cfg_edges = 0_u64;
     let mut cfg_work = 0_u64;
+    let mut operation_work = 0_u64;
+    let mut judged_operations = 0_u64;
+    let operations_analyzable = program.operation_analysis_supported();
     for unit in &owned_units {
         let report = match validate_function_graph(
             &types,
@@ -818,6 +824,36 @@ pub fn validate_candidate_bytes(
             Some(value) => value,
             None => return renderer.finish_failure(resource_failure(7, "CFG_RESOURCE_LIMIT")),
         };
+        // S20-360 full: the S20-260 owner judges every operation of the unit.
+        // A program that still contains an unanalyzable E7 opcode keeps its
+        // frozen phase 12 refusal instead of failing here.
+        if !operations_analyzable {
+            continue;
+        }
+        let judgment = match judge_function_operations(LoweringInput {
+            types: &types,
+            function: &unit.function,
+            parameters: &unit.parameters,
+            blocks: &unit.blocks,
+            operations: &unit.operations,
+            schema_epoch: candidate.record.schema_epoch_id,
+            state_root: context.base_state.root,
+            profile: CacheProfile::EXTENDED_V1,
+            constants: &program.constants,
+            globals: &program.globals,
+            functions: &program.functions,
+        }) {
+            Ok(judgment) => judgment,
+            Err(error) => return renderer.finish_failure(operation_failure(&error)),
+        };
+        judged_operations = match judged_operations.checked_add(judgment.operations) {
+            Some(value) => value,
+            None => return renderer.finish_failure(resource_failure(7, "VM_LOWER_RESOURCE_LIMIT")),
+        };
+        operation_work = match operation_work.checked_add(judgment.work) {
+            Some(value) => value,
+            None => return renderer.finish_failure(resource_failure(7, "VM_LOWER_RESOURCE_LIMIT")),
+        };
     }
     renderer.pass(
         7,
@@ -825,6 +861,8 @@ pub fn validate_candidate_bytes(
             encode_uvar(owned_units.len() as u64),
             encode_uvar(cfg_edges),
             encode_uvar(cfg_work),
+            encode_uvar(judged_operations),
+            encode_uvar(operation_work),
         ],
     )?;
 
@@ -1512,7 +1550,8 @@ fn validate_phase_twelve(
         .ok_or_else(|| resource_failure(12, "CANDIDATE_GRAPH_WORK_LIMIT"))?;
     let total_work = program
         .graph_work()
-        .checked_add(mutation_work)
+        .checked_add(program.operation_count())
+        .and_then(|work| work.checked_add(mutation_work))
         .and_then(|work| work.checked_add(cfg_work))
         .and_then(|work| work.checked_add(effect_report.closure_work))
         .and_then(|work| work.checked_add(contract_report.work))
@@ -1702,6 +1741,42 @@ fn cfg_failure(error: &CfgValidationError) -> Failure {
             DiagnosticRetryability::Permanent,
         ),
         CfgValidationError::Type(error) => Failure::new(
+            7,
+            CandidateDecision::InternalError,
+            error.code().as_str(),
+            Some(error.code().numeric()),
+            DiagnosticRetryability::InternalRepair,
+        ),
+    }
+}
+
+/// Maps one S20-260 operation judgment failure onto its phase 7 decision.
+///
+/// The exact `VM_LOWER_*` symbol and numeric code are preserved as the
+/// diagnostic source; a resource ceiling stays a resource limit, and a
+/// judgment failure of the graph's operations is a phase 7 control-flow
+/// decision (the frozen decision of that phase).
+fn operation_failure(error: &LoweringError) -> Failure {
+    match error {
+        LoweringError::Cfg(error) => cfg_failure(error),
+        LoweringError::Lower(error) if error.code() == LowerErrorCode::ResourceLimit => {
+            resource_failure(7, error.code().as_str())
+        }
+        LoweringError::Lower(error)
+            if matches!(
+                error.code(),
+                LowerErrorCode::SignatureMismatch | LowerErrorCode::ImmediateMismatch
+            ) =>
+        {
+            Failure::new(
+                7,
+                CandidateDecision::ControlFlowError,
+                error.code().as_str(),
+                Some(error.code().numeric()),
+                DiagnosticRetryability::Permanent,
+            )
+        }
+        LoweringError::Lower(error) => Failure::new(
             7,
             CandidateDecision::InternalError,
             error.code().as_str(),
@@ -2257,7 +2332,7 @@ mod tests {
         assert!(first.result().record.candidate_root.is_some());
         assert_eq!(
             hex(first.result().candidate_result_id.as_bytes()),
-            "16ad5d91483c8aae6439ca6bcb5c638d49bf8b82ba41cc0ab4f59783a05e08ec"
+            "6a2bae847413d88bc8f9fabdee234a7ccad2513c8d28bb8da13efd73a48e85ec"
         );
         assert_eq!(first.result().record.phase_results.len(), 14);
         assert!(
@@ -3097,6 +3172,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn resource_and_unsupported_operation_analysis_fail_closed() {
         let fixture = Fixture::valid();
         let mut limits = CandidateValidationLimits::full_v1();
@@ -3110,62 +3186,185 @@ mod tests {
             "SCB_RESOURCE_LIMIT",
         );
 
-        let function = fixture.created_id(62, 5, 0);
-        let block = fixture.created_id(62, 7, 1);
-        let constant = fixture.created_id(62, 9, 2);
-        let operation = fixture.created_id(62, 8, 3);
-        let unsupported = fixture.create_candidate(
-            62,
-            vec![
-                (
-                    5,
-                    EntityBodyValue::Function(FunctionBody {
-                        type_parameters: vec![],
-                        parameters: vec![],
-                        result_type: TypeExpr::Unit,
-                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
-                        entry_block: block,
-                        blocks: vec![block],
-                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
-                        visibility: Visibility::Private,
-                    }),
-                ),
-                (
-                    7,
-                    EntityBodyValue::Block(BlockBody {
-                        function,
-                        parameters: vec![],
-                        operations: vec![operation],
-                        terminator: Terminator::Return(ReturnTerminator {
-                            value: ValueRef::OperationResult(OperationResultRef {
-                                operation,
-                                result_index: 0,
-                            }),
+        // Every E7 opcode is refused by its own owner before the phase 12
+        // guard can see it: contracts at phase 10, tests at phase 11, and
+        // effects, adapters, and capabilities at phase 8. The guard stays as
+        // the last line of defense if an owner ever admits one.
+        for (nonce, opcode, decision, phase, symbol) in [
+            (
+                62_u8,
+                Opcode::ContractAssert,
+                CandidateDecision::ContractError,
+                10_u32,
+                "CONTRACT_ASSERT_TYPE",
+            ),
+            (
+                65,
+                Opcode::TestObserve,
+                CandidateDecision::TestPlanError,
+                11,
+                "TEST_PLAN_OBSERVATION_UNSUPPORTED",
+            ),
+            (
+                66,
+                Opcode::EffectRequest,
+                CandidateDecision::EffectError,
+                8,
+                "EFFECT_REQUEST_TYPE",
+            ),
+            (
+                67,
+                Opcode::AdapterInvoke,
+                CandidateDecision::EffectError,
+                8,
+                "ADAPTER_INVOKE_TYPE",
+            ),
+            (
+                68,
+                Opcode::CapabilityNarrow,
+                CandidateDecision::EffectError,
+                8,
+                "CAPABILITY_REQUIREMENT_TYPE",
+            ),
+        ] {
+            let function = fixture.created_id(nonce, 5, 0);
+            let block = fixture.created_id(nonce, 7, 1);
+            let operation = fixture.created_id(nonce, 8, 3);
+            // The constant keeps every candidate's entity set identical to the
+            // analyzable programs above, so only the opcode differs.
+            let constant = fixture.created_id(nonce, 9, 2);
+            let _ = constant;
+            let excluded = fixture.create_candidate(
+                nonce,
+                vec![
+                    (
+                        5,
+                        EntityBodyValue::Function(FunctionBody {
+                            type_parameters: vec![],
+                            parameters: vec![],
+                            result_type: TypeExpr::Unit,
+                            effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                            entry_block: block,
+                            blocks: vec![block],
+                            contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                            visibility: Visibility::Private,
                         }),
-                        reachability: Reachability::Required,
-                    }),
-                ),
-                (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
-                (
-                    8,
-                    EntityBodyValue::Operation(OperationBody {
-                        block,
-                        ordinal: 0,
-                        opcode: Opcode::ConstantRef.tag(),
-                        operands: vec![],
-                        result_types: vec![TypeExpr::Unit],
-                        immediate: Immediate::Entity(constant),
-                    }),
-                ),
-            ],
+                    ),
+                    (
+                        7,
+                        EntityBodyValue::Block(BlockBody {
+                            function,
+                            parameters: vec![],
+                            operations: vec![operation],
+                            terminator: Terminator::Return(ReturnTerminator {
+                                value: ValueRef::OperationResult(OperationResultRef {
+                                    operation,
+                                    result_index: 0,
+                                }),
+                            }),
+                            reachability: Reachability::Required,
+                        }),
+                    ),
+                    (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
+                    (
+                        8,
+                        EntityBodyValue::Operation(OperationBody {
+                            block,
+                            ordinal: 0,
+                            opcode: opcode.tag(),
+                            operands: vec![],
+                            result_types: vec![TypeExpr::Unit],
+                            immediate: Immediate::None,
+                        }),
+                    ),
+                ],
+            );
+            let output =
+                validate_candidate_bytes(&fixture.context(), &excluded.stored_bytes).unwrap();
+            let record = &output.result().record;
+            assert_eq!(record.decision, decision, "{opcode:?}");
+            assert_eq!(record.diagnostics[0].phase_tag, phase, "{opcode:?}");
+            assert_eq!(record.diagnostics[0].source_symbol, symbol, "{opcode:?}");
+            assert_eq!(record.candidate_root, None, "{opcode:?}");
+        }
+    }
+
+    /// S20-360 full: a program whose operations are all E1 through E6 is
+    /// judged by the S20-260 owner and can reach `VALID`; an operation whose
+    /// declared result disagrees with the derived one fails phase 7 with the
+    /// exact lowering code.
+    #[test]
+    fn analyzable_operations_validate_and_signature_mismatches_fail_at_phase_seven() {
+        let fixture = Fixture::valid();
+        let program = |nonce: u8, result_type: TypeExpr| {
+            let function = fixture.created_id(nonce, 5, 0);
+            let block = fixture.created_id(nonce, 7, 1);
+            let constant = fixture.created_id(nonce, 9, 2);
+            let operation = fixture.created_id(nonce, 8, 3);
+            fixture.create_candidate(
+                nonce,
+                vec![
+                    (
+                        5,
+                        EntityBodyValue::Function(FunctionBody {
+                            type_parameters: vec![],
+                            parameters: vec![],
+                            result_type: result_type.clone(),
+                            effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                            entry_block: block,
+                            blocks: vec![block],
+                            contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                            visibility: Visibility::Private,
+                        }),
+                    ),
+                    (
+                        7,
+                        EntityBodyValue::Block(BlockBody {
+                            function,
+                            parameters: vec![],
+                            operations: vec![operation],
+                            terminator: Terminator::Return(ReturnTerminator {
+                                value: ValueRef::OperationResult(OperationResultRef {
+                                    operation,
+                                    result_index: 0,
+                                }),
+                            }),
+                            reachability: Reachability::Required,
+                        }),
+                    ),
+                    (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
+                    (
+                        8,
+                        EntityBodyValue::Operation(OperationBody {
+                            block,
+                            ordinal: 0,
+                            opcode: Opcode::ConstantRef.tag(),
+                            operands: vec![],
+                            result_types: vec![result_type],
+                            immediate: Immediate::Entity(constant),
+                        }),
+                    ),
+                ],
+            )
+        };
+
+        let accepted = program(63, TypeExpr::Unit);
+        let output = validate_candidate_bytes(&fixture.context(), &accepted.stored_bytes).unwrap();
+        assert!(
+            output.is_valid(),
+            "{:?}",
+            output.result().record.diagnostics.first()
         );
+
+        // The constant is Unit, so a Bool result contradicts the derivation.
+        let mismatched = program(64, TypeExpr::Bool);
         let output =
-            validate_candidate_bytes(&fixture.context(), &unsupported.stored_bytes).unwrap();
+            validate_candidate_bytes(&fixture.context(), &mismatched.stored_bytes).unwrap();
         assert_terminal(
             &output,
-            CandidateDecision::ResourceLimit,
-            12,
-            "CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED",
+            CandidateDecision::ControlFlowError,
+            7,
+            "VM_LOWER_SIGNATURE_MISMATCH",
         );
     }
 }

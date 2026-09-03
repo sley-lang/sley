@@ -336,15 +336,30 @@ expiry, mutation-grant, policy-isolation, and mandatory-test failures; resource
 ceilings; byte-identical repeated valid results; invalid-state immutability;
 and persistent fuzzing of result import and monotonic phase shape.
 
-The landed conformance slice can produce `VALID` only when the projected SSMC1
-program contains no `Operation` entities. This is an explicit supported subset,
-not an inference that operation semantics are safe. Encountering an operation
-fails phase 12 with `RESOURCE_LIMIT` and source symbol
-`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`. The validator still exercises all
-fourteen phases, all sixteen terminal decision encodings, complete all-18-kind
-reference extraction, native type/CFG/effect/contract owners, capability and
-policy checks, mandatory test planning, in-memory root reconstruction, and
-byte-identical result generation for the supported subset.
+The landed slice judges every operation whose opcode belongs to the
+S20-260/S20-270 extended families E1 through E6: phase 7 calls the VM owner's
+judgment entry once per function unit after the S20-220 graph report, charges
+its work, and records the judged-operation count and judgment work in the
+phase evidence. A judgment failure keeps its exact `VM_LOWER_*` symbol and
+numeric code: a signature or immediate mismatch is a phase 7
+`CONTROL_FLOW_ERROR`, a lowering resource ceiling is a phase 7
+`RESOURCE_LIMIT`, and any other lowering failure is a phase 7
+`INTERNAL_ERROR`.
+
+The five excluded E7 opcodes (contract assertion 144, test observation 145,
+effect request 160, adapter invocation 161, capability narrowing 162) have no
+owner yet. Each is refused by the owner of its own phase before the analysis
+guard is reached: 144 fails phase 10 with `CONTRACT_ASSERT_TYPE`, 145 fails
+phase 11 with `TEST_PLAN_OBSERVATION_UNSUPPORTED`, and 160, 161, and 162 fail
+phase 8 with `EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
+`CAPABILITY_REQUIREMENT_TYPE`. The phase 12 guard that answers
+`RESOURCE_LIMIT` with source symbol `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`
+remains as the last line of defense if an owner ever admits an E7 operation;
+it is unreachable while those owners refuse first. The validator still
+exercises all fourteen phases, all sixteen terminal decision encodings,
+complete all-18-kind reference extraction, native type/CFG/effect/contract
+owners, capability and policy checks, mandatory test planning, in-memory root
+reconstruction, and byte-identical result generation.
 
 S20-360 does not authorize policy transitions, mutate accepted state, consume
 runtime capability budget, execute tests or effects, write objects, commit,
