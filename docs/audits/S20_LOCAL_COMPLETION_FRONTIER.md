@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 clean-room packaging mechanics are next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode lowering and execution program is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -28,7 +28,7 @@ boundary without creating named refs or runtime authority.
 | Repository | Reviews of full S20-250, S20-510, and S20-520 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange exist with reviewed closeouts. S20-510 semantic comparison and S20-520 merge are implemented under draft contracts (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`, `docs/audits/S20_520_MERGE_CLOSEOUT.md`) with Council reviews pending; M4 exit waits on those reviews. |
 | Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. The Sley 2 trial runner (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`) and exact accounting (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`) are implemented with reviews pending; approved fixtures, containment, live adapters, a legacy claim chain, artifact/oracle/accounting verification, and real trials are absent. |
 | Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all twenty scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
-| Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
+| Supply chain and release | Full S20-710/S20-720 | S20-720 candidate mechanics are implemented (`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`): a reproducible artifact with an unpacked source-independent demo, reviews pending. Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a released artifact are absent. |
 
 ## S20-250 remains incomplete
 
@@ -98,8 +98,9 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   (`docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md`), and S20-630 is implemented
   (`docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md`), and the S20-410
   slice C dispatch is implemented (SMP1 revision 7, the S20-410 closeout
-  addendum), so S20-720 clean-room packaging mechanics are the next
-  dependency-complete work.
+  addendum), and S20-720 mechanics are implemented
+  (`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`), so the full
+  S20-260/S20-270 opcode program is the next dependency-complete work.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -119,10 +120,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is S20-720 mechanics: a clean-room
-artifact build and the source-independent demo through the `sley`
-endpoint (create, import, query, execute, export, and import back with no
-source, parser, or legacy repository), with `release-check` staying fail
-closed until GA, while the pending S20-250, S20-510, S20-520, S20-300,
-S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620, and S20-630
-reviews land as revisions; nothing in it is treated as GA.
+boundary drifts. The next action is the full S20-260/S20-270 program:
+semantic signature judgment, lowering, and deterministic execution for the
+fifty-two opcodes beyond the three Boolean ones, in opcode-family slices
+under the frozen VM contracts, while the pending S20-250, S20-510, S20-520,
+S20-300, S20-310, S20-320, S20-400, S20-330, S20-420, S20-430, S20-620,
+S20-630, and S20-720 reviews land as revisions; nothing in it is treated
+as GA.

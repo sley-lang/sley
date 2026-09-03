@@ -1,4 +1,4 @@
-.PHONY: quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -30,6 +30,7 @@ quick:
 	python3 scripts/check_smp1_json_bridge_contract.py
 	python3 scripts/generate_smp1_json_bridge_table.py --check
 	python3 scripts/generate_smp1_json_bridge_fixtures.py --check
+	python3 scripts/generate_release_demo_fixtures.py --check
 	python3 scripts/check_cli_contract.py
 	python3 scripts/check_cli_rules.py
 	python3 scripts/generate_context_capsule_fixtures.py --check
@@ -135,6 +136,10 @@ sley2-runner-smoke:
 accounting-smoke:
 	python3 -m bench.accounting.report smoke --sley2-evidence evidence/runtime/s20-620-sley2-smoke/evidence.json --output-dir evidence/runtime/s20-630-accounting-smoke
 	python3 scripts/check_succession_accounting.py
+
+release-candidate-smoke:
+	python3 scripts/build_release_candidate.py --timeout-seconds 900
+	python3 scripts/check_release_candidate_packaging.py
 
 legacy-runner-smoke:
 	python3 -m bench.legacy.runner smoke --timeout-seconds 90 --output-limit-bytes 65536 --evidence-dir evidence/runtime/s20-600-legacy-smoke

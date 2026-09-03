@@ -242,17 +242,38 @@ pub fn complete_dependency_root() -> StateRoot {
     fixed(9, StateRoot::from_bytes)
 }
 
-/// The complete bodies plus one executable Function (entity 30: `BoolAnd` over
+/// The dependency-free complete bodies plus one executable Function (entity 30: `BoolAnd` over
 /// two Bool parameters 31 and 32 in block 33 with operation 34), for the
 /// SMP1 `execute` path.
 #[must_use]
 pub fn executable_bodies() -> Vec<(u8, EntityBodyValue)> {
+    use sley_mutate::value::PackageBody;
     use sley_mutate::value::{BlockBody, EntityIdSet, FunctionBody, OperationBody, ParameterBody};
     use sley_ssmc::{
         Immediate, Opcode, OperationResultRef, ParameterRole, Reachability, ReturnTerminator,
         Terminator, TypeExpr, ValueRef,
     };
-    let mut bodies = complete_bodies();
+    // Dependency-free, so the root exports, imports, and collects without a
+    // dependency root the repository does not hold.
+    let mut bodies: Vec<(u8, EntityBodyValue)> = complete_bodies()
+        .into_iter()
+        .filter(|(byte, _)| *byte != 17)
+        .map(|(byte, body)| {
+            if byte == 3 {
+                (
+                    byte,
+                    EntityBodyValue::Package(PackageBody {
+                        workspace: id(1),
+                        root_namespace: id(4),
+                        dependencies: set(&[]),
+                        exports: set(&[6]),
+                    }),
+                )
+            } else {
+                (byte, body)
+            }
+        })
+        .collect();
     let function = id(30);
     let left = id(31);
     let right = id(32);

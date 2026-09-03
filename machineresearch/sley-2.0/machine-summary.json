@@ -1889,7 +1889,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-720-CLEAN-ROOM-PACKAGING",
+    "next_dependency_complete_package": "S20-260-FULL-OPCODE-LOWERING",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -2091,9 +2091,9 @@
     "publication_authorized": false
   },
   "release_candidate_packaging": {
-    "status": "S20_720_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
     "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
@@ -2115,13 +2115,27 @@
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
-    "implementation_started": false,
-    "implementation": []
+    "implementation_started": true,
+    "implementation": [
+      "scripts/build_release_candidate.py",
+      "bench/release/run_demo.py",
+      "bench/release/tests/test_packaging.py",
+      "scripts/generate_release_demo_fixtures.py"
+    ],
+    "smoke_target": "make release-candidate-smoke",
+    "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
+    "candidate_artifact_sha256": "72d2e936a6d122c2015c166ceb0b79860d50a4fde9988b8a282b1047c7a2edd4",
+    "candidate_artifact_size_bytes": 1990615,
+    "candidate_member_count": 14,
+    "candidate_reproducibility": "REPRODUCIBLE",
+    "candidate_demo": "PASS_12_STEPS",
+    "offline_tests": 4,
+    "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md"
   },
   "local_completion_frontier": {
-    "status": "S20_410_SLICE_C_IMPLEMENTED_REVIEWS_PENDING_S20_720_NEXT",
+    "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEWS_PENDING_S20_260_FULL_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-720-CLEAN-ROOM-PACKAGING",
+    "next_authority_safe_package": "S20-260-FULL-OPCODE-LOWERING",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -2188,7 +2202,8 @@
     "sley2_trial_runner_available": true,
     "s20_630_implemented": true,
     "succession_accounting_available": true,
-    "s20_410_slice_c_implemented": true
+    "s20_410_slice_c_implemented": true,
+    "s20_720_mechanics_implemented": true
   },
   "succession": {
     "corpus_version": 1,

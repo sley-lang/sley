@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_410_SLICE_C_IMPLEMENTED_REVIEWS_PENDING_S20_720_NEXT",
+            "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEWS_PENDING_S20_260_FULL_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-720-CLEAN-ROOM-PACKAGING",
+            "next_authority_safe_package": "S20-260-FULL-OPCODE-LOWERING",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -113,6 +113,7 @@ def main() -> int:
             "s20_620_implemented": True,
             "s20_630_implemented": True,
             "s20_410_slice_c_implemented": True,
+            "s20_720_mechanics_implemented": True,
             "session_authority_available": True,
             "json_bridge_available": True,
             "cli_available": True,
@@ -195,7 +196,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-720-CLEAN-ROOM-PACKAGING",
+            "S20-260-FULL-OPCODE-LOWERING",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -385,6 +386,7 @@ def main() -> int:
             "S20-430 is implemented",
             "S20-620 is implemented",
             "S20-630 is implemented",
+            "S20-720 mechanics are implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -406,7 +408,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-720-CLEAN-ROOM-PACKAGING",
+                "next_authority_safe_package": "S20-260-FULL-OPCODE-LOWERING",
                 "result": "PASS",
             },
             indent=2,

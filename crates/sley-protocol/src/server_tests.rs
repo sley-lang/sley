@@ -1407,3 +1407,115 @@ fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
         ProtocolErrorCode::PayloadInvalid.numeric()
     );
 }
+
+/// Prints the S20-720 demo fixture for `scripts/generate_release_demo_fixtures.py`:
+/// the exchange of the executable genesis with branch `main`, a bound
+/// `query.root` summary request and its response, an `execute` request and
+/// its report identity, and the head transaction identity.
+#[test]
+#[ignore = "fixture refresh emitter"]
+fn emit_release_demo_vectors_for_fixture_refresh() {
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    fn hex_of(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+    let (temp, mut server, session, genesis_id) = open_server("release-demo", executable_bodies());
+    let repository = temp.child("repo");
+    let (failed, _) = call_frame(
+        &mut server,
+        session,
+        2,
+        Method::BranchCreate,
+        encode_record(&[(1, b"main".to_vec()), (2, tx(genesis_id))]).unwrap(),
+    );
+    assert!(!failed);
+    let transactions = sley_txn::TransactionRepository::new(&repository);
+    let revision = transactions.verified_revision(genesis_id).unwrap();
+    let outcome = run_root_query(
+        &repository,
+        &revision,
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    let query_request = outcome.request.preimage().to_vec();
+    let (failed, summary) = call_frame(
+        &mut server,
+        session,
+        3,
+        Method::QueryRoot,
+        query_request.clone(),
+    );
+    assert!(!failed);
+    let function = sley_repo::test_support::id(30);
+    let value = |bit: bool| {
+        sley_mutate::encode_const_value(&ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(bit),
+        })
+        .unwrap()
+    };
+    let execute_request = encode_record(&[
+        (1, function.as_bytes().to_vec()),
+        (
+            2,
+            sley_scb1::encode_list(&[value(true), value(true)]).unwrap(),
+        ),
+        (
+            3,
+            encode_record(&[
+                (1, encode_uvar(1_000)),
+                (2, encode_uvar(1_000)),
+                (3, encode_uvar(10_000)),
+                (4, encode_uvar(100)),
+                (5, sley_scb1::encode_union(0, &[]).unwrap()),
+            ])
+            .unwrap(),
+        ),
+    ])
+    .unwrap();
+    let (failed, executed) = call_frame(
+        &mut server,
+        session,
+        4,
+        Method::Execute,
+        execute_request.clone(),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&executed.body));
+    let report_id = fields_of(&executed.body, 2)[0].clone();
+    let (failed, exported) =
+        call_frame(&mut server, session, 5, Method::ExchangeExport, Vec::new());
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&exported.body));
+    println!("RELEASE_DEMO|exchange_hex|{}", hex_of(&exported.body));
+    println!(
+        "RELEASE_DEMO|query_root_request_hex|{}",
+        hex_of(&query_request)
+    );
+    println!(
+        "RELEASE_DEMO|query_root_response_hex|{}",
+        hex_of(&summary.body)
+    );
+    println!(
+        "RELEASE_DEMO|execute_request_hex|{}",
+        hex_of(&execute_request)
+    );
+    println!(
+        "RELEASE_DEMO|execute_response_hex|{}",
+        hex_of(&executed.body)
+    );
+    println!(
+        "RELEASE_DEMO|execution_report_id_hex|{}",
+        hex_of(&report_id)
+    );
+    println!(
+        "RELEASE_DEMO|head_transaction_id_hex|{}",
+        hex_of(genesis_id.as_bytes())
+    );
+    println!(
+        "RELEASE_DEMO|function_id_hex|{}",
+        hex_of(function.as_bytes())
+    );
+    println!("RELEASE_DEMO|branch_name_hex|{}", hex_of(b"main"));
+}

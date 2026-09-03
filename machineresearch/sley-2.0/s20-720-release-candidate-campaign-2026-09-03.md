@@ -44,4 +44,5 @@ checker `scripts/check_release_candidate_packaging.py`.
 
 | Stage | Commit | Tier 1 | Notes |
 |---|---|---|---|
-| Contract draft revision 1 | pending | pending | ADR-0038, stage checker |
+| Contract draft revision 1 | `4adaca8` | green | ADR-0038, stage checker |
+| Mechanics, revision 2 | pending | pending | build script, demo, fixture, 4 offline tests; smoke PASS: 1,990,615 bytes, 14 members, REPRODUCIBLE, demo 12 steps; first run refused ten registry paths (scan working) |

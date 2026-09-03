@@ -1,9 +1,11 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-720 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). Revision 2 records the clarifications found while implementing
+revision 1 (section 11). The mechanics are `scripts/build_release_candidate.py`
+and `bench/release/run_demo.py`; implementation state is tracked in the
+machine summary.
 
 ## Boundary
 
@@ -156,3 +158,26 @@ publication, push, tag, upload, or deployment; the standards SBOM,
 provenance, and root license (S20-710 full); independent conformance
 (S20-730); the succession benchmark; or any change to the fail-closed
 `release-check` and `v2` gates.
+
+## 11. Revision 2 clarifications
+
+- The binary is built with three remaps: the working tree to `/sley2`, the
+  cargo registry sources (`$CARGO_HOME/registry/src`) to
+  `/cargo/registry/src`, and the home directory to `/home-remapped`; the
+  first build without the registry remap left ten registry source paths in
+  the binary and the content scan refused the artifact, which is the scan
+  working as intended.
+- Working-tree cleanliness is recorded in the evidence and enforced only
+  under `--require-clean` (`PACKAGE_TREE_DIRTY`); the smoke runs during
+  development on a dirty tree and says so.
+- The demo also executes the Function on the clone and requires the same
+  report record, and runs `gc.dry_run` on both repositories requiring no
+  deletion candidate; the runner's environment is exactly `PATH` and
+  `LANG`, and every `sley` invocation runs from inside the unpacked
+  artifact.
+- The artifact holds fourteen members; the stages and second artifact are
+  removed after comparison unless `--keep` is given, and only
+  `dist/sley-2.0.0-linux-x86_64.tar.gz` remains under the ignored `dist/`.
+- Reproducibility was established byte for byte on the first clean run
+  after the remap fix; a later archive-only difference is recorded, never
+  rounded.
