@@ -1115,3 +1115,44 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
         "the registry refuses first"
     );
 }
+
+#[test]
+fn the_offered_hello_names_exactly_the_dispatched_methods() {
+    let offered = Server::offered_hello().unwrap();
+    assert_eq!(offered.protocol_versions, vec![PROTOCOL_VERSION]);
+    assert_eq!(offered.limits, LimitProfile::maximum());
+    assert_eq!(
+        offered.features,
+        crate::FEATURE_CANCEL | crate::FEATURE_STREAM
+    );
+    assert!(offered.adapters.is_empty() && offered.effects.is_empty());
+    assert_eq!(offered.methods.len(), 33);
+    for method in Method::ALL {
+        let offered_it = offered.methods.contains(&method.tag());
+        assert_eq!(
+            offered_it,
+            !method.is_reserved() && !Server::is_deferred(method),
+            "{method:?}"
+        );
+    }
+    // Every offered method answers something other than an unsupported-method
+    // failure carrying the deferred or reserved reason.
+    let mut harness = Harness::new("offered-hello");
+    for tag in &offered.methods {
+        let method = Method::from_tag(*tag).unwrap();
+        if matches!(method, Method::SessionOpen | Method::SessionClose) {
+            continue;
+        }
+        let (failed, frame) = harness.call(method, Vec::new());
+        if failed {
+            let failure = ProtocolFailure::decode(&frame.body).unwrap();
+            assert!(
+                failure.details != DEFERRED_DISPATCH_REASON
+                    && failure.details != RESERVED_METHOD_REASON,
+                "{method:?} is offered but not dispatched"
+            );
+        }
+    }
+    let selected = negotiate(&offered, &offered).unwrap();
+    assert_eq!(selected.methods, offered.methods);
+}

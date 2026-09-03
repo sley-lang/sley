@@ -119,6 +119,22 @@ impl BridgeError {
     }
 }
 
+impl BridgeError {
+    /// The failure envelope an endpoint answers with when a text cannot be
+    /// bridged: the bridge's or the codec's code and symbol, phase zero, no
+    /// retry, no incident, and no details.
+    #[must_use]
+    pub fn envelope(&self) -> ProtocolFailure {
+        let mut failure = ProtocolFailure::protocol(match self {
+            Self::Bridge(_) => sley_protocol::ProtocolErrorCode::PayloadInvalid,
+            Self::Protocol(error) => error.code(),
+        });
+        failure.code = self.numeric();
+        failure.symbol = self.symbol().to_string();
+        failure
+    }
+}
+
 impl From<ProtocolError> for BridgeError {
     fn from(error: ProtocolError) -> Self {
         Self::Protocol(error)
@@ -195,13 +211,23 @@ pub fn method_by_name(name: &str) -> Option<Method> {
         .find(|method| method.name() == name)
 }
 
+/// The frozen "no method" tag carried by hello frames and by frame-level
+/// failure responses; it renders as the empty name.
+pub const NO_METHOD: u32 = 0;
+
 fn method_name(tag: u32) -> Result<&'static str> {
+    if tag == NO_METHOD {
+        return Ok("");
+    }
     Method::from_tag(tag)
         .map(Method::name)
         .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
 }
 
 fn method_tag(name: &str) -> Result<u32> {
+    if name.is_empty() {
+        return Ok(NO_METHOD);
+    }
     method_by_name(name)
         .map(Method::tag)
         .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
@@ -612,11 +638,7 @@ fn method_tags_from_value(value: &Value) -> Result<Vec<u32>> {
 /// Returns `JSON_BRIDGE_METHOD_UNKNOWN` for a method tag outside the table
 /// and `JSON_BRIDGE_SHAPE_INVALID` for flag bits the bridge cannot name.
 pub fn frame_value(frame: &ProtocolFrame) -> Result<Value> {
-    let method = if frame.kind == FrameKind::Hello && frame.method == 0 {
-        ""
-    } else {
-        method_name(frame.method)?
-    };
+    let method = method_name(frame.method)?;
     let mut map = Map::new();
     insert(
         &mut map,
@@ -662,14 +684,10 @@ pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
     let request_id = u64_field(&map["request_id"])?;
     let kind = kind_from_value(&map["kind"])?;
     let name = string_field(&map["method"])?;
-    let method = if kind == FrameKind::Hello {
-        if !name.is_empty() {
-            return fail(JsonBridgeErrorCode::ShapeInvalid);
-        }
-        0
-    } else {
-        method_tag(name)?
-    };
+    if kind == FrameKind::Hello && !name.is_empty() {
+        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    }
+    let method = method_tag(name)?;
     let flags = bits_from_value(&map["flags"], &FLAG_FIELDS, &FLAG_MASKS)?;
     let bounds = bounds_from_value(&map["bounds"])?;
     let body = hex_field(&map["body"])?;

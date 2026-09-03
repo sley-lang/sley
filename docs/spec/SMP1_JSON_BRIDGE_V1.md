@@ -1,9 +1,10 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-420 contract draft, revision 3 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
-revision 1 (section 8). The implementation is `crates/sley-json-bridge`;
+revision 1 (section 8); revision 3 names method tag zero (section 9) for the
+S20-430 endpoint. The implementation is `crates/sley-json-bridge`;
 implementation state is tracked in the machine summary.
 
 The bridge is a generated, non-canonical text representation of SMP1
@@ -50,7 +51,7 @@ Frame {
                                       // and the sessionless creators
   "request_id": integer,
   "kind": "request" | "response" | "event" | "hello",
-  "method": string,                   // the frozen method name, or "" for hello
+  "method": string,                   // the frozen method name, or "" for tag 0
   "flags": { "cancel": bool, "stream": bool },
   "bounds": BoundedContext,
   "body": hex
@@ -175,3 +176,16 @@ benchmark, packaging, release, or GA.
   `JSON_BRIDGE_NUMBER_INVALID`.
 - `hello_to_json` and `failure_to_json` validate through the codec first,
   so a value the codec would not encode fails with its `PROTOCOL_*` code.
+
+## 9. Revision 3: method tag zero and the failure envelope
+
+- Method tag zero is the frozen "no method" value of hello frames and of
+  the frame-level failure responses the server answers without a session
+  (SMP1 section 3, S20-410). It renders as the empty name on every frame
+  kind and the empty name reads as tag zero; the bridge invents nothing,
+  and a request naming it is judged by the server, not the bridge.
+- `BridgeError::envelope` is the failure envelope an endpoint answers with
+  when a text cannot be bridged: the bridge's or the codec's numeric code
+  and symbol, phase zero, `never`, no incident, no details. The bridge
+  still contains no semantic validation; the envelope only names the
+  bridge's own failure in the codec's record.

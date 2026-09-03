@@ -109,8 +109,8 @@
     },
     {
       "expected_code": "JSON_BRIDGE_METHOD_UNKNOWN",
-      "id": "method-empty",
-      "json": "{\"body\":\"534c4559525151312d626f6479\",\"bounds\":{\"applied_limits\":{\"max_depth\":0,\"max_edges\":0,\"max_entities\":0,\"max_frame_bytes\":0,\"max_inflight\":0,\"max_response_bytes\":0,\"max_work\":0},\"continuation\":false,\"omitted\":0,\"reached_depth\":0,\"returned_bytes\":0,\"returned_edges\":0,\"returned_entities\":0,\"truncated\":false},\"flags\":{\"cancel\":false,\"stream\":false},\"kind\":\"request\",\"method\":\"\",\"protocol_version\":1,\"request_id\":7,\"session\":\"5151515151515151515151515151515151515151515151515151515151515151\"}"
+      "id": "method-uppercase",
+      "json": "{\"body\":\"534c4559525151312d626f6479\",\"bounds\":{\"applied_limits\":{\"max_depth\":0,\"max_edges\":0,\"max_entities\":0,\"max_frame_bytes\":0,\"max_inflight\":0,\"max_response_bytes\":0,\"max_work\":0},\"continuation\":false,\"omitted\":0,\"reached_depth\":0,\"returned_bytes\":0,\"returned_edges\":0,\"returned_entities\":0,\"truncated\":false},\"flags\":{\"cancel\":false,\"stream\":false},\"kind\":\"request\",\"method\":\"Query.Root\",\"protocol_version\":1,\"request_id\":7,\"session\":\"5151515151515151515151515151515151515151515151515151515151515151\"}"
     },
     {
       "expected_code": "JSON_BRIDGE_SHAPE_INVALID",

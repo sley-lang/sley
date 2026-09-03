@@ -164,7 +164,7 @@ def integer(value: int) -> int | str:
 
 
 def render(frame: dict, names: dict[int, str]) -> str:
-    if frame["kind"] == 4 and frame["method"] == 0:
+    if frame["method"] == 0:
         method = ""
     elif frame["method"] in names:
         method = names[frame["method"]]
@@ -296,9 +296,9 @@ def frame_from_json(text: str, names: dict[str, int]) -> dict:
     kind = KIND_TAGS[fields["kind"]]
     if not isinstance(fields["method"], str):
         raise shape()
-    if kind == 4:
-        if fields["method"] != "":
-            raise shape()
+    if kind == 4 and fields["method"] != "":
+        raise shape()
+    if fields["method"] == "":
         method = 0
     elif fields["method"] in names:
         method = names[fields["method"]]

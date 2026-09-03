@@ -39,10 +39,10 @@ use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, Verified
 
 use crate::session::{HeadBinding, SessionAuthority, SessionError};
 use crate::{
-    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_STREAM, FLAG_CANCEL, FrameKind,
-    LimitProfile, Method, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure,
-    ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame,
-    encode_frame, stream_response,
+    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
+    FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode,
+    ProtocolFailure, ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId,
+    decode_frame, encode_frame, stream_response,
 };
 
 /// Versioned reason carried by `PROTOCOL_METHOD_UNSUPPORTED` for methods
@@ -137,6 +137,46 @@ impl Server {
             authority: SessionAuthority::new(handshake_id),
             budgets: BTreeMap::new(),
         })
+    }
+
+    /// The hello this server offers to an endpoint (S20-430): protocol
+    /// version 1, the frozen conformance schema epoch, the limit ceilings,
+    /// every method the server dispatches (reserved and deferred methods
+    /// are not offered), the cancel and stream features, and no adapters
+    /// or effects.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_INTERNAL_INVARIANT` when the conformance epoch
+    /// cannot be derived.
+    pub fn offered_hello() -> core::result::Result<Hello, ProtocolError> {
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
+        let hello = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION],
+            schema_epochs: vec![epoch],
+            limits: LimitProfile::maximum(),
+            methods: Method::ALL
+                .iter()
+                .copied()
+                .filter(|method| !method.is_reserved() && !Self::is_deferred(*method))
+                .map(Method::tag)
+                .collect(),
+            features: FEATURE_CANCEL | FEATURE_STREAM,
+            adapters: Vec::new(),
+            effects: Vec::new(),
+        };
+        hello.validate()?;
+        Ok(hello)
+    }
+
+    /// Methods whose dispatch is a later slice (`DEFERRED_DISPATCH_REASON`).
+    #[must_use]
+    pub const fn is_deferred(method: Method) -> bool {
+        matches!(
+            method,
+            Method::GcDryRun | Method::GcCollect | Method::Execute | Method::Report
+        )
     }
 
     #[must_use]

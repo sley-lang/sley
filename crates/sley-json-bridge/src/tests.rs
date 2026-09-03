@@ -226,8 +226,8 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
             method.clone(),
         ),
         (
-            "method-empty",
-            text(&with(base.clone(), &["method"], Value::from(""))),
+            "method-uppercase",
+            text(&with(base.clone(), &["method"], Value::from("Query.Root"))),
             method,
         ),
         (
@@ -441,6 +441,22 @@ fn the_rejection_matrix_reports_the_contract_codes_in_precedence() {
         assert_eq!(bridge(code).symbol(), code.as_str());
         assert_eq!(bridge(code).numeric(), code.numeric());
     }
+    let envelope = bridge(JsonBridgeErrorCode::HexInvalid).envelope();
+    assert_eq!(
+        (envelope.code, envelope.symbol.as_str()),
+        (42_002, "JSON_BRIDGE_HEX_INVALID")
+    );
+    assert_eq!(envelope.retryability, Retryability::Never);
+    assert!(envelope.incident.is_none() && envelope.details.is_empty() && envelope.phase == 0);
+    let codec = protocol(ProtocolErrorCode::FrameTooLarge).envelope();
+    assert_eq!(
+        (codec.code, codec.symbol.as_str()),
+        (40_002, "PROTOCOL_FRAME_TOO_LARGE")
+    );
+    assert_eq!(
+        failure_from_json(&failure_to_json(&envelope).expect("renders")).expect("parses"),
+        envelope
+    );
     let carried = protocol(ProtocolErrorCode::FrameInvalid);
     assert_eq!(carried.numeric(), 40_001);
     assert_eq!(carried.symbol(), "PROTOCOL_FRAME_INVALID");
@@ -467,6 +483,21 @@ fn unknown_methods_and_flags_are_named_never_invented() {
     assert_eq!(
         frame_value(&foreign),
         Err(bridge(JsonBridgeErrorCode::MethodUnknown))
+    );
+    // Tag zero is the frozen "no method" of hello frames and frame-level
+    // failure responses; it renders as the empty name on every kind.
+    let no_method = ProtocolFrame {
+        method: NO_METHOD,
+        kind: FrameKind::Response,
+        ..frame.clone()
+    };
+    let rendered =
+        frame_to_json(&encode_frame(&no_method).expect("encodes").bytes).expect("renders");
+    let value: Value = serde_json::from_str(&rendered).expect("parses");
+    assert_eq!(value["method"], "");
+    assert_eq!(
+        frame_from_json(&rendered).expect("parses").bytes,
+        encode_frame(&no_method).expect("encodes").bytes
     );
     let unnamed_flag = ProtocolFrame { flags: 4, ..frame };
     assert_eq!(
