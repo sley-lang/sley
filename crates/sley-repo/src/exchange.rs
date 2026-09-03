@@ -1950,7 +1950,7 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -1983,12 +1983,12 @@ mod tests {
     static TEMP_DIR_COUNTER: ::std::sync::atomic::AtomicU64 =
         ::std::sync::atomic::AtomicU64::new(0);
 
-    struct TempDir {
+    pub(crate) struct TempDir {
         path: PathBuf,
     }
 
     impl TempDir {
-        fn new(label: &str) -> Self {
+        pub(crate) fn new(label: &str) -> Self {
             let sequence = TEMP_DIR_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
             let path = ::std::env::temp_dir().join(format!(
                 "sley-exchange-{label}-{}-{sequence:016x}",
@@ -1998,7 +1998,7 @@ mod tests {
             Self { path }
         }
 
-        fn child(&self, name: &str) -> PathBuf {
+        pub(crate) fn child(&self, name: &str) -> PathBuf {
             self.path.join(name)
         }
     }
@@ -2009,18 +2009,18 @@ mod tests {
         }
     }
 
-    fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
+    pub(crate) fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
         constructor([byte; 32])
     }
 
-    fn namespace_body() -> EntityBodyValue {
+    pub(crate) fn namespace_body() -> EntityBodyValue {
         EntityBodyValue::Namespace(NamespaceBody {
             parent: None,
             members: EntityIdSet::from_unsorted(vec![]).unwrap(),
         })
     }
 
-    fn verifier(
+    pub(crate) fn verifier(
         epoch: SchemaEpochId,
     ) -> impl Fn(&[u8]) -> core::result::Result<ObjectId, ScbError> {
         move |bytes| import_entity_object(epoch, bytes).map(|object| object.object_id())

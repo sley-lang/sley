@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
+mod complete_root;
 mod exchange;
 mod gc;
 mod refs;
 
+pub use complete_root::*;
 pub use exchange::*;
 pub use gc::*;
 pub use refs::*;

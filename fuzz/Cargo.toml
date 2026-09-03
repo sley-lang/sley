@@ -54,6 +54,10 @@ path = "targets/transaction_receipt.rs"
 name = "repository_exchange_importer"
 path = "targets/repository_exchange_importer.rs"
 
+[[bin]]
+name = "complete_root_judgment"
+path = "targets/complete_root_judgment.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }

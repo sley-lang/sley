@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
-use sley_id::EntityId;
+use sley_id::{EntityId, StateRoot};
 
 pub mod fingerprint;
 
@@ -215,6 +215,26 @@ impl Visibility {
             Self::Package => 2,
             Self::Workspace => 3,
             Self::Exported => 4,
+        }
+    }
+}
+
+/// Closed entry-point exposure declared by the exact SSMC1 manifest.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryExposure {
+    /// Locally callable only.
+    Local,
+    /// Exposed through the deterministic protocol surface.
+    Protocol,
+}
+
+impl EntryExposure {
+    /// Returns the exact frozen SSMC1 tag.
+    #[must_use]
+    pub const fn tag(self) -> u32 {
+        match self {
+            Self::Local => 1,
+            Self::Protocol => 2,
         }
     }
 }
@@ -536,6 +556,87 @@ pub struct TestCaseDefinition {
     pub observations: Vec<ExpectedObservation>,
     /// Exact required resource limits.
     pub resource_limits: ResourceLimits,
+}
+
+/// One canonical `Workspace` semantic body (SSMC1 kind 1).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkspaceDefinition {
+    /// Stable workspace entity identity.
+    pub entity_id: EntityId,
+    /// Raw-ID-sorted member package identities.
+    pub packages: Vec<EntityId>,
+    /// Workspace root namespace identity.
+    pub root_namespace: EntityId,
+    /// Raw-ID-sorted workspace capability-requirement identities.
+    pub capability_requirements: Vec<EntityId>,
+    /// Raw-ID-sorted workspace contract identities.
+    pub contracts: Vec<EntityId>,
+    /// Raw-ID-sorted workspace test-case identities.
+    pub tests: Vec<EntityId>,
+}
+
+/// One canonical `Package` semantic body (SSMC1 kind 2).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PackageDefinition {
+    /// Stable package identity.
+    pub entity_id: EntityId,
+    /// Owning workspace identity.
+    pub workspace: EntityId,
+    /// Package root namespace identity.
+    pub root_namespace: EntityId,
+    /// Raw-ID-sorted dependency-binding identities.
+    pub dependencies: Vec<EntityId>,
+    /// Raw-ID-sorted exported entity identities.
+    pub exports: Vec<EntityId>,
+}
+
+/// One canonical `Namespace` semantic body (SSMC1 kind 3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NamespaceDefinition {
+    /// Stable namespace identity.
+    pub entity_id: EntityId,
+    /// Parent namespace identity; `None` marks a root namespace.
+    pub parent: Option<EntityId>,
+    /// Raw-ID-sorted member entity identities.
+    pub members: Vec<EntityId>,
+}
+
+/// One canonical `EntryPoint` semantic body (SSMC1 kind 16).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EntryPointDefinition {
+    /// Stable entry-point identity.
+    pub entity_id: EntityId,
+    /// Exposed function identity.
+    pub function: EntityId,
+    /// Closed exposure.
+    pub exposure: EntryExposure,
+}
+
+/// One canonical `PolicyBinding` semantic body (SSMC1 kind 17).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyBindingDefinition {
+    /// Stable binding identity.
+    pub entity_id: EntityId,
+    /// Bound subject entity identity.
+    pub subject: EntityId,
+    /// Raw-ID-sorted capability-requirement identities.
+    pub requirements: Vec<EntityId>,
+}
+
+/// One canonical `DependencyBinding` semantic body (SSMC1 kind 18).
+///
+/// `dependency_root` and `external_package` are identities of another root.
+/// Nothing in the semantic core loads, resolves, or compares that root.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DependencyBindingDefinition {
+    /// Stable binding identity.
+    pub entity_id: EntityId,
+    /// Exact external state root identity.
+    pub dependency_root: StateRoot,
+    /// Package identity inside the external root; never resolved locally.
+    pub external_package: EntityId,
+    /// Local namespace the external package is bound into.
+    pub local_namespace: EntityId,
 }
 
 /// One declaration parameter.

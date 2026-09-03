@@ -245,7 +245,18 @@ def main() -> int:
         if "generic union Option<T>(1:None,2:Some<T>)" in epoch_schema:
             fail("provisional epoch Option<T> tags remain")
 
+        # Re-audited 2026-09-03 (ADR-0026): the six S20-250 core bodies may
+        # exist only while the full profile's staged checker says the
+        # implementation is in progress or later; the staged checker owns
+        # the freeze-before-implementation rule.
         ssmc = SSMC.read_text(encoding="utf-8")
+        full_profile = summary.get("complete_entity_impact_profile", {})
+        bodies_allowed = full_profile.get("status") in (
+            "S20_250_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+            "S20_250_FULL_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+            "S20_250_FULL_IMPLEMENTED_REVIEW_PENDING",
+            "S20_250_FULL_COMPLETE",
+        )
         for type_name in (
             "WorkspaceDefinition",
             "PackageDefinition",
@@ -254,8 +265,11 @@ def main() -> int:
             "PolicyBindingDefinition",
             "DependencyBindingDefinition",
         ):
-            if f"pub struct {type_name}" in ssmc:
-                fail(f"S20-250 core body appeared; re-audit required: {type_name}")
+            present = f"pub struct {type_name}" in ssmc
+            if present and not bodies_allowed:
+                fail(f"S20-250 core body appeared before its staged checker allows it: {type_name}")
+            if bodies_allowed and not present:
+                fail(f"S20-250 core body missing while the full profile is in progress: {type_name}")
 
         for relative in (
             "crates/sley-protocol",

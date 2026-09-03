@@ -26,6 +26,7 @@ mod candidate_program;
 mod candidate_result;
 mod candidate_validation;
 mod capability_summary;
+pub mod complete_entities;
 
 pub use candidate_result::{
     CandidateDecision, CandidateDiagnostic, CandidatePhaseResult, CandidateResultError,

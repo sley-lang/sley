@@ -2,10 +2,12 @@
 #![doc = include_str!("../README.md")]
 
 mod capsule;
+mod complete_root;
 mod query;
 mod snapshot;
 
 pub use capsule::*;
+pub use complete_root::*;
 pub use query::*;
 pub use snapshot::*;
 
@@ -16,10 +18,11 @@ use sley_check::{TypeEnvironment, TypeError};
 use sley_id::{EntityId, SchemaEpochId, ValueHash};
 use sley_ssmc::{
     AdapterImport, Block, CapabilityRequirement, ConstData, ConstValue, ConstantDefinition,
-    ContractDefinition, ContractSource, EffectDefinition, EffectEnvironment, ExpectedOutcome,
-    FunctionGraph, GlobalValueDefinition, Immediate, Opcode, Operation, Parameter, ParameterRole,
-    ResultConst, SwitchArgument, Terminator, TestCaseDefinition, TypeDefForm, TypeDefinition,
-    TypeExpr, ValueRef,
+    ContractDefinition, ContractSource, DependencyBindingDefinition, EffectDefinition,
+    EffectEnvironment, EntryPointDefinition, ExpectedOutcome, FunctionGraph, GlobalValueDefinition,
+    Immediate, NamespaceDefinition, Opcode, Operation, PackageDefinition, Parameter, ParameterRole,
+    PolicyBindingDefinition, ResultConst, SwitchArgument, Terminator, TestCaseDefinition,
+    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, WorkspaceDefinition,
     fingerprint::{FingerprintError, hash_validated_value},
 };
 
@@ -32,9 +35,18 @@ pub const MAX_IMPACT_SEEDS: usize = 65_535;
 /// Maximum charged extraction or traversal work.
 pub const MAX_IMPACT_WORK: u64 = 100_000_000;
 
-/// Closed S20-250 modeled entity kind.
+/// Closed S20-250 modeled entity kind: every SSMC1 kind 1 through 18.
+///
+/// The restricted S20-300/S20-310/S20-320 consumers accept only kinds 4
+/// through 15 and fail closed on the others (`restricted_kind`).
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ModeledEntityKind {
+    /// SSMC1 kind 1.
+    Workspace,
+    /// SSMC1 kind 2.
+    Package,
+    /// SSMC1 kind 3.
+    Namespace,
     /// SSMC1 kind 4.
     TypeDef,
     /// SSMC1 kind 5.
@@ -59,6 +71,12 @@ pub enum ModeledEntityKind {
     TestCase,
     /// SSMC1 kind 15.
     AdapterImport,
+    /// SSMC1 kind 16.
+    EntryPoint,
+    /// SSMC1 kind 17.
+    PolicyBinding,
+    /// SSMC1 kind 18.
+    DependencyBinding,
 }
 
 impl ModeledEntityKind {
@@ -66,6 +84,9 @@ impl ModeledEntityKind {
     #[must_use]
     pub const fn tag(self) -> u32 {
         match self {
+            Self::Workspace => 1,
+            Self::Package => 2,
+            Self::Namespace => 3,
             Self::TypeDef => 4,
             Self::Function => 5,
             Self::Parameter => 6,
@@ -78,16 +99,29 @@ impl ModeledEntityKind {
             Self::Contract => 13,
             Self::TestCase => 14,
             Self::AdapterImport => 15,
+            Self::EntryPoint => 16,
+            Self::PolicyBinding => 17,
+            Self::DependencyBinding => 18,
         }
     }
 
-    /// Resolves one SSMC1 tag supported by this restricted profile.
+    /// Returns whether the kind belongs to the restricted S20-300 arm
+    /// (SSMC1 kinds 4 through 15).
+    #[must_use]
+    pub const fn restricted_kind(self) -> bool {
+        matches!(self.tag(), 4..=15)
+    }
+
+    /// Resolves one SSMC1 tag of the closed eighteen-kind model.
     ///
     /// # Errors
     ///
-    /// Returns `IMPACT_ENTITY_UNSUPPORTED` for kinds outside 4 through 15.
+    /// Returns `IMPACT_ENTITY_UNSUPPORTED` for tags outside 1 through 18.
     pub fn from_ssmc_tag(tag: u32) -> Result<Self, ImpactError> {
         match tag {
+            1 => Ok(Self::Workspace),
+            2 => Ok(Self::Package),
+            3 => Ok(Self::Namespace),
             4 => Ok(Self::TypeDef),
             5 => Ok(Self::Function),
             6 => Ok(Self::Parameter),
@@ -100,6 +134,9 @@ impl ModeledEntityKind {
             13 => Ok(Self::Contract),
             14 => Ok(Self::TestCase),
             15 => Ok(Self::AdapterImport),
+            16 => Ok(Self::EntryPoint),
+            17 => Ok(Self::PolicyBinding),
+            18 => Ok(Self::DependencyBinding),
             _ => impact_fail(ImpactErrorCode::EntityUnsupported),
         }
     }
@@ -108,6 +145,12 @@ impl ModeledEntityKind {
 /// Borrowed modeled entity body.
 #[derive(Clone, Copy, Debug)]
 pub enum ImpactEntity<'a> {
+    /// Workspace body.
+    Workspace(&'a WorkspaceDefinition),
+    /// Package body.
+    Package(&'a PackageDefinition),
+    /// Namespace body.
+    Namespace(&'a NamespaceDefinition),
     /// Type definition.
     TypeDef(&'a TypeDefinition),
     /// Function body.
@@ -132,6 +175,12 @@ pub enum ImpactEntity<'a> {
     TestCase(&'a TestCaseDefinition),
     /// Adapter import body.
     AdapterImport(&'a AdapterImport),
+    /// Entry-point body.
+    EntryPoint(&'a EntryPointDefinition),
+    /// Policy-binding body.
+    PolicyBinding(&'a PolicyBindingDefinition),
+    /// Dependency-binding body.
+    DependencyBinding(&'a DependencyBindingDefinition),
 }
 
 impl ImpactEntity<'_> {
@@ -139,6 +188,9 @@ impl ImpactEntity<'_> {
     #[must_use]
     pub const fn entity_id(self) -> EntityId {
         match self {
+            Self::Workspace(value) => value.entity_id,
+            Self::Package(value) => value.entity_id,
+            Self::Namespace(value) => value.entity_id,
             Self::TypeDef(value) => value.entity_id,
             Self::Function(value) => value.entity_id,
             Self::Parameter(value) => value.entity_id,
@@ -151,6 +203,9 @@ impl ImpactEntity<'_> {
             Self::Contract(value) => value.entity_id,
             Self::TestCase(value) => value.entity_id,
             Self::AdapterImport(value) => value.entity_id,
+            Self::EntryPoint(value) => value.entity_id,
+            Self::PolicyBinding(value) => value.entity_id,
+            Self::DependencyBinding(value) => value.entity_id,
         }
     }
 
@@ -158,6 +213,9 @@ impl ImpactEntity<'_> {
     #[must_use]
     pub const fn kind(self) -> ModeledEntityKind {
         match self {
+            Self::Workspace(_) => ModeledEntityKind::Workspace,
+            Self::Package(_) => ModeledEntityKind::Package,
+            Self::Namespace(_) => ModeledEntityKind::Namespace,
             Self::TypeDef(_) => ModeledEntityKind::TypeDef,
             Self::Function(_) => ModeledEntityKind::Function,
             Self::Parameter(_) => ModeledEntityKind::Parameter,
@@ -170,6 +228,9 @@ impl ImpactEntity<'_> {
             Self::Contract(_) => ModeledEntityKind::Contract,
             Self::TestCase(_) => ModeledEntityKind::TestCase,
             Self::AdapterImport(_) => ModeledEntityKind::AdapterImport,
+            Self::EntryPoint(_) => ModeledEntityKind::EntryPoint,
+            Self::PolicyBinding(_) => ModeledEntityKind::PolicyBinding,
+            Self::DependencyBinding(_) => ModeledEntityKind::DependencyBinding,
         }
     }
 }
@@ -248,9 +309,54 @@ pub enum ImpactErrorCode {
     WrongEntityKind,
     /// `IMPACT_RESOURCE_LIMIT`.
     ResourceLimit,
+    /// `IMPACT_ROOT_BINDING_MISMATCH`.
+    RootBindingMismatch,
+    /// `IMPACT_ROOT_INVENTORY_MISMATCH`.
+    RootInventoryMismatch,
+    /// `IMPACT_ROOT_WORKSPACE_MISSING`.
+    RootWorkspaceMissing,
+    /// `IMPACT_ROOT_WORKSPACE_AMBIGUOUS`.
+    RootWorkspaceAmbiguous,
+    /// `IMPACT_ROOT_PACKAGE_MEMBERSHIP`.
+    RootPackageMembership,
+    /// `IMPACT_ROOT_NAMESPACE_ROOT`.
+    RootNamespaceRoot,
+    /// `IMPACT_ROOT_NAMESPACE_TREE`.
+    RootNamespaceTree,
+    /// `IMPACT_ROOT_MEMBER_OWNERSHIP`.
+    RootMemberOwnership,
+    /// `IMPACT_ROOT_EXPORT_UNSCOPED`.
+    RootExportUnscoped,
+    /// `IMPACT_ROOT_ENTRY_POINTS_MISMATCH`.
+    RootEntryPointsMismatch,
+    /// `IMPACT_ROOT_DEPENDENCY_ROOTS_MISMATCH`.
+    RootDependencyRootsMismatch,
+    /// `IMPACT_ROOT_DEPENDENCY_BINDING_UNOWNED`.
+    RootDependencyBindingUnowned,
 }
 
 impl ImpactErrorCode {
+    /// Every stable code in numeric order.
+    pub const ALL: [Self; 17] = [
+        Self::EntityUnsupported,
+        Self::SetNotCanonical,
+        Self::UnresolvedEntity,
+        Self::WrongEntityKind,
+        Self::ResourceLimit,
+        Self::RootBindingMismatch,
+        Self::RootInventoryMismatch,
+        Self::RootWorkspaceMissing,
+        Self::RootWorkspaceAmbiguous,
+        Self::RootPackageMembership,
+        Self::RootNamespaceRoot,
+        Self::RootNamespaceTree,
+        Self::RootMemberOwnership,
+        Self::RootExportUnscoped,
+        Self::RootEntryPointsMismatch,
+        Self::RootDependencyRootsMismatch,
+        Self::RootDependencyBindingUnowned,
+    ];
+
     /// Returns the stable symbolic code.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -260,6 +366,18 @@ impl ImpactErrorCode {
             Self::UnresolvedEntity => "IMPACT_UNRESOLVED_ENTITY",
             Self::WrongEntityKind => "IMPACT_WRONG_ENTITY_KIND",
             Self::ResourceLimit => "IMPACT_RESOURCE_LIMIT",
+            Self::RootBindingMismatch => "IMPACT_ROOT_BINDING_MISMATCH",
+            Self::RootInventoryMismatch => "IMPACT_ROOT_INVENTORY_MISMATCH",
+            Self::RootWorkspaceMissing => "IMPACT_ROOT_WORKSPACE_MISSING",
+            Self::RootWorkspaceAmbiguous => "IMPACT_ROOT_WORKSPACE_AMBIGUOUS",
+            Self::RootPackageMembership => "IMPACT_ROOT_PACKAGE_MEMBERSHIP",
+            Self::RootNamespaceRoot => "IMPACT_ROOT_NAMESPACE_ROOT",
+            Self::RootNamespaceTree => "IMPACT_ROOT_NAMESPACE_TREE",
+            Self::RootMemberOwnership => "IMPACT_ROOT_MEMBER_OWNERSHIP",
+            Self::RootExportUnscoped => "IMPACT_ROOT_EXPORT_UNSCOPED",
+            Self::RootEntryPointsMismatch => "IMPACT_ROOT_ENTRY_POINTS_MISMATCH",
+            Self::RootDependencyRootsMismatch => "IMPACT_ROOT_DEPENDENCY_ROOTS_MISMATCH",
+            Self::RootDependencyBindingUnowned => "IMPACT_ROOT_DEPENDENCY_BINDING_UNOWNED",
         }
     }
 
@@ -272,6 +390,18 @@ impl ImpactErrorCode {
             Self::UnresolvedEntity => 25_010,
             Self::WrongEntityKind => 25_011,
             Self::ResourceLimit => 25_012,
+            Self::RootBindingMismatch => 25_013,
+            Self::RootInventoryMismatch => 25_014,
+            Self::RootWorkspaceMissing => 25_015,
+            Self::RootWorkspaceAmbiguous => 25_016,
+            Self::RootPackageMembership => 25_017,
+            Self::RootNamespaceRoot => 25_018,
+            Self::RootNamespaceTree => 25_019,
+            Self::RootMemberOwnership => 25_020,
+            Self::RootExportUnscoped => 25_021,
+            Self::RootEntryPointsMismatch => 25_022,
+            Self::RootDependencyRootsMismatch => 25_023,
+            Self::RootDependencyBindingUnowned => 25_024,
         }
     }
 }
@@ -450,6 +580,113 @@ impl EdgeBuilder<'_> {
     fn collect(&mut self, entity: ImpactEntity<'_>) -> Result<(), ImpactError> {
         let dependent = entity.entity_id();
         match entity {
+            ImpactEntity::Workspace(value) => {
+                for package in &value.packages {
+                    self.add(
+                        dependent,
+                        *package,
+                        ImpactKind::Ownership,
+                        Some(ModeledEntityKind::Package),
+                    )?;
+                }
+                self.add(
+                    dependent,
+                    value.root_namespace,
+                    ImpactKind::Ownership,
+                    Some(ModeledEntityKind::Namespace),
+                )?;
+                for requirement in &value.capability_requirements {
+                    self.add(
+                        dependent,
+                        *requirement,
+                        ImpactKind::Capability,
+                        Some(ModeledEntityKind::CapabilityRequirement),
+                    )?;
+                }
+                for contract in &value.contracts {
+                    self.add(
+                        dependent,
+                        *contract,
+                        ImpactKind::Contract,
+                        Some(ModeledEntityKind::Contract),
+                    )?;
+                }
+                for test in &value.tests {
+                    self.add(
+                        dependent,
+                        *test,
+                        ImpactKind::TestTarget,
+                        Some(ModeledEntityKind::TestCase),
+                    )?;
+                }
+            }
+            ImpactEntity::Package(value) => {
+                self.add(
+                    dependent,
+                    value.workspace,
+                    ImpactKind::Ownership,
+                    Some(ModeledEntityKind::Workspace),
+                )?;
+                self.add(
+                    dependent,
+                    value.root_namespace,
+                    ImpactKind::Ownership,
+                    Some(ModeledEntityKind::Namespace),
+                )?;
+                for dependency in &value.dependencies {
+                    self.add(
+                        dependent,
+                        *dependency,
+                        ImpactKind::Ownership,
+                        Some(ModeledEntityKind::DependencyBinding),
+                    )?;
+                }
+                for export in &value.exports {
+                    self.add(dependent, *export, ImpactKind::Ownership, None)?;
+                }
+            }
+            ImpactEntity::Namespace(value) => {
+                if let Some(parent) = value.parent {
+                    self.add(
+                        dependent,
+                        parent,
+                        ImpactKind::Ownership,
+                        Some(ModeledEntityKind::Namespace),
+                    )?;
+                }
+                for member in &value.members {
+                    self.add(dependent, *member, ImpactKind::Ownership, None)?;
+                }
+            }
+            ImpactEntity::EntryPoint(value) => {
+                self.add(
+                    dependent,
+                    value.function,
+                    ImpactKind::Ownership,
+                    Some(ModeledEntityKind::Function),
+                )?;
+            }
+            ImpactEntity::PolicyBinding(value) => {
+                self.add(dependent, value.subject, ImpactKind::Ownership, None)?;
+                for requirement in &value.requirements {
+                    self.add(
+                        dependent,
+                        *requirement,
+                        ImpactKind::Capability,
+                        Some(ModeledEntityKind::CapabilityRequirement),
+                    )?;
+                }
+            }
+            ImpactEntity::DependencyBinding(value) => {
+                // `external_package` and `dependency_root` are identities of
+                // another root and never create an edge or a lookup.
+                self.add(
+                    dependent,
+                    value.local_namespace,
+                    ImpactKind::Ownership,
+                    Some(ModeledEntityKind::Namespace),
+                )?;
+            }
             ImpactEntity::TypeDef(value) => {
                 match &value.form {
                     TypeDefForm::Record(fields) => {
@@ -1026,11 +1263,11 @@ pub fn value_hash(
     hash_validated_value(schema_epoch, value).map_err(ValueHashError::Fingerprint)
 }
 
-fn impact_fail<T>(code: ImpactErrorCode) -> Result<T, ImpactError> {
+pub(crate) fn impact_fail<T>(code: ImpactErrorCode) -> Result<T, ImpactError> {
     Err(ImpactError::new(code))
 }
 
-fn charge_work(work: &mut u64, amount: u64) -> Result<(), ImpactError> {
+pub(crate) fn charge_work(work: &mut u64, amount: u64) -> Result<(), ImpactError> {
     *work = work
         .checked_add(amount)
         .ok_or_else(|| ImpactError::new(ImpactErrorCode::ResourceLimit))?;

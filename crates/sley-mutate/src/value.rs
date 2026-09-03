@@ -56,25 +56,9 @@ impl EntityIdSet {
     }
 }
 
-/// Closed entry-point exposure declared by the exact SSMC1 manifest.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum EntryExposure {
-    /// Locally callable only.
-    Local,
-    /// Exposed through the deterministic protocol surface.
-    Protocol,
-}
-
-impl EntryExposure {
-    /// Returns the exact frozen SSMC1 tag.
-    #[must_use]
-    pub const fn tag(self) -> u32 {
-        match self {
-            Self::Local => 1,
-            Self::Protocol => 2,
-        }
-    }
-}
+/// Closed entry-point exposure; owned by the normative `sley-ssmc` model and
+/// re-exported here so the generated proposal codec is unchanged.
+pub use sley_ssmc::EntryExposure;
 
 include!("value_generated.rs");
 

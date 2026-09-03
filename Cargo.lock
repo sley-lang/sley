@@ -220,6 +220,7 @@ dependencies = [
  "sley-id",
  "sley-mutate",
  "sley-policy",
+ "sley-query",
  "sley-scb1",
  "sley-schema",
  "sley-ssmc",

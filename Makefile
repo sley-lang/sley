@@ -16,6 +16,8 @@ quick:
 	python3 scripts/check_contract_test_profile.py
 	python3 scripts/check_fingerprint_impact_profile.py
 	python3 scripts/check_complete_entity_impact_profile.py
+	python3 scripts/generate_complete_entity_impact_fixtures.py --check
+	python3 scripts/check_complete_root_persistent_fuzz_slice.py
 	python3 scripts/check_vm_lowering_profile.py
 	python3 scripts/check_vm_execution_profile.py
 	python3 scripts/check_reference_adapter_profile.py
@@ -72,6 +74,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py
+	python3 scripts/check_complete_entity_impact_vector.py
 
 adversarial:
 	cargo test -p sley-mutate mutation_value_codec_adversarial --locked
@@ -131,6 +134,10 @@ candidate-result-persistent-fuzz-smoke:
 exchange-persistent-fuzz-smoke:
 	python3 scripts/check_exchange_persistent_fuzz_slice.py
 	python3 scripts/run_exchange_persistent_fuzz.py
+
+complete-root-persistent-fuzz-smoke:
+	python3 scripts/check_complete_root_persistent_fuzz_slice.py
+	python3 scripts/run_complete_root_persistent_fuzz.py
 
 transaction-receipt-persistent-fuzz-smoke:
 	python3 scripts/generate_transaction_receipt_fixtures.py --check

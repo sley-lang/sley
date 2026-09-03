@@ -25,12 +25,16 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 SSMC = ROOT / "crates/sley-ssmc/src/lib.rs"
 QUERY = ROOT / "crates/sley-query/src/lib.rs"
+COMPLETE_ROOT = ROOT / "crates/sley-query/src/complete_root.rs"
 SNAPSHOT = ROOT / "crates/sley-query/src/snapshot.rs"
 MUTATE_VALUE = ROOT / "crates/sley-mutate/src/value.rs"
 QUERY_MANIFEST = ROOT / "crates/sley-query/Cargo.toml"
 FIXTURE_DIR = ROOT / "conformance/complete-entity-impact"
 
 DRAFT_STATUS = "S20_250_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
+# Implementation proceeds against the unreviewed draft while every Council lane
+# is unavailable; the reviews still gate the freeze and the completion status.
+DRAFT_IN_PROGRESS_STATUS = "S20_250_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
 FROZEN_STATUS = "S20_250_FULL_CONTRACT_FROZEN_IMPLEMENTATION_PENDING"
 IN_PROGRESS_STATUS = "S20_250_FULL_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS"
 REVIEW_PENDING_STATUS = "S20_250_FULL_IMPLEMENTED_REVIEW_PENDING"
@@ -168,6 +172,7 @@ def main() -> int:
             problems.append(f"machine-summary:{key}")
     if status not in (
         DRAFT_STATUS,
+        DRAFT_IN_PROGRESS_STATUS,
         FROZEN_STATUS,
         IN_PROGRESS_STATUS,
         REVIEW_PENDING_STATUS,
@@ -181,14 +186,14 @@ def main() -> int:
         present.append("conformance/complete-entity-impact")
     if status in (DRAFT_STATUS, FROZEN_STATUS) and present:
         problems.append(f"implementation-before-freeze:{present}")
-    if status in (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_STATUS):
+    if status in (DRAFT_IN_PROGRESS_STATUS, IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_STATUS):
         missing = [name for name in DEFINITIONS if f"pub struct {name}" not in ssmc]
         if missing:
             problems.append(f"definitions-missing:{missing}")
         for marker in SOURCE_MARKERS:
             if marker not in ssmc:
                 problems.append(f"ssmc-marker:{marker}")
-        query = read(QUERY)
+        query = read(QUERY) + read(COMPLETE_ROOT)
         for marker in QUERY_MARKERS:
             if marker not in query:
                 problems.append(f"query-marker:{marker}")
@@ -205,6 +210,10 @@ def main() -> int:
         for forbidden in ("sley-store", "sley-mutate", "sley-policy"):
             if forbidden in manifest:
                 problems.append(f"dependency-direction:sley-query-depends-on-{forbidden}")
+        if status == COMPLETE_STATUS:
+            for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
+                if not str(section.get(key, "")).startswith("PASS"):
+                    problems.append(f"completion-without-review:{key}")
         if status in (REVIEW_PENDING_STATUS, COMPLETE_STATUS):
             fixture = FIXTURE_DIR / "v1/accepted.json"
             if not fixture.exists():

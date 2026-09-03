@@ -292,6 +292,14 @@ pub fn build_index_snapshot(
     context: SnapshotContext,
     entities: &[ImpactEntity<'_>],
 ) -> Result<IndexSnapshot, IndexSnapshotBuildError> {
+    // The restricted arm covers SSMC1 kinds 4 through 15 only; the six
+    // complete-model kinds fail closed before any record is derived.
+    if entities
+        .iter()
+        .any(|entity| !entity.kind().restricted_kind())
+    {
+        return snapshot_fail(IndexSnapshotErrorCode::CompletenessUnsupported).map_err(Into::into);
+    }
     let index = ImpactIndex::build(entities)?;
     if index.direct_edges().len() > MAX_SNAPSHOT_EDGES {
         return snapshot_fail(IndexSnapshotErrorCode::ResourceLimit).map_err(Into::into);

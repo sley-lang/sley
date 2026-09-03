@@ -15,10 +15,11 @@ use sley_mutate::{
 };
 use sley_ssmc::{
     AdapterImport, Block, CapabilityRequirement, ConstData, ConstValue, ConstantDefinition,
-    ContractDefinition, ContractSource, EffectDefinition, EffectEnvironment, ExpectedOutcome,
-    FunctionGraph, GlobalValueDefinition, Immediate, Opcode, Operation, Parameter, ParameterRole,
-    ResultConst, SwitchArgument, Terminator, TestCaseDefinition, TypeDefForm, TypeDefinition,
-    TypeExpr, ValueRef,
+    ContractDefinition, ContractSource, DependencyBindingDefinition, EffectDefinition,
+    EffectEnvironment, EntryPointDefinition, ExpectedOutcome, FunctionGraph, GlobalValueDefinition,
+    Immediate, NamespaceDefinition, Opcode, Operation, PackageDefinition, Parameter, ParameterRole,
+    PolicyBindingDefinition, ResultConst, SwitchArgument, Terminator, TestCaseDefinition,
+    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, WorkspaceDefinition,
     fingerprint::{
         FingerprintError, FingerprintErrorCode, FunctionFingerprintInput, fingerprint_function,
         fingerprint_type_definition, verify_fingerprint_claim,
@@ -90,6 +91,12 @@ pub(crate) struct CandidateProgram {
     pub(crate) adapters: Vec<AdapterImport>,
     pub(crate) policy_bindings: Vec<(EntityId, PolicyBindingBody)>,
     pub(crate) dependency_bindings: Vec<(EntityId, DependencyBindingBody)>,
+    pub(crate) workspaces: Vec<WorkspaceDefinition>,
+    pub(crate) packages: Vec<PackageDefinition>,
+    pub(crate) namespaces: Vec<NamespaceDefinition>,
+    pub(crate) entry_points: Vec<EntryPointDefinition>,
+    pub(crate) policy_binding_definitions: Vec<PolicyBindingDefinition>,
+    pub(crate) dependency_binding_definitions: Vec<DependencyBindingDefinition>,
     edges: Vec<ProgramEdge>,
     graph_work: u64,
 }
@@ -123,6 +130,12 @@ impl CandidateProgram {
             adapters: Vec::new(),
             policy_bindings: Vec::new(),
             dependency_bindings: Vec::new(),
+            workspaces: Vec::new(),
+            packages: Vec::new(),
+            namespaces: Vec::new(),
+            entry_points: Vec::new(),
+            policy_binding_definitions: Vec::new(),
+            dependency_binding_definitions: Vec::new(),
             edges: Vec::new(),
             graph_work: 0,
         };
@@ -159,6 +172,15 @@ impl CandidateProgram {
 
     pub(crate) const fn graph_work(&self) -> u64 {
         self.graph_work
+    }
+
+    /// Returns the private reference graph as `(dependent, dependency, tag)`
+    /// triples in canonical order (S20-250 full edge-agreement evidence).
+    pub(crate) fn reference_edges(&self) -> Vec<(EntityId, EntityId, u32)> {
+        self.edges
+            .iter()
+            .map(|edge| (edge.dependent, edge.dependency, edge.relationship_tag))
+            .collect()
     }
 
     pub(crate) fn edge_count(&self) -> usize {
@@ -450,10 +472,31 @@ fn project_body(
     body: &EntityBodyValue,
 ) -> Result<(), CandidateProgramError> {
     match body {
-        EntityBodyValue::Workspace(_)
-        | EntityBodyValue::Package(_)
-        | EntityBodyValue::Namespace(_)
-        | EntityBodyValue::EntryPoint(_) => {}
+        EntityBodyValue::Workspace(value) => program.workspaces.push(WorkspaceDefinition {
+            entity_id,
+            packages: value.packages.as_slice().to_vec(),
+            root_namespace: value.root_namespace,
+            capability_requirements: value.capability_requirements.as_slice().to_vec(),
+            contracts: value.contracts.as_slice().to_vec(),
+            tests: value.tests.as_slice().to_vec(),
+        }),
+        EntityBodyValue::Package(value) => program.packages.push(PackageDefinition {
+            entity_id,
+            workspace: value.workspace,
+            root_namespace: value.root_namespace,
+            dependencies: value.dependencies.as_slice().to_vec(),
+            exports: value.exports.as_slice().to_vec(),
+        }),
+        EntityBodyValue::Namespace(value) => program.namespaces.push(NamespaceDefinition {
+            entity_id,
+            parent: value.parent,
+            members: value.members.as_slice().to_vec(),
+        }),
+        EntityBodyValue::EntryPoint(value) => program.entry_points.push(EntryPointDefinition {
+            entity_id,
+            function: value.function,
+            exposure: value.exposure,
+        }),
         EntityBodyValue::TypeDef(value) => program.type_definitions.push(TypeDefinition {
             entity_id,
             type_parameters: value.type_parameters.clone(),
@@ -550,9 +593,24 @@ fn project_body(
             effects: value.effects.as_slice().to_vec(),
         }),
         EntityBodyValue::PolicyBinding(value) => {
+            program
+                .policy_binding_definitions
+                .push(PolicyBindingDefinition {
+                    entity_id,
+                    subject: value.subject,
+                    requirements: value.requirements.as_slice().to_vec(),
+                });
             program.policy_bindings.push((entity_id, value.clone()));
         }
         EntityBodyValue::DependencyBinding(value) => {
+            program
+                .dependency_binding_definitions
+                .push(DependencyBindingDefinition {
+                    entity_id,
+                    dependency_root: value.dependency_root,
+                    external_package: value.external_package,
+                    local_namespace: value.local_namespace,
+                });
             program.dependency_bindings.push((entity_id, value.clone()));
         }
     }

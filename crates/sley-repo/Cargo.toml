@@ -12,12 +12,13 @@ sley-id = { path = "../sley-id" }
 sley-scb1 = { path = "../sley-scb1" }
 sley-schema = { path = "../sley-schema" }
 sley-state-root = { path = "../sley-state-root" }
+sley-policy = { path = "../sley-policy" }
+sley-query = { path = "../sley-query" }
 sley-store = { path = "../sley-store" }
 sley-txn = { path = "../sley-txn" }
 
 [dev-dependencies]
 sley-mutate = { path = "../sley-mutate" }
-sley-policy = { path = "../sley-policy" }
 sley-ssmc = { path = "../sley-ssmc" }
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
 
