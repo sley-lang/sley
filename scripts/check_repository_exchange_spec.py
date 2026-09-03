@@ -52,7 +52,7 @@ SPEC_MARKERS = (
     "`maintenance -> refs -> accepted`",
     "1\nthrough 127, then 254, then 255, then 128 through 253",
     "atomically rename it over `exchange/v1/<hex>.stage`",
-    "`TXN_INCOMPLETE_CLONE` (`39021`",
+    "`TXN_INCOMPLETE_CLONE` (`39022`",
     "re-run the complete step-7\n      classification",
     "object verifications `2,097,152`",
     "without following symlinks",

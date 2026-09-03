@@ -105,7 +105,7 @@ unreachable receipt ceiling.
    and GC acquisition operate on a head-absent root, so a third party could
    adopt half-imported receipts and branches under a foreign genesis after a
    crash. Revision 4 makes the stage marker a write guard: those paths fail
-   closed with a new S20-390 code `TXN_INCOMPLETE_CLONE` (`39021`), added to
+   closed with a new S20-390 code `TXN_INCOMPLETE_CLONE` (`39022`), added to
    the frozen transaction error table by the S20-540 slice; read paths stay
    available and establish no acceptance. Revision 4 also re-classifies the
    target after ownership, adds symlink discipline, closed preflight work

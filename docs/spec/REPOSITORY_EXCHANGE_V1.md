@@ -484,7 +484,7 @@ the embedded bytes are not a tag-170 version-1 pack, which includes a nested
 exchange (tag 540) and every other contract tag; `EXCHANGE_RECEIPT_INVALID`
 covers a receipt entry whose declared identities disagree with its bytes.
 A marked incomplete clone rejects every frozen write path with the S20-390
-code `TXN_INCOMPLETE_CLONE` (`39021`), named in the ownership section.
+code `TXN_INCOMPLETE_CLONE` (`39022`), named in the ownership section.
 
 ## Ownership and the transaction-owner API
 
@@ -531,7 +531,8 @@ S20-540 implementation also adds the incomplete-clone write guard as
 transaction-owner and ref-owner work inside the slice: `sley-txn` exposes the
 marked-root predicate (an `exchange/v1/` directory whose entries include any
 `.stage` regular file, read without following symlinks) and returns the new
-S20-390 code `TXN_INCOMPLETE_CLONE` (`39021`, appended to the frozen
+S20-390 code `TXN_INCOMPLETE_CLONE` (`39022`, the next contiguous numeric
+after the frozen `TXN_RESOURCE_LIMIT` `39021`, appended to the
 `TransactionErrorCode` table and to `TRANSACTION_MODEL_V1.md` by the same
 commit) from `initialize_trusted_genesis`, `commit`, and `recover`;
 `sley-repo` returns the same code through its existing upstream transaction
