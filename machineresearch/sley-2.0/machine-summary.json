@@ -858,7 +858,9 @@
     "independent_python_oracle": "scripts/check_merge_vector.py",
     "sley_repo_merge_tests": 8,
     "persistent_fuzz_target": "fuzz/targets/merge_conflict_decoder.rs",
-    "identity_remap": "S20-345 derived creation identities with full reference rewrite"
+    "identity_remap": "S20-345 derived creation identities with full reference rewrite",
+    "implementation_commit": "4f01b12",
+    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_merge_smoke"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",

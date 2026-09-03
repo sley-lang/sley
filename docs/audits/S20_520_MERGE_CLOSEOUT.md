@@ -107,8 +107,12 @@ object, receipt, or ref itself.
 
 ## Validation record
 
-Tier 1 `make quick` passed at every commit of the slice. Tier 2 is recorded
-in the commit that closes this audit.
+Tier 1 `make quick` passed at every commit of the slice. Tier 2 ran on
+2026-09-03 at `4f01b12`: `make core` (934 tests), `make conformance`
+(including the merge oracle line), `make adversarial`, `make fuzz-smoke`, and
+`make merge-persistent-fuzz-smoke` all exited 0 in 36 seconds. The full
+`make v1` gate was skipped because this is a subsystem handoff, not a release
+boundary; `make v2` and `make release-check` remain intentionally fail closed.
 
 ## Independent review
 
