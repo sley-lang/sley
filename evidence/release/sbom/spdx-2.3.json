@@ -23,7 +23,7 @@
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "c6b619833ed899a331db7fec69dbc725e792deb3399a9c53fb2882f7afc280b8"
+          "checksumValue": "789e383b43a1b6ba8f1acaedd17ea1f1765996a7f6cff2518b5c44aafd777128"
         }
       ],
       "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",

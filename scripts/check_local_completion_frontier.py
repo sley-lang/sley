@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_740_REGISTER_IMPLEMENTED_REVIEWS_PENDING_S20_750_DOSSIER_NEXT",
+            "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEWS_PENDING_S20_360_FULL_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-750-DECISION-DOSSIER-MECHANICS",
+            "next_authority_safe_package": "S20-360-FULL-OPERATION-ANALYSIS",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -196,7 +196,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-750-DECISION-DOSSIER-MECHANICS",
+            "S20-360-FULL-OPERATION-ANALYSIS",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -391,6 +391,7 @@ def main() -> int:
             "S20-730 mechanics are implemented",
             "the standards SBOM and release provenance are implemented",
             "the S20-740 finding register is implemented",
+            "the S20-750 decision dossier is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -412,7 +413,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-750-DECISION-DOSSIER-MECHANICS",
+                "next_authority_safe_package": "S20-360-FULL-OPERATION-ANALYSIS",
                 "result": "PASS",
             },
             indent=2,

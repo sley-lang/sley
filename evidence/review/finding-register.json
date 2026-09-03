@@ -723,7 +723,7 @@
       "declares_no_open_p0_p1_p2": true,
       "disposition": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
       "field": "focused_semantic_security_review",
-      "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEWS_PENDING_S20_750_DOSSIER_NEXT",
+      "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEWS_PENDING_S20_360_FULL_NEXT",
       "section": "local_completion_frontier",
       "severities": [
         "P0",
@@ -739,7 +739,7 @@
       "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_S20_500_NABU_ARIADNE_VULCAN",
       "field": "required_specialist_review",
-      "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEWS_PENDING_S20_750_DOSSIER_NEXT",
+      "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEWS_PENDING_S20_360_FULL_NEXT",
       "section": "local_completion_frontier",
       "severities": [],
       "state": "PASS"
@@ -2130,7 +2130,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "d79951d0bd5f91995ddf0a1f7305eadc6f77fab861189a4202bfe9cbdba0fac9",
+  "obligations_digest": "4d9bdb70dfd265ada17981af304ac4c843fd3dc5d6f68a8fb6d8e3011c711916",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2385,7 +2385,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "349d7d440f0b63127aee1e074d841ee8672f7f439766d92541d6ac1717fa59cf",
+  "register_digest": "213d28c9ec09fa9fc4d6faeb76aab72e731649302d772a239d5b5dcb360ace2c",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,

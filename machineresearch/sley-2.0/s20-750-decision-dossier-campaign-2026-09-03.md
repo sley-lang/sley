@@ -54,4 +54,15 @@ it was built from.
 
 ## Validation
 
-Recorded below after Tier 1 and Tier 2.
+Landed at `59d3acd`. Tier 1 `make quick` passed at the commit. Tier 2 ran on
+2026-09-03 at that commit:
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 13 s | 995 tests passed, 0 failed |
+| `make conformance` | exit 0 | 8 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 10 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make release-candidate-smoke` | exit 0 | 32 s | ten `PASS` results, two builds REPRODUCIBLE, the whole evidence chain rebuilt and the dossier still `BLOCKED` |
+
+`make v1` was not run: this is a subsystem handoff, not a release boundary.
