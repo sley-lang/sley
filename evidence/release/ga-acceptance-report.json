@@ -1,0 +1,349 @@
+{
+  "awaiting_review": [
+    "VM semantics agree with conformance fixtures",
+    "No undefined behavior exists in the program model",
+    "No ambient authority exists",
+    "agents can create and maintain programs without source",
+    "query capsules are bounded",
+    "session handles are stale-safe",
+    "typed affordances and mutations are available",
+    "disjoint merge is deterministic",
+    "ambiguous merge creates conflict objects",
+    "policy is protected from the judged candidate",
+    "capability tokens cannot be forged or replayed across scope",
+    "all P0/P1 threats have passing tests",
+    "Ariadne approves SSMC1 and semantic correctness",
+    "Nabu approves architectural and cross-product boundaries",
+    "Vulcan or current independent reviewer issues a complete PASS",
+    "all reviewer findings are resolved or dispositioned below P3"
+  ],
+  "contract": "sley2.ga-acceptance-report.v1",
+  "criteria": [
+    {
+      "criterion": "Sley 1.2.0 is preserved and checksum-verified",
+      "evidence": "machine summary legacy_freeze records the artifact and source digests; make legacy-runner-smoke verifies them",
+      "group": "26.1 lineage",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "No Sley 1.2.1 implementation was required",
+      "evidence": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
+      "group": "26.1 lineage",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "The new repository has independent history",
+      "evidence": "machine summary m0_commit 3a0fd1b46858 with lineage machine-native",
+      "group": "26.1 lineage",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "No legacy source tree was copied wholesale",
+      "evidence": "scripts/check_clean_room_boundary.py verifies no legacy source, dependency, or in-process touchpoint",
+      "group": "26.1 lineage",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Every reused concept has a disposition and evidence",
+      "evidence": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md, two dispositioned entries",
+      "group": "26.1 lineage",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "SCB1 is frozen as version 1",
+      "evidence": "machine summary scb1 status S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Rust and independent oracle produce byte-identical output",
+      "evidence": "machine summary conformance cross_implementation_agreement PASS",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Every non-canonical fixture is rejected",
+      "evidence": "19 of 19 fixture families independently checked, rejection corpora included",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Hashes are domain separated",
+      "evidence": "docs/spec/IDENTIFIERS_V1.md registry with the drift check of scripts/check_required_contract_index.py",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Schema epochs are explicit",
+      "evidence": "machine summary schema_epoch status S20_140_COMPLETE; docs/spec/EPOCH_MIGRATION_POLICY_V1.md governs successors",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Pack import reconstructs exact roots",
+      "evidence": "machine summary repository_pack status S20_170_COMPLETE",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Corruption is detected before ref advancement",
+      "evidence": "machine summary s20_530_crash_recovery status CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE",
+      "group": "26.2 canonical format",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "SSMC1 is the only canonical program representation",
+      "evidence": "machine summary ssmc1 status S20_200_COMPLETE",
+      "group": "26.3 semantics",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "No source parser exists in the GA dependency graph",
+      "evidence": "anti-goal conformance report, parser crates absent from Cargo.lock",
+      "group": "26.3 semantics",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Type, CFG, effect, contract, and identity checks are deterministic",
+      "evidence": "machine summary type_system, cfg_validation, effect_system, identifiers",
+      "group": "26.3 semantics",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "VM semantics agree with conformance fixtures",
+      "evidence": "conformance/vm-extended/v1 with the independent oracle; the extended profile's reviews are pending",
+      "group": "26.3 semantics",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "No undefined behavior exists in the program model",
+      "evidence": "the exhaustive judgment and execution contracts; the independent semantic review owns this",
+      "group": "26.3 semantics",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "No ambient authority exists",
+      "evidence": "capability and policy contracts; anti-goal 'untyped or ambient effects' is REVIEW_ONLY",
+      "group": "26.3 semantics",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "agents can create and maintain programs without source",
+      "evidence": "the SMP1 endpoint, the JSON bridge, and the CLI are implemented with reviews pending",
+      "group": "26.4 agent loop",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "query capsules are bounded",
+      "evidence": "machine summary context_capsule_profile status S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
+      "group": "26.4 agent loop",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "session handles are stale-safe",
+      "evidence": "machine summary session_handle_profile status S20_330_IMPLEMENTED_REVIEW_PENDING",
+      "group": "26.4 agent loop",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "typed affordances and mutations are available",
+      "evidence": "machine summary protocol status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
+      "group": "26.4 agent loop",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "invalid candidates cannot commit",
+      "evidence": "machine summary s20_360_candidate_validation status COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY with the S20-390 commit boundary",
+      "group": "26.4 agent loop",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "exact stale conflicts are rejected",
+      "evidence": "the S20-360 stale root and stale entity decisions with their result vectors",
+      "group": "26.4 agent loop",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "machine outputs use stable codes and contracts",
+      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range",
+      "group": "26.4 agent loop",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "state versions are content addressed",
+      "evidence": "machine summary state_root status S20_160_COMPLETE",
+      "group": "26.5 repository",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "refs update atomically",
+      "evidence": "machine summary s20_500_native_refs_branches status COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
+      "group": "26.5 repository",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "branches preserve ancestry",
+      "evidence": "the S20-500 immutable branch origin and bounded ancestry rules",
+      "group": "26.5 repository",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "disjoint merge is deterministic",
+      "evidence": "machine summary merge status S20_520_IMPLEMENTED_REVIEW_PENDING",
+      "group": "26.5 repository",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "ambiguous merge creates conflict objects",
+      "evidence": "the S20-520 conflict objects with their corpus; reviews pending",
+      "group": "26.5 repository",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "GC preserves all retained roots",
+      "evidence": "machine summary garbage_collection status S20_180_COMPLETE",
+      "group": "26.5 repository",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "crash recovery produces only old or complete new state",
+      "evidence": "the S20-530 hundred-row crash matrix, status CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE",
+      "group": "26.5 repository",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "policy is protected from the judged candidate",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
+      "group": "26.6 policy and security",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "capability tokens cannot be forged or replayed across scope",
+      "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
+      "group": "26.6 policy and security",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "adapters are bounded",
+      "evidence": "machine summary reference_adapter_profile status S20_280_RESTRICTED_EPOCH1_COMPLETE",
+      "group": "26.6 policy and security",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "no arbitrary shell exists",
+      "evidence": "anti-goal conformance report, no kernel source invokes a process",
+      "group": "26.6 policy and security",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "all P0/P1 threats have passing tests",
+      "evidence": "threat coverage report: 24 exercised, 25 P0/P1 without a located symbol",
+      "group": "26.6 policy and security",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "no P0/P1/P2 finding remains open",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 200 obligations",
+      "group": "26.6 policy and security",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "opacity is not used as a security argument",
+      "evidence": "every contract is public in docs/spec and the independent oracle checks nineteen fixture families",
+      "group": "26.6 policy and security",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "every section 22 threshold passes",
+      "evidence": "succession trials_executed 0; the harness passes its smokes and needs model access and spend authorization",
+      "group": "26.7 succession",
+      "state": "GATED"
+    },
+    {
+      "criterion": "artifact name sley-2.0.0-linux-x86_64.tar.gz",
+      "evidence": "reproducibility report attests sley-2.0.0-linux-x86_64.tar.gz",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "artifact is built from the final candidate commit",
+      "evidence": "the attested commit is the latest local candidate; the final commit is fixed at the release decision",
+      "group": "26.8 packaging",
+      "state": "GATED"
+    },
+    {
+      "criterion": "artifact runs with no source-tree access",
+      "evidence": "the S20-720 unpacked demo runs the packaged binary outside the tree",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "artifact contains no secrets, local paths, caches, or debug files",
+      "evidence": "the S20-720 forbidden content scan reports zero findings",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
+      "evidence": "the manifest and both SBOM documents with the unsigned provenance statement",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "second clean build establishes reproducibility",
+      "evidence": "reproducibility report result SINGLE_HOST_REPRODUCIBLE",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "the source working tree is clean",
+      "evidence": "the attested build records working_tree_clean True",
+      "group": "26.8 packaging",
+      "state": "EVIDENCED"
+    },
+    {
+      "criterion": "Ariadne approves SSMC1 and semantic correctness",
+      "evidence": "Council lane unavailable; requests staged",
+      "group": "26.9 review",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "Nabu approves architectural and cross-product boundaries",
+      "evidence": "Council lane unavailable; requests staged",
+      "group": "26.9 review",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "Vulcan or current independent reviewer issues a complete PASS",
+      "evidence": "S20-740 independent review is PENDING",
+      "group": "26.9 review",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "all reviewer findings are resolved or dispositioned below P3",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 79 open obligations",
+      "group": "26.9 review",
+      "state": "AWAITS_REVIEW"
+    },
+    {
+      "criterion": "publication remains unauthorized unless separately granted",
+      "evidence": "machine summary publication_authorized False; anti-goal 'unauthorized publication/deploy/spend' HOLDS",
+      "group": "26.9 review",
+      "state": "EVIDENCED"
+    }
+  ],
+  "criterion_count": 52,
+  "ga_claimed": false,
+  "gated": [
+    "every section 22 threshold passes",
+    "artifact is built from the final candidate commit"
+  ],
+  "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
+  "report_digest": "9d4b87ac76b506eec9a2e7b86429415c032de28b894521aec2f0e5ab1e821802",
+  "source": "master goal section 26",
+  "states": {
+    "AWAITS_REVIEW": 16,
+    "EVIDENCED": 34,
+    "GATED": 2
+  }
+}

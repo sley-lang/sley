@@ -2571,7 +2571,7 @@
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/DECISION_DOSSIER_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
     "checker": "scripts/check_decision_dossier.py",
     "dossier": "evidence/release/decision-dossier.json",
@@ -2719,5 +2719,21 @@
     },
     "violations": [],
     "interpretation": "REVIEW_ONLY is not a pass; a VIOLATED entry is a constitutional breach"
+  },
+  "ga_acceptance": {
+    "report": "evidence/release/ga-acceptance-report.json",
+    "source": "master goal section 26",
+    "criterion_count": 52,
+    "states": {
+      "AWAITS_REVIEW": 16,
+      "EVIDENCED": 34,
+      "GATED": 2
+    },
+    "gated": [
+      "every section 22 threshold passes",
+      "artifact is built from the final candidate commit"
+    ],
+    "ga_claimed": false,
+    "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim"
   }
 }

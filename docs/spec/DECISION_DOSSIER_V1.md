@@ -95,6 +95,10 @@ or adds an item is `DOSSIER_SOURCE_INVALID`:
   encoder and conformance coverage);
 - `evidence/review/finding-register.json` (findings by severity and
   disposition, open reviews);
+- `evidence/release/ga-acceptance-report.json`
+  (`sley2.ga-acceptance-report.v1`): every master-goal section 26 acceptance
+  criterion with its evidence and derived state, which the release decision
+  item cites;
 - `evidence/security/threat-coverage-report.json`
   (`sley2.threat-coverage-report.v1`): how far the M0 threat register's planned
   controls are realized, which the security review item cites as its measured

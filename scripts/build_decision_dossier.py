@@ -27,6 +27,7 @@ CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 THREAT_COVERAGE = ROOT / "evidence/security/threat-coverage-report.json"
+GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
 STATE_ROOT_FIXTURE = ROOT / "conformance/state-root/v1/accepted.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 CONTRACT = "sley2.decision-dossier.v1"
@@ -103,6 +104,7 @@ def build_entries(sources: dict) -> list[dict]:
     provenance = sources["provenance"]
     inventory = sources["inventory_of_tests"]
     threats = sources["threat_coverage"]
+    acceptance = sources["ga_acceptance"]
     attestation = repro["attestations"][0] if repro.get("attestations") else None
     succession = summary.get("succession", {})
     audit = summary.get("s20_710_pre_release_audit", {})
@@ -374,7 +376,11 @@ def build_entries(sources: dict) -> list[dict]:
             "release decision state",
             value=None,
             note="derived below from the entries and sources; the decision itself is the "
-            "operator's and has not been made",
+            "operator's and has not been made. The master goal's section 26 criteria stand at "
+            f"{acceptance['states'].get('EVIDENCED', 0)} evidenced, "
+            f"{acceptance['states'].get('AWAITS_REVIEW', 0)} awaiting review, and "
+            f"{acceptance['states'].get('GATED', 0)} gated of {acceptance['criterion_count']} "
+            "(evidence/release/ga-acceptance-report.json)",
         ),
         entry(
             "confirmation that no push, tag, upload, deployment, publication, or public "
@@ -444,6 +450,7 @@ def build_dossier() -> dict:
         "register": load(REGISTER, "sley2.finding-register.v1"),
         "inventory_of_tests": load(TEST_INVENTORY, "sley2.test-inventory.v1"),
         "threat_coverage": load(THREAT_COVERAGE, "sley2.threat-coverage-report.v1"),
+        "ga_acceptance": load(GA_ACCEPTANCE, "sley2.ga-acceptance-report.v1"),
     }
     entries = build_entries(sources)
     state, reasons = derive_decision(sources, entries)

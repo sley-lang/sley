@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "315e7690651c671a7297e687ce1113c8df73dbded485e1b80dbbedf0bd143bff",
+  "dossier_digest": "15e71ae68e1e23e08900c76f0456cc944bed6412dd877a6534cd088b0e27303d",
   "entries": [
     {
       "evidence": [
@@ -415,7 +415,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 34 evidenced, 16 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -439,7 +439,7 @@
       }
     }
   ],
-  "entries_digest": "582a2344e2e8169031047c5503cd22aab8ed6909f0c02bc20ba92836ad97c8e8",
+  "entries_digest": "001f34ebb778756bf669b7e9a7c15a58b46948330be1fdd4f1ea499bde76ab01",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
