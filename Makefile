@@ -8,6 +8,7 @@ quick:
 	python3 scripts/check_object_store_spec.py
 	python3 scripts/check_state_root_spec.py
 	python3 scripts/check_repository_pack_spec.py
+	python3 scripts/check_repository_exchange_spec.py
 	python3 scripts/check_gc_spec.py
 	python3 scripts/check_type_system.py
 	python3 scripts/check_cfg.py

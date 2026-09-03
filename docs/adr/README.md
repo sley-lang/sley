@@ -31,3 +31,4 @@ Current records:
 - ADR-0022: native branch and named-ref ownership boundary
 - ADR-0023: crash-recovery ownership and retry boundary
 - ADR-0024: accepted package aging and historical closeout verification
+- ADR-0025: repository exchange composition and clone trust boundary
