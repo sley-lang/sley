@@ -33,6 +33,8 @@ SEARCHED = {
     "checkers": ("scripts",),
     "fuzz": ("fuzz/targets",),
     "oracle": ("oracle",),
+    # The benchmark, accounting, and release harnesses enforce controls too.
+    "harness": ("bench",),
 }
 TEST_MARKERS = ("#[test]", "def test_", "assert")
 # This generator names example codes in its own prose, and the threat register
@@ -47,6 +49,46 @@ def canonical(value: object) -> str:
 
 def digest_of(value: object) -> str:
     return hashlib.sha256(canonical(value).encode("utf-8")).hexdigest()
+
+
+def structural_entries() -> set[str]:
+    """Addendum entries whose realized control is structural, with no code symbol.
+
+    T50 is the example: no crate references Git and the state root's binding
+    excludes Git metadata, so there is nothing to search for. The absence is
+    the control.
+    """
+    text = REGISTER.read_text(encoding="utf-8")
+    if "## Realized codes" not in text:
+        return set()
+    section = text[text.index("## Realized codes") :]
+    structural = set()
+    for line in section.split("\n"):
+        if not line.startswith("| T"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) >= 3 and not re.findall(r"`([A-Z][A-Z0-9_]+)`", cells[2]):
+            structural.add(cells[0])
+    return structural
+
+
+def realized_codes() -> dict[str, list[str]]:
+    """The register's addendum: threats whose shipped code differs from the plan."""
+    text = REGISTER.read_text(encoding="utf-8")
+    if "## Realized codes" not in text:
+        return {}
+    section = text[text.index("## Realized codes") :]
+    mapping: dict[str, list[str]] = {}
+    for line in section.split("\n"):
+        if not line.startswith("| T"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        codes = re.findall(r"`([A-Z][A-Z0-9_]+)`", cells[2])
+        if codes:
+            mapping[cells[0]] = codes
+    return mapping
 
 
 def register_rows() -> list[dict[str, str]]:
@@ -135,14 +177,26 @@ def classify(found: dict[str, list[str]], evidence_present: bool) -> str:
 def build_report() -> dict:
     rows = register_rows()
     families = family_symbols()
+    realized = realized_codes()
+    structural = structural_entries()
     threats = []
     for row in rows:
-        found = locate(row["expected_failure_code"])
+        codes = realized.get(row["id"], [row["expected_failure_code"]])
+        found: dict[str, list[str]] = {}
+        for code in codes:
+            for area, paths in locate(code).items():
+                found[area] = sorted(set(found.get(area, [])) | set(paths))
         evidence_present = (ROOT / row["planned_evidence_path"]).exists()
         threats.append(
             {
                 **row,
-                "state": classify(found, evidence_present),
+                "state": (
+                    "STRUCTURAL_CONTROL_RECORDED"
+                    if row["id"] in structural
+                    else classify(found, evidence_present)
+                ),
+                "searched_codes": codes,
+                "realized_code_recorded": row["id"] in realized,
                 "located_in": {area: paths[:4] for area, paths in sorted(found.items())},
                 "located_file_count": sum(len(paths) for paths in found.values()),
                 "planned_evidence_present": evidence_present,
@@ -190,9 +244,12 @@ def build_report() -> dict:
             "mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also "
             "carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own "
             "evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent "
-            "security review, not a claim that the threat is untested: the M0 register named the "
+            "security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED "
+            "means the addendum records a control that is the absence of something, so no symbol "
+            "exists to find. The M0 register named the "
             "failure code it expected, and a package may have realized the control under more "
-            "specific codes. The judgment stays with the review."
+            "specific codes, which the register's Realized codes addendum records as they are "
+            "traced. The judgment stays with the review."
         ),
         "independent_security_review": "PENDING",
     }

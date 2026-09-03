@@ -70,3 +70,23 @@ assertion that they are untested.
 
 P0/P1 evidence requires independent Vulcan disposition. A green test without a
 fault-seeding or assertion-effectiveness check remains an open release finding.
+
+## Realized codes (2026-09-03)
+
+The table above is the M0 plan: it names the failure code each control was
+expected to produce. Several controls shipped under a different code, so the
+coverage report understated them. This addendum records the realized code and
+where it is enforced; `scripts/build_threat_coverage_report.py` searches for
+these instead of the expected code where an entry exists.
+
+An entry here is a traceability record, not an acceptance: the independent
+security review still judges whether the control is sufficient.
+
+| ID | Expected code | Realized code | Enforced in | Exercised by |
+|---|---|---|---|---|
+| T07 | `ID_DUPLICATE_ENTITY` | `CANDIDATE_IDENTITY_COLLISION` | `crates/sley-policy/src/candidate_validation.rs` phase 4, live-binding branch | `tombstones_graph_errors_and_missing_references_are_distinct` |
+| T08 | `ID_REUSE_FORBIDDEN` | `CANDIDATE_IDENTITY_COLLISION` | the same phase 4 check, tombstone branch (`context.tombstones.binary_search`) | the same test, tombstone case |
+| T35 | `CACHE_BINDING_MISMATCH` | `VM_LOWER_CACHE_KEY_UNSUPPORTED` plus the binding itself | `crates/sley-vm/src/lib.rs` `cache_key_preimage`, which binds schema epoch, field-schema hash, decoder-limits hash, state root, entry function, and profile so a different binding cannot collide | the extended vectors, whose cache keys the independent oracle re-derives |
+| T50 | `REPO_EXTERNAL_METADATA_FORBIDDEN` | structural: no kernel crate references Git, and `STATE_ROOT_V1.md` excludes ref names, ancestry, timestamps, paths, locks, caches, and Git metadata from the root | `docs/spec/REPOSITORY_MODEL_V1.md` and the state-root binding | the clone-equivalence corpus, which reproduces roots outside the producing repository |
+| T53 | `RELEASE_ARTIFACT_MISMATCH` | `PACKAGE_NOT_REPRODUCIBLE` (72005) and `REPRO_ATTESTATION_CONFLICT` (73003) | `scripts/build_release_candidate.py` byte-for-byte comparison; `scripts/build_reproducibility_report.py` cross-host digest agreement | `make release-candidate-smoke` and `bench/release/tests/` |
+| T55 | `BENCH_CONTROL_VIOLATION` | `ACCOUNTING_INCOMPLETE`, `ACCOUNTING_CHAIN_INVALID`, `ACCOUNTING_ARM_UNKNOWN`, `ACCOUNTING_FLOAT_FORBIDDEN` | `bench/accounting/report.py`, which counts every attempt in the denominator and refuses a broken claim chain | `bench/accounting/tests/test_report.py` |
