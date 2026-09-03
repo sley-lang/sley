@@ -46,7 +46,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Slice E1 (data), revision 2 | `f1a5e6f` | green | `crates/sley-vm/src/extended.rs`; 4 tests (positive, constants and comparisons, 11-case rejection matrix, bytecode and 128 repeats); 5 vectors; fuzz profile-toggle lane |
 | Slice E2 (checked integers), revision 3 | `2ff19c0` | green | `checked_integer` in `extended.rs`; 24 exact outcomes over widths 8 and 128, 4 rejections; 3 vectors |
 | Slice E3 (floats), revision 4 | `785b92d` | green | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
-| Slice E4 (records, variants, maps), revision 5 | pending | pending | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
+| Slice E4 (records, variants, maps), revision 5 | `4f1e197` | green | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
@@ -86,3 +86,15 @@ Logs were captured under the session scratchpad; `make v1` was skipped because t
 | `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
 
 Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
+## Slice E4 Tier 2 handoff record (2026-09-03, at `4f1e197`)
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 14 s | 992 tests passed, 0 failed |
+| `make conformance` | exit 0 | 12 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+| `make vm-persistent-fuzz-smoke` | exit 0 | 4 s | 626 runs, PASS |
+
+The slice added the `sley-vm` to `sley-mutate` dependency edge for canonical map key bytes; the supply-chain inventory now records 118 dependency relationships and the refreshed `Cargo.lock` digest, pinned in `scripts/check_supply_chain_audit.py` and the machine summary. `make v1` was skipped because this is a subsystem handoff, not a release boundary.
