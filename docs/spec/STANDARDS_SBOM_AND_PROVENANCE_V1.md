@@ -1,8 +1,9 @@
 # Standards SBOM and Release Provenance v1
 
-Status: S20-710 full-audit contract draft, revision 1 (2026-09-03); Council
+Status: S20-710 full-audit contract draft, revision 2 (2026-09-03); Council
 review pending (Ariadne contract review, Nabu architecture review, Vulcan
-surface review). The mechanics are `scripts/build_standards_sbom.py` and
+surface review). Revision 2 records the clarifications found while wiring the
+release smoke (section 5). The mechanics are `scripts/build_standards_sbom.py` and
 `scripts/build_release_provenance.py`; implementation state is tracked in the
 machine summary.
 
@@ -144,6 +145,21 @@ recomputes and fails with `SBOM_DOCUMENT_DRIFT` or
 `PROVENANCE_DOCUMENT_DRIFT` when a tracked document differs. Repeated runs on
 unchanged inputs rewrite byte-identical files.
 
+The candidate evidence record lives under untracked `evidence/runtime/`, so a
+local candidate build legitimately leaves the tracked documents describing the
+previous candidate. `--check` detects that state by comparing the tracked
+commit and artifact digest with the evidence record, reports
+`LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result `PASS`, and names
+`make release-candidate-smoke` as the reconciling command; Tier 1 therefore
+stays hermetic over tracked files and never fails because of an uncommitted
+local build. Write mode never tolerates the skew: it always derives from the
+current evidence, and a provenance derived against an SBOM that still names
+another candidate is `PROVENANCE_SUBJECT_MISMATCH`.
+
+The shared `bench/release` test suite derives the provenance against the
+*derived* CycloneDX document rather than the tracked one, for the same
+reason.
+
 ## 6. Codes
 
 S20-710 full reserves 74000 through 74007: `SBOM_INVENTORY_MISSING` (74000),
@@ -169,7 +185,11 @@ candidate evidence and the CycloneDX root, that the unit tests pass, and that
 
 `make release-candidate-smoke` rebuilds the reproducibility report, both SBOM
 documents, and the provenance statement after a candidate build, so the
-tracked evidence names the commit it was built from.
+tracked evidence names the commit it was built from. Every builder of that
+recipe runs before every checker, because the release checkers share one
+`bench/release` test suite whose tests read the evidence a candidate build
+has just replaced; a checker placed between builders sees a stale artifact
+digest and fails with `PROVENANCE_SUBJECT_MISMATCH`.
 
 ## 8. Explicit exclusions
 

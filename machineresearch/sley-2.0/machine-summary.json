@@ -2448,7 +2448,7 @@
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0041-standards-sbom-and-unsigned-provenance.md",
     "checker": "scripts/check_standards_sbom_and_provenance.py",
     "cyclonedx_document": "evidence/release/sbom/cyclonedx-1.6.json",

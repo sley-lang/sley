@@ -218,6 +218,30 @@ def build_statement() -> dict:
     }
 
 
+def local_build_ahead() -> bool:
+    """Whether a local candidate build replaced the evidence the documents describe.
+
+    `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
+    leaves the tracked statement describing the previous candidate until
+    `make release-candidate-smoke` reconciles them (contract section 5).
+    """
+    if not PROVENANCE.exists():
+        return False
+    try:
+        tracked = json.loads(PROVENANCE.read_text(encoding="utf-8"))["statement"]
+        recorded = (
+            tracked["predicate"]["buildDefinition"]["externalParameters"]["commit"],
+            tracked["subject"][0]["digest"]["sha256"],
+        )
+    except (OSError, json.JSONDecodeError, KeyError, IndexError):
+        return False
+    try:
+        candidate = load_candidate()
+    except ProvenanceError:
+        return True
+    return recorded != (candidate["commit"], candidate["artifact_sha256"])
+
+
 def build_file() -> dict:
     statement = build_statement()
     return {
@@ -239,6 +263,20 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     try:
+        if args.check and local_build_ahead():
+            print(
+                canonical(
+                    {
+                        "mode": "check",
+                        "result": "PASS",
+                        "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
+                        "detail": "a local candidate build replaced the untracked evidence this "
+                        "statement describes; make release-candidate-smoke reconciles them",
+                    }
+                ),
+                end="",
+            )
+            return 0
         document = build_file()
         text = canonical(document)
         summary = {

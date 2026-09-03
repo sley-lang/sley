@@ -141,12 +141,15 @@ accounting-smoke:
 	python3 -m bench.accounting.report smoke --sley2-evidence evidence/runtime/s20-620-sley2-smoke/evidence.json --output-dir evidence/runtime/s20-630-accounting-smoke
 	python3 scripts/check_succession_accounting.py
 
+# Every builder runs before every checker: the release checkers run the shared
+# bench/release test suite, whose S20-710/S20-730 tests read the evidence a
+# candidate build has just replaced.
 release-candidate-smoke:
 	python3 scripts/build_release_candidate.py --timeout-seconds 900
-	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
+	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 

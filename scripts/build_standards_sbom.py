@@ -364,11 +364,63 @@ def build_documents() -> tuple[dict, dict, dict]:
     )
 
 
+def tracked_candidate_facts() -> tuple[str, str] | None:
+    """The commit and artifact digest the tracked CycloneDX document records."""
+    if not CYCLONEDX.exists():
+        return None
+    try:
+        bom = json.loads(CYCLONEDX.read_text(encoding="utf-8"))
+        commit = next(
+            entry["value"]
+            for entry in bom["metadata"]["properties"]
+            if entry["name"] == "sley2:commit"
+        )
+        digest = next(
+            entry["content"]
+            for entry in bom["metadata"]["component"]["hashes"]
+            if entry["alg"] == "SHA-256"
+        )
+        return commit, digest
+    except (OSError, json.JSONDecodeError, KeyError, StopIteration):
+        return None
+
+
+def local_build_ahead() -> bool:
+    """Whether a local candidate build replaced the evidence the documents describe.
+
+    `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
+    leaves the tracked documents describing the previous candidate until
+    `make release-candidate-smoke` reconciles them (contract section 5).
+    """
+    tracked = tracked_candidate_facts()
+    if tracked is None:
+        return False
+    try:
+        candidate = load_candidate()
+    except SbomError:
+        return True
+    return tracked != (candidate["commit"], candidate["artifact_sha256"])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     try:
+        if args.check and local_build_ahead():
+            print(
+                canonical(
+                    {
+                        "mode": "check",
+                        "result": "PASS",
+                        "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
+                        "detail": "a local candidate build replaced the untracked evidence these "
+                        "documents describe; make release-candidate-smoke reconciles them",
+                    }
+                ),
+                end="",
+            )
+            return 0
         bom, document, counts = build_documents()
         outputs = ((CYCLONEDX, bom), (SPDX, document))
         if args.check:

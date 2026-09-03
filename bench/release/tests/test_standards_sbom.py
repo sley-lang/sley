@@ -113,6 +113,13 @@ class StandardsSbomTests(unittest.TestCase):
 
 class ProvenanceTests(unittest.TestCase):
     def setUp(self) -> None:
+        # The statement is derived against the *derived* CycloneDX document, so
+        # the suite never depends on whether the tracked documents have caught
+        # up with an untracked local candidate build.
+        derived_root = sbom.build_documents()[0]["metadata"]["component"]["hashes"][0]["content"]
+        self.original_root = provenance.sbom_root_digest
+        provenance.sbom_root_digest = lambda: derived_root
+        self.addCleanup(setattr, provenance, "sbom_root_digest", self.original_root)
         self.document = provenance.build_file()
         self.statement = self.document["statement"]
 
@@ -133,6 +140,14 @@ class ProvenanceTests(unittest.TestCase):
             self.statement["subject"][0]["digest"]["sha256"], candidate["artifact_sha256"]
         )
         self.assertEqual(provenance.sbom_root_digest(), candidate["artifact_sha256"])
+
+    def test_a_disagreeing_sbom_root_fails_closed(self) -> None:
+        provenance.sbom_root_digest = lambda: "f" * 64
+        with self.assertRaises(provenance.ProvenanceError) as error:
+            provenance.build_statement()
+        self.assertEqual(
+            error.exception.code, provenance.ProvenanceErrorCode.SUBJECT_MISMATCH
+        )
 
     def test_resolved_dependencies_cover_the_locks_inventory_and_both_sboms(self) -> None:
         names = {
