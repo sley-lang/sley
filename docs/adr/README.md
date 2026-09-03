@@ -41,3 +41,4 @@ Current records:
 - ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
 - ADR-0033: negotiated session, binding checks, and positional handles
 - ADR-0034: JSON bridge as a generated, non-canonical representation
+- ADR-0035: the CLI as a transport endpoint with no semantics

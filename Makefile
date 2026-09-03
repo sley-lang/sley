@@ -30,6 +30,8 @@ quick:
 	python3 scripts/check_smp1_json_bridge_contract.py
 	python3 scripts/generate_smp1_json_bridge_table.py --check
 	python3 scripts/generate_smp1_json_bridge_fixtures.py --check
+	python3 scripts/check_cli_contract.py
+	python3 scripts/check_cli_rules.py
 	python3 scripts/generate_context_capsule_fixtures.py --check
 	python3 scripts/generate_root_backed_query_fixtures.py --check
 	python3 scripts/generate_complete_root_index_snapshot_fixtures.py --check

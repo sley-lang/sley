@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Check the S20-430 thin CLI contract and its stage."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = ROOT / "docs/spec/SLEY_CLI_V1.md"
+ADR = ROOT / "docs/adr/ADR-0035-thin-cli-boundary.md"
+WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
+SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
+ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
+CRATE = ROOT / "crates/sley-cli"
+
+DRAFT_STATUS = "S20_430_CONTRACT_DRAFT_REVIEW_PENDING"
+DRAFT_IN_PROGRESS_STATUS = "S20_430_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
+FROZEN_STATUS = "S20_430_CONTRACT_FROZEN_IMPLEMENTATION_PENDING"
+IN_PROGRESS_STATUS = "S20_430_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS"
+REVIEW_PENDING_STATUS = "S20_430_IMPLEMENTED_REVIEW_PENDING"
+COMPLETE_STATUS = "S20_430_COMPLETE"
+IMPLEMENTATION_STATUSES = (
+    DRAFT_IN_PROGRESS_STATUS,
+    IN_PROGRESS_STATUS,
+    REVIEW_PENDING_STATUS,
+    COMPLETE_STATUS,
+)
+
+CODES = (
+    (43000, "CLI_USAGE_INVALID", 2),
+    (43001, "CLI_INPUT_INVALID", 3),
+    (43002, "CLI_IO_FAILURE", 4),
+    (43003, "CLI_HANDSHAKE_REQUIRED", 5),
+)
+SPEC_MARKERS = (
+    "# Thin Machine-Oriented CLI v1",
+    "Status: S20-430 contract draft",
+    "## 1. Commands",
+    "sley serve --repository <path> [--json] [--batch] [--report <path>]",
+    "## 2. `serve`",
+    "`Server::offered_hello`",
+    "## 3. Report",
+    '"contract": "sley2-cli-report-v1",',
+    "## 4. Exit status and stable failures",
+    "## 5. Rules audited mechanically",
+    "`scripts/check_cli_rules.py` fails closed",
+    "## 7. Explicit exclusions",
+)
+ADR_MARKERS = (
+    "# ADR-0035: the CLI as a transport endpoint with no semantics",
+    "1. **Endpoint only.**",
+    "2. **Two orderings, both explicit.**",
+    "3. **Two representations, one canonical.**",
+    "4. **Counting report.**",
+    "5. **Four codes, four exit statuses.**",
+    "6. **Mechanical rule audit.**",
+    "7. **Staging.**",
+)
+WORK_PACKAGE_MARKERS = ("`docs/spec/SLEY_CLI_V1.md`", "ADR-0035")
+CRATE_MARKERS = (
+    "fn serve(",
+    "Server::offered_hello(",
+    "answer_batch(",
+    "frame_from_json(",
+    "frame_to_json(",
+    '"sley2-cli-report-v1"',
+    "Self::HandshakeRequired => 43_003,",
+)
+
+
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def main() -> int:
+    problems: list[str] = []
+    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
+        if not path.exists():
+            problems.append(f"missing:{path.relative_to(ROOT)}")
+    if problems:
+        print(json.dumps({"problems": problems, "result": "FAIL"}, indent=2))
+        return 1
+
+    spec = read(SPEC)
+    for marker in SPEC_MARKERS:
+        if marker not in spec:
+            problems.append(f"spec-marker:{marker}")
+    for numeric, symbol, exit_status in CODES:
+        if f"| {numeric} | `{symbol}` | {exit_status} |" not in spec:
+            problems.append(f"spec-code:{symbol}")
+    adr = read(ADR)
+    for marker in ADR_MARKERS:
+        if marker not in adr:
+            problems.append(f"adr-marker:{marker}")
+    packages = read(WORK_PACKAGES)
+    for marker in WORK_PACKAGE_MARKERS:
+        if marker not in packages:
+            problems.append(f"work-package-marker:{marker}")
+    if "43000 through 43003" not in read(ERROR_CODES):
+        problems.append("error-codes:range-sentence")
+
+    summary = json.loads(read(SUMMARY))
+    section = summary.get("cli")
+    if not isinstance(section, dict):
+        problems.append("machine-summary:cli missing")
+        section = {}
+    status = section.get("status")
+    expected = {
+        "contract": "docs/spec/SLEY_CLI_V1.md",
+        "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
+        "rule_audit": "scripts/check_cli_rules.py",
+        "new_stable_error_codes": len(CODES),
+        "semantic_authority": "SERVER_ONLY",
+        "implementation_complete": status == COMPLETE_STATUS,
+    }
+    for key, value in expected.items():
+        if section.get(key) != value:
+            problems.append(f"machine-summary:{key}")
+    if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
+        problems.append("machine-summary:status")
+
+    present = []
+    if CRATE.exists():
+        present.append("crates/sley-cli")
+    if status in (DRAFT_STATUS, FROZEN_STATUS) and present:
+        problems.append(f"implementation-before-freeze:{present}")
+    if status in IMPLEMENTATION_STATUSES:
+        sources = "".join(read(path) for path in sorted(CRATE.glob("src/*.rs"))) if CRATE.exists() else ""
+        for marker in CRATE_MARKERS:
+            if marker not in sources:
+                problems.append(f"crate-marker:{marker}")
+        for _, symbol, _ in CODES:
+            if symbol not in sources:
+                problems.append(f"crate-code:{symbol}")
+        if status == COMPLETE_STATUS:
+            for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
+                if not str(section.get(key, "")).startswith("PASS"):
+                    problems.append(f"completion-without-review:{key}")
+
+    revision = re.search(r"revision (\d+)", spec)
+    result = {
+        "contract": "s20-430-thin-cli-v1",
+        "status": status,
+        "revision": int(revision.group(1)) if revision else None,
+        "implementation_present": present,
+        "new_stable_error_codes": len(CODES),
+        "problems": problems,
+        "result": "PASS" if not problems else "FAIL",
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if not problems else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

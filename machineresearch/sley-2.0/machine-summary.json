@@ -629,6 +629,40 @@
     "persistent_fuzz_slice": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
     "closeout": "docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md"
   },
+  "cli": {
+    "status": "S20_430_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SLEY_CLI_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
+    "checker": "scripts/check_cli_contract.py",
+    "rule_audit": "scripts/check_cli_rules.py",
+    "semantic_authority": "SERVER_ONLY",
+    "new_stable_error_codes": 4,
+    "new_error_code_range": "43000 through 43003",
+    "commands": [
+      "serve",
+      "frame decode",
+      "frame encode",
+      "methods",
+      "hello",
+      "version"
+    ],
+    "forbidden": [
+      "kernel_dependency",
+      "reverse_dependency",
+      "private_validation_rules",
+      "hand_built_failures",
+      "method_match_arms",
+      "prose_output"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": false,
+    "implementation": []
+  },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
     "contract": "docs/spec/MUTATION_SCHEMA_V1.md",

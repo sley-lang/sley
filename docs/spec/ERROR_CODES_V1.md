@@ -371,6 +371,14 @@ that is invalid on the wire keeps its `PROTOCOL_*` code. The contract is a
 draft with Council review pending and reserves, rather than freezes, these
 codes.
 
+S20-430 reserves numeric codes 43000 through 43003 for the exact `CLI_*`
+failures of `SLEY_CLI_V1.md`: usage, unreadable input, input or output
+failure, and a missing handshake. They name only the endpoint's own
+failures and map to exit statuses 2 through 5; a failed answer keeps its
+owning code inside the response frame and is never a CLI failure. The
+contract is a draft with Council review pending and reserves, rather than
+freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:
