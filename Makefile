@@ -68,6 +68,7 @@ quick:
 	python3 scripts/check_finding_register.py
 	python3 scripts/check_decision_dossier.py
 	python3 scripts/check_epoch_migration_policy.py
+	python3 scripts/check_required_contract_index.py
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py

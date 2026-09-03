@@ -450,6 +450,13 @@ derived one (`REGISTER_DRIFT`). The register reports recorded dispositions; it
 issues no finding and completes no review. The contract is a draft with Council
 review pending and reserves, rather than freezes, these codes.
 
+S20-770 reserves numeric codes 77000 and 77001 for the exact failures of
+`REQUIRED_CONTRACT_INDEX_V1.md`: a master-goal section 17 contract whose
+defining document, checker, or frozen digest domain is missing
+(`CONTRACT_INDEX_UNSATISFIED`), and an index that names an artifact which does
+not exist (`CONTRACT_INDEX_DRIFT`). The index defines no contract and reserves,
+rather than freezes, these codes while its review is pending.
+
 S20-750 reserves numeric codes 76000 through 76003 for the exact failures of
 `DECISION_DOSSIER_V1.md`: a missing (`DOSSIER_SOURCE_MISSING`) or malformed
 (`DOSSIER_SOURCE_INVALID`) evidence source, including a dossier that does not

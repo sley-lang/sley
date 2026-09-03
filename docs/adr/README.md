@@ -53,3 +53,4 @@ Current records:
 - ADR-0044: candidate operation analysis runs through the VM judgment owner
 - ADR-0045: the transaction semantic profile names the analysis that validated the program
 - ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
+- ADR-0047: the required contracts are indexed, not restated

@@ -49,6 +49,19 @@ part of the `sley-id` kernel API.
 | repository exchange (S20-540) | `sley2.repository-exchange.v1` |
 | semantic delta (S20-510) | `sley2.semantic-delta.v1` |
 | merge conflict (S20-520) | `sley2.merge-conflict.v1` |
+| candidate attempt (S20-360) | `sley2.candidate-attempt.v1` |
+| protocol frame (S20-410) | `sley2.protocol-frame.v1` |
+| root-backed query (S20-310 full) | `sley2.root-query.v1` |
+| negotiated session (S20-330) | `sley2.session.v1` |
+
+The last four rows were added on 2026-09-03 (ADR-0047). Each domain was
+specified and fixtured by its own package (`CANDIDATE_RESULT_V1.md`,
+`SMP1.md`, `ROOT_BACKED_QUERY_PROFILE_V1.md`, and
+`SESSION_HANDLE_PROFILE_V1.md`) but never reached this registry, which the
+S20-770 required contract index caught. The registry now carries all
+thirty-five domains the implementation derives, and
+`scripts/check_required_contract_index.py` compares the two on every
+`make quick`, which is the registry drift validation this section demands.
 
 A domain cannot be renamed, aliased, or reused for another preimage. Adding a
 domain requires an ADR, fixtures, and registry drift validation.
