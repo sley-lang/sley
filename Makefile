@@ -25,6 +25,7 @@ quick:
 	python3 scripts/check_root_backed_query_profile.py
 	python3 scripts/check_context_capsule_profile.py
 	python3 scripts/check_smp1_contract.py
+	python3 scripts/generate_smp1_fixtures.py --check
 	python3 scripts/generate_context_capsule_fixtures.py --check
 	python3 scripts/generate_root_backed_query_fixtures.py --check
 	python3 scripts/generate_complete_root_index_snapshot_fixtures.py --check
@@ -34,6 +35,7 @@ quick:
 	python3 scripts/check_complete_root_snapshot_persistent_fuzz_slice.py
 	python3 scripts/check_root_query_persistent_fuzz_slice.py
 	python3 scripts/check_context_capsule_persistent_fuzz_slice.py
+	python3 scripts/check_smp1_persistent_fuzz_slice.py
 	python3 scripts/check_vm_lowering_profile.py
 	python3 scripts/check_vm_execution_profile.py
 	python3 scripts/check_reference_adapter_profile.py
@@ -95,6 +97,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_complete_root_index_snapshot_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_root_backed_query_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py
+	uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py
 
 adversarial:
@@ -179,6 +182,10 @@ root-query-persistent-fuzz-smoke:
 context-capsule-persistent-fuzz-smoke:
 	python3 scripts/check_context_capsule_persistent_fuzz_slice.py
 	python3 scripts/run_context_capsule_persistent_fuzz.py
+
+smp1-persistent-fuzz-smoke:
+	python3 scripts/check_smp1_persistent_fuzz_slice.py
+	python3 scripts/run_smp1_persistent_fuzz.py
 
 transaction-receipt-persistent-fuzz-smoke:
 	python3 scripts/generate_transaction_receipt_fixtures.py --check

@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_320_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_400_NEXT",
+            "status": "S20_400_DRAFTED_S20_410_IN_PROGRESS",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
+            "next_authority_safe_package": "S20-410-SMP1-FRAME",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -104,6 +104,7 @@ def main() -> int:
             "s20_300_full_implemented": True,
             "s20_310_full_implemented": True,
             "s20_320_full_implemented": True,
+            "s20_400_contract_drafted": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
@@ -165,7 +166,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-400-SMP1-PROTOCOL",
+            "S20-410-SMP1-FRAME",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -278,12 +279,21 @@ def main() -> int:
                 fail(f"S20-250 core body missing while the full profile is in progress: {type_name}")
 
         for relative in (
-            "crates/sley-protocol",
             "crates/sley-json-bridge",
             "crates/sley-cli",
         ):
             if (ROOT / relative).exists():
                 fail(f"production boundary appeared; re-audit required: {relative}")
+        # Re-audited 2026-09-03 (ADR-0032): the protocol crate may exist only
+        # while the S20-400 staged checker says S20-410 is in progress,
+        # implemented, or complete.
+        protocol_status = summary.get("protocol", {}).get("status")
+        if (ROOT / "crates/sley-protocol").exists() and protocol_status not in (
+            "S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS",
+            "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
+            "S20_400_COMPLETE",
+        ):
+            fail("protocol production boundary appeared before its staged checker allows it")
         # Re-audited 2026-09-03 (ADR-0028): the merge module may exist only while
         # the S20-520 staged checker says its implementation is in progress or
         # later; that checker owns the freeze-before-implementation rule.
@@ -322,6 +332,7 @@ def main() -> int:
             "the full S20-300 complete-root snapshot is implemented",
             "the full S20-310 root-backed queries are implemented",
             "the full S20-320 context capsule is implemented",
+            "the S20-400 SMP1 contract is drafted",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -343,7 +354,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
+                "next_authority_safe_package": "S20-410-SMP1-FRAME",
                 "result": "PASS",
             },
             indent=2,

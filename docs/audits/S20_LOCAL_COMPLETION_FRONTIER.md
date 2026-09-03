@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 protocol contract is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 implements its frame, negotiation, and identity scoping; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -27,7 +27,7 @@ boundary without creating named refs or runtime authority.
 | Mutation and transactions | Full S20-360/S20-390 | Restricted fresh validation and fixed-head atomic commit pass for executable programs without semantic operation entities and with no selected tests. Full operation analysis, selected-test evidence, policy/epoch transitions, and runtime authority remain absent. |
 | Repository | Reviews of full S20-250, S20-510, and S20-520 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange exist with reviewed closeouts. S20-510 semantic comparison and S20-520 merge are implemented under draft contracts (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`, `docs/audits/S20_520_MERGE_CLOSEOUT.md`) with Council reviews pending; M4 exit waits on those reviews. |
 | Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. Approved fixtures, containment, live adapters, artifact/oracle/accounting verification, protocol/CLI, and real trials are absent. |
-| Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all eighteen scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
+| Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all nineteen scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
 | Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
 
 ## S20-250 remains incomplete
@@ -87,8 +87,8 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   under a draft contract with Council reviews pending; the merge engine
   target is attached as the eleventh Section 18.5 surface with the arm-2
   snapshot decoder, root-query engine, and capsule builder targets beside
-  it, so the S20-400 SMP1 protocol contract is the next
-  dependency-complete package.
+  it; the S20-400 SMP1 contract is drafted (`docs/spec/SMP1.md` revision 1,
+  ADR-0032, `3a38db0`), so S20-410 is the next dependency-complete package.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -107,8 +107,8 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the S20-400 SMP1 protocol contract
-(handshake, method families, versions, limits, and codes over the frozen
-query, capsule, candidate, and transaction surfaces), while the pending
-S20-250, S20-510, S20-520, S20-300, S20-310, and S20-320 reviews land as
-revisions; nothing in it is treated as GA.
+boundary drifts. The next action is S20-410: the SMP1 frame codec,
+derived negotiation, session-scoped request identity, and the deterministic
+server over the frozen engines, while the pending S20-250, S20-510, S20-520,
+S20-300, S20-310, S20-320, and S20-400 reviews land as revisions; nothing in
+it is treated as GA.

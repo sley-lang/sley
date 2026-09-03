@@ -1,6 +1,7 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-400 contract draft, revision 2 (2026-09-03; revision 2 folds the
+hello into frame kind 4 under one contract tag); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -30,8 +31,8 @@ order may carry SMP1. A frame is:
 ```text
 frame = u64be(payload_length) || protocol_envelope
 protocol_envelope = SCB1 standalone envelope with
-  contract_tag   = 400 (request) | 401 (response) | 402 (hello)
-  schema_epoch   = the negotiated protocol schema epoch
+  contract_tag   = 400 (every frame kind)
+  schema_epoch   = the protocol schema epoch of section 1
   payload        = ProtocolFrame (below), a canonical SCB1 record
   digest domain  = sley2.protocol-frame.v1 -> ProtocolFrameId
 ```
@@ -49,8 +50,8 @@ ProtocolFrame {
   protocol_version: u32,                    // negotiated, 1 at this revision
   session:          option(SessionId[32]),  // None only for hello and session.open
   request_id:       u64,                    // scoped to the session, strictly increasing
-  kind:             u32 (1 request | 2 response | 3 event),
-  method:           u32,                    // section 4
+  kind:             u32 (1 request | 2 response | 3 event | 4 hello),
+  method:           u32,                    // section 4; 0 for hello
   flags:            u32,                    // bit 0 cancel, bit 1 stream, others reserved
   bounds:           BoundedContext,         // section 5, zero on requests
   body:             bytes                   // the method's frozen record, opaque here
@@ -59,8 +60,8 @@ ProtocolFrame {
 
 ## 2. Handshake
 
-Both peers send one `hello` frame (tag 402, kind request from the client,
-kind response from the server) whose body is:
+Both peers send one hello frame (kind 4, `session = None`, `request_id = 0`,
+`method = 0`, `flags = 0`), the client first, whose body is:
 
 ```text
 Hello {

@@ -997,9 +997,9 @@
     "v2_required": false
   },
   "protocol": {
-    "status": "S20_400_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -1009,16 +1009,16 @@
     "frame_domain": "sley2.protocol-frame.v1",
     "handshake_domain": "sley2.protocol-handshake.v1",
     "frame_contract_tags": [
-      400,
-      401,
-      402
+      400
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PENDING",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "contract_complete": false,
-    "implementation_package": "S20-410"
+    "implementation_package": "S20-410",
+    "implementation": "crates/sley-protocol",
+    "hello_frame_kind": 4
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -1265,6 +1265,23 @@
     "continuation_walk": true,
     "vulcan_review": "PENDING",
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md"
+  },
+  "s20_700_smp1_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_AND_NEGOTIATION_ONLY",
+    "target": "fuzz/targets/smp1_frame_decoder.rs",
+    "runner": "scripts/run_smp1_persistent_fuzz.py",
+    "checker": "scripts/check_smp1_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 3,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/smp1/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-smp1-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-smp1-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
+    "outer_trailer_rehash_lane": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md"
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
@@ -1653,8 +1670,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
     "master_required_surface_count": 11,
-    "scoped_target_count": 18,
-    "scoped_landed_surface_count": 19,
+    "scoped_target_count": 19,
+    "scoped_landed_surface_count": 20,
     "remaining_required_surface_count": 0,
     "remaining_required_surfaces": [],
     "mutation_candidate_production_boundary": true,
@@ -1672,11 +1689,11 @@
     "merge_engine_production_boundary": true,
     "merge_engine_blocker": null,
     "protocol_persistent_target_required_by_section_18_5": false,
-    "protocol_production_boundary": false,
+    "protocol_production_boundary": true,
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-400-SMP1-PROTOCOL",
+    "next_dependency_complete_package": "S20-410-SMP1-FRAME",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1685,7 +1702,8 @@
     "merge_engine_reviews": "S20-520 Council reviews pending",
     "complete_root_snapshot_decoder_persistent_fuzz_target": true,
     "root_query_engine_persistent_fuzz_target": true,
-    "context_capsule_builder_persistent_fuzz_target": true
+    "context_capsule_builder_persistent_fuzz_target": true,
+    "smp1_frame_decoder_persistent_fuzz_target": true
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -1809,9 +1827,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_320_FULL_IMPLEMENTED_REVIEWS_PENDING_S20_400_NEXT",
+    "status": "S20_400_DRAFTED_S20_410_IN_PROGRESS",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-400-SMP1-PROTOCOL",
+    "next_authority_safe_package": "S20-410-SMP1-FRAME",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1865,7 +1883,8 @@
     "s20_520_implemented": true,
     "s20_300_full_implemented": true,
     "s20_310_full_implemented": true,
-    "s20_320_full_implemented": true
+    "s20_320_full_implemented": true,
+    "s20_400_contract_drafted": true
   },
   "succession": {
     "corpus_version": 1,

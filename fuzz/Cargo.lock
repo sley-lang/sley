@@ -89,6 +89,7 @@ dependencies = [
  "sley-id",
  "sley-mutate",
  "sley-policy",
+ "sley-protocol",
  "sley-query",
  "sley-repo",
  "sley-scb1",
@@ -129,6 +130,16 @@ dependencies = [
  "sley-schema",
  "sley-ssmc",
  "sley-state-root",
+]
+
+[[package]]
+name = "sley-protocol"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "blake3",
+ "sley-id",
+ "sley-scb1",
+ "sley-schema",
 ]
 
 [[package]]

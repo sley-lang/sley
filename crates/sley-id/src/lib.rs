@@ -40,11 +40,12 @@ enum Domain {
     SemanticDelta,
     MergeConflict,
     RootQuery,
+    ProtocolFrame,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 33] = [
+    const ALL: [Self; 34] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -78,6 +79,7 @@ impl Domain {
         Self::SemanticDelta,
         Self::MergeConflict,
         Self::RootQuery,
+        Self::ProtocolFrame,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -115,6 +117,7 @@ impl Domain {
             Self::SemanticDelta => b"sley2.semantic-delta.v1",
             Self::MergeConflict => b"sley2.merge-conflict.v1",
             Self::RootQuery => b"sley2.root-query.v1",
+            Self::ProtocolFrame => b"sley2.protocol-frame.v1",
         }
     }
 }
@@ -290,6 +293,10 @@ fixed_bytes_type!(
     RootQueryId
 );
 fixed_bytes_type!(
+    /// SMP1 protocol frame digest (S20-410).
+    ProtocolFrameId
+);
+fixed_bytes_type!(
     /// Protocol-handshake digest.
     ProtocolHandshakeId
 );
@@ -380,6 +387,7 @@ digest_type!(RepositoryExchangeId, Domain::RepositoryExchange);
 digest_type!(SemanticDeltaId, Domain::SemanticDelta);
 digest_type!(MergeConflictId, Domain::MergeConflict);
 digest_type!(RootQueryId, Domain::RootQuery);
+digest_type!(ProtocolFrameId, Domain::ProtocolFrame);
 digest_type!(ProtocolHandshakeId, Domain::ProtocolHandshake);
 digest_type!(AdapterStateId, Domain::AdapterState);
 digest_type!(AdapterTranscriptId, Domain::AdapterTranscript);
@@ -421,7 +429,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 33] = [
+    const FIXED_VECTORS: [(Domain, &str); 34] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -554,6 +562,10 @@ mod tests {
             Domain::RootQuery,
             "6f09200e1c5fd88deca37b48b509358564174ac084ea788c03a41475c07dfa87",
         ),
+        (
+            Domain::ProtocolFrame,
+            "82f2233ae0cbf9b30af292180da34a42bea1a563715e674902c581a76863d47d",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -604,6 +616,7 @@ mod tests {
                 b"sley2.semantic-delta.v1",
                 b"sley2.merge-conflict.v1",
                 b"sley2.root-query.v1",
+                b"sley2.protocol-frame.v1",
             ]
         );
     }

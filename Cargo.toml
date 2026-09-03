@@ -7,6 +7,7 @@ members = [
     "crates/sley-id",
     "crates/sley-mutate",
     "crates/sley-policy",
+    "crates/sley-protocol",
     "crates/sley-repo",
     "crates/sley-query",
     "crates/sley-scb1",

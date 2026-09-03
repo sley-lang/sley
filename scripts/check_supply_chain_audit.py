@@ -18,7 +18,7 @@ EXPECTED_BLOCKERS = ["workspace-license-text:missing-operator-approved-root-lice
 EXPECTED_ANCHOR = "51863f7b93271bd7a73f9b7b3b02eeca93447d9a"
 EXPECTED_COUNTS = {
     ("cargo", False): 22,
-    ("cargo", True): 15,
+    ("cargo", True): 16,
     ("pypi", False): 2,
     ("pypi", True): 1,
 }
