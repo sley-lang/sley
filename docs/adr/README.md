@@ -37,3 +37,4 @@ Current records:
 - ADR-0028: merge composition and conflict boundary
 - ADR-0029: complete-root index snapshot and cache reuse boundary
 - ADR-0030: root-backed query classes and continuation boundary
+- ADR-0031: context capsule provenance and omission boundary

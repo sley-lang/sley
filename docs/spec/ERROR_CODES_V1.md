@@ -224,6 +224,16 @@ implement the master context capsule, use `ContextCapsuleId`, establish
 workspace/root/session provenance, authorize continuation/import, or unblock
 S20-330, S20-400, S20-620, M3, M5, or GA.
 
+S20-320 full reserves numeric codes 32008 through 32011 for the exact
+`CONTEXT_CAPSULE_SOURCE_INVALID`, `CONTEXT_CAPSULE_DICTIONARY_INVALID`,
+`CONTEXT_CAPSULE_RESOURCE_LIMIT`, and `CONTEXT_CAPSULE_INTERNAL_INVARIANT`
+failures of `CONTEXT_CAPSULE_PROFILE_V1.md`. They cover the binding between a
+root-backed request and its response, the fact dictionaries, and the bounded
+construction of the master capsule under `sley2.context-capsule.v1`. Codes
+32000 through 32007 keep their restricted meanings unchanged. The contract is
+a draft with Council review pending and reserves, rather than freezes, these
+codes.
+
 S20-350 freezes numeric codes 35000 through 35010 for candidate-specific
 proposal-construction failures:
 

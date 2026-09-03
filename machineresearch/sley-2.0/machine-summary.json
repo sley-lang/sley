@@ -518,7 +518,27 @@
     "ariadne_initial_review": "FAIL_P1_SIZE_FEASIBILITY_P2_RESULT_KIND_WORDING",
     "ariadne_final_review": "PASS",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "full_profile": "context_capsule_profile",
+    "full_profile_status": "S20_320_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
+  },
+  "context_capsule_profile": {
+    "status": "S20_320_FULL_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
+    "checker": "scripts/check_context_capsule_profile.py",
+    "identifier_domain": "sley2.context-capsule.v1",
+    "capsule_magic": "SLEYCCP1",
+    "session_binding": "NONE_FIXED_NEGOTIATED_RESERVED_FOR_S20_330",
+    "omission": "EXACT_TOTAL_RETURNED_OMITTED_WITH_TYPED_CURSORS",
+    "new_stable_error_codes": 4,
+    "new_error_code_range": "32008 through 32011",
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
   },
   "session_handle_profile": {
     "status": "S20_330_DEFERRED_AUTHORITY_PREREQUISITES_MISSING",

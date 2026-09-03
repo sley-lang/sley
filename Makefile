@@ -23,6 +23,7 @@ quick:
 	python3 scripts/generate_merge_fixtures.py --check
 	python3 scripts/check_complete_root_index_snapshot_profile.py
 	python3 scripts/check_root_backed_query_profile.py
+	python3 scripts/check_context_capsule_profile.py
 	python3 scripts/generate_root_backed_query_fixtures.py --check
 	python3 scripts/generate_complete_root_index_snapshot_fixtures.py --check
 	python3 scripts/check_merge_persistent_fuzz_slice.py
