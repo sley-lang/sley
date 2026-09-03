@@ -33,3 +33,4 @@ Current records:
 - ADR-0024: accepted package aging and historical closeout verification
 - ADR-0025: repository exchange composition and clone trust boundary
 - ADR-0026: complete entity model and complete-root impact boundary
+- ADR-0027: semantic comparison delta boundary

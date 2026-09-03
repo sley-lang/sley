@@ -134,6 +134,14 @@ membership, namespace roots and tree, member ownership, export scoping,
 entry-point and dependency-root equality, and dependency-binding ownership.
 They do not claim semantic comparison, merge, or the full S20-300 snapshot.
 
+S20-510 reserves numeric codes 51000 through 51010 for the exact `COMPARE_*`
+failures listed in `SEMANTIC_COMPARISON_V1.md` (contract draft; frozen with
+that contract). They cover the canonical semantic-delta record (version,
+digest, canonical order, duplicates, format), the comparison preconditions
+(shared workspace and epoch, complete roots, complete function inventories),
+and resource ceilings; wrapped `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*` codes
+are preserved. They do not claim merge, conflict objects, or S20-520.
+
 S20-260 freezes numeric codes 26000 through 26006 for the exact `VM_LOWER_*`
 failures listed in `VM_LOWERING_PROFILE_V1.md`. They cover only the restricted
 epoch-1 O0 lowering profile for all five terminators and the three validated

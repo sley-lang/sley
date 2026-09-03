@@ -797,6 +797,27 @@
     "ariadne_implementation_review_session": "forge-ariadne-s20-540-impl-rereview-20260903T033958-dca29d66",
     "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773"
   },
+  "semantic_comparison": {
+    "status": "S20_510_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SEMANTIC_COMPARISON_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0027-semantic-comparison-boundary.md",
+    "checker": "scripts/check_semantic_comparison_spec.py",
+    "contract_tag": 510,
+    "digest_domain_tag": 20,
+    "domain": "sley2.semantic-delta.v1",
+    "field_schema_hash": "5e58f98ecf6d7a501fc49011aa585e85abef9396ff389b5b6bb7c796f118739c",
+    "decoder_limits_hash": "d25baa2eb5fcb394fb7fcfdca09326eb4373a1cc6e79139548d1d9d0fb37f370",
+    "sections": 5,
+    "change_classes": 5,
+    "stable_error_codes": 11,
+    "owner_crate": "sley-repo",
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
+  },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
     "contract": "docs/spec/GARBAGE_COLLECTION_V1.md",
