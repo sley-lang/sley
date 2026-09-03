@@ -200,4 +200,16 @@ extended), decoded in `crates/sley-protocol/src/server.rs`
 (`decode_execution_limits`), covered by
 `execute_selects_the_cache_profile_from_limits_field_six`, and carried by the
 release demo fixture (`conformance/release-demo/v1/demo.json`, regenerated).
-Tier 2 gates and the release candidate smoke are recorded below once run.
+Landed at `bdd73f4`. Tier 2 handoff record (2026-09-03):
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 12 s | 995 tests passed, 0 failed |
+| `make conformance` | exit 0 | 10 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 9 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | 1 s | 5 bounded smoke tests passed |
+| `make smp1-persistent-fuzz-smoke` | exit 0 | 4 s | 653 runs, PASS |
+| `make smp1-json-bridge-persistent-fuzz-smoke` | exit 0 | 3 s | PASS |
+| `make release-candidate-smoke` | exit 0 | 25 s (warm target dirs) | two builds REPRODUCIBLE, demo PASS |
+
+`make v1` was skipped because this is a subsystem handoff, not a release boundary.
