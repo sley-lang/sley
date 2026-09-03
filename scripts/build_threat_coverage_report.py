@@ -35,6 +35,10 @@ SEARCHED = {
     "oracle": ("oracle",),
 }
 TEST_MARKERS = ("#[test]", "def test_", "assert")
+# This generator names example codes in its own prose, and the threat register
+# is the source rather than an implementation, so neither may count as a
+# located control.
+SELF_REFERENCES = ("scripts/build_threat_coverage_report.py",)
 
 
 def canonical(value: object) -> str:
@@ -82,12 +86,37 @@ def locate(symbol: str) -> dict[str, list[str]]:
                 relative = str(path.relative_to(ROOT))
                 if "/target/" in relative or "__pycache__" in relative:
                     continue
+                if relative in SELF_REFERENCES:
+                    continue
                 text = path.read_text(encoding="utf-8", errors="ignore")
                 if symbol in text:
                     hits.append(relative)
         if hits:
             found[area] = hits
     return found
+
+
+def family_symbols() -> dict[str, set[str]]:
+    """Every uppercase failure symbol the tree defines, grouped by family prefix.
+
+    A threat's expected code may have been realized under a more specific name
+    (the M0 register named `SCB_MALFORMED`; the codec ships `SCB_MAGIC_INVALID`
+    and friends). Grouping by the first token lets the report show the review
+    what the family actually contains instead of implying absence.
+    """
+    families: dict[str, set[str]] = {}
+    for tree in ("crates", "scripts", "oracle"):
+        base = ROOT / tree
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix not in (".rs", ".py"):
+                continue
+            relative = str(path.relative_to(ROOT))
+            if "/target/" in relative or "__pycache__" in relative or relative in SELF_REFERENCES:
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            for symbol in re.findall(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', text):
+                families.setdefault(symbol.split("_", 1)[0], set()).add(symbol)
+    return families
 
 
 def classify(found: dict[str, list[str]], evidence_present: bool) -> str:
@@ -105,6 +134,7 @@ def classify(found: dict[str, list[str]], evidence_present: bool) -> str:
 
 def build_report() -> dict:
     rows = register_rows()
+    families = family_symbols()
     threats = []
     for row in rows:
         found = locate(row["expected_failure_code"])
@@ -116,6 +146,11 @@ def build_report() -> dict:
                 "located_in": {area: paths[:4] for area, paths in sorted(found.items())},
                 "located_file_count": sum(len(paths) for paths in found.values()),
                 "planned_evidence_present": evidence_present,
+                "related_family_symbols": (
+                    []
+                    if found or evidence_present
+                    else sorted(families.get(row["expected_failure_code"].split("_", 1)[0], set()))[:8]
+                ),
             }
         )
     states: dict[str, int] = {}
@@ -129,6 +164,16 @@ def build_report() -> dict:
         for threat in threats
         if threat["severity"] in ("P0", "P1") and threat["state"] == "SYMBOL_NOT_LOCATED"
     ]
+    with_family = [
+        threat["id"]
+        for threat in threats
+        if threat["state"] == "SYMBOL_NOT_LOCATED" and threat["related_family_symbols"]
+    ]
+    without_family = [
+        threat["id"]
+        for threat in threats
+        if threat["state"] == "SYMBOL_NOT_LOCATED" and not threat["related_family_symbols"]
+    ]
     report = {
         "contract": CONTRACT,
         "source": "docs/THREAT_REGISTER.md",
@@ -137,6 +182,8 @@ def build_report() -> dict:
         "states": states,
         "by_severity": by_severity,
         "p0_p1_without_located_symbol": blocking,
+        "unlocated_with_realized_family": with_family,
+        "unlocated_with_no_family_symbol": without_family,
         "threats": threats,
         "interpretation": (
             "locating a symbol proves the named control exists in the tree, not that the threat is "
@@ -163,6 +210,8 @@ def main() -> int:
         "threat_count": report["threat_count"],
         "states": report["states"],
         "p0_p1_without_located_symbol": len(report["p0_p1_without_located_symbol"]),
+        "unlocated_with_realized_family": len(report["unlocated_with_realized_family"]),
+        "unlocated_with_no_family_symbol": len(report["unlocated_with_no_family_symbol"]),
     }
     if args.check:
         current = REPORT.read_text(encoding="utf-8") if REPORT.exists() else None

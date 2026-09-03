@@ -2704,7 +2704,9 @@
       "SYMBOL_REALIZED_WITH_EXERCISE": 24
     },
     "p0_p1_without_located_symbol": 25,
+    "unlocated_with_realized_family": 19,
+    "unlocated_with_no_family_symbol": 6,
     "independent_security_review": "PENDING",
-    "interpretation": "a located symbol is not a mitigation claim; the unlocated set is the review's work list"
+    "interpretation": "a located symbol is not a mitigation claim; nineteen of the unlocated threats have a realized code family, so their control most likely exists under a more specific name, and six have no family symbol at all, which is the sharpest part of the review's work list"
   }
 }
