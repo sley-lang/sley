@@ -450,6 +450,13 @@ derived one (`REGISTER_DRIFT`). The register reports recorded dispositions; it
 issues no finding and completes no review. The contract is a draft with Council
 review pending and reserves, rather than freezes, these codes.
 
+S20-780 reserves numeric codes 78000 and 78001 for the exact failures of
+`CLEAN_ROOM_DISPOSITION_REGISTER_V1.md`: legacy source, a legacy dependency, or
+an in-process legacy touchpoint in the tree (`CLEAN_ROOM_BOUNDARY_VIOLATION`),
+and a register entry missing one of the seven ADR-0002 disposition fields
+(`DISPOSITION_INCOMPLETE`). The register reuses no legacy source and reserves,
+rather than freezes, these codes while its review is pending.
+
 S20-770 reserves numeric codes 77000 and 77001 for the exact failures of
 `REQUIRED_CONTRACT_INDEX_V1.md`: a master-goal section 17 contract whose
 defining document, checker, or frozen digest domain is missing

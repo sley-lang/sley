@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 196,
+  "obligation_count": 199,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -257,6 +257,36 @@
         "P2"
       ],
       "state": "HISTORICAL_ROUND"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "ariadne_contract_review",
+      "package_status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "clean_room_disposition_register",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "nabu_architecture_review",
+      "package_status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "clean_room_disposition_register",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "vulcan_surface_review",
+      "package_status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
+      "section": "clean_room_disposition_register",
+      "severities": [],
+      "state": "PENDING"
     },
     {
       "declares_closed_findings": false,
@@ -2250,8 +2280,20 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "e45e882e44bf7677b1ac70d6eeb60f33c7dda1a3f8eb7227b0d04b36c1093620",
+  "obligations_digest": "6898b5a85866ac80c0907d6e206ae615fc0da0272a05fc1700012cbfcc6555ba",
   "open_reviews": [
+    {
+      "field": "ariadne_contract_review",
+      "section": "clean_room_disposition_register"
+    },
+    {
+      "field": "nabu_architecture_review",
+      "section": "clean_room_disposition_register"
+    },
+    {
+      "field": "vulcan_surface_review",
+      "section": "clean_room_disposition_register"
+    },
     {
       "field": "ariadne_contract_review",
       "section": "cli"
@@ -2553,7 +2595,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "7653a5e2339155d4260d0616d9ced40450fb39719d8ebb59215efc36cade180f",
+  "register_digest": "3c58bcf79c722c3cfbf7efe90b7d7676825e64ce485260d24222aa40729fca33",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2568,7 +2610,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 75
+    "PENDING": 78
   },
   "unclassified": [
     {

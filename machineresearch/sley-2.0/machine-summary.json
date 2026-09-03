@@ -2542,8 +2542,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 196,
-    "open_reviews": 75,
+    "obligations": 199,
+    "open_reviews": 78,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2581,7 +2581,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "75 review obligations are open",
+      "78 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -2668,5 +2668,30 @@
       "sley2.root-query.v1",
       "sley2.session.v1"
     ]
+  },
+  "clean_room_disposition_register": {
+    "status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
+    "checker": "scripts/check_clean_room_boundary.py",
+    "reused_concepts": 2,
+    "reused_concept_entries": [
+      "the frozen 1.2.0 artifact as a succession arm",
+      "the succession task corpus"
+    ],
+    "legacy_source_in_tree": false,
+    "legacy_dependencies": 0,
+    "legacy_touchpoints": [
+      "bench/legacy/runner.py (out of process)"
+    ],
+    "similarity_audit_performed": false,
+    "new_stable_error_codes": 2,
+    "new_error_code_range": "78000 through 78001",
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
   }
 }
