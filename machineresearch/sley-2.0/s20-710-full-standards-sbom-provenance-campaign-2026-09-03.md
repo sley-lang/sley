@@ -9,7 +9,7 @@ root license blocker.
 
 ## Contract
 
-- `docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md`, draft revision 1, with
+- `docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md`, draft revision 2, with
   `docs/adr/ADR-0041-standards-sbom-and-unsigned-provenance.md`.
 - Staged checker `scripts/check_standards_sbom_and_provenance.py` in
   `make quick`; summary section `standards_sbom_and_provenance`; work package
@@ -23,17 +23,17 @@ root license blocker.
 |---|---|---|
 | SBOM | `scripts/build_standards_sbom.py` | derives CycloneDX 1.6 and SPDX 2.3 documents from the T52 inventory and the S20-720 candidate; deterministic serial number and namespace, fixed SPDX instant, purls, licenses, dependency graph |
 | Provenance | `scripts/build_release_provenance.py` | derives an in-toto Statement v1 with a SLSA Provenance v1 predicate for the candidate, wrapped with a local `attestation` block recording `signed: false` and the open blockers |
-| Tests | `bench/release/tests/test_standards_sbom.py` | 14 offline tests: format and version fields, derived serial, component completeness, multi-artifact handling, SPDX extracted proprietary reference, relationship counts, statement shape, subject agreement, resolved dependencies, unsigned attestation, no clock or host path, purity |
+| Tests | `bench/release/tests/test_standards_sbom.py` | 15 offline tests: format and version fields, derived serial, component completeness, multi-artifact handling, SPDX extracted proprietary reference, relationship counts, statement shape, subject agreement, the subject-mismatch refusal, resolved dependencies, unsigned attestation, no clock or host path, purity |
 
 `make release-candidate-smoke` now rebuilds the reproducibility report, both
 SBOM documents, and the provenance statement after a candidate build, so all
 tracked release evidence names the commit it was built from.
 
-## Result at this commit
+## Result at the recorded evidence (rebuilt at `abb1dae`, committed at `3861b9f`)
 
 - CycloneDX 1.6: 43 components, 44 dependency entries, serial number
-  `urn:uuid:803a4af7-1e80-87b4-8018-fdc6cd93fba7` derived from the document
-  digest, root component carrying the candidate artifact digest.
+  `9251b665-c1f3-8bdd-8dee-9d58883af49b` derived from the document digest, root
+  component carrying the candidate artifact digest `c6b619833ed899a3...`.
 - SPDX 2.3: 44 packages (43 components plus the candidate root), 119
   relationships (one `DESCRIBES` plus 118 `DEPENDS_ON`), namespace
   `urn:sley2:spdx:<inventory digest>`, `created` fixed at the Unix epoch,
