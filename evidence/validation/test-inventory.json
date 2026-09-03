@@ -1,0 +1,260 @@
+{
+  "conformance_families": [
+    {
+      "family": "candidate-result",
+      "rejections": 4,
+      "vectors": 16
+    },
+    {
+      "family": "complete-entity-impact",
+      "rejections": 19,
+      "vectors": 1
+    },
+    {
+      "family": "complete-root-index-snapshot",
+      "rejections": 6,
+      "vectors": 1
+    },
+    {
+      "family": "context-capsule",
+      "rejections": 0,
+      "vectors": 23
+    },
+    {
+      "family": "merge",
+      "rejections": 4,
+      "vectors": 13
+    },
+    {
+      "family": "mutation-candidate",
+      "rejections": 18,
+      "vectors": 45
+    },
+    {
+      "family": "mutation-value",
+      "rejections": 18,
+      "vectors": 126
+    },
+    {
+      "family": "release-demo",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
+      "family": "repository-exchange",
+      "rejections": 5,
+      "vectors": 1
+    },
+    {
+      "family": "repository-pack",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
+      "family": "root-backed-query",
+      "rejections": 8,
+      "vectors": 23
+    },
+    {
+      "family": "scb1",
+      "rejections": 26,
+      "vectors": 23
+    },
+    {
+      "family": "schema-epoch",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
+      "family": "semantic-comparison",
+      "rejections": 5,
+      "vectors": 9
+    },
+    {
+      "family": "smp1",
+      "rejections": 4,
+      "vectors": 0
+    },
+    {
+      "family": "smp1-json-bridge",
+      "rejections": 31,
+      "vectors": 46
+    },
+    {
+      "family": "state-root",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
+      "family": "transaction-receipt",
+      "rejections": 9,
+      "vectors": 3
+    },
+    {
+      "family": "vm-extended",
+      "rejections": 0,
+      "vectors": 19
+    }
+  ],
+  "conformance_rejections": 157,
+  "conformance_vectors": 349,
+  "contract": "sley2.test-inventory.v1",
+  "inventory_digest": "273c59fac860bc9d0a0bb2350d4560859a083300a056a365cfd699769c6e5f54",
+  "persistent_fuzz_target_count": 20,
+  "persistent_fuzz_targets": [
+    "adapter_responses",
+    "candidate_result",
+    "complete_root_judgment",
+    "complete_root_snapshot_decoder",
+    "context_capsule_builder",
+    "merge_conflict_decoder",
+    "mutation_candidate",
+    "repository_exchange_importer",
+    "repository_pack_importer",
+    "restricted_query_request",
+    "root_query_engine",
+    "scb1_decoder",
+    "schema_bootstrap_decoder",
+    "semantic_delta_decoder",
+    "smp1_frame_decoder",
+    "smp1_json_bridge",
+    "ssmc_graph_cfg_checker",
+    "transaction_receipt",
+    "type_checker",
+    "vm_canonical_inputs"
+  ],
+  "python_test_modules": [
+    {
+      "directory": "bench/accounting/tests",
+      "files": 1,
+      "tests": 4
+    },
+    {
+      "directory": "bench/legacy/tests",
+      "files": 1,
+      "tests": 9
+    },
+    {
+      "directory": "bench/raw/tests",
+      "files": 1,
+      "tests": 4
+    },
+    {
+      "directory": "bench/release/tests",
+      "files": 3,
+      "tests": 31
+    },
+    {
+      "directory": "bench/review/tests",
+      "files": 2,
+      "tests": 24
+    },
+    {
+      "directory": "bench/sley2/tests",
+      "files": 1,
+      "tests": 5
+    },
+    {
+      "directory": "oracle/scb1/tests",
+      "files": 1,
+      "tests": 10
+    }
+  ],
+  "python_tests": 87,
+  "rust_crates": [
+    {
+      "crate": "sley-adapter",
+      "ignored": 0,
+      "tests": 20
+    },
+    {
+      "crate": "sley-check",
+      "ignored": 0,
+      "tests": 75
+    },
+    {
+      "crate": "sley-cli",
+      "ignored": 0,
+      "tests": 8
+    },
+    {
+      "crate": "sley-conformance",
+      "ignored": 0,
+      "tests": 13
+    },
+    {
+      "crate": "sley-id",
+      "ignored": 0,
+      "tests": 7
+    },
+    {
+      "crate": "sley-json-bridge",
+      "ignored": 1,
+      "tests": 9
+    },
+    {
+      "crate": "sley-mutate",
+      "ignored": 0,
+      "tests": 60
+    },
+    {
+      "crate": "sley-policy",
+      "ignored": 1,
+      "tests": 51
+    },
+    {
+      "crate": "sley-protocol",
+      "ignored": 2,
+      "tests": 21
+    },
+    {
+      "crate": "sley-query",
+      "ignored": 4,
+      "tests": 65
+    },
+    {
+      "crate": "sley-repo",
+      "ignored": 3,
+      "tests": 349
+    },
+    {
+      "crate": "sley-scb1",
+      "ignored": 0,
+      "tests": 10
+    },
+    {
+      "crate": "sley-schema",
+      "ignored": 0,
+      "tests": 18
+    },
+    {
+      "crate": "sley-ssmc",
+      "ignored": 0,
+      "tests": 10
+    },
+    {
+      "crate": "sley-state-root",
+      "ignored": 0,
+      "tests": 12
+    },
+    {
+      "crate": "sley-store",
+      "ignored": 0,
+      "tests": 48
+    },
+    {
+      "crate": "sley-txn",
+      "ignored": 1,
+      "tests": 203
+    },
+    {
+      "crate": "sley-vm",
+      "ignored": 1,
+      "tests": 31
+    }
+  ],
+  "rust_ignored_emitters": 13,
+  "rust_unit_tests": 1010,
+  "source": "tracked sources only; no test was executed to produce these counts",
+  "work_package": "S20-750"
+}

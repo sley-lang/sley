@@ -19,6 +19,7 @@ ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 SCRIPT = ROOT / "scripts/build_decision_dossier.py"
 TESTS = ROOT / "bench/review/tests/test_decision_dossier.py"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
+TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 
 DRAFT_STATUS = "S20_750_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -154,6 +155,7 @@ def main() -> int:
         ("dossier", "evidence/release/decision-dossier.json"),
         ("decision_authority", "OPERATOR_DECISION_NOT_DELEGATED"),
         ("required_items", 34),
+        ("test_inventory", "evidence/validation/test-inventory.json"),
         ("new_stable_error_codes", 4),
         ("new_error_code_range", "76000 through 76003"),
         ("ga_claimed", False),
@@ -206,6 +208,10 @@ def main() -> int:
                 problems.append("machine-summary:gated_items")
         if run(["scripts/build_decision_dossier.py", "--check"]).returncode != 0:
             problems.append("decision-dossier:drift")
+        if run(["scripts/build_test_inventory.py", "--check"]).returncode != 0:
+            problems.append("test-inventory:drift")
+        if not TEST_INVENTORY.exists():
+            problems.append(f"missing:{TEST_INVENTORY.relative_to(ROOT)}")
         if run(["-m", "unittest", "discover", "-s", "bench/review/tests", "-t", "."]).returncode != 0:
             problems.append("dossier-tests:fail")
         if status == COMPLETE_STATUS:

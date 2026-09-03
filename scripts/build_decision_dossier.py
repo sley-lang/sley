@@ -25,6 +25,7 @@ INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
 CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
+TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 STATE_ROOT_FIXTURE = ROOT / "conformance/state-root/v1/accepted.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 CONTRACT = "sley2.decision-dossier.v1"
@@ -99,6 +100,7 @@ def build_entries(sources: dict) -> list[dict]:
     inventory = sources["inventory"]
     bom = sources["cyclonedx"]
     provenance = sources["provenance"]
+    inventory = sources["inventory_of_tests"]
     attestation = repro["attestations"][0] if repro.get("attestations") else None
     succession = summary.get("succession", {})
     audit = summary.get("s20_710_pre_release_audit", {})
@@ -205,8 +207,17 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "property-test counts",
-            note="the aggregate property-test count is not recorded as a tracked number; the "
-            "per-package test counts live in package sections only",
+            value={
+                "rust_unit_tests": inventory["rust_unit_tests"],
+                "rust_ignored_emitters": inventory["rust_ignored_emitters"],
+                "python_tests": inventory["python_tests"],
+                "persistent_fuzz_targets": inventory["persistent_fuzz_target_count"],
+                "conformance_vectors": inventory["conformance_vectors"],
+                "conformance_rejections": inventory["conformance_rejections"],
+            },
+            evidence=[TEST_INVENTORY],
+            note="counted from tracked sources; the inventory describes the corpus and runs "
+            "nothing, so a passing run is separate evidence",
         ),
         entry(
             "fuzz duration and findings",
@@ -422,6 +433,7 @@ def build_dossier() -> dict:
         "provenance": load(PROVENANCE, "sley2.release-provenance.v1"),
         "conformance": load(CONFORMANCE, "sley2.independent-conformance-report.v1"),
         "register": load(REGISTER, "sley2.finding-register.v1"),
+        "inventory_of_tests": load(TEST_INVENTORY, "sley2.test-inventory.v1"),
     }
     entries = build_entries(sources)
     state, reasons = derive_decision(sources, entries)

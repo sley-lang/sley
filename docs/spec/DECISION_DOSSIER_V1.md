@@ -1,8 +1,9 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-750 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). The mechanics are `scripts/build_decision_dossier.py`; implementation
+review). Revision 2 adds the tracked test inventory as a source, which
+evidences the property-test counts item. The mechanics are `scripts/build_decision_dossier.py`; implementation
 state is tracked in the machine summary.
 
 ## Boundary
@@ -93,7 +94,12 @@ or adds an item is `DOSSIER_SOURCE_INVALID`:
 - `evidence/conformance/independent-conformance-report.json` (independent
   encoder and conformance coverage);
 - `evidence/review/finding-register.json` (findings by severity and
-  disposition, open reviews).
+  disposition, open reviews);
+- `evidence/validation/test-inventory.json` (`sley2.test-inventory.v1`): the
+  Rust unit tests per crate, the ignored fixture-refresh emitters, the
+  persistent fuzz targets, the Python test functions, and the conformance
+  vectors per family, all counted from tracked sources. The inventory runs no
+  test: it describes the corpus, and a passing run stays separate evidence.
 
 A missing or unreadable source is `DOSSIER_SOURCE_MISSING`; a source whose
 contract tag or shape is wrong is `DOSSIER_SOURCE_INVALID`.

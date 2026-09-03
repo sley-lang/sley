@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "c2ed305b8804d3a35eb8049640bc2b99902b03f4d2299bae4d7b365e3d3dbc76",
+  "dossier_digest": "f8df5340558619d0bf2187b2e69821fa6d4ac9506ac7dffbb6fa4f8bc83102d4",
   "entries": [
     {
       "evidence": [
@@ -132,11 +132,20 @@
       }
     },
     {
-      "evidence": [],
+      "evidence": [
+        "evidence/validation/test-inventory.json"
+      ],
       "item": "property-test counts",
-      "note": "the aggregate property-test count is not recorded as a tracked number; the per-package test counts live in package sections only",
-      "state": "GATED",
-      "value": null
+      "note": "counted from tracked sources; the inventory describes the corpus and runs nothing, so a passing run is separate evidence",
+      "state": "EVIDENCED",
+      "value": {
+        "conformance_rejections": 157,
+        "conformance_vectors": 349,
+        "persistent_fuzz_targets": 20,
+        "python_tests": 87,
+        "rust_ignored_emitters": 13,
+        "rust_unit_tests": 1010
+      }
     },
     {
       "evidence": [
@@ -305,7 +314,7 @@
       "value": {
         "components": 43,
         "cyclonedx_spec_version": "1.6",
-        "license_disposition_blocked": 19,
+        "license_disposition_blocked": 0,
         "root_license_text_approved": false,
         "spdx_version": "SPDX-2.3"
       }
@@ -388,7 +397,6 @@
           "final branch",
           "independent review result",
           "invalid committed states",
-          "property-test counts",
           "release decision state",
           "repair loops by arm",
           "security review result",
@@ -434,9 +442,9 @@
       }
     }
   ],
-  "entries_digest": "687435fbbd42f62c7164c011ea22a57636129e05f6e5cfc07fede3b08b9005cf",
-  "evidenced": 23,
-  "gated": 11,
+  "entries_digest": "f4d8ac03fd05fcfda9cacc3c56615028f1bdd46b6ee8f3d70f16d3f51563d0df",
+  "evidenced": 24,
+  "gated": 10,
   "phase": "M2",
   "project": "Sley",
   "publication": {

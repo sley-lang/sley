@@ -159,6 +159,7 @@ evidence-refresh:
 	python3 scripts/build_independent_conformance_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
+	python3 scripts/build_test_inventory.py
 	python3 scripts/build_finding_register.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/sync_evidence_counters.py
