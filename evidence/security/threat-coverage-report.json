@@ -2,9 +2,9 @@
   "by_severity": {
     "P0": {
       "PLANNED_EVIDENCE_PRESENT": 4,
-      "STRUCTURAL_CONTROL_RECORDED": 1,
-      "SYMBOL_NOT_LOCATED": 16,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 25
+      "STRUCTURAL_CONTROL_RECORDED": 2,
+      "SYMBOL_NOT_LOCATED": 10,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 30
     },
     "P1": {
       "PLANNED_EVIDENCE_PRESENT": 2,
@@ -16,16 +16,10 @@
   "independent_security_review": "PENDING",
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [
-    "T01",
-    "T02",
-    "T10",
     "T16",
-    "T19",
-    "T21",
     "T25",
     "T26",
     "T27",
-    "T28",
     "T29",
     "T30",
     "T31",
@@ -37,70 +31,104 @@
     "T44"
   ],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "f16587615de6d1f5b2c287f9df721571eaa5fbc2176bdb60b438dd5fbdb22dd5",
+  "report_digest": "5b184391ee01ae2cf42fc081279ff3a470c03fb88238c68a8012e2a23234752e",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 6,
-    "STRUCTURAL_CONTROL_RECORDED": 1,
-    "SYMBOL_NOT_LOCATED": 19,
-    "SYMBOL_REALIZED_WITH_EXERCISE": 29
+    "STRUCTURAL_CONTROL_RECORDED": 2,
+    "SYMBOL_NOT_LOCATED": 13,
+    "SYMBOL_REALIZED_WITH_EXERCISE": 34
   },
   "threat_count": 55,
   "threats": [
     {
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 18,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py",
+          "scripts/generate_candidate_result_fixtures.py",
+          "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "implementation": [
+          "crates/sley-mutate/src/codec/adversarial_tests.rs",
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/compare.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/generate_s20_350_fixtures.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py"
+        ]
+      },
       "owner": "sley-canon",
       "planned_evidence_path": "evidence/security/T01/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
-      "related_family_symbols": [
-        "SCB_BOOL_INVALID",
-        "SCB_CONTRACT_UNKNOWN",
-        "SCB_DIGEST_MISMATCH",
-        "SCB_EPOCH_MISMATCH",
-        "SCB_EXTENSION_UNKNOWN",
-        "SCB_FIELD_DUPLICATE",
-        "SCB_FIELD_MISSING",
-        "SCB_FIELD_ORDER"
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "conformance/scb1/v1/rejected.json"
       ],
+      "related_family_symbols": [],
       "required_test": "decoder fuzz/rejection",
       "searched_codes": [
-        "SCB_MALFORMED"
+        "SCB_MAGIC_INVALID",
+        "SCB_VERSION_UNSUPPORTED",
+        "SCB_LENGTH_OVERFLOW",
+        "SCB_TRAILING_BYTES",
+        "SCB_FIELD_MISSING",
+        "SCB_FIELD_UNKNOWN",
+        "SCB_UNION_INVALID",
+        "SCB_BOOL_INVALID"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "malformed SCB1"
     },
     {
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 15,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-mutate/src/codec/adversarial_tests.rs",
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/src/refs.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+          "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+        ]
+      },
       "owner": "sley-canon",
       "planned_evidence_path": "evidence/security/T02/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
-      "related_family_symbols": [
-        "SCB_BOOL_INVALID",
-        "SCB_CONTRACT_UNKNOWN",
-        "SCB_DIGEST_MISMATCH",
-        "SCB_EPOCH_MISMATCH",
-        "SCB_EXTENSION_UNKNOWN",
-        "SCB_FIELD_DUPLICATE",
-        "SCB_FIELD_MISSING",
-        "SCB_FIELD_ORDER"
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the same rejected corpus"
       ],
+      "related_family_symbols": [],
       "required_test": "independent rejection vectors",
       "searched_codes": [
-        "SCB_NON_CANONICAL"
+        "SCB_VARINT_NON_MINIMAL",
+        "SCB_FIELD_ORDER",
+        "SCB_MAP_ORDER",
+        "SCB_MAP_DUPLICATE",
+        "SCB_FLOAT_NON_CANONICAL",
+        "SCB_LABEL_NOT_NFC"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "alternate noncanonical encoding"
     },
     {
@@ -301,27 +329,33 @@
     {
       "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
       "id": "T10",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 5,
+      "located_in": {
+        "checkers": [
+          "scripts/check_type_system.py"
+        ],
+        "implementation": [
+          "crates/sley-check/src/cfg.rs",
+          "crates/sley-check/src/lib.rs",
+          "crates/sley-policy/src/candidate_program.rs",
+          "crates/sley-policy/src/candidate_validation.rs"
+        ]
+      },
       "owner": "sley-check",
       "planned_evidence_path": "evidence/security/T10/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
-      "related_family_symbols": [
-        "GRAPH_DUPLICATE_ENTITY",
-        "GRAPH_INVENTORY_MISMATCH",
-        "GRAPH_ORDINAL_MISMATCH",
-        "GRAPH_OWNER_MISMATCH",
-        "GRAPH_RESOURCE_LIMIT",
-        "GRAPH_UNRESOLVED_REFERENCE"
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the sley-check unit corpus and the semantic-checkers persistent fuzz slice"
       ],
+      "related_family_symbols": [],
       "required_test": "cyclic graph fuzz",
       "searched_codes": [
-        "GRAPH_CYCLE_FORBIDDEN"
+        "TYPE_DEFINITION_CYCLE",
+        "GRAPH_UNRESOLVED_REFERENCE"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "hostile graph cycles"
     },
     {
@@ -549,29 +583,27 @@
     {
       "expected_failure_code": "POLICY_SELF_MODIFICATION",
       "id": "T19",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
       "owner": "sley-policy",
       "planned_evidence_path": "evidence/security/T19/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
-      "related_family_symbols": [
-        "POLICY_FINAL_REPORT_INVALID",
-        "POLICY_FINAL_REQUIRED_CONTRACT_MISSING",
-        "POLICY_FINAL_REQUIRED_TEST_MISSING",
-        "POLICY_FINAL_REQUIRED_TEST_NOT_SELECTED",
-        "POLICY_GRANT_DENIED",
-        "POLICY_INCOMPLETE",
-        "POLICY_ISOLATION_CONTRACT_ROOT_CHANGED",
-        "POLICY_ISOLATION_POLICY_ROOT_CHANGED"
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the candidate validation isolation tests"
       ],
+      "related_family_symbols": [],
       "required_test": "policy-isolation E2E",
       "searched_codes": [
-        "POLICY_SELF_MODIFICATION"
+        "POLICY_ISOLATION_POLICY_ROOT_CHANGED",
+        "POLICY_ISOLATION_CONTRACT_ROOT_CHANGED"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "candidate modifies own policy"
     },
     {
@@ -600,29 +632,32 @@
     {
       "expected_failure_code": "POLICY_ORACLE_SELF_MODIFICATION",
       "id": "T21",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_policy_root.py"
+        ],
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
       "owner": "sley-policy",
       "planned_evidence_path": "evidence/security/T21/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
-      "related_family_symbols": [
-        "POLICY_FINAL_REPORT_INVALID",
-        "POLICY_FINAL_REQUIRED_CONTRACT_MISSING",
-        "POLICY_FINAL_REQUIRED_TEST_MISSING",
-        "POLICY_FINAL_REQUIRED_TEST_NOT_SELECTED",
-        "POLICY_GRANT_DENIED",
-        "POLICY_INCOMPLETE",
-        "POLICY_ISOLATION_CONTRACT_ROOT_CHANGED",
-        "POLICY_ISOLATION_POLICY_ROOT_CHANGED"
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the mandatory test planning tests"
       ],
+      "related_family_symbols": [],
       "required_test": "test-root isolation",
       "searched_codes": [
-        "POLICY_ORACLE_SELF_MODIFICATION"
+        "POLICY_FINAL_REQUIRED_TEST_MISSING",
+        "POLICY_FINAL_REQUIRED_TEST_NOT_SELECTED",
+        "POLICY_FINAL_REQUIRED_CONTRACT_MISSING"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "candidate weakens mandatory tests"
     },
     {
@@ -776,7 +811,9 @@
       "planned_evidence_path": "evidence/security/T28/",
       "planned_evidence_present": false,
       "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "recorded_exercise": [
+        "the S20-700 object-store symlink slice, three cases with zero writes outside the root"
+      ],
       "related_family_symbols": [
         "ADAPTER_EFFECT_CARDINALITY",
         "ADAPTER_EFFECT_KIND",
@@ -787,7 +824,7 @@
         "ADAPTER_SYMLINK_ESCAPE"
       ],
       "severity": "P0",
-      "state": "SYMBOL_NOT_LOCATED",
+      "state": "STRUCTURAL_CONTROL_RECORDED",
       "threat": "symlink escape"
     },
     {
@@ -1512,16 +1549,10 @@
   ],
   "unlocated_with_no_family_symbol": [],
   "unlocated_with_realized_family": [
-    "T01",
-    "T02",
-    "T10",
     "T16",
-    "T19",
-    "T21",
     "T25",
     "T26",
     "T27",
-    "T28",
     "T29",
     "T30",
     "T31",

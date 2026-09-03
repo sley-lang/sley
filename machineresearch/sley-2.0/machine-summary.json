@@ -2700,16 +2700,16 @@
     "threat_count": 55,
     "states": {
       "PLANNED_EVIDENCE_PRESENT": 6,
-      "STRUCTURAL_CONTROL_RECORDED": 1,
-      "SYMBOL_NOT_LOCATED": 19,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 29
+      "STRUCTURAL_CONTROL_RECORDED": 2,
+      "SYMBOL_NOT_LOCATED": 13,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 34
     },
-    "p0_p1_without_located_symbol": 19,
+    "p0_p1_without_located_symbol": 13,
     "unlocated_with_realized_family": 19,
     "unlocated_with_no_family_symbol": 0,
     "independent_security_review": "PENDING",
     "interpretation": "a located symbol is not a mitigation claim. Six threats now carry a recorded realized code in the register's addendum, one of which (T50) is a structural control with no symbol to find. The nineteen still unlocated all have a realized code family, so their control most likely exists under a more specific name and is the review's tracing work",
-    "realized_codes_recorded": 6
+    "realized_codes_recorded": 12
   },
   "anti_goal_conformance": {
     "report": "evidence/validation/anti-goal-conformance.json",
