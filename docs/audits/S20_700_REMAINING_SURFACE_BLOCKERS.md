@@ -67,7 +67,8 @@ non-reserved method since SMP1 revision 7; S20-440 is implemented
 (`docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`); the full S20-260/S20-270 opcode program is implemented
 (`docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md` revision 7, six family slices, reviews pending); S20-730 mechanics are implemented
 (`docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` revision 1, single-host attestation and declared oracle coverage, reviews pending); the standards SBOM and release provenance are implemented
-(`docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md` revision 2, unsigned, the S20-710 audit still blocked). Now
+(`docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md` revision 2, unsigned, the S20-710 audit still blocked); the S20-740 finding register is implemented
+(`docs/spec/FINDING_REGISTER_V1.md` revision 1, sixty open reviews, the independent review still pending). Now
 the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
 decoder in two lanes plus the common-ancestor rule;
 `docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5

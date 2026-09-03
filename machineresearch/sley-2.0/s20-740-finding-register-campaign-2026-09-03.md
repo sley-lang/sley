@@ -58,4 +58,16 @@ stability directly.
 
 ## Validation
 
-Recorded below after Tier 1 and Tier 2.
+Landed at `a71a94d`. Tier 1 `make quick` passed at the commit, including the
+new staged checker, the register drift check, and the thirteen register tests.
+Tier 2 ran on 2026-09-03 at that commit:
+
+| Gate | Result | Wall time | Evidence |
+|---|---|---:|---|
+| `make core` | exit 0 | 11 s | 995 tests passed, 0 failed |
+| `make conformance` | exit 0 | 8 s | 19 oracle results PASS |
+| `make adversarial` | exit 0 | 7 s | 597 tests passed, 0 failed |
+| `make fuzz-smoke` | exit 0 | under 1 s | 5 bounded smoke tests passed |
+
+The release smoke was not rerun: this package touches no packaging surface.
+`make v1` was not run: this is a subsystem handoff, not a release boundary.
