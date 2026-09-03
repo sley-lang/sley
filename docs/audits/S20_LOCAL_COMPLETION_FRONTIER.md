@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 revision 8 execute profile selector is implemented; S20-730 mechanics are implemented (single-host reproducibility attestation and declared independent-oracle coverage of every fixture family, reviews pending); the standards SBOM and release provenance are implemented (deterministic CycloneDX 1.6 and SPDX 2.3 documents and an unsigned in-toto statement, reviews pending, the S20-710 audit still blocked on the root license text); the S20-740 finding register is implemented (181 review obligations derived from the machine summary, sixty open while the lanes are down, the completion invariant enforced); the S20-750 decision dossier is implemented (all thirty-four completion-report items derived, eleven gated, decision state BLOCKED); the full S20-360 operation analysis is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 revision 8 execute profile selector is implemented; S20-730 mechanics are implemented (single-host reproducibility attestation and declared independent-oracle coverage of every fixture family, reviews pending); the standards SBOM and release provenance are implemented (deterministic CycloneDX 1.6 and SPDX 2.3 documents and an unsigned in-toto statement, reviews pending, the S20-710 audit still blocked on the root license text); the S20-740 finding register is implemented (181 review obligations derived from the machine summary, sixty open while the lanes are down, the completion invariant enforced); the S20-750 decision dossier is implemented (all thirty-four completion-report items derived, eleven gated, decision state BLOCKED); the full S20-360 operation analysis and the extended semantic profile are implemented (candidate validation judges the E1 through E6 operation families and a receipt names the analysis that validated its program); extended VM fuzz lanes are next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -118,8 +118,12 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   and the S20-750 decision dossier is implemented under
   `docs/spec/DECISION_DOSSIER_V1.md` revision 1 (campaign
   `machineresearch/sley-2.0/s20-750-decision-dossier-campaign-2026-09-03.md`),
-  so the release-evidence chain is mechanically complete and the full S20-360
-  operation analysis is the next dependency-complete work.
+  so the release-evidence chain is mechanically complete. The full S20-360
+  operation analysis (ADR-0044) and the S20-390 extended semantic profile
+  (ADR-0045) are implemented, so hardening the new VM surface with extended
+  persistent fuzz lanes is the next dependency-complete work; every other
+  remaining boundary waits on a Council review, a schema epoch decision, or
+  operator authority for benchmark spend and publication.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -139,12 +143,10 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the full S20-360 operation analysis:
-candidate validation currently refuses an executable program that contains
-semantic operation entities with
-`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`, and the S20-260/S20-270 extended
-opcode profile now supplies the judgment and execution semantics that gap
-waited for, while the pending S20-250, S20-510,
+boundary drifts. The next action is the extended VM fuzz lanes: the
+`vm_canonical_inputs` persistent target still exercises the extended profile
+only through the Boolean fixtures of slice E1, so families E2 through E6 carry
+no adversarial coverage, while the pending S20-250, S20-510,
 S20-520, S20-300, S20-310, S20-320, S20-400, S20-330, S20-420, S20-430,
 S20-620, S20-630, S20-720, S20-260/S20-270, S20-730, S20-710-full, S20-740,
 and S20-750 reviews land as revisions; the root license text, the final Argus and Vulcan

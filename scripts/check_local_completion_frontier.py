@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEWS_PENDING_S20_360_FULL_NEXT",
+            "status": "S20_360_S20_390_OPERATION_ANALYSIS_IMPLEMENTED_REVIEWS_PENDING_EXTENDED_VM_FUZZ_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-360-FULL-OPERATION-ANALYSIS",
+            "next_authority_safe_package": "S20-700-EXTENDED-VM-FUZZ-LANES",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -196,7 +196,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-360-FULL-OPERATION-ANALYSIS",
+            "S20-700-EXTENDED-VM-FUZZ-LANES",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -408,6 +408,7 @@ def main() -> int:
             "the standards SBOM and release provenance are implemented",
             "the S20-740 finding register is implemented",
             "the S20-750 decision dossier is implemented",
+            "the full S20-360 operation analysis and the extended semantic profile are implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -429,7 +430,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-360-FULL-OPERATION-ANALYSIS",
+                "next_authority_safe_package": "S20-700-EXTENDED-VM-FUZZ-LANES",
                 "result": "PASS",
             },
             indent=2,

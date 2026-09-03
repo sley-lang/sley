@@ -2049,7 +2049,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-360-FULL-OPERATION-ANALYSIS",
+    "next_dependency_complete_package": "S20-700-EXTENDED-VM-FUZZ-LANES",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -2299,9 +2299,9 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md"
   },
   "local_completion_frontier": {
-    "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEWS_PENDING_S20_360_FULL_NEXT",
+    "status": "S20_360_S20_390_OPERATION_ANALYSIS_IMPLEMENTED_REVIEWS_PENDING_EXTENDED_VM_FUZZ_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-360-FULL-OPERATION-ANALYSIS",
+    "next_authority_safe_package": "S20-700-EXTENDED-VM-FUZZ-LANES",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
