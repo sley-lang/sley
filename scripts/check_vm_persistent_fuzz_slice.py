@@ -29,6 +29,7 @@ for marker in [
     "VM execution judgment was not deterministic",
     "a canonical fixture input under normal limits was rejected",
     "a valid fixed VM fixture under normal limits was rejected",
+    "cross-profile termination drifted",
     "assert_eq!(hashes.len(), request.inputs.len())",
     "FIXTURE_COUNT: u8 = 9",
     "MAX_FUZZ_INPUT_BYTES: usize = 4096",
@@ -114,7 +115,7 @@ if "future targets for blocked mutation families, merge, and protocol" not in ga
 for path, marker in [
     (RESULTS, "VM canonical-input persistent libFuzzer slice"),
     (RESULTS, "do not complete S20-700"),
-    (GAPS, "persistent targets are still absent"),
+    (GAPS, "Full-GA S20-240 through S20-270 semantics, adapters, persistent reports, and"),
     (GAPS, "no raw-bytecode decoder"),
     (GAPS, "execution entry"),
     (AUDIT, "make vm-persistent-fuzz-smoke"),
