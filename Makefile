@@ -42,6 +42,7 @@ quick:
 	python3 scripts/check_transaction_contract.py
 	python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py
 	python3 scripts/check_ref_branch_contract.py
+	python3 scripts/generate_repository_exchange_fixtures.py --check
 	python3 scripts/check_s20_530_acceptance_anchor.py
 	git diff --check
 	cargo check --workspace --locked
@@ -69,6 +70,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_schema_epoch_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py
+	uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py
 
 adversarial:
 	cargo test -p sley-mutate mutation_value_codec_adversarial --locked

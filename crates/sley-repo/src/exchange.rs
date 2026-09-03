@@ -2501,6 +2501,96 @@ mod tests {
         assert_eq!(decode_head_bytes(&stored[..HEAD_LEN - 1]), None);
     }
 
+    fn hex(bytes: &[u8]) -> String {
+        use fmt::Write as _;
+
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            write!(&mut output, "{byte:02x}").unwrap();
+        }
+        output
+    }
+
+    #[test]
+    #[ignore = "explicit S20-540 conformance fixture refresh helper"]
+    fn emit_repository_exchange_vector_for_fixture_refresh() {
+        let source = Source::new("emit");
+        let exchange = source.export();
+        let second = source.export();
+        assert_eq!(second.stored_bytes, exchange.stored_bytes);
+        println!(
+            "EXCHANGE_VECTOR|{}|{}|{}|{}|{}|{}|{}",
+            hex(&exchange.stored_bytes),
+            hex(exchange.exchange_id.as_bytes()),
+            hex(exchange.pack_id.as_bytes()),
+            hex(&exchange.digest_tree_root),
+            exchange.receipts.len(),
+            exchange.branches.len(),
+            hex(exchange.accepted_head.transaction_id.as_bytes()),
+        );
+        let verify = verifier(source.epoch);
+        let never = source.target("emit-never");
+        let flipped_trailer = tamper(&exchange, |bytes| {
+            let last = bytes.len() - 1;
+            bytes[last] ^= 0x01;
+        });
+        let nested = build_exchange(
+            exchange.pack_id,
+            exchange.stored_bytes.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            exchange.branches.clone(),
+        )
+        .unwrap();
+        let mut reversed = exchange.branches.clone();
+        reversed.reverse();
+        let reversed = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            reversed,
+        )
+        .unwrap();
+        let foreign_head = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            ExchangeHeadEntry {
+                transaction_id: fixed(9, TransactionId::from_bytes),
+                receipt_id: exchange.accepted_head.receipt_id,
+            },
+            exchange.branches.clone(),
+        )
+        .unwrap();
+        let open = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            vec![
+                exchange
+                    .receipts
+                    .iter()
+                    .find(|entry| entry.transaction_id == source.head)
+                    .cloned()
+                    .unwrap(),
+            ],
+            exchange.accepted_head,
+            Vec::new(),
+        )
+        .unwrap();
+        for (id, bytes) in [
+            ("flip-trailer", flipped_trailer),
+            ("nested-exchange", nested.stored_bytes),
+            ("reversed-branches", reversed.stored_bytes),
+            ("foreign-head", foreign_head.stored_bytes),
+            ("open-ancestry", open.stored_bytes),
+        ] {
+            let error = import_repository_exchange(&never, &bytes, &verify).unwrap_err();
+            println!("EXCHANGE_REJECT|{id}|{}|{}", error.code(), hex(&bytes));
+        }
+        assert!(!never.exists());
+    }
+
     #[test]
     fn exchange_codes_are_closed_and_contiguous() {
         for (offset, code) in ExchangeErrorCode::ALL.into_iter().enumerate() {

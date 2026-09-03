@@ -742,7 +742,18 @@
     "ariadne_contract_review_session": "forge-ariadne-s20-540-pass5-20260903T023812-51133a3e",
     "revision_7_note": "branch-order framing corrected to the realized single Bytes framing; no preimage change; limited Ariadne confirmation pending",
     "implementation": "crates/sley-repo/src/exchange.rs",
-    "transaction_owner_implementation": "crates/sley-txn/src/repository.rs"
+    "transaction_owner_implementation": "crates/sley-txn/src/repository.rs",
+    "conformance_fixture": "conformance/repository-exchange/v1/accepted.json",
+    "accepted_fixture_sha256": "df142fa0dae2bb8ffc7cb093c6760e7ddb075dd0758d8c5bce956f404ced998b",
+    "accepted_repository_exchange_id": "8b3b0e600bca7dde58c26e2eb40b8986c6ff3c152db13772bacfc34d967e41d0",
+    "accepted_repository_pack_id": "cd6b423ab5bbbc1a8e13326d24dffb8ff537775abb1cb9d4703ebcbbd4a5e3b6",
+    "stored_bytes": 7754,
+    "digest_leaves": 6,
+    "digest_tree_root": "42e27dd7ebf4065f9f4f7d299381e40995e8f181f8c75096022ee8cc9837fd03",
+    "fixture_receipts": 2,
+    "fixture_branches": 2,
+    "independent_python_vector": "PASS",
+    "rejection_vectors": 5
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",

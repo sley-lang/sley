@@ -46,6 +46,15 @@ SOURCE_MARKERS = (
     "fn verify_incomplete_clone",
     "acquire_exclusive_repository_maintenance_nonblocking",
 )
+FIXTURE = ROOT / "conformance/repository-exchange/v1/accepted.json"
+FIXTURE_EXPECTED = {
+    "repository_exchange_id": "8b3b0e600bca7dde58c26e2eb40b8986c6ff3c152db13772bacfc34d967e41d0",
+    "repository_pack_id": "cd6b423ab5bbbc1a8e13326d24dffb8ff537775abb1cb9d4703ebcbbd4a5e3b6",
+    "digest_tree_root": "42e27dd7ebf4065f9f4f7d299381e40995e8f181f8c75096022ee8cc9837fd03",
+    "stored_bytes": 7754,
+    "receipts": 2,
+    "branches": 2,
+}
 TXN_SOURCE = ROOT / "crates/sley-txn/src/repository.rs"
 TXN_MARKERS = (
     "pub fn incomplete_clone_marker_present",
@@ -208,6 +217,13 @@ def main() -> int:
                 problems.append(f"txn-source-marker:{marker}")
         if "pub(crate) fn list_branches_locked" not in (ROOT / "crates/sley-repo/src/refs.rs").read_text(encoding="utf-8"):
             problems.append("refs-source-marker:list_branches_locked")
+        fixture = json.loads(FIXTURE.read_text(encoding="utf-8")) if FIXTURE.is_file() else {}
+        vectors = fixture.get("vectors") or [{}]
+        for key, value in FIXTURE_EXPECTED.items():
+            if vectors[0].get(key) != value:
+                problems.append(f"fixture:{key}")
+        if fixture.get("contract_tag") != 540 or fixture.get("digest_domain_tag") != 19:
+            problems.append("fixture:contract-identity")
 
     print(
         json.dumps(
