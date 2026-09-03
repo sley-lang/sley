@@ -1,4 +1,12 @@
 {
+  "addenda": [
+    {
+      "adr": "docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md",
+      "change": "transaction model draft revision 2 adds semantic profile 2 for the S20-360 full operation analysis; commit selects it from the validated program, a trusted genesis keeps profile 1, and the accepted corpus gained the ORDINARY_EXTENDED vector",
+      "date": "2026-09-03",
+      "reviews": "PENDING"
+    }
+  ],
   "authority": {
     "deploy": false,
     "external_runtime_mutation": false,
@@ -25,7 +33,7 @@
   },
   "contract": "s20-390-atomic-commit-closeout-v1",
   "deterministic_inputs": {
-    "accepted_fixture_vectors": 2,
+    "accepted_fixture_vectors": 3,
     "fault_boundaries": 5,
     "manifest_inventory_rejections": 1,
     "persistent_fuzz_runs": 512,

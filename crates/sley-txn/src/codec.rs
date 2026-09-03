@@ -29,6 +29,13 @@ pub const TRANSACTION_FORMAT_VERSION: u32 = 1;
 pub const COMMIT_PROFILE_RESTRICTED_V1: u32 = 1;
 /// Exact restricted semantic profile tag.
 pub const SEMANTIC_PROFILE_OPERATION_FREE_V1: u32 = 1;
+/// Exact extended semantic profile tag: this transaction validated its program
+/// with the S20-360 full operation analysis, which judges the S20-260/S20-270
+/// opcode families E1 through E6 (transaction model revision 2, ADR-0045).
+/// Profile 1 means no operation analysis ran in the transaction, which is the
+/// case for a trusted genesis and for an ordinary commit of a program without
+/// operations.
+pub const SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1: u32 = 2;
 /// Exact receipt-before-head durability profile tag.
 pub const DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1: u32 = 1;
 
@@ -82,13 +89,34 @@ pub struct CommitMetadata {
 }
 
 impl CommitMetadata {
-    /// Returns the only S20-390 restricted metadata value.
+    /// Returns the S20-390 metadata of a program without semantic operations.
     #[must_use]
     pub const fn restricted_v1() -> Self {
         Self {
             commit_profile: COMMIT_PROFILE_RESTRICTED_V1,
             semantic_profile: SEMANTIC_PROFILE_OPERATION_FREE_V1,
             durability_profile: DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+        }
+    }
+
+    /// Returns the S20-390 metadata of a program the full operation analysis
+    /// judged (transaction model revision 2).
+    #[must_use]
+    pub const fn extended_operations_v1() -> Self {
+        Self {
+            commit_profile: COMMIT_PROFILE_RESTRICTED_V1,
+            semantic_profile: SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1,
+            durability_profile: DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+        }
+    }
+
+    /// Returns the metadata that names how this program was validated.
+    #[must_use]
+    pub const fn for_program(carries_operations: bool) -> Self {
+        if carries_operations {
+            Self::extended_operations_v1()
+        } else {
+            Self::restricted_v1()
         }
     }
 }
@@ -268,14 +296,6 @@ pub enum TransactionErrorCode {
     /// exchange stage marker, so no acceptance-establishing, ref-mutating, or
     /// deleting path may proceed.
     IncompleteClone,
-    /// `TXN_SEMANTIC_PROFILE_UNSUPPORTED`: the validated program carries
-    /// semantic operation entities, which the S20-360 full operation analysis
-    /// now judges, but the frozen receipt has one semantic profile value and
-    /// it names the executable-program-operation-free profile. Committing such
-    /// a candidate would state a profile the transaction did not run under, so
-    /// the commit fails closed until the transaction model gains a value for
-    /// the extended analysis.
-    SemanticProfileUnsupported,
 }
 
 impl TransactionErrorCode {
@@ -306,7 +326,6 @@ impl TransactionErrorCode {
             Self::InternalInvariant => "TXN_INTERNAL_INVARIANT",
             Self::ResourceLimit => "TXN_RESOURCE_LIMIT",
             Self::IncompleteClone => "TXN_INCOMPLETE_CLONE",
-            Self::SemanticProfileUnsupported => "TXN_SEMANTIC_PROFILE_UNSUPPORTED",
         }
     }
 
@@ -337,7 +356,6 @@ impl TransactionErrorCode {
             Self::InternalInvariant => 39_020,
             Self::ResourceLimit => 39_021,
             Self::IncompleteClone => 39_022,
-            Self::SemanticProfileUnsupported => 39_023,
         }
     }
 }
@@ -681,7 +699,9 @@ fn validate_transaction_record(record: &TransactionRecord) -> Result<(), Transac
     )?;
     validate_sorted_ids(&record.test_result_refs, TransactionErrorCode::FieldShape)?;
     validate_changed_bindings(&record.changed_entity_bindings, record.transaction_kind)?;
-    if record.commit_metadata != CommitMetadata::restricted_v1() {
+    if record.commit_metadata != CommitMetadata::restricted_v1()
+        && record.commit_metadata != CommitMetadata::extended_operations_v1()
+    {
         return Err(txn_error(TransactionErrorCode::FieldShape));
     }
     if !record.selected_tests.is_empty() || !record.test_result_refs.is_empty() {

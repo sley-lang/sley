@@ -85,9 +85,13 @@ def main() -> int:
                 ).hexdigest(),
             }
         )
-    if [vector["kind"] for vector in vectors] != ["GENESIS", "ORDINARY"]:
+    if [vector["kind"] for vector in vectors] != [
+        "GENESIS",
+        "ORDINARY",
+        "ORDINARY_EXTENDED",
+    ]:
         raise RuntimeError(
-            "expected ordered GENESIS and ORDINARY vectors, found "
+            "expected ordered GENESIS, ORDINARY, and ORDINARY_EXTENDED vectors, found "
             f"{[vector['kind'] for vector in vectors]}"
         )
     if len(emitted_rejections) != 1:
@@ -116,13 +120,13 @@ def main() -> int:
 
     mutations.extend(emitted_rejections)
     accepted = {
-        "claim": "restricted-executable-program-operation-free-test-free-s20-390-conformance",
+        "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
         "contract": "sley2-transaction-receipt-v1",
         "generator": "scripts/generate_transaction_receipt_fixtures.py",
         "vectors": vectors,
     }
     rejected = {
-        "claim": "restricted-executable-program-operation-free-test-free-s20-390-conformance",
+        "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
         "contract": "sley2-transaction-receipt-v1",
         "mutations": mutations,
     }

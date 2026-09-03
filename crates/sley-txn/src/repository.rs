@@ -15,6 +15,13 @@ use sley_mutate::{EntityObject, import_entity_object};
 
 /// SSMC1 kind tag of a semantic `Operation` entity.
 const OPERATION_ENTITY_KIND_TAG: u16 = 8;
+
+/// Whether a proposed entity set carries a semantic `Operation` entity.
+fn carries_operations(entities: &[EntityObject]) -> bool {
+    entities
+        .iter()
+        .any(|object| object.record().body.kind_tag() == OPERATION_ENTITY_KIND_TAG)
+}
 use sley_policy::{
     AcceptedPolicyRoot, CandidateDecision, CandidateValidationContext, CandidateValidationError,
     CandidateValidationLimits, CandidateValidationOutput, ImportedCandidateResult,
@@ -1873,22 +1880,12 @@ impl TransactionRepository {
                 TransactionErrorCode::TestEvidenceUnsupported,
             ));
         }
-        // The S20-360 full operation analysis (ADR-0044) judges programs that
-        // carry semantic operations, but the frozen receipt has exactly one
-        // semantic profile value and it names the operation-free profile, so
-        // committing such a program would state a profile the transaction did
-        // not run under. The commit fails closed until the transaction model
-        // gains a value for the extended analysis.
-        if plan
-            .proposed_state()
-            .entities()
-            .iter()
-            .any(|object| object.record().body.kind_tag() == OPERATION_ENTITY_KIND_TAG)
-        {
-            return Err(txn_commit_error(
-                TransactionErrorCode::SemanticProfileUnsupported,
-            ));
-        }
+        // The receipt names how the program was validated: a program that
+        // carries semantic operations was judged by the S20-360 full operation
+        // analysis (transaction model revision 2), and one without them by the
+        // operation-free profile.
+        let commit_metadata =
+            CommitMetadata::for_program(carries_operations(plan.proposed_state().entities()));
         let changed_entity_bindings = derive_binding_diff(
             &base.state_root().record.entity_bindings,
             &plan.candidate_root().record.entity_bindings,
@@ -1931,7 +1928,7 @@ impl TransactionRepository {
             selected_tests: result.record.selected_tests.clone(),
             test_result_refs: Vec::new(),
             tombstoned_entities: tombstones,
-            commit_metadata: CommitMetadata::restricted_v1(),
+            commit_metadata,
         })?;
         let receipt = build_transaction_receipt(&TransactionReceiptRecord {
             format_version: 1,
@@ -3663,6 +3660,7 @@ mod tests {
         PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
         build_capability_summary_projection, conformance_registry as policy_registry,
     };
+    use crate::codec::SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1;
     use sley_ssmc::{
         ConstData, ConstValue, Immediate, Opcode, OperationResultRef, Reachability, ReturnTerminator,
         Terminator, TypeExpr, ValueRef, Visibility,
@@ -5003,13 +5001,12 @@ mod tests {
         assert_eq!(recovery.verified_ancestry_transactions, 2);
     }
 
-    /// S20-390 with the S20-360 full operation analysis (ADR-0044): the
-    /// validator now judges a program that carries semantic operations, but
-    /// the frozen receipt states one semantic profile and it names the
-    /// operation-free profile, so the commit fails closed instead of claiming
-    /// a profile it did not run under. The candidate itself validates.
+    /// S20-390 with the S20-360 full operation analysis (ADR-0044, ADR-0045):
+    /// an operation-carrying program commits under a receipt whose semantic
+    /// profile names the extended analysis, while an operation-free program
+    /// keeps the operation-free profile.
     #[test]
-    fn commit_refuses_an_operation_carrying_program_until_the_receipt_can_name_it() {
+    fn commit_names_the_semantic_profile_that_validated_the_program() {
         let fixture = Fixture::new("operation-program");
         let head = fixture.repository.accepted_head().unwrap();
         let candidate = program_candidate_for(
@@ -5020,8 +5017,7 @@ mod tests {
             head.policy_root(),
             0x5c,
         );
-        let head_before = fixture.repository.accepted_head().unwrap();
-        let error = fixture
+        let output = fixture
             .repository
             .commit(CommitInput::new(
                 fixture.genesis_transaction_id,
@@ -5031,31 +5027,41 @@ mod tests {
                 NOW,
                 CandidateValidationLimits::full_v1(),
             ))
-            .unwrap_err();
-        assert_eq!(error.code(), "TXN_SEMANTIC_PROFILE_UNSUPPORTED");
-        assert_eq!(error.numeric_code(), Some(39_023));
+            .unwrap();
+        assert_eq!(
+            output.candidate_result().record.decision,
+            CandidateDecision::Valid
+        );
 
-        // The refusal is the transaction owner's, not the validator's: the
-        // candidate is valid under the full operation analysis.
-        let context = CandidateValidationContext::new(
-            fixture.genesis_transaction_id,
-            head_before.state_root(),
-            head_before.objects(),
-            head_before.tombstoned_entities(),
-            head_before.policy_root(),
-            fixture.principal_id,
-            &[],
-            NOW,
-            CandidateValidationLimits::full_v1(),
-        )
-        .unwrap();
-        let validation = validate_candidate_bytes(&context, &candidate.stored_bytes).unwrap();
-        assert!(validation.is_valid());
-
-        // Accepted state did not move.
         let accepted = fixture.repository.accepted_head().unwrap();
-        assert_eq!(accepted.transaction_id(), head_before.transaction_id());
-        assert_eq!(accepted.objects().len(), head_before.objects().len());
+        assert_eq!(accepted.transaction_id(), output.transaction_id());
+        // The genesis object plus the function, block, constant, and operation.
+        assert_eq!(accepted.objects().len(), 5);
+        assert_eq!(
+            accepted.receipt().transaction.record.commit_metadata,
+            CommitMetadata::extended_operations_v1()
+        );
+        assert_eq!(
+            accepted
+                .receipt()
+                .transaction
+                .record
+                .commit_metadata
+                .semantic_profile,
+            SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1
+        );
+        let recovery = fixture.repository.recover().unwrap();
+        assert_eq!(recovery.verified_ancestry_transactions, 2);
+
+        // An operation-free program keeps the operation-free profile.
+        let plain = Fixture::new("operation-free-profile");
+        let plain_output = plain.repository.commit(plain.input()).unwrap();
+        let plain_head = plain.repository.accepted_head().unwrap();
+        assert_eq!(plain_head.transaction_id(), plain_output.transaction_id());
+        assert_eq!(
+            plain_head.receipt().transaction.record.commit_metadata,
+            CommitMetadata::restricted_v1()
+        );
     }
 
     #[test]
@@ -18436,6 +18442,32 @@ mod tests {
         fixture.repository.commit(fixture.input()).unwrap();
         let ordinary = fixture.repository.accepted_head().unwrap();
         emit_vector("ORDINARY", ordinary.receipt());
+
+        // A commit whose program carries a judged operation, so the corpus
+        // covers semantic profile 2 (transaction model revision 2).
+        let extended = Fixture::new("emit-extended");
+        let head = extended.repository.accepted_head().unwrap();
+        let candidate = program_candidate_for(
+            head.state_root().record.workspace_id,
+            extended.principal_id,
+            extended.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            0x5c,
+        );
+        extended
+            .repository
+            .commit(CommitInput::new(
+                extended.genesis_transaction_id,
+                &candidate.stored_bytes,
+                extended.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .unwrap();
+        let committed = extended.repository.accepted_head().unwrap();
+        emit_vector("ORDINARY_EXTENDED", committed.receipt());
     }
 
     fn emit_vector(kind: &str, receipt: &ImportedTransactionReceipt) {

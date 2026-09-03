@@ -81,3 +81,27 @@ Landed at `9fb9ecc`. Tier 1 `make quick` passed at the commit. Tier 2 ran on
 | `make vm-persistent-fuzz-smoke` | exit 0 | 10 s | 626 runs, PASS |
 
 `make v1` was not run: this is a subsystem handoff, not a release boundary.
+
+## S20-390 boundary restoration (2026-09-03, `3a56342`)
+
+Removing the validator's refusal silently widened what the S20-390 receipt
+would have described: `commit` builds `CommitMetadata::restricted_v1()`, whose
+`semantic_profile` value 1 names the executable-program-operation-free
+profile, and the transaction decoder accepts exactly that triple. A committed
+operation-carrying candidate would therefore have stated a profile the
+transaction did not run under.
+
+`commit` now refuses such a candidate with `TXN_SEMANTIC_PROFILE_UNSUPPORTED`
+(39023) and accepted state does not move;
+`commit_refuses_an_operation_carrying_program_until_the_receipt_can_name_it`
+records that the candidate is nevertheless `VALID` under the validator, so the
+refusal is the transaction owner's boundary and not a validation failure. The
+transaction model, the S20-390 closeout, and the machine summary record it.
+
+Tier 2 at `3a56342`: `make core` exit 0 (16 s, 997 tests), `make conformance`
+exit 0 (14 s, 19 oracles), `make adversarial` exit 0 (12 s, 597 tests),
+`make transaction-receipt-persistent-fuzz-smoke` exit 0.
+
+The follow-on package is the transaction model revision that adds a semantic
+profile value for the extended analysis, so an operation-carrying candidate can
+commit under a receipt that names what validated it.

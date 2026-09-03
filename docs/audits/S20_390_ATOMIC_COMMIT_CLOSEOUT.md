@@ -159,3 +159,22 @@ describes exactly what it did. Naming the extended analysis needs a transaction
 model revision that adds a semantic profile value, regenerates the receipt and
 exchange vectors, and passes Council review; it is recorded as the follow-on
 package rather than taken here.
+
+## Extended semantic profile addendum (2026-09-03)
+
+Transaction model draft revision 2 (ADR-0045) adds semantic profile `2` for the
+S20-360 full operation analysis, and `commit` selects it from the validated
+program. `commit_names_the_semantic_profile_that_validated_the_program` records
+both directions: an operation-carrying candidate commits with profile `2` and
+five bound objects, and an operation-free candidate keeps profile `1`. A
+trusted genesis records profile `1` whatever its object set contains, because it
+performs no analysis; that also corrects the earlier wording, which described
+value `1` as operation-free even though genesis object sets already carried
+operations.
+
+The accepted receipt corpus gained an `ORDINARY_EXTENDED` vector, and the
+independent Python oracle now derives the vector label from the decoded
+semantic profile, so the new value is verified by an implementation that shares
+no code with the Rust one. The corpus claim became
+`restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile`;
+the operation-free vectors are byte-identical to before.

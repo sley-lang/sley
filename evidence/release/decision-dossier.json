@@ -3,14 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "12 review lanes are deferred and unavailable",
-    "66 review obligations are open",
+    "69 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "7658ad684d4e740df272060e49a8fbd045c7d06de7e0275c6f6c4a4d63572e57",
+  "dossier_digest": "c2ed305b8804d3a35eb8049640bc2b99902b03f4d2299bae4d7b365e3d3dbc76",
   "entries": [
     {
       "evidence": [
@@ -325,7 +325,7 @@
           "p3": 0,
           "p4": 0
         },
-        "obligations": 187,
+        "obligations": 190,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 29,
@@ -339,7 +339,7 @@
           "HISTORICAL_ROUND": 24,
           "OTHER": 1,
           "PASS": 84,
-          "PENDING": 66
+          "PENDING": 69
         }
       }
     },
@@ -434,7 +434,7 @@
       }
     }
   ],
-  "entries_digest": "4738992d4459794d36a068bb6a4a85993eaaab9fbda60c3edf31528c2c7a51e6",
+  "entries_digest": "687435fbbd42f62c7164c011ea22a57636129e05f6e5cfc07fede3b08b9005cf",
   "evidenced": 23,
   "gated": 11,
   "phase": "M2",

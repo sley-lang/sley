@@ -1800,7 +1800,7 @@
     "vulcan_operation_analysis_review": "PENDING"
   },
   "s20_390_atomic_commit": {
-    "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_TEST_FREE_BOUNDARY",
+    "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
     "implementation": "crates/sley-txn",
     "contract": "docs/spec/TRANSACTION_MODEL_V1.md",
     "closeout_audit": "docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md",
@@ -1810,10 +1810,10 @@
     "transaction_error_codes": 23,
     "native_active_tests": 13,
     "ignored_fixture_generators": 1,
-    "accepted_fixture_vectors": 2,
+    "accepted_fixture_vectors": 3,
     "rejected_fixture_vectors": 9,
-    "accepted_fixture_sha256": "4c37ea77d7f7f1e895b1c91695fd2544e716b332d5f2d45812ff250a813a327c",
-    "rejected_fixture_sha256": "7f0acf02553dc1e607f116253f2d064ddbc0d3f862e9da6b4aab0abd94936087",
+    "accepted_fixture_sha256": "38bfbc5e8662631944cb6522863c8b7dae1b9366c75969a5765250407fb5c1f9",
+    "rejected_fixture_sha256": "297670d71960bada785e913fecaf0f0f0424cdc9f0d58f3f56f76f185166e744",
     "fault_boundaries": 5,
     "persistent_fuzz_seed_count": 19,
     "persistent_fuzz_runs": 512,
@@ -1830,9 +1830,18 @@
     "ariadne_review": "PASS_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
     "vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
     "s20_540_incomplete_clone_guard": "TXN_INCOMPLETE_CLONE:39022",
-    "operation_carrying_commit": "REFUSED_TXN_SEMANTIC_PROFILE_UNSUPPORTED_39023",
-    "operation_carrying_commit_follow_on": "transaction model semantic profile value for the extended analysis",
-    "new_stable_error_codes": 0
+    "operation_carrying_commit": "ACCEPTED_UNDER_SEMANTIC_PROFILE_2",
+    "operation_carrying_commit_follow_on": "selected-test evidence and full crash recovery remain",
+    "new_stable_error_codes": 0,
+    "semantic_profiles": {
+      "1": "no operation analysis ran in the transaction (trusted genesis, or an operation-free program)",
+      "2": "the program was validated by the S20-360 full operation analysis"
+    },
+    "adr_extended_profile": "docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md",
+    "transaction_model_revision": 2,
+    "ariadne_extended_profile_review": "PENDING",
+    "nabu_extended_profile_review": "PENDING",
+    "vulcan_extended_profile_review": "PENDING"
   },
   "s20_500_native_refs_branches": {
     "status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
@@ -2520,8 +2529,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 187,
-    "open_reviews": 66,
+    "obligations": 190,
+    "open_reviews": 69,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2559,7 +2568,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "66 review obligations are open",
+      "69 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

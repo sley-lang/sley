@@ -154,15 +154,21 @@ Commit metadata contains only deterministic profile tags:
 | Tag | Field | Value |
 |---:|---|---:|
 | 1 | commit_profile | `1` |
-| 2 | semantic_profile | `1` for executable-program-operation-free |
+| 2 | semantic_profile | `1` when the transaction ran no operation analysis, `2` for the extended operation analysis |
 
-The decoder accepts exactly this metadata triple. Since the S20-360 full
-operation analysis (ADR-0044) a candidate whose program carries semantic
-operation entities can validate, but no semantic profile value names that
-analysis, so `commit` refuses such a candidate with
-`TXN_SEMANTIC_PROFILE_UNSUPPORTED` (39023) rather than emit a receipt stating
-a profile the transaction did not run under. A value for the extended analysis
-is a contract revision this package does not take.
+Revision 2 (2026-09-03, ADR-0045, Council review pending) adds semantic profile
+`2`: this transaction validated its program with the S20-360 full operation
+analysis, which judges the S20-260/S20-270 opcode families E1 through E6. Value
+`1` states that no operation analysis ran in the transaction, which is what it
+always meant: a trusted genesis installs an object set without validating it,
+and an ordinary commit of a program without operations judged none. Every
+earlier receipt therefore still says exactly what it said.
+
+`commit` selects the value from the validated program: a proposed state carrying
+an `Operation` entity commits under `2`, one without under `1`. A trusted
+genesis always records `1`, because it performs no analysis whatever its object
+set contains. The decoder accepts exactly those two triples and nothing else
+(`TXN_FIELD_SHAPE`).
 | 3 | durability_profile | `1` for receipt-before-head CAS |
 
 No timestamp, ref name, host fact, filesystem path, label, source, Git fact,

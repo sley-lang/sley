@@ -251,8 +251,8 @@ def main() -> int:
         transaction = summary.get("s20_390_atomic_commit", {})
         require_equal(
             transaction.get("status"),
-            "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_TEST_FREE_BOUNDARY",
-            "S20-390 restricted status",
+            "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
+            "S20-390 status",
         )
         for field in (
             "fresh_commit_time_revalidation",

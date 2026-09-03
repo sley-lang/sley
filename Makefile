@@ -149,14 +149,19 @@ accounting-smoke:
 # Regenerates every derived evidence document in dependency order: the T52
 # inventory feeds the SBOM, the SBOM and the conformance report feed the
 # provenance, and the machine summary feeds the register and the dossier. The
-# supply-chain generator runs again at the end because its T54 scan covers the
-# documents the earlier steps rewrote. The reproducibility report is rebuilt
+# summary's own register and dossier counters are synced and both documents
+# rebuilt, which converges in one pass because each digests its derived entries
+# rather than the summary bytes. The supply-chain generator runs again at the
+# end because its T54 scan covers the documents the earlier steps rewrote. The reproducibility report is rebuilt
 # only by the release smoke, because it attests a clean-tree candidate build.
 evidence-refresh:
 	python3 scripts/generate_supply_chain_evidence.py
 	python3 scripts/build_independent_conformance_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
+	python3 scripts/build_finding_register.py
+	python3 scripts/build_decision_dossier.py
+	python3 scripts/sync_evidence_counters.py
 	python3 scripts/build_finding_register.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/generate_supply_chain_evidence.py

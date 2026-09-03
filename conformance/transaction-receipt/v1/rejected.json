@@ -1,5 +1,5 @@
 {
-  "claim": "restricted-executable-program-operation-free-test-free-s20-390-conformance",
+  "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
   "contract": "sley2-transaction-receipt-v1",
   "mutations": [
     {

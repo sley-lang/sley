@@ -225,6 +225,14 @@ def _decode_grant(payload: bytes) -> None:
         _fail("POLICY_ROOT_RESOURCE_LIMIT")
 
 
+def _receipt_kind(transaction: dict[str, object]) -> str:
+    """The corpus label: a genesis, an ordinary commit, or one validated by the
+    S20-360 full operation analysis (semantic profile 2)."""
+    if transaction["kind"] == 1:
+        return "GENESIS"
+    return "ORDINARY_EXTENDED" if transaction["semantic_profile"] == 2 else "ORDINARY"
+
+
 def _decode_policy_root(data: bytes) -> dict[str, object]:
     payload, epoch, root = _scb_envelope(data, 370, POLICY_ROOT_DOMAIN)
     fields = _record(payload, 11)
@@ -340,7 +348,9 @@ def decode_transaction(data: bytes) -> dict[str, object]:
     test_result_refs = _decode_fixed_set(fields[16])
     tombstones = _decode_fixed_set(fields[17])
     metadata = [_complete_uvar(value, 32) for value in _record(fields[18], 3)]
-    if metadata != [1, 1, 1]:
+    # Commit profile 1, semantic profile 1 (operation-free) or 2 (the S20-360
+    # full operation analysis), durability profile 1.
+    if metadata not in ([1, 1, 1], [1, 2, 1]):
         _fail("TXN_FIELD_SHAPE")
     if selected_tests or test_result_refs:
         _fail("TXN_TEST_EVIDENCE_UNSUPPORTED")
@@ -359,6 +369,7 @@ def decode_transaction(data: bytes) -> dict[str, object]:
         "context": options[3],
         "durability_profile": metadata[2],
         "kind": kind,
+        "semantic_profile": metadata[1],
         "parent_roots": parent_roots,
         "parents": parents,
         "policy_root": _fixed(fields[6]),
@@ -460,7 +471,7 @@ def decode_transaction_receipt(data: bytes) -> dict[str, object]:
     if expected_manifest != actual_manifest:
         _fail("TXN_OBJECT_INVENTORY_MISMATCH")
     return {
-        "kind": "GENESIS" if transaction["kind"] == 1 else "ORDINARY",
+        "kind": _receipt_kind(transaction),
         "manifest_entries": len(manifest),
         "object_manifest": [
             {"object_id_hex": object_id.hex(), "stored_length": length}
@@ -507,7 +518,7 @@ def check_transaction_receipt(
     problems: list[str] = []
     expected_contract = "sley2-transaction-receipt-v1"
     expected_claim = (
-        "restricted-executable-program-operation-free-test-free-s20-390-conformance"
+        "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile"
     )
     for label, corpus in (("accepted", accepted), ("rejected", rejected)):
         if corpus.get("contract") != expected_contract:
@@ -544,7 +555,7 @@ def check_transaction_receipt(
             problems.append(f"{vector_id}: transaction SHA-256 drift")
         if hashlib.sha256(receipt_bytes).hexdigest() != vector["receipt_sha256"]:
             problems.append(f"{vector_id}: receipt SHA-256 drift")
-    if seen_kinds != ["GENESIS", "ORDINARY"]:
+    if seen_kinds != ["GENESIS", "ORDINARY", "ORDINARY_EXTENDED"]:
         problems.append(f"accepted kind sequence drift: {seen_kinds}")
 
     for vector in rejected.get("mutations", []):

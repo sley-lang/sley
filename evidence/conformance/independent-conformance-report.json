@@ -595,7 +595,7 @@
       "sums_file": true
     },
     {
-      "claim": "restricted-executable-program-operation-free-test-free-s20-390-conformance",
+      "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
       "contract": "sley2-transaction-receipt-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-transaction-receipt",
@@ -607,22 +607,22 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "ea4eeb4b5395a96c78e66a294b20ddf5aaec52cd98407e60814bb9d050865433"
+          "sha256": "dc797df0f3122428a03ae4652145cf6911c26a507601844987e3e67b9e56040c"
         },
         {
-          "bytes": 11090,
+          "bytes": 22094,
           "name": "accepted.json",
-          "sha256": "4c2ea3997fc055cdeaa79760eeca65c9f3cab3918938075dd6d1329c8cada65c"
+          "sha256": "38bfbc5e8662631944cb6522863c8b7dae1b9366c75969a5765250407fb5c1f9"
         },
         {
-          "bytes": 7668,
+          "bytes": 7685,
           "name": "rejected.json",
-          "sha256": "6588c4a5d65c54c213f6173dfb2f0462dcce67fa8d81d148acbeee126c6e5a22"
+          "sha256": "297670d71960bada785e913fecaf0f0f0424cdc9f0d58f3f56f76f185166e744"
         }
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 2
+          "vectors": 3
         },
         "rejected.json": {
           "mutations": 9
@@ -681,7 +681,7 @@
     "problems": [],
     "python_sources": 8
   },
-  "report_digest": "798210c3410c79d4c515e906d48f24b9adcc7b16cb1fa585d81777cf05096626",
+  "report_digest": "d8c414367939d24697b1adf8e01c66b8d78966828d054bdd9cd9740de3380620",
   "result": "INDEPENDENT_CONFORMANCE_PARTIAL",
   "work_package": "S20-730"
 }

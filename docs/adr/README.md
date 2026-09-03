@@ -51,3 +51,4 @@ Current records:
 - ADR-0042: the finding register is derived from recorded dispositions
 - ADR-0043: the decision dossier is derived, and the decision is not
 - ADR-0044: candidate operation analysis runs through the VM judgment owner
+- ADR-0045: the transaction semantic profile names the analysis that validated the program

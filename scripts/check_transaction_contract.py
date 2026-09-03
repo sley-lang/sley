@@ -270,7 +270,7 @@ def main() -> int:
     accepted = json.loads(ACCEPTED.read_text(encoding="utf-8"))
     rejected = json.loads(REJECTED.read_text(encoding="utf-8"))
     expected_claim = (
-        "restricted-executable-program-operation-free-test-free-s20-390-conformance"
+        "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile"
     )
     expected_contract = "sley2-transaction-receipt-v1"
     for label, corpus in (("accepted", accepted), ("rejected", rejected)):
@@ -281,6 +281,7 @@ def main() -> int:
     if [value.get("kind") for value in accepted.get("vectors", [])] != [
         "GENESIS",
         "ORDINARY",
+        "ORDINARY_EXTENDED",
     ]:
         problems.append("transaction-fixture-kind-drift")
     if len(rejected.get("mutations", [])) != 9:
@@ -304,7 +305,7 @@ def main() -> int:
         GENERATOR,
         (
             "emit_transaction_receipt_vectors_for_fixture_refresh",
-            '!= ["GENESIS", "ORDINARY"]',
+            '"ORDINARY_EXTENDED",',
             "receipt_sha256",
             "transaction_sha256",
         ),
@@ -347,7 +348,7 @@ def main() -> int:
             problems.append(f"transaction-evidence-drift:{field}")
     deterministic = evidence.get("deterministic_inputs", {})
     for field, expected in (
-        ("accepted_fixture_vectors", 2),
+        ("accepted_fixture_vectors", 3),
         ("rejected_fixture_vectors", 9),
         ("fault_boundaries", 5),
         ("persistent_fuzz_runs", 512),

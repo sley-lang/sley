@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 187,
+  "obligation_count": 190,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -1425,11 +1425,21 @@
       "state": "PASS"
     },
     {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "ariadne_extended_profile_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
+      "section": "s20_390_atomic_commit",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
       "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": true,
       "disposition": "PASS_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
       "field": "ariadne_review",
-      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_TEST_FREE_BOUNDARY",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -1443,19 +1453,39 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "nabu_extended_profile_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
+      "section": "s20_390_atomic_commit",
+      "severities": [],
+      "state": "PENDING"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_NON_CYCLIC_BOUNDARY_AND_FIXED_HEAD_OWNERSHIP",
       "field": "nabu_review",
-      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_TEST_FREE_BOUNDARY",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "section": "s20_390_atomic_commit",
       "severities": [],
       "state": "PASS"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "vulcan_extended_profile_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
+      "section": "s20_390_atomic_commit",
+      "severities": [],
+      "state": "PENDING"
     },
     {
       "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": true,
       "disposition": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
       "field": "vulcan_review",
-      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_FREE_TEST_FREE_BOUNDARY",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -2160,7 +2190,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "7939635bfa038b267ca543cb0710d1572a6eb55b681e2726d4dc1820410efc5b",
+  "obligations_digest": "de93b35fcc77fd851d7fd837fb15e4b9909163c2e2eb5b03a4d58f48c7f5da33",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2323,6 +2353,18 @@
       "section": "s20_360_candidate_validation"
     },
     {
+      "field": "ariadne_extended_profile_review",
+      "section": "s20_390_atomic_commit"
+    },
+    {
+      "field": "nabu_extended_profile_review",
+      "section": "s20_390_atomic_commit"
+    },
+    {
+      "field": "vulcan_extended_profile_review",
+      "section": "s20_390_atomic_commit"
+    },
+    {
       "field": "vulcan_review",
       "section": "s20_700_complete_root_persistent_fuzz_slice"
     },
@@ -2427,7 +2469,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "03e4e759522edfd3173e0c89cf54c592c35a2a3b0c5598e2834a3fcc6c73f7d7",
+  "register_digest": "ea1ed5116f42b37d4fbf54b9bf1b88e487f677700627b34dcd16865718666521",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2442,7 +2484,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 66
+    "PENDING": 69
   },
   "unclassified": [
     {

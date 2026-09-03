@@ -75,6 +75,7 @@ def main() -> int:
     if [value.get("kind") for value in accepted.get("vectors", [])] != [
         "GENESIS",
         "ORDINARY",
+        "ORDINARY_EXTENDED",
     ]:
         problems.append("accepted-kind-coverage-drift")
     if len(rejected.get("mutations", [])) != 9:
@@ -95,7 +96,7 @@ def main() -> int:
     for marker in (
         "emit_transaction_receipt_vectors_for_fixture_refresh",
         'parser.add_argument(\n        "--check"',
-        '!= ["GENESIS", "ORDINARY"]',
+        '"ORDINARY_EXTENDED",',
         '"generator": "scripts/generate_transaction_receipt_fixtures.py"',
     ):
         if marker not in generator:
