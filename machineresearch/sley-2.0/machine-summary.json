@@ -1245,7 +1245,15 @@
         "exception_partition_sha256": "867bd1d9ca7de09a2e928d1fa5acf84123e192434d7a60d947621b72a11c8487",
         "evidence_payload_sha256": "7a312c0cf387b2baaec94b62811baae247c30d5169885f5161a51b91444803ab"
       }
-    }
+    },
+    "acceptance_commit": "034cc75abb59d743ea30b2f2a410205a018cb25f",
+    "final_checker_confirmation_commit": "cc0f92f0b3ff41f3f8ca5db86117619255ddac5c",
+    "final_checker_confirmation_log": "machineresearch/sley-2.0/s20-530-final-checker-v13-confirmation-2026-09-02.log",
+    "final_checker_confirmation_log_sha256": "f8e93918697c73ea91a4df1a74435a36ab0c3915d2da8b4818735d1ac39a8cdd",
+    "final_checker_confirmation_finished_at_utc": "2026-09-03T01:06:49Z",
+    "closeout_audit": "docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md",
+    "aging_rule": "docs/adr/ADR-0024-accepted-package-aging.md",
+    "acceptance_anchor": "scripts/check_s20_530_acceptance_anchor.py"
   },
   "s20_700_remaining_surface_audit": {
     "status": "BLOCKED_MISSING_MERGE_BOUNDARY",
@@ -1275,7 +1283,7 @@
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
+    "next_dependency_complete_package": "S20-540-PACK-EXCHANGE",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md"
   },
   "candidate_contract_freeze": {
@@ -1400,9 +1408,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_530_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
+    "status": "S20_530_COMPLETE_S20_540_PENDING",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
+    "next_authority_safe_package": "S20-540-PACK-EXCHANGE",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1432,7 +1440,10 @@
     "s20_500_native_refs_branches_implemented": true,
     "s20_500_closeout_complete": true,
     "s20_530_contract_frozen": true,
-    "s20_530_implementation_complete": false,
+    "s20_530_implementation_complete": true,
+    "s20_530_final_checker_confirmed": true,
+    "s20_530_aging_rule": "ADR-0024",
+    "s20_540_implementation_started": false,
     "s20_510_blocked_by_full_s20_250": true,
     "session_authority_available": false,
     "transaction_boundary_available": true,
@@ -1492,7 +1503,7 @@
     "SSMC descriptor inputs are frozen, but complete production-epoch assembly awaits remaining descriptor-owning packages",
     "The StateRoot row remains a conformance epoch until complete production-epoch assembly",
     "The S20-170 pack profile is root/object-only; refs, transactions, compression, signatures, and clone equivalence await S20-540 or a new profile",
-    "The S20-180 exclusive GC guard is a local witness; restricted S20-390 fixed-head transactions and S20-500 named refs now share the maintenance ownership boundary, while full crash recovery remains absent",
+    "The S20-180 exclusive GC guard is a local witness; restricted S20-390 fixed-head transactions and S20-500 named refs now share the maintenance ownership boundary, and S20-530 exclusive recovery over the exact crash matrix is complete under ADR-0024 aging; clone equivalence remains absent",
     "S20-240 is a restricted epoch-1 profile; full-GA TypeDef invariants, effect/capability/resource contracts, effectful tests, adapter replay/configuration, observations, and policy-final selection require a later schema epoch",
     "S20-250 is a restricted epoch-1 profile; Workspace, Package, Namespace, EntryPoint, PolicyBinding, and DependencyBinding bodies plus complete-root impact extraction remain required before S20-300/S20-510 or GA",
     "S20-260/S20-270 are restricted lowering/execution profiles; the other 52 opcode signatures, generics, floating/call/constant/global/cell semantics, adapter ABIs, effects/capabilities, replay, live cancellation, root/module loading, decoding, and persistent reports remain required before full S20-260/S20-270 or GA",

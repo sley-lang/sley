@@ -41,7 +41,7 @@ quick:
 	python3 scripts/check_transaction_contract.py
 	python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py
 	python3 scripts/check_ref_branch_contract.py
-	python3 scripts/check_s20_530_crash_recovery.py
+	python3 scripts/check_s20_530_acceptance_anchor.py
 	git diff --check
 	cargo check --workspace --locked
 	cargo test --workspace --locked
@@ -128,6 +128,9 @@ transaction-receipt-persistent-fuzz-smoke:
 	python3 scripts/generate_transaction_receipt_fixtures.py --check
 	python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py
 	python3 scripts/run_transaction_receipt_persistent_fuzz.py
+
+s20-530-verify:
+	python3 scripts/verify_s20_530_accepted_state.py
 
 check-changed: quick core conformance adversarial fuzz-smoke
 	@python3 scripts/check_changed.py

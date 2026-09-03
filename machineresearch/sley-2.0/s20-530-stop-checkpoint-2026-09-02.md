@@ -194,8 +194,13 @@ age; this is an operator decision and was not taken here.
 - S20-530 is COMPLETE: contract frozen at v13 with three
   `PASS_CONTRACT_FREEZE` receipts, captured closeout PASS at `8f7c763`, three
   `PASS_IMPLEMENTATION` receipts verified `PASS_TRUSTED_LOCAL_REVIEW_RECEIPTS`,
-  `machine-summary.json` `implementation_complete: true`, and the `make quick`
-  gate PASS at the accepted state. M4 is no longer blocked by this package.
+  `machine-summary.json` `implementation_complete: true`, and the S20-530
+  checker (the S20-530 line of `make quick`) PASS at the accepted state. M4 is
+  no longer blocked by this package. Note (2026-09-03T01:40Z): `make quick` as a
+  whole had been failing at earlier lines since 2026-08-30 (T54 secret-scan
+  manifest drift from `109d1bc`, S20-390 fixture-emitter drift from `8343beb`);
+  both are repaired under ADR-0024, see
+  `s20-530-aging-and-resume-2026-09-03.md`.
 - No bound path changed between the acceptance commit and this note; the
   diff `034cc75..HEAD` touches only `machineresearch/` and
   `docs/WORK_PACKAGES.md` (narrative lanes).

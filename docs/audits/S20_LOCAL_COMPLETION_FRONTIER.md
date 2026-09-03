@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-500 native refs are complete; S20-530 recovery is next; the Sley 2 goal remains incomplete**
+Status: **S20-530 crash recovery is complete; S20-540 pack exchange is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -25,7 +25,7 @@ boundary without creating named refs or runtime authority.
 | Semantics and queries | Full S20-240/S20-250 | Six entity bodies remain outside the semantic-core ownership and exact impact contract; complete-root extraction is absent. |
 | Sessions and protocol | S20-330/S20-400 | Verified workspace/root/epoch and negotiated-session authority are absent. S20-400 still waits for the full root-backed S20-310 contract despite restricted mutation/transaction inputs. |
 | Mutation and transactions | Full S20-360/S20-390 | Restricted fresh validation and fixed-head atomic commit pass for executable programs without semantic operation entities and with no selected tests. Full operation analysis, selected-test evidence, policy/epoch transitions, and runtime authority remain absent. |
-| Repository | S20-530 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, and shared/exclusive GC coordination now exist. S20-500 Tier 1/Tier 2 validation and final Nabu/Ariadne/Vulcan review pass. Semantic comparison, merge, full crash recovery, and clone equivalence remain absent. |
+| Repository | S20-540 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, and the exclusive-recovery boundary over the exact 100-row crash matrix now exist. S20-500 and S20-530 closeouts pass with final Nabu/Ariadne/Vulcan receipts; S20-530 ages under ADR-0024. Semantic comparison, merge, and clone equivalence remain absent. |
 | Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. Approved fixtures, containment, live adapters, artifact/oracle/accounting verification, protocol/CLI, and real trials are absent. |
 | Adversarial | Full S20-700 | Candidate, candidate-result, and transaction/receipt production targets are attached and passing. The merge production boundary remains absent, so the eleventh required Section 18.5 surface cannot yet be fuzzed. |
 | Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
@@ -57,9 +57,18 @@ second host model or locally invented edge kinds remain forbidden.
   parent-resynced layout/fan-out creation, and GC maintenance ownership are
   covered. Tier 1/Tier 2 validation and final Nabu/Ariadne/Vulcan review pass;
   the exact record is `docs/audits/S20_500_NATIVE_REFS_BRANCHES_CLOSEOUT.md`.
+- S20-530 crash injection and recovery is complete under the frozen v13
+  contract: exact 100-row matrix, 419 mapped tests in one captured Tier 2
+  closeout at `8f7c763`, three freeze and three implementation receipts, and
+  the full checker PASS at `cc0f92f`; the exact record is
+  `docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md`. The accepted state is
+  verified at its commits (ADR-0024): `make quick` runs the read-only
+  acceptance anchor and `make s20-530-verify` reruns the frozen checker in an
+  isolated clone.
 - S20-510 semantic comparison remains blocked by the six absent full S20-250
-  entity bodies and complete-root impact semantics. S20-530 crash injection
-  and recovery is the next authority-safe package.
+  entity bodies and complete-root impact semantics. S20-540 pack exchange
+  (dependencies S20-170 and S20-500 complete) is the next authority-safe
+  package.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -78,6 +87,6 @@ second host model or locally invented edge kinds remain forbidden.
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the smallest dependency-complete S20-530
-crash-injection and recovery slice without treating it as full cross-component
-recovery.
+boundary drifts. The next action is the smallest dependency-complete S20-540
+pack-exchange slice: a frozen clone-equivalence profile over the S20-170 pack
+and the S20-500 refs, without treating it as merge, comparison, or GA.

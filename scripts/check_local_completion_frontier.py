@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_530_CONTRACT_FROZEN_IMPLEMENTATION_PENDING",
+            "status": "S20_530_COMPLETE_S20_540_PENDING",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
+            "next_authority_safe_package": "S20-540-PACK-EXCHANGE",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -92,7 +92,10 @@ def main() -> int:
             "s20_500_native_refs_branches_implemented": True,
             "s20_500_closeout_complete": True,
             "s20_530_contract_frozen": True,
-            "s20_530_implementation_complete": False,
+            "s20_530_implementation_complete": True,
+            "s20_530_final_checker_confirmed": True,
+            "s20_530_aging_rule": "ADR-0024",
+            "s20_540_implementation_started": False,
             "s20_510_blocked_by_full_s20_250": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,
@@ -155,7 +158,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-530-CRASH-INJECTION-AND-RECOVERY",
+            "S20-540-PACK-EXCHANGE",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -276,10 +279,10 @@ def main() -> int:
 
         audit = AUDIT.read_text(encoding="utf-8")
         for marker in (
-            "S20-500 native refs are complete",
+            "S20-530 crash recovery is complete",
             "S20-250 remains incomplete",
             "candidate construction is proposal-only",
-            "S20-530 crash injection",
+            "S20-540 pack exchange",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -301,7 +304,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-530-CRASH-INJECTION-AND-RECOVERY",
+                "next_authority_safe_package": "S20-540-PACK-EXCHANGE",
                 "result": "PASS",
             },
             indent=2,
