@@ -117,10 +117,17 @@ execution`. Root cause: the verify script forced `.git/config` and
 `.git/info/exclude` to mode `0644`, while the validated Git-authority record
 captured `0664` under the workstation's umask; the frozen checker compares
 those modes exactly. The script now applies the modes recorded in the
-frozen closeout evidence and fails early on an owner mismatch; the second run
-was launched at 03:38:05Z and its result is recorded here when it completes.
-The failed run is non-authoritative evidence of the script, not of the
-accepted state.
+frozen closeout evidence and fails early on an owner mismatch.
+
+Second run (03:38:05Z to 05:42:12Z): the Git-authority check passed and
+the checker failed one step later with `current non-output bytes/modes
+differ from validated commit`: the clone's working-tree files were `0664`
+under the workstation umask while the validated blobs are `0644`. The script
+now clones under umask `022` and restores the recorded `0775` Git-authority
+directory modes afterwards. The third run was launched right after this
+note; its result is recorded here when it completes. Both failed runs are
+non-authoritative evidence of the script, not of the accepted state, whose
+in-place confirmation at `cc0f92f` stands.
 
 ## Validation record
 

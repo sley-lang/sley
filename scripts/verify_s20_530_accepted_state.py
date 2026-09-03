@@ -97,6 +97,11 @@ def main() -> int:
         return 1
 
     print(f"S20-530 accepted-state verification: clone {clone} at {arguments.commit}")
+    # The frozen checker compares every working-tree file's mode with the
+    # committed blob mode (0644 or 0755); clone under umask 022 so the
+    # checkout reproduces those modes regardless of the workstation umask,
+    # then restore the recorded Git-authority directory modes below.
+    os.umask(0o022)
     run((GIT, "clone", "--quiet", "--no-hardlinks", str(ROOT), str(clone)), cwd=ROOT)
     run((GIT, "checkout", "--quiet", "-B", "main", arguments.commit), cwd=clone)
     (clone / ".git/config").write_bytes(FROZEN_GIT_CONFIG)

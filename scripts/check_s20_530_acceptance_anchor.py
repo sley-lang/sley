@@ -80,7 +80,7 @@ MAPPED_TEST_COUNT = 419
 # explicit, reviewed edit of this anchor as well.
 SELF_PINNED_PATHS = {
     "docs/adr/ADR-0024-accepted-package-aging.md": "09e13f500f433ae228b843a92dbdcf057e33bde7a874659051b7958d5c1ae31a",
-    "scripts/verify_s20_530_accepted_state.py": "eddc6d77758055c6852f28aa2c2166088c61606f4b1084184dac8ee8bd71613c",
+    "scripts/verify_s20_530_accepted_state.py": "21ea3f902db6744d3f2b0e8d3ac37b1ca8d4d6b3e07094c8ad6080fbfbe465a3",
 }
 MAKEFILE_MARKERS = (
     "\tpython3 scripts/check_s20_530_acceptance_anchor.py\n",
