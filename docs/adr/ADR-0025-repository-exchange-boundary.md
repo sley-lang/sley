@@ -62,7 +62,7 @@ unreachable receipt ceiling.
    work-package row names it.
 4. **Byte-exact branch install.** `sley-repo` installs exported origin and ref
    records byte-exactly after full verification (fast-forward within the
-   S20-500 ancestry ceiling, facts equal to the named receipts). Replay through
+   exchange's `4,096`-receipt ceiling, facts equal to the named receipts). Replay through
    `create_branch` and `advance_branch` is rejected because it cannot
    reproduce immutable origin records and would multiply invariants.
 5. **Equivalence over the exported set.** Clone equivalence is head identity
@@ -117,6 +117,13 @@ unreachable receipt ceiling.
    `PASS_CONTRACT_DRAFT`; its four text notes (recovery paths must also be
    guarded, `recover_gc_witness` named, object-store puts establish nothing,
    layout creation is not an acceptance write) are applied in revision 5.
+   Ariadne's fourth pass (session
+   `forge-ariadne-s20-540-pass4-20260903T022707-997681c9`) failed revision 5
+   on the guard numeric (already `39022` at HEAD, after the frozen
+   `TXN_RESOURCE_LIMIT` `39021`), on an owned re-classification rule that
+   would have aborted every fresh import, and on the amendment naming
+   `TRANSACTION_MODEL_V1.md` instead of `ERROR_CODES_V1.md` and the enum;
+   revision 6 applies those and its P2 and P3 items.
 
 ## Consequences
 
