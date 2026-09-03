@@ -17,6 +17,7 @@ quick:
 	python3 scripts/check_fingerprint_impact_profile.py
 	python3 scripts/check_complete_entity_impact_profile.py
 	python3 scripts/generate_complete_entity_impact_fixtures.py --check
+	python3 scripts/check_semantic_comparison_spec.py
 	python3 scripts/check_complete_root_persistent_fuzz_slice.py
 	python3 scripts/check_vm_lowering_profile.py
 	python3 scripts/check_vm_execution_profile.py
