@@ -124,7 +124,21 @@ boundary.
 Total 38 seconds. `make v1` skipped: subsystem handoff, not a release
 boundary.
 
+## Tier 2 handoff gate for slice C (2026-09-03, at `8cd39b3`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (958 tests) |
+| `make conformance` | PASS |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make smp1-persistent-fuzz-smoke` | PASS (489 seeds) |
+
+Total 32 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary.
+
 ## Commits
 
+- slice C: `8cd39b3`.
 - slice B: `bb67ab9`.
 - slice A: `d4ff651`.
