@@ -550,9 +550,15 @@
     "fixture_vectors": 23
   },
   "session_handle_profile": {
-    "status": "S20_330_DEFERRED_AUTHORITY_PREREQUISITES_MISSING",
-    "implementation_started": false,
-    "restricted_profile_viable": false,
+    "status": "S20_330_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
+    "checker": "scripts/check_session_handle_profile.py",
+    "identifier_domain": "sley2.session.v1",
+    "new_stable_error_codes": 8,
+    "new_error_code_range": "33000 through 33007",
+    "handles": "POSITIONAL_IN_BOUND_ROOT_BINDING_ORDER",
     "required_binding": [
       "negotiated_session",
       "workspace",
@@ -564,9 +570,15 @@
       "restricted_capsule_id",
       "caller_declared_session"
     ],
-    "threat_gate": "T15_SESSION_STALE_HANDLE_ROOT_SESSION_EPOCH_MATRIX",
-    "nabu_architecture_review": "DEFER",
-    "unblocked_by_restricted_s20_320": false
+    "threat_gates": [
+      "T15_SESSION_STALE_HANDLE",
+      "T47_SESSION_WORKSPACE_MISMATCH"
+    ],
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "nabu_architecture_review": "PENDING",
+    "ariadne_contract_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",

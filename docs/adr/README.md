@@ -39,3 +39,4 @@ Current records:
 - ADR-0030: root-backed query classes and continuation boundary
 - ADR-0031: context capsule provenance and omission boundary
 - ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
+- ADR-0033: negotiated session, binding checks, and positional handles

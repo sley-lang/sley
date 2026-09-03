@@ -25,6 +25,7 @@ quick:
 	python3 scripts/check_root_backed_query_profile.py
 	python3 scripts/check_context_capsule_profile.py
 	python3 scripts/check_smp1_contract.py
+	python3 scripts/check_session_handle_profile.py
 	python3 scripts/generate_smp1_fixtures.py --check
 	python3 scripts/generate_context_capsule_fixtures.py --check
 	python3 scripts/generate_root_backed_query_fixtures.py --check

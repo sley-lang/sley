@@ -234,6 +234,13 @@ construction of the master capsule under `sley2.context-capsule.v1`. Codes
 a draft with Council review pending and reserves, rather than freezes, these
 codes.
 
+S20-330 reserves numeric codes 33000 through 33007 for the exact `SESSION_*`
+failures of `SESSION_HANDLE_PROFILE_V1.md`: unknown session, workspace
+mismatch (threat T47), root advanced, epoch mismatch, stale handle (threat
+T15), unknown handle, renewal limit, and binding invalid. They travel in the
+SMP1 failure envelope. The contract is a draft with Council review pending and
+reserves, rather than freezes, these codes.
+
 S20-350 freezes numeric codes 35000 through 35010 for candidate-specific
 proposal-construction failures:
 
