@@ -1,9 +1,9 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 5 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 6 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). Revisions 2 through 5 record the clarifications of
-slices E1 through E4 (section 7). Implementation lands in family slices E1 through E6 tracked in
+Vulcan surface review). Revisions 2 through 6 record the clarifications of
+slices E1 through E5 (section 7). Implementation lands in family slices E1 through E6 tracked in
 the machine summary; E7 is explicitly excluded until its owners exist.
 
 ## Boundary
@@ -221,3 +221,16 @@ S20-360 full operation analysis; or GA.
   through `sley_mutate::encode_const_value` (the VM crate now depends on
   the mutation crate, which the dependency direction allows), and
   `map_insert` of an existing key replaces its value in place.
+- E5: a `LocalCell` value exists only inside one execution: it may be an
+  operand of `cell_get` and `cell_set` only, no other operation may take a
+  cell or a type containing one, and a Function whose result type contains
+  a cell fails lowering with `VM_LOWER_SIGNATURE_MISMATCH`; a cell handle
+  is register-only and has no wire form; `cell_set` charges no units beyond
+  its operands because the register file never releases live values;
+  `value_hash` is the S20-250 `hash_validated_value` under the execution's
+  schema epoch; `global_get` resolves the global's initializer Constant in
+  the lowering inventory and the constant's type must equal the global's
+  type (`VM_LOWER_IMMEDIATE_MISMATCH` otherwise); `function_ref` requires an
+  empty type-argument list and a zero-type-parameter Function of the
+  inventory, and the derived `FunctionRef` carries the callee's parameter
+  types in ordinal order, its result type, and its effects.

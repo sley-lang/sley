@@ -47,6 +47,7 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Slice E2 (checked integers), revision 3 | `2ff19c0` | green | `checked_integer` in `extended.rs`; 24 exact outcomes over widths 8 and 128, 4 rejections; 3 vectors |
 | Slice E3 (floats), revision 4 | `785b92d` | green | `float_operation` and IEEE order in `extended.rs`; NaN canonicalization, fma single rounding, subnormals, 8 comparisons, 4 rejections, 128 repeats; 3 vectors |
 | Slice E4 (records, variants, maps), revision 5 | `4f1e197` | green | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
+| Slice E5 (cells, hashing, globals, references), revision 6 | pending | pending | register-only cell handles, escape guard, S20-250 hashing, inventory-bound globals and references in `extended.rs`; 1 test with 9 rejections; 3 vectors |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 

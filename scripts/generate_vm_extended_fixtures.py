@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/vm-extended/v1"
-EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "result-err"]
+EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "result-err"]
 
 
 def main() -> int:
@@ -46,7 +46,7 @@ def main() -> int:
     if [vector["id"] for vector in vectors] != EXPECTED:
         raise RuntimeError(f"unexpected vector set {[v['id'] for v in vectors]}")
     accepted = {
-        "claim": "s20-260-270-vm-extended-e1-e4-conformance",
+        "claim": "s20-260-270-vm-extended-e1-e5-conformance",
         "contract": "sley2-vm-extended-opcode-profile-v1",
         "cache_profile": "EXTENDED_V1",
         "bytecode_magic": "SLEYBC02",

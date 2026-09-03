@@ -339,6 +339,7 @@ struct Runtime {
     fuel_used: u64,
     live_value_units: u64,
     peak_value_units: u64,
+    cells: Vec<ConstValue>,
 }
 
 /// Executes one restricted-v1 Function through the integrated lowering authority boundary.
@@ -368,6 +369,7 @@ pub fn execute_function(
         fuel_used: 0,
         live_value_units: initial_live_total,
         peak_value_units: initial_live_total,
+        cells: Vec::new(),
     };
 
     if runtime.peak_value_units > limits.max_value_units {
@@ -511,15 +513,23 @@ fn execute_extended(
     };
     let register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
     let result_type = register_types.get(register).ok_or(RuntimeFault)?;
-    let value = crate::extended::execute_extended_instruction(
-        input.types,
-        opcode,
-        &instruction.immediate,
-        &operands,
-        result_type,
-        input.constants,
-    )
-    .map_err(|_| RuntimeFault)?;
+    let value = {
+        let mut context = crate::extended::ExecutionContext {
+            types: input.types,
+            constants: input.constants,
+            globals: input.globals,
+            schema_epoch: input.schema_epoch,
+            cells: &mut runtime.cells,
+        };
+        crate::extended::execute_extended_instruction(
+            &mut context,
+            opcode,
+            &instruction.immediate,
+            &operands,
+            result_type,
+        )
+        .map_err(|_| RuntimeFault)?
+    };
     if &value.value_type != result_type {
         return Err(RuntimeFault);
     }
@@ -1917,6 +1927,7 @@ mod tests {
             fuel_used: 0,
             live_value_units: 1,
             peak_value_units: 1,
+            cells: Vec::new(),
         };
         let blocks = vec![crate::BytecodeBlock {
             slot: 0,

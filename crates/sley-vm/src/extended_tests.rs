@@ -8,10 +8,11 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    FieldConst, FunctionGraph, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode,
-    Operation, OperationResultRef, Parameter, ParameterRole, Reachability, RecordConst,
-    RecordField, ResultConst, ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr,
-    ValueRef, VariantCase, VariantConst, VariantImmediate, Visibility,
+    FieldConst, FunctionGraph, FunctionRefValue, FunctionType, GlobalValueDefinition, Immediate,
+    IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode, Operation, OperationResultRef,
+    Parameter, ParameterRole, Reachability, RecordConst, RecordField, ResultConst,
+    ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase,
+    VariantConst, VariantImmediate, Visibility, fingerprint::hash_validated_value,
 };
 
 use crate::{
@@ -88,6 +89,8 @@ struct Fixture {
     blocks: Vec<Block>,
     operations: Vec<Operation>,
     constants: Vec<ConstantDefinition>,
+    globals: Vec<GlobalValueDefinition>,
+    functions: Vec<FunctionGraph>,
 }
 
 impl Fixture {
@@ -173,7 +176,24 @@ impl Fixture {
             }],
             operations,
             constants,
+            globals: Vec::new(),
+            functions: Vec::new(),
         }
+    }
+
+    fn with_globals(
+        mut self,
+        globals: Vec<GlobalValueDefinition>,
+        constants: Vec<ConstantDefinition>,
+    ) -> Self {
+        self.globals = globals;
+        self.constants.extend(constants);
+        self
+    }
+
+    fn with_functions(mut self, functions: Vec<FunctionGraph>) -> Self {
+        self.functions = functions;
+        self
     }
 
     fn input(&self, profile: CacheProfile) -> LoweringInput<'_> {
@@ -187,8 +207,8 @@ impl Fixture {
             state_root: StateRoot::from_bytes([9; 32]),
             profile,
             constants: &self.constants,
-            globals: &[],
-            functions: &[],
+            globals: &self.globals,
+            functions: &self.functions,
         }
     }
 }
@@ -658,10 +678,13 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
             Fixture::new(
                 &[u64_type()],
                 &[step(
-                    Opcode::CellNew,
+                    Opcode::CallDirect,
                     vec![Arg::P(0)],
-                    Immediate::None,
-                    TypeExpr::LocalCell(Box::new(u64_type())),
+                    Immediate::Function(FunctionRefValue {
+                        function: id(70),
+                        type_arguments: Vec::new(),
+                    }),
+                    u64_type(),
                 )],
                 Vec::new(),
             ),
@@ -1688,6 +1711,328 @@ fn e4_records_variants_and_maps_construct_project_and_keep_canonical_order() {
     assert_eq!(lowering_code(&odd), LowerErrorCode::SignatureMismatch);
 }
 
+fn global_seventy_seven() -> (Vec<GlobalValueDefinition>, Vec<ConstantDefinition>) {
+    (
+        vec![GlobalValueDefinition {
+            entity_id: id(60),
+            value_type: u64_type(),
+            initializer: id(61),
+            visibility: Visibility::Private,
+        }],
+        vec![ConstantDefinition {
+            entity_id: id(61),
+            value: uint(77),
+        }],
+    )
+}
+
+fn callee_seventy() -> FunctionGraph {
+    FunctionGraph {
+        entity_id: id(70),
+        type_parameters: Vec::new(),
+        parameters: Vec::new(),
+        result_type: u64_type(),
+        effects: Vec::new(),
+        entry_block: id(71),
+        blocks: vec![id(71)],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+fn reference_seventy() -> Immediate {
+    Immediate::Function(FunctionRefValue {
+        function: id(70),
+        type_arguments: Vec::new(),
+    })
+}
+
+fn seventy_type() -> TypeExpr {
+    TypeExpr::FunctionRef(FunctionType {
+        parameters: Vec::new(),
+        result: Box::new(u64_type()),
+        effects: Vec::new(),
+    })
+}
+
+fn cell_type() -> TypeExpr {
+    TypeExpr::LocalCell(Box::new(u64_type()))
+}
+
+#[test]
+fn e5_cells_hashes_globals_and_references_follow_the_contract() {
+    let cells = Fixture::new(
+        &[u64_type(), u64_type()],
+        &[
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(0)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::CellSet,
+                vec![Arg::R(0), Arg::P(1)],
+                Immediate::None,
+                TypeExpr::Unit,
+            ),
+            step(
+                Opcode::CellGet,
+                vec![Arg::R(0)],
+                Immediate::None,
+                u64_type(),
+            ),
+        ],
+        Vec::new(),
+    );
+    assert_eq!(success(&cells, vec![uint(1), uint(2)]), uint(2));
+    let fresh = Fixture::new(
+        &[u64_type(), u64_type()],
+        &[
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(0)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(1)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::CellGet,
+                vec![Arg::R(1)],
+                Immediate::None,
+                u64_type(),
+            ),
+            step(
+                Opcode::CellGet,
+                vec![Arg::R(0)],
+                Immediate::None,
+                u64_type(),
+            ),
+        ],
+        Vec::new(),
+    );
+    assert_eq!(success(&fresh, vec![uint(5), uint(6)]), uint(5));
+
+    let hash = Fixture::new(
+        &[TypeExpr::Text],
+        &[step(
+            Opcode::ValueHash,
+            vec![Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Bytes,
+        )],
+        Vec::new(),
+    );
+    let expected =
+        hash_validated_value(SchemaEpochId::from_bytes([8; 32]), &text("hash me")).unwrap();
+    assert_eq!(
+        success(&hash, vec![text("hash me")]).data,
+        ConstData::Bytes(expected.as_bytes().to_vec())
+    );
+
+    let (globals, constants) = global_seventy_seven();
+    let global = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::GlobalGet,
+            vec![],
+            Immediate::Entity(id(60)),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_globals(globals, constants);
+    assert_eq!(success(&global, vec![boolean(true)]), uint(77));
+
+    let reference = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::FunctionRef,
+            vec![],
+            reference_seventy(),
+            seventy_type(),
+        )],
+        Vec::new(),
+    )
+    .with_functions(vec![callee_seventy()]);
+    let value = success(&reference, vec![boolean(true)]);
+    assert_eq!(value.value_type, seventy_type());
+    assert_eq!(
+        value.data,
+        ConstData::FunctionRef(FunctionRefValue {
+            function: id(70),
+            type_arguments: Vec::new(),
+        })
+    );
+
+    // Rejections.
+    let escaping_cell = Fixture::new(
+        &[u64_type()],
+        &[step(
+            Opcode::CellNew,
+            vec![Arg::P(0)],
+            Immediate::None,
+            cell_type(),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&escaping_cell),
+        LowerErrorCode::SignatureMismatch
+    );
+    let cell_in_tuple = Fixture::new(
+        &[u64_type()],
+        &[
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(0)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::TupleNew,
+                vec![Arg::R(0), Arg::P(0)],
+                Immediate::None,
+                TypeExpr::Tuple(vec![cell_type(), u64_type()]),
+            ),
+            step(
+                Opcode::TupleGet,
+                vec![Arg::R(1)],
+                Immediate::Index(1),
+                u64_type(),
+            ),
+        ],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&cell_in_tuple),
+        LowerErrorCode::SignatureMismatch
+    );
+    let cell_of_cell = Fixture::new(
+        &[u64_type()],
+        &[
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(0)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::CellNew,
+                vec![Arg::R(0)],
+                Immediate::None,
+                TypeExpr::LocalCell(Box::new(cell_type())),
+            ),
+            step(
+                Opcode::CellGet,
+                vec![Arg::R(0)],
+                Immediate::None,
+                u64_type(),
+            ),
+        ],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&cell_of_cell),
+        LowerErrorCode::SignatureMismatch
+    );
+    let set_wrong_type = Fixture::new(
+        &[u64_type(), TypeExpr::Text],
+        &[
+            step(
+                Opcode::CellNew,
+                vec![Arg::P(0)],
+                Immediate::None,
+                cell_type(),
+            ),
+            step(
+                Opcode::CellSet,
+                vec![Arg::R(0), Arg::P(1)],
+                Immediate::None,
+                TypeExpr::Unit,
+            ),
+        ],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&set_wrong_type),
+        LowerErrorCode::SignatureMismatch
+    );
+    let unknown_global = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::GlobalGet,
+            vec![],
+            Immediate::Entity(id(66)),
+            u64_type(),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&unknown_global),
+        LowerErrorCode::ImmediateMismatch
+    );
+    let (globals, _) = global_seventy_seven();
+    let mismatched_global = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::GlobalGet,
+            vec![],
+            Immediate::Entity(id(60)),
+            u64_type(),
+        )],
+        Vec::new(),
+    )
+    .with_globals(
+        globals,
+        vec![ConstantDefinition {
+            entity_id: id(61),
+            value: text("not a u64"),
+        }],
+    );
+    assert_eq!(
+        lowering_code(&mismatched_global),
+        LowerErrorCode::ImmediateMismatch
+    );
+    let unknown_function = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::FunctionRef,
+            vec![],
+            reference_seventy(),
+            seventy_type(),
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        lowering_code(&unknown_function),
+        LowerErrorCode::ImmediateMismatch
+    );
+    let generic_reference = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::FunctionRef,
+            vec![],
+            Immediate::Function(FunctionRefValue {
+                function: id(70),
+                type_arguments: vec![u64_type()],
+            }),
+            seventy_type(),
+        )],
+        Vec::new(),
+    )
+    .with_functions(vec![callee_seventy()]);
+    assert_eq!(
+        lowering_code(&generic_reference),
+        LowerErrorCode::ImmediateMismatch
+    );
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -1866,6 +2211,66 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
                 Vec::new(),
             ),
             vec![uint(300), text("big"), uint(7), text("small")],
+        ),
+        (
+            "cell-set-get",
+            Fixture::new(
+                &[u64_type(), u64_type()],
+                &[
+                    step(
+                        Opcode::CellNew,
+                        vec![Arg::P(0)],
+                        Immediate::None,
+                        cell_type(),
+                    ),
+                    step(
+                        Opcode::CellSet,
+                        vec![Arg::R(0), Arg::P(1)],
+                        Immediate::None,
+                        TypeExpr::Unit,
+                    ),
+                    step(
+                        Opcode::CellGet,
+                        vec![Arg::R(0)],
+                        Immediate::None,
+                        u64_type(),
+                    ),
+                ],
+                Vec::new(),
+            ),
+            vec![uint(1), uint(2)],
+        ),
+        (
+            "value-hash-text",
+            Fixture::new(
+                &[TypeExpr::Text],
+                &[step(
+                    Opcode::ValueHash,
+                    vec![Arg::P(0)],
+                    Immediate::None,
+                    TypeExpr::Bytes,
+                )],
+                Vec::new(),
+            ),
+            vec![text("hash me")],
+        ),
+        (
+            "global-get-constant",
+            {
+                let (globals, constants) = global_seventy_seven();
+                Fixture::new(
+                    &[TypeExpr::Bool],
+                    &[step(
+                        Opcode::GlobalGet,
+                        vec![],
+                        Immediate::Entity(id(60)),
+                        u64_type(),
+                    )],
+                    Vec::new(),
+                )
+                .with_globals(globals, constants)
+            },
+            vec![boolean(true)],
         ),
         (
             "result-err",

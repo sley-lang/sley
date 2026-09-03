@@ -463,6 +463,14 @@ fn judge_extended(
     maps: &Maps<'_>,
     work: &mut u64,
 ) -> Result<(), LoweringError> {
+    crate::extended::check_result_type(&input.function.result_type)?;
+    let context = crate::extended::LoweringContext {
+        types: input.types,
+        constants: input.constants,
+        globals: input.globals,
+        functions: input.functions,
+        parameters: input.parameters,
+    };
     for block_id in &input.function.blocks {
         let block = maps.blocks.get(block_id).ok_or_else(local_error)?.0;
         for operation_id in &block.operations {
@@ -473,8 +481,7 @@ fn judge_extended(
                 charge(work, 1)?;
             }
             crate::extended::judge_extended_operation(
-                input.types,
-                input.constants,
+                &context,
                 operation.opcode,
                 &operation.immediate,
                 &operand_types,

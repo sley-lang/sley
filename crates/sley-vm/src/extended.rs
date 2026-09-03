@@ -5,11 +5,12 @@
 //! results); every other opcode fails closed until its slice lands.
 
 use sley_check::TypeEnvironment;
-use sley_id::EntityId;
+use sley_id::{EntityId, SchemaEpochId};
 use sley_ssmc::{
     BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition, FieldConst,
-    Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, RecordConst, RecordField,
-    ResultConst, TypeDefForm, TypeExpr, VariantCase, VariantConst,
+    FunctionGraph, FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst,
+    NamedType, Opcode, Parameter, RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr,
+    VariantCase, VariantConst, fingerprint::hash_validated_value,
 };
 
 use crate::{LowerError, LowerErrorCode};
@@ -62,6 +63,104 @@ fn arithmetic_result(value: &TypeExpr) -> TypeExpr {
         ok: Box::new(value.clone()),
         error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
     }
+}
+
+/// Everything the extended judgment reads from the lowering inventory.
+pub struct LoweringContext<'a> {
+    /// Selected type environment.
+    pub types: &'a TypeEnvironment,
+    /// Complete Constant inventory.
+    pub constants: &'a [ConstantDefinition],
+    /// Complete `GlobalValue` inventory.
+    pub globals: &'a [GlobalValueDefinition],
+    /// Complete Function inventory (referenced functions).
+    pub functions: &'a [FunctionGraph],
+    /// Complete Parameter inventory (referenced function signatures).
+    pub parameters: &'a [Parameter],
+}
+
+/// Everything the extended semantics read or mutate during one execution.
+pub struct ExecutionContext<'a> {
+    /// Selected type environment.
+    pub types: &'a TypeEnvironment,
+    /// Complete Constant inventory.
+    pub constants: &'a [ConstantDefinition],
+    /// Complete `GlobalValue` inventory.
+    pub globals: &'a [GlobalValueDefinition],
+    /// Exact schema epoch (`value_hash`).
+    pub schema_epoch: SchemaEpochId,
+    /// Per-execution cell contents; a cell handle is the index into this list.
+    pub cells: &'a mut Vec<ConstValue>,
+}
+
+/// Whether a type contains a `LocalCell` anywhere.
+#[must_use]
+pub fn contains_cell(value: &TypeExpr) -> bool {
+    match value {
+        TypeExpr::LocalCell(_) => true,
+        TypeExpr::Tuple(items) => items.iter().any(contains_cell),
+        TypeExpr::Named(named) => named.arguments.iter().any(contains_cell),
+        TypeExpr::Vector(inner) | TypeExpr::Option(inner) => contains_cell(inner),
+        TypeExpr::OrderedMap { key, value } => contains_cell(key) || contains_cell(value),
+        TypeExpr::Result { ok, error } => contains_cell(ok) || contains_cell(error),
+        TypeExpr::FunctionRef(function) => {
+            function.parameters.iter().any(contains_cell) || contains_cell(&function.result)
+        }
+        _ => false,
+    }
+}
+
+/// A Function result may not carry a cell out of its execution (contract E5).
+///
+/// # Errors
+///
+/// `VM_LOWER_SIGNATURE_MISMATCH` when the result type contains a `LocalCell`.
+pub fn check_result_type(result_type: &TypeExpr) -> Result<(), LowerError> {
+    if contains_cell(result_type) {
+        fail(LowerErrorCode::SignatureMismatch)
+    } else {
+        Ok(())
+    }
+}
+
+fn function_signature(
+    context: &LoweringContext<'_>,
+    function: EntityId,
+) -> Result<FunctionType, LowerError> {
+    let graph = context
+        .functions
+        .iter()
+        .find(|graph| graph.entity_id == function)
+        .filter(|graph| graph.type_parameters.is_empty())
+        .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+    let mut parameters = Vec::with_capacity(graph.parameters.len());
+    for parameter in &graph.parameters {
+        let found = context
+            .parameters
+            .iter()
+            .find(|candidate| candidate.entity_id == *parameter)
+            .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+        parameters.push(found.value_type.clone());
+    }
+    Ok(FunctionType {
+        parameters,
+        result: Box::new(graph.result_type.clone()),
+        effects: graph.effects.clone(),
+    })
+}
+
+fn global_initializer<'a>(
+    globals: &'a [GlobalValueDefinition],
+    constants: &'a [ConstantDefinition],
+    global: EntityId,
+) -> Option<(&'a GlobalValueDefinition, &'a ConstantDefinition)> {
+    let definition = globals
+        .iter()
+        .find(|candidate| candidate.entity_id == global)?;
+    let constant = constants
+        .iter()
+        .find(|candidate| candidate.entity_id == definition.initializer)?;
+    (constant.value.value_type == definition.value_type).then_some((definition, constant))
 }
 
 fn named(definition: EntityId) -> TypeExpr {
@@ -149,13 +248,19 @@ fn is_float(value: &TypeExpr) -> bool {
 /// `VM_LOWER_SIGNATURE_MISMATCH` for operand or declared-result mismatches.
 #[allow(clippy::too_many_lines)] // one arm per opcode of the contract table
 pub fn judge_extended_operation(
-    types: &TypeEnvironment,
-    constants: &[ConstantDefinition],
+    context: &LoweringContext<'_>,
     opcode: Opcode,
     immediate: &Immediate,
     operands: &[&TypeExpr],
     declared: &[TypeExpr],
 ) -> Result<TypeExpr, LowerError> {
+    let types = context.types;
+    let constants = context.constants;
+    if !matches!(opcode, Opcode::CellGet | Opcode::CellSet)
+        && operands.iter().any(|operand| contains_cell(operand))
+    {
+        return fail(LowerErrorCode::SignatureMismatch);
+    }
     let immediate_none = |value: &Immediate| -> Result<(), LowerError> {
         if *value == Immediate::None {
             Ok(())
@@ -437,6 +542,68 @@ pub fn judge_extended_operation(
                 return fail(LowerErrorCode::SignatureMismatch);
             }
             (*operands[0]).clone()
+        }
+        Opcode::CellNew => {
+            immediate_none(immediate)?;
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if !types.traits(value).is_ok_and(|traits| traits.persistable) {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            TypeExpr::LocalCell(Box::new((*value).clone()))
+        }
+        Opcode::CellGet => {
+            immediate_none(immediate)?;
+            let [TypeExpr::LocalCell(inner)] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            inner.as_ref().clone()
+        }
+        Opcode::CellSet => {
+            immediate_none(immediate)?;
+            let [TypeExpr::LocalCell(inner), value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if *value != inner.as_ref() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            TypeExpr::Unit
+        }
+        Opcode::ValueHash => {
+            immediate_none(immediate)?;
+            let [value] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            if types.require_hashable(value).is_err() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            TypeExpr::Bytes
+        }
+        Opcode::GlobalGet => {
+            let Immediate::Entity(global) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            if !operands.is_empty() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            let Some((definition, _)) = global_initializer(context.globals, constants, *global)
+            else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            definition.value_type.clone()
+        }
+        Opcode::FunctionRef => {
+            let Immediate::Function(reference) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            if !reference.type_arguments.is_empty() {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            }
+            if !operands.is_empty() {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            TypeExpr::FunctionRef(function_signature(context, reference.function)?)
         }
         Opcode::Equal | Opcode::NotEqual => {
             immediate_none(immediate)?;
@@ -869,13 +1036,14 @@ fn bool_value(value: bool) -> ConstValue {
 /// `ExtendedFault` for any operand form the successful judgment excludes.
 #[allow(clippy::too_many_lines)] // one arm per opcode of the contract table
 pub fn execute_extended_instruction(
-    environment: &TypeEnvironment,
+    context: &mut ExecutionContext<'_>,
     opcode: Opcode,
     immediate: &Immediate,
     operands: &[ConstValue],
     result_type: &TypeExpr,
-    constants: &[ConstantDefinition],
 ) -> Result<ConstValue, ExtendedFault> {
+    let environment = context.types;
+    let constants = context.constants;
     let typed = |data: ConstData| ConstValue {
         value_type: result_type.clone(),
         data,
@@ -1008,6 +1176,46 @@ pub fn execute_extended_instruction(
                 .cloned()
                 .collect();
             map_value(result_type, entries)?
+        }
+        (Opcode::CellNew, [value]) => {
+            let index = u128::try_from(context.cells.len()).map_err(|_| ExtendedFault)?;
+            context.cells.push(value.clone());
+            typed(ConstData::UInt(index))
+        }
+        (Opcode::CellGet, [cell]) => {
+            let ConstData::UInt(index) = cell.data else {
+                return Err(ExtendedFault);
+            };
+            let index = usize::try_from(index).map_err(|_| ExtendedFault)?;
+            context.cells.get(index).cloned().ok_or(ExtendedFault)?
+        }
+        (Opcode::CellSet, [cell, value]) => {
+            let ConstData::UInt(index) = cell.data else {
+                return Err(ExtendedFault);
+            };
+            let index = usize::try_from(index).map_err(|_| ExtendedFault)?;
+            let slot = context.cells.get_mut(index).ok_or(ExtendedFault)?;
+            *slot = value.clone();
+            typed(ConstData::Unit)
+        }
+        (Opcode::ValueHash, [value]) => {
+            let hash =
+                hash_validated_value(context.schema_epoch, value).map_err(|_| ExtendedFault)?;
+            typed(ConstData::Bytes(hash.as_bytes().to_vec()))
+        }
+        (Opcode::GlobalGet, []) => {
+            let Immediate::Entity(global) = immediate else {
+                return Err(ExtendedFault);
+            };
+            let (_, constant) =
+                global_initializer(context.globals, constants, *global).ok_or(ExtendedFault)?;
+            constant.value.clone()
+        }
+        (Opcode::FunctionRef, []) => {
+            let Immediate::Function(reference) = immediate else {
+                return Err(ExtendedFault);
+            };
+            typed(ConstData::FunctionRef(reference.clone()))
         }
         (Opcode::TupleNew | Opcode::VectorNew, items) => typed(ConstData::Sequence(items.to_vec())),
         (Opcode::TupleGet, [tuple]) => {
