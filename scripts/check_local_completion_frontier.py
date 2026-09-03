@@ -60,9 +60,9 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "S20_510_IMPLEMENTED_REVIEWS_PENDING_S20_520_NEXT",
+            "status": "S20_520_IMPLEMENTED_REVIEWS_PENDING_S20_300_FULL_NEXT",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-520-MERGE",
+            "next_authority_safe_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -100,12 +100,13 @@ def main() -> int:
             "s20_510_blocked_by_full_s20_250": False,
             "s20_250_full_implemented": True,
             "s20_510_implemented": True,
+            "s20_520_implemented": True,
             "session_authority_available": False,
             "transaction_boundary_available": True,
             "fixed_accepted_head_available": True,
             "named_ref_boundary_available": True,
             "protocol_boundary_available": False,
-            "merge_boundary_available": False,
+            "merge_boundary_available": True,
             "real_benchmark_run_authorized": False,
             "root_license_text_approved": False,
             "release_artifact_available": False,
@@ -161,7 +162,7 @@ def main() -> int:
             summary.get("s20_700_remaining_surface_audit", {}).get(
                 "next_dependency_complete_package"
             ),
-            "S20-520-MERGE",
+            "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
             "S20-700 next package",
         )
         validation = summary.get("s20_360_candidate_validation", {})
@@ -277,10 +278,23 @@ def main() -> int:
             "crates/sley-protocol",
             "crates/sley-json-bridge",
             "crates/sley-cli",
-            "crates/sley-repo/src/merge.rs",
         ):
             if (ROOT / relative).exists():
                 fail(f"production boundary appeared; re-audit required: {relative}")
+        # Re-audited 2026-09-03 (ADR-0028): the merge module may exist only while
+        # the S20-520 staged checker says its implementation is in progress or
+        # later; that checker owns the freeze-before-implementation rule.
+        merge_allowed = summary.get("merge", {}).get("status") in (
+            "S20_520_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+            "S20_520_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+            "S20_520_IMPLEMENTED_REVIEW_PENDING",
+            "S20_520_COMPLETE",
+        )
+        merge_present = (ROOT / "crates/sley-repo/src/merge.rs").exists()
+        if merge_present and not merge_allowed:
+            fail("merge production boundary appeared before its staged checker allows it")
+        if merge_allowed and not merge_present:
+            fail("merge module missing while S20-520 is in progress")
 
         packages = WORK_PACKAGES.read_text(encoding="utf-8")
         for marker in (
@@ -301,6 +315,7 @@ def main() -> int:
             "candidate construction is proposal-only",
             "full S20-250 entity bodies",
             "S20-510 semantic comparison is implemented",
+            "S20-520 merge is implemented",
         ):
             if marker not in audit:
                 fail(f"frontier audit marker missing: {marker}")
@@ -322,7 +337,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-520-MERGE",
+                "next_authority_safe_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
                 "result": "PASS",
             },
             indent=2,

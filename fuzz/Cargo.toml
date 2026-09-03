@@ -62,6 +62,10 @@ path = "targets/complete_root_judgment.rs"
 name = "semantic_delta_decoder"
 path = "targets/semantic_delta_decoder.rs"
 
+[[bin]]
+name = "merge_conflict_decoder"
+path = "targets/merge_conflict_decoder.rs"
+
 [dependencies]
 sley-adapter = { path = "../crates/sley-adapter" }
 sley-check = { path = "../crates/sley-check" }

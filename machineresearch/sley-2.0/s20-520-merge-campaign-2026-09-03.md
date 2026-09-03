@@ -40,4 +40,8 @@ first. The S20-510 and S20-520 review requests follow when a lane returns.
 
 ## Commits
 
-- contract draft revision 1: the commit that adds this file.
+- `ded0943` contract draft revision 1, ADR-0028, checker, this record;
+  registration and the merge-conflict domain in the staging commit.
+- implementation, revisions 2 (non-ownership collateral) and 3 (identity
+  remap), corpus, oracle, fuzz slice, closeout, and the S20-700 surface
+  closure: the commit after the staging commit.

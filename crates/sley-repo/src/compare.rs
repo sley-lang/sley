@@ -1573,7 +1573,7 @@ fn impact_kind(tag: u32) -> Result<ImpactKind> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::BTreeMap;
 
     use sley_id::{EntityId, ObjectId, SchemaEpochId, StateRoot, WorkspaceId};
@@ -2450,8 +2450,14 @@ mod tests {
     }
     // ---- corpus emitter (scripts/generate_semantic_comparison_fixtures.py) ----
 
-    fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    pub(crate) fn hex(bytes: &[u8]) -> String {
+        use std::fmt::Write as _;
+        bytes
+            .iter()
+            .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+                let _ = write!(out, "{byte:02x}");
+                out
+            })
     }
 
     fn json_ids(ids: &[EntityId]) -> String {
@@ -2657,7 +2663,7 @@ mod tests {
         format!("{{{head},{body}}}")
     }
 
-    fn root_json(request: &CompleteRootRequest) -> String {
+    pub(crate) fn root_json(request: &CompleteRootRequest) -> String {
         let objects: BTreeMap<EntityId, ObjectId> =
             request.bound_objects().iter().copied().collect();
         let entities: Vec<String> = request
@@ -2776,13 +2782,15 @@ mod tests {
         )
     }
 
+    type Mutation = Box<dyn Fn(&mut Fixture)>;
+
     /// Emits the frozen comparison corpus for
     /// `scripts/generate_semantic_comparison_fixtures.py`.
     #[test]
     #[ignore = "fixture refresh emitter; run through the generator script"]
     #[allow(clippy::too_many_lines)]
     fn emit_semantic_comparison_corpus_for_fixture_refresh() {
-        let cases: Vec<(&str, Box<dyn Fn(&mut Fixture)>)> = vec![
+        let cases: Vec<(&str, Mutation)> = vec![
             ("identical", Box::new(|_| {})),
             (
                 "change-classes",

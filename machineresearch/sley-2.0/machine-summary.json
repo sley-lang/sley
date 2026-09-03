@@ -830,9 +830,9 @@
     "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke"
   },
   "merge": {
-    "status": "S20_520_CONTRACT_DRAFT_REVIEW_PENDING",
+    "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/MERGE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0028-merge-composition-boundary.md",
     "checker": "scripts/check_merge_spec.py",
     "contract_tag": 520,
@@ -848,7 +848,17 @@
     "ariadne_contract_review": "PENDING",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "implementation_complete": false,
+    "implementation_started": "2026-09-03",
+    "closeout": "docs/audits/S20_520_MERGE_CLOSEOUT.md",
+    "implementation": "crates/sley-repo/src/merge.rs",
+    "conformance_corpus": "conformance/merge/v1",
+    "corpus_cases": 13,
+    "corpus_rejections": 4,
+    "independent_python_oracle": "scripts/check_merge_vector.py",
+    "sley_repo_merge_tests": 8,
+    "persistent_fuzz_target": "fuzz/targets/merge_conflict_decoder.rs",
+    "identity_remap": "S20-345 derived creation identities with full reference rewrite"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1072,6 +1082,24 @@
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "PENDING",
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md"
+  },
+  "s20_700_merge_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_S20_520_MERGE_CONFLICT_DECODER_AND_ANCESTOR_RULE",
+    "section_18_5_surface": "merge engine",
+    "target": "fuzz/targets/merge_conflict_decoder.rs",
+    "runner": "scripts/run_merge_persistent_fuzz.py",
+    "checker": "scripts/check_merge_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 3,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/merge/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-merge-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-merge-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_merge_persistent_fuzz.py --manual",
+    "outer_trailer_rehash_lane": true,
+    "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
@@ -1458,14 +1486,12 @@
     "acceptance_anchor": "scripts/check_s20_530_acceptance_anchor.py"
   },
   "s20_700_remaining_surface_audit": {
-    "status": "BLOCKED_MISSING_MERGE_BOUNDARY",
+    "status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
     "master_required_surface_count": 11,
-    "scoped_target_count": 14,
-    "scoped_landed_surface_count": 15,
-    "remaining_required_surface_count": 1,
-    "remaining_required_surfaces": [
-      "merge engine"
-    ],
+    "scoped_target_count": 15,
+    "scoped_landed_surface_count": 16,
+    "remaining_required_surface_count": 0,
+    "remaining_required_surfaces": [],
     "mutation_candidate_production_boundary": true,
     "mutation_candidate_persistent_fuzz_target": true,
     "mutation_candidate_independent_conformance": true,
@@ -1478,18 +1504,20 @@
     "transaction_receipt_persistent_fuzz_target": true,
     "transaction_receipt_required_by_section_18_5": false,
     "transaction_receipt_vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
-    "merge_engine_production_boundary": false,
-    "merge_engine_blocker": "S20-520 not implemented; S20-510 and full S20-250 await Council reviews",
+    "merge_engine_production_boundary": true,
+    "merge_engine_blocker": null,
     "protocol_persistent_target_required_by_section_18_5": false,
     "protocol_production_boundary": false,
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-520-MERGE",
+    "next_dependency_complete_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
-    "semantic_delta_decoder_persistent_fuzz_target": true
+    "semantic_delta_decoder_persistent_fuzz_target": true,
+    "merge_engine_persistent_fuzz_target": true,
+    "merge_engine_reviews": "S20-520 Council reviews pending"
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -1613,9 +1641,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_510_IMPLEMENTED_REVIEWS_PENDING_S20_520_NEXT",
+    "status": "S20_520_IMPLEMENTED_REVIEWS_PENDING_S20_300_FULL_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-520-MERGE",
+    "next_authority_safe_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1655,7 +1683,7 @@
     "fixed_accepted_head_available": true,
     "named_ref_boundary_available": true,
     "protocol_boundary_available": false,
-    "merge_boundary_available": false,
+    "merge_boundary_available": true,
     "real_benchmark_run_authorized": false,
     "root_license_text_approved": false,
     "release_artifact_available": false,
@@ -1665,7 +1693,8 @@
     "release_check_eligible": false,
     "s20_540_complete": true,
     "s20_250_full_implemented": true,
-    "s20_510_implemented": true
+    "s20_510_implemented": true,
+    "s20_520_implemented": true
   },
   "succession": {
     "corpus_version": 1,

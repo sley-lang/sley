@@ -40,31 +40,35 @@ minimums.
 
 ## Merge engine
 
-S20-520 has no implementation. Its S20-500 native ref/branch prerequisite is
-implemented locally, while its S20-510 semantic comparison prerequisite is
-absent as a merge; S20-510 semantic comparison is implemented
-(`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`) over the full S20-250
-bodies (`e78a1ab`), both awaiting Council reviews and contract freeze. S20-530 crash recovery is
-complete (`docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md`, aging under
-ADR-0024); S20-540 pack exchange is complete
-(`docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`); the repository lane
-now has its comparison input, so
-S20-520 merge is the next dependency-complete work. There is no merge
-request, conflict object, or merge judgment to invoke. A synthetic merge fuzzer
-would define semantics outside the frozen dependency graph.
+S20-520 merge is implemented (`docs/audits/S20_520_MERGE_CLOSEOUT.md`);
+S20-510 semantic comparison is implemented
+(`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`); both sit on the full
+S20-250 bodies (`e78a1ab`), all three under draft contracts awaiting Council
+reviews and contract freeze. S20-530 crash recovery is complete
+(`docs/audits/S20_530_CRASH_RECOVERY_CLOSEOUT.md`, aging under ADR-0024);
+S20-540 pack exchange is complete
+(`docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`). Now
+the merge engine target is attached (`fuzz/targets/merge_conflict_decoder.rs`, the conflict
+decoder in two lanes plus the common-ancestor rule;
+`docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md`), so every Section 18.5
+required surface now has a landed target. The merge judgment over three
+complete roots is exercised by the deterministic merge corpus and its
+independent oracle rather than a synthetic-root harness, whose inputs are
+the frozen S20-250 and S20-510 surfaces with their own targets.
 
 Protocol remains an adjacent future fuzz gap, but it is not one of the eleven
 minimum persistent surfaces listed in Section 18.5 and S20-410 is not landed.
 
-No placeholder merge target is created for the absent boundary. S20-700 remains
-incomplete, the complete finding register and independent review remain
-deferred, and `make v2` remains a release-boundary gate. The scoped S20-600 and
+S20-700 remains incomplete: every required surface is fuzzed, but the
+complete finding register, the independent review, and the Vulcan receipts
+for the S20-250, S20-510, and S20-520 slices remain deferred with the
+Council lanes, and `make v2` remains a release-boundary gate. The scoped S20-600 and
 S20-610 mechanics, S20-650 unavailable disposition, and bounded S20-710 audit
 have since landed. Restricted S20-360 candidate validation, restricted S20-390
-atomic commit, and S20-500 native refs are complete. S20-510 remains blocked
-by pending reviews only. S20-530 crash recovery and S20-540 pack exchange
-are complete; S20-520 merge is the next dependency-complete work; the
-current cross-lane result is
+atomic commit, and S20-500 native refs are complete. S20-510 and S20-520 await
+reviews only. S20-530 crash recovery and S20-540 pack exchange are complete;
+the full S20-300 complete-root snapshot is the next dependency-complete
+work; the current cross-lane result is
 `docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md`.
 
 Focused validation:

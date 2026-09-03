@@ -5,12 +5,14 @@ mod compare;
 mod complete_root;
 mod exchange;
 mod gc;
+mod merge;
 mod refs;
 
 pub use compare::*;
 pub use complete_root::*;
 pub use exchange::*;
 pub use gc::*;
+pub use merge::*;
 pub use refs::*;
 
 use core::fmt;

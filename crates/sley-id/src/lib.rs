@@ -38,11 +38,12 @@ enum Domain {
     CandidateAttempt,
     RepositoryExchange,
     SemanticDelta,
+    MergeConflict,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 31] = [
+    const ALL: [Self; 32] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -74,6 +75,7 @@ impl Domain {
         Self::CandidateAttempt,
         Self::RepositoryExchange,
         Self::SemanticDelta,
+        Self::MergeConflict,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -109,6 +111,7 @@ impl Domain {
             Self::CandidateAttempt => b"sley2.candidate-attempt.v1",
             Self::RepositoryExchange => b"sley2.repository-exchange.v1",
             Self::SemanticDelta => b"sley2.semantic-delta.v1",
+            Self::MergeConflict => b"sley2.merge-conflict.v1",
         }
     }
 }
@@ -276,6 +279,10 @@ fixed_bytes_type!(
     SemanticDeltaId
 );
 fixed_bytes_type!(
+    /// Merge-conflict digest (S20-520).
+    MergeConflictId
+);
+fixed_bytes_type!(
     /// Protocol-handshake digest.
     ProtocolHandshakeId
 );
@@ -364,6 +371,7 @@ digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
 digest_type!(RepositoryExchangeId, Domain::RepositoryExchange);
 digest_type!(SemanticDeltaId, Domain::SemanticDelta);
+digest_type!(MergeConflictId, Domain::MergeConflict);
 digest_type!(ProtocolHandshakeId, Domain::ProtocolHandshake);
 digest_type!(AdapterStateId, Domain::AdapterState);
 digest_type!(AdapterTranscriptId, Domain::AdapterTranscript);
@@ -405,7 +413,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 31] = [
+    const FIXED_VECTORS: [(Domain, &str); 32] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -530,6 +538,10 @@ mod tests {
             Domain::SemanticDelta,
             "9a15eff876e563dd39109f3daf38f831ec08557aad1bf298c1fdfe1bff52dac6",
         ),
+        (
+            Domain::MergeConflict,
+            "49879734148349ed740b0c5ade1b9745452fcddbf00fe71c1083ec542fe5d8a0",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -578,6 +590,7 @@ mod tests {
                 b"sley2.candidate-attempt.v1",
                 b"sley2.repository-exchange.v1",
                 b"sley2.semantic-delta.v1",
+                b"sley2.merge-conflict.v1",
             ]
         );
     }

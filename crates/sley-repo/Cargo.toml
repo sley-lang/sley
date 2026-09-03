@@ -9,6 +9,7 @@ description = "Sley 2 canonical repository packs and clean reconstruction."
 [dependencies]
 blake3 = "=1.8.2"
 sley-id = { path = "../sley-id" }
+sley-mutate = { path = "../sley-mutate" }
 sley-scb1 = { path = "../sley-scb1" }
 sley-schema = { path = "../sley-schema" }
 sley-state-root = { path = "../sley-state-root" }
@@ -19,7 +20,6 @@ sley-store = { path = "../sley-store" }
 sley-txn = { path = "../sley-txn" }
 
 [dev-dependencies]
-sley-mutate = { path = "../sley-mutate" }
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
 
 [lints]

@@ -77,7 +77,8 @@ SPEC_MARKERS = (
     "## Conflict object",
     "## Determinism and symmetry",
     "| conflict entries | `131,070` |",
-    "`MERGE_RESULT_MISMATCH`; the merge never repairs a mismatch",
+    "`MERGE_RESULT_MISMATCH`; the merge never repairs a",
+    "Identities are re-derived before the operations are formed.",
 )
 ADR_MARKERS = (
     "# ADR-0028: Merge composition and conflict boundary",
@@ -87,6 +88,7 @@ ADR_MARKERS = (
     "4. **Canonical conflict object.**",
     "5. **Result mismatch fails closed.**",
     "6. **Staging.**",
+    "7. **Created identities are re-derived.**",
 )
 WORK_PACKAGE_MARKERS = ("`docs/spec/MERGE_V1.md`", "ADR-0028")
 SOURCE_MARKERS = (

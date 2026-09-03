@@ -19,6 +19,9 @@ quick:
 	python3 scripts/generate_complete_entity_impact_fixtures.py --check
 	python3 scripts/check_semantic_comparison_spec.py
 	python3 scripts/generate_semantic_comparison_fixtures.py --check
+	python3 scripts/check_merge_spec.py
+	python3 scripts/generate_merge_fixtures.py --check
+	python3 scripts/check_merge_persistent_fuzz_slice.py
 	python3 scripts/check_semantic_delta_persistent_fuzz_slice.py
 	python3 scripts/check_complete_root_persistent_fuzz_slice.py
 	python3 scripts/check_vm_lowering_profile.py
@@ -79,6 +82,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py
 	python3 scripts/check_complete_entity_impact_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_semantic_comparison_vector.py
+	uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py
 
 adversarial:
 	cargo test -p sley-mutate mutation_value_codec_adversarial --locked
@@ -146,6 +150,10 @@ complete-root-persistent-fuzz-smoke:
 semantic-delta-persistent-fuzz-smoke:
 	python3 scripts/check_semantic_delta_persistent_fuzz_slice.py
 	python3 scripts/run_semantic_delta_persistent_fuzz.py
+
+merge-persistent-fuzz-smoke:
+	python3 scripts/check_merge_persistent_fuzz_slice.py
+	python3 scripts/run_merge_persistent_fuzz.py
 
 transaction-receipt-persistent-fuzz-smoke:
 	python3 scripts/generate_transaction_receipt_fixtures.py --check

@@ -94,13 +94,22 @@ if "fixed accepted-head transaction boundary is implemented" not in repository_m
     problems.append("repository-merge-model-drift")
 if "S20-500 native named-ref and branch boundary is implemented" not in repository_model:
     problems.append("repository-ref-implementation-drift")
-if (ROOT / "crates/sley-repo/src/merge.rs").exists():
+# Re-audited 2026-09-03 (ADR-0028): the merge module is staged by
+# scripts/check_merge_spec.py; its presence is expected while S20-520 is in
+# progress and the merge fuzz target is the remaining required surface.
+merge_status = json.loads(MACHINE_SUMMARY.read_text(encoding="utf-8")).get("merge", {}).get("status")
+if (ROOT / "crates/sley-repo/src/merge.rs").exists() and merge_status not in (
+    "S20_520_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+    "S20_520_CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+    "S20_520_IMPLEMENTED_REVIEW_PENDING",
+    "S20_520_COMPLETE",
+):
     problems.append("merge-production-boundary-now-present:reaudit-required")
 work_packages = WORK_PACKAGES.read_text(encoding="utf-8")
 for marker in [
-    "fourteen persistent libFuzzer targets",
-    "thirteen scoped persistent Make smoke gates",
-    "merge production boundary remains absent",
+    "fifteen persistent libFuzzer targets",
+    "fourteen scoped persistent Make smoke gates",
+    "merge production boundary is implemented",
 ]:
     if marker not in work_packages:
         problems.append(f"work-package-marker-missing:{marker}")
@@ -109,9 +118,9 @@ summary = json.loads(MACHINE_SUMMARY.read_text(encoding="utf-8"))
 frontier = summary.get("s20_700_remaining_surface_audit", {})
 expected = {
     "master_required_surface_count": 11,
-    "scoped_target_count": 14,
-    "scoped_landed_surface_count": 15,
-    "remaining_required_surface_count": 1,
+    "scoped_target_count": 15,
+    "scoped_landed_surface_count": 16,
+    "remaining_required_surface_count": 0,
     "mutation_candidate_production_boundary": True,
     "mutation_candidate_persistent_fuzz_target": True,
     "mutation_candidate_independent_conformance": True,
@@ -123,32 +132,32 @@ expected = {
     "transaction_receipt_persistent_fuzz_target": True,
     "transaction_receipt_required_by_section_18_5": False,
     "transaction_receipt_vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
-    "merge_engine_production_boundary": False,
+    "merge_engine_production_boundary": True,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-520-MERGE",
+    "next_dependency_complete_package": "S20-300-FULL-COMPLETE-ROOT-SNAPSHOT",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
-if frontier.get("remaining_required_surfaces") != ["merge engine"]:
+if frontier.get("remaining_required_surfaces") != []:
     problems.append("machine-summary-remaining-surface-drift")
 if frontier.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
     problems.append("machine-summary-vulcan-review-drift")
 if (
     frontier.get("merge_engine_blocker")
-    != "S20-520 not implemented; S20-510 and full S20-250 await Council reviews"
+    is not None
 ):
     problems.append("machine-summary-merge-blocker-drift")
 if frontier.get("local_frontier_contract") != "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md":
     problems.append("machine-summary-local-frontier-drift")
 
 for path, marker in [
-    (RESULTS, "fourteen scoped persistent libFuzzer"),
+    (RESULTS, "fifteen scoped persistent libFuzzer"),
     (GAPS, "S20-350 is complete as a proposal-only construction boundary"),
-    (AUDIT, "No placeholder merge target is created"),
+    (AUDIT, "the merge engine target is attached"),
     (AUDIT, "S20-510 semantic comparison is implemented"),
-    (AUDIT, "S20-520 merge is the next dependency-complete"),
+    (AUDIT, "S20-520 merge is implemented"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

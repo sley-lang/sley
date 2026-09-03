@@ -1,7 +1,8 @@
 # ADR-0028: Merge composition and conflict boundary
 
-Status: proposed; the S20-520 contract is a draft at revision 1 with Council
-review pending; implementation pending
+Status: proposed; the S20-520 contract is a draft at revision 3 with Council
+review pending; implementation landed against the draft (closeout
+`docs/audits/S20_520_MERGE_CLOSEOUT.md`)
 
 Date: 2026-09-03
 
@@ -42,13 +43,18 @@ soon as a lane returns.
    (`sley2.merge-conflict.v1`, tag 520, digest domain 21), the thirty-second
    `sley-id` domain, binding the three roots and both delta identities.
 5. **Result mismatch fails closed.** After the commit the new head's root
-   must equal the precomputed merged root; a mismatch is
-   `MERGE_RESULT_MISMATCH` and is never repaired.
+   must equal the plan's merged root; a mismatch is `MERGE_RESULT_MISMATCH`
+   and is never repaired.
 6. **Staging.** `scripts/check_merge_spec.py` binds the contract, ADR,
    work-package row, summary section, and both frozen hashes, and fails
    closed if `crates/sley-repo/src/merge.rs` or the corpus appears before
    the summary allows implementation; the frontier checkers' fail-closed
    marker on that file is replaced by the staged rule at implementation.
+7. **Created identities are re-derived.** Because S20-345 derives every
+   `CreateEntity` target from the candidate nonce, kind, and creation
+   ordinal, entities the other side added are re-identified in the plan
+   with every local reference rewritten; the judged merged root stays
+   symmetric and the plan's merged root is the committed one.
 
 ## Consequences
 

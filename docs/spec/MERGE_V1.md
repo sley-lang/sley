@@ -1,9 +1,10 @@
 # Merge v1
 
-Status: S20-520 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-520 contract draft, revision 3 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). The implementation landed against this draft while every Council
+lane was unavailable (ADR-0026 context); state is tracked in the machine
+summary and `docs/audits/S20_520_MERGE_CLOSEOUT.md`.
 
 ## Notation
 
@@ -112,13 +113,20 @@ Collateral rule, checked after J1 through J8 for every identity that
 survived without conflict:
 
 - an identity that `dA` classifies `Changed`, `Retyped`, or `Removed` and
-  that appears in `dB.collateral`, or that any `dB`-added or `dB`-changed
-  entity directly depends on in `B`'s complete-root index, is conflict
+  that any `dB`-added or `dB`-changed entity reaches through one or more
+  relations of kind other than `Ownership` in `B`'s complete-root index
+  (the entity's non-ownership dependents, transitively) is conflict
   `Collateral`; and symmetrically for `dB` against `dA`.
 
-Semantic compatibility of a changed dependency with a dependent that the
-other side touched is not proven by structure alone, so it is never
-composed automatically.
+`Ownership` relations (containment, membership, exposure, and subject
+binding) are excluded because containment composes by the set rules above;
+every other relation (type, value, control-flow, call, effect, capability,
+contract, initializer, test-target, adapter, and definition-member) is a
+semantic dependency whose compatibility with a dependent the other side
+touched is not proven by structure alone, so it is never composed
+automatically. The S20-510 `collateral` set, which spans all relations,
+remains the reported advisory for the resulting delta; the merge rule is
+the narrower non-ownership closure.
 
 ## Merged root
 
@@ -145,15 +153,33 @@ raw-ID order of the affected identities, with one operation per identity:
 | bound in `A`, not in merged, other kinds | `DeleteEntityBinding` | `ExactEntityVersion` on `A`'s object |
 | bound in both with different objects | `ReplaceEntityVersion` with the merged body | `ExactEntityVersion` on `A`'s object |
 
+Identities are re-derived before the operations are formed. The frozen
+S20-345 identity rule makes every `CreateEntity` target
+`EntityId::derive(workspace, candidate_nonce, kind, creation_ordinal)`, so
+an entity that the merged root binds and `A` does not (an entity `B` added)
+cannot keep `B`'s identity in `A`'s repository. The plan therefore fixes
+`candidate_nonce = BLAKE3-256("sley2.merge-plan-nonce.v1" || A.root ||
+merged.root)`, assigns each such entity (kind 16 excepted, which
+`AddEntryPoint` creates without derivation) the derived identity in raw-ID
+order of the judged identities, rewrites every local reference to a
+re-identified entity in every merged body (identity fields, identity sets
+and lists, nested type expressions, constants, value references, immediates,
+terminators, contract bindings, and test environments; `external_package`
+is never local), rebuilds the affected objects without fingerprint claims,
+and records the `(judged, plan)` pairs as the plan's `identity_map`. The
+plan's merged root is the judged merged root with those bindings and entry
+points remapped; it is derived by the frozen S20-160 builder from the same
+anchors and dependency roots.
+
 The plan carries `base_transaction_id = A`'s transaction, `base_root = A`'s
 root, the workspace, the schema epoch, the policy root, the committing
-principal, the capability summary of the frozen S20-370 projection, a
-deterministic nonce derived from the merge inputs, and the frozen full
-validation profile. Committing the plan runs the frozen S20-390 commit
-against `A` as the expected parent and then advances the named branch with
-the S20-500 direct-parent CAS. After the commit, the new head's root MUST
-equal the merged root computed before the commit, else
-`MERGE_RESULT_MISMATCH`; the merge never repairs a mismatch. A plan that
+principal, the capability summary of the frozen S20-370 projection, the
+nonce above, and the frozen full validation profile. Committing the plan
+runs the frozen S20-390 commit against `A` as the expected parent and then
+advances the named branch with the S20-500 direct-parent CAS. After the
+commit, the new head's root MUST equal the plan's merged root computed
+before the commit, else `MERGE_RESULT_MISMATCH`; the merge never repairs a
+mismatch. A plan that
 would need a class or transition the frozen candidate profile cannot express
 is `MERGE_PLAN_UNSUPPORTED`. The restricted S20-360 success subset
 (executable programs without semantic operation entities, no selected
@@ -230,11 +256,13 @@ stored bytes re-encode byte-identically.
 
 ## Determinism and symmetry
 
-Merging the same `(O, A, B)` twice yields the same merged root, the same
-plan bytes, or the same conflict bytes. Merging `(O, B, A)` yields the same
-merged entity set and objects (composition is commutative), the same
-conflict set with `ours` and `theirs` swapped, and a plan that moves `B`
-to the same merged root.
+Merging the same `(O, A, B)` twice yields the same judged merged root, the
+same plan (identity map, operations, and merged root), or the same conflict
+bytes. Merging `(O, B, A)` yields the same judged merged entity set and
+objects (composition is commutative) and the same conflict set with `ours`
+and `theirs` swapped. The two plans differ exactly by the identity remap:
+each plan re-identifies the entities its own side lacks, so the two
+committed roots are equal up to the derived identities of added entities.
 
 ## Resource limits
 
@@ -292,9 +320,9 @@ Implementation acceptance requires at least:
   `MergeConflictId` over the corpus, plus a checker that recomputes both
   frozen hashes;
 - a repository-backed test that commits a merge plan through the frozen
-  S20-390 commit and S20-500 advance and proves the new head's root equals
-  the precomputed merged root, and one that proves a conflict commits
-  nothing;
+  S20-390 commit and S20-500 advance, proves the new head's root equals the
+  plan's merged root, proves an added entity is re-identified with every
+  reference rewritten, and one that proves a conflict commits nothing;
 - an ancestor test over two S20-500 ancestries with the no-ancestor and
   mismatch failures;
 - determinism over 128 repeated merges and the symmetry properties above;

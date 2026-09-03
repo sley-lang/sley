@@ -1,6 +1,6 @@
 # Sley 2 Local Completion Frontier
 
-Status: **S20-540 pack exchange is complete; full S20-250 and S20-510 semantic comparison are implemented with Council reviews pending; S20-520 merge is next; the Sley 2 goal remains incomplete**
+Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, and S20-520 merge are implemented with Council reviews pending; the full S20-300 complete-root snapshot is next; the Sley 2 goal remains incomplete**
 
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
@@ -25,9 +25,9 @@ boundary without creating named refs or runtime authority.
 | Semantics and queries | Full S20-240/S20-250 | The six entity bodies, the eighteen-kind impact request, and the complete-root closure judgment are implemented under the draft full profile (`docs/audits/S20_250_FULL_ENTITY_BODIES_CLOSEOUT.md`); the contract is not frozen and the package is not complete until the Ariadne, Nabu, and Vulcan reviews pass. Full S20-240 remains restricted. |
 | Sessions and protocol | S20-330/S20-400 | Verified workspace/root/epoch and negotiated-session authority are absent. S20-400 still waits for the full root-backed S20-310 contract despite restricted mutation/transaction inputs. |
 | Mutation and transactions | Full S20-360/S20-390 | Restricted fresh validation and fixed-head atomic commit pass for executable programs without semantic operation entities and with no selected tests. Full operation analysis, selected-test evidence, policy/epoch transitions, and runtime authority remain absent. |
-| Repository | Full S20-250 (for S20-510) | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange now exist. S20-500, S20-530, and S20-540 closeouts pass with Nabu/Ariadne/Vulcan receipts; S20-530 ages under ADR-0024. S20-510 semantic comparison is implemented under its draft contract (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`) with reviews pending; merge remains absent and S20-520 is the next dependency-complete package. |
+| Repository | Reviews of full S20-250, S20-510, and S20-520 | Canonical transactions, complete receipts, one fixed accepted head, native named refs, immutable branch origins, bounded ancestry, shared/exclusive GC coordination, the exclusive-recovery boundary over the exact 100-row crash matrix, and clone-equivalent repository exchange exist with reviewed closeouts. S20-510 semantic comparison and S20-520 merge are implemented under draft contracts (`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`, `docs/audits/S20_520_MERGE_CLOSEOUT.md`) with Council reviews pending; M4 exit waits on those reviews. |
 | Succession benchmark | Full S20-600/S20-610 and S20-620 | The verified legacy adapter and offline raw claim chain are mechanics only. Approved fixtures, containment, live adapters, artifact/oracle/accounting verification, protocol/CLI, and real trials are absent. |
-| Adversarial | Full S20-700 | Candidate, candidate-result, and transaction/receipt production targets are attached and passing. The merge production boundary remains absent, so the eleventh required Section 18.5 surface cannot yet be fuzzed. |
+| Adversarial | Full S20-700 | Every Section 18.5 required surface has a landed persistent target, the merge engine target is attached, and all fifteen scoped targets pass their smoke gates. The complete finding register, the independent review, and the slice receipts for S20-250, S20-510, and S20-520 remain deferred with the Council lanes. |
 | Supply chain and release | Full S20-710/S20-720 | Root license text approval, standards SBOM, provenance, release re-anchor, final review, all GA code, and a release artifact are absent. |
 
 ## S20-250 remains incomplete
@@ -75,10 +75,13 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   interruption rows X-01 to X-07, a frozen fixture with an independent Python
   oracle, and a persistent fuzz slice; the exact record is
   `docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md`.
-- The full S20-250 entity bodies are implemented (`e78a1ab`) and S20-510
-  semantic comparison is implemented (`6ecfe89`), each under a draft
-  contract with Council reviews pending; S20-520 merge is the next
-  dependency-complete package and the one absent Section 18.5 fuzz surface.
+- The full S20-250 entity bodies are implemented (`e78a1ab`).
+  S20-510 semantic comparison is implemented (`6ecfe89`).
+  S20-520 merge is implemented. Each sits under a draft contract with
+  Council reviews pending;
+  the merge engine target is attached as the eleventh Section 18.5 surface,
+  so the full S20-300 complete-root snapshot is the next
+  dependency-complete package.
 - The epoch re-anchor has architecture and semantic review. Vulcan's first
   re-anchor pass found stale machine-summary query/capsule vectors; after those
   and later adapter/report identities were corrected, the focused re-review
@@ -91,14 +94,13 @@ Ariadne, Nabu, and Vulcan reviews, which were unavailable when it landed.
   deferred Forge review retain their original evidence status.
 - `make v2` and `make release-check` remain fail-closed `NOT_IMPLEMENTED`
   gates and are not success evidence.
-- No `sley-protocol`, `sley-json-bridge`, or `sley-cli` crate and no comparison
-  or merge production module exists.
+- No `sley-protocol`, `sley-json-bridge`, or `sley-cli` crate exists; the
+  comparison and merge production modules exist under draft contracts.
 - No real benchmark trial, release artifact, publication authority, provider
   spend, push, tag, upload, or deployment exists in this goal.
 
 `python3 scripts/check_local_completion_frontier.py` fails if the recorded
-boundary drifts. The next action is the S20-520 merge contract over the frozen
-S20-510 delta record (three-way merge with an exact common ancestor, automatic
-composition only under proven disjointness, canonical conflict objects), while
-the pending S20-250 and S20-510 reviews land as revisions; nothing in it is
-treated as GA.
+boundary drifts. The next action is the full S20-300 complete-root snapshot
+over the S20-250 full judgment (the complete-root index as a disposable,
+rebuild-first record), while the pending S20-250, S20-510, and S20-520
+reviews land as revisions; nothing in it is treated as GA.
