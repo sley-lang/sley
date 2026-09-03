@@ -4,6 +4,12 @@ Status: M0 review contract
 
 Each prohibition must remain mechanically testable or independently reviewable.
 
+`scripts/build_anti_goal_conformance.py` evaluates every prohibition whose
+acceptance evidence is mechanical and writes
+`evidence/validation/anti-goal-conformance.json`. It marks the rest
+`REVIEW_ONLY`, which is not a pass: those need the independent review. A
+`VIOLATED` entry is a constitutional breach and fails the gate.
+
 | Anti-goal | Enforcement surface | Acceptance evidence |
 |---|---|---|
 | Sley source syntax or parser | dependency/file inventory; protocol input corpus | no parser crate/grammar/`.sley`; source-like input rejected |

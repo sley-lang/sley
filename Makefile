@@ -166,6 +166,7 @@ evidence-refresh:
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_test_inventory.py
 	python3 scripts/build_threat_coverage_report.py
+	python3 scripts/build_anti_goal_conformance.py
 	python3 scripts/build_finding_register.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/sync_evidence_counters.py

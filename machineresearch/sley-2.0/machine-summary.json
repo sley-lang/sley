@@ -2708,5 +2708,16 @@
     "unlocated_with_no_family_symbol": 6,
     "independent_security_review": "PENDING",
     "interpretation": "a located symbol is not a mitigation claim; nineteen of the unlocated threats have a realized code family, so their control most likely exists under a more specific name, and six have no family symbol at all, which is the sharpest part of the review's work list"
+  },
+  "anti_goal_conformance": {
+    "report": "evidence/validation/anti-goal-conformance.json",
+    "source": "docs/ANTI_GOALS.md",
+    "anti_goal_count": 25,
+    "states": {
+      "HOLDS": 9,
+      "REVIEW_ONLY": 16
+    },
+    "violations": [],
+    "interpretation": "REVIEW_ONLY is not a pass; a VIOLATED entry is a constitutional breach"
   }
 }
