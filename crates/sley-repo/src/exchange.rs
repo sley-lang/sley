@@ -371,6 +371,23 @@ pub struct AcceptedRepositoryExchange {
     pub digest_tree_root: [u8; ID_LEN],
 }
 
+/// Facts proven by a complete preflight without any write.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExchangePreflightReport {
+    /// Exchange identifier bound by the trailer.
+    pub exchange_id: RepositoryExchangeId,
+    /// Identifier of the embedded S20-170 pack.
+    pub pack_id: RepositoryPackId,
+    /// Accepted head named by the exchange.
+    pub accepted_head: ExchangeHeadEntry,
+    /// Receipt entries.
+    pub receipts: usize,
+    /// Visible branch entries.
+    pub branches: usize,
+    /// Digest leaves.
+    pub leaves: usize,
+}
+
 /// Successful clone report.
 #[derive(Debug)]
 pub struct ExchangeImportReport {
@@ -1400,6 +1417,28 @@ fn preflight<V: CanonicalVerifier>(input: &[u8], verifier: &V) -> Result<Preflig
         pack,
         receipts,
         branches,
+    })
+}
+
+/// Runs the complete S20-540 preflight (import steps 1 through 6) over
+/// exchange bytes without any target or write.
+///
+/// # Errors
+///
+/// Returns the exact exchange, pack, transaction, branch, or SCB1 code that
+/// import would return before its first write.
+pub fn preflight_repository_exchange<V: CanonicalVerifier>(
+    input: &[u8],
+    verifier: &V,
+) -> Result<ExchangePreflightReport> {
+    let preflight = preflight(input, verifier)?;
+    Ok(ExchangePreflightReport {
+        exchange_id: preflight.exchange_id,
+        pack_id: preflight.pack.pack_id,
+        accepted_head: preflight.decoded.accepted_head,
+        receipts: preflight.receipts.len(),
+        branches: preflight.branches.len(),
+        leaves: preflight.decoded.leaves.len(),
     })
 }
 

@@ -127,6 +127,10 @@ candidate-result-persistent-fuzz-smoke:
 	python3 scripts/check_candidate_result_persistent_fuzz_slice.py
 	python3 scripts/run_candidate_result_persistent_fuzz.py
 
+exchange-persistent-fuzz-smoke:
+	python3 scripts/check_exchange_persistent_fuzz_slice.py
+	python3 scripts/run_exchange_persistent_fuzz.py
+
 transaction-receipt-persistent-fuzz-smoke:
 	python3 scripts/generate_transaction_receipt_fixtures.py --check
 	python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py

@@ -98,8 +98,8 @@ if (ROOT / "crates/sley-repo/src/merge.rs").exists():
     problems.append("merge-production-boundary-now-present:reaudit-required")
 work_packages = WORK_PACKAGES.read_text(encoding="utf-8")
 for marker in [
-    "eleven persistent libFuzzer targets",
-    "ten scoped persistent Make smoke gates",
+    "twelve persistent libFuzzer targets",
+    "twelve scoped persistent Make smoke gates",
     "merge production boundary remains absent",
 ]:
     if marker not in work_packages:
@@ -109,8 +109,8 @@ summary = json.loads(MACHINE_SUMMARY.read_text(encoding="utf-8"))
 frontier = summary.get("s20_700_remaining_surface_audit", {})
 expected = {
     "master_required_surface_count": 11,
-    "scoped_target_count": 11,
-    "scoped_landed_surface_count": 12,
+    "scoped_target_count": 12,
+    "scoped_landed_surface_count": 13,
     "remaining_required_surface_count": 1,
     "mutation_candidate_production_boundary": True,
     "mutation_candidate_persistent_fuzz_target": True,
@@ -144,7 +144,7 @@ if frontier.get("local_frontier_contract") != "docs/audits/S20_LOCAL_COMPLETION_
     problems.append("machine-summary-local-frontier-drift")
 
 for path, marker in [
-    (RESULTS, "eleven scoped persistent libFuzzer"),
+    (RESULTS, "twelve scoped persistent libFuzzer"),
     (GAPS, "S20-350 is complete as a proposal-only construction boundary"),
     (AUDIT, "No placeholder merge target is created"),
     (AUDIT, "S20-510 remains blocked"),

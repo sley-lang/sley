@@ -931,6 +931,24 @@
       "merge engine"
     ]
   },
+  "s20_700_exchange_persistent_fuzz_slice": {
+    "status": "IMPLEMENTED_SCOPED_S20_540_EXCHANGE_IMPORTER_ONLY",
+    "target": "fuzz/targets/repository_exchange_importer.rs",
+    "runner": "scripts/run_exchange_persistent_fuzz.py",
+    "checker": "scripts/check_exchange_persistent_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "selector_count": 2,
+    "max_payload_bytes": 65536,
+    "seed_source": "conformance/repository-exchange/v1/accepted.json",
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-exchange-import-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-exchange-import-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_exchange_persistent_fuzz.py --manual",
+    "outer_trailer_rehash_lane": true,
+    "failed_preflight_target_writes": 0,
+    "vulcan_review": "PENDING_S20_540_IMPLEMENTATION_REVIEW",
+    "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md"
+  },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
     "targets": [
@@ -1318,8 +1336,8 @@
   "s20_700_remaining_surface_audit": {
     "status": "BLOCKED_MISSING_MERGE_BOUNDARY",
     "master_required_surface_count": 11,
-    "scoped_target_count": 11,
-    "scoped_landed_surface_count": 12,
+    "scoped_target_count": 12,
+    "scoped_landed_surface_count": 13,
     "remaining_required_surface_count": 1,
     "remaining_required_surfaces": [
       "merge engine"
@@ -1344,7 +1362,8 @@
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
     "next_dependency_complete_package": "S20-540-PACK-EXCHANGE",
-    "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md"
+    "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
+    "repository_exchange_persistent_fuzz_target": true
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
