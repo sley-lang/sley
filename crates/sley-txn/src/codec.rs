@@ -264,6 +264,10 @@ pub enum TransactionErrorCode {
     InternalInvariant,
     /// `TXN_RESOURCE_LIMIT`
     ResourceLimit,
+    /// `TXN_INCOMPLETE_CLONE` (S20-540): the repository root carries an
+    /// exchange stage marker, so no acceptance-establishing, ref-mutating, or
+    /// deleting path may proceed.
+    IncompleteClone,
 }
 
 impl TransactionErrorCode {
@@ -293,6 +297,7 @@ impl TransactionErrorCode {
             Self::Io => "TXN_IO",
             Self::InternalInvariant => "TXN_INTERNAL_INVARIANT",
             Self::ResourceLimit => "TXN_RESOURCE_LIMIT",
+            Self::IncompleteClone => "TXN_INCOMPLETE_CLONE",
         }
     }
 
@@ -322,6 +327,7 @@ impl TransactionErrorCode {
             Self::Io => 39_019,
             Self::InternalInvariant => 39_020,
             Self::ResourceLimit => 39_021,
+            Self::IncompleteClone => 39_022,
         }
     }
 }
@@ -1302,6 +1308,7 @@ mod tests {
             TransactionErrorCode::Io,
             TransactionErrorCode::InternalInvariant,
             TransactionErrorCode::ResourceLimit,
+            TransactionErrorCode::IncompleteClone,
         ];
         for (offset, code) in codes.into_iter().enumerate() {
             assert_eq!(code.numeric(), 39_000 + u32::try_from(offset).unwrap());

@@ -34,5 +34,5 @@ pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
     RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,
     RecoveryRevisionClaim, RecoveryWorkUsage, TransactionRepository, TrustedGenesisInput,
-    VerifiedRevision,
+    VerifiedRevision, incomplete_clone_marker_present,
 };

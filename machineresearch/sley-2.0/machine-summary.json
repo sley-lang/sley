@@ -1093,7 +1093,7 @@
     "validation_evidence": "evidence/validation/s20-390-atomic-commit-closeout-v1.json",
     "transaction_fields": 19,
     "receipt_fields": 9,
-    "transaction_error_codes": 22,
+    "transaction_error_codes": 23,
     "native_active_tests": 12,
     "ignored_fixture_generators": 1,
     "accepted_fixture_vectors": 2,
@@ -1114,7 +1114,8 @@
     "runtime_authority": false,
     "nabu_review": "PASS_NON_CYCLIC_BOUNDARY_AND_FIXED_HEAD_OWNERSHIP",
     "ariadne_review": "PASS_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
-    "vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4"
+    "vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
+    "s20_540_incomplete_clone_guard": "TXN_INCOMPLETE_CLONE:39022"
   },
   "s20_500_native_refs_branches": {
     "status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",

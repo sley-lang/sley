@@ -36,6 +36,10 @@ use crate::recovery_ancestry_test_hook;
 use crate::recovery_path_read_test_hook::{self, RecoveryPathReadKind};
 
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
+const EXCHANGE_DIRECTORY: &str = "exchange";
+const EXCHANGE_VERSION_DIRECTORY: &str = "v1";
+const EXCHANGE_STAGE_SUFFIX: &str = ".stage";
+const CLONE_HEAD_MAX_ANCESTRY: usize = 4_096;
 const HEAD_VERSION: u64 = 1;
 const HEAD_CHECKSUM_DOMAIN: &[u8] = b"sley2.accepted-head.v1";
 const HEAD_LEN: usize = 8 + 1 + 32 + 32;
@@ -916,6 +920,7 @@ impl TransactionRepository {
         );
         self.ensure_layout_under_maintenance()?;
         let accepted_lock = self.acquire_lock()?;
+        self.require_not_incomplete_clone()?;
 
         let mut usage = TransactionRecoveryUsage::default();
         let mut pending_receipt_directories = vec![(self.transactions_dir(), 0_usize)];
@@ -1756,6 +1761,7 @@ impl TransactionRepository {
         let _maintenance = self.acquire_shared_maintenance()?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
+        self.require_not_incomplete_clone()?;
         if self.read_head()?.is_some() {
             return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
         }
@@ -1829,6 +1835,7 @@ impl TransactionRepository {
         self.validate_maintenance(maintenance)?;
         self.ensure_layout_under_maintenance()?;
         let _lock = self.acquire_lock()?;
+        self.require_not_incomplete_clone()?;
         let actual = self
             .read_head()?
             .ok_or_else(|| txn_commit_error(TransactionErrorCode::HeadMissing))?;
@@ -2341,6 +2348,155 @@ impl TransactionRepository {
         Ok(())
     }
 
+    /// Fails closed with `TXN_INCOMPLETE_CLONE` while an exchange stage
+    /// marker is present (S20-540 write guard).
+    fn require_not_incomplete_clone(&self) -> Result<(), CommitError> {
+        if incomplete_clone_marker_present(&self.root)? {
+            return Err(txn_commit_error(TransactionErrorCode::IncompleteClone));
+        }
+        Ok(())
+    }
+
+    /// Installs verified receipts into an incomplete clone (S20-540 receipt
+    /// phase) under the caller's exclusive maintenance ownership.
+    ///
+    /// The fixed head must be absent, or present and equal to `expected_head`
+    /// with that receipt already durable. Receipts are installed in a
+    /// parent-before-child order derived from their decoded parent links,
+    /// each verified against the durable object store and its durable parent
+    /// exactly as the verified revision lookup verifies a revision, with the
+    /// S20-390 receipt durability order; an exact existing receipt is
+    /// reverified and resynced. Returns the number of receipts durable after
+    /// the call.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_ALREADY_INITIALIZED` for any other present head,
+    /// `TXN_RECEIPT_CONFLICT` for two different receipts under one
+    /// `TransactionId`, the exact codec, relationship, object, store, or I/O
+    /// failure of the first receipt that does not verify, and `TXN_IO` for a
+    /// non-exclusive or foreign maintenance guard.
+    pub fn initialize_trusted_clone_receipts_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        expected_head: TransactionId,
+        receipts: &[&[u8]],
+    ) -> Result<usize, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance()?;
+        let _lock = self.acquire_lock()?;
+        match self.read_head()? {
+            None => {}
+            Some(head) if head == expected_head => {
+                if !path_exists(&self.receipt_path_readonly(head)?)? {
+                    return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+                }
+            }
+            Some(_) => {
+                return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+            }
+        }
+
+        let mut decoded: BTreeMap<TransactionId, ImportedTransactionReceipt> = BTreeMap::new();
+        for stored in receipts {
+            let receipt = import_transaction_receipt(stored)?;
+            let transaction_id = receipt.transaction.transaction_id;
+            match decoded.get(&transaction_id) {
+                Some(existing) if *existing == receipt => {}
+                Some(_) => {
+                    return Err(txn_commit_error(TransactionErrorCode::ReceiptConflict));
+                }
+                None => {
+                    decoded.insert(transaction_id, receipt);
+                }
+            }
+        }
+
+        let mut installed: BTreeSet<TransactionId> = BTreeSet::new();
+        let mut pending: Vec<TransactionId> = decoded.keys().copied().collect();
+        while !pending.is_empty() {
+            let mut progressed = false;
+            let mut remaining = Vec::with_capacity(pending.len());
+            for transaction_id in pending {
+                let receipt = &decoded[&transaction_id];
+                let parents_ready = receipt
+                    .transaction
+                    .record
+                    .parent_transaction_ids
+                    .iter()
+                    .all(|parent| installed.contains(parent) || !decoded.contains_key(parent));
+                if !parents_ready {
+                    remaining.push(transaction_id);
+                    continue;
+                }
+                self.verify_transaction_relationship(receipt)?;
+                let objects = self.load_objects(&receipt.state_root)?;
+                verify_manifest_lengths(&receipt.record.object_manifest, &objects)?;
+                validate_inventory(
+                    &receipt.state_root,
+                    &receipt.policy_root,
+                    &objects,
+                    &receipt.transaction.record.tombstoned_entities,
+                )?;
+                self.persist_receipt(receipt)?;
+                installed.insert(transaction_id);
+                progressed = true;
+            }
+            pending = remaining;
+            if !progressed && !pending.is_empty() {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+            }
+        }
+        Ok(installed.len())
+    }
+
+    /// Writes the fixed accepted head of an incomplete clone last (S20-540
+    /// head phase) under the caller's exclusive maintenance ownership.
+    ///
+    /// Every parent-chain receipt of `head` must be durable. An absent head is
+    /// written with the S20-390 head durability order; a head already exactly
+    /// equal to `head` is reverified and returned without a rename.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_ALREADY_INITIALIZED` for any other present head,
+    /// `TXN_RESOURCE_LIMIT` for a parent chain longer than the clone
+    /// ceiling, the exact receipt or verification failure of a missing or
+    /// invalid ancestor, and `TXN_IO` for a non-exclusive or foreign
+    /// maintenance guard.
+    pub fn initialize_trusted_clone_head_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        head: TransactionId,
+    ) -> Result<AcceptedHead, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance()?;
+        let _lock = self.acquire_lock()?;
+        let mut cursor = Some(head);
+        let mut visited = 0_usize;
+        while let Some(transaction_id) = cursor {
+            visited += 1;
+            if visited > CLONE_HEAD_MAX_ANCESTRY {
+                return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
+            }
+            let receipt = self.read_receipt_readonly(transaction_id)?;
+            cursor = receipt
+                .transaction
+                .record
+                .parent_transaction_ids
+                .first()
+                .copied();
+        }
+        match self.read_head()? {
+            None => self.cas_head(None, head)?,
+            Some(existing) if existing == head => {}
+            Some(_) => {
+                return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+            }
+        }
+        self.load_accepted(head)
+    }
+
     fn acquire_lock(&self) -> Result<File, CommitError> {
         self.acquire_lock_inner(false)
     }
@@ -2683,6 +2839,51 @@ fn reject_symlink_if_present(path: &Path) -> Result<(), CommitError> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
     }
+}
+
+/// Reports whether `root` carries an S20-540 exchange stage marker.
+///
+/// A marked root is an incomplete clone: `exchange/v1/` contains an entry
+/// whose name ends in `.stage`. The directory is inspected without following
+/// symlinks; a symlinked or non-directory `exchange/` or `exchange/v1/` is
+/// `TXN_IO`. Every acceptance-establishing, ref-mutating, or deleting path in
+/// `sley-txn` and `sley-repo` fails closed with `TXN_INCOMPLETE_CLONE` while
+/// the marker is present.
+///
+/// # Errors
+///
+/// Returns `TXN_IO` for a symlinked or non-directory exchange component or a
+/// host I/O failure.
+pub fn incomplete_clone_marker_present(root: &Path) -> Result<bool, CommitError> {
+    let exchange = root.join(EXCHANGE_DIRECTORY);
+    let metadata = match fs::symlink_metadata(&exchange) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    let versioned = exchange.join(EXCHANGE_VERSION_DIRECTORY);
+    let metadata = match fs::symlink_metadata(&versioned) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    for entry in fs::read_dir(&versioned)? {
+        let entry = entry?;
+        if entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.ends_with(EXCHANGE_STAGE_SUFFIX))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn path_exists(path: &Path) -> Result<bool, CommitError> {
@@ -3365,12 +3566,12 @@ mod tests {
     static TEMP_DIR_COUNTER: ::std::sync::atomic::AtomicU64 =
         ::std::sync::atomic::AtomicU64::new(0);
 
-    struct TempDir {
-        path: ::std::path::PathBuf,
+    pub(super) struct TempDir {
+        pub(super) path: ::std::path::PathBuf,
     }
 
     impl TempDir {
-        fn new(label: &str) -> Self {
+        pub(super) fn new(label: &str) -> Self {
             let sequence = TEMP_DIR_COUNTER.fetch_add(1, ::std::sync::atomic::Ordering::Relaxed);
             let path = ::std::env::temp_dir().join(::std::format!(
                 "sley-txn-{label}-{}-{sequence:016x}",
@@ -3387,16 +3588,16 @@ mod tests {
         }
     }
 
-    struct Fixture {
+    pub(super) struct Fixture {
         temp: TempDir,
-        repository: super::TransactionRepository,
-        principal_id: PrincipalId,
-        genesis_transaction_id: TransactionId,
-        candidate: ImportedCandidate,
+        pub(super) repository: super::TransactionRepository,
+        pub(super) principal_id: PrincipalId,
+        pub(super) genesis_transaction_id: TransactionId,
+        pub(super) candidate: ImportedCandidate,
     }
 
     impl Fixture {
-        fn new(label: &str) -> Self {
+        pub(super) fn new(label: &str) -> Self {
             Self::with_mutation_classes(
                 label,
                 &[
@@ -3409,7 +3610,7 @@ mod tests {
         /// The S20-390 conformance vectors were frozen from a grant that
         /// carried only `CreateEntity`; the recovery tests later widened the
         /// default grant. The fixture-refresh emitter keeps the frozen grant.
-        fn with_mutation_classes(label: &str, classes: &[MutationClass]) -> Self {
+        pub(super) fn with_mutation_classes(label: &str, classes: &[MutationClass]) -> Self {
             let temp = TempDir::new(label);
             let repository = super::TransactionRepository::new(&temp.path);
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
@@ -3472,11 +3673,11 @@ mod tests {
             }
         }
 
-        fn path(&self) -> &::std::path::Path {
+        pub(super) fn path(&self) -> &::std::path::Path {
             &self.temp.path
         }
 
-        fn input(&self) -> CommitInput<'_> {
+        pub(super) fn input(&self) -> CommitInput<'_> {
             CommitInput::new(
                 self.genesis_transaction_id,
                 &self.candidate.stored_bytes,
@@ -3504,7 +3705,7 @@ mod tests {
         Fixture::new("cross05-transaction-wrapper")
     }
 
-    fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
+    pub(super) fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
         constructor([byte; 32])
     }
 
@@ -20984,5 +21185,240 @@ mod tests {
                 .accepted_transaction_id,
             Some(fixture.genesis_transaction_id)
         );
+    }
+}
+
+#[cfg(test)]
+mod clone_tests {
+    use std::fs;
+    use std::path::Path;
+
+    use super::tests::{Fixture, TempDir};
+    use super::*;
+
+    fn copy_dir_all(source: &Path, target: &Path) {
+        fs::create_dir_all(target).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let destination = target.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir_all(&entry.path(), &destination);
+            } else {
+                fs::copy(entry.path(), destination).unwrap();
+            }
+        }
+    }
+
+    fn mark_incomplete_clone(root: &Path) {
+        let directory = root
+            .join(EXCHANGE_DIRECTORY)
+            .join(EXCHANGE_VERSION_DIRECTORY);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join(format!("{}.stage", "ab".repeat(32))),
+            [7_u8; 32],
+        )
+        .unwrap();
+    }
+
+    fn stored_receipt(fixture: &Fixture, transaction_id: TransactionId) -> Vec<u8> {
+        fs::read(
+            fixture
+                .repository
+                .receipt_path_readonly(transaction_id)
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn source_with_one_commit(label: &str) -> (Fixture, TransactionId) {
+        let fixture = Fixture::new(label);
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        (fixture, output.transaction_id())
+    }
+
+    fn prepared_target(source: &Fixture, label: &str) -> (TempDir, TransactionRepository) {
+        let temp = TempDir::new(label);
+        copy_dir_all(&source.path().join("objects"), &temp.path.join("objects"));
+        mark_incomplete_clone(&temp.path);
+        initialize_repository_maintenance(&temp.path).unwrap();
+        let repository = TransactionRepository::new(&temp.path);
+        (temp, repository)
+    }
+
+    #[test]
+    fn marker_predicate_reads_exchange_directory_without_following_symlinks() {
+        let temp = TempDir::new("clone-marker-predicate");
+        assert!(!incomplete_clone_marker_present(&temp.path).unwrap());
+        fs::create_dir_all(temp.path.join("exchange").join("v1")).unwrap();
+        assert!(!incomplete_clone_marker_present(&temp.path).unwrap());
+        mark_incomplete_clone(&temp.path);
+        assert!(incomplete_clone_marker_present(&temp.path).unwrap());
+
+        let other = TempDir::new("clone-marker-symlink");
+        std::os::unix::fs::symlink(temp.path.join("exchange"), other.path.join("exchange"))
+            .unwrap();
+        let error = incomplete_clone_marker_present(&other.path).unwrap_err();
+        assert_eq!(error.code(), "TXN_IO");
+    }
+
+    #[test]
+    fn genesis_commit_and_recovery_fail_closed_on_a_marked_root() {
+        let fixture = Fixture::new("clone-guard");
+        let head = fixture.repository.accepted_head().unwrap();
+        mark_incomplete_clone(fixture.path());
+
+        let genesis = fixture
+            .repository
+            .initialize_trusted_genesis(TrustedGenesisInput::new(
+                head.state_root(),
+                head.policy_root(),
+                head.objects(),
+                head.tombstoned_entities(),
+            ))
+            .unwrap_err();
+        assert_eq!(genesis.code(), "TXN_INCOMPLETE_CLONE");
+        assert_eq!(genesis.numeric_code(), Some(39_022));
+
+        let commit = fixture.repository.commit(fixture.input()).unwrap_err();
+        assert_eq!(commit.code(), "TXN_INCOMPLETE_CLONE");
+
+        let recover = fixture.repository.recover().unwrap_err();
+        assert_eq!(recover.code(), "TXN_INCOMPLETE_CLONE");
+
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            head.transaction_id()
+        );
+    }
+
+    #[test]
+    fn two_phase_clone_reproduces_the_source_head_and_is_re_entrant() {
+        let (source, head_id) = source_with_one_commit("clone-source");
+        let genesis_id = source.genesis_transaction_id;
+        let genesis_bytes = stored_receipt(&source, genesis_id);
+        let head_bytes = stored_receipt(&source, head_id);
+        let (temp, target) = prepared_target(&source, "clone-target");
+        let guard = acquire_exclusive_repository_maintenance(&temp.path).unwrap();
+
+        let installed = target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                head_id,
+                &[
+                    head_bytes.as_slice(),
+                    genesis_bytes.as_slice(),
+                    genesis_bytes.as_slice(),
+                ],
+            )
+            .unwrap();
+        assert_eq!(installed, 2);
+        assert!(target.read_head().unwrap().is_none());
+
+        let head = target
+            .initialize_trusted_clone_head_with_maintenance(&guard, head_id)
+            .unwrap();
+        assert_eq!(head.transaction_id(), head_id);
+        let source_head = source.repository.accepted_head().unwrap();
+        assert_eq!(
+            head.receipt().stored_bytes,
+            source_head.receipt().stored_bytes
+        );
+        assert_eq!(head.state_root().root, source_head.state_root().root);
+
+        let again = target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                head_id,
+                &[genesis_bytes.as_slice(), head_bytes.as_slice()],
+            )
+            .unwrap();
+        assert_eq!(again, 2);
+        let head_again = target
+            .initialize_trusted_clone_head_with_maintenance(&guard, head_id)
+            .unwrap();
+        assert_eq!(head_again.transaction_id(), head_id);
+        drop(guard);
+
+        let resolved = target.accepted_head().unwrap();
+        assert_eq!(
+            resolved.receipt().stored_bytes,
+            source_head.receipt().stored_bytes
+        );
+        assert_eq!(
+            target
+                .verified_revision(genesis_id)
+                .unwrap()
+                .receipt
+                .stored_bytes,
+            genesis_bytes
+        );
+    }
+
+    #[test]
+    fn foreign_head_and_shared_guard_are_rejected() {
+        let (source, head_id) = source_with_one_commit("clone-foreign-source");
+        let genesis_id = source.genesis_transaction_id;
+        let genesis_bytes = stored_receipt(&source, genesis_id);
+        let head_bytes = stored_receipt(&source, head_id);
+        let (temp, target) = prepared_target(&source, "clone-foreign-target");
+        let guard = acquire_exclusive_repository_maintenance(&temp.path).unwrap();
+        target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                head_id,
+                &[genesis_bytes.as_slice(), head_bytes.as_slice()],
+            )
+            .unwrap();
+        target
+            .initialize_trusted_clone_head_with_maintenance(&guard, head_id)
+            .unwrap();
+
+        let receipts = target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                genesis_id,
+                &[genesis_bytes.as_slice()],
+            )
+            .unwrap_err();
+        assert_eq!(receipts.code(), "TXN_ALREADY_INITIALIZED");
+        let head = target
+            .initialize_trusted_clone_head_with_maintenance(&guard, genesis_id)
+            .unwrap_err();
+        assert_eq!(head.code(), "TXN_ALREADY_INITIALIZED");
+        assert_eq!(target.read_head().unwrap(), Some(head_id));
+        drop(guard);
+
+        let shared = acquire_shared_repository_maintenance(&temp.path).unwrap();
+        let error = target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &shared,
+                head_id,
+                &[genesis_bytes.as_slice()],
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), "TXN_IO");
+    }
+
+    #[test]
+    fn missing_parent_preserves_the_exact_transaction_failure_and_writes_no_head() {
+        let (source, head_id) = source_with_one_commit("clone-parent-source");
+        let head_bytes = stored_receipt(&source, head_id);
+        let (temp, target) = prepared_target(&source, "clone-parent-target");
+        let guard = acquire_exclusive_repository_maintenance(&temp.path).unwrap();
+        let error = target
+            .initialize_trusted_clone_receipts_with_maintenance(
+                &guard,
+                head_id,
+                &[head_bytes.as_slice()],
+            )
+            .unwrap_err();
+        assert_ne!(error.code(), "TXN_INCOMPLETE_CLONE");
+        assert!(error.code().starts_with("TXN_") || error.code().starts_with("RECOVERY_"));
+        let head = target
+            .initialize_trusted_clone_head_with_maintenance(&guard, head_id)
+            .unwrap_err();
+        assert_ne!(head.code(), "TXN_INCOMPLETE_CLONE");
+        assert!(target.read_head().unwrap().is_none());
     }
 }

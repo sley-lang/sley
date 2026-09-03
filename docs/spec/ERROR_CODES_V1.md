@@ -258,8 +258,9 @@ failures are preserved. These codes do not authenticate policy transitions,
 issue capability tokens, establish live scope/expiry/replay/budget authority,
 construct candidates, commit state, or complete M3/M4/GA.
 
-S20-390 freezes numeric codes 39000 through 39021 for transaction-core,
-receipt, fixed accepted-head, and recovery failures:
+S20-390 freezes numeric codes 39000 through 39022 for transaction-core,
+receipt, fixed accepted-head, recovery, and incomplete-clone guard failures
+(`39022` was appended by S20-540 under ADR-0025):
 
 | Numeric | Symbolic |
 |---:|---|
@@ -285,6 +286,7 @@ receipt, fixed accepted-head, and recovery failures:
 | 39019 | `TXN_IO` |
 | 39020 | `TXN_INTERNAL_INVARIANT` |
 | 39021 | `TXN_RESOURCE_LIMIT` |
+| 39022 | `TXN_INCOMPLETE_CLONE` |
 
 A live-head mismatch exposed by ordinary commit is the existing `STALE_ROOT`
 terminal decision, not last-write-wins. Exact S20-360 `STALE_ENTITY` and all
