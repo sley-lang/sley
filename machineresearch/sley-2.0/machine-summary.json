@@ -798,7 +798,7 @@
     "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773"
   },
   "semantic_comparison": {
-    "status": "S20_510_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
+    "status": "S20_510_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SEMANTIC_COMPARISON_V1.md",
     "contract_revision": 1,
     "adr": "docs/adr/ADR-0027-semantic-comparison-boundary.md",
@@ -817,7 +817,17 @@
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
-    "implementation_started": "2026-09-03"
+    "implementation_started": "2026-09-03",
+    "implementation_commit": "6ecfe89",
+    "closeout": "docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md",
+    "implementation": "crates/sley-repo/src/compare.rs",
+    "conformance_corpus": "conformance/semantic-comparison/v1",
+    "corpus_pairs": 9,
+    "corpus_rejections": 5,
+    "independent_python_oracle": "scripts/check_semantic_comparison_vector.py",
+    "sley_repo_compare_tests": 12,
+    "persistent_fuzz_target": "fuzz/targets/semantic_delta_decoder.rs",
+    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1448,13 +1458,13 @@
     "transaction_receipt_required_by_section_18_5": false,
     "transaction_receipt_vulcan_review": "PASS_MANIFEST_LENGTH_FINDINGS_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
     "merge_engine_production_boundary": false,
-    "merge_engine_blocker": "S20-510 blocked by incomplete full S20-250",
+    "merge_engine_blocker": "S20-520 not implemented; S20-510 and full S20-250 await Council reviews",
     "protocol_persistent_target_required_by_section_18_5": false,
     "protocol_production_boundary": false,
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
     "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
-    "next_dependency_complete_package": "S20-250-FULL-ENTITY-BODIES",
+    "next_dependency_complete_package": "S20-520-MERGE",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
     "complete_root_judgment_persistent_fuzz_target": true,
@@ -1582,9 +1592,9 @@
     "publication_authorized": false
   },
   "local_completion_frontier": {
-    "status": "S20_540_COMPLETE_REPOSITORY_LANE_BLOCKED_BY_FULL_S20_250",
+    "status": "S20_510_IMPLEMENTED_REVIEWS_PENDING_S20_520_NEXT",
     "goal_complete": false,
-    "next_authority_safe_package": "S20-250-FULL-ENTITY-BODIES",
+    "next_authority_safe_package": "S20-520-MERGE",
     "blocked_lane_count": 6,
     "blocked_lanes": [
       "semantics_and_queries",
@@ -1618,7 +1628,7 @@
     "s20_530_final_checker_confirmed": true,
     "s20_530_aging_rule": "ADR-0024",
     "s20_540_implementation_started": true,
-    "s20_510_blocked_by_full_s20_250": true,
+    "s20_510_blocked_by_full_s20_250": false,
     "session_authority_available": false,
     "transaction_boundary_available": true,
     "fixed_accepted_head_available": true,
@@ -1632,7 +1642,9 @@
     "focused_semantic_security_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
     "full_v2_eligible": false,
     "release_check_eligible": false,
-    "s20_540_complete": true
+    "s20_540_complete": true,
+    "s20_250_full_implemented": true,
+    "s20_510_implemented": true
   },
   "succession": {
     "corpus_version": 1,

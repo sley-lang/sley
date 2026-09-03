@@ -1,7 +1,8 @@
 # ADR-0027: Semantic comparison delta boundary
 
 Status: proposed; the S20-510 contract is a draft at revision 1 with Council
-review pending; implementation pending
+review pending; implementation landed against the draft at `6ecfe89`
+(closeout `docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`)
 
 Date: 2026-09-03
 

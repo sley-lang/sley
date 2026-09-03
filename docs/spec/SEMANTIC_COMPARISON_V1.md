@@ -2,8 +2,9 @@
 
 Status: S20-510 contract draft, revision 1 (2026-09-03); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). No implementation exists at this revision. Implementation state is
-tracked in the machine summary.
+review). The implementation landed against this draft at `6ecfe89` while every
+Council lane was unavailable (ADR-0026 context); state is tracked in the
+machine summary and `docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`.
 
 ## Notation
 

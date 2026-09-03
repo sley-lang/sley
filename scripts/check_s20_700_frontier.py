@@ -126,7 +126,7 @@ expected = {
     "merge_engine_production_boundary": False,
     "no_parallel_harness_created": True,
     "full_s20_700_complete": False,
-    "next_dependency_complete_package": "S20-250-FULL-ENTITY-BODIES",
+    "next_dependency_complete_package": "S20-520-MERGE",
 }
 for key, value in expected.items():
     if frontier.get(key) != value:
@@ -137,7 +137,7 @@ if frontier.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
     problems.append("machine-summary-vulcan-review-drift")
 if (
     frontier.get("merge_engine_blocker")
-    != "S20-510 blocked by incomplete full S20-250"
+    != "S20-520 not implemented; S20-510 and full S20-250 await Council reviews"
 ):
     problems.append("machine-summary-merge-blocker-drift")
 if frontier.get("local_frontier_contract") != "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md":
@@ -147,8 +147,8 @@ for path, marker in [
     (RESULTS, "fourteen scoped persistent libFuzzer"),
     (GAPS, "S20-350 is complete as a proposal-only construction boundary"),
     (AUDIT, "No placeholder merge target is created"),
-    (AUDIT, "S20-510 remains blocked"),
-    (AUDIT, "full S20-250 entity bodies are the next dependency-complete"),
+    (AUDIT, "S20-510 semantic comparison is implemented"),
+    (AUDIT, "S20-520 merge is the next dependency-complete"),
     (MAKEFILE, "python3 scripts/check_s20_700_frontier.py"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

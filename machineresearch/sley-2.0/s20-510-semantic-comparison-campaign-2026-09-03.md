@@ -47,4 +47,10 @@ sentence on comparison and the frozen S20-250 inputs.
 
 ## Commits
 
-- contract draft revision 1: the commit that adds this file.
+- `fee3bd2` contract draft revision 1, ADR-0027, checker, this record;
+  `df4e555` checker registered in the quick gate.
+- `6ecfe89` implementation, corpus, oracle, fuzz slice.
+- closeout and frontier re-anchor to S20-520: the commit after `6ecfe89`.
+
+Tier 2 at `6ecfe89` (2026-09-03): core 926 tests, conformance, adversarial,
+fuzz-smoke, semantic-delta smoke, all exit 0 in 32 s.
