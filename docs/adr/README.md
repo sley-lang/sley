@@ -43,3 +43,4 @@ Current records:
 - ADR-0034: JSON bridge as a generated, non-canonical representation
 - ADR-0035: the CLI as a transport endpoint with no semantics
 - ADR-0036: the Sley 2 arm as an endpoint-only, trace-complete runner
+- ADR-0037: accounting as exact derivation from immutable claims

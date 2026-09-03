@@ -387,6 +387,14 @@ invariant. They name only the runner's own failures; every frame keeps its
 owning code inside the trace. The contract is a draft with Council review
 pending and reserves, rather than freezes, these codes.
 
+S20-630 reserves numeric codes 63000 through 63007 for the exact `ACCOUNTING_*`
+failures of `SUCCESSION_ACCOUNTING_V1.md`: an invalid run directory, an
+arm chain its own runner rejects, an unknown arm, an invalid metric, a
+float anywhere, a complete report demanded over partial chains, an invalid
+report, and the internal invariant. A zero denominator is a named null, not
+a failure. The contract is a draft with Council review pending and reserves,
+rather than freezes, these codes.
+
 S20-500 freezes numeric codes 50000 through 50020 for strict native branch and
 named-ref metadata. ADR-0022 and `NATIVE_REFS_BRANCHES_V1.md` passed Nabu,
 Ariadne, and Vulcan review before implementation:

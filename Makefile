@@ -58,6 +58,7 @@ quick:
 	python3 scripts/check_legacy_runner.py
 	python3 scripts/check_raw_baseline_runner.py
 	python3 scripts/check_sley2_trial_runner.py
+	python3 scripts/check_succession_accounting.py
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py

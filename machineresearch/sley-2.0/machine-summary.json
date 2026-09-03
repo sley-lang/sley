@@ -1992,6 +1992,33 @@
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
     "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md"
   },
+  "succession_accounting": {
+    "status": "S20_630_CONTRACT_DRAFT_REVIEW_PENDING",
+    "contract": "docs/spec/SUCCESSION_ACCOUNTING_V1.md",
+    "contract_revision": 1,
+    "adr": "docs/adr/ADR-0037-succession-accounting-boundary.md",
+    "checker": "scripts/check_succession_accounting.py",
+    "report_contract": "sley2.succession-accounting-report.v1",
+    "inputs": [
+      "sley2.raw-run-manifest.v1",
+      "sley2.raw-trial-digest-claim.v1",
+      "sley2.sley2-trial-digest-claim.v1"
+    ],
+    "arithmetic": "EXACT_INTEGER_AND_RATIO_ONLY",
+    "every_attempt_in_denominator": true,
+    "act_definition": "total_observable_tokens / accepted_correct_changes",
+    "thresholds_source": "bench/benchmark-plan.json",
+    "new_stable_error_codes": 8,
+    "new_error_code_range": "63000 through 63007",
+    "trials_accounted": 0,
+    "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": false,
+    "implementation_started": false,
+    "implementation": []
+  },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",
     "scope": "REPOSITORY_REGISTERED_EVIDENCE_ONLY",
