@@ -124,10 +124,15 @@ the checker failed one step later with `current non-output bytes/modes
 differ from validated commit`: the clone's working-tree files were `0664`
 under the workstation umask while the validated blobs are `0644`. The script
 now clones under umask `022` and restores the recorded `0775` Git-authority
-directory modes afterwards. The third run was launched right after this
-note; its result is recorded here when it completes. Both failed runs are
-non-authoritative evidence of the script, not of the accepted state, whose
-in-place confirmation at `cc0f92f` stands.
+directory modes afterwards.
+
+Third run (05:43:30Z to 07:30:20Z, 107 minutes): **PASS**. The checker
+reported `S20-530 crash-recovery contract check: PASS (100 exact matrix
+rows; implementation_complete=True)` at `cc0f92f` in the isolated clone,
+and the script removed the clone. This is the first completed ADR-0024
+verification run; both failed runs are non-authoritative evidence of the
+script, not of the accepted state, whose in-place confirmation at
+`cc0f92f` stands and is now reproduced in isolation.
 
 ## Validation record
 
