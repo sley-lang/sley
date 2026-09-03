@@ -41,6 +41,19 @@ byte-identical responses across runs, and the request/response conformance
 corpus. Until slice B lands the protocol summary status stays
 `S20_400_CONTRACT_DRAFT_S20_410_IN_PROGRESS`.
 
+## Tier 2 handoff gate for slice A (2026-09-03, at `d4ff651`)
+
+| Gate | Result |
+|---|---|
+| `make core` | PASS (953 tests) |
+| `make conformance` | PASS (SMP1 oracle line included) |
+| `make adversarial` | PASS |
+| `make fuzz-smoke` | PASS |
+| `make smp1-persistent-fuzz-smoke` | PASS (489 seeds) |
+
+Total 31 seconds. `make v1` skipped: subsystem handoff, not a release
+boundary.
+
 ## Commits
 
-- slice A: the commit that adds this file.
+- slice A: `d4ff651`.
