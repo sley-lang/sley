@@ -113,6 +113,46 @@ preimage = b"SLEYSCB1" + uvar(1) + uvar(160) + epoch_id + sized(payload)
 state_root = blake3(b"sley2.state-root.v1" + preimage).digest()
 stored = preimage + state_root
 
+def root_of(fields, *, domain=b"sley2.state-root.v1", epoch=epoch_id):
+    """Derive a state root from one payload field set, for sensitivity tests."""
+    body = record(fields)
+    return blake3(domain + b"SLEYSCB1" + uvar(1) + uvar(160) + epoch + sized(body)).digest()
+
+
+BASE_FIELDS = (
+    (1, bytes([1]) * 32),
+    (2, epoch_id),
+    (3, bindings),
+    (4, sequence([bytes([2]) * 32])),
+    (5, sequence([bytes([40]) * 32, bytes([41]) * 32])),
+    (6, bytes([20]) * 32),
+    (7, bytes([21]) * 32),
+    (8, bytes([22]) * 32),
+    (9, b"\x00"),
+)
+
+# A content-addressed root must separate every input it binds. Each variation
+# below changes exactly one thing and must change the root; a collision here
+# would mean two distinct states share an identity, which is T07/T08.
+sensitivity: dict[str, bytes] = {}
+for index, (tag, value) in enumerate(BASE_FIELDS):
+    altered = list(BASE_FIELDS)
+    if tag == 3:
+        altered[index] = (tag, mapping([(bytes([3]) * 32, bytes([30]) * 32), (bytes([2]) * 32, bytes([31]) * 32)]))
+        sensitivity["binding-order"] = root_of(tuple(altered))
+        altered[index] = (tag, mapping([(bytes([2]) * 32, bytes([29]) * 32), (bytes([3]) * 32, bytes([30]) * 32)]))
+        sensitivity["binding-value"] = root_of(tuple(altered))
+        continue
+    if isinstance(value, bytes) and len(value) == 32:
+        altered[index] = (tag, bytes([value[0] ^ 0x01]) + value[1:])
+    elif tag == 9:
+        altered[index] = (tag, b"\x01")
+    else:
+        altered[index] = (tag, sequence([bytes([9]) * 32]))
+    sensitivity[f"field-{tag}"] = root_of(tuple(altered))
+sensitivity["other-domain"] = root_of(BASE_FIELDS, domain=b"sley2.object.v1")
+sensitivity["other-epoch"] = root_of(BASE_FIELDS, epoch=bytes([7]) * 32)
+
 checks = {
     "field_schema_hash": field_schema_hash.hex() == VECTOR["field_schema_hash"],
     "decoder_limits_hash": decoder_limits_hash.hex() == VECTOR["decoder_limits_hash"],
@@ -125,6 +165,11 @@ checks = {
     "state_root": state_root.hex() == VECTOR["state_root"],
 }
 problems = [name for name, passed in checks.items() if not passed]
+problems += [
+    f"root-collision:{name}" for name, derived in sensitivity.items() if derived == state_root
+]
+if len(set(sensitivity.values())) != len(sensitivity):
+    problems.append("two variations share one root")
 print(
     json.dumps(
         {
@@ -133,6 +178,7 @@ print(
             "result": "PASS" if not problems else "FAIL",
             "schema_epoch_id": epoch_id.hex(),
             "state_root": state_root.hex(),
+            "separated_inputs": len(sensitivity),
             "stored_bytes": len(stored),
         },
         indent=2,

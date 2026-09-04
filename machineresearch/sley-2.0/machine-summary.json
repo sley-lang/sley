@@ -1051,7 +1051,9 @@
     "independent_python_vector": "PASS",
     "ariadne_design_review": "PASS_WITH_ZERO_EPOCH_AUTHORIZATION_CORRECTION",
     "vulcan_review": "PASS",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "independent_separated_inputs": 12,
+    "separation_rule": "the independent oracle now derives a root for twelve one-input variations (each payload field, binding order, binding value, the hash domain, and the schema epoch) and requires every one to differ from the frozen root and from each other. A collision would mean two distinct states share an identity, which is threats T07 and T08"
   },
   "repository_pack": {
     "status": "S20_170_COMPLETE",
