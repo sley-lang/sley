@@ -476,6 +476,13 @@ def verify_trace(path: Path, manifest_digest_value: str) -> list[dict[str, Any]]
             if not isinstance(frame, dict) or stored.get("frame_sha256") != _canonical_sha256(frame):
                 _fail(Sley2ErrorCode.TRACE_INVALID, f"frame digest at {index}")
             next_seq += 1
+        elif kind == "guard_refusal":
+            # A refusal the guard recorded before raising. It occupies a
+            # sequence number like a frame, so a swallowed refusal cannot be
+            # hidden by the counts agreeing without it.
+            if stored.get("seq") != next_seq or not isinstance(stored.get("code"), str):
+                _fail(Sley2ErrorCode.TRACE_INVALID, f"sequence at {index}")
+            next_seq += 1
         elif kind == "footer":
             if stored.get("frames_recorded") != next_seq:
                 _fail(Sley2ErrorCode.TRACE_INVALID, "footer count")
@@ -811,7 +818,7 @@ def run_scripted_trial(
             "trial_id": trial_id,
         },
     )
-    state: dict[str, Any] = {"seq": 0, "next_request": 1, "session": None}
+    state: dict[str, Any] = {"seq": 0, "next_request": 1, "session": None, "violations": []}
     outcome = "completed"
     failure_code: str | None = None
     observation: Mapping[str, Any] = {}
@@ -843,18 +850,39 @@ def run_scripted_trial(
         state["next_request"] += 1
         return transact(frame)[-1]
 
+    def refuse(code: Sley2ErrorCode, detail: str) -> None:
+        """Record the refusal, then raise it.
+
+        The guard raises into the agent's frame, so an adapter can catch it and
+        carry on. Recording first, and remembering that it happened, is what
+        makes swallowing useless: the attempt is in the trace and the trial
+        cannot be reported as completed.
+        """
+        state["violations"].append({"code": code.name, "detail": detail})
+        append_trace_record(
+            trace,
+            {
+                "code": code.name,
+                "detail": detail,
+                "kind": "guard_refusal",
+                "seq": state["seq"],
+            },
+        )
+        state["seq"] += 1
+        _fail(code, detail)
+
     def guarded_exchange(request: Mapping[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(request, Mapping) or not set(request) <= AGENT_REQUEST_FIELDS:
-            _fail(Sley2ErrorCode.PRIVILEGED_CONTEXT, "agent request names a runner field")
+            refuse(Sley2ErrorCode.PRIVILEGED_CONTEXT, "agent request names a runner field")
         method = request.get("method")
         body = request.get("body", "")
         cancel = bool(request.get("cancel", False))
         if method not in affordances:
-            _fail(Sley2ErrorCode.FRAME_INVALID, f"method {method!r}")
+            refuse(Sley2ErrorCode.FRAME_INVALID, f"method {method!r}")
         if not isinstance(body, str) or len(body) % 2 or any(ch not in "0123456789abcdef" for ch in body):
-            _fail(Sley2ErrorCode.FRAME_INVALID, "body")
+            refuse(Sley2ErrorCode.FRAME_INVALID, "body")
         if state["session"] is None:
-            _fail(Sley2ErrorCode.PRIVILEGED_CONTEXT, "no session")
+            refuse(Sley2ErrorCode.PRIVILEGED_CONTEXT, "no session")
         frame = request_frame(method, body, state["session"], state["next_request"], cancel)
         state["next_request"] += 1
         return [dict(reply) for reply in transact(frame)]
@@ -885,6 +913,12 @@ def run_scripted_trial(
             raise
         except Exception as error:  # noqa: BLE001 - adapter failures are harness failures
             raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, type(error).__name__) from error
+        # A refusal the adapter swallowed still ends the trial: the guard fired,
+        # so the agent attempted a privileged context or an invalid frame, and
+        # returning normally afterwards does not make the attempt go away.
+        if state["violations"]:
+            first = state["violations"][0]
+            _fail(Sley2ErrorCode[first["code"]], f"swallowed: {first['detail']}")
         runner_request("session.close", "")
         state["session"] = None
     except Sley2RunnerError as error:

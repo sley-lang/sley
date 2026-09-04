@@ -87,6 +87,12 @@ reflects reaches both. Two things follow, and both are contract:
 An arm's result therefore rests on the adapter being cooperative, and the trace
 is what makes a breach visible after the fact rather than impossible.
 
+The guard raises into the agent's frame, so an adapter can catch it. It
+therefore records a `guard_refusal` record **before** raising and remembers that
+it fired: a trial whose guard fired is a harness failure even if the adapter
+returned normally. Swallowing the exception changes nothing except that the
+adapter also wasted its turn.
+
 `context_bytes` counts every body the agent received. Counting only `capsule`
 and `query.*` understated the arm under test, because `refs.list`,
 `handle.expand`, `candidate.inspect`, `compare`, `revision.read`, `execute`,
@@ -123,6 +129,7 @@ digest.
 ```text
 header  { kind: "header", trial_id, run_manifest_digest, task_id, seed,
           fixture_digest, endpoint_sha256, endpoint_version, handshake_id }
+guard_refusal { kind: "guard_refusal", seq, code, detail }
 frame   { kind: "frame", seq, direction: "request"|"response"|"event",
           frame: Frame, frame_sha256 }
 footer  { kind: "footer", frames_recorded, report: Report (the endpoint's

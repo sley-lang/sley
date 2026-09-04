@@ -204,6 +204,31 @@ class Sley2RunnerTests(unittest.TestCase):
         summary = self.trial("guard-2", 1, Unlisted())
         self.assertEqual(summary["failure_code"], "SLEY2_TRIAL_FRAME_INVALID")
 
+    def test_a_swallowed_refusal_still_ends_the_trial_and_is_traced(self) -> None:
+        """The guard raises into the agent's frame, so an adapter can catch it.
+
+        Catching it used to leave no trace record and let the trial be recorded
+        completed despite a privileged-context attempt. Raised by vulcan.
+        """
+
+        class Swallower:
+            def run(self, handle: EndpointHandle):
+                try:
+                    handle.exchange({"method": "refs.list", "body": "10", "request_id": 99})
+                except BaseException:  # noqa: BLE001 - the point of the test
+                    pass
+                # Carry on as though nothing was refused.
+                handle.exchange({"method": "refs.list", "body": "10"})
+                return {}
+
+        summary = self.trial("guard-swallow", 0, Swallower())
+        self.assertEqual(summary["status"], "harness_failure")
+        self.assertEqual(summary["failure_code"], "SLEY2_TRIAL_PRIVILEGED_CONTEXT")
+        records = verify_trace(Path(summary["trace_path"]), self.manifest_digest)
+        refusals = [record for record in records if record.get("kind") == "guard_refusal"]
+        self.assertEqual(len(refusals), 1)
+        self.assertEqual(refusals[0]["code"], "PRIVILEGED_CONTEXT")
+
     def test_scripted_trial_over_a_fake_endpoint_traces_claims_and_verifies(self) -> None:
         summary = self.trial("trial-1", 0, ScriptedAgent())
         self.assertEqual((summary["outcome"], summary["status"]), ("completed", "rejected"))
