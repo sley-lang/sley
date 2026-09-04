@@ -27,6 +27,7 @@ for marker in [
     "ImpactErrorCode::ALL.contains(&error.code())",
     "MAX_FUZZ_INPUT_BYTES: usize = 4_096",
     "let kind = reader.byte() % 18 + 1;",
+    "4 + usize::from(self.byte() % 21)",
 ]:
     if marker not in target:
         problems.append(f"target-missing:{marker}")
@@ -50,6 +51,7 @@ for marker in [
     '"COMPLETE_ROOT_JUDGMENT_ONLY"',
     "MAX_LEN = 4_096",
     "FLAG_LANES = 4",
+    "MAX_SET_MEMBERS = 24",
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")
@@ -78,6 +80,8 @@ if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
 if slice_status.get("flag_lanes") != 4:
     problems.append("machine-summary-flag-lane-drift")
+if slice_status.get("max_set_members") != 24:
+    problems.append("machine-summary-set-width-drift")
 if slice_status.get("seed_source") != "conformance/complete-entity-impact/v1/accepted.json":
     problems.append("machine-summary-seed-source-drift")
 

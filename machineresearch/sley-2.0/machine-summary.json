@@ -1485,7 +1485,9 @@
     "runtime_evidence": "evidence/runtime/s20-700-complete-root-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_complete_root_persistent_fuzz.py --manual",
     "vulcan_review": "PENDING",
-    "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md",
+    "max_set_members": 24,
+    "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set"
   },
   "s20_700_semantic_delta_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_510_SEMANTIC_DELTA_DECODER_ONLY",

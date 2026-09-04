@@ -29,6 +29,8 @@ MAX_LEN = 4_096
 SMOKE_RUNS = 512
 SMOKE_TIMEOUT_SECONDS = 60
 FLAG_LANES = 4
+# The target's set grammar: 4 + (b % 21).
+MAX_SET_MEMBERS = 24
 
 
 def main() -> int:
@@ -50,6 +52,7 @@ def main() -> int:
         "scope": "COMPLETE_ROOT_JUDGMENT_ONLY",
         "full_s20_700_complete": False,
         "flag_lanes": FLAG_LANES,
+        "max_set_members": MAX_SET_MEMBERS,
         "max_input_bytes": MAX_LEN,
         "corpus_count": corpus_count,
         "seed_source": str(FIXTURE.relative_to(ROOT)),
@@ -158,9 +161,17 @@ def id_byte(value: str) -> int:
 
 
 def encode_ids(values: list[str]) -> bytes:
-    if len(values) > 4:
-        raise SystemExit("fixture set exceeds the target's four-element grammar")
-    return bytes([len(values)]) + bytes(id_byte(value) for value in values)
+    """Encode one set under the target's extensible length grammar.
+
+    A length below four is one byte. Four or more is `4` followed by the
+    remainder, which the target reads as `4 + b % 21`, so a seed carries a
+    full fixture set instead of its first four members.
+    """
+    count = len(values)
+    if count > 24:
+        raise SystemExit("fixture set exceeds the target's twenty-four-element grammar")
+    prefix = bytes([count]) if count < 4 else bytes([4, count - 4])
+    return prefix + bytes(id_byte(value) for value in values)
 
 
 def encode_entity(entity: dict) -> bytes:
@@ -176,12 +187,7 @@ def encode_entity(entity: dict) -> bytes:
     elif kind == 3:
         parent = entity["parent"]
         out += b"\x00" if parent is None else bytes([1, id_byte(parent)])
-        members = entity["members"]
-        if len(members) > 4:
-            # The grammar carries at most four members; larger fixture
-            # namespaces seed the first four and rely on mutation for the rest.
-            members = members[:4]
-        out += encode_ids(members)
+        out += encode_ids(entity["members"])
     elif kind == 4:
         out += encode_ids(entity["invariants"])
     elif kind == 5:

@@ -96,8 +96,13 @@ The dependency direction `sley-query -> sley-check -> sley-ssmc` is unchanged;
   (identity-valued fields, `Bool`/`Unit` types, a parameter-returning
   block); type-expression and constant recursion are covered by the
   restricted profile's own evidence, not re-derived here.
-- The fuzz target's set grammar carries at most four members per set and
-  the corpus seeds the first four members of larger fixture namespaces.
+- The fuzz target's set grammar carried at most four members per set, and
+  the corpus seeded the first four members of larger fixture namespaces.
+  Closed on 2026-09-03: a set's length is now one byte below four and two
+  bytes for four through twenty-four, the widest set that can name every
+  entity a request carries, so every seed encodes its whole fixture set.
+  `make complete-root-persistent-fuzz-smoke` passed over 191 seeds with no
+  artifact.
 - Strict pedantic clippy debt in older `sley-repo` test modules is
   pre-existing; the new paths lint clean under `--no-deps`.
 - Full S20-300 (complete-root snapshot), root-backed S20-310 queries, and

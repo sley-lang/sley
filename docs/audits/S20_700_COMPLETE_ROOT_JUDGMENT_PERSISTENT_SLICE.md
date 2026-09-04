@@ -11,7 +11,10 @@ object decoding, which the S20-700 schema and pack slices already cover.
 The libFuzzer target decodes a structured eighteen-kind request from raw
 bytes: an entity count, then per entity a kind, an identity byte, and the
 kind's identity and set fields, then a flags byte read from the end of the
-input. The flags select four deterministic lanes (raw versus canonical sets,
+input. A set's length is one byte below four and two bytes for four through
+twenty-four, which is the widest set that can name every entity a request
+carries, so a seed encodes a whole fixture set rather than its first four
+members. The flags select four deterministic lanes (raw versus canonical sets,
 decoded versus kept entity order) and whether the three root facts come from
 the decoded bodies or from further bytes, so every closure rule and every
 canonicality check is reachable.

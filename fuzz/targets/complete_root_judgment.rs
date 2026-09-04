@@ -7,8 +7,11 @@
 //!
 //! Byte grammar (every byte read past the end reads as zero):
 //! `count = b % 25`, then per entity `kind = b % 18 + 1`, `id = b`, then the
-//! kind's identity and set fields (a set is `n = b % 5` followed by `n` id
-//! bytes; a list keeps its order, a set is sorted and deduplicated unless
+//! kind's identity and set fields (a set's length is `n = b % 5`, and when
+//! `n` reads 4 a second byte extends it to `4 + b % 21`, so a set may name
+//! up to twenty-four members, one per entity the request can carry; the
+//! length is followed by that many id bytes; a list keeps its order, a set
+//! is sorted and deduplicated unless
 //! flag bit 0 is set), then a flags byte: bit 0 raw sets, bit 1 keep entity
 //! order, bit 2 entry points from bytes, bit 3 dependency roots from bytes,
 //! bit 4 bound entities from bytes.
@@ -58,8 +61,23 @@ impl Reader<'_> {
         EntityId::from_bytes([self.byte(); 32])
     }
 
+    /// A set or list length.
+    ///
+    /// Small sets stay one byte so the common shapes remain cheap to reach,
+    /// and a full-width set is reachable in two: the largest fixture
+    /// namespace names nine members, and a request carries at most
+    /// twenty-four entities, so twenty-four is the widest set that can name
+    /// anything real.
+    fn count(&mut self) -> usize {
+        let first = usize::from(self.byte() % 5);
+        if first < 4 {
+            return first;
+        }
+        4 + usize::from(self.byte() % 21)
+    }
+
     fn ids(&mut self, raw: bool) -> Vec<EntityId> {
-        let count = usize::from(self.byte() % 5);
+        let count = self.count();
         let mut ids: Vec<EntityId> = (0..count).map(|_| self.id()).collect();
         if !raw {
             ids.sort_unstable();
@@ -69,7 +87,7 @@ impl Reader<'_> {
     }
 
     fn list(&mut self) -> Vec<EntityId> {
-        let count = usize::from(self.byte() % 5);
+        let count = self.count();
         (0..count).map(|_| self.id()).collect()
     }
 }
