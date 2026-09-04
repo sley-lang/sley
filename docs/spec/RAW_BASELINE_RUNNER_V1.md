@@ -21,6 +21,29 @@ all seventeen controls named by `bench/benchmark-plan.json`, plus:
 - execution mode `offline_injected`;
 - external-command policy `forbidden`.
 
+Both are shared run-level controls, so they mean the same thing for every arm
+and no arm may narrow them in its own contract.
+
+`offline_injected` means the model, the oracle, and the agent tooling are
+injected into the harness and reach no network and no command. `forbidden`
+means no arm may invoke a command outside its own measured artifact.
+
+An arm's measured artifact is not an external command. An arm whose subject is
+a binary must execute that binary or it measures nothing, so the S20-620 arm
+starting endpoint processes is inside these controls rather than an exception
+to them. What the controls exist to prevent is one arm receiving capability
+another lacks, so an arm that runs its artifact must satisfy all of:
+
+- the artifact is frozen in the run manifest by digest, and every claim carries
+  that digest, so the executed thing is part of the record;
+- no other command is invoked, for any purpose, including model access,
+  oracle judgment, retrieval, or tooling;
+- the artifact is the arm's declared subject, not an auxiliary the arm reaches
+  for because it is convenient.
+
+The fairness comparator rejects shared-control drift, and an arm restating
+either control in its own words is drift whether or not the words agree.
+
 Required-arm fixture and tool-description digest maps contain exactly
 `raw_files`, `sley_1_2_0`, and `sley_2_0`. Shared model, configuration, task,
 budget, retry, hardware, cache, oracle, seed, and environment controls occur

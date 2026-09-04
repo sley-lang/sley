@@ -235,10 +235,15 @@ provenance; publication; runtime, packaging, release, or GA.
 ## 9. Revision 2 clarifications
 
 - The shared S20-610 manifest's `execution_mode: offline_injected` and
-  `external_command_policy: forbidden` bind the model, oracle, and agent
-  tooling, which stay injected and command-free; the runner's only process
-  is the endpoint binary, whose SHA-256 the trace header and every claim
-  carry as `endpoint_sha256`, so the exact endpoint is part of the record.
+  `external_command_policy: forbidden` are **S20-610 shared run-level
+  controls** and are defined there, not here. This work package does not
+  narrow, restate, or except them: an earlier revision did, which is
+  shared-control drift whether or not the words agree. Under the S20-610
+  definition, this arm's endpoint binary is its measured artifact rather than
+  an external command, and the arm satisfies the conditions S20-610 attaches:
+  the endpoint is frozen by digest in the run manifest, its SHA-256 is in the
+  trace header and every claim as `endpoint_sha256`, no other command is
+  invoked for any purpose, and the endpoint is this arm's declared subject.
 - The client hello is `sley hello` decoded with `sley frame decode`. The
   affordances are **not** that hello's `methods`: the endpoint offers all 41
   SMP1 methods, `exchange.export` among them, and an arm holding an

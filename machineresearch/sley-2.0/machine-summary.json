@@ -2258,18 +2258,17 @@
     "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
     "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md",
-    "p0_open_count": 2,
+    "p0_open_count": 0,
     "p0_closed": [
       "the two-operation handle was not a capability boundary: exchange.__func__.__globals__ reached Endpoint, subprocess, Trace and Path and _exchange.__closure__ reached the live session, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' were false; raised independently by ariadne, nabu and vulcan. EndpointHandle now lives in a module importing nothing privileged (reflected_privileged_names is empty and gated per trial and in the checker), and the contract states the irreducible closure residual as trust rather than denying it",
       "context_bytes counted only capsule and query.* bodies while the agent also received refs.list, handle.expand, candidate.inspect, compare, revision.read, execute, report and diagnostics bodies, understating the arm under test against master goal 21.6; it now counts every body the agent received, and derive_context_breakdown records the split in this package's own evidence rather than widening the S20-610 metric field set",
       "the adapter's observation took precedence over the oracle's judgement for stale_candidates, stale_candidates_incorrectly_accepted, collateral_semantic_changes and invalid_committed_states, so the arm under test graded itself; every injected metric now has exactly one source and a value that is not a non-negative integer is zero",
       "the request-field guard raised into the agent frame, so an adapter that caught it continued with no trace record and the trial was recorded completed despite a privileged-context attempt; the guard now writes a guard_refusal trace record before raising and a trial whose guard fired is a harness failure whatever the adapter returned",
       "affordances were the endpoint's whole 37-method offer including exchange.export, an entire-store dump master goal 20.10 forbids an arm from holding; the arm now runs under the frozen ARM_AFFORDANCES allowlist whose digest is a run control carried in every claim, and a name the allowlist claims that the endpoint does not offer stops the run",
-      "invalid_candidates and repair_loops derived from SMP1's failed flag, which marks a ProtocolFailure envelope rather than an S20-360 candidate verdict, so the arm read zero invalid candidates in its own favour; both are oracle-owned now and the flag is counted as protocol_failures, which is what it measures"
+      "invalid_candidates and repair_loops derived from SMP1's failed flag, which marks a ProtocolFailure envelope rather than an S20-360 candidate verdict, so the arm read zero invalid candidates in its own favour; both are oracle-owned now and the flag is counted as protocol_failures, which is what it measures",
+      "S20-620 narrowed S20-610's shared run-level execution_mode and external_command_policy by its own prose while starting endpoint processes; both controls are now defined once in S20-610, which states that an arm's measured artifact is not an external command and attaches the conditions an arm running its artifact must satisfy, and S20-620 cites that definition instead of restating it"
     ],
-    "p0_open": [
-      "S20-620 narrows S20-610's run-level execution_mode offline_injected and external_command_policy forbidden by prose while the run starts six or more endpoint processes; nabu and vulcan both say this needs an amendment by the S20-610 owner rather than a clarification inside S20-620"
-    ]
+    "p0_open": []
   },
   "succession_accounting": {
     "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",
