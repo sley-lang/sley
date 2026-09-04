@@ -499,7 +499,8 @@
       "EXTENDED_V1"
     ],
     "execution_profile_field": "the cache profile's lowering_profile, bound in the preimage since revision 2",
-    "revision_2_finding": "revision 1 wrote a constant execution_profile, so one request rejected under both profiles derived one identity; a rejected result carries no cache key to bind the profile. Found and fixed 2026-09-03 while landing slice E7a; restricted identities are unchanged"
+    "revision_2_finding": "revision 1 wrote a constant execution_profile, so one request rejected under both profiles derived one identity; a rejected result carries no cache key to bind the profile. Found and fixed 2026-09-03 while landing slice E7a; restricted identities are unchanged",
+    "protocol_coverage": "SMP1 execute is exercised under both profiles; the same function and inputs derive two report identities, which is the observable effect of binding the profile in the envelope"
   },
   "index_snapshot_profile": {
     "status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",

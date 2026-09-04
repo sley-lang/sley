@@ -1343,6 +1343,68 @@ fn gc_dry_run_and_collect_derive_the_snapshot_from_the_repository() {
 }
 
 #[test]
+fn execute_under_the_extended_profile_derives_its_own_report_identity() {
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    let (_temp, mut server, session, _genesis_id) =
+        open_server("smp1-execute-extended", executable_bodies());
+    let function = sley_repo::test_support::id(30);
+    let value = |bit: bool| {
+        sley_mutate::encode_const_value(&ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(bit),
+        })
+        .unwrap()
+    };
+    // Appendix C field 6 selects the profile: 1 restricted, 2 extended.
+    let body = |profile: u64, inputs: Vec<Vec<u8>>| {
+        let limits = encode_record(&[
+            (1, encode_uvar(1_000)),
+            (2, encode_uvar(1_000)),
+            (3, encode_uvar(10_000)),
+            (4, encode_uvar(100)),
+            (5, sley_scb1::encode_union(0, &[]).unwrap()),
+            (6, encode_uvar(profile)),
+        ])
+        .unwrap();
+        encode_record(&[
+            (1, function.as_bytes().to_vec()),
+            (2, sley_scb1::encode_list(&inputs).unwrap()),
+            (3, limits),
+        ])
+        .unwrap()
+    };
+    let (failed, restricted) = call_frame(
+        &mut server,
+        session,
+        2,
+        Method::Execute,
+        body(1, vec![value(true), value(true)]),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&restricted.body));
+    let (failed, extended) = call_frame(
+        &mut server,
+        session,
+        3,
+        Method::Execute,
+        body(2, vec![value(true), value(true)]),
+    );
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&extended.body));
+    // The same function and inputs under two profiles are two reports: the
+    // envelope binds the profile it ran under (S20-290 revision 2).
+    assert_ne!(
+        fields_of(&restricted.body, 2)[0],
+        fields_of(&extended.body, 2)[0],
+        "two profiles must not share one execution report identity"
+    );
+    // Each identity still re-derives from its own stored preimage, and the
+    // store answers the extended one verbatim.
+    let identity = fields_of(&extended.body, 2)[0].clone();
+    let (failed, report) = call_frame(&mut server, session, 4, Method::Report, identity);
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&report.body));
+    assert_eq!(report.body, extended.body);
+}
+
+#[test]
 fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
     use sley_ssmc::{ConstData, ConstValue, TypeExpr};
     let (_temp, mut server, session, _genesis_id) =
