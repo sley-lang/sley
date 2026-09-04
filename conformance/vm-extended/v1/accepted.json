@@ -143,7 +143,7 @@
       "cache_key_hex": "9ddf697b93408961ff9f32157a51a5df5fb7b2b899613f647406ed6c955f8e9a",
       "id": "cell-set-get",
       "instruction_count": 3,
-      "observation_id_hex": "df4319ad5fbff936cce237048279948c709db9c4013fbb87bd45c3af4efd9cd0",
+      "observation_id_hex": "e03b55256a466e889ec2c3188c8aa57578e2f91b827101a28e3ab92228bf9686",
       "opcode": 177,
       "success_value_hash_hex": "04e0325c40edf6946f42ecc130e3626480b6ef36a69edd26846b3875783b299c"
     },

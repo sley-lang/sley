@@ -321,7 +321,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 75 open obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 74 open obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -339,7 +339,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "504aab4df20bf113a574e18dcee8e22b437d823b55d7785d1f13b5edbdc3faba",
+  "report_digest": "f53e992d9bab8e9d1956af93af35fa5fa9101b2f9b60bacd3ea9b4b4354f2387",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

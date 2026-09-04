@@ -3138,3 +3138,86 @@ fn e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing() {
         LowerErrorCode::ImmediateMismatch
     );
 }
+
+/// A cell's contents are live value units, not a free handle.
+///
+/// `cell_new` and `cell_set` clone their value into a table that outlives the
+/// instruction. Charging only the result charged the `LocalCell` handle, so a
+/// value of any size cost the same few units: the budget stayed intact while
+/// host memory grew without bound, and contract E5's "their contents count as
+/// live value units" was false. Vulcan raised it against the S20-260 surface.
+#[test]
+fn e5_each_cell_charges_its_contents_so_the_budget_bounds_the_table() {
+    let payload = ConstValue {
+        value_type: TypeExpr::Bytes,
+        data: ConstData::Bytes(vec![7_u8; 4096]),
+    };
+    let contents = crate::execution_value_units(&payload);
+    let cell_of_bytes = TypeExpr::LocalCell(Box::new(TypeExpr::Bytes));
+    let stash = |count: usize| {
+        let mut steps: Vec<Step> = (0..count)
+            .map(|_| {
+                step(
+                    Opcode::CellNew,
+                    vec![Arg::P(0)],
+                    Immediate::None,
+                    cell_of_bytes.clone(),
+                )
+            })
+            .collect();
+        steps.push(step(
+            Opcode::CellGet,
+            vec![Arg::R(0)],
+            Immediate::None,
+            TypeExpr::Bytes,
+        ));
+        Fixture::new(&[TypeExpr::Bytes], &steps, Vec::new())
+    };
+    let run = |count: usize, max_value_units: u64| {
+        execute_function(
+            stash(count).input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![payload.clone()],
+                limits: ExecutionLimits {
+                    max_instructions: 1_000,
+                    max_fuel: 1_000_000,
+                    max_value_units,
+                    max_output_units: 1_000_000,
+                    cancel_at_fuel: None,
+                },
+            },
+        )
+        .expect("executes")
+    };
+
+    // Every additional cell costs at least what it stores.
+    let one = run(1, 1_000_000);
+    let two = run(2, 1_000_000);
+    let eight = run(8, 1_000_000);
+    let per_cell = two.peak_value_units - one.peak_value_units;
+    assert!(
+        per_cell >= contents,
+        "a second cell charged {per_cell} for {contents} units of contents"
+    );
+    assert_eq!(
+        eight.peak_value_units - one.peak_value_units,
+        per_cell * 7,
+        "cells past the first must each cost the same"
+    );
+
+    // So a budget sized for two cells stops at two, instead of letting the
+    // execution hold six more tables' worth of memory anyway.
+    let two_cell_budget = one.peak_value_units + per_cell;
+    assert!(
+        matches!(
+            run(2, two_cell_budget).termination,
+            ExecutionTermination::Success(_)
+        ),
+        "the budget measured for two cells refused two cells"
+    );
+    assert_eq!(
+        run(8, two_cell_budget).termination,
+        ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits),
+        "eight cells fit in a budget sized for two"
+    );
+}

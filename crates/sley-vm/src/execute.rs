@@ -22,6 +22,12 @@ pub const MAX_OBSERVATION_PREIMAGE_BYTES: usize = 67_108_864;
 pub const MAX_EXECUTION_INPUTS: usize = 262_144;
 /// Maximum validated input semantic value units before execution.
 pub const MAX_EXECUTION_INPUT_VALUE_UNITS: u64 = 67_108_864;
+/// Maximum live per-execution cells.
+///
+/// Charging cell contents already bounds the table by the request's value-unit
+/// budget. This is the ceiling that holds when a caller declares an enormous
+/// one, so the table cannot outgrow the profile no matter what a request asks.
+pub const MAX_EXECUTION_CELLS: usize = 1_048_576;
 
 /// One restricted-v1 execution request.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -896,7 +902,27 @@ fn execute_extended(
     if &value.value_type != result_type {
         return Err(RuntimeFault);
     }
-    if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
+    if runtime.cells.len() > MAX_EXECUTION_CELLS {
+        return Ok(Some(ExecutionTermination::ResourceLimit(
+            ResourceKind::ValueUnits,
+        )));
+    }
+    // `cell_new` and `cell_set` clone their value into the cell table, which
+    // outlives the instruction. Charging only the result would charge the
+    // handle and not the contents, so a loop could hold unbounded host memory
+    // with the budget intact; contract E5 counts cell contents as live value
+    // units, and this is where they are counted.
+    let stored = match opcode {
+        sley_ssmc::Opcode::CellNew | sley_ssmc::Opcode::CellSet => {
+            operands.last().map_or(0, value_units_const)
+        }
+        _ => 0,
+    };
+    if !charge_value(
+        runtime,
+        value_units_const(&value).saturating_add(stored),
+        limits.max_value_units,
+    ) {
         return Ok(Some(ExecutionTermination::ResourceLimit(
             ResourceKind::ValueUnits,
         )));

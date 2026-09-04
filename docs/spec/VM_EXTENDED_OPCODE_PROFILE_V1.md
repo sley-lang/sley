@@ -1,6 +1,6 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 9 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 10 (2026-09-04);
 Council review pending (Ariadne contract review, Nabu architecture review,
 Vulcan surface review). Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
@@ -132,7 +132,14 @@ structurally.
 
 `cell_new` takes `T` (persistable) and yields `LocalCell<T>`; `cell_get`
 yields `T`; `cell_set` takes the cell and a `T` and yields `Unit`; cells
-are per execution and their contents count as live value units.
+are per execution and their contents count as live value units. `cell_new`
+and `cell_set` clone their value into the cell table, so each charges the
+stored value's units in addition to its result: the table is a second place
+the value lives, and a budget that did not count it would bound nothing. At
+most 1,048,576 cells exist in one execution, which holds when a request
+declares a value-unit budget large enough to make the charge no bound at
+all; exceeding either is `VM_EXEC_RESOURCE_LIMIT` with `ResourceKind` value
+units.
 `value_hash` takes a hashable `T` and yields `Bytes` of exactly 32 bytes,
 the S20-250 `hash_validated_value` of the operand under the schema epoch.
 `global_get` takes Entity: a `GlobalValue` of the root whose initializer
@@ -308,8 +315,11 @@ S20-360 full operation analysis; or GA.
   operand of `cell_get` and `cell_set` only, no other operation may take a
   cell or a type containing one, and a Function whose result type contains
   a cell fails lowering with `VM_LOWER_SIGNATURE_MISMATCH`; a cell handle
-  is register-only and has no wire form; `cell_set` charges no units beyond
-  its operands because the register file never releases live values;
+  is register-only and has no wire form; `cell_new` and `cell_set` each
+  charge the stored value's units on top of their result, because the cell
+  table holds a clone that outlives the instruction and is live independently
+  of the register file (charging only the result charged the handle, so a
+  loop could hold unbounded host memory with the budget intact);
   `value_hash` is the S20-250 `hash_validated_value` under the execution's
   schema epoch; `global_get` resolves the global's initializer Constant in
   the lowering inventory and the constant's type must equal the global's

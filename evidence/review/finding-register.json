@@ -2274,12 +2274,17 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_1_P0_2_P1_3_P2_2_P3",
       "field": "vulcan_surface_review",
       "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
       "section": "vm_extended_opcode_profile",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
@@ -2325,7 +2330,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "3e6796e439fb34b28a66f1fc5f8f85e9262f7a8ce4894ee03bfef5df1337e9f1",
+  "obligations_digest": "f4cae62bd982377fcdbc4e4a1406ac46de756d024a2f068ab994661670c4a8f7",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2622,28 +2627,24 @@
     {
       "field": "independent_security_review",
       "section": "threat_coverage"
-    },
-    {
-      "field": "vulcan_surface_review",
-      "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "a3a5aded5857391fce8098a2ddb353c00951b331fdc07922623df47a29c0ebe2",
+  "register_digest": "6df2255510c489326e20ad117bafa816cd0c134cf47c743da98f89ec681eddd5",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 34,
-    "P1": 45,
-    "P2": 47,
-    "P3": 24,
+    "P0": 35,
+    "P1": 46,
+    "P2": 48,
+    "P3": 25,
     "P4": 15
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "DEFERRED": 12,
-    "HISTORICAL_ROUND": 28,
+    "HISTORICAL_ROUND": 29,
     "OTHER": 1,
     "PASS": 85,
-    "PENDING": 75
+    "PENDING": 74
   },
   "unclassified": [
     {

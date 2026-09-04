@@ -658,12 +658,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "1902897a0f49a944805f2cdbb2dfbb4920db080dcef4c1ab98b38d5dfd711384"
+          "sha256": "d37b256bec0bd5dec8fd7c654074d0c845a250ba04a180a41db6c86bdc3b4122"
         },
         {
           "bytes": 22063,
           "name": "accepted.json",
-          "sha256": "40bdf24ed10ea71e63f7b0f43a7d452540e76fba931c04c1786e329274a75106"
+          "sha256": "971bd0ac78ec6a8ac9a5f990eb9c5109c8194fd4746029aae133504538b26def"
         },
         {
           "bytes": 3584,
@@ -705,7 +705,7 @@
     "problems": [],
     "python_sources": 22
   },
-  "report_digest": "f2001d83fec18c8c3e34d1c23c0a4faec80e79a08d43a38216c2d975eaa5074f",
+  "report_digest": "2f2a28f4afa46f60e6259aba35ba40742ca46c14b68b4dbe5a5820affacfac72",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }
