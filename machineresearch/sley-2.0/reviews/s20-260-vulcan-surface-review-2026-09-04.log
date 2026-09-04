@@ -1,0 +1,102 @@
+DISPATCH 260-vulcan-surface forge-vulcan-260-vulcan-surface-20260904T032519 2026-09-04T03:25:19Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+I'll start by reading the contract and campaign record, then the implementation.
+
+## Vulcan surface review — S20-260/270 extended opcode profile
+
+**Scope note before the findings.** The brief describes contract revision 7, slices E1–E6, E7 excluded. At the pinned commit `9dc78fe` the contract is **revision 9** and slice **E7a (`contract_assert`, opcode 144) is landed** with two conformance vectors. Several items the brief asks about were also already repaired after the review request was written (`38866db` shift boundaries, `83d571a` map order, `03e1655` report envelope). I reviewed what is actually at `9dc78fe`. Read-only; no cargo run, so the findings below are code-reading results, not reproductions — confidence stated per item.
+
+---
+
+```
+status: FAIL — one freeze-blocking accounting escape, two must-fix contract/implementation divergences
+
+findings:
+```
+
+### P0-1 — the cell table is uncharged and unbounded; contract E5's value-unit claim is false
+
+Contract §7 E5: *"cells are per execution and their contents count as live value units"*, justified by *"the register file never releases live values."*
+
+They do not. `extended.rs:1316-1320` — `cell_new` pushes `value.clone()` into `context.cells` and returns only the handle `ConstData::UInt(index)`. `execute.rs:899` charges `value_units_const(&value)` on **that handle**: the `LocalCell<T>` type units plus one UInt. The cloned contents are never charged, and `Runtime.cells` (`execute.rs:349`) has no cap — no `MAX_CELLS` exists anywhere in the crate.
+
+The justification does not cover the case. Registers charge each *construction*; the cell table is a second copy keyed independently. `lower_edge` resolves any target through `maps.block_slot` with no forward-only or acyclicity constraint, and `run` (`execute.rs:459`) has no visited set, so back edges lower and execute. A loop body of a single `cell_new` over a **loop-invariant** operand register pushes one full aggregate clone per iteration while `live_value_units` grows by a constant. Bound is caller-supplied `limits.max_instructions`; `MAX_INSTRUCTIONS = 1_000_000` bounds *lowered operations*, not iterations.
+
+Result: host memory exhaustion with the value-unit budget intact — the budget stops being the bound the execution profile advertises.
+
+Why this blocks freeze rather than waiting: any correct fix (charge contents on `cell_new`/`cell_set`, or add a cell `ResourceKind`) changes charged units, therefore `peak_value_units`, therefore the observation preimage (`execute.rs:1374`) and every extended vector. It cannot land after the vectors freeze.
+
+Confidence: high on the accounting gap (the charge is unambiguously the handle). Medium-high on unbounded reachability — no acyclicity guard found, not reproduced. Contributing evidence gap: `grep "loop\|CondBranch" crates/sley-vm/src/extended_tests.rs` returns **nothing**. The extended slice has zero back-edge coverage, so no test can reach this.
+
+### P1-1 — `lowerer_version` was not bumped when the SLEYBC02 body layout changed at E6
+
+`derive_cache_key` (`lib.rs`) binds schema epoch, state root, entry function id, and the `CacheProfile` fields; §1 pins `lowerer_version [1,0,0]` for the whole profile.
+
+`git show 04ef631 -- conformance/vm-extended/v1/accepted.json`: every pre-E6 vector's `bytecode_hex` gained a trailing `0000000000000000` callee-table count, `bytecode_sha256` and `observation_id_hex` changed — and `cache_key_hex` stayed `9ddf697b93408961ff9f32157a51a5df5fb7b2b899613f647406ed6c955f8e9a`.
+
+A blob cached under revision 6 and one under revision 7 are the same key, different bytes, different observation identity. `lowerer_version` is the field that exists to separate them and it did not move. Fix before freeze (bumping it changes every extended cache key). Contract must state the rule: any SLEYBC02 layout change bumps `lowerer_version`, or SLEYBC02 is explicitly not frozen until E-freeze and pre-freeze caches must be discarded.
+
+**Answering the brief's question directly:** a second cache profile with its own magic *is* the right way to keep the restricted vectors frozen, and it held — no slice commit touched a restricted vector, and `SLEYBC01` now appears only in `scripts/check_vm_lowering_profile.py`. It does not keep the *extended* identity stable, and §1 currently reads as if it does.
+
+### P1-2 — contract §2's `check_constant` invariant is unimplemented and unimplementable as written
+
+§2: *"Every constructed value satisfies `check_constant` of its register type; a value that would not is `VM_EXEC_INTERNAL_INVARIANT`."*
+
+`execute.rs:896` is the only post-construction check — `if &value.value_type != result_type` — a type-identity comparison. `check_constant` is never called on a constructed value; it is called only on execution inputs (`execute.rs:920`).
+
+It also cannot be called as written: `cell_new` produces `value_type = LocalCell<T>` carrying `ConstData::UInt(index)`, which is not a `check_constant`-valid constant of that type (`sley-check/src/lib.rs:626` gives `LocalCell` its own traits; the persistable gate at `:890` rejects it). The contract promises a runtime guarantee the VM does not provide, for a value form the same contract mandates.
+
+Revision: state the actual invariant (result `value_type` identity against the register type) and carve the cell handle out as a register-only representation with no constant form.
+
+### P2-1 — value units are charged after construction
+
+`execute_extended` builds the whole result, then charges. One `tuple_new` (arity ≤ 64) or `map_insert` over near-budget operands allocates up to ~64× `max_value_units` transiently before the limit fires. Bounded to a single instruction, so not freeze-blocking, but §2/§5 should say `max_value_units` bounds charged liveness, not peak allocation.
+
+### P2-2 — map key identity uses two different equalities
+
+`map_new` dedup and `map_get`/`map_contains`/`map_insert`/`map_remove` probe with structural `ConstValue ==` (`extended.rs:1266, 1289, 1294, 1299, 1311`), while map *order* is the keys' canonical bytes (`sorted_map`, `:1133-1140`). `83d571a` correctly closed the externally-supplied side by asking the codec; the VM never re-asks it about a map it built itself. The two agree only if `encode_const_value` is injective on admissible key types — a precondition stated nowhere and asserted nowhere. If it fails, `map_new` emits a map the codec would reject with `MapDuplicate`, entry order insertion-dependent: the exact defect `83d571a` closed on the other side. One-line fix (dedupe on `key_bytes`) plus a contract sentence.
+
+### P2-3 — float determinism is asserted, not evidenced across hosts
+
+`float_operation` (`extended.rs:859-887`) uses host `f32`/`f64` arithmetic and `mul_add`. §5's evidence is *"128 repeated executions producing equal outcomes"* — same-process repeatability. A cache key and an observation identity are cross-host claims; these vectors cannot support them. Either pin the required target guarantee (fused-or-correctly-rounded `mul_add`, no x87 excess precision, no fast-math) with a cross-target check, or narrow §3 E3's determinism claim to one target triple.
+
+The **semantics** are exact and match the code: unordered → `not_equal` true and all four order predicates false (`:1445-1463`), NaN and `-0` normalized at `:823-841`. The gap is evidence only.
+
+### P3-1 — campaign record is stale against the contract at this commit
+
+The record's status line, Records table, and "Program status after slice E6" all still say revision 7 / "E7 is excluded until its owners exist", while the contract is revision 9 with E7a landed and two opcode-144 vectors present. Add the E7a row and its Tier 2 gates before freeze.
+
+### P3-2 — E1's float-exclusion rationale is the wrong reason
+
+§7 says E1 equality excludes floats because *"S20-210 counts floats as hashable"*. The operative reason is that structural `ConstValue` equality makes `NaN == NaN` **true**, contradicting the IEEE rule §3 E3 fixes. The code's split is exactly right — `:735-740` rejects `contains_float && !is_float`; `:1445-1463` routes bare floats to `float_partial_order` and everything else to structural `==` at `:1464`. **Excluding floats from E1 equality is correct.** The contract should say why, because the current sentence does not explain why bare `F64` is admitted while `Vector<F64>` is not.
+
+---
+
+### On the brief's remaining questions
+
+- **Per-family exactness.** E2 exact, including the width-boundary left shift repaired at `38866db` and pinned in the comment at `extended.rs:1061-1082`. E3 exact in semantics (P2-3 on evidence). E4 exact after `83d571a` (P2-2 residual). **E5 is not exact** — P0-1 and P1-2. E6's call depth as a resource kind is right, and the explicit stack (`execute.rs:452, 502-517`) genuinely keeps the ceiling off the host stack as §7 claims.
+- **E7 exclusion stated safely.** Yes. The catch-all `_ => fail(LowerErrorCode::OpcodeUnsupported)` (`extended.rs:804`) is fail-closed, and §3's note that `test_observe` additionally needs a schema epoch is correct. The unsafety is documentary, not behavioural (P3-1).
+- **No judgment bypass found.** `execute_function` re-runs `lower_function` on every call (`execute.rs:363`); there is no decode-from-cache execution path. Operand forms the judgment excludes reach `ExtendedFault` → `InternalInvariant`. The one place the executor trusts rather than re-derives is P1-2.
+
+```
+validation: read-only inspection at 9dc78fe. No cargo, no repo mutation.
+  Reads/searches: contract rev 9, ADR-0039 header, campaign record, extended.rs (full),
+  execute.rs (dispatch/accounting/limits/cache-key), lower.rs (cache key, edges, limits),
+  sley-check LocalCell traits, sley-mutate codec map-order enforcement,
+  git history d1217ad..9dc78fe over conformance/ and crates/sley-vm/.
+  Nothing was executed; P0-1's unbounded-loop reachability is inferred from the absence
+  of an acyclicity guard, not reproduced.
+
+blockers:
+  - P0-1 not reproduced (no cargo per task constraint). A 20-line test — constant_ref
+    outside a back-edge loop, cell_new inside it — would confirm or kill it in one run.
+  - Stage checker scripts/check_vm_extended_opcode_profile.py not read; whether it would
+    have caught P1-1 or P1-2 is unassessed.
+  - E7a arrived after the review request; its contract text was reviewed, its tests were not.
+
+return_to: orchestrator (S20-260/270 review loop)
+```
+
+S20_260_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["cell table contents are never charged value units and the table has no cap; cell_new in a back-edge loop over a loop-invariant register clones a full aggregate per iteration while charging only the LocalCell handle (extended.rs:1316-1320, execute.rs:899, no MAX_CELLS), so host memory exhausts with the budget intact and contract E5's 'contents count as live value units' is false; any fix changes peak_value_units and therefore every observation identity, so it cannot land after freeze"],"p1":["lowerer_version stayed [1,0,0] when E6 appended the callee table to the SLEYBC02 body: commit 04ef631 changed every vector's bytecode bytes and observation_id while cache_key_hex stayed 9ddf697b..., so two incompatible layouts share one cache key","contract section 2's 'every constructed value satisfies check_constant of its register type' is never executed (execute.rs:896 compares value_type only) and is false by construction for E5 cell handles, which carry ConstData::UInt under a LocalCell type"],"p2":["value units are charged after the result is constructed, so one tuple_new or map_insert can transiently allocate ~64x max_value_units before the limit fires","map_new dedup and map_get/contains/insert/remove probe keys by structural ConstValue equality while map order is canonical key bytes; the two agree only under an unstated encode_const_value injectivity precondition, and VM-built maps are never re-asked of the codec that 83d571a added for supplied values","E3 float determinism rests on host f32/f64 and mul_add while section 5's evidence is 128 same-process repeats, which cannot support a cross-host cache key or observation identity"],"p3":["campaign record still states revision 7 and 'E7 excluded' while the contract is revision 9 with slice E7a landed and two opcode-144 vectors present; no E7a Records row or Tier 2 gates","section 7 justifies excluding floats from E1 equality by S20-210 hashability rather than the operative reason, that structural equality makes NaN == NaN true and contradicts the IEEE rule E3 fixes"],"notes":"Reviewed 9dc78fe as-is, not the revision-7 state the request describes. Second profile with its own magic is the right mechanism and the restricted vectors were not altered by any slice commit. Excluding floats from E1 equality is correct. E7 exclusion is fail-closed at extended.rs:804. No judgment bypass found: execute_function always re-lowers. P0-1 is code-reading, not reproduced; a back-edge cell_new test settles it in one cargo run."}
+EXIT=0 2026-09-04T03:32:25Z

@@ -639,7 +639,7 @@
     "continuation": "EXACT_THEN_PAGED_TYPED_CURSORS_UNDER_ALLOW_CONTINUATION",
     "cache_consumer": "FIRST_AND_ONLY_S20_300_CACHE_HIT_CONSUMER_EDGES_ONLY",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_7_P1_4_P2_3_P3",
     "nabu_architecture_review": "PENDING",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
@@ -651,7 +651,11 @@
     "oracle": "scripts/check_root_backed_query_vector.py",
     "persistent_fuzz_target": "fuzz/targets/root_query_engine.rs",
     "closeout": "docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md",
-    "fixture_vectors": 23
+    "fixture_vectors": 23,
+    "p0_open": [
+      "charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule cannot derive the implemented per-class constants, so the oracle reproduces the implementation rather than the contract, and S20-320 already binds these bytes",
+      "the class-kind applicability table ADR-0030 decision 1 and section 9 require is absent, so classes 16, 17, and 19 silently accept every kind"
+    ]
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -2613,7 +2617,7 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "obligations": 201,
-    "open_reviews": 74,
+    "open_reviews": 73,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2651,7 +2655,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "74 review obligations are open",
+      "73 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

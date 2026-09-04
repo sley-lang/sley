@@ -1446,12 +1446,17 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_2_P0_7_P1_4_P2_3_P3",
       "field": "ariadne_contract_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "section": "root_backed_query_profile",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
@@ -2330,7 +2335,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "f4cae62bd982377fcdbc4e4a1406ac46de756d024a2f068ab994661670c4a8f7",
+  "obligations_digest": "1a322312a397a7676b398b2185996868d51f17aff2470b9a60381e2bdbb9ef18",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2497,10 +2502,6 @@
       "section": "required_contract_index"
     },
     {
-      "field": "ariadne_contract_review",
-      "section": "root_backed_query_profile"
-    },
-    {
       "field": "nabu_architecture_review",
       "section": "root_backed_query_profile"
     },
@@ -2629,22 +2630,22 @@
       "section": "threat_coverage"
     }
   ],
-  "register_digest": "6df2255510c489326e20ad117bafa816cd0c134cf47c743da98f89ec681eddd5",
+  "register_digest": "943ab34a0e5ddcdfbc5f4a677a9e957a030a4afc801822f72a8e6695c750ddeb",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 35,
-    "P1": 46,
-    "P2": 48,
-    "P3": 25,
+    "P0": 36,
+    "P1": 47,
+    "P2": 49,
+    "P3": 26,
     "P4": 15
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "DEFERRED": 12,
-    "HISTORICAL_ROUND": 29,
+    "HISTORICAL_ROUND": 30,
     "OTHER": 1,
     "PASS": 85,
-    "PENDING": 74
+    "PENDING": 73
   },
   "unclassified": [
     {
