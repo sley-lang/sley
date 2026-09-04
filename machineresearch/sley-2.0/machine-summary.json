@@ -2809,6 +2809,8 @@
     "scope": "registration only; meaning, number, and freeze stay with the owning contract",
     "registration_source": "docs/spec only; an audit, threat-register row, or ADR narrative does not register a symbol",
     "numeric_codes": 302,
-    "ambiguous_codes": 0
+    "ambiguous_codes": 0,
+    "unexercised": 0,
+    "exercise_rule": "every stable symbol is reached by a test, corpus, fuzz target, or oracle, by its string or by its enum variant; a refusal path nothing exercises is where a defect survives"
   }
 }

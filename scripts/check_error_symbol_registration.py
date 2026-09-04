@@ -71,6 +71,52 @@ def emitted(declared: set[str]) -> dict[str, str]:
     return found
 
 
+def unexercised() -> list[str]:
+    """Stable symbols no test, corpus, fuzz target, or oracle ever reaches.
+
+    A refusal path nothing exercises is where a defect survives. A test may
+    name the failure by its string or by its enum variant, so both count: the
+    variant is searched outside its own `as_str` and numeric arms.
+    """
+    variants: dict[str, tuple[str, int]] = {}
+    for path in sorted((ROOT / "crates").rglob("*.rs")):
+        if "/target/" in str(path):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for match in re.finditer(
+            r'Self::(\w+)\s*=>\s*"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', text
+        ):
+            variants.setdefault(match.group(2), (match.group(1), 0))
+    corpus = "".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for tree in ("crates", "conformance", "fuzz", "oracle", "scripts", "bench")
+        for path in sorted((ROOT / tree).rglob("*"))
+        if path.is_file()
+        and path.suffix in (".rs", ".json", ".py")
+        and "/target/" not in str(path)
+    )
+    # One pass over the corpus for every variant at once: a regex per symbol
+    # would read thirty megabytes three hundred times.
+    names = sorted({variant for variant, _ in variants.values()})
+    if not names:
+        return []
+    alternation = re.compile(r"(?:Self::)?\b(" + "|".join(map(re.escape, names)) + r")\b(\s*=>)?")
+    uses: dict[str, int] = {}
+    arms: dict[str, int] = {}
+    for match in alternation.finditer(corpus):
+        name = match.group(1)
+        uses[name] = uses.get(name, 0) + 1
+        if match.group(2) and match.group(0).startswith("Self::"):
+            arms[name] = arms.get(name, 0) + 1
+    missing = []
+    for symbol, (variant, _) in sorted(variants.items()):
+        if corpus.count(f'"{symbol}"') > 1:
+            continue
+        if uses.get(variant, 0) - arms.get(variant, 0) <= 1:
+            missing.append(symbol)
+    return missing
+
+
 def code_symbol_pairs() -> dict[int, set[str]]:
     """Every numeric code the crates emit, with the symbols it carries."""
     pairs: dict[int, set[str]] = {}
@@ -101,6 +147,7 @@ def main() -> int:
     unregistered = sorted(symbol for symbol in symbols if symbol not in assigned)
     pairs = code_symbol_pairs()
     ambiguous = sorted(number for number, names in pairs.items() if len(names) > 1)
+    never_exercised = unexercised()
     result = {
         "contract": CONTRACT,
         "declared_namespaces": len(declared),
@@ -109,12 +156,15 @@ def main() -> int:
         "ambiguous_codes": [
             {"code": number, "symbols": sorted(pairs[number])} for number in ambiguous
         ],
+        "unexercised": never_exercised,
         "unregistered": [{"symbol": s, "first_seen": symbols[s]} for s in unregistered],
         "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
-        "result": "PASS" if not unregistered and not ambiguous else "FAIL",
+        "result": (
+            "PASS" if not unregistered and not ambiguous and not never_exercised else "FAIL"
+        ),
     }
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if not unregistered and not ambiguous else 1
+    return 0 if not unregistered and not ambiguous and not never_exercised else 1
 
 
 if __name__ == "__main__":

@@ -7,6 +7,14 @@ Every failure response binds protocol/schema version, phase, stable symbolic
 and numeric code, typed details, safe causal IDs, retryability, mechanically
 established repair affordances, and truncation. Prose is optional.
 
+Three properties hold over the whole tree and
+`scripts/check_error_symbol_registration.py` enforces them: every symbol a
+crate emits is assigned by a contract under `docs/spec/`, not merely mentioned
+somewhere; one numeric code carries one symbol; and every symbol is reached by
+a test, corpus, fuzz target, or oracle, by its string or by its enum variant.
+A document outside `docs/spec/` cannot register a symbol, because prose can
+name a code that no owner ever assigned.
+
 ## Candidate terminal states
 
 `VALID`, `INVALID_ENCODING`, `INVALID_SCHEMA`, `STALE_ROOT`, `STALE_ENTITY`,
