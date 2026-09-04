@@ -1,6 +1,6 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 1 (2026-09-03); implemented
+Status: S20-300 full contract draft, revision 2 (2026-09-04); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Implementation state is tracked in the
@@ -96,7 +96,14 @@ security evidence; it never skips the rebuild.
 the `StateRoot`, suffix `.idx.scb1`, written by temp-and-rename
 (`<name>.tmp` then rename, directory synced) after a fresh build from a
 verified revision under shared repository maintenance. `index` joins the
-frozen repository layout entries that an incomplete S20-540 clone may carry.
+frozen repository layout entries that an incomplete S20-540 clone may carry,
+and an S20-540 import **removes** that directory before it promotes anything.
+Every other entry such a clone holds is proved to belong to the exchange; a
+cache record cannot be, because it is keyed by a state root the import has not
+yet accepted and its bytes were written by whoever created the target. Import
+removes it rather than refusing the target, because the cache is derived and
+disposable and the next request rebuilds it. A symlink or a non-directory at
+the cache path is refused.
 
 ```text
 complete_root_snapshot(repository, revision) =
@@ -125,7 +132,8 @@ Because rules 1 through 4 do not re-derive edges, a filesystem writer that
 can forge a digest-valid record with the right inventory could serve wrong
 edges to a query. That is the residual the restricted profile's rule names,
 and it is bounded three ways: the cache is under the same local filesystem
-authority as objects, receipts, and refs; only read-only derived query
+authority as objects, receipts, and refs, which is why an exchange import
+removes an inherited one rather than adopting it; only read-only derived query
 surfaces (S20-310 and S20-320 and their successors) may consume a hit;
 validation, comparison, merge, commit, exchange, GC, and recovery never read
 the cache. `verify_cached_snapshot(repository, revision)` rebuilds and

@@ -367,7 +367,13 @@ Import is split into preflight and persistence:
       classification's code unless the owned result is an incomplete clone
       of this same exchange (which is what step 8.1 necessarily makes of a
       fresh target); the pre-ownership classification is advisory and only
-      the owned classification authorizes writes;
+      the owned classification authorizes writes. Then remove the target's
+      `index/` directory if it has one. Every other entry an incomplete clone
+      may carry is proved to belong to this exchange, but a derived S20-300
+      cache record cannot be: it is keyed by a state root this import has not
+      yet accepted. It is removed rather than refused because the cache is
+      disposable and rebuilds on demand; a symlink or a non-directory there is
+      `EXCHANGE_IO`;
    3. import the embedded pack (S20-170 step 6; idempotent for present
       objects);
    4. install every receipt through

@@ -62,6 +62,8 @@ const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
 const HEAD_DOMAIN: &[u8] = b"sley2.accepted-head.v1";
 const HEAD_LEN: usize = 73;
 const EXCHANGE_DIRECTORY: &str = "exchange";
+/// The derived index cache, which an import removes rather than adopts.
+const INDEX_DIRECTORY: &str = "index";
 const EXCHANGE_VERSION_DIRECTORY: &str = "v1";
 const STAGE_SUFFIX: &str = ".stage";
 const STAGE_TEMPORARY_SUFFIX: &str = ".stage.tmp";
@@ -76,7 +78,7 @@ const REPOSITORY_LAYOUT_ENTRIES: [&str; 8] = [
     "locks",
     "branches",
     "refs",
-    "index",
+    INDEX_DIRECTORY,
 ];
 const ORIGIN_SUFFIX: &str = ".branch.scb1";
 const REF_SUFFIX: &str = ".ref.scb1";
@@ -1662,6 +1664,33 @@ fn classify_target(target: &Path, preflight: &Preflight) -> Result<Target> {
     Ok(Target::IncompleteClone)
 }
 
+/// Removes any index cache the target already carries.
+///
+/// Every other entry an incomplete clone may hold is proved to belong to this
+/// exchange by `verify_incomplete_clone`. A cache record cannot be: it is keyed
+/// by a state root this import has not yet accepted, and its bytes were written
+/// by whoever created the directory, so a resumed clone would otherwise serve
+/// snapshots it never derived and the S20-300 contract's "same local filesystem
+/// authority as objects, receipts, and refs" bound would be false on this path.
+///
+/// It is removed rather than refused because the cache is derived and
+/// disposable: `complete_root_snapshot` rebuilds it on the next request. A
+/// symlink or a non-directory at the cache path is refused, as everywhere else
+/// in this module.
+fn purge_index_cache(target: &Path) -> Result<()> {
+    let path = target.join(INDEX_DIRECTORY);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(exchange_error(ExchangeErrorCode::Io));
+    }
+    fs::remove_dir_all(&path)?;
+    sync_directory(target)
+}
+
 /// Proves that everything already installed in a marked target belongs to
 /// this exchange: the head (if present), every receipt, every origin record
 /// (including one without a visible ref), and every ref.
@@ -1885,6 +1914,8 @@ pub fn import_repository_exchange<V: CanonicalVerifier>(
             Err(error) => Err(error),
         };
     }
+
+    purge_index_cache(target)?;
 
     #[cfg(test)]
     fail_at(ExchangeInterruption::X02AfterMarkerBeforeObjects)?;
@@ -2408,18 +2439,34 @@ pub(crate) mod tests {
         assert_eq!(error.code(), "EXCHANGE_TARGET_INCOMPLETE_MISMATCH");
     }
 
+    /// A clone must not adopt an index cache it never wrote.
+    ///
+    /// Every other entry an incomplete clone may carry is proved to belong to
+    /// the exchange. A cache record cannot be, so import removes the directory
+    /// instead of allowlisting it: keeping it would let the clone serve
+    /// snapshots derived by whoever created the target.
     #[test]
-    fn an_incomplete_clone_carrying_an_index_directory_still_resumes() {
+    fn an_incomplete_clone_resumes_without_adopting_the_index_cache_it_carried() {
         let source = Source::new("index-layout");
         let exchange = source.export();
         let target = source.target("clone");
         mark(&target, exchange.exchange_id);
         let index = target.join("index").join("v1");
         fs::create_dir_all(&index).unwrap();
-        fs::write(index.join("stale.idx.scb1"), b"derived and disposable").unwrap();
+        let planted = index.join("stale.idx.scb1");
+        fs::write(&planted, b"derived and disposable").unwrap();
         import_repository_exchange(&target, &exchange.stored_bytes, &verifier(source.epoch))
             .unwrap();
-        assert!(index.join("stale.idx.scb1").is_file());
+        assert!(
+            !planted.exists(),
+            "the clone adopted a cache record it never wrote"
+        );
+        assert!(
+            !target.join("index").exists(),
+            "the cache directory outlived the import"
+        );
+        // The import still succeeded, and the cache is rebuilt on demand.
+        assert_clone_equivalent(&source, &target, &exchange);
 
         let stray = source.target("stray");
         mark(&stray, exchange.exchange_id);

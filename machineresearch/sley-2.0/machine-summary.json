@@ -554,7 +554,7 @@
   "complete_root_index_snapshot": {
     "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
     "checker": "scripts/check_complete_root_index_snapshot_profile.py",
     "completeness_arm": 2,
@@ -578,8 +578,9 @@
     "closeout": "docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md",
     "fixed_complete_root_snapshot_id": "8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d",
     "fixed_complete_root_record_bytes": 5888,
-    "p0_open": [
-      "exchange import allowlists a pre-existing index/v1 cache into the target, so a clone adopts a cache it never wrote and the contract section 5 filesystem-authority bound is false on that path; found independently by ariadne and nabu"
+    "p0_open": [],
+    "p0_closed": [
+      "exchange import allowlisted a pre-existing index/v1 cache into the target, so a clone adopted a cache it never wrote; import now removes the directory before promoting anything, pinned by an_incomplete_clone_resumes_without_adopting_the_index_cache_it_carried"
     ]
   },
   "restricted_query_profile": {

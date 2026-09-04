@@ -155,8 +155,19 @@ def main() -> int:
         for marker in CACHE_MARKERS:
             if marker not in cache:
                 problems.append(f"cache-marker:{marker}")
-        if '"index",' not in read(EXCHANGE):
+        # An incomplete clone may carry the cache directory, and the import
+        # must remove it rather than adopt a record it cannot prove belongs to
+        # the exchange (contract section 5). Presence of the allowlist entry is
+        # not the property worth gating: the purge is.
+        exchange = read(EXCHANGE)
+        if "INDEX_DIRECTORY" not in exchange:
             problems.append("exchange-layout:index-directory-not-allowlisted")
+        if "fn purge_index_cache" not in exchange:
+            problems.append("exchange-layout:index-cache-not-purged-on-import")
+        if "purge_index_cache(target)?" not in exchange:
+            problems.append("exchange-layout:index-cache-purge-not-called")
+        if "an_incomplete_clone_resumes_without_adopting_the_index_cache" not in exchange:
+            problems.append("exchange-layout:index-cache-purge-untested")
         if status in (REVIEW_PENDING_STATUS, COMPLETE_STATUS):
             if not (FIXTURE_DIR / "v1/accepted.json").exists():
                 problems.append("fixture:missing")
