@@ -60,9 +60,10 @@ def main() -> int:
 
         frontier = summary.get("local_completion_frontier", {})
         expected_frontier = {
-            "status": "LOCAL_EVIDENCE_COMPLETE_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
+            "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
             "goal_complete": False,
-            "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
+            "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local implementation continues where a determination unblocks it",
+            "e7a_contract_assertion_landed": True,
             "blocked_lane_count": 6,
             "blocked_lanes": [
                 "semantics_and_queries",
@@ -131,6 +132,9 @@ def main() -> int:
             "focused_semantic_security_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
             "full_v2_eligible": False,
             "release_check_eligible": False,
+            "frontier_note": (
+                "the frontier is not exhausted while a contract names an owned, specified, unimplemented behaviour. Answering the S20-760 profile-versus-epoch question per agenda item (revision 2, 2026-09-03) unblocked slice E7a, and auditing what the extended profile changed found the S20-290 rejected-report profile collision. The same two techniques, reading each contract's own exclusions and re-auditing every identity whose inputs grew, are the standing local method"
+            ),
         }
         require_equal(frontier, expected_frontier, "machine-summary frontier")
 
@@ -431,7 +435,7 @@ def main() -> int:
                 "blocked_lanes": 6,
                 "full_gate_run": False,
                 "goal_complete": False,
-                "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
+                "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local implementation continues where a determination unblocks it",
                 "result": "PASS",
             },
             indent=2,
