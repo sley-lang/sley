@@ -187,7 +187,7 @@ impl CandidateProgram {
         self.edges.len()
     }
 
-    /// Whether every operation of the program has an owned analysis.
+    /// Whether every operation of the program has an owned analysis here.
     ///
     /// The S20-260/S20-270 extended opcode profile judges families E1 through
     /// E6; the E7 opcodes (contract assertions, test observations, effect
@@ -195,6 +195,12 @@ impl CandidateProgram {
     /// `VM_LOWER_OPCODE_UNSUPPORTED` until S20-240 full, S20-280 full, and
     /// S20-380 full own their runtime, so a program that contains one is not
     /// analyzable here.
+    ///
+    /// Slice E7a lowers and executes `contract_assert` (144), but its static
+    /// typing belongs to the S20-240 checker at phase 10, which reports the
+    /// exact `CONTRACT_ASSERT_TYPE` diagnosis. Phase 7 therefore keeps its
+    /// hands off the opcode rather than preempting the owner with a lowering
+    /// code; the VM judges it again when it lowers, after validation passes.
     pub(crate) fn operation_analysis_supported(&self) -> bool {
         !self
             .operations

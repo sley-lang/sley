@@ -462,15 +462,30 @@ fn run(
                 return Ok(unwind(runtime, stack, termination));
             }
             if input.profile.is_extended() {
-                if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
-                    match prepare_call(
+                let call = if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
+                    Some(prepare_call(
                         runtime,
                         &limits,
                         instruction,
                         current.register_types,
                         lowered,
                         stack.len().saturating_add(1),
-                    )? {
+                    )?)
+                } else if instruction.opcode == sley_ssmc::Opcode::ContractAssert.tag() {
+                    Some(prepare_contract_assert(
+                        runtime,
+                        &limits,
+                        instruction,
+                        current.register_types,
+                        lowered,
+                        stack.len().saturating_add(1),
+                        input.contracts,
+                    )?)
+                } else {
+                    None
+                };
+                if let Some(step) = call {
+                    match step {
                         CallStep::Terminated(termination) => {
                             return Ok(unwind(runtime, stack, termination));
                         }
@@ -478,6 +493,7 @@ fn run(
                             child,
                             callee,
                             result_register,
+                            shape,
                         } => {
                             stack.push(Suspended {
                                 runtime: core::mem::replace(runtime, child),
@@ -486,6 +502,7 @@ fn run(
                                 register_types: current.register_types,
                                 pc: current.pc,
                                 result_register,
+                                shape,
                             });
                             current = Current {
                                 blocks: &callee.blocks,
@@ -543,6 +560,15 @@ fn return_to_caller<'a>(
     adopt_frame(runtime, child);
     let ExecutionTermination::Success(value) = termination else {
         return Ok(Err(termination));
+    };
+    let value = match parent.shape {
+        ReturnShape::Direct => value,
+        ReturnShape::ContractAssertion => {
+            let ConstData::Bool(held) = value.data else {
+                return Err(RuntimeFault);
+            };
+            contract_assert_value(held)
+        }
     };
     if !charge_value(runtime, value_units_const(&value), limits.max_value_units) {
         return Ok(Err(ExecutionTermination::ResourceLimit(
@@ -619,6 +645,19 @@ struct Suspended<'a> {
     register_types: &'a [TypeExpr],
     pc: usize,
     result_register: usize,
+    shape: ReturnShape,
+}
+
+/// What the caller does with a returned value.
+///
+/// A `call_direct` frame writes the callee's value unchanged. A slice E7a
+/// `contract_assert` frame calls a `Bool` predicate and writes the contract
+/// result: `Ok(Unit)` when the predicate held and
+/// `Err(BuiltinFailure(ContractViolation, 1))` when it did not.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ReturnShape {
+    Direct,
+    ContractAssertion,
 }
 
 /// The code the current frame executes.
@@ -637,6 +676,7 @@ enum CallStep<'a> {
         child: Runtime,
         callee: &'a crate::BytecodeFunction,
         result_register: usize,
+        shape: ReturnShape,
     },
 }
 
@@ -663,6 +703,60 @@ fn prepare_call<'a>(
     let sley_ssmc::Immediate::Function(reference) = &instruction.immediate else {
         return Err(RuntimeFault);
     };
+    prepare_frame(
+        runtime,
+        limits,
+        instruction,
+        register_types,
+        lowered,
+        frames,
+        reference.function,
+        ReturnShape::Direct,
+    )
+}
+
+/// Prepares `contract_assert` (slice E7a): resolves the contract's predicate
+/// and enters it as an ordinary frame whose return the caller wraps.
+fn prepare_contract_assert<'a>(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    instruction: &crate::Instruction,
+    register_types: &[TypeExpr],
+    lowered: Option<&'a LoweredFunction>,
+    frames: usize,
+    contracts: &[sley_ssmc::ContractDefinition],
+) -> RuntimeResult<CallStep<'a>> {
+    let sley_ssmc::Immediate::Entity(contract) = &instruction.immediate else {
+        return Err(RuntimeFault);
+    };
+    let definition = contracts
+        .iter()
+        .find(|candidate| candidate.entity_id == *contract)
+        .ok_or(RuntimeFault)?;
+    prepare_frame(
+        runtime,
+        limits,
+        instruction,
+        register_types,
+        lowered,
+        frames,
+        definition.predicate,
+        ReturnShape::ContractAssertion,
+    )
+}
+
+/// The frame mechanics both call shapes share.
+#[allow(clippy::too_many_arguments)]
+fn prepare_frame<'a>(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    instruction: &crate::Instruction,
+    register_types: &[TypeExpr],
+    lowered: Option<&'a LoweredFunction>,
+    frames: usize,
+    function: sley_id::EntityId,
+    shape: ReturnShape,
+) -> RuntimeResult<CallStep<'a>> {
     if frames.saturating_add(1) >= MAX_CALL_DEPTH {
         return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
             ResourceKind::CallDepth,
@@ -675,17 +769,23 @@ fn prepare_call<'a>(
     let callee = lowered
         .callees
         .iter()
-        .find(|callee| callee.function == reference.function)
-        .or_else(|| (lowered.bytecode.function == reference.function).then_some(&lowered.bytecode))
+        .find(|callee| callee.function == function)
+        .or_else(|| (lowered.bytecode.function == function).then_some(&lowered.bytecode))
         .ok_or(RuntimeFault)?;
     let [result_register] = instruction.results.as_slice() else {
         return Err(RuntimeFault);
     };
     let result_register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
     let result_type = register_types.get(result_register).ok_or(RuntimeFault)?;
-    if callee.result_type != *result_type
-        || instruction.operands.len() != callee.parameter_registers.len()
-    {
+    let declared_matches = match shape {
+        ReturnShape::Direct => callee.result_type == *result_type,
+        // The predicate answers `Bool`; the operation's register holds the
+        // contract result, so the two types are deliberately different.
+        ReturnShape::ContractAssertion => {
+            callee.result_type == TypeExpr::Bool && *result_type == contract_assert_type()
+        }
+    };
+    if !declared_matches || instruction.operands.len() != callee.parameter_registers.len() {
         return Err(RuntimeFault);
     }
     let mut child = Runtime {
@@ -716,7 +816,40 @@ fn prepare_call<'a>(
         child,
         callee,
         result_register,
+        shape,
     })
+}
+
+/// The exact slice E7a `contract_assert` result type.
+fn contract_assert_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Unit),
+        error: Box::new(TypeExpr::BuiltinFailure(
+            sley_ssmc::BuiltinFailureKind::ContractViolation,
+        )),
+    }
+}
+
+/// Wraps a predicate's answer in the contract result.
+fn contract_assert_value(held: bool) -> ConstValue {
+    let error = TypeExpr::BuiltinFailure(sley_ssmc::BuiltinFailureKind::ContractViolation);
+    ConstValue {
+        value_type: contract_assert_type(),
+        data: ConstData::Result(if held {
+            sley_ssmc::ResultConst::Ok(Box::new(ConstValue {
+                value_type: TypeExpr::Unit,
+                data: ConstData::Unit,
+            }))
+        } else {
+            sley_ssmc::ResultConst::Err(Box::new(ConstValue {
+                value_type: error,
+                data: ConstData::BuiltinFailure(sley_ssmc::BuiltinFailureValue {
+                    kind: sley_ssmc::BuiltinFailureKind::ContractViolation,
+                    code: 1,
+                }),
+            }))
+        }),
+    }
 }
 
 /// Executes one instruction under the extended profile: reads every operand,
@@ -1456,6 +1589,7 @@ mod tests {
                 constants: &[],
                 globals: &[],
                 functions: &[],
+                contracts: &[],
             }
         }
     }

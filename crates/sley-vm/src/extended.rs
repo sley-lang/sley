@@ -7,7 +7,8 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId};
 use sley_ssmc::{
-    BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition, FieldConst,
+    BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
+    ContractDefinition, ContractKind, FieldConst,
     FunctionGraph, FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst,
     NamedType, Opcode, Parameter, RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr,
     VariantCase, VariantConst, fingerprint::hash_validated_value,
@@ -77,6 +78,10 @@ pub struct LoweringContext<'a> {
     pub functions: &'a [FunctionGraph],
     /// Complete Parameter inventory (referenced function signatures).
     pub parameters: &'a [Parameter],
+    /// Complete Contract inventory (slice E7a `contract_assert`).
+    pub contracts: &'a [ContractDefinition],
+    /// The function whose operations are being judged (slice E7a).
+    pub function: EntityId,
 }
 
 /// Everything the extended semantics read or mutate during one execution.
@@ -120,6 +125,14 @@ pub fn check_result_type(result_type: &TypeExpr) -> Result<(), LowerError> {
         fail(LowerErrorCode::SignatureMismatch)
     } else {
         Ok(())
+    }
+}
+
+/// The exact `contract_assert` result type of slice E7a.
+fn contract_assert_result() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Unit),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::ContractViolation)),
     }
 }
 
@@ -604,6 +617,50 @@ pub fn judge_extended_operation(
                 return fail(LowerErrorCode::SignatureMismatch);
             }
             TypeExpr::FunctionRef(function_signature(context, reference.function)?)
+        }
+        Opcode::ContractAssert => {
+            // Slice E7a. `CONTRACT_TEST_PROFILE_V1.md` section 2 accepts this
+            // operation statically under epoch 1 and assigns predicate
+            // execution to S20-270, so the profile re-derives every rule
+            // rather than trusting the checker that already passed.
+            let Immediate::Entity(contract) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let definition = context
+                .contracts
+                .iter()
+                .find(|candidate| candidate.entity_id == *contract)
+                .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+            if !matches!(
+                definition.contract_kind,
+                ContractKind::Precondition | ContractKind::Postcondition | ContractKind::ResultPredicate
+            ) || definition.resource_limits.is_some()
+            {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            }
+            if definition.target != context.function || definition.predicate == definition.target {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            }
+            let predicate = context
+                .functions
+                .iter()
+                .find(|graph| graph.entity_id == definition.predicate)
+                .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
+            if !predicate.effects.is_empty() || !predicate.contracts.is_empty() {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            }
+            let signature = function_signature(context, definition.predicate)?;
+            if *signature.result != TypeExpr::Bool
+                || definition.bindings.len() != signature.parameters.len()
+                || operands.len() != signature.parameters.len()
+                || operands
+                    .iter()
+                    .zip(&signature.parameters)
+                    .any(|(operand, parameter)| *operand != parameter)
+            {
+                return fail(LowerErrorCode::SignatureMismatch);
+            }
+            contract_assert_result()
         }
         Opcode::CallDirect => {
             let Immediate::Function(reference) = immediate else {

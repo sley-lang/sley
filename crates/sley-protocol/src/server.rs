@@ -1746,6 +1746,7 @@ impl Server {
             constants: &entities.constants,
             globals: &entities.globals,
             functions: &entities.functions,
+            contracts: &entities.contracts,
         };
         let execution_request = ExecutionRequest { inputs, limits };
         let execution = execute_function(input(), execution_request.clone());

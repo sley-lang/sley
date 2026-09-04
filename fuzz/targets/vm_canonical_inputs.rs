@@ -21,7 +21,7 @@ const MAX_COLLECTION_ITEMS: usize = 4;
 const MAX_PAYLOAD_BYTES: usize = 32;
 const FIXTURE_COUNT: u8 = 9;
 /// Extended-profile fixtures, one per landed opcode family beyond E1.
-const EXTENDED_FIXTURE_COUNT: u8 = 7;
+const EXTENDED_FIXTURE_COUNT: u8 = 8;
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -147,6 +147,7 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         CacheProfile::EXTENDED_V1,
         &fixture.constants,
         &fixture.functions,
+        &fixture.contracts,
     );
     let first = execute_function(extended, request.clone());
     let second = execute_function(extended, request.clone());
@@ -161,6 +162,7 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         CacheProfile::RESTRICTED_V1,
         &fixture.constants,
         &fixture.functions,
+        &fixture.contracts,
     );
     assert!(
         execute_function(restricted, request.clone()).is_err(),
@@ -193,6 +195,8 @@ struct ExtendedFixture {
     fixture: VmFixture,
     constants: Vec<ConstantDefinition>,
     definitions: Vec<sley_ssmc::TypeDefinition>,
+    /// Contract inventory for the assertion family (slice E7a).
+    contracts: Vec<sley_ssmc::ContractDefinition>,
     /// Callee inventory for the direct-call family; the callee's parameters,
     /// blocks, and operations live in the fixture's own inventories, which the
     /// lowerer narrows per function.
@@ -215,6 +219,8 @@ fn extended_fixture(selector: u8) -> ExtendedFixture {
         5 => constant_fixture(5),
         // E6: a direct call to a zero-parameter callee.
         6 => call_fixture(6),
+        // E7a: one contract assertion over a Bool predicate.
+        7 => contract_fixture(7),
         _ => unreachable!(),
     }
 }
@@ -236,6 +242,7 @@ fn arithmetic_fixture(selector: u8, opcode: Opcode, width: IntegerWidth) -> Exte
         constants: Vec::new(),
         definitions: Vec::new(),
         functions: Vec::new(),
+        contracts: Vec::new(),
     }
 }
 
@@ -251,6 +258,7 @@ fn float_fixture(selector: u8, opcode: Opcode) -> ExtendedFixture {
         constants: Vec::new(),
         definitions: Vec::new(),
         functions: Vec::new(),
+        contracts: Vec::new(),
     }
 }
 
@@ -308,6 +316,7 @@ fn cell_fixture(selector: u8) -> ExtendedFixture {
         constants: Vec::new(),
         definitions: Vec::new(),
         functions: Vec::new(),
+        contracts: Vec::new(),
     }
 }
 
@@ -333,6 +342,7 @@ fn map_fixture(selector: u8) -> ExtendedFixture {
         constants: Vec::new(),
         definitions: Vec::new(),
         functions: Vec::new(),
+        contracts: Vec::new(),
     }
 }
 
@@ -357,6 +367,7 @@ fn constant_fixture(selector: u8) -> ExtendedFixture {
         }],
         definitions: Vec::new(),
         functions: Vec::new(),
+        contracts: Vec::new(),
     }
 }
 
@@ -411,6 +422,86 @@ fn call_fixture(selector: u8) -> ExtendedFixture {
         }],
         definitions: Vec::new(),
         functions: vec![callee_graph],
+        contracts: Vec::new(),
+    }
+}
+
+/// E7a: one `contract_assert` whose predicate answers the fuzzer's own Bool,
+/// so both the held and the violated arm are reachable from one byte.
+fn contract_fixture(selector: u8) -> ExtendedFixture {
+    let base = 300 + u32::from(selector) * 10;
+    let predicate = id(base + 20);
+    let predicate_block = id(base + 21);
+    let predicate_operation = id(base + 22);
+    let predicate_parameter = id(base + 23);
+    let contract = id(base + 24);
+    let mut fixture = operation_fixture(
+        base,
+        Opcode::ContractAssert,
+        Immediate::Entity(contract),
+        vec![TypeExpr::Bool],
+        TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::BuiltinFailure(
+                BuiltinFailureKind::ContractViolation,
+            )),
+        },
+    );
+    let target = fixture.function.entity_id;
+    let predicate_graph = function_body(
+        predicate,
+        vec![predicate_parameter],
+        TypeExpr::Bool,
+        predicate_block,
+    );
+    fixture.parameters.push(Parameter {
+        entity_id: predicate_parameter,
+        owner: predicate,
+        role: ParameterRole::Function,
+        ordinal: 0,
+        value_type: TypeExpr::Bool,
+    });
+    fixture.blocks.push(Block {
+        entity_id: predicate_block,
+        function: predicate,
+        parameters: Vec::new(),
+        operations: vec![predicate_operation],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: predicate_operation,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    });
+    fixture.operations.push(Operation {
+        entity_id: predicate_operation,
+        block: predicate_block,
+        ordinal: 0,
+        opcode: Opcode::BoolAnd,
+        operands: vec![
+            ValueRef::Parameter(predicate_parameter),
+            ValueRef::Parameter(predicate_parameter),
+        ],
+        result_types: vec![TypeExpr::Bool],
+        immediate: Immediate::None,
+    });
+    ExtendedFixture {
+        fixture,
+        constants: Vec::new(),
+        definitions: Vec::new(),
+        functions: vec![predicate_graph],
+        contracts: vec![sley_ssmc::ContractDefinition {
+            entity_id: contract,
+            target,
+            contract_kind: sley_ssmc::ContractKind::Precondition,
+            predicate,
+            bindings: vec![sley_ssmc::ContractBinding {
+                predicate_parameter: 0,
+                source: sley_ssmc::ContractSource::Parameter(id(base + 1)),
+            }],
+            resource_limits: None,
+        }],
     }
 }
 
@@ -496,6 +587,7 @@ impl VmFixture {
             constants: &[],
             globals: &[],
             functions: &[],
+            contracts: &[],
         }
     }
 
@@ -505,10 +597,12 @@ impl VmFixture {
         profile: CacheProfile,
         constants: &'a [ConstantDefinition],
         functions: &'a [sley_ssmc::FunctionGraph],
+        contracts: &'a [sley_ssmc::ContractDefinition],
     ) -> LoweringInput<'a> {
         LoweringInput {
             constants,
             functions,
+            contracts,
             ..self.lowering_input(types, profile)
         }
     }

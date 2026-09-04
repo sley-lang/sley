@@ -302,16 +302,15 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 8,
+    "contract_revision": 9,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
     "bytecode_magic": "SLEYBC02",
     "restricted_profile_unchanged": true,
     "new_stable_error_codes": 0,
-    "e7_excluded": true,
+    "e7_excluded": "PARTIAL_E7A_LANDED",
     "e7_opcodes": [
-      144,
       145,
       160,
       161,
@@ -412,6 +411,15 @@
         "fixture": "conformance/vm-extended/v1/accepted.json",
         "vectors": 2,
         "tests": 1
+      },
+      "E7a": {
+        "status": "IMPLEMENTED",
+        "opcodes": [
+          144
+        ],
+        "fixture": "conformance/vm-extended/v1/accepted.json",
+        "vectors": 2,
+        "tests": 2
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
@@ -427,7 +435,10 @@
     "judgment_entry": "sley_vm::judge_function_operations",
     "independent_oracle": "oracle/scb1/src/sley2_scb1_oracle/vm_extended.py",
     "independent_oracle_result": "PASS",
-    "container_rejection_vectors": 5
+    "container_rejection_vectors": 5,
+    "e7a_epoch_determination": "docs/spec/EPOCH_MIGRATION_POLICY_V1.md section 6 item 3a: PROFILE, no epoch required",
+    "e7a_phase_seven_boundary": "contract_assert stays outside S20-360 phase 7; the S20-240 checker keeps the CONTRACT_ASSERT_TYPE diagnosis at phase 10",
+    "e7a_campaign": "machineresearch/sley-2.0/s20-260-270-e7a-contract-assertion-campaign-2026-09-03.md"
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -1692,7 +1703,7 @@
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 751,
+    "generated_seed_count": 769,
     "synthetic_seed_grammar": "bounded fuzz-only typed VM input constructors v1",
     "runtime_evidence": "evidence/runtime/s20-700-vm-input-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
@@ -1702,7 +1713,7 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "extended_family_fixture_count": 7,
+    "extended_family_fixture_count": 8,
     "extended_family_lanes": [
       "E1 constant reference under the extended profile",
       "E2 checked integer add and divide",

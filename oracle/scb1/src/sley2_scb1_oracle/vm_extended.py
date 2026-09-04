@@ -77,6 +77,22 @@ IMMEDIATE_TAGS = {
 TERMINATOR_TAGS = {1: "Return", 2: "Branch", 3: "CondBranch", 4: "Switch", 5: "Trap"}
 
 
+# The opcodes the landed profile families may lower: E1 through E6 and slice
+# E7a. An artifact naming any other opcode is refused, so a lowerer that
+# quietly admitted an excluded E7 opcode would fail here independently.
+PROFILE_OPCODES = frozenset(
+    # The three restricted-profile Booleans, which the extended profile keeps.
+    [102, 103, 104]
+    + [1, 16, 17, 32, 33, 34, 35, 96, 97, 98, 99, 100, 101, 128, 129, 130, 131]
+    + [64, 65, 66, 67, 68, 69, 70, 71]
+    + [80, 81, 82, 83, 84, 85]
+    + [18, 19, 20, 21, 36, 37, 38, 39, 40]
+    + [176, 177, 178, 192, 193, 194]
+    + [112]
+    + [144]
+)
+
+
 class BytecodeError(Exception):
     """One exact independent decoding failure."""
 
@@ -289,6 +305,8 @@ def _decode_body(cursor: _Cursor) -> dict[str, Any]:
         instructions = []
         for _ in range(cursor.count()):
             opcode = cursor.u32()
+            if opcode not in PROFILE_OPCODES:
+                raise BytecodeError(f"opcode {opcode} is outside the landed profile families")
             operands = cursor.registers()
             results = cursor.registers()
             immediate = cursor.immediate()

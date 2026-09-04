@@ -21,7 +21,7 @@ DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
 IMPLEMENTED_STATUS = "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING"
 COMPLETE_STATUS = "S20_260_270_EXTENDED_COMPLETE"
-SLICES = ("E1", "E2", "E3", "E4", "E5", "E6")
+SLICES = ("E1", "E2", "E3", "E4", "E5", "E6", "E7a")
 SLICE_STATUSES = ("PENDING", "IN_PROGRESS", "IMPLEMENTED")
 SLICE_OPCODES = {
     "E1": [1, 16, 17, 32, 33, 34, 35, 96, 97, 98, 99, 100, 101, 128, 129, 130, 131],
@@ -30,6 +30,7 @@ SLICE_OPCODES = {
     "E4": [18, 19, 20, 21, 36, 37, 38, 39, 40],
     "E5": [176, 177, 178, 192, 193, 194],
     "E6": [112],
+    "E7a": [144],
 }
 SPEC_MARKERS = (
     "# VM Extended Opcode Profile v1",
@@ -44,7 +45,10 @@ SPEC_MARKERS = (
     "### E4 aggregates and maps (18 to 21, 36 to 40)",
     "### E5 cells, hashing, globals, references (176 to 178, 192 to 194)",
     "### E6 direct calls (112)",
-    "### E7 contracts, tests, effects, adapters, capabilities (144, 145, 160 to 162)",
+    "### E7a contract assertions (144)",
+    "### E7 tests, effects, adapters, capabilities (145, 160 to 162)",
+    "`Err(BuiltinFailure(ContractViolation, 1))`",
+    "stays outside S20-360 phase 7 operation analysis",
     "overflow 1, divide by zero 2, invalid shift 3",
     "`0x7fc00000`, `0x7ff8000000000000`",
     "## 4. Observation and reports",
@@ -57,7 +61,7 @@ ADR_MARKERS = (
     "3. **Immediates enter the bytecode explicitly**",
     "4. **Family slices.**",
     "5. **Execution-local values never persist.**",
-    "6. **E7 waits for its owners.**",
+    "6. **E7 waits for its owners, except where an owner already spoke.**",
     "7. **Staging.**",
 )
 WORK_PACKAGE_MARKERS = ("`docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md`", "ADR-0039")
@@ -103,12 +107,16 @@ def main() -> int:
         "bytecode_magic": "SLEYBC02",
         "restricted_profile_unchanged": True,
         "new_stable_error_codes": 0,
-        "e7_excluded": True,
+        # Slice E7a landed contract assertions; the rest of E7 stays excluded.
+        "e7_excluded": "PARTIAL_E7A_LANDED",
+        "e7_opcodes": [145, 160, 161, 162],
         "implementation_complete": status == COMPLETE_STATUS,
     }
     for key, value in expected.items():
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")
+    if section.get("e7a_epoch_determination", "").find("no epoch required") < 0:
+        problems.append("machine-summary:e7a-determination")
     slices = section.get("slices", {})
     if set(slices) != set(SLICES):
         problems.append("machine-summary:slices")

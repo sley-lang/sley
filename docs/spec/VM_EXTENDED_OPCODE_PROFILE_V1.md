@@ -1,11 +1,14 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 8 (2026-09-03);
+Status: S20-260/S20-270 full-profile contract draft, revision 9 (2026-09-03);
 Council review pending (Ariadne contract review, Nabu architecture review,
 Vulcan surface review). Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
-the judgment-only entry external owners use (section 3.1). Implementation lands in family slices E1 through E6 tracked in
-the machine summary; E7 is explicitly excluded until its owners exist.
+the judgment-only entry external owners use (section 3.1). Revision 9 lands
+slice E7a, `contract_assert` execution, which the S20-760 revision 2
+determination showed needs no schema epoch. Implementation lands in family
+slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
+stays excluded until its owners exist.
 
 ## Boundary
 
@@ -146,10 +149,54 @@ stack with a depth ceiling of 256 frames (`ResourceKind::CallDepth`, tag
 per call. Recursion within the ceiling is allowed; a callee's trap or
 resource termination terminates the whole execution.
 
-### E7 contracts, tests, effects, adapters, capabilities (144, 145, 160 to 162)
+### E7a contract assertions (144)
+
+`CONTRACT_TEST_PROFILE_V1.md` section 2 accepts `contract_assert` statically
+under epoch 1 and assigns predicate execution to S20-270 and report evidence
+to S20-290. This slice takes that assignment. It needs no schema epoch,
+because the opcode is already in the frozen epoch-1 table and this profile
+carries its own `lowering_profile` identity; `EPOCH_MIGRATION_POLICY_V1.md`
+section 6 records the determination.
+
+Judgment re-derives every rule rather than trusting the checker that already
+passed:
+
+- the immediate is `Entity(contract)` and resolves in the request's Contract
+  inventory, else `VM_LOWER_IMMEDIATE_MISMATCH`;
+- the contract kind is `Precondition`, `Postcondition`, or `ResultPredicate`
+  (the three epoch-1 supported kinds) and carries no resource ceiling;
+- the contract's `target` is the enclosing function and its `predicate` is a
+  different function that declares no effects and no contracts;
+- the predicate resolves with zero type parameters and returns exactly `Bool`;
+- the operands equal the predicate's parameter types in exact order, and the
+  binding count equals the parameter count, else
+  `VM_LOWER_SIGNATURE_MISMATCH`;
+- the single declared result is exactly
+  `Result<Unit, BuiltinFailure(ContractViolation)>`.
+
+Execution enters the predicate as an ordinary E6 frame: the same call-depth
+ceiling, the same shared fuel, instruction, value-unit, and cell budgets, and
+the same unwinding on a callee trap or resource termination. The caller wraps
+the answer rather than returning it: `true` yields `Ok(Unit)` and `false`
+yields `Err(BuiltinFailure(ContractViolation, 1))`, the only code the S20-210
+checker admits for that family. A violated contract is a value, never a trap:
+the caller decides what a failed assertion means.
+
+The predicate's frame is charged like any call, so one assertion over a
+one-operation predicate costs exactly five fuel.
+
+`contract_assert` stays outside S20-360 phase 7 operation analysis. Its static
+typing belongs to the S20-240 checker at phase 10, which reports the exact
+`CONTRACT_ASSERT_TYPE` diagnosis; phase 7 does not preempt an owner with a
+lowering code. The VM judges the operation again when it lowers, after
+validation has passed.
+
+### E7 tests, effects, adapters, capabilities (145, 160 to 162)
 
 Excluded from this revision: they answer `VM_LOWER_OPCODE_UNSUPPORTED`
 until S20-240 full, S20-280 full, and S20-380 full own their runtime.
+`test_observe` additionally needs a schema epoch, because epoch 1 rejects it
+outright rather than leaving its semantics open.
 
 ### 3.1 Judgment without lowering (revision 8)
 
@@ -191,7 +238,7 @@ report-grade finding closed.
 
 ## 6. Explicit exclusions
 
-This contract does not claim: E7; generic specialization or type
+This contract does not claim: E7 beyond slice E7a; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.

@@ -36,8 +36,13 @@ soon as a lane returns.
    matrix, repeat determinism, and a fuzz lane.
 5. **Execution-local values never persist.** Cells and E7 handles are
    rejected as results and never hashed.
-6. **E7 waits for its owners.** Contracts, tests, effects, adapters, and
-   capability narrowing stay unsupported until their runtime owners exist.
+6. **E7 waits for its owners, except where an owner already spoke.** Tests,
+   effects, adapters, and capability narrowing stay unsupported until their
+   runtime owners exist. Contract assertions do not wait: S20-240 already
+   accepts `contract_assert` statically under epoch 1 and assigns predicate
+   execution to S20-270, so slice E7a takes that assignment rather than
+   leaving an owned operation unimplemented. The static typing stays with
+   S20-240 at candidate phase 10; the VM owns only the execution.
 7. **Staging.** `scripts/check_vm_extended_opcode_profile.py` binds the
    contract, ADR, work-package rows, and the per-slice summary, and fails
    closed if `EXTENDED_V1` appears in the crate before a slice is allowed.

@@ -842,6 +842,7 @@ pub fn validate_candidate_bytes(
             constants: &program.constants,
             globals: &program.globals,
             functions: &program.functions,
+            contracts: &program.contracts,
         }) {
             Ok(judgment) => judgment,
             Err(error) => return renderer.finish_failure(operation_failure(&error)),

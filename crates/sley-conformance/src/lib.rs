@@ -1111,6 +1111,7 @@ mod tests {
                 constants: &[],
                 globals: &[],
                 functions: &[],
+                contracts: &[],
             }
         }
     }

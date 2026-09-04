@@ -9,8 +9,8 @@ use sley_check::{
 };
 use sley_id::{BytecodeCacheKey, EntityId};
 use sley_ssmc::{
-    Block, CaseKey, ConstantDefinition, FunctionGraph, GlobalValueDefinition, Immediate, Opcode,
-    Operation, Parameter, SwitchArgument, Terminator, TypeExpr, ValueRef,
+    Block, CaseKey, ConstantDefinition, ContractDefinition, FunctionGraph, GlobalValueDefinition,
+    Immediate, Opcode, Operation, Parameter, SwitchArgument, Terminator, TypeExpr, ValueRef,
 };
 
 use crate::{CacheProfile, LowerError, LowerErrorCode, derive_cache_key};
@@ -186,6 +186,8 @@ pub struct LoweringInput<'a> {
     pub globals: &'a [GlobalValueDefinition],
     /// Complete Function inventory (extended profile calls and references).
     pub functions: &'a [FunctionGraph],
+    /// Complete Contract inventory (extended profile `contract_assert`).
+    pub contracts: &'a [ContractDefinition],
 }
 
 /// Integrated earlier or lowering failure.
@@ -359,15 +361,24 @@ impl OwnedInventory {
     }
 }
 
-/// The Functions named by `call_direct` immediates of one lowered body.
-fn called_functions(bytecode: &BytecodeFunction) -> Vec<sley_id::EntityId> {
+/// The Functions one lowered body enters: `call_direct` callees (contract E6)
+/// and the predicates of `contract_assert` contracts (slice E7a).
+fn called_functions(
+    bytecode: &BytecodeFunction,
+    contracts: &[ContractDefinition],
+) -> Vec<sley_id::EntityId> {
     bytecode
         .blocks
         .iter()
         .flat_map(|block| block.instructions.iter())
-        .filter(|instruction| instruction.opcode == Opcode::CallDirect.tag())
-        .filter_map(|instruction| match &instruction.immediate {
-            Immediate::Function(reference) => Some(reference.function),
+        .filter_map(|instruction| match (&instruction.immediate, instruction.opcode) {
+            (Immediate::Function(reference), tag) if tag == Opcode::CallDirect.tag() => {
+                Some(reference.function)
+            }
+            (Immediate::Entity(contract), tag) if tag == Opcode::ContractAssert.tag() => contracts
+                .iter()
+                .find(|candidate| candidate.entity_id == *contract)
+                .map(|definition| definition.predicate),
             _ => None,
         })
         .collect()
@@ -380,7 +391,7 @@ fn lower_callees(
     entry: &BytecodeFunction,
     work: &mut u64,
 ) -> Result<Vec<BytecodeFunction>, LoweringError> {
-    let mut pending = called_functions(entry);
+    let mut pending = called_functions(entry, input.contracts);
     let mut done: BTreeMap<sley_id::EntityId, BytecodeFunction> = BTreeMap::new();
     while let Some(function) = pending.pop() {
         if function == input.function.entity_id || done.contains_key(&function) {
@@ -414,7 +425,7 @@ fn lower_callees(
         let maps = Maps::build(callee_input, work)?;
         judge_extended(callee_input, input, &maps, work)?;
         let bytecode = emit_function(callee_input, &maps, work)?;
-        pending.extend(called_functions(&bytecode));
+        pending.extend(called_functions(&bytecode, input.contracts));
         done.insert(function, bytecode);
     }
     Ok(done.into_values().collect())
@@ -631,6 +642,8 @@ fn judge_extended(
         globals: root.globals,
         functions: root.functions,
         parameters: root.parameters,
+        contracts: root.contracts,
+        function: input.function.entity_id,
     };
     for block_id in &input.function.blocks {
         let block = maps.blocks.get(block_id).ok_or_else(local_error)?.0;
@@ -1103,6 +1116,7 @@ mod tests {
                 constants: &[],
                 globals: &[],
                 functions: &[],
+                contracts: &[],
             }
         }
     }

@@ -633,7 +633,7 @@
       "sums_file": true
     },
     {
-      "claim": "s20-260-270-vm-extended-e1-e6-conformance",
+      "claim": "s20-260-270-vm-extended-e1-e6-and-e7a-conformance",
       "contract": "sley2-vm-extended-opcode-profile-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
@@ -645,12 +645,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "0441d56d67c9684f47a8c93e63d44fd29476a95211422d66469a7b1e2336a8b5"
+          "sha256": "1902897a0f49a944805f2cdbb2dfbb4920db080dcef4c1ab98b38d5dfd711384"
         },
         {
-          "bytes": 19600,
+          "bytes": 22063,
           "name": "accepted.json",
-          "sha256": "12b9967117e09f5531ca4842bddec5c52eb3c7f5bc780d5fcde576acc39a5148"
+          "sha256": "40bdf24ed10ea71e63f7b0f43a7d452540e76fba931c04c1786e329274a75106"
         },
         {
           "bytes": 3584,
@@ -660,7 +660,7 @@
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 19
+          "vectors": 21
         },
         "rejected.json": {
           "mutations": 5
@@ -688,7 +688,7 @@
     "problems": [],
     "python_sources": 9
   },
-  "report_digest": "6d92c2bbdf1aa60a7016af4691ec3bd44fa076f9d1e80d81d5b462beb6aa3c30",
+  "report_digest": "b9f0efb59eee9144e77d00a23be5c4a66bb7c19c2db4ffd0dba3353239de1972",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

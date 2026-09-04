@@ -8,9 +8,10 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
+    ContractBinding, ContractDefinition, ContractKind, ContractSource,
     FieldConst, FunctionGraph, FunctionRefValue, FunctionType, GlobalValueDefinition, Immediate,
     IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode, Operation, OperationResultRef,
-    Parameter, ParameterRole, Reachability, RecordConst, RecordField, ResultConst,
+    Parameter, ParameterRole, Reachability, RecordConst, RecordField, ResourceLimits, ResultConst,
     ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase,
     VariantConst, VariantImmediate, Visibility, fingerprint::hash_validated_value,
 };
@@ -91,6 +92,7 @@ struct Fixture {
     constants: Vec<ConstantDefinition>,
     globals: Vec<GlobalValueDefinition>,
     functions: Vec<FunctionGraph>,
+    contracts: Vec<ContractDefinition>,
 }
 
 impl Fixture {
@@ -190,6 +192,7 @@ impl Fixture {
             constants,
             globals: Vec::new(),
             functions: Vec::new(),
+            contracts: Vec::new(),
         }
     }
 
@@ -200,6 +203,11 @@ impl Fixture {
     ) -> Self {
         self.globals = globals;
         self.constants.extend(constants);
+        self
+    }
+
+    fn with_contracts(mut self, contracts: Vec<ContractDefinition>) -> Self {
+        self.contracts = contracts;
         self
     }
 
@@ -237,6 +245,7 @@ impl Fixture {
             constants: &self.constants,
             globals: &self.globals,
             functions: &self.functions,
+            contracts: &self.contracts,
         }
     }
 }
@@ -706,7 +715,7 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
             Fixture::new(
                 &[u64_type()],
                 &[step(
-                    Opcode::ContractAssert,
+                    Opcode::EffectRequest,
                     vec![Arg::P(0)],
                     Immediate::None,
                     u64_type(),
@@ -716,7 +725,7 @@ fn e1_rejection_matrix_names_the_frozen_lowering_codes() {
             LowerErrorCode::OpcodeUnsupported,
         ),
         (
-            "an E7 opcode",
+            "an E7 opcode that slice E7a did not land",
             Fixture::new(
                 &[TypeExpr::Bool],
                 &[step(
@@ -2058,6 +2067,270 @@ fn e5_cells_hashes_globals_and_references_follow_the_contract() {
     );
 }
 
+/// Function 61: `(a) -> a and a`, a `Bool` contract predicate.
+fn bool_predicate() -> Fixture {
+    Fixture::with_base(
+        60,
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::BoolAnd,
+            vec![Arg::P(0), Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// Function 61 again, answering a tuple instead of `Bool`.
+fn tuple_predicate() -> Fixture {
+    Fixture::with_base(
+        60,
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::TupleNew,
+            vec![Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Tuple(vec![TypeExpr::Bool]),
+        )],
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+/// The exact slice E7a result type.
+fn assertion_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Unit),
+        error: Box::new(TypeExpr::BuiltinFailure(
+            BuiltinFailureKind::ContractViolation,
+        )),
+    }
+}
+
+fn assertion_value(held: bool) -> ConstValue {
+    ConstValue {
+        value_type: assertion_type(),
+        data: ConstData::Result(if held {
+            ResultConst::Ok(Box::new(ConstValue {
+                value_type: TypeExpr::Unit,
+                data: ConstData::Unit,
+            }))
+        } else {
+            ResultConst::Err(Box::new(ConstValue {
+                value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::ContractViolation),
+                data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                    kind: BuiltinFailureKind::ContractViolation,
+                    code: 1,
+                }),
+            }))
+        }),
+    }
+}
+
+/// One `Precondition` on the entry function, discharged by function 61.
+fn precondition(target: EntityId, predicate: EntityId) -> ContractDefinition {
+    ContractDefinition {
+        entity_id: id(200),
+        target,
+        contract_kind: ContractKind::Precondition,
+        predicate,
+        bindings: vec![ContractBinding {
+            predicate_parameter: 0,
+            source: ContractSource::Parameter(id(10)),
+        }],
+        resource_limits: None,
+    }
+}
+
+/// The entry asserts one contract over its own `Bool` parameter.
+fn asserting_entry() -> Fixture {
+    let entry = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::ContractAssert,
+            vec![Arg::P(0)],
+            Immediate::Entity(id(200)),
+            assertion_type(),
+        )],
+        Vec::new(),
+    );
+    let target = entry.function.entity_id;
+    let predicate = bool_predicate();
+    let predicate_id = predicate.function.entity_id;
+    entry
+        .with_callee(predicate)
+        .with_contracts(vec![precondition(target, predicate_id)])
+}
+
+#[test]
+fn e7a_contract_assertions_call_the_predicate_and_carry_its_verdict() {
+    let fixture = asserting_entry();
+    assert_eq!(
+        success(&fixture, vec![boolean(true)]),
+        assertion_value(true),
+        "a predicate that holds yields Ok(Unit)"
+    );
+    assert_eq!(
+        success(&fixture, vec![boolean(false)]),
+        assertion_value(false),
+        "a predicate that fails yields the contract violation, not a trap"
+    );
+    // The predicate frame is a real call charged against the caller's budget:
+    // the assertion and the predicate's own operation both count, so a
+    // one-instruction ceiling cannot cover the pair.
+    let ceiling = |max_fuel: u64| {
+        execute_function(
+            fixture.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![boolean(true)],
+                limits: ExecutionLimits {
+                    max_fuel,
+                    ..limits()
+                },
+            },
+        )
+        .expect("executes")
+        .termination
+    };
+    // Exactly five fuel: the assertion's own dispatch, the frame, the
+    // predicate's operation, and both terminators. Four refuses, and the
+    // refusal is a resource limit rather than a violation.
+    assert_eq!(ceiling(4), ExecutionTermination::ResourceLimit(ResourceKind::Fuel));
+    assert_eq!(ceiling(5), ExecutionTermination::Success(assertion_value(true)));
+    // Deterministic across repetitions.
+    for _ in 0..128 {
+        assert_eq!(success(&fixture, vec![boolean(false)]), assertion_value(false));
+    }
+}
+
+#[test]
+fn e7a_rejection_matrix_names_the_frozen_lowering_codes() {
+    let entry = || {
+        Fixture::new(
+            &[TypeExpr::Bool],
+            &[step(
+                Opcode::ContractAssert,
+                vec![Arg::P(0)],
+                Immediate::Entity(id(200)),
+                assertion_type(),
+            )],
+            Vec::new(),
+        )
+    };
+    let target = entry().function.entity_id;
+    let predicate_id = bool_predicate().function.entity_id;
+
+    let no_contract = entry().with_callee(bool_predicate());
+    assert_eq!(
+        lowering_code(&no_contract),
+        LowerErrorCode::ImmediateMismatch,
+        "an immediate naming no contract"
+    );
+
+    let mut wrong_target = precondition(target, predicate_id);
+    wrong_target.target = id(250);
+    assert_eq!(
+        lowering_code(
+            &entry()
+                .with_callee(bool_predicate())
+                .with_contracts(vec![wrong_target])
+        ),
+        LowerErrorCode::ImmediateMismatch,
+        "a contract that targets another function"
+    );
+
+    let mut unsupported_kind = precondition(target, predicate_id);
+    unsupported_kind.contract_kind = ContractKind::Invariant;
+    assert_eq!(
+        lowering_code(
+            &entry()
+                .with_callee(bool_predicate())
+                .with_contracts(vec![unsupported_kind])
+        ),
+        LowerErrorCode::ImmediateMismatch,
+        "a contract kind epoch 1 does not support"
+    );
+
+    let mut ceiling = precondition(target, predicate_id);
+    ceiling.resource_limits = Some(ResourceLimits {
+        fuel: 1,
+        memory_bytes: 1,
+        output_bytes: 1,
+        effect_count: 0,
+        call_depth: 1,
+        wall_timeout_millis: 1,
+    });
+    assert_eq!(
+        lowering_code(
+            &entry()
+                .with_callee(bool_predicate())
+                .with_contracts(vec![ceiling])
+        ),
+        LowerErrorCode::ImmediateMismatch,
+        "a contract carrying a resource ceiling"
+    );
+
+    // A predicate that answers something other than Bool.
+    let tuple_predicate_id = tuple_predicate().function.entity_id;
+    assert_eq!(
+        lowering_code(
+            &entry()
+                .with_callee(tuple_predicate())
+                .with_contracts(vec![precondition(target, tuple_predicate_id)])
+        ),
+        LowerErrorCode::SignatureMismatch,
+        "a predicate that does not answer Bool"
+    );
+
+    // Operands that do not equal the predicate parameters.
+    assert_eq!(
+        lowering_code(
+            &Fixture::new(
+                &[TypeExpr::Bool],
+                &[step(
+                    Opcode::ContractAssert,
+                    vec![],
+                    Immediate::Entity(id(200)),
+                    assertion_type(),
+                )],
+                Vec::new(),
+            )
+            .with_callee(bool_predicate())
+            .with_contracts(vec![precondition(target, predicate_id)])
+        ),
+        LowerErrorCode::SignatureMismatch,
+        "operands that do not equal the predicate parameters"
+    );
+
+    // The declared result must be the exact contract result type.
+    assert_eq!(
+        lowering_code(
+            &Fixture::new(
+                &[TypeExpr::Bool],
+                &[step(
+                    Opcode::ContractAssert,
+                    vec![Arg::P(0)],
+                    Immediate::Entity(id(200)),
+                    TypeExpr::Bool,
+                )],
+                Vec::new(),
+            )
+            .with_callee(bool_predicate())
+            .with_contracts(vec![precondition(target, predicate_id)])
+        ),
+        LowerErrorCode::SignatureMismatch,
+        "a declared result that is not the contract result"
+    );
+
+    // The restricted profile still refuses the opcode itself.
+    assert!(matches!(
+        lower_function(entry().input(CacheProfile::RESTRICTED_V1)).unwrap_err(),
+        LoweringError::Lower(error) if error.code() == LowerErrorCode::OpcodeUnsupported
+    ));
+}
+
 fn call(function: u8) -> Immediate {
     Immediate::Function(FunctionRefValue {
         function: id(function),
@@ -2523,6 +2796,13 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
                 Vec::new(),
             ),
             vec![text("bad")],
+        ),
+        // Slice E7a: the same assertion, once holding and once violated.
+        ("contract-assert-holds", asserting_entry(), vec![boolean(true)]),
+        (
+            "contract-assert-violated",
+            asserting_entry(),
+            vec![boolean(false)],
         ),
     ];
     for (label, fixture, inputs) in vectors {
