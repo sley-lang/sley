@@ -6,6 +6,8 @@ import hashlib
 import json
 import tempfile
 import unittest
+
+from bench.sley2 import runner
 from pathlib import Path
 
 from bench.raw.runner import PLAN_PATH, canonical_json_bytes, manifest_digest, write_run_manifest
@@ -333,3 +335,36 @@ class HandleReflectionTests(unittest.TestCase):
             reflected_privileged_names(module.__dict__["Hostile"]()),
             {"subprocess", "Endpoint"},
         )
+
+
+class MetricSourceTests(unittest.TestCase):
+    """No metric has two sources, and the arm never grades itself.
+
+    The adapter's observation used to take precedence over the oracle's
+    judgement for stale_candidates, stale_candidates_incorrectly_accepted,
+    collateral_semantic_changes and invalid_committed_states, so the arm under
+    test reported its own correctness. Raised by ariadne and vulcan.
+    """
+
+    def test_the_two_sources_do_not_overlap(self):
+        self.assertEqual(
+            set(runner.ADAPTER_OWNED_METRICS) & set(runner.ORACLE_OWNED_METRICS),
+            set(),
+        )
+
+    def test_correctness_metrics_belong_to_the_oracle(self):
+        for name in (
+            "stale_candidates",
+            "stale_candidates_incorrectly_accepted",
+            "collateral_semantic_changes",
+            "invalid_committed_states",
+        ):
+            self.assertIn(name, runner.ORACLE_OWNED_METRICS)
+            self.assertNotIn(name, runner.ADAPTER_OWNED_METRICS)
+
+    def test_a_hostile_self_report_is_not_a_number(self):
+        # Anything an adapter could send to flatter itself resolves to zero
+        # rather than to the value it asked for.
+        for hostile in (-1, True, "0", None, 1.5, [0]):
+            self.assertEqual(runner._whole_number(hostile), 0)
+        self.assertEqual(runner._whole_number(7), 7)

@@ -87,6 +87,30 @@ reflects reaches both. Two things follow, and both are contract:
 An arm's result therefore rests on the adapter being cooperative, and the trace
 is what makes a breach visible after the fact rather than impossible.
 
+`context_bytes` counts every body the agent received. Counting only `capsule`
+and `query.*` understated the arm under test, because `refs.list`,
+`handle.expand`, `candidate.inspect`, `compare`, `revision.read`, `execute`,
+`report` and `diagnostics` bodies are context the agent read exactly as a
+capsule is, and master goal 21.6 forbids unreported extra context.
+
+`derive_context_breakdown` records how that total divides (`capsule_bytes` and
+`non_capsule_context_bytes`) in this work package's own evidence. It is
+deliberately **not** added to the benchmark plan's metric field set: that set is
+an S20-610 cross-arm fairness control, and one arm widening it is the shared
+control drift S20-610 rejects. An arm that needs the split as a reported metric
+must have S20-610 amend the plan.
+
+Every injected metric has exactly one source, and the two sets do not overlap.
+`model_input_tokens` and `model_output_tokens` come from the adapter's
+observation, because only the adapter knows its own usage. The correctness and
+resource metrics (`stale_candidates`, `stale_candidates_incorrectly_accepted`,
+`collateral_semantic_changes`, `invalid_committed_states`, `peak_memory`,
+`canonical_storage_bytes`, `pack_bytes`, `execution_latency`) come from the
+oracle's judgement only. An arm never reports its own correctness or cost: the
+observation used to take precedence over the judgement, which let the arm under
+test grade itself and report zero against its own interest. A value that is not
+a non-negative integer is zero, so a hostile self-report cannot become a score.
+
 ## 3. Complete trace
 
 Each trial writes one append-only file `<run>/sley2/<trial_id>.trace.jsonl`
@@ -113,7 +137,7 @@ Trace-derived quantities are computed only from frame records:
 | Metric | Derivation |
 |---|---|
 | `tool_calls` | session-scoped request frames other than the runner's `session.close` |
-| `context_bytes` | body bytes of every response to `capsule` and `query.*` |
+| `context_bytes` | body bytes of every response and event the agent received, whatever the method |
 | `entities_inspected` | sum of `bounds.returned_entities` over responses |
 | `relationships_inspected` | sum of `bounds.returned_edges` over responses |
 | `compile_or_check_attempts` | `candidate.validate` requests |

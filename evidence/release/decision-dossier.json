@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "776ac5d9f0514917c176dbe97e5ac8998d7c9c5ca29428904274364ac29afe5f",
+  "dossier_digest": "8ca061314642f50d63e11b89c6634295e550d519098571ef2b661577381d1351",
   "entries": [
     {
       "evidence": [
@@ -139,7 +139,7 @@
         "conformance_rejections": 172,
         "conformance_vectors": 352,
         "persistent_fuzz_targets": 20,
-        "python_tests": 90,
+        "python_tests": 93,
         "rust_ignored_emitters": 13,
         "rust_unit_tests": 1019
       }
@@ -444,7 +444,7 @@
       }
     }
   ],
-  "entries_digest": "a1dfdac4f1471d4dc43353bc12a2e4b2748c57273a7fce9f9e67f7848f09dadb",
+  "entries_digest": "fd66b2c2bf0575cd4cfc764a29289ac8499d4cb6dd194c01afdc37a34af47b15",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

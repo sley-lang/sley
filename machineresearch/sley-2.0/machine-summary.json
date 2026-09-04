@@ -2258,9 +2258,11 @@
     "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
     "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md",
-    "p0_open_count": 9,
+    "p0_open_count": 7,
     "p0_closed": [
-      "the two-operation handle was not a capability boundary: exchange.__func__.__globals__ reached Endpoint, subprocess, Trace and Path and _exchange.__closure__ reached the live session, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' were false; raised independently by ariadne, nabu and vulcan. EndpointHandle now lives in a module importing nothing privileged (reflected_privileged_names is empty and gated per trial and in the checker), and the contract states the irreducible closure residual as trust rather than denying it"
+      "the two-operation handle was not a capability boundary: exchange.__func__.__globals__ reached Endpoint, subprocess, Trace and Path and _exchange.__closure__ reached the live session, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' were false; raised independently by ariadne, nabu and vulcan. EndpointHandle now lives in a module importing nothing privileged (reflected_privileged_names is empty and gated per trial and in the checker), and the contract states the irreducible closure residual as trust rather than denying it",
+      "context_bytes counted only capsule and query.* bodies while the agent also received refs.list, handle.expand, candidate.inspect, compare, revision.read, execute, report and diagnostics bodies, understating the arm under test against master goal 21.6; it now counts every body the agent received, and derive_context_breakdown records the split in this package's own evidence rather than widening the S20-610 metric field set",
+      "the adapter's observation took precedence over the oracle's judgement for stale_candidates, stale_candidates_incorrectly_accepted, collateral_semantic_changes and invalid_committed_states, so the arm under test graded itself; every injected metric now has exactly one source and a value that is not a non-negative integer is zero"
     ]
   },
   "succession_accounting": {

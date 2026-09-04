@@ -70,6 +70,21 @@ METHOD_TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 PLAN_PATH = ROOT / "bench/benchmark-plan.json"
 CORPUS_PATH = ROOT / "bench/corpus/v1/tasks.json"
 DEFAULT_SLEY = ROOT / "target/debug/sley"
+# Only the adapter knows its own token usage, so it is the sole source for
+# these and for nothing else.
+ADAPTER_OWNED_METRICS = ("model_input_tokens", "model_output_tokens")
+# Everything that grades the arm, or measures what the arm cost, comes from the
+# oracle's judgement. An arm never reports its own correctness or resource use.
+ORACLE_OWNED_METRICS = (
+    "peak_memory",
+    "canonical_storage_bytes",
+    "pack_bytes",
+    "execution_latency",
+    "stale_candidates",
+    "stale_candidates_incorrectly_accepted",
+    "collateral_semantic_changes",
+    "invalid_committed_states",
+)
 CONTEXT_METHODS = frozenset({"capsule", "query.root", "query.continue", "query.restricted"})
 TRIAL_STATUSES = frozenset({"accepted", "rejected", "timeout", "harness_failure"})
 AGENT_REQUEST_FIELDS = frozenset({"method", "body", "cancel"})
@@ -473,6 +488,13 @@ def verify_trace(path: Path, manifest_digest_value: str) -> list[dict[str, Any]]
     return records
 
 
+def _whole_number(value: Any) -> int:
+    """One non-negative integer, or zero for anything else."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
+
+
 def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
     """The ten metrics that come only from frame records (contract section 3)."""
 
@@ -496,8 +518,13 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         bounds = frame.get("bounds", {})
         entities += int(bounds.get("returned_entities", 0))
         relationships += int(bounds.get("returned_edges", 0))
-        if frame.get("method") in CONTEXT_METHODS:
-            context_bytes += len(frame.get("body", "")) // 2
+        # Every body the agent received is context it read, whatever the method:
+        # refs.list, handle.expand, candidate.inspect, compare, revision.read,
+        # execute, report and diagnostics are context exactly as capsules are.
+        # Counting only capsule and query.* understated the arm under test,
+        # which master goal 21.6 forbids. capsule_bytes keeps the narrower
+        # measure so the two are comparable rather than conflated.
+        context_bytes += len(frame.get("body", "")) // 2
         if direction == "response" and frame.get("method") == "candidate.validate" and frame["flags"].get("failed"):
             validate_failures += 1
     return {
@@ -511,6 +538,34 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         "relationships_inspected": relationships,
         "repair_loops": validate_failures,
         "tool_calls": tool_calls,
+    }
+
+
+def derive_context_breakdown(records: list[dict[str, Any]]) -> dict[str, int]:
+    """How `context_bytes` divides, recorded by S20-620 rather than reported as a metric.
+
+    `context_bytes` counts every body the agent received. The narrower capsule
+    and `query.*` total is the number the earlier implementation reported as
+    the whole, so keeping it visible is what makes the two comparable. It is
+    not added to the shared benchmark plan's metric field set: that set is an
+    S20-610 cross-arm fairness control, and widening it from inside one arm is
+    the drift the S20-620 review objects to elsewhere.
+    """
+
+    context_bytes = 0
+    capsule_bytes = 0
+    for record in records:
+        if record.get("kind") != "frame" or record.get("direction") == "request":
+            continue
+        frame = record["frame"]
+        body_bytes = len(frame.get("body", "")) // 2
+        context_bytes += body_bytes
+        if frame.get("method") in CONTEXT_METHODS:
+            capsule_bytes += body_bytes
+    return {
+        "context_bytes": context_bytes,
+        "capsule_bytes": capsule_bytes,
+        "non_capsule_context_bytes": context_bytes - capsule_bytes,
     }
 
 
@@ -873,20 +928,14 @@ def run_scripted_trial(
     plan, _ = _plan_and_corpus()
     metrics: dict[str, Any] = {name: 0 for name in plan["metrics"]}
     metrics.update(derived)
-    for name in (
-        "model_input_tokens",
-        "model_output_tokens",
-        "peak_memory",
-        "canonical_storage_bytes",
-        "pack_bytes",
-        "execution_latency",
-        "stale_candidates",
-        "stale_candidates_incorrectly_accepted",
-        "collateral_semantic_changes",
-        "invalid_committed_states",
-    ):
-        value = observation.get(name, judgement.get(name, 0)) if observation or judgement else 0
-        metrics[name] = int(value) if isinstance(value, int) and not isinstance(value, bool) else 0
+    # Every injected metric has exactly one source. The adapter's observation
+    # used to take precedence over the oracle's judgement for the correctness
+    # metrics, which let the arm under test grade itself and report zero
+    # against its own interest.
+    for name in ADAPTER_OWNED_METRICS:
+        metrics[name] = _whole_number(observation.get(name))
+    for name in ORACLE_OWNED_METRICS:
+        metrics[name] = _whole_number(judgement.get(name))
     metrics["total_observable_tokens"] = metrics["model_input_tokens"] + metrics["model_output_tokens"]
     metrics["wall_time"] = _utc_millis(started, ended)
     metrics["strict_accepted_correctness"] = status == "accepted"
