@@ -33,7 +33,9 @@
 - The adapter-response target is a fuzz-only typed fixture constructor over
   request-owned memory. It does not cover the authorized S20-380 wrapper, VM
   adapter opcodes, live host confinement, handle cleanup, or persistent
-  execution and replay reports.
+  execution and replay reports. Those persistent targets are still absent, and
+  the nineteen slices that do exist are a scoped subset of S20-700 rather than
+  its completion.
 - S20-350 is complete as a proposal-only construction boundary after ADR-0019
   aligned generic `Option<T>` with SCB1. Combined independent fixtures cover
   all eighteen bodies, seventy-five fields, recursive aggregates,

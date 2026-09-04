@@ -33,8 +33,13 @@ Two questions, applied to the whole tree:
 
 | 6 | `conformance/candidate-result/v1` carried no `SHA256SUMS` | It was the one corpus of nineteen whose bytes an independent party could not verify without running the generator | The generator emits the manifest, and the conformance report refuses a corpus without one |
 
-A seventh, smaller correction: a JSON bridge test paired the restricted query
+| 7 | The adapter-responses fuzz slice checker demanded a sentence no document carried | The slice failed whenever anyone ran it, and it runs in no aggregate target, so nothing noticed | The evidence-gaps document states the absent persistent targets, and `make persistent-fuzz-all` now runs all nineteen slices in one command |
+
+An eighth, smaller correction: a JSON bridge test paired the restricted query
 profile's code 31004 with an invented symbol.
+
+The first full run of all nineteen persistent slices took three minutes forty
+seconds and produced no artifact.
 
 ## Gates added
 

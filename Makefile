@@ -1,4 +1,4 @@
-.PHONY: evidence-refresh quick lint core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -288,6 +288,30 @@ s20-530-verify:
 
 check-changed: quick core conformance adversarial fuzz-smoke
 	@python3 scripts/check_changed.py
+
+# Every persistent libFuzzer slice in one run. Individual smokes stay the
+# Tier 2 choice for a focused change; this is the handoff and release form, so
+# a slice cannot rot unnoticed between the changes that touch it.
+persistent-fuzz-all:
+	$(MAKE) adapter-responses-persistent-fuzz-smoke
+	$(MAKE) candidate-result-persistent-fuzz-smoke
+	$(MAKE) complete-root-persistent-fuzz-smoke
+	$(MAKE) complete-root-snapshot-persistent-fuzz-smoke
+	$(MAKE) context-capsule-persistent-fuzz-smoke
+	$(MAKE) exchange-persistent-fuzz-smoke
+	$(MAKE) merge-persistent-fuzz-smoke
+	$(MAKE) mutation-candidate-persistent-fuzz-smoke
+	$(MAKE) pack-persistent-fuzz-smoke
+	$(MAKE) query-persistent-fuzz-smoke
+	$(MAKE) root-query-persistent-fuzz-smoke
+	$(MAKE) scb1-persistent-fuzz-smoke
+	$(MAKE) schema-persistent-fuzz-smoke
+	$(MAKE) semantic-checkers-persistent-fuzz-smoke
+	$(MAKE) semantic-delta-persistent-fuzz-smoke
+	$(MAKE) smp1-json-bridge-persistent-fuzz-smoke
+	$(MAKE) smp1-persistent-fuzz-smoke
+	$(MAKE) transaction-receipt-persistent-fuzz-smoke
+	$(MAKE) vm-persistent-fuzz-smoke
 
 v2 release-check:
 	@python3 scripts/gate_status.py $@

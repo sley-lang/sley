@@ -2829,7 +2829,7 @@
   "invariant_audit": {
     "campaign": "machineresearch/sley-2.0/s20-790-invariant-audit-campaign-2026-09-03.md",
     "date": "2026-09-03",
-    "findings": 7,
+    "findings": 8,
     "gates_added": [
       "scripts/check_error_symbol_registration.py",
       "scripts/check_declared_limits.py",
@@ -2840,5 +2840,15 @@
     "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
     "independent_review": "PENDING",
     "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one"
+  },
+  "persistent_fuzz_all": {
+    "target": "make persistent-fuzz-all",
+    "slices": 19,
+    "first_full_run": "2026-09-03",
+    "duration_seconds": 220,
+    "result": "PASS",
+    "artifacts": 0,
+    "found_on_first_run": "the adapter-responses slice checker demanded a sentence that machineresearch/sley-2.0/25-evidence-gaps.md never carried, so that slice had been failing whenever anyone ran it by name; it runs in no other target, which is why nothing noticed",
+    "tier": "Tier 2 handoff and the future release gate; a focused change still picks its relevant slices"
   }
 }
