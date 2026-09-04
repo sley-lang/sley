@@ -28,6 +28,13 @@ soon as a lane returns.
    immediates, result shapes, and builtin failure codes come from the
    epoch-1 manifest and S20-210; the profile adds rules only where the
    manifest leaves runtime meaning open (order, overflow, NaN, map order).
+   Where the profile depends on a property S20-210 deliberately does not
+   establish, it must verify that property rather than assume it. Ordered-map
+   entry order is the case: `TYPE_SYSTEM_V1.md` section 5 reserves the byte
+   ordering to the SCB codec, while `equal` and `value_hash` read it
+   structurally, so the profile asks the codec about every map it did not
+   build itself and refuses one with no canonical form. It does not sort the
+   value, which would put a second ordering authority in the VM.
 3. **Immediates enter the bytecode explicitly** so the derived stream
    still carries no local EntityId beyond the immediates the SSMC1 model
    already names.

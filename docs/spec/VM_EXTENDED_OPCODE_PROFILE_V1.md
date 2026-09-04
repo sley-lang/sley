@@ -124,6 +124,9 @@ and yields `Result<OrderedMap<K, V>, BuiltinFailure(DuplicateKey)>` with
 code 1 on a repeated key; `map_get` yields `Option<V>`; `map_contains`
 `Bool`; `map_insert` and `map_remove` yield the new map. Map order is the
 order of the keys' S20-350 canonical bytes, exactly as constants require.
+Maps the profile builds are sorted on construction; maps supplied from outside
+are required to arrive in that order, because `equal` and `value_hash` read it
+structurally.
 
 ### E5 cells, hashing, globals, references (176 to 178, 192 to 194)
 
@@ -292,7 +295,15 @@ S20-360 full operation analysis; or GA.
   lexicographic order of the keys' S20-350 canonical bytes, obtained
   through `sley_mutate::encode_const_value` (the VM crate now depends on
   the mutation crate, which the dependency direction allows), and
-  `map_insert` of an existing key replaces its value in place.
+  `map_insert` of an existing key replaces its value in place. That order
+  is a precondition on every value the profile does not build itself, and
+  S20-210 does not establish it (`TYPE_SYSTEM_V1.md` section 5), so the VM
+  verifies it against the same encoder where such a value is supplied: an
+  execution input with no canonical form is
+  `VM_EXEC_INPUT_NOT_CANONICAL` and a constant that `constant_ref` or
+  `global_get` names is `VM_LOWER_IMMEDIATE_MISMATCH`, checked after the
+  operation judgment so the frozen S20-260 failure order is unchanged. The
+  VM refuses such a value; it does not sort it.
 - E5: a `LocalCell` value exists only inside one execution: it may be an
   operand of `cell_get` and `cell_set` only, no other operation may take a
   cell or a type containing one, and a Function whose result type contains

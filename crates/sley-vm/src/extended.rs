@@ -9,9 +9,9 @@ use sley_id::{EntityId, SchemaEpochId};
 use sley_ssmc::{
     BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
     ContractDefinition, ContractKind, FieldConst, FunctionGraph, FunctionType,
-    GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, Parameter,
-    RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr, VariantCase, VariantConst,
-    fingerprint::hash_validated_value,
+    GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, Operation,
+    Parameter, RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr, VariantCase,
+    VariantConst, fingerprint::hash_validated_value,
 };
 
 use crate::{LowerError, LowerErrorCode};
@@ -176,6 +176,49 @@ fn global_initializer<'a>(
         .iter()
         .find(|candidate| candidate.entity_id == definition.initializer)?;
     (constant.value.value_type == definition.value_type).then_some((definition, constant))
+}
+
+/// Requires that every constant one Function's operations name has an exact
+/// S20-350 canonical form (contract E4).
+///
+/// `constant_ref` and `global_get` hand an artifact value straight to a
+/// register, and extended `equal` and `value_hash` read ordered-map entry
+/// order structurally. That order is established by the selected SCB
+/// encoder/decoder and deliberately not by S20-210, which never reimplements
+/// the byte order and never silently sorts a decoded constant
+/// (`TYPE_SYSTEM_V1.md` section 5). This asks the codec the same question
+/// instead of sorting the value or restating the order.
+///
+/// Only referenced constants are examined: one an operation cannot name can
+/// never reach a register. An immediate that resolves to nothing is the
+/// judgment's failure, not this one.
+///
+/// # Errors
+///
+/// `VM_LOWER_IMMEDIATE_MISMATCH` when a named constant has no canonical form.
+pub(crate) fn require_canonical_referenced_constants(
+    operations: &[Operation],
+    constants: &[ConstantDefinition],
+    globals: &[GlobalValueDefinition],
+) -> Result<(), LowerError> {
+    for operation in operations {
+        let named = match (operation.opcode, &operation.immediate) {
+            (Opcode::ConstantRef, Immediate::Entity(id)) => constants
+                .iter()
+                .find(|candidate| candidate.entity_id == *id)
+                .map(|constant| &constant.value),
+            (Opcode::GlobalGet, Immediate::Entity(id)) => {
+                global_initializer(globals, constants, *id).map(|(_, constant)| &constant.value)
+            }
+            _ => None,
+        };
+        if let Some(value) = named
+            && sley_mutate::encode_const_value(value).is_err()
+        {
+            return fail(LowerErrorCode::ImmediateMismatch);
+        }
+    }
+    Ok(())
 }
 
 fn named(definition: EntityId) -> TypeExpr {

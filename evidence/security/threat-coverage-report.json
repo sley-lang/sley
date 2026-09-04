@@ -2,8 +2,8 @@
   "by_severity": {
     "P0": {
       "PLANNED_EVIDENCE_PRESENT": 4,
-      "STRUCTURAL_CONTROL_RECORDED": 4,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 38
+      "STRUCTURAL_CONTROL_RECORDED": 3,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 39
     },
     "P1": {
       "PLANNED_EVIDENCE_PRESENT": 2,
@@ -15,12 +15,12 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "73dc9a7fae03d8726fb305a90604109f3dcf208e3c51598e37d6447c1550a122",
+  "report_digest": "34980f8abef58b4739b9836cdc893f33584c13de57b07e6ab28b422712d47632",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 6,
-    "STRUCTURAL_CONTROL_RECORDED": 4,
-    "SYMBOL_REALIZED_WITH_EXERCISE": 45
+    "STRUCTURAL_CONTROL_RECORDED": 3,
+    "SYMBOL_REALIZED_WITH_EXERCISE": 46
   },
   "threat_count": 55,
   "threats": [
@@ -859,12 +859,12 @@
       "related_family_symbols": [
         "VM_EXEC_CANCELLED",
         "VM_EXEC_INPUT_COUNT_MISMATCH",
+        "VM_EXEC_INPUT_NOT_CANONICAL",
         "VM_EXEC_INPUT_TYPE_MISMATCH",
         "VM_EXEC_INTERNAL_INVARIANT",
         "VM_EXEC_RESOURCE_LIMIT",
         "VM_EXEC_TRAP",
-        "VM_LOWER_CACHE_KEY_UNSUPPORTED",
-        "VM_LOWER_IMMEDIATE_MISMATCH"
+        "VM_LOWER_CACHE_KEY_UNSUPPORTED"
       ],
       "required_test": "clean/poisoned env equivalence",
       "searched_codes": [
@@ -968,31 +968,33 @@
     {
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 4,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_lowering_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-vm/src/execute.rs",
+          "crates/sley-vm/src/extended.rs",
+          "crates/sley-vm/src/lib.rs"
+        ]
+      },
       "owner": "sley-vm",
       "planned_evidence_path": "evidence/security/T33/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
+      "realized_code_recorded": true,
       "recorded_exercise": [
-        "check-vm-extended"
+        "check-vm-extended",
+        "e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing"
       ],
-      "related_family_symbols": [
-        "VM_EXEC_CANCELLED",
-        "VM_EXEC_INPUT_COUNT_MISMATCH",
-        "VM_EXEC_INPUT_TYPE_MISMATCH",
-        "VM_EXEC_INTERNAL_INVARIANT",
-        "VM_EXEC_RESOURCE_LIMIT",
-        "VM_EXEC_TRAP",
-        "VM_LOWER_CACHE_KEY_UNSUPPORTED",
-        "VM_LOWER_IMMEDIATE_MISMATCH"
-      ],
+      "related_family_symbols": [],
       "required_test": "repeated observation digests",
       "searched_codes": [
-        "VM_NONDETERMINISM_DETECTED"
+        "VM_EXEC_INPUT_NOT_CANONICAL",
+        "VM_LOWER_IMMEDIATE_MISMATCH"
       ],
       "severity": "P0",
-      "state": "STRUCTURAL_CONTROL_RECORDED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "VM nondeterminism"
     },
     {

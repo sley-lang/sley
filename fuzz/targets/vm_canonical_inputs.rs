@@ -74,7 +74,10 @@ fn fuzz_one(input: &[u8]) {
                     left.termination, right.termination,
                     "cross-profile termination drifted"
                 );
-                assert_ne!(left.cache_key, right.cache_key, "profiles shared a cache key");
+                assert_ne!(
+                    left.cache_key, right.cache_key,
+                    "profiles shared a cache key"
+                );
             }
             (Err(left), Err(right)) => assert_eq!(
                 left.to_string(),
@@ -90,6 +93,13 @@ fn fuzz_one(input: &[u8]) {
     // observation identity, and are refused by the restricted profile.
     if cursor.byte().is_multiple_of(3) {
         extended_family_lane(cursor.byte() % EXTENDED_FIXTURE_COUNT, &request);
+    }
+
+    // The map-order lane (E4): a supplied ordered map must arrive in the
+    // order of its keys' canonical bytes, because `equal` and `value_hash`
+    // read that order structurally.
+    if cursor.byte().is_multiple_of(2) {
+        map_order_lane(&mut cursor);
     }
 
     let first_hashes = validated_execution_input_hashes(lowering, &request);
@@ -138,6 +148,138 @@ fn fuzz_one(input: &[u8]) {
 }
 
 /// Runs one extended-family fixture under both profiles.
+/// E4: two representations of one semantic ordered map must never carry two
+/// identities.
+///
+/// S20-210 accepts a map in any entry order: `TYPE_SYSTEM_V1.md` section 5
+/// reserves the byte ordering to the SCB encoder/decoder and forbids the
+/// checker from reimplementing it or silently sorting a decoded constant. The
+/// extended profile reads entry order structurally, so a map supplied to the
+/// VM out of canonical order must be refused rather than compared or hashed.
+/// This lane builds one map, permutes its entries, and requires that the
+/// canonical order is equal to itself and hashes stably while every other
+/// order is refused.
+fn map_order_lane(cursor: &mut Cursor<'_>) {
+    let key_type = TypeExpr::UInt(IntegerWidth::from_bits(64));
+    let map_type = TypeExpr::OrderedMap {
+        key: Box::new(key_type),
+        value: Box::new(TypeExpr::Text),
+    };
+    let Some(canonical) = canonical_map(&map_type, cursor) else {
+        return;
+    };
+    let ConstData::Map(entries) = &canonical.data else {
+        unreachable!("canonical_map builds a map");
+    };
+    // One entry has only one order, so there is nothing to permute.
+    if entries.len() < 2 {
+        return;
+    }
+    let mut permuted = entries.clone();
+    let rotation = 1 + usize::from(cursor.byte()) % (permuted.len() - 1);
+    permuted.rotate_left(rotation);
+    let permuted = ConstValue {
+        value_type: map_type.clone(),
+        data: ConstData::Map(permuted),
+    };
+    assert_ne!(
+        canonical.data, permuted.data,
+        "a rotation must change the entry order"
+    );
+
+    let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
+    let equality = operation_fixture(
+        900,
+        Opcode::Equal,
+        Immediate::None,
+        vec![map_type.clone(), map_type.clone()],
+        TypeExpr::Bool,
+    );
+    let hashing = operation_fixture(
+        920,
+        Opcode::ValueHash,
+        Immediate::None,
+        vec![map_type],
+        TypeExpr::Bytes,
+    );
+    let run = |fixture: &VmFixture, inputs: Vec<ConstValue>| {
+        execute_function(
+            fixture.lowering_input(&types, CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs,
+                limits: generous_limits(),
+            },
+        )
+    };
+
+    // The canonical order is equal to itself and hashes the same every time.
+    let equal = run(&equality, vec![canonical.clone(), canonical.clone()])
+        .expect("a canonical map pair is accepted");
+    assert_eq!(
+        equal.termination,
+        sley_vm::ExecutionTermination::Success(ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(true),
+        }),
+        "a canonical map is not equal to itself"
+    );
+    assert_eq!(
+        run(&hashing, vec![canonical.clone()]).expect("a canonical map is hashable"),
+        run(&hashing, vec![canonical.clone()]).expect("a canonical map is hashable"),
+        "one canonical map hashed to two values"
+    );
+
+    // Every other order is refused before it can be compared or hashed.
+    for inputs in [
+        vec![canonical.clone(), permuted.clone()],
+        vec![permuted.clone(), canonical.clone()],
+        vec![permuted.clone(), permuted.clone()],
+    ] {
+        assert_eq!(
+            run(&equality, inputs).expect_err("a permuted map input must be refused"),
+            sley_vm::ExecutionError::Exec(sley_vm::ExecutionErrorCode::InputNotCanonical),
+            "a permuted map input reached equality"
+        );
+    }
+    assert_eq!(
+        run(&hashing, vec![permuted]).expect_err("a permuted map input must be refused"),
+        sley_vm::ExecutionError::Exec(sley_vm::ExecutionErrorCode::InputNotCanonical),
+        "a permuted map input reached value hashing"
+    );
+}
+
+/// Builds an ordered map whose entries carry distinct keys in the order of
+/// their canonical bytes, or `None` when the cursor yields no usable entry.
+fn canonical_map(map_type: &TypeExpr, cursor: &mut Cursor<'_>) -> Option<ConstValue> {
+    let TypeExpr::OrderedMap { key, value } = map_type else {
+        return None;
+    };
+    let mut entries: Vec<sley_ssmc::MapEntryConst> = Vec::new();
+    for _ in 0..cursor.bounded(MAX_COLLECTION_ITEMS) {
+        let entry = sley_ssmc::MapEntryConst {
+            key: canonical_value(key, cursor),
+            value: canonical_value(value, cursor),
+        };
+        if entries.iter().all(|existing| existing.key != entry.key) {
+            entries.push(entry);
+        }
+    }
+    if entries.is_empty() {
+        return None;
+    }
+    // The canonical order is the order of the keys' S20-350 bytes; a key the
+    // codec cannot encode has no place in the order at all.
+    let mut keyed = Vec::with_capacity(entries.len());
+    for entry in entries {
+        keyed.push((sley_mutate::encode_const_value(&entry.key).ok()?, entry));
+    }
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    Some(ConstValue {
+        value_type: map_type.clone(),
+        data: ConstData::Map(keyed.into_iter().map(|(_, entry)| entry).collect()),
+    })
+}
+
 fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
     let fixture = extended_fixture(selector);
     let types = TypeEnvironment::new(fixture.definitions.clone())
@@ -169,10 +311,8 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         "the restricted profile accepted an extended family opcode"
     );
 
-    if let (Ok(hashes), Ok(outcome)) = (
-        validated_execution_input_hashes(extended, request),
-        first,
-    ) {
+    if let (Ok(hashes), Ok(outcome)) = (validated_execution_input_hashes(extended, request), first)
+    {
         assert_eq!(
             derive_observation_id(
                 extended,
@@ -553,7 +693,11 @@ fn operation_fixture(
             block,
             ordinal: 0,
             opcode,
-            operands: parameter_ids.iter().copied().map(ValueRef::Parameter).collect(),
+            operands: parameter_ids
+                .iter()
+                .copied()
+                .map(ValueRef::Parameter)
+                .collect(),
             result_types: vec![result_type],
             immediate,
         }],
@@ -749,6 +893,8 @@ fn canonical_value(value_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue
         TypeExpr::Bool => ConstData::Bool(cursor.byte().is_multiple_of(2)),
         TypeExpr::Bytes => ConstData::Bytes(payload_bytes(cursor)),
         TypeExpr::Text => ConstData::Text(payload_text(cursor)),
+        TypeExpr::UInt(width) => ConstData::UInt(in_width_uint(*width, cursor)),
+        TypeExpr::SInt(width) => ConstData::SInt(in_width_sint(*width, cursor)),
         TypeExpr::Option(inner) => {
             if cursor.byte().is_multiple_of(2) {
                 ConstData::Option(None)
@@ -769,6 +915,31 @@ fn canonical_value(value_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue
         value_type: value_type.clone(),
         data,
     }
+}
+
+/// An unsigned value inside an epoch-1 width, so S20-210 accepts it.
+fn in_width_uint(width: IntegerWidth, cursor: &mut Cursor<'_>) -> u128 {
+    let bits = u32::from(width.bits());
+    let raw = cursor.u128();
+    if bits == 0 || bits > 128 {
+        return raw;
+    }
+    if bits == 128 {
+        raw
+    } else {
+        raw % (1_u128 << bits)
+    }
+}
+
+/// A signed value inside an epoch-1 width, so S20-210 accepts it.
+fn in_width_sint(width: IntegerWidth, cursor: &mut Cursor<'_>) -> i128 {
+    let bits = u32::from(width.bits());
+    let raw = cursor.i128();
+    if bits == 0 || bits >= 128 {
+        return raw;
+    }
+    let span = 1_i128 << (bits - 1);
+    raw.rem_euclid(span << 1) - span
 }
 
 fn raw_value(cursor: &mut Cursor<'_>) -> ConstValue {
@@ -839,6 +1010,18 @@ fn raw_data(cursor: &mut Cursor<'_>) -> ConstData {
             }
         }
         _ => unreachable!(),
+    }
+}
+
+/// Limits large enough that a one-operation fixture always runs to a result,
+/// so this lane observes the input judgment rather than a ceiling.
+fn generous_limits() -> ExecutionLimits {
+    ExecutionLimits {
+        max_instructions: 1_000,
+        max_fuel: 100_000,
+        max_value_units: 10_000_000,
+        max_output_units: 10_000_000,
+        cancel_at_fuel: None,
     }
 }
 

@@ -2969,3 +2969,172 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
         );
     }
 }
+
+/// Two ordered maps that differ only in entry order are one semantic value,
+/// and the extended profile must never give them two identities.
+///
+/// E4 fixes map order at the keys' S20-350 canonical bytes, but S20-210 does
+/// not establish it: `TYPE_SYSTEM_V1.md` section 5 reserves the byte ordering
+/// to the SCB encoder/decoder and forbids the checker from reimplementing it
+/// or silently sorting a decoded constant. Every production path into the VM
+/// crosses that codec, so the invariant holds there; the public
+/// `execute_function` boundary did not check it, and `equal` and `value_hash`
+/// read entry order structurally. So the VM refuses a value the codec will
+/// not encode, at each boundary where one is supplied from outside: the
+/// request inputs, and the constants `constant_ref` and `global_get` name.
+#[test]
+fn e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing() {
+    let canonical = {
+        let mut entries = vec![(300_u128, "big"), (7, "small")];
+        entries.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+        map_of(entries)
+    };
+    let ConstData::Map(ordered) = &canonical.data else {
+        panic!("map expected");
+    };
+    let mut flipped = ordered.clone();
+    flipped.reverse();
+    let reversed = ConstValue {
+        value_type: map_type(),
+        data: ConstData::Map(flipped),
+    };
+    // The two carry exactly the same entries, so any difference in what the
+    // VM observes of them is a difference in representation alone.
+    let entries_of = |value: &ConstValue| {
+        let ConstData::Map(entries) = &value.data else {
+            panic!("map expected");
+        };
+        let mut entries = entries.clone();
+        entries.sort_by_key(|entry| sley_mutate::encode_const_value(&entry.key).unwrap());
+        entries
+    };
+    assert_eq!(entries_of(&canonical), entries_of(&reversed));
+    assert_ne!(canonical.data, reversed.data, "they differ only in order");
+
+    // S20-210 accepts both, deliberately, and the codec separates them.
+    let environment = TypeEnvironment::new(Vec::new()).unwrap();
+    environment
+        .check_constant(&canonical)
+        .expect("the canonical order is a valid constant");
+    environment
+        .check_constant(&reversed)
+        .expect("S20-210 imposes no entry order and must not sort");
+    sley_mutate::encode_const_value(&canonical).expect("the canonical order encodes");
+    sley_mutate::encode_const_value(&reversed).expect_err("the codec rejects the other order");
+
+    // Inputs: the canonical pair is equal and hashes alike; the other order is
+    // refused before either observation can be derived from it.
+    let equality = Fixture::new(
+        &[map_type(), map_type()],
+        &[step(
+            Opcode::Equal,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        success(&equality, vec![canonical.clone(), canonical.clone()]),
+        boolean(true)
+    );
+    let refused = execute_function(
+        equality.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![canonical.clone(), reversed.clone()],
+            limits: limits(),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        refused,
+        ExecutionError::Exec(crate::ExecutionErrorCode::InputNotCanonical),
+        "a non-canonical map input is refused, not compared"
+    );
+
+    let hasher = Fixture::new(
+        &[map_type()],
+        &[step(
+            Opcode::ValueHash,
+            vec![Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Bytes,
+        )],
+        Vec::new(),
+    );
+    assert_eq!(
+        success(&hasher, vec![canonical.clone()]),
+        success(&hasher, vec![canonical.clone()])
+    );
+    assert_eq!(
+        execute_function(
+            hasher.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![reversed.clone()],
+                limits: limits(),
+            },
+        )
+        .unwrap_err(),
+        ExecutionError::Exec(crate::ExecutionErrorCode::InputNotCanonical),
+        "a non-canonical map input is refused, not hashed"
+    );
+
+    // Constants: `constant_ref` names an artifact value the codec would reject.
+    let constant_fixture = |value: ConstValue| {
+        Fixture::new(
+            &[TypeExpr::Bool],
+            &[step(
+                Opcode::ConstantRef,
+                vec![],
+                Immediate::Entity(id(200)),
+                map_type(),
+            )],
+            vec![ConstantDefinition {
+                entity_id: id(200),
+                value,
+            }],
+        )
+    };
+    assert_eq!(
+        success(&constant_fixture(canonical.clone()), vec![boolean(true)]),
+        canonical
+    );
+    assert_eq!(
+        lowering_code(&constant_fixture(reversed.clone())),
+        LowerErrorCode::ImmediateMismatch
+    );
+
+    // Globals: the same value reached through an initializer.
+    let global_fixture = |value: ConstValue| {
+        Fixture::new(
+            &[TypeExpr::Bool],
+            &[step(
+                Opcode::GlobalGet,
+                vec![],
+                Immediate::Entity(id(60)),
+                map_type(),
+            )],
+            Vec::new(),
+        )
+        .with_globals(
+            vec![GlobalValueDefinition {
+                entity_id: id(60),
+                value_type: map_type(),
+                initializer: id(61),
+                visibility: Visibility::Private,
+            }],
+            vec![ConstantDefinition {
+                entity_id: id(61),
+                value,
+            }],
+        )
+    };
+    assert_eq!(
+        success(&global_fixture(canonical.clone()), vec![boolean(true)]),
+        canonical
+    );
+    assert_eq!(
+        lowering_code(&global_fixture(reversed)),
+        LowerErrorCode::ImmediateMismatch
+    );
+}

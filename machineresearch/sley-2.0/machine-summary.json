@@ -272,7 +272,7 @@
       103,
       104
     ],
-    "stable_error_codes": 6,
+    "stable_error_codes": 7,
     "execution_unit_tests": 10,
     "sley_vm_total_unit_tests": 21,
     "workspace_total_unit_tests": 206,
@@ -297,7 +297,8 @@
     "merlin_initial_handoff": "BLOCKED_READ_ONLY_NO_FILES",
     "merlin_recovery_candidate": "REJECTED_GREEN_AUTHORITY_FUEL_PAYLOAD_PREIMAGE_GAPS",
     "vulcan_review": "PASS",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "input_canonical_form_required": true
   },
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",

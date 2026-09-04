@@ -138,7 +138,13 @@ be persistable, then requires exact data agreement:
 Exact SCB map byte ordering is enforced by the selected SCB encoder/decoder,
 not reimplemented by the type checker. S20-210 rejects duplicate or
 non-orderable semantic keys and never silently sorts or normalizes a decoded
-constant.
+constant. A consumer that reads entry order structurally therefore cannot take
+the order from a passing S20-210 judgment: it holds because the value crossed
+the codec. Where such a consumer accepts a value that need not have crossed it,
+the consumer asks the codec at its own boundary and refuses a value with no
+canonical form, rather than sorting it or restating the order here. The
+extended VM does exactly this for its execution inputs and for the constants
+`constant_ref` and `global_get` name (`VM_EXECUTION_PROFILE_V1.md` section 4).
 
 ## 6. Determinism and limits
 

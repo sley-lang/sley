@@ -54,7 +54,21 @@ S20-210 and never become runtime values here.
 Restricted-v1 accepts at most 262,144 ordered inputs and at most 67,108,864
 aggregate validated input `value_units`. After the count check, each input in
 order passes constant judgment, hashability, exact declared type, checked unit
-accumulation, and value hashing. Crossing either hard profile cap returns the
+accumulation, canonical form, and value hashing.
+
+An input must have an exact S20-350 canonical form, or it is
+`VM_EXEC_INPUT_NOT_CANONICAL` before any identity is derived from it. S20-210
+does not establish ordered-map entry order: section 5 of `TYPE_SYSTEM_V1.md`
+reserves that ordering to the selected SCB encoder/decoder and forbids the
+checker from reimplementing it or silently sorting a decoded constant. Because
+`equal` and `value_hash` read entry order structurally, two representations of
+one semantic map would otherwise carry two identities. Every production caller
+supplies inputs the codec already decoded, so this refuses only a value that
+reached the public execution boundary without crossing it. The VM asks the
+codec the same question; it never sorts the value and never restates the
+order. The constants that `constant_ref` and `global_get` name are held to the
+same requirement at lowering, where a value with no canonical form is
+`VM_LOWER_IMMEDIATE_MISMATCH`. Crossing either hard profile cap returns the
 pre-execution `VM_EXEC_RESOURCE_LIMIT` code with no outcome because the complete
 ordered input-hash set was not accepted. The request's smaller
 `max_value_units` remains an observed runtime limit after all inputs pass this
@@ -215,6 +229,7 @@ The hard input-count/input-unit profile gate is the only pre-execution use of
 | 27003 | `VM_EXEC_CANCELLED` |
 | 27004 | `VM_EXEC_TRAP` |
 | 27005 | `VM_EXEC_INTERNAL_INVARIANT` |
+| 27006 | `VM_EXEC_INPUT_NOT_CANONICAL` |
 
 `ResourceKind` is closed: instruction (1), fuel (2), value units (3), and
 output units (4). Earlier lowering/type failures retain their owning codes.

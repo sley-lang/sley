@@ -297,6 +297,12 @@ pub fn lower_function(root: LoweringInput<'_>) -> Result<LoweredFunction, Loweri
     } else {
         validate_operations(input, &maps, &mut work)?;
     }
+    // After the judgment, so the frozen S20-260 failure order is unchanged.
+    crate::extended::require_canonical_referenced_constants(
+        input.operations,
+        input.constants,
+        input.globals,
+    )?;
     let bytecode = emit_function(input, &maps, &mut work)?;
     let callees = if input.profile.is_extended() {
         lower_callees(root, &bytecode, &mut work)?

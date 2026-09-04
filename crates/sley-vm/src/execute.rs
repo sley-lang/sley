@@ -183,6 +183,8 @@ pub enum ExecutionErrorCode {
     InputCountMismatch,
     /// `VM_EXEC_INPUT_TYPE_MISMATCH`.
     InputTypeMismatch,
+    /// `VM_EXEC_INPUT_NOT_CANONICAL`.
+    InputNotCanonical,
 }
 
 impl ExecutionErrorCode {
@@ -192,6 +194,7 @@ impl ExecutionErrorCode {
         match self {
             Self::InputCountMismatch => "VM_EXEC_INPUT_COUNT_MISMATCH",
             Self::InputTypeMismatch => "VM_EXEC_INPUT_TYPE_MISMATCH",
+            Self::InputNotCanonical => "VM_EXEC_INPUT_NOT_CANONICAL",
         }
     }
 
@@ -201,6 +204,7 @@ impl ExecutionErrorCode {
         match self {
             Self::InputCountMismatch => 27_000,
             Self::InputTypeMismatch => 27_001,
+            Self::InputNotCanonical => 27_006,
         }
     }
 }
@@ -925,12 +929,31 @@ fn validate_inputs(
             return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
         }
         value_units = add_input_units(value_units, value_units_const(value))?;
+        require_canonical_form(value)?;
         hashes.push(hash_validated_value(input.schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
         hashes,
         value_units,
     })
+}
+
+/// Requires that one supplied value has an exact S20-350 canonical form.
+///
+/// Ordered-map entry order is the lexicographic order of the keys' canonical
+/// bytes. `TYPE_SYSTEM_V1.md` section 5 reserves that ordering to the selected
+/// SCB encoder/decoder: S20-210 rejects duplicate and non-orderable keys but
+/// never reimplements the byte order and never silently sorts a decoded
+/// constant. Extended-profile `equal` and `value_hash` read entry order
+/// structurally, so a value reaching this public boundary without crossing the
+/// codec could give one semantic map two identities. The VM therefore asks the
+/// codec whether the value is canonical and refuses when it is not, rather
+/// than sorting it or restating the order itself.
+fn require_canonical_form(value: &ConstValue) -> Result<(), ExecutionError> {
+    if sley_mutate::encode_const_value(value).is_err() {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
+    }
+    Ok(())
 }
 
 fn enforce_input_count(count: usize) -> Result<(), ExecutionError> {
@@ -1541,6 +1564,7 @@ fn push_len(output: &mut Vec<u8>, value: usize) {
 #[cfg(test)]
 mod tests {
     use core::fmt::Write as _;
+    use std::collections::BTreeSet;
 
     use super::*;
     use sley_check::TypeEnvironment;
@@ -2320,6 +2344,12 @@ mod tests {
     fn execution_codes_are_stable() {
         assert_eq!(ExecutionErrorCode::InputCountMismatch.numeric(), 27_000);
         assert_eq!(ExecutionErrorCode::InputTypeMismatch.numeric(), 27_001);
+        assert_eq!(ExecutionErrorCode::InputNotCanonical.numeric(), 27_006);
+        let errors = [
+            ExecutionErrorCode::InputCountMismatch,
+            ExecutionErrorCode::InputTypeMismatch,
+            ExecutionErrorCode::InputNotCanonical,
+        ];
         let statuses = [
             ExecutionStatusCode::ResourceLimit,
             ExecutionStatusCode::Cancelled,
@@ -2329,5 +2359,30 @@ mod tests {
         for (offset, status) in statuses.into_iter().enumerate() {
             assert_eq!(status.numeric(), 27_002 + u32::try_from(offset).unwrap());
         }
+        // Pre-execution failures and terminations publish into one numeric
+        // space (`VM_EXECUTION_PROFILE_V1.md` section 12), so a code added to
+        // either enum must not take a number or symbol the other already
+        // holds. Extending one enum alone cannot notice the clash.
+        let published: Vec<(u32, &str)> = errors
+            .into_iter()
+            .map(|code| (code.numeric(), code.as_str()))
+            .chain(
+                statuses
+                    .into_iter()
+                    .map(|code| (code.numeric(), code.as_str())),
+            )
+            .collect();
+        let numbers: BTreeSet<u32> = published.iter().map(|(numeric, _)| *numeric).collect();
+        assert_eq!(
+            numbers.len(),
+            published.len(),
+            "reused execution code number"
+        );
+        let symbols: BTreeSet<&str> = published.iter().map(|(_, symbol)| *symbol).collect();
+        assert_eq!(
+            symbols.len(),
+            published.len(),
+            "reused execution code symbol"
+        );
     }
 }
