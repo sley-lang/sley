@@ -13,6 +13,11 @@
       "directory": "conformance/candidate-result/v1",
       "files": [
         {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "c3ffc69831b25bf63e9201a7f14c479c2f978b06d29348d05249cea3a91798d6"
+        },
+        {
           "bytes": 30315,
           "name": "accepted.json",
           "sha256": "020676f6ffd1e2ef2de7c23db72382a1849ddd693d84d4fc725492cc741aec0a"
@@ -31,8 +36,8 @@
           "mutations": 4
         }
       },
-      "sums_consistent": null,
-      "sums_file": false
+      "sums_consistent": true,
+      "sums_file": true
     },
     {
       "claim": "s20-250-full-complete-entity-impact-v1-conformance",
@@ -688,7 +693,7 @@
     "problems": [],
     "python_sources": 9
   },
-  "report_digest": "b9f0efb59eee9144e77d00a23be5c4a66bb7c19c2db4ffd0dba3353239de1972",
+  "report_digest": "9f8714ec530ddec9e83d41c833b0a6d010eaa373fdc5eac448647cf49fe414f9",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

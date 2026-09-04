@@ -31,7 +31,9 @@ Two questions, applied to the whole tree:
 | 4 | `CAP_EFFECT_MISMATCH` reported two retryabilities | A program-side failure borrowed the S20-380 token authority's code, so a consumer got contradictory retry guidance for one symbol | `CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED`, and one retryability per symbol is gated |
 | 5 | Fifteen hash domains outside the registry that claimed completeness | Domain separation is a security property, and the registry is where a reviewer checks it | All fifty registered; the drift check reads every crate |
 
-A sixth, smaller correction: a JSON bridge test paired the restricted query
+| 6 | `conformance/candidate-result/v1` carried no `SHA256SUMS` | It was the one corpus of nineteen whose bytes an independent party could not verify without running the generator | The generator emits the manifest, and the conformance report refuses a corpus without one |
+
+A seventh, smaller correction: a JSON bridge test paired the restricted query
 profile's code 31004 with an invented symbol.
 
 ## Gates added

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -89,6 +90,12 @@ def main() -> int:
         FIXTURES / "accepted.json": json.dumps(accepted, indent=2, sort_keys=True) + "\n",
         FIXTURES / "rejected.json": json.dumps(rejected, indent=2, sort_keys=True) + "\n",
     }
+    # Every other corpus carries a manifest, which is how an independent party
+    # verifies the bytes without running this generator.
+    rendered[FIXTURES / "SHA256SUMS"] = "".join(
+        f"{hashlib.sha256(payload.encode()).hexdigest()}  {path.name}\n"
+        for path, payload in rendered.items()
+    )
     if arguments.check:
         drift = [
             str(path.relative_to(ROOT))

@@ -181,6 +181,13 @@ def family_record(directory: Path, recipe: str) -> dict:
 
     sums_path = version / "SHA256SUMS"
     sums_consistent: bool | None = None
+    if not sums_path.exists():
+        # A manifest is how an independent party verifies a corpus without
+        # running its generator, so every corpus carries one.
+        raise ConformanceError(
+            ConformanceErrorCode.FIXTURE_UNREADABLE,
+            f"{display(version)} has no SHA256SUMS manifest",
+        )
     if sums_path.exists():
         declared = read_sums(sums_path)
         actual = {entry["name"]: entry["sha256"] for entry in files if entry["name"].endswith(".json")}

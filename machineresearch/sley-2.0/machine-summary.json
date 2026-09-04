@@ -2828,7 +2828,7 @@
   "invariant_audit": {
     "campaign": "machineresearch/sley-2.0/s20-790-invariant-audit-campaign-2026-09-03.md",
     "date": "2026-09-03",
-    "findings": 6,
+    "findings": 7,
     "gates_added": [
       "scripts/check_error_symbol_registration.py",
       "scripts/check_declared_limits.py",
@@ -2837,6 +2837,7 @@
       "S20-770 registry drift over every crate"
     ],
     "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
-    "independent_review": "PENDING"
+    "independent_review": "PENDING",
+    "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one"
   }
 }
