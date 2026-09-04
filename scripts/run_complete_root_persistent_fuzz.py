@@ -175,6 +175,13 @@ def encode_ids(values: list[str]) -> bytes:
 
 
 def encode_entity(entity: dict) -> bytes:
+    """Encode one fixture entity under the target's grammar.
+
+    The target builds scalar-typed bodies from bytes, so a vector's nested
+    type expressions and nested constants have no encoding here and are
+    dropped. The seed stays a valid input that reaches the same closure rules;
+    it is a starting point for the mutator, not an oracle.
+    """
     kind = entity["kind"]
     out = bytes([kind - 1, id_byte(entity["id"])])
     if kind == 1:

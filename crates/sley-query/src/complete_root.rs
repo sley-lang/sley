@@ -385,10 +385,11 @@ pub(crate) mod tests {
         AdapterImport, Block, CapabilityRequirement, ConstData, ConstValue, ConstantDefinition,
         ContractDefinition, ContractKind, DependencyBindingDefinition, EffectDefinition,
         EffectEnvironment, EffectKind, EntryExposure, EntryPointDefinition, ExpectedOutcome,
-        FunctionGraph, GlobalValueDefinition, NamespaceDefinition, PackageDefinition, Parameter,
-        ParameterRole, PolicyBindingDefinition, Reachability, ResourceLimits, ReturnTerminator,
+        FunctionGraph, FunctionRefValue, FunctionType, GlobalValueDefinition, MemberId, NamedType,
+        NamespaceDefinition, PackageDefinition, Parameter, ParameterRole, PolicyBindingDefinition,
+        Reachability, RecordConst, RecordField, ResourceLimits, ResultConst, ReturnTerminator,
         Terminator, TestCaseDefinition, TypeDefForm, TypeDefinition, TypeExpr, ValueRef,
-        Visibility, WorkspaceDefinition,
+        VariantCase, VariantConst, Visibility, WorkspaceDefinition,
     };
 
     fn id(byte: u8) -> EntityId {
@@ -424,6 +425,7 @@ pub(crate) mod tests {
         pub(crate) global: GlobalValueDefinition,
         pub(crate) extra_workspace: Option<WorkspaceDefinition>,
         pub(crate) extra_namespaces: Vec<NamespaceDefinition>,
+        pub(crate) extra_type_definitions: Vec<TypeDefinition>,
         pub(crate) bound_entities: Vec<EntityId>,
         pub(crate) entry_points: Vec<EntityId>,
         pub(crate) dependency_roots: Vec<StateRoot>,
@@ -589,10 +591,117 @@ pub(crate) mod tests {
                 },
                 extra_workspace: None,
                 extra_namespaces: Vec::new(),
+                extra_type_definitions: Vec::new(),
                 bound_entities: (1..=19).map(id).collect(),
                 entry_points: vec![id(10)],
                 dependency_roots: vec![root(9)],
             }
+        }
+
+        /// The frozen fixture with recursive type and constant bodies.
+        ///
+        /// `new` exercises the six new bodies over identity-valued fields and
+        /// scalar types, which leaves the section 7.2 recursion (nested type
+        /// expressions and nested constants) derived only by this crate. This
+        /// variant populates every recursive rule that can produce an edge, so
+        /// the independent oracle re-derives them instead of taking them on
+        /// trust.
+        pub(crate) fn recursive() -> Self {
+            let mut fixture = Self::new();
+            let member = MemberId::from_bytes([1_u8; 32]);
+            fixture.extra_type_definitions.push(TypeDefinition {
+                entity_id: id(21),
+                type_parameters: Vec::new(),
+                form: TypeDefForm::Variant(vec![VariantCase {
+                    member_id: member,
+                    payload_type: Some(TypeExpr::Text),
+                }]),
+                invariants: Vec::new(),
+                visibility: Visibility::Private,
+            });
+            // TypeReference to the second definition, Adapter through a type
+            // argument, Capability through a map value, and Effect through a
+            // function type.
+            fixture.type_definition.form = TypeDefForm::Record(vec![
+                RecordField {
+                    member_id: member,
+                    value_type: TypeExpr::Vector(Box::new(TypeExpr::Named(NamedType {
+                        definition: id(21),
+                        arguments: vec![TypeExpr::AdapterHandle(id(15))],
+                    }))),
+                    visibility: Visibility::Private,
+                },
+                RecordField {
+                    member_id: MemberId::from_bytes([2_u8; 32]),
+                    value_type: TypeExpr::OrderedMap {
+                        key: Box::new(TypeExpr::Text),
+                        value: Box::new(TypeExpr::CapabilityToken(id(11))),
+                    },
+                    visibility: Visibility::Private,
+                },
+                RecordField {
+                    member_id: MemberId::from_bytes([3_u8; 32]),
+                    value_type: TypeExpr::FunctionRef(FunctionType {
+                        parameters: vec![TypeExpr::Option(Box::new(TypeExpr::Bool))],
+                        result: Box::new(TypeExpr::Unit),
+                        effects: vec![id(12)],
+                    }),
+                    visibility: Visibility::Private,
+                },
+            ]);
+            // DefinitionMember from the variant constant, Call from the nested
+            // function reference, and TypeReference from both the declared type
+            // and the reference's type argument.
+            fixture.constant.value = ConstValue {
+                value_type: TypeExpr::Named(NamedType {
+                    definition: id(21),
+                    arguments: Vec::new(),
+                }),
+                data: ConstData::Variant(VariantConst {
+                    definition: id(21),
+                    member_id: member,
+                    payload: Some(Box::new(ConstValue {
+                        value_type: TypeExpr::FunctionRef(FunctionType {
+                            parameters: Vec::new(),
+                            result: Box::new(TypeExpr::Unit),
+                            effects: Vec::new(),
+                        }),
+                        data: ConstData::FunctionRef(FunctionRefValue {
+                            function: id(7),
+                            type_arguments: vec![TypeExpr::Named(NamedType {
+                                definition: id(21),
+                                arguments: Vec::new(),
+                            })],
+                        }),
+                    })),
+                }),
+            };
+            // A sequence and a record inside a capability scope, so the
+            // sequence and record recursions carry an edge too.
+            fixture.requirement.allowed_scopes = vec![ConstValue {
+                value_type: TypeExpr::Vector(Box::new(TypeExpr::Named(NamedType {
+                    definition: id(21),
+                    arguments: Vec::new(),
+                }))),
+                data: ConstData::Sequence(vec![ConstValue {
+                    value_type: TypeExpr::Named(NamedType {
+                        definition: id(21),
+                        arguments: Vec::new(),
+                    }),
+                    data: ConstData::Record(RecordConst {
+                        definition: id(21),
+                        fields: Vec::new(),
+                    }),
+                }]),
+            }];
+            fixture.global.value_type = TypeExpr::Option(Box::new(TypeExpr::Named(NamedType {
+                definition: id(21),
+                arguments: Vec::new(),
+            })));
+            fixture.package_namespace.members.push(id(21));
+            fixture.package_namespace.members.sort_unstable();
+            fixture.add_entity(id(21));
+            fixture
         }
 
         pub(crate) fn entities(&self) -> Vec<ImpactEntity<'_>> {
@@ -623,6 +732,9 @@ pub(crate) mod tests {
             for namespace in &self.extra_namespaces {
                 entities.push(ImpactEntity::Namespace(namespace));
             }
+            for definition in &self.extra_type_definitions {
+                entities.push(ImpactEntity::TypeDef(definition));
+            }
             entities.sort_by_key(|entity| entity.entity_id());
             entities
         }
@@ -647,6 +759,41 @@ pub(crate) mod tests {
             self.bound_entities.push(entity);
             self.bound_entities.sort_unstable();
         }
+    }
+
+    #[test]
+    fn recursive_type_and_constant_bodies_carry_their_own_edges() {
+        let fixture = Fixture::recursive();
+        let judged = fixture.judge().unwrap();
+        let edges = judged.index().direct_edges();
+        // Section 7.2: every nested rule that can name an entity.
+        for expected in [
+            // TypeExpr::Named through a vector element.
+            edge(6, 21, ImpactKind::TypeReference),
+            // TypeExpr::AdapterHandle through a Named type argument.
+            edge(6, 15, ImpactKind::Adapter),
+            // TypeExpr::CapabilityToken through an ordered-map value.
+            edge(6, 11, ImpactKind::Capability),
+            // FunctionType::effects through a function-reference type.
+            edge(6, 12, ImpactKind::Effect),
+            // The constant's declared type and its reference's type argument.
+            edge(18, 21, ImpactKind::TypeReference),
+            // VariantConst::definition.
+            edge(18, 21, ImpactKind::DefinitionMember),
+            // FunctionRefValue::function nested in the variant payload.
+            edge(18, 7, ImpactKind::Call),
+            // RecordConst::definition nested in a sequence in a scope constant.
+            edge(11, 21, ImpactKind::DefinitionMember),
+            edge(11, 21, ImpactKind::TypeReference),
+            // GlobalValue::value_type through an option.
+            edge(19, 21, ImpactKind::TypeReference),
+        ] {
+            assert!(
+                edges.contains(&expected),
+                "missing recursive edge {expected:?}"
+            );
+        }
+        assert_eq!(judged.bound_entities(), 20);
     }
 
     fn edge(dependent: u8, dependency: u8, kind: ImpactKind) -> ImpactEdge {
@@ -977,6 +1124,161 @@ pub(crate) mod tests {
         format!("[{}]", items.join(","))
     }
 
+    /// Serializes one type expression by its frozen SSMC1 tag.
+    ///
+    /// The fixture's compact JSON carries the whole expression, not a
+    /// pre-extracted identity list, so the independent Python oracle applies
+    /// the section 7.2 recursion itself rather than trusting this crate's
+    /// extraction.
+    fn type_expr_json(value: &TypeExpr) -> String {
+        let tag = value.tag();
+        match value {
+            TypeExpr::Unit
+            | TypeExpr::Bool
+            | TypeExpr::F32
+            | TypeExpr::F64
+            | TypeExpr::Bytes
+            | TypeExpr::Text
+            | TypeExpr::SInt(_)
+            | TypeExpr::UInt(_)
+            | TypeExpr::TypeParameter(_)
+            | TypeExpr::BuiltinFailure(_) => format!("{{\"t\":{tag}}}"),
+            TypeExpr::Tuple(items) => {
+                let items: Vec<String> = items.iter().map(type_expr_json).collect();
+                format!("{{\"t\":{tag},\"items\":[{}]}}", items.join(","))
+            }
+            TypeExpr::Named(named) => {
+                let arguments: Vec<String> = named.arguments.iter().map(type_expr_json).collect();
+                format!(
+                    "{{\"t\":{tag},\"definition\":\"{}\",\"arguments\":[{}]}}",
+                    hex(named.definition),
+                    arguments.join(",")
+                )
+            }
+            TypeExpr::Vector(item) | TypeExpr::Option(item) | TypeExpr::LocalCell(item) => {
+                format!("{{\"t\":{tag},\"item\":{}}}", type_expr_json(item))
+            }
+            TypeExpr::OrderedMap { key, value } => format!(
+                "{{\"t\":{tag},\"key\":{},\"value\":{}}}",
+                type_expr_json(key),
+                type_expr_json(value)
+            ),
+            TypeExpr::Result { ok, error } => format!(
+                "{{\"t\":{tag},\"ok\":{},\"error\":{}}}",
+                type_expr_json(ok),
+                type_expr_json(error)
+            ),
+            TypeExpr::FunctionRef(function) => {
+                let parameters: Vec<String> =
+                    function.parameters.iter().map(type_expr_json).collect();
+                format!(
+                    "{{\"t\":{tag},\"parameters\":[{}],\"result\":{},\"effects\":{}}}",
+                    parameters.join(","),
+                    type_expr_json(&function.result),
+                    json_ids(&function.effects)
+                )
+            }
+            TypeExpr::AdapterHandle(adapter) => {
+                format!("{{\"t\":{tag},\"adapter\":\"{}\"}}", hex(*adapter))
+            }
+            TypeExpr::CapabilityToken(capability) => {
+                format!("{{\"t\":{tag},\"capability\":\"{}\"}}", hex(*capability))
+            }
+        }
+    }
+
+    /// Serializes one constant, declared type first, by its frozen data tag.
+    fn const_value_json(value: &ConstValue) -> String {
+        format!(
+            "{{\"type\":{},\"data\":{}}}",
+            type_expr_json(&value.value_type),
+            const_data_json(&value.data)
+        )
+    }
+
+    fn const_data_json(value: &ConstData) -> String {
+        let tag = value.tag();
+        match value {
+            ConstData::Unit
+            | ConstData::Bool(_)
+            | ConstData::SInt(_)
+            | ConstData::UInt(_)
+            | ConstData::F32Bits(_)
+            | ConstData::F64Bits(_)
+            | ConstData::Bytes(_)
+            | ConstData::Text(_)
+            | ConstData::BuiltinFailure(_) => format!("{{\"t\":{tag}}}"),
+            ConstData::Sequence(items) => {
+                let items: Vec<String> = items.iter().map(const_value_json).collect();
+                format!("{{\"t\":{tag},\"items\":[{}]}}", items.join(","))
+            }
+            ConstData::Record(record) => {
+                let fields: Vec<String> = record
+                    .fields
+                    .iter()
+                    .map(|field| const_value_json(&field.value))
+                    .collect();
+                format!(
+                    "{{\"t\":{tag},\"definition\":\"{}\",\"fields\":[{}]}}",
+                    hex(record.definition),
+                    fields.join(",")
+                )
+            }
+            ConstData::Variant(variant) => format!(
+                "{{\"t\":{tag},\"definition\":\"{}\",\"payload\":{}}}",
+                hex(variant.definition),
+                variant
+                    .payload
+                    .as_ref()
+                    .map_or_else(|| "null".to_owned(), |payload| const_value_json(payload))
+            ),
+            ConstData::Map(entries) => {
+                let entries: Vec<String> = entries
+                    .iter()
+                    .map(|entry| {
+                        format!(
+                            "{{\"key\":{},\"value\":{}}}",
+                            const_value_json(&entry.key),
+                            const_value_json(&entry.value)
+                        )
+                    })
+                    .collect();
+                format!("{{\"t\":{tag},\"entries\":[{}]}}", entries.join(","))
+            }
+            ConstData::Option(payload) => format!(
+                "{{\"t\":{tag},\"item\":{}}}",
+                payload
+                    .as_ref()
+                    .map_or_else(|| "null".to_owned(), |item| const_value_json(item))
+            ),
+            ConstData::Result(arm) => {
+                let (ResultConst::Ok(item) | ResultConst::Err(item)) = arm;
+                format!(
+                    "{{\"t\":{tag},\"arm\":{},\"item\":{}}}",
+                    arm.tag(),
+                    const_value_json(item)
+                )
+            }
+            ConstData::FunctionRef(reference) => {
+                let arguments: Vec<String> = reference
+                    .type_arguments
+                    .iter()
+                    .map(type_expr_json)
+                    .collect();
+                format!(
+                    "{{\"t\":{tag},\"function\":\"{}\",\"type_arguments\":[{}]}}",
+                    hex(reference.function),
+                    arguments.join(",")
+                )
+            }
+        }
+    }
+
+    fn const_values_json(values: &[ConstValue]) -> String {
+        let items: Vec<String> = values.iter().map(const_value_json).collect();
+        format!("[{}]", items.join(","))
+    }
+
     /// Serializes one borrowed body in the fixture's compact JSON schema
     /// (only the constructs the frozen fixture exercises).
     #[allow(clippy::too_many_lines)]
@@ -1008,19 +1310,46 @@ pub(crate) mod tests {
                 json_ids(&value.members)
             ),
             ImpactEntity::TypeDef(value) => {
-                format!("\"invariants\":{}", json_ids(&value.invariants))
+                let (form, members) = match &value.form {
+                    TypeDefForm::Record(fields) => (
+                        1,
+                        fields
+                            .iter()
+                            .map(|field| type_expr_json(&field.value_type))
+                            .collect::<Vec<String>>(),
+                    ),
+                    TypeDefForm::Variant(cases) => (
+                        2,
+                        cases
+                            .iter()
+                            .map(|case| {
+                                case.payload_type.as_ref().map_or_else(
+                                    || "null".to_owned(),
+                                    |payload| type_expr_json(payload),
+                                )
+                            })
+                            .collect(),
+                    ),
+                };
+                format!(
+                    "\"form\":{form},\"member_types\":[{}],\"invariants\":{}",
+                    members.join(","),
+                    json_ids(&value.invariants)
+                )
             }
             ImpactEntity::Function(value) => format!(
-                "\"parameters\":{},\"effects\":{},\"entry_block\":\"{}\",\"blocks\":{},\"contracts\":{}",
+                "\"parameters\":{},\"result_type\":{},\"effects\":{},\"entry_block\":\"{}\",\"blocks\":{},\"contracts\":{}",
                 json_ids(&value.parameters),
+                type_expr_json(&value.result_type),
                 json_ids(&value.effects),
                 hex(value.entry_block),
                 json_ids(&value.blocks),
                 json_ids(&value.contracts)
             ),
             ImpactEntity::Parameter(value) => format!(
-                "\"owner\":\"{}\",\"role\":\"{}\"",
+                "\"owner\":\"{}\",\"value_type\":{},\"role\":\"{}\"",
                 hex(value.owner),
+                type_expr_json(&value.value_type),
                 match value.role {
                     ParameterRole::Function => "function",
                     ParameterRole::Block => "block",
@@ -1042,13 +1371,25 @@ pub(crate) mod tests {
                 )
             }
             ImpactEntity::Operation(_) => panic!("fixture carries no operations"),
-            ImpactEntity::Constant(_) | ImpactEntity::EffectDef(_) => String::new(),
-            ImpactEntity::GlobalValue(value) => {
-                format!("\"initializer\":\"{}\"", hex(value.initializer))
+            ImpactEntity::Constant(value) => {
+                format!("\"value\":{}", const_value_json(&value.value))
             }
+            ImpactEntity::EffectDef(value) => format!(
+                "\"scope_type\":{},\"request_type\":{},\"response_type\":{},\"failure_type\":{}",
+                type_expr_json(&value.scope_type),
+                type_expr_json(&value.request_type),
+                type_expr_json(&value.response_type),
+                type_expr_json(&value.failure_type)
+            ),
+            ImpactEntity::GlobalValue(value) => format!(
+                "\"value_type\":{},\"initializer\":\"{}\"",
+                type_expr_json(&value.value_type),
+                hex(value.initializer)
+            ),
             ImpactEntity::CapabilityRequirement(value) => format!(
-                "\"effect\":\"{}\",\"constraint_contracts\":{}",
+                "\"effect\":\"{}\",\"allowed_scopes\":{},\"constraint_contracts\":{}",
                 hex(value.effect),
+                const_values_json(&value.allowed_scopes),
                 json_ids(&value.constraint_contracts)
             ),
             ImpactEntity::Contract(value) => format!(
@@ -1056,10 +1397,40 @@ pub(crate) mod tests {
                 hex(value.target),
                 hex(value.predicate)
             ),
-            ImpactEntity::TestCase(value) => format!("\"target\":\"{}\"", hex(value.target)),
-            ImpactEntity::AdapterImport(value) => {
-                format!("\"effects\":{}", json_ids(&value.effects))
+            ImpactEntity::TestCase(value) => {
+                let expected = match &value.expected {
+                    ExpectedOutcome::Value(constant) => const_value_json(constant),
+                    ExpectedOutcome::FailureCode(_) => "null".to_owned(),
+                };
+                let observations: Vec<String> = value
+                    .observations
+                    .iter()
+                    .map(|observation| const_value_json(&observation.value))
+                    .collect();
+                assert!(
+                    matches!(&value.effect_environment, EffectEnvironment::Replay(bindings) if bindings.is_empty())
+                        || matches!(
+                            &value.effect_environment,
+                            EffectEnvironment::DeterministicAdapters(configs) if configs.is_empty()
+                        ),
+                    "the fixture's effect environment is empty; a populated one would carry \
+                     adapter and constant edges this schema does not serialize"
+                );
+                format!(
+                    "\"target\":\"{}\",\"inputs\":{},\"expected\":{},\"observations\":[{}]",
+                    hex(value.target),
+                    const_values_json(&value.inputs),
+                    expected,
+                    observations.join(",")
+                )
             }
+            ImpactEntity::AdapterImport(value) => format!(
+                "\"request_type\":{},\"response_type\":{},\"failure_type\":{},\"effects\":{}",
+                type_expr_json(&value.request_type),
+                type_expr_json(&value.response_type),
+                type_expr_json(&value.failure_type),
+                json_ids(&value.effects)
+            ),
             ImpactEntity::EntryPoint(value) => format!(
                 "\"function\":\"{}\",\"exposure\":{}",
                 hex(value.function),
@@ -1100,6 +1471,35 @@ pub(crate) mod tests {
         )
     }
 
+    /// Emits one accepted vector line for the fixture generator.
+    fn emit_vector(vector_id: &str, fixture: &Fixture) {
+        let judged = fixture.judge().unwrap();
+        let edges: Vec<String> = judged
+            .index()
+            .direct_edges()
+            .iter()
+            .map(|edge| {
+                format!(
+                    "[\"{}\",\"{}\",{}]",
+                    hex(edge.dependent),
+                    hex(edge.dependency),
+                    edge.kind.tag()
+                )
+            })
+            .collect();
+        let reverse = judged.index().transitive_impact(&[id(7)]).unwrap();
+        println!(
+            "COMPLETE_ROOT_VECTOR|{vector_id}|{}|{{\"direct_edges\":[{}],\"workspace\":\"{}\",\"packages\":{},\"namespaces\":{},\"bound_entities\":{},\"transitive_impact_of_function\":{}}}",
+            request_json(fixture),
+            edges.join(","),
+            hex(judged.workspace()),
+            judged.packages(),
+            judged.namespaces(),
+            judged.bound_entities(),
+            json_ids(&reverse)
+        );
+    }
+
     /// Emits the frozen eighteen-kind fixture and its rejection matrix for
     /// `scripts/generate_complete_entity_impact_fixtures.py`.
     #[test]
@@ -1123,7 +1523,7 @@ pub(crate) mod tests {
             .collect();
         let reverse = judged.index().transitive_impact(&[id(7)]).unwrap();
         println!(
-            "COMPLETE_ROOT_VECTOR|{}|{{\"direct_edges\":[{}],\"workspace\":\"{}\",\"packages\":{},\"namespaces\":{},\"bound_entities\":{},\"transitive_impact_of_function\":{}}}",
+            "COMPLETE_ROOT_VECTOR|eighteen-kind-complete-root|{}|{{\"direct_edges\":[{}],\"workspace\":\"{}\",\"packages\":{},\"namespaces\":{},\"bound_entities\":{},\"transitive_impact_of_function\":{}}}",
             request_json(&fixture),
             edges.join(","),
             hex(judged.workspace()),
@@ -1132,6 +1532,7 @@ pub(crate) mod tests {
             judged.bound_entities(),
             json_ids(&reverse)
         );
+        emit_vector("recursive-type-and-constant-bodies", &Fixture::recursive());
         let rejections: Vec<(&str, Rejection)> = vec![
             (
                 "inventory-missing",

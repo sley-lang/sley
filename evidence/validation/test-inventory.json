@@ -8,7 +8,7 @@
     {
       "family": "complete-entity-impact",
       "rejections": 19,
-      "vectors": 1
+      "vectors": 2
     },
     {
       "family": "complete-root-index-snapshot",
@@ -97,9 +97,9 @@
     }
   ],
   "conformance_rejections": 162,
-  "conformance_vectors": 349,
+  "conformance_vectors": 350,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "7a81876d83e0f10e1c56be73592d5b9bc4652694942c704bacd59163f65b56c1",
+  "inventory_digest": "4adc107f7f05f698df01509a487f1e62343592d83c1ccac4e05e9eb4135e1f80",
   "persistent_fuzz_target_count": 20,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -210,7 +210,7 @@
     {
       "crate": "sley-query",
       "ignored": 4,
-      "tests": 65
+      "tests": 66
     },
     {
       "crate": "sley-repo",
@@ -254,7 +254,7 @@
     }
   ],
   "rust_ignored_emitters": 13,
-  "rust_unit_tests": 1010,
+  "rust_unit_tests": 1011,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

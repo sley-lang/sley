@@ -92,10 +92,16 @@ The dependency direction `sley-query -> sley-check -> sley-ssmc` is unchanged;
   and Vulcan surface review are queued (`council_retry.sh` in the session
   evidence) and land as contract revisions; until all three pass the
   contract is not frozen and the package is not complete.
-- The Python oracle covers the constructs the fixture exercises
+- The Python oracle covered the constructs the first fixture exercises
   (identity-valued fields, `Bool`/`Unit` types, a parameter-returning
-  block); type-expression and constant recursion are covered by the
-  restricted profile's own evidence, not re-derived here.
+  block); type-expression and constant recursion rested on the restricted
+  profile's own evidence. Closed on 2026-09-03: the fixture's compact JSON
+  now carries whole type expressions and whole constants, a second accepted
+  vector (`recursive-type-and-constant-bodies`, 20 entities, 52 edges)
+  populates every section 7.2 rule that can name an entity, and the oracle
+  applies that recursion itself. Dropping one nested rule from the oracle
+  makes it disagree with the implementation on both the edge set and the
+  transitive impact, so the coverage is load bearing.
 - The fuzz target's set grammar carried at most four members per set, and
   the corpus seeded the first four members of larger fixture namespaces.
   Closed on 2026-09-03: a set's length is now one byte below four and two

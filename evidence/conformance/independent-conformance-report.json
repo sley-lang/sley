@@ -47,22 +47,22 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "f5af53afe63b9b9f0e5100d0513f9331fccd26b56fb4c68894449e5787643a0f"
+          "sha256": "738edb576aa35fdb8d224b38658bc38aec596061744ac854d170c2936ace3f9d"
         },
         {
-          "bytes": 18935,
+          "bytes": 45808,
           "name": "accepted.json",
-          "sha256": "d6f7997009a32790b08b1de95f43c82e31facb3e78ddaec34a68b94da498379e"
+          "sha256": "4da3877f1c7e369655f54686d5910061c864febca36329925a8e52c24fea0c6c"
         },
         {
-          "bytes": 175492,
+          "bytes": 194435,
           "name": "rejected.json",
-          "sha256": "46acbd6e7c7d41efa46c5e822b930b082254b586006ab9f6fb3a27348c66fad1"
+          "sha256": "6079764791851c3e424d7fc0d03a077616f8fece51aef92f77130599215229f5"
         }
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 1
+          "vectors": 2
         },
         "rejected.json": {
           "mutations": 19
@@ -84,12 +84,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "7b0dded9b6d7f11717d7ef142f3a4d4e5ce7b4f1413443680f71117ece0b705a"
+          "sha256": "3ef77b711c6c3acc8add659afac15968460bbdeaffa8ab2326cd20adeafeeb25"
         },
         {
           "bytes": 12717,
           "name": "accepted.json",
-          "sha256": "b42f79059b300a351c35b220447965f34eb7025a1fd6e56ea9e2c7e9719a8949"
+          "sha256": "ff51f83375bff5438f26207ae869b62aedf3a6e4f69efe299e4037cf578056e9"
         },
         {
           "bytes": 71916,
@@ -355,12 +355,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "5fe0b88945efebc36b5862c3352e33217dbd3cb566d0e31e20ecfe8395752097"
+          "sha256": "2088681771de70f47bf4401d2baacba94854b2a30113c22e7459f735016c5192"
         },
         {
           "bytes": 38664,
           "name": "accepted.json",
-          "sha256": "9a8fa452d3d5311c8ed04d27ce80305c8ceac5d9ecb58625f156ee9b91c67b36"
+          "sha256": "e3696a5fa858026e5d20a9dbfa44eb7e1c5fc53924ba5293a8538333dcd2235e"
         },
         {
           "bytes": 4331,
@@ -688,7 +688,7 @@
     "problems": [],
     "python_sources": 9
   },
-  "report_digest": "315db8d429349a50d73ff7965e1a5248dd6be9c550fd480b4f7c69c78f12f1ac",
+  "report_digest": "6d92c2bbdf1aa60a7016af4691ec3bd44fa076f9d1e80d81d5b462beb6aa3c30",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

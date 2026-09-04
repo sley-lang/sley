@@ -4,10 +4,10 @@
 The oracle re-derives, from the frozen fixture's compact JSON bodies, the
 canonical direct edge set of `COMPLETE_ENTITY_IMPACT_PROFILE_V1.md` section
 5 plus the restricted profile's section 7.1 rows for the constructs the
-fixture exercises (identity-valued fields, `Bool`/`Unit` types, a
-parameter-returning block), and the closure rules C1 through C11 in contract
-order with their first-failure codes. It shares no code with the Rust
-implementation.
+fixture exercises (identity-valued fields, a parameter-returning block), the
+section 7.2 recursion over nested type expressions and nested constants, and
+the closure rules C1 through C11 in contract order with their first-failure
+codes. It shares no code with the Rust implementation.
 """
 
 from __future__ import annotations
@@ -115,8 +115,116 @@ def references(entity: dict, field: str, shape: str) -> list[str]:
     return [value]
 
 
+# Type-bearing fields, per fingerprint profile section 7.1, that the fixture
+# serializes as whole expressions. `many` is a list of expressions, and a null
+# entry (a variant case with no payload) carries nothing.
+TYPE_FIELDS: dict[int, list[tuple[str, str]]] = {
+    4: [("member_types", "many")],
+    5: [("result_type", "one")],
+    6: [("value_type", "one")],
+    10: [("value_type", "one")],
+    11: [
+        ("scope_type", "one"),
+        ("request_type", "one"),
+        ("response_type", "one"),
+        ("failure_type", "one"),
+    ],
+    15: [("request_type", "one"), ("response_type", "one"), ("failure_type", "one")],
+}
+# Constant-bearing fields of the same table.
+CONST_FIELDS: dict[int, list[tuple[str, str]]] = {
+    9: [("value", "one")],
+    12: [("allowed_scopes", "many")],
+    14: [("inputs", "many"), ("expected", "one"), ("observations", "many")],
+}
+
+
+class Walker:
+    """Section 7.2 recursion, derived here rather than read from the vector.
+
+    The fixture carries whole type expressions and constants, so this walker
+    applies the nested rules itself: a `Named` type reaches its definition, an
+    adapter handle and a capability token reach their imports, a function type
+    reaches its effects, a record or variant constant reaches its definition,
+    and a function-reference constant reaches its function. Every endpoint is
+    resolved and kind-checked exactly like a top-level field.
+    """
+
+    def __init__(self, kinds: dict[str, int], edges: set[tuple[str, str, int]]):
+        self.kinds = kinds
+        self.edges = edges
+
+    def add(self, dependent: str, dependency: str, edge_kind: int, expected: int | None) -> None:
+        actual = self.kinds.get(dependency)
+        if actual is None:
+            raise Failure("IMPACT_UNRESOLVED_ENTITY")
+        if expected is not None and actual != expected:
+            raise Failure("IMPACT_WRONG_ENTITY_KIND")
+        self.edges.add((dependent, dependency, edge_kind))
+
+    def type_expr(self, dependent: str, node: dict | None) -> None:
+        if node is None:
+            return
+        tag = node["t"]
+        if tag == 9:
+            for item in node["items"]:
+                self.type_expr(dependent, item)
+        elif tag == 10:
+            self.add(dependent, node["definition"], TYPE_REFERENCE, 4)
+            for argument in node["arguments"]:
+                self.type_expr(dependent, argument)
+        elif tag in (11, 13, 18):
+            self.type_expr(dependent, node["item"])
+        elif tag == 12:
+            self.type_expr(dependent, node["key"])
+            self.type_expr(dependent, node["value"])
+        elif tag == 14:
+            self.type_expr(dependent, node["ok"])
+            self.type_expr(dependent, node["error"])
+        elif tag == 15:
+            for parameter in node["parameters"]:
+                self.type_expr(dependent, parameter)
+            self.type_expr(dependent, node["result"])
+            for effect in node["effects"]:
+                self.add(dependent, effect, EFFECT, 11)
+        elif tag == 16:
+            self.add(dependent, node["adapter"], ADAPTER, 15)
+        elif tag == 17:
+            self.add(dependent, node["capability"], CAPABILITY, 12)
+
+    def const_value(self, dependent: str, node: dict | None) -> None:
+        if node is None:
+            return
+        self.type_expr(dependent, node["type"])
+        data = node["data"]
+        tag = data["t"]
+        if tag == 9:
+            for item in data["items"]:
+                self.const_value(dependent, item)
+        elif tag == 10:
+            self.add(dependent, data["definition"], DEFINITION_MEMBER, 4)
+            for field in data["fields"]:
+                self.const_value(dependent, field)
+        elif tag == 11:
+            self.add(dependent, data["definition"], DEFINITION_MEMBER, 4)
+            self.const_value(dependent, data["payload"])
+        elif tag == 12:
+            for entry in data["entries"]:
+                self.const_value(dependent, entry["key"])
+                self.const_value(dependent, entry["value"])
+        elif tag == 13:
+            self.const_value(dependent, data["item"])
+        elif tag == 14:
+            self.const_value(dependent, data["item"])
+        elif tag == 15:
+            self.add(dependent, data["function"], CALL, 5)
+            for argument in data["type_arguments"]:
+                self.type_expr(dependent, argument)
+
+
 def direct_edges(entities: list[dict], kinds: dict[str, int]) -> list[tuple[str, str, int]]:
     edges: set[tuple[str, str, int]] = set()
+    walker = Walker(kinds, edges)
     for entity in entities:
         kind = entity["kind"]
         rows = EDGE_ROWS.get(kind, [])
@@ -131,6 +239,14 @@ def direct_edges(entities: list[dict], kinds: dict[str, int]) -> list[tuple[str,
                 if expected is not None and actual != expected:
                     raise Failure("IMPACT_WRONG_ENTITY_KIND")
                 edges.add((entity["id"], dependency, edge_kind))
+        for field, shape in TYPE_FIELDS.get(kind, []):
+            nodes = entity.get(field) if shape == "many" else [entity.get(field)]
+            for node in nodes or []:
+                walker.type_expr(entity["id"], node)
+        for field, shape in CONST_FIELDS.get(kind, []):
+            nodes = entity.get(field) if shape == "many" else [entity.get(field)]
+            for node in nodes or []:
+                walker.const_value(entity["id"], node)
     return sorted(edges)
 
 

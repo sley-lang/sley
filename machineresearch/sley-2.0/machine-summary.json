@@ -218,11 +218,14 @@
     "conformance_fixture": "conformance/complete-entity-impact/v1",
     "independent_python_oracle": "scripts/check_complete_entity_impact_vector.py",
     "fixture_rejections": 19,
-    "sley_query_complete_root_tests": 17,
+    "sley_query_complete_root_tests": 18,
     "sley_repo_adapter_tests": 4,
     "edge_agreement_with_s20_360_graph": true,
     "persistent_fuzz_target": "fuzz/targets/complete_root_judgment.rs",
-    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_complete_root_smoke"
+    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_complete_root_smoke",
+    "accepted_vectors": 2,
+    "recursive_vector": "recursive-type-and-constant-bodies: 20 entities, 52 direct edges, every section 7.2 nested rule that can name an entity",
+    "independent_oracle_scope": "top-level rows, the section 7.2 type-expression and constant recursion, and closure rules C1 through C11"
   },
   "vm_lowering_profile": {
     "status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",

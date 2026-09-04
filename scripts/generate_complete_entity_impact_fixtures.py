@@ -64,11 +64,11 @@ def main() -> int:
     rejections: list[dict[str, object]] = []
     for line in completed.stdout.splitlines():
         if line.startswith("COMPLETE_ROOT_VECTOR|"):
-            _, request, expected = line.split("|", maxsplit=2)
+            _, vector_id, request, expected = line.split("|", maxsplit=3)
             vectors.append(
                 {
                     "expected": json.loads(expected),
-                    "id": "eighteen-kind-complete-root",
+                    "id": vector_id,
                     "request": json.loads(request),
                     "request_sha256": hashlib.sha256(request.encode()).hexdigest(),
                 }
@@ -83,8 +83,9 @@ def main() -> int:
                     "request": json.loads(request),
                 }
             )
-    if len(vectors) != 1:
-        raise RuntimeError(f"expected one complete-root vector, found {len(vectors)}")
+    expected_ids = ["eighteen-kind-complete-root", "recursive-type-and-constant-bodies"]
+    if [vector["id"] for vector in vectors] != expected_ids:
+        raise RuntimeError(f"unexpected vector set {[vector['id'] for vector in vectors]}")
     if [rejection["id"] for rejection in rejections] != EXPECTED_REJECTIONS:
         raise RuntimeError(f"unexpected rejection set {[r['id'] for r in rejections]}")
     accepted = {
