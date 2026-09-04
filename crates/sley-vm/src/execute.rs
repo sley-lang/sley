@@ -1321,6 +1321,11 @@ fn observation_preimage(
     raw(&mut preimage, input.state_root.as_bytes());
     raw(&mut preimage, input.function.entity_id.as_bytes());
     raw(&mut preimage, cache_key.as_bytes());
+    // The cache key above already binds the lowering profile, so an
+    // observation cannot be ambiguous between the restricted and the extended
+    // profile and these two fields stay at their frozen S20-270 values. The
+    // S20-290 report envelope needed the opposite treatment: a rejected report
+    // carries no cache key, so it binds the profile itself.
     for part in CacheProfile::RESTRICTED_V1.vm_version {
         push_u32(&mut preimage, part);
     }

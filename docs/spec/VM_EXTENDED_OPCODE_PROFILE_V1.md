@@ -218,9 +218,17 @@ inventing a code. A restricted-profile request is
 
 The observation preimage of S20-270 is unchanged; the extended profile
 enters it through the cache key and the new resource kind, and every
-`Success` value is hashed with `hash_validated_value` as before. S20-290
-report building accepts `EXTENDED_V1` beside `RESTRICTED_V1` (a revision
-of that contract's profile check). SMP1 `execute` selects the profile
+`Success` value is hashed with `hash_validated_value` as before. The
+preimage's own `execution_profile` field stays at its frozen value because
+the cache key it already carries binds the lowering profile, so no two
+profiles can share an observation identity.
+
+S20-290 report building accepts `EXTENDED_V1` beside `RESTRICTED_V1`, which
+`REPORT_ENVELOPE_PROFILE_V1.md` revision 2 (2026-09-03) records. That
+envelope needed the opposite treatment from the observation: a rejected
+report carries no cache key, only a phase and a numeric code, so it binds
+the profile itself in `execution_profile`. Revision 1's constant let one
+request rejected under both profiles derive one identity. SMP1 `execute` selects the profile
 named by the request's limits record field 6 (`uvar(profile: 1 restricted
 | 2 extended)`, appendix C revision 8), defaulting to restricted when the
 field is absent.
