@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "12203dbf45c65e96583d7d02d38a4e897d29054885ef54e705805bdae81c9bb2",
+  "dossier_digest": "fabbe75d624c006a2320f475e0a26613b78245c7417fa5ecbe5418050ccc50b6",
   "entries": [
     {
       "evidence": [
@@ -109,7 +109,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 9,
+        "python_sources": 22,
         "rust_dependency_check": "PASS"
       }
     },
@@ -439,7 +439,7 @@
       }
     }
   ],
-  "entries_digest": "1f927c37d633ade17857c7b3afac80ed9db45776ffa027e859fce55f1067f8d6",
+  "entries_digest": "4ba3741243a6412742e427c05c899454fbf887b1e02e6d8a34c8b4e4353dd9fa",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

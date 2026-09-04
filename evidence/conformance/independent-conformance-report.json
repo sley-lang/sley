@@ -45,7 +45,7 @@
       "coverage": {
         "command": "python3 scripts/check_complete_entity_impact_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/complete-entity-impact/v1",
       "files": [
@@ -82,7 +82,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_complete_root_index_snapshot_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/complete-root-index-snapshot/v1",
       "files": [
@@ -119,7 +119,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/context-capsule/v1",
       "files": [
@@ -148,7 +148,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/merge/v1",
       "files": [
@@ -262,7 +262,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/release-demo/v1",
       "files": [
@@ -289,7 +289,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/repository-exchange/v1",
       "files": [
@@ -326,7 +326,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/repository-pack/v1",
       "files": [
@@ -353,7 +353,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_root_backed_query_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/root-backed-query/v1",
       "files": [
@@ -427,7 +427,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_schema_epoch_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/schema-epoch/v1",
       "files": [
@@ -460,7 +460,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_semantic_comparison_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/semantic-comparison/v1",
       "files": [
@@ -497,7 +497,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/smp1/v1",
       "files": [
@@ -534,7 +534,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/smp1-json-bridge/v1",
       "files": [
@@ -579,7 +579,7 @@
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py",
         "kind": "independent_oracle",
-        "runner": "oracle/scb1 (Python, S20-130 independent)"
+        "runner": "scripts/ (Python, S20-130 independent)"
       },
       "directory": "conformance/state-root/v1",
       "files": [
@@ -691,9 +691,9 @@
       "target/"
     ],
     "problems": [],
-    "python_sources": 9
+    "python_sources": 22
   },
-  "report_digest": "9f8714ec530ddec9e83d41c833b0a6d010eaa373fdc5eac448647cf49fe414f9",
+  "report_digest": "4e860699a4bd81ed71b07568a151e15a0707b60344ef393f2368d4542085590d",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

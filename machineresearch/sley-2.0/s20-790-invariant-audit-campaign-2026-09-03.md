@@ -35,7 +35,9 @@ Two questions, applied to the whole tree:
 
 | 7 | The adapter-responses fuzz slice checker demanded a sentence no document carried | The slice failed whenever anyone ran it, and it runs in no aggregate target, so nothing noticed | The evidence-gaps document states the absent persistent targets, and `make persistent-fuzz-all` now runs all nineteen slices in one command |
 
-An eighth, smaller correction: a JSON bridge test paired the restricted query
+| 8 | The oracle independence scan read `oracle/scb1/src` only | Thirteen of the nineteen independent oracles live under `scripts/`, so the check that vouches for their independence never read twelve of them | Both the checker and the conformance report scan every oracle the coverage map names, and the report labels the runner that actually runs |
+
+A ninth, smaller correction: a JSON bridge test paired the restricted query
 profile's code 31004 with an invented symbol.
 
 The first full run of all nineteen persistent slices took three minutes forty

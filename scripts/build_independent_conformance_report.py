@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from enum import IntEnum
 from pathlib import Path
@@ -209,7 +210,13 @@ def family_record(directory: Path, recipe: str) -> dict:
             )
         coverage = {
             "kind": "independent_oracle",
-            "runner": "oracle/scb1 (Python, S20-130 independent)",
+            # Name the runner that actually runs, not the package that runs
+            # most of them: twelve oracles live under `scripts/`.
+            "runner": (
+                "oracle/scb1 (Python, S20-130 independent)"
+                if "sley2-scb1-oracle" in command
+                else "scripts/ (Python, S20-130 independent)"
+            ),
             "command": command,
         }
     return {
@@ -225,8 +232,22 @@ def family_record(directory: Path, recipe: str) -> dict:
 
 
 def oracle_independence() -> dict:
-    """Re-applies the S20-130 forbidden marker scan over the Python oracle."""
-    sources = sorted((ORACLE / "src").rglob("*.py"))
+    """Re-applies the S20-130 forbidden marker scan over every oracle.
+
+    Twelve of the nineteen independent checks live under `scripts/`, so a scan
+    of the package alone would vouch for oracles it never read.
+    """
+    sources = sorted((ORACLE / "src").rglob("*.py")) + [
+        ROOT / "scripts" / name
+        for name in sorted(
+            {
+                match
+                for command in COVERAGE.values()
+                if command
+                for match in re.findall(r"scripts/(check_[a-z0-9_]+\.py)", command)
+            }
+        )
+    ]
     problems: list[str] = []
     for path in sources:
         text = path.read_text(encoding="utf-8")
