@@ -76,6 +76,8 @@ ADAPTER_OWNED_METRICS = ("model_input_tokens", "model_output_tokens")
 # Everything that grades the arm, or measures what the arm cost, comes from the
 # oracle's judgement. An arm never reports its own correctness or resource use.
 ORACLE_OWNED_METRICS = (
+    "invalid_candidates",
+    "repair_loops",
     "peak_memory",
     "canonical_storage_bytes",
     "pack_bytes",
@@ -84,6 +86,59 @@ ORACLE_OWNED_METRICS = (
     "stale_candidates_incorrectly_accepted",
     "collateral_semantic_changes",
     "invalid_committed_states",
+)
+# The methods this arm's agent may name, frozen here rather than taken from
+# whatever the endpoint happens to offer. The endpoint's own hello lists all 41
+# SMP1 methods, including exchange.export, which is an entire-store dump that
+# master goal 20.10 forbids an arm from having. The allowlist is a run control:
+# its digest is recorded in the claim, so a run that widened it is visible.
+ARM_AFFORDANCES = (
+    "candidate.append",
+    "candidate.create",
+    "candidate.discard",
+    "candidate.inspect",
+    "candidate.validate",
+    "capsule",
+    "compare",
+    "handle.expand",
+    "query.continue",
+    "query.restricted",
+    "query.root",
+    "refs.list",
+    "refs.resolve",
+    "revision.read",
+    "session.budgets",
+    "session.capabilities",
+)
+# Named so the reason for each exclusion survives: bulk export and import move
+# whole stores, the rest mutate the repository or the run, and neither belongs
+# to an agent that is being measured on reading context and proposing a change.
+ARM_DENIED_METHODS = (
+    "branch.advance",
+    "diagnostics",
+    "branch.create",
+    "cancel",
+    "checkout",
+    "commit",
+    "exchange.export",
+    "exchange.import",
+    "gc.collect",
+    "gc.dry_run",
+    "execute",
+    "merge.commit",
+    "merge.judge",
+    "receipt.read",
+    "recovery",
+    "ref.move.protected",
+    "refs.recover",
+    "report",
+    "session.close",
+    "session.open",
+    "session.renew",
+    "tests.affected",
+    "tests.selected",
+    "workspace.create",
+    "workspace.open",
 )
 CONTEXT_METHODS = frozenset({"capsule", "query.root", "query.continue", "query.restricted"})
 TRIAL_STATUSES = frozenset({"accepted", "rejected", "timeout", "harness_failure"})
@@ -134,6 +189,7 @@ CLAIM_FIELDS = frozenset(
         "evidence_status",
         "oracle_verification_status",
         "accounting_verification_status",
+        "arm_affordances_digest",
         "metrics",
     }
 )
@@ -362,13 +418,27 @@ def endpoint_offer(sley: Path, timeout_seconds: int = 30) -> tuple[dict[str, Any
     version = _run_sley(sley, ["version"], b"", timeout_seconds)
     try:
         frame = _check_frame_shape(json.loads(decoded.decode("utf-8").strip()))
-        affordances = list(json.loads(hello_object)["methods"])
+        offered = list(json.loads(hello_object)["methods"])
         version_object = json.loads(version)
     except (ValueError, KeyError, TypeError) as error:
         raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "endpoint offer") from error
     if frame["kind"] != "hello":
         _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "offer is not a hello")
-    return frame, affordances, version_object
+    # The arm gets its frozen allowlist, not the endpoint's whole offer. A name
+    # the allowlist claims but the endpoint does not offer is drift in the other
+    # direction and fails rather than silently shrinking the arm.
+    missing = [name for name in ARM_AFFORDANCES if name not in offered]
+    if missing:
+        _fail(Sley2ErrorCode.HANDSHAKE_FAILED, f"endpoint does not offer {missing}")
+    denied = [name for name in ARM_DENIED_METHODS if name in ARM_AFFORDANCES]
+    if denied:
+        _fail(Sley2ErrorCode.INTERNAL_INVARIANT, f"allowlist names denied methods {denied}")
+    return frame, list(ARM_AFFORDANCES), version_object
+
+
+def arm_affordances_digest() -> str:
+    """The run control: the digest of the frozen per-arm allowlist."""
+    return _canonical_sha256(list(ARM_AFFORDANCES))
 
 
 def probe_handshake(sley: Path, hello: Mapping[str, Any], scratch: Path, timeout_seconds: int = 30) -> str:
@@ -510,7 +580,6 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
     entities = 0
     relationships = 0
     validate_requests = 0
-    validate_failures = 0
     for record in records:
         if record.get("kind") != "frame":
             continue
@@ -533,7 +602,14 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         # measure so the two are comparable rather than conflated.
         context_bytes += len(frame.get("body", "")) // 2
         if direction == "response" and frame.get("method") == "candidate.validate" and frame["flags"].get("failed"):
-            validate_failures += 1
+            # SMP1's `failed` flag marks a ProtocolFailure envelope: the request
+            # itself did not complete. It is not an S20-360 candidate verdict,
+            # which arrives as a successful response whose body says the
+            # candidate is invalid. Counting it as `invalid_candidates` read
+            # zero whenever candidates were genuinely invalid, always in the
+            # arm's favour. It is counted in derive_context_breakdown as
+            # protocol_failures, which is what it actually measures.
+            pass
     return {
         "attempted_tasks": 1,
         "compile_or_check_attempts": validate_requests,
@@ -541,9 +617,7 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         "entities_inspected": entities,
         "files_inspected": 0,
         "human_interventions": 0,
-        "invalid_candidates": validate_failures,
         "relationships_inspected": relationships,
-        "repair_loops": validate_failures,
         "tool_calls": tool_calls,
     }
 
@@ -561,6 +635,7 @@ def derive_context_breakdown(records: list[dict[str, Any]]) -> dict[str, int]:
 
     context_bytes = 0
     capsule_bytes = 0
+    protocol_failures = 0
     for record in records:
         if record.get("kind") != "frame" or record.get("direction") == "request":
             continue
@@ -569,10 +644,13 @@ def derive_context_breakdown(records: list[dict[str, Any]]) -> dict[str, int]:
         context_bytes += body_bytes
         if frame.get("method") in CONTEXT_METHODS:
             capsule_bytes += body_bytes
+        if frame.get("flags", {}).get("failed"):
+            protocol_failures += 1
     return {
         "context_bytes": context_bytes,
         "capsule_bytes": capsule_bytes,
         "non_capsule_context_bytes": context_bytes - capsule_bytes,
+        "protocol_failures": protocol_failures,
     }
 
 
@@ -977,6 +1055,7 @@ def run_scripted_trial(
     metrics["accepted_change_tokens"] = None
     claim = {
         "accounting_verification_status": VERIFICATION_STATUS,
+        "arm_affordances_digest": arm_affordances_digest(),
         "arm_id": ARM,
         "contract": CLAIM_CONTRACT,
         "endpoint_sha256": endpoint_digest,

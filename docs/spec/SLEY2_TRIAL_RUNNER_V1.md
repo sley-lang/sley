@@ -106,6 +106,16 @@ an S20-610 cross-arm fairness control, and one arm widening it is the shared
 control drift S20-610 rejects. An arm that needs the split as a reported metric
 must have S20-610 amend the plan.
 
+`invalid_candidates` and `repair_loops` are S20-360 candidate verdicts, and the
+trace cannot see them. They used to be derived from SMP1's `failed` flag, which
+marks a ProtocolFailure envelope: a request that did not complete, not a
+candidate found invalid. A candidate that validates as invalid returns a
+successful response whose body carries the verdict, so the derivation read zero
+invalid candidates whenever candidates were genuinely invalid, always in the
+arm's favour. Both are oracle-owned. The flag is still counted, as
+`protocol_failures` in this package's context breakdown, which is what it
+measures.
+
 Every injected metric has exactly one source, and the two sets do not overlap.
 `model_input_tokens` and `model_output_tokens` come from the adapter's
 observation, because only the adapter knows its own usage. The correctness and
@@ -229,15 +239,23 @@ provenance; publication; runtime, packaging, release, or GA.
   tooling, which stay injected and command-free; the runner's only process
   is the endpoint binary, whose SHA-256 the trace header and every claim
   carry as `endpoint_sha256`, so the exact endpoint is part of the record.
-- The client hello is `sley hello` decoded with `sley frame decode`, and
-  the affordances are the `methods` of `sley hello --json`; both come from
-  the same binary, so the negotiated profile is that offer.
+- The client hello is `sley hello` decoded with `sley frame decode`. The
+  affordances are **not** that hello's `methods`: the endpoint offers all 41
+  SMP1 methods, `exchange.export` among them, and an arm holding an
+  entire-store dump is what master goal 20.10 forbids. The arm's affordances
+  are the frozen `ARM_AFFORDANCES` allowlist, and `arm_affordances_digest` is a
+  run control carried in every claim, so a run that widened the arm's reach is
+  visible in the record rather than inferred from the binary. A name the
+  allowlist claims that the endpoint does not offer is
+  `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
   runner's `session.close`; seeding and opening carry no session and are
   not counted either.
 - The scripted smoke attempts no task, so its oracle claim is `rejected`
   with `SLEY2_SMOKE_NO_TASK_ATTEMPTED`; a capsule round trip joins the
   script once a request builder is reachable through the endpoint.
+- A claim carries `arm_affordances_digest`, the canonical digest of the
+  allowlist the trial ran under.
 - A claim's `handshake_id`, `report_digest`, `model_output_digest`, and
   `oracle_report_digest` may be null only for timeouts and harness
   failures; `trace_record_count` is at least two (header and footer).

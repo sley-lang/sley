@@ -172,8 +172,15 @@ class Sley2RunnerTests(unittest.TestCase):
         self.assertEqual(metrics["entities_inspected"], 5)
         self.assertEqual(metrics["relationships_inspected"], 7)
         self.assertEqual(metrics["compile_or_check_attempts"], 2)
-        self.assertEqual(metrics["repair_loops"], 1)
-        self.assertEqual(metrics["invalid_candidates"], 1)
+        # invalid_candidates and repair_loops are S20-360 candidate verdicts,
+        # which the trace cannot see: SMP1's failed flag marks a ProtocolFailure
+        # envelope, not an invalid candidate. The oracle owns them now.
+        self.assertNotIn("invalid_candidates", metrics)
+        self.assertNotIn("repair_loops", metrics)
+        self.assertIn("invalid_candidates", runner.ORACLE_OWNED_METRICS)
+        self.assertIn("repair_loops", runner.ORACLE_OWNED_METRICS)
+        # The flag is still counted, as the thing it actually measures.
+        self.assertEqual(runner.derive_context_breakdown(records)["protocol_failures"], 1)
         self.assertEqual((metrics["attempted_tasks"], metrics["files_inspected"], metrics["human_interventions"]), (1, 0, 0))
 
     def test_handle_exposes_exactly_two_operations_and_refuses_runner_fields(self) -> None:
@@ -263,6 +270,7 @@ class Sley2RunnerTests(unittest.TestCase):
         claims_path = self.run / "sley2" / "claims.jsonl"
         base = {
             "accounting_verification_status": "UNVERIFIED_ADAPTER_CLAIM",
+            "arm_affordances_digest": runner.arm_affordances_digest(),
             "arm_id": ARM,
             "contract": CLAIM_CONTRACT,
             "endpoint_sha256": digest(9),
@@ -393,3 +401,41 @@ class MetricSourceTests(unittest.TestCase):
         for hostile in (-1, True, "0", None, 1.5, [0]):
             self.assertEqual(runner._whole_number(hostile), 0)
         self.assertEqual(runner._whole_number(7), 7)
+
+
+class ArmAffordanceTests(unittest.TestCase):
+    """The arm's reach is frozen here, not taken from the endpoint's offer.
+
+    The endpoint's hello lists all 41 SMP1 methods including exchange.export,
+    an entire-store dump master goal 20.10 forbids an arm from holding.
+    Raised by ariadne.
+    """
+
+    def test_the_allowlist_excludes_bulk_and_mutating_methods(self):
+        self.assertNotIn("exchange.export", runner.ARM_AFFORDANCES)
+        self.assertNotIn("exchange.import", runner.ARM_AFFORDANCES)
+        self.assertNotIn("commit", runner.ARM_AFFORDANCES)
+        self.assertEqual(
+            set(runner.ARM_AFFORDANCES) & set(runner.ARM_DENIED_METHODS), set()
+        )
+
+    def test_allowlist_and_denylist_together_cover_the_smp1_table(self):
+        table = json.loads(
+            (Path(__file__).resolve().parents[3] / "conformance/smp1-json-bridge/v1/methods.json").read_text()
+        )
+        entries = table["methods"] if isinstance(table, dict) else table
+        names = {entry["name"] if isinstance(entry, dict) else entry for entry in entries}
+        covered = set(runner.ARM_AFFORDANCES) | set(runner.ARM_DENIED_METHODS)
+        # A method the table gains must be placed deliberately on one side.
+        self.assertEqual(names - covered, set(), "SMP1 method neither allowed nor denied")
+        self.assertEqual(covered - names, set(), "allowlist names a method SMP1 does not have")
+
+    def test_the_digest_is_a_control_that_moves_when_the_allowlist_does(self):
+        before = runner.arm_affordances_digest()
+        original = runner.ARM_AFFORDANCES
+        try:
+            runner.ARM_AFFORDANCES = original + ("exchange.export",)
+            self.assertNotEqual(runner.arm_affordances_digest(), before)
+        finally:
+            runner.ARM_AFFORDANCES = original
+        self.assertEqual(runner.arm_affordances_digest(), before)

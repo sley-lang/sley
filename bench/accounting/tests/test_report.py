@@ -30,7 +30,7 @@ from bench.raw.runner import (
     append_trial_digest_claim,
     write_run_manifest,
 )
-from bench.sley2.runner import ARM, CLAIM_CONTRACT, append_trial_claim, smoke_manifest
+from bench.sley2.runner import ARM, CLAIM_CONTRACT, append_trial_claim, arm_affordances_digest, smoke_manifest
 
 
 def digest(byte: int) -> str:
@@ -107,6 +107,7 @@ def sley2_claim(run_id: str, task_id: str, seed: int, status: str, *, tokens: in
     harness = status == "harness_failure"
     return {
         "accounting_verification_status": "UNVERIFIED_ADAPTER_CLAIM",
+        "arm_affordances_digest": arm_affordances_digest(),
         "arm_id": ARM,
         "contract": CLAIM_CONTRACT,
         "endpoint_sha256": digest(9),
