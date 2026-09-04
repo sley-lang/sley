@@ -2691,8 +2691,9 @@
       ],
       "profile": [
         "the production-epoch fingerprint requirement (a validation profile rule; the field is already optional field 4)",
-        "contract_assert execution (statically accepted under epoch 1; execution assigned to S20-270)",
-        "effect_request and capability_narrow execution (owner blocked, not epoch blocked)"
+        "contract_assert execution (statically accepted under epoch 1; execution assigned to S20-270; landed as slice E7a)",
+        "effect_request and capability_narrow execution (owner blocked, re-verified against the code: no narrowing function exists and no host services an effect)",
+        "adapter_invoke against an existing import (profile shaped, but the request-side binding is a design S20-280 full owes)"
       ],
       "unblocked_today": "contract_assert execution needs no epoch, no schema change, and no new owner"
     }
