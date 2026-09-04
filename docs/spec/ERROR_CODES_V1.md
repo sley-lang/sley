@@ -365,9 +365,10 @@ freezes, these codes.
 
 S20-560 reserves numeric codes 56000 through 56002 for the exact
 `REPORT_STORE_*` failures of the execution report store composed by SMP1
-appendix C (`SMP1.md` revision 7): an unknown identity, stored bytes that do
-not re-derive their identity or exceed the bound, and a host failure or a
-differing existing entry. The production object verifier reports the
+appendix C (`SMP1.md` revision 7): `REPORT_STORE_UNKNOWN` (56000) for an
+unknown identity, `REPORT_STORE_INVALID` (56001) for stored bytes that do not
+re-derive their identity or exceed the bound, and `REPORT_STORE_IO` (56002)
+for a host failure or a differing existing entry. The production object verifier reports the
 S20-180 `GC_*` codes of the planner it serves. These codes are reserved with
 the S20-400 draft and frozen with it.
 

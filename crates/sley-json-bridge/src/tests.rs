@@ -600,9 +600,12 @@ fn hello_selected_failure_and_chunk_round_trip() {
 fn failure_chunk_and_bounds_round_trip() {
     let failures = [
         ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded),
+        // 31004 is the S20-310 restricted query profile's own code, so the
+        // round trip carries that owner's exact symbol rather than inventing
+        // one.
         ProtocolFailure {
             code: 31_004,
-            symbol: "QUERY_CURSOR_INVALID".to_string(),
+            symbol: "QUERY_UNRESOLVED_ENTITY".to_string(),
             phase: 3,
             retryability: Retryability::AfterRequery,
             incident: Some([0xab; 32]),

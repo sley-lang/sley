@@ -2794,5 +2794,15 @@
     "adopted": "2026-09-03",
     "tier": "Tier 2 handoff; the workspace configured these lints but no target enforced them",
     "allows_with_reasons": 6
+  },
+  "error_symbol_registration": {
+    "checker": "scripts/check_error_symbol_registration.py",
+    "contract": "sley2.error-symbol-registration.v1",
+    "declared_namespaces": 34,
+    "emitted_symbols": 329,
+    "unregistered": 0,
+    "adopted": "2026-09-03",
+    "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1), the three REPORT_STORE_* symbols carried only as a family wildcard, and one bridge test that paired the restricted query profile's code 31004 with an invented symbol",
+    "scope": "registration only; meaning, number, and freeze stay with the owning contract"
   }
 }
