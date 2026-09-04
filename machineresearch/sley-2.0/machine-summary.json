@@ -2459,7 +2459,12 @@
     "p4": 0
   },
   "evidence_gaps": [
-    "Remaining M2 through M6 implementation and release evidence"
+    "M2 exit: canonical report entity bodies, protected S20-370 test selection, expected-observation semantics, and effect, capability, adapter, and replay evidence. The report entity bodies need a schema epoch (S20-760 revision 2, agenda item 1)",
+    "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
+    "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
+    "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
+    "M6 release: the evidence chain is built and drift-checked (SBOM, provenance, reproducibility, finding register, GA acceptance, decision dossier). What remains is the operator's: the root license text, a second host attestation, and the release decision itself",
+    "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down"
   ],
   "open_risks": [
     "SSMC descriptor inputs are frozen, but complete production-epoch assembly awaits remaining descriptor-owning packages",
