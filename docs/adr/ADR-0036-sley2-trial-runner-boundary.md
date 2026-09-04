@@ -45,4 +45,11 @@ soon as a lane returns.
 - A real trial needs only injected adapters and operator approval; no
   runner code changes.
 - The privileged-context risk named by the work package is mechanically
-  audited rather than asserted.
+  audited where a mechanism exists, and stated where none does. The declared
+  handle surface and the reflected privileged-name set are both checked per
+  trial; the exchange closure's cells are reachable by any adapter that
+  reflects, which one process cannot prevent. Calling the whole thing
+  "mechanically audited" was wrong: three reviewers reached the live session
+  and the runner's own module through `__closure__` and `__globals__`. An arm
+  that cannot trust its adapter must isolate it in a process, and the trace
+  exists so that a breach is visible afterwards.

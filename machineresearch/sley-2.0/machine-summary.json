@@ -2229,7 +2229,7 @@
   "sley2_trial_runner": {
     "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",
@@ -2258,7 +2258,10 @@
     "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
     "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md",
-    "p0_open_count": 12
+    "p0_open_count": 9,
+    "p0_closed": [
+      "the two-operation handle was not a capability boundary: exchange.__func__.__globals__ reached Endpoint, subprocess, Trace and Path and _exchange.__closure__ reached the live session, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' were false; raised independently by ariadne, nabu and vulcan. EndpointHandle now lives in a module importing nothing privileged (reflected_privileged_names is empty and gated per trial and in the checker), and the contract states the irreducible closure residual as trust rather than denying it"
+    ]
   },
   "succession_accounting": {
     "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",

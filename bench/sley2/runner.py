@@ -27,6 +27,12 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, runtime_checkable
 
+from bench.sley2.handle import (
+    HANDLE_SURFACE,
+    EndpointHandle,
+    handle_surface,
+    reflected_privileged_names,
+)
 from bench.raw.runner import (
     EVIDENCE_STATUS,
     HEX_64,
@@ -67,7 +73,7 @@ DEFAULT_SLEY = ROOT / "target/debug/sley"
 CONTEXT_METHODS = frozenset({"capsule", "query.root", "query.continue", "query.restricted"})
 TRIAL_STATUSES = frozenset({"accepted", "rejected", "timeout", "harness_failure"})
 AGENT_REQUEST_FIELDS = frozenset({"method", "body", "cancel"})
-HANDLE_SURFACE = frozenset({"exchange", "affordances"})
+
 ZERO_LIMITS = {
     "max_depth": 0,
     "max_edges": 0,
@@ -198,26 +204,9 @@ class AccountingClock(Protocol):
         """Return a UTC-second timestamp."""
 
 
-class EndpointHandle:
-    """The only object an agent receives (contract section 2)."""
-
-    __slots__ = ("_exchange", "_affordances")
-
-    def __init__(self, exchange: Callable[[Mapping[str, Any]], list[dict[str, Any]]], affordances: list[str]):
-        self._exchange = exchange
-        self._affordances = tuple(affordances)
-
-    def exchange(self, request: Mapping[str, Any]) -> list[dict[str, Any]]:
-        """Send one method and body; receive the events and the response."""
-        return self._exchange(request)
-
-    def affordances(self) -> list[str]:
-        """The method names the negotiated profile admits."""
-        return list(self._affordances)
-
-
-def handle_surface(handle: Any) -> set[str]:
-    return {name for name in dir(handle) if not name.startswith("_")}
+# EndpointHandle lives in its own module so that a reflecting adapter reaching
+# `exchange.__func__.__globals__` finds that module's names rather than this
+# one's endpoint, subprocess, filesystem, and trace machinery.
 
 
 # ---------------------------------------------------------------------------
@@ -830,6 +819,11 @@ def run_scripted_trial(
         handle = EndpointHandle(guarded_exchange, affordances)
         if handle_surface(handle) != HANDLE_SURFACE:
             _fail(Sley2ErrorCode.PRIVILEGED_CONTEXT, "handle surface")
+        # The declared surface is not the whole reachable surface: a bound
+        # method carries its defining module's globals. This is the part that
+        # can be held to zero and checked, so it is checked rather than assumed.
+        if reflected_privileged_names(handle):
+            _fail(Sley2ErrorCode.PRIVILEGED_CONTEXT, "handle reflection")
         try:
             observation = agent.run(handle)
         except Sley2RunnerError:
@@ -1074,6 +1068,10 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
         evidence["guard"] = {
             "handle_surface": sorted(handle_surface(EndpointHandle(lambda r: [], affordances))),
             "leaky_handle_refused": handle_surface(Leaky(lambda r: [], affordances)) != HANDLE_SURFACE,
+            "reflected_privileged_names": sorted(
+                reflected_privileged_names(EndpointHandle(lambda r: [], affordances))
+            ),
+            "reflection_residual": "exchange closure cells remain reachable; section 2 states this",
         }
         summary = run_scripted_trial(
             run_directory=run_directory,

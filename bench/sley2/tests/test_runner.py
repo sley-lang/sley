@@ -23,6 +23,7 @@ from bench.sley2.runner import (
     append_trial_claim,
     derive_trace_metrics,
     handle_surface,
+    reflected_privileged_names,
     request_frame,
     run_scripted_trial,
     smoke_manifest,
@@ -283,3 +284,52 @@ class Sley2RunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HandleReflectionTests(unittest.TestCase):
+    """What an adapter reaches past the declared surface.
+
+    Three reviewers independently broke the section 2 claim that "nothing else
+    existed": `handle.exchange.__func__.__globals__` reached the runner's
+    Endpoint, subprocess, Trace and Path, and `handle._exchange.__closure__`
+    reached the live session. `handle_surface` is a `dir()` filter and
+    structurally cannot see either.
+    """
+
+    def _handle(self):
+        session = "live-session"
+        def _exchange(request):
+            return [{"session": session}]
+        return EndpointHandle(_exchange, ["query.read"])
+
+    def test_declared_surface_is_not_evidence_of_a_boundary(self):
+        handle = self._handle()
+        # The declared surface says two names...
+        self.assertEqual(handle_surface(handle), set(HANDLE_SURFACE))
+        # ...while the exchange closure still holds what it needs to answer.
+        cells = [cell.cell_contents for cell in handle._exchange.__closure__ or ()]
+        self.assertIn("live-session", cells)
+
+    def test_no_privileged_name_is_reachable_through_module_globals(self):
+        # The reducible half of the reflection surface is held at zero.
+        self.assertEqual(reflected_privileged_names(self._handle()), set())
+
+    def test_a_handle_defined_beside_privileged_names_is_refused(self):
+        # A handle whose class is defined in a module that can see the runner
+        # hands those names to any adapter that reflects, so the audit must
+        # catch it wherever the class is moved back.
+        import types
+
+        module = types.ModuleType("hostile_handle_module")
+        module.__dict__["subprocess"] = object()
+        module.__dict__["Endpoint"] = object()
+        exec(
+            "class Hostile:\n"
+            "    def exchange(self, request):\n"
+            "        return []\n",
+            module.__dict__,
+        )
+        self.assertEqual(
+            reflected_privileged_names(module.__dict__["Hostile"]()),
+            {"subprocess", "Endpoint"},
+        )

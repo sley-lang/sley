@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 
@@ -69,11 +70,31 @@ ADR_MARKERS = (
     "7. **Staging.**",
 )
 WORK_PACKAGE_MARKERS = ("`docs/spec/SLEY2_TRIAL_RUNNER_V1.md`", "ADR-0036")
-RUNNER_MARKERS = (
-    "class Sley2ErrorCode(IntEnum)",
+# The handle lives in its own module so that a reflecting adapter reaching
+# `exchange.__func__.__globals__` cannot see the runner's endpoint, subprocess,
+# filesystem, or trace names.
+HANDLE = RUNNER_DIR / "handle.py"
+HANDLE_MARKERS = (
     "class EndpointHandle",
     "def exchange(self",
     "def affordances(self",
+    "def handle_surface",
+    "def reflected_privileged_names",
+)
+# Importing any of these into the handle module would put it back within reach
+# of a reflecting adapter, which is the defect three reviewers found.
+FORBIDDEN_HANDLE_TOKENS = (
+    "import subprocess",
+    "import os",
+    "import sys",
+    "import tempfile",
+    "from pathlib",
+    "from bench",
+)
+RUNNER_MARKERS = (
+    "class Sley2ErrorCode(IntEnum)",
+    "from bench.sley2.handle import",
+    "reflected_privileged_names(handle)",
     "class AgentAdapter(Protocol)",
     'TRACE_CONTRACT = "sley2.sley2-trial-trace.v1"',
     'CLAIM_CONTRACT = "sley2.sley2-trial-digest-claim.v1"',
@@ -151,6 +172,29 @@ def main() -> int:
         for marker in RUNNER_MARKERS:
             if marker not in runner:
                 problems.append(f"runner-marker:{marker}")
+        handle = read(HANDLE) if HANDLE.exists() else ""
+        if not handle:
+            problems.append("handle-module:missing")
+        for marker in HANDLE_MARKERS:
+            if marker not in handle:
+                problems.append(f"handle-marker:{marker}")
+        for token in FORBIDDEN_HANDLE_TOKENS:
+            if token in handle:
+                problems.append(f"handle-privileged-import:{token}")
+        # The property, not its spelling: build a handle and read back what a
+        # reflecting adapter would reach.
+        try:
+            sys.path.insert(0, str(ROOT))
+            from bench.sley2.handle import (  # noqa: PLC0415
+                EndpointHandle,
+                reflected_privileged_names,
+            )
+
+            reached = reflected_privileged_names(EndpointHandle(lambda request: [], []))
+            if reached:
+                problems.append(f"handle-reflection-reaches:{sorted(reached)}")
+        except Exception as error:  # noqa: BLE001
+            problems.append(f"handle-reflection-uncheckable:{type(error).__name__}")
         for token in FORBIDDEN_RUNNER_TOKENS:
             if token in runner:
                 problems.append(f"runner-forbidden:{token}")
@@ -161,7 +205,6 @@ def main() -> int:
             problems.append("runner-tests:missing")
         else:
             import subprocess
-            import sys
 
             completed = subprocess.run(
                 [sys.executable, "-m", "unittest", "discover", "-s", "bench/sley2/tests", "-t", "."],

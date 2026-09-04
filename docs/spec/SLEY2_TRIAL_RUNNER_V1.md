@@ -1,9 +1,11 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-620 contract draft, revision 3 (2026-09-04); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
-revision 1 (section 9). The implementation is `bench/sley2/runner.py`;
+revision 1 (section 9). Revision 3 replaces the section 2 capability claim
+with the cooperative-adapter trust boundary the round showed it to be.
+The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
 ## Boundary
@@ -63,8 +65,27 @@ The runner owns all of those. A handle that exposes anything else, or an
 agent request that names any other field (a session, an identifier, a
 kind), is `SLEY2_TRIAL_PRIVILEGED_CONTEXT`, and the trial is recorded as a
 harness failure; a request naming a method outside the affordances or a
-body that is not hex is `SLEY2_TRIAL_FRAME_INVALID`. The context the agent saw is exactly the
-recorded responses; nothing else existed.
+body that is not hex is `SLEY2_TRIAL_FRAME_INVALID`.
+
+The context the agent was **offered** is exactly the recorded responses. This
+is a cooperative-adapter trust boundary, not a capability boundary, and the
+earlier claim that "nothing else existed" was false: one Python process cannot
+withhold itself from code running inside it. A bound method carries its
+defining module's globals, and a closure carries its cells, so an adapter that
+reflects reaches both. Two things follow, and both are contract:
+
+1. `EndpointHandle` is defined in its own module that imports nothing
+   privileged, so `reflected_privileged_names` is empty and stays empty: the
+   runner's endpoint, subprocess, filesystem, and trace names are not reachable
+   that way. A handle whose class can see them is
+   `SLEY2_TRIAL_PRIVILEGED_CONTEXT`, checked per trial rather than asserted.
+2. The exchange closure's own cells remain reachable. That residual is
+   irreducible in one process, because the callable must hold what it needs to
+   answer. It is stated here rather than denied, and an arm whose adapter is
+   not trusted to decline it must run the adapter in its own process.
+
+An arm's result therefore rests on the adapter being cooperative, and the trace
+is what makes a breach visible after the fact rather than impossible.
 
 ## 3. Complete trace
 
