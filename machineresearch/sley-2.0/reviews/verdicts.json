@@ -1,0 +1,20 @@
+{
+  "260-ariadne-contract": {
+    "key": "S20_260_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 6,
+    "p2": 5,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "260-nabu-architecture": {
+    "key": "S20_260_ARCHITECTURE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 7,
+    "p2": 6,
+    "p3": 5,
+    "result": "PASS",
+    "reviewer": "nabu"
+  }
+}

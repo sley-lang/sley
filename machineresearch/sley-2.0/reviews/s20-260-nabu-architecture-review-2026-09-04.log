@@ -1,0 +1,72 @@
+DISPATCH 260-nabu-architecture forge-nabu-260-nabu-architecture-20260904T023646 2026-09-04T02:36:46Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its composed authorities.
+
+Note: the contract on disk is revision 9, not 7 — E7a (`contract_assert`) has landed since the handoff was written. Reading the rest.
+
+Review complete. Read-only; no repository changes, no cargo. Verdict below.
+
+## status
+`PASS` — no P0. The profile separation is architecturally sound and three of the four design choices you asked about are *forced*, not chosen. Seven P1s are contract-completeness and evidence defects that should land as revision 10 before freeze.
+
+## findings
+
+**The four questions asked**
+
+1. **Second cache profile with its own magic — correct, and the only sound option.** `SLEYBC02` changes the *instruction encoding* (a per-instruction immediate after the results), so a single magic would need an in-body version flag, which is strictly worse than a profile tag. The cache key binds `lowering_profile` and the observation preimage embeds the cache key (`execute.rs:1323`), so keys cannot collide; the profile-toggle fuzz lane asserts exactly the right invariant — equal terminations, unequal cache keys (`fuzz/targets/vm_canonical_inputs.rs:71-84`).
+
+2. **Per-family rules — exact but under-specified in three places.** E2 matches the manifest failure sets exactly (`SSMC1_EPOCH1_SCHEMA.txt:107-165`: `shr` = InvalidShift only, `shl` = InvalidShift|Overflow, codes 1/2/3 = the closed `ArithmeticError`). E4 map order is **forced**, not chosen: SCB1 requires strictly-increasing entries by canonical key bytes (`SCB1.md:128`, `ScbErrorCode::MapOrder`), so any other order would fail to encode. E3 NaN canonicalization and the −0 flush are **forced** by §2's `check_constant` invariant plus S20-210 rejecting `0x8000_0000` and non-canonical NaN (`sley-check/src/lib.rs:1026-1049`). E5 cells and E6 depth are exact — the ceiling arithmetic yields exactly 256 total frames, entry included (`execute.rs:761`).
+
+3. **Excluding floats from E1 equality — right, for a reason the contract never states.** Structural equality on an aggregate holding the canonical NaN returns `true` where IEEE returns `false`; the exclusion is what keeps `equal` agreeing with `value_hash` on every admitted type. That invariant is load-bearing and unwritten (P1-2).
+
+4. **E7 exclusion — stated safely in the crate, not in the contract.** Fail-closed refusal plus the staging checker pinning `e7_opcodes` is tight. The gap is on the §3.1 surface (P1-6).
+
+<details>
+<summary>P1 — must fix before freeze (7)</summary>
+
+1. **§3 E1 table contradicts §7 and the implementation.** The normative table says equality operands are "float-free"; §7 and `extended.rs:692-694` admit bare `F32`/`F64`. Fold the exception into the §3 row.
+2. **`equal` and `value_hash` disagree on NaN, unstated.** Op 96 is IEEE (`extended.rs:1396-1400`); op 192 hashes the canonical NaN, so two NaNs hash equal and compare unequal. State the invariant — equality agrees with hash-equality on every E1-admitted type, bare floats the single named exception — which also makes the nested-float exclusion derivable instead of arbitrary.
+3. **"The host's IEEE-754 arithmetic" (§7) is not a specification** for a profile whose observations must reproduce across hosts. Make it normative correctly-rounded IEEE-754 with `float_fma` a single rounding, and name what is forbidden (x87 excess precision, FMA contraction, FTZ/DAZ), so a host whose `mul_add` is not correctly rounded is nonconforming rather than silently divergent.
+4. **The −0 flush is a real IEEE deviation, buried in a revision note.** `extended.rs:783,793` maps −0 to +0, so `float_neg(+0)` is +0 and `1.0/x` yields +inf where IEEE yields −inf. §3 claims "Semantics are IEEE-754" and mentions only NaN. State the deviation in §3 with its downstream consequence, and record that §2 forces it.
+5. **The 256-frame ceiling is frozen against a manifest that models depth per request.** `ResourceLimits` field 5 is `call_depth` (`SSMC1_EPOCH1_SCHEMA.txt:172`), the VM hardcodes `MAX_CALL_DEPTH` (`execute.rs:638`), and the ceiling is absent from the observation preimage (`execute.rs:1337-1341`). S20-290 already records this as a gap (`REPORT_ENVELOPE_PROFILE_V1.md:296`). State that `call_depth` is not honoured under `EXTENDED_V1`, that 256 is bound only by `vm_version`, and that making it request-supplied requires it to enter the preimage plus a `vm_version` bump. **This answers campaign open question 3: no, it does not belong in the request limits yet — but the divergence must be written down.**
+6. **§3.1 omits the precondition its only consumer relies on.** S20-360 skips units carrying unanalyzable E7 opcodes *before* calling `judge_function_operations` (`candidate_validation.rs:828-831`). Without that sentence, a second consumer maps `VM_LOWER_OPCODE_UNSUPPORTED` — a capability answer — into a program-validity verdict.
+7. **No conformance vector for `ResourceLimit(CallDepth)`.** 21 vectors, none exercising the profile's only new observable termination kind; it is covered by a unit test alone (`extended_tests.rs:2584`). §5 requires per-slice vectors carrying "expected termination".
+
+</details>
+
+<details>
+<summary>P2 — fix before completion (6)</summary>
+
+1. No vector for the DuplicateKey failure value; Arithmetic, Index, and ContractViolation each have one. Cover every `BuiltinFailureKind` the profile can produce.
+2. The contract never says a cell cannot cross a call frame; `extended.rs:274-278` enforces it. §E5/§E6 read as if cells were merely "per execution".
+3. Termination precedence at a call boundary is unstated: the depth check precedes the fuel charge (`execute.rs:761-767`), so a call exceeding both answers CallDepth and charges no fuel.
+4. §E4/§7 attribute canonical map order to what "constants require", but `check_map_constant` (`sley-check/src/lib.rs:829-849`) enforces only key traits and duplicate-freedom. Cite SCB1 as the real authority — a reader validating with `check_constant` alone admits an unsorted map and then gets wrong `equal`/`value_hash`, since `extended.rs:1407` is structural.
+5. The preimage hardcodes `RESTRICTED_V1.vm_version` under both profiles (`execute.rs:1329`). Correct today; the field no longer denotes the executing profile. Derive it, or freeze in §4 that all epoch-1 profiles share one `vm_version`.
+6. §4 should say the closed `ResourceKind` set gained a fifth tag in one shared enum (`execute.rs:52-63`) — unreachable under `RESTRICTED_V1`, but every observation/report consumer must accept it.
+
+</details>
+
+<details>
+<summary>P3 — editorial (5)</summary>
+
+1. ADR-0039's status line still reads "revision 7 … E1 through E6 implemented, E7 excluded" while its own decision 6 records E7a.
+2. The campaign record is stale on four counts: "revision 7", "nineteen conformance vectors" (21 on disk), no E7a row, and "Until it lands the endpoint executes under `RESTRICTED_V1` only" — the SMP1 selector has landed (`sley-protocol/src/server.rs:1871`).
+3. §3 tables render two-operand rows as three columns ("`T`, `T`, `T` hashable"), reading as three operands.
+4. The E1 order row lists five types and defers floats to E3, while `ordered()` (`extended.rs:238-249`) is one list of seven. State the admissible set once.
+5. The stage checker pins the spec revision but never cross-checks it against the ADR status line or the campaign record — which is why 1 and 2 drifted undetected.
+
+</details>
+
+**Campaign open questions 1, 2, 4** — 1: declared result is right (`vector_new`/`map_new` with zero operands), because an immediate would add a type payload the SSMC1 model does not carry for those opcodes. 2: IEEE unordered is right and forced, since a total order would contradict `total_order: false` on F32/F64 in S20-210. 4: yes, forced by SCB1 encode/decode.
+
+## validation
+Stage checker `python3 scripts/check_vm_extended_opcode_profile.py` → `PASS`, revision 9, all seven slices `IMPLEMENTED`, status `S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING`. Targeted reads of the contract, ADR, campaign record, manifest op table, `extended.rs`, `execute.rs` (preimage, frames, ResourceKind), `sley-check` traits/constants, SCB1 map rules, the 21 vectors, and the fuzz lane. No cargo run; I did not read `extended_tests.rs` or the `SLEYBC02` encoder in full, so P1-7 and P2-1 are corpus-coverage claims, not test-coverage claims.
+
+## blockers
+None. The handoff described revision 7 / E1–E6; the repository is at revision 9 with E7a landed, so findings are stated against what is on disk.
+
+## return_to
+Orchestrator — findings land as contract revision 10 before freeze.
+
+S20_260_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":["S3 E1 table says equality is float-free while S7 and extended.rs:692-694 admit bare floats","equal (96) and value_hash (192) disagree on NaN; the equality-agrees-with-hash invariant is unstated","S7 defines E3 as 'the host's IEEE-754 arithmetic', which is not a reproducible-across-hosts specification","the -0 to +0 flush is an IEEE deviation stated only in a revision note, not in S3, and its forcing by S2 is unrecorded","the 256-frame ceiling is frozen while the manifest models ResourceLimits.call_depth per request and the ceiling is absent from the observation preimage","S3.1 omits the E7-prefilter precondition its only consumer relies on, so OPCODE_UNSUPPORTED can become a validity verdict","no conformance vector freezes ResourceLimit(CallDepth), the profile's only new observable termination"],"p2":["no vector for the DuplicateKey failure value","the contract never states that a cell cannot cross a call frame","termination precedence at a call boundary (depth before fuel) is unstated","canonical map order is attributed to check_constant, but SCB1 is the actual authority","the preimage hardcodes RESTRICTED_V1.vm_version under both profiles","S4 should record that the closed ResourceKind set gained tag 5"],"p3":["ADR-0039 status line still says revision 7 and E7 excluded","campaign record stale on revision, vector count, E7a row, and the landed SMP1 selector","S3 two-operand rows render as three columns","the E1 order row and ordered() state the admissible set differently","the stage checker never cross-checks the spec revision against the ADR or campaign record"],"notes":"Profile separation is sound; map order, NaN/-0 canonicalization and float exclusion are forced rather than chosen. Defects are contract completeness and vector coverage, not structure."}
+EXIT=0 2026-09-04T02:44:21Z

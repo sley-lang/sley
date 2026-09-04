@@ -2885,11 +2885,15 @@
     "lane": "claude-cli/claude-opus-5",
     "opened": "2026-09-04T02:29:23Z",
     "staged_requests": 69,
-    "completed": 1,
+    "completed": 2,
     "retained": "machineresearch/sley-2.0/reviews/",
     "first_verdict": "S20-260/S20-270 Ariadne contract review: FAIL, 2 P0 and 6 P1",
     "p0_confirmed": "signed int_shl_checked was inverted at the top of every width; fixed 2026-09-04",
     "p0_unverified": "map canonicality: equal/not_equal over maps may be representation equality and the observation identity may depend on entry order",
-    "p0_2_fix": "the rule now compares the operand against the width bound shifted down rather than multiplying by a multiplier shifted up, because 1 << amount is itself out of range at the top of the widest width. e2_left_shift_is_exact_at_every_width_boundary pins both signs at widths 8, 16, 32, 64, and 128, and restoring the old multiplier fails it"
+    "p0_2_fix": "the rule now compares the operand against the width bound shifted down rather than multiplying by a multiplier shifted up, because 1 << amount is itself out of range at the top of the widest width. e2_left_shift_is_exact_at_every_width_boundary pins both signs at widths 8, 16, 32, 64, and 128, and restoring the old multiplier fails it",
+    "queue": "/home/greyforge/machineresearch/sley-2.0/council-queue (durable, moved out of the session scratchpad)",
+    "verdict_index": "machineresearch/sley-2.0/reviews/verdicts.json",
+    "second_verdict": "S20-260/S20-270 Nabu architecture review: PASS, 0 P0, 7 P1",
+    "paused": "2026-09-04T02:55Z at the operator's request; nothing runs in the background; RESUME.md holds the restart command"
   }
 }
