@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "9a9be04af178fa95ca0cefccb9c048d514ad6875e79746b2d742e58b09e18b77",
+  "dossier_digest": "92b809e7b30faade1ab1869ed6041e14fcc9416baa4fd72b96329b334b5faad5",
   "entries": [
     {
       "evidence": [
@@ -136,7 +136,7 @@
       "note": "counted from tracked sources; the inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 162,
+        "conformance_rejections": 172,
         "conformance_vectors": 352,
         "persistent_fuzz_targets": 20,
         "python_tests": 87,
@@ -444,7 +444,7 @@
       }
     }
   ],
-  "entries_digest": "3fea6be4a33756037e7c46e91d1c5326a1a0ce99e9f63843dcc2b2268a5a1f55",
+  "entries_digest": "287fa59edfaa0658f3181dc3e0b6fd92cb66c70f05b2b180c391e44631233ee1",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

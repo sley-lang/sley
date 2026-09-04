@@ -321,7 +321,7 @@
       "sums_file": true
     },
     {
-      "claim": null,
+      "claim": "s20-170-repository-pack-rejection-conformance",
       "contract": "sley2-repository-pack-accepted-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
@@ -331,18 +331,26 @@
       "directory": "conformance/repository-pack/v1",
       "files": [
         {
-          "bytes": 80,
+          "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "7ec4115c4c6316a20ded17b71d32a5e96f3963eb3a63928e20e26747716b2590"
+          "sha256": "6ebab09a9dd4601370bf84ce39a6387c93d7084b141c1d2f917c3f9d7b99a0d1"
         },
         {
           "bytes": 3394,
           "name": "accepted.json",
           "sha256": "35685f782e160e64d2fe10cda38010f3451ae809fa2a573bb9e8f8a6e60b6963"
+        },
+        {
+          "bytes": 30729,
+          "name": "rejected.json",
+          "sha256": "9a08dc598ee383c93844d849bcda1c0c779ab861409137e9417cff9347978b60"
         }
       ],
       "shape": {
-        "accepted.json": {}
+        "accepted.json": {},
+        "rejected.json": {
+          "mutations": 10
+        }
       },
       "sums_consistent": true,
       "sums_file": true
@@ -697,7 +705,7 @@
     "problems": [],
     "python_sources": 22
   },
-  "report_digest": "0b757ea1262ef608611d94ac15aa1825984aa41bdf3efcbe812fd9c88f32c5a6",
+  "report_digest": "f2001d83fec18c8c3e34d1c23c0a4faec80e79a08d43a38216c2d975eaa5074f",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

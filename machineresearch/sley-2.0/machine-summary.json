@@ -1077,7 +1077,19 @@
     "nabu_design_review": "PASS_AFTER_LIMITS_AND_TREE_FREEZE",
     "merlin_handoff": "TIMEOUT_NO_FILES",
     "vulcan_review": "PASS",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "rejection_vectors": 10,
+    "rejection_reasons": [
+      "envelope",
+      "truncated",
+      "trailing",
+      "pack-digest",
+      "content-id",
+      "tree",
+      "pack-epoch"
+    ],
+    "rejection_corpus": "conformance/repository-pack/v1/rejected.json",
+    "rejection_finding": "the pack family had one accepted vector and no rejection matrix, so the independent decoder's strictness was never observed: a permissive oracle would have passed the same artifact. Ten mutations now reach seven distinct refusal reasons, three of them only after the trailer is recomputed so the inner structure is what fails"
   },
   "repository_exchange": {
     "status": "S20_540_COMPLETE",

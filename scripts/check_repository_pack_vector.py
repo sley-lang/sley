@@ -11,6 +11,7 @@ import blake3
 
 ROOT = Path(__file__).resolve().parents[1]
 VECTOR = ROOT / "conformance/repository-pack/v1/accepted.json"
+REJECTED = ROOT / "conformance/repository-pack/v1/rejected.json"
 PACK_DOMAIN = b"sley2.repository-pack.v1"
 EPOCH_DOMAIN = b"sley2.schema-epoch.v1"
 ROOT_DOMAIN = b"sley2.state-root.v1"
@@ -119,9 +120,8 @@ def merkle(leaves: list[bytes]) -> bytes:
     return level[0]
 
 
-def main() -> int:
-    fixture = json.loads(VECTOR.read_text())
-    stored = bytes.fromhex(fixture["stored_hex"])
+def decode_pack(stored: bytes) -> dict[str, object]:
+    """The strict decode every accepted and rejected vector goes through."""
     reader = Reader(stored)
     if reader.take(8) != b"SLEYSCB1" or reader.uvar() != 1 or reader.uvar() != 170:
         raise DecodeError("envelope")
@@ -167,19 +167,42 @@ def main() -> int:
     if stored_leaves != leaves or tree[4] != tree_root:
         raise DecodeError("tree")
 
-    checks = {
+    return {
         "stored_bytes": len(stored),
         "repository_pack_id": pack_id.hex(),
         "digest_tree_root": tree_root.hex(),
         "leaf_count": len(leaves),
     }
+
+
+def main() -> int:
+    fixture = json.loads(VECTOR.read_text())
+    checks = decode_pack(bytes.fromhex(fixture["stored_hex"]))
     problems = [key for key, value in checks.items() if fixture.get(key) != value]
+
+    # Every mutation of the accepted artifact must be refused for its exact
+    # recorded reason. Without this the decoder's strictness is unobserved: a
+    # permissive oracle passes the single accepted vector just as well.
+    rejected = json.loads(REJECTED.read_text())
+    if rejected.get("contract") != "sley2-repository-pack-rejected-v1":
+        problems.append("rejected-contract")
+    for mutation in rejected.get("mutations", []):
+        data = bytes.fromhex(mutation["input_hex"])
+        try:
+            decode_pack(data)
+        except DecodeError as failure:
+            if str(failure) != mutation["expected_reason"]:
+                problems.append(f"{mutation['id']}:reason:{failure}")
+        else:
+            problems.append(f"{mutation['id']}:accepted")
+
     print(
         json.dumps(
             {
                 "contract": "s20-170-repository-pack-v1",
                 "independent_checks": checks,
                 "problems": problems,
+                "rejections": len(rejected.get("mutations", [])),
                 "result": "PASS" if not problems else "FAIL",
             },
             indent=2,

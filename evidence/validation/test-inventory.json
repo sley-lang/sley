@@ -47,7 +47,7 @@
     },
     {
       "family": "repository-pack",
-      "rejections": 0,
+      "rejections": 10,
       "vectors": 0
     },
     {
@@ -96,10 +96,10 @@
       "vectors": 21
     }
   ],
-  "conformance_rejections": 162,
+  "conformance_rejections": 172,
   "conformance_vectors": 352,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "61bf110d0ae88b4ace49ee3d0f38731fa042c013bce3c91097be0245b3af1c70",
+  "inventory_digest": "7a54a0725de42b7b7d4a112ffa4ce7ee62892f9800bff9ce132eb1823a83903e",
   "persistent_fuzz_target_count": 20,
   "persistent_fuzz_targets": [
     "adapter_responses",
