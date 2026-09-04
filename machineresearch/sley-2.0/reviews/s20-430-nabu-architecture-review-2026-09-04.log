@@ -1,0 +1,66 @@
+DISPATCH 430-nabu-architecture forge-nabu-430-nabu-architecture-20260904T053801 2026-09-04T05:38:01Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+## S20-430 Thin CLI — Architecture Review (Nabu)
+
+**status:** complete — verdict **FAIL** (one P0 blocks freeze)
+**pin verified:** `9dc78fe6b96` at `/home/greyforge/cache/worktrees/sley2-review-2026-09-04`. Read-only; no cargo run.
+
+The boundary shape is right. The dependency direction is clean (`sley-cli` → `sley-protocol`, `sley-json-bridge`, `serde_json`; no reverse edge), the report genuinely counts, and the four `CLI_*` codes name only endpoint failures. The endpoint is *nearly* semantics-free. What blocks freeze is that the artifact under review is a library, and the thing S20-620 consumes is a process — and no evidence covers the process.
+
+### P0 — blocks freeze
+
+**The `sley` binary has no evidence, and byte-mode stdout is never flushed.**
+All 25 tests in `crates/sley-cli/tests/cli.rs` drive `sley_cli::run()` over `Vec<u8>` buffers. `main.rs` is untested. There is no `flush` call anywhere in the crate (`grep -rn flush crates/sley-cli/` → empty), and `main.rs:16` exits via `std::process::exit`, which does not run destructors.
+
+Rust's `Stdout` is `LineWriter`-backed. In JSON mode every frame ends with `\n`, so it drains. In byte mode `stdout.write_all(&frame.bytes)` (`lib.rs:571`) emits no newline, so a response drains only when a `0x0A` happens to fall inside the frame bytes or the buffer fills. Two consequences:
+
+- A consumer driving per-frame byte mode over pipes — exactly the S20-620 runner — blocks waiting for a response sitting in the endpoint's buffer. Whether it hangs depends on incidental `0x0A` bytes in the payload. Nondeterministic behaviour in a determinism-first project.
+- At exit, unflushed bytes are at the mercy of runtime cleanup that `process::exit` bypasses.
+
+Contract section 6 requires "native tests"; it never requires the endpoint be exercised across the process boundary. The ADR's stated consequence ("the benchmark harness can drive Sley 2 through one endpoint") is unevidenced. Fix: explicit flush after each answer, a contract clause making flush-per-answer an endpoint obligation, and at least one subprocess test.
+
+### P1 — must fix before freeze
+
+<details>
+<summary>Seven findings, with the three campaign open questions answered</summary>
+
+**1. The `json_bridge` bit is the one semantic the endpoint owns.** `lib.rs:267-273` takes `Server::offered_hello()` and OR-s `FEATURE_JSON_BRIDGE` into it. The endpoint amends a hello it does not own. This is not cosmetic: the closeout itself records that the feature enters the handshake digest and therefore session identity, so byte mode and JSON mode over the same repository yield *different sessions*. **Answering open question 2:** offering it only under `--json` is correct — a byte-mode endpoint claiming a JSON feature would be a false offer — but the composition must move into `sley-protocol` (`offered_hello(transport_features)` or a frozen `Hello::with_feature`), so the protocol crate owns the bit.
+
+**2. `Server::offered_hello` appears in no frozen spec.** `grep -rn offered_hello docs/spec/` returns only `SLEY_CLI_V1.md`. The endpoint's contract is currently the sole written definition of the server's offer — a second authority in document form even though the code lives in the right crate. **Answering open question 3: yes, it belongs in the S20-400 contract.** It fixes the negotiation input, hence the handshake digest, hence session identity; leaving it an implementation convenience lets any endpoint drift the offer unversioned.
+
+**3. Stale composition pins.** Contract line 14 cites `SMP1.md` revision 6; the file is revision 8 (rev 7 added appendix C methods, rev 8 added the `execute` cache profile selector and `limits` field 6). The bridge is cited with no revision at all; it is at revision 4 while the contract text reflects revision 3. `check_cli_contract.py` binds no upstream revision, so this drifts again after freeze.
+
+**4. The rule audit will not catch a future private validation rule.** Three concrete evasions: `section()` matches `^\[dependencies\]\n` only, so `[dependencies.sley-vm]` table syntax bypasses the strongest rule entirely; `text.split("#[cfg(test)]", 1)[0]` blinds the audit to everything after the first test attribute in a source file; `JUDGMENT_PATTERNS` matches spellings, so `fn verify_`, `fn admit`, `matches!(method, ...)`, or `if tag == 302 {` all pass. **Answering the asked question: no.** It is a spelling audit, not an authority audit.
+
+**5. The audit forecloses its own consumer.** Section 5's "no other workspace crate depends on `sley-cli`" forbids `sley-bench → sley-cli`. Master goal 14.3 places `bridge / cli / bench` as siblings below `protocol`; only kernel import is prohibited. The ADR names the benchmark harness as the consumer, section 7 excludes `sley-bench`, and no clause states the consumption route. An undecided architectural choice is encoded as a frozen mechanical rule. Decide explicitly: subprocess-only (then say so, and specify argv grammar, stdout framing, report schema, exit statuses as the stable surface), or carve out `sley-bench`.
+
+**6. Section 8's handshake taxonomy is wrong.** It states only "a complete frame that is not a client hello, or no frame at all" is `CLI_HANDSHAKE_REQUIRED`. `lib.rs:630-641` returns it for three further cases: an over-long prefix, a bridge-rejected first line, and a codec-invalid complete frame. None is a complete non-hello frame.
+
+**7. The closeout attests to things that are not there.** It claims `Server::is_deferred` — the string exists nowhere in the repo except that sentence. It says "the dispatched methods (33)"; `server_tests.rs:1181` asserts 37. Contract section 2 and the `offered_hello` doc both say "reserved and deferred methods are not offered", but `offered_hello` filters `is_reserved()` only. The property holds — it is enforced by the test loop at `server_tests.rs:1187-1199` — but the wording promises a predicate that does not exist.
+
+</details>
+
+### P2 — fix before completion
+
+- `--batch` accumulates the entire input into `pending` (`lib.rs:664`) with no ceiling; the negotiated limits bound one frame, not the endpoint's own buffer.
+- `codes` silently under-counts: `write_answer` records a code only when both `decode_frame` and `ProtocolFailure::decode` succeed (`lib.rs:604-612`). A failed answer with a non-failure body raises `failed_answers` and contributes nothing to `codes`, with no marker. Section 3 implies total coverage.
+- **Answering open question 1: keep per-frame as the default.** Batch-only would force unbounded buffering as the sole mode and make the endpoint an admission-policy owner. But the contract must state *why* cancellation is inert per-frame — there is no pending set to cancel; that is a property of S20-440 batch admission, not a CLI deficiency. As written, section 2 reads as an apology for a defect.
+- Undocumented asymmetry: a bridge-rejected line is answered in place after the handshake and is a hard exit-5 before it.
+- A `--report` write failure on an otherwise-clean run converts exit 0 into exit 4; on a failed run the report is silently absent. Neither is in section 4.
+
+### P3 — editorial
+
+- Non-batch mode routes the over-long prefix through `answer_batch` (`lib.rs:672-700`). Observably identical, since `Server::answer` delegates to `answer_batch` (`server.rs:242-247`), but it reads as a mode crossover in a report that says `batch: false`.
+- `check_cli_contract.py` `SPEC_MARKERS` omits sections 6 and 8 — revision 2's entire clarification set can be deleted unnoticed.
+- The two scripts disagree on glob depth: `src/*.rs` vs `src/**/*.rs`.
+- `frames_read` counts a bare over-long prefix as a frame read; section 8 says "every frame or line taken from the input."
+
+**validation:** targeted reads only — no cargo, no repo mutation. Claims rest on the cited file:line at `9dc78fe`. The byte-mode deadlock mechanism is high confidence from `LineWriter` semantics and the absence of any `flush`; the exit-time truncation is high-but-unverified, since I could not run the binary.
+
+**blockers:** none for this review.
+**return_to:** orchestrator.
+
+S20_430_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["byte-mode stdout is never flushed and main exits via process::exit; all 25 tests drive run() over Vec<u8>, so the sley binary and the process boundary S20-620 consumes have zero evidence"],"p1":["the CLI OR-s FEATURE_JSON_BRIDGE into Server::offered_hello (lib.rs:267-273), owning a protocol claim that changes the handshake digest and session identity; move composition into sley-protocol","Server::offered_hello is defined in no frozen spec, so the endpoint contract is the only written definition of the server offer; it must move into the S20-400 contract","contract cites SMP1.md revision 6 but the file is revision 8, cites the bridge with no revision though it is at 4, and the stage checker binds no upstream revision","rule audit is evadable: [dependencies.x] table syntax bypasses the dependency check, split on first #[cfg(test)] blinds the rest of a file, and judgment detection is spelling-based","section 5 forbids sley-bench depending on sley-cli though master goal 14.3 permits it and the ADR names the benchmark harness as the consumer; the consumption route is undecided","section 8 handshake taxonomy is wrong: over-long prefix, bridge-rejected first line, and codec-invalid frame all return CLI_HANDSHAKE_REQUIRED","closeout attests Server::is_deferred which exists nowhere and says 33 dispatched methods where the test asserts 37; contract section 2 promises a deferred filter that does not exist"],"p2":["--batch buffers the entire input in pending with no ceiling and no negotiated limit bounds it","codes silently under-counts failed answers whose body does not decode as ProtocolFailure","keep per-frame default but state that cancellation is inert per-frame because S20-440 admission has no pending set","undocumented asymmetry: a bridge-rejected line is answered in place after the handshake and is a hard exit-5 before it","a --report write failure converts exit 0 into exit 4, and on a failed run the report is silently absent"],"p3":["non-batch mode routes the over-long prefix through answer_batch; observably identical but reads as a mode crossover","stage checker SPEC_MARKERS omits sections 6 and 8 so revision 2 clarifications can be deleted unnoticed","the two scripts disagree on glob depth, src/*.rs versus src/**/*.rs","frames_read counts a bare over-long prefix as a frame read"],"notes":"boundary shape and dependency direction are sound; the endpoint owns semantics in exactly one place (the json_bridge feature bit) and the package is being frozen with no process-level evidence"}
+EXIT=0 2026-09-04T05:43:18Z

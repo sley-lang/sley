@@ -1,0 +1,85 @@
+DISPATCH 750-ariadne-contract forge-ariadne-750-ariadne-contract-20260904T081943 2026-09-04T08:19:43Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by orienting on the artifacts.
+
+Found the master goal. Let me read section 30 and 27.
+
+## Contract review: S20-750 decision dossier
+
+**Verdict: FAIL** — two P0 findings falsify tracked evidence the freeze would bless. Worktree verified at `9dc78fe`, clean tree, read-only throughout; no `cargo`, no `make`.
+
+### First, the exactness question you asked
+
+The thirty-four items **are transcribed exactly.** I compared the contract's §1.1 list and the tracked dossier's `entries[].item` against `Sley2.0mastergoal.md` lines 3254–3287 by exact string equality: 34 = 34 = 34, identical strings, identical order, no renames. That part of the contract is sound and no finding attaches to it.
+
+One caveat on the surrounding rule: §30 opens with "report **at minimum**," while §1.1 declares that a dossier which *adds* an item is `DOSSIER_SOURCE_INVALID`. The contract forbids what the authority permits (P2 below).
+
+### Open question 1 — `PARTIAL`, not a null sub-field
+
+Use a third state. The current design contradicts the contract's own text.
+
+§1 says "`EVIDENCED` means **every** fact of the item is present in tracked evidence." Item 12 is `EVIDENCED` with `campaign_duration: null` — the item is literally named "fuzz duration and findings," and the duration is absent. So the tracked dossier already carries an entry that its contract defines as impossible.
+
+The decisive argument is not tidiness, it is the completion gate. §6 makes `S20_750_COMPLETE` require "every entry to read `EVIDENCED`." Under the null-sub-field convention, that criterion is satisfiable while a required master-goal fact is still null — a false-completion path baked into a frozen contract. Two states cannot fix this by demoting the item to `GATED` either, because §1 says "a gated item is never given a value," which would discard the fuzz findings that *are* evidenced. Information loss on one side, false completion on the other; the third state is what resolves it.
+
+Proposed definition for revision 3: `PARTIAL` — the item resolves from tracked evidence but at least one required fact is null; it carries its value and its note names each null fact. Counters become `evidenced` / `partial` / `gated`. `S20_750_COMPLETE` continues to require every entry `EVIDENCED`, which now genuinely means no null required fact. Derivation treats `PARTIAL` as a material evidence limitation.
+
+<details>
+<summary>Questions 2 and 3 — brief contract-level notes, decisions belong to Nabu and Vulcan</summary>
+
+**Q2 (Nabu's call).** Contract-level observation only: the machine summary is the sole source for twelve of the thirty-four items *and* records this dossier's own counters. §4 already acknowledges the cycle by digesting derived entries rather than source bytes. Reducing the summary to a pointer index removes the cycle rather than compensating for it, but capability placement is Nabu's.
+
+**Q3 (Vulcan's call).** The master goal decides this one textually. §27 defines `BLOCKED` as a trustworthy decision being unreachable because required source, artifact, authority, toolchain, oracle, model access, or evidence is *unavailable*, and `FAIL` as a required gate *failing* or evidence *contradicting* the design. A gate that does not yet exist is unavailability, not failure. `BLOCKED` is correct.
+</details>
+
+### P0 — blocks freeze
+
+**1. Item 11 "property-test counts" is evidenced by facts that are not the item's fact.** The repository contains no property-testing framework at all: no `proptest`, no `quickcheck`, no `hypothesis`. `build_test_inventory.py` counts `#[test]` attributes, and the entry reports `rust_unit_tests: 1018`, `python_tests: 87`, conformance vectors and fuzz targets — unit tests, not property tests. The builder docstring states outright that this exists "so the completion report's 'property-test counts' item is evidenced rather than estimated," and revision 2's status line repeats the claim. This is the substitution §7 prohibits, and it converts a genuine absence into an `EVIDENCED` count. Note the campaign record still lists this item as gated; making it evidenced was revision 2's change, and it went the wrong way.
+
+**2. Variable shadowing silently zeroes the blocked-license count.** `scripts/build_decision_dossier.py:103` binds `inventory` to the T52 license inventory; `:105` immediately rebinds it to the test inventory. At `:334` the SBOM entry computes `license_disposition_blocked` from `inventory.get("packages", [])` — the test inventory has no `packages` key, so the sum is `0`. The tracked dossier records `license_disposition_blocked: 0`; `evidence/security/T52/pre-release-inventory.json` records **19** BLOCKED dispositions across 43 packages. A release-blocking fact reads zero in tracked evidence, under an entry that cites the very file contradicting it. ADR-0043 claims "the dossier cannot drift into optimism"; this is that drift.
+
+### P1 — must fix before freeze
+
+**3. Revision identity is ambiguous across five artifacts and unchecked.** Contract header says revision 2; ADR-0043 says "draft at revision 1"; the campaign record says revision 1; `docs/WORK_PACKAGES.md:68` says revision 1; `machine-summary.json` says `contract_revision: 4`. `check_decision_dossier.py` verifies no revision field at all. A contract cannot be frozen at a revision number that five artifacts disagree about.
+
+**4. `S20_750_COMPLETE` is unreachable by construction.** Item 33 is built with a hardcoded `value=None` (`:377`), so it is permanently `GATED`; §2 names no operator-decision-record source and no source that could ever evidence item 2 "final branch." Therefore `gated_items == 0`, which §6 requires for completion, can never hold. Relatedly, the dossier derives and publishes `decision_state` at top level while marking the section 30 item for that same state gated — it reports the fact and denies reporting it in the same document.
+
+**5. The checker forbids the freeze it stages.** `SPEC_MARKERS` requires the literal string `"Status: S20-750 contract draft"` in the spec. Dropping "draft" — which is what freezing means — fails `make quick`. The checker and the contract must be edited in the same commit, which the staging design was meant to avoid.
+
+**6. §3's derivation is partly unimplemented.** `derive_decision(sources, entries)` never reads `entries`, contradicting "derived… from the entries and the sources." `ga-acceptance-report.json` is loaded but used only to interpolate a note string, so §3.5's "every criterion passes" is never evaluated — `PASS` is reachable without consulting a single section 26 criterion. The tests pin the omission by passing `[]` for entries at four call sites.
+
+**7. No test cross-checks an evidenced value against the source it cites.** `test_every_evidenced_item_names_tracked_evidence` asserts the cited paths exist, never that the value came from them. That is precisely the class finding 2 falls into, and all eleven tests pass with the bug present.
+
+### P2 — fix before completion
+
+8. `CONDITIONAL_PASS`'s "material evidence limitation" branch is unimplemented; only `approved_conditional_items` is checked.
+9. `SUMMARY`, `CYCLONEDX`, and `SPDX` load with `contract=None` — no tag or shape validation — contrary to §2. The machine summary carries no contract tag and is the sole source for twelve items.
+10. §1.1's "adds an item is `DOSSIER_SOURCE_INVALID`" contradicts §30's "report at minimum." State that the thirty-four are the required minimum and that additions need a contract revision.
+11. `check_decision_dossier.py:196` flags *any* `PASS` as `pass-while-gates-closed`, unconditioned on gate state; it will misfire the moment gates legitimately open.
+12. `ERROR_CODES_V1.md` attributes to 76001 "a dossier that does not cover the thirty-four required items in order," but no path raises 76001 for coverage — the checker emits a generic `decision-dossier:items` string.
+13. The dossier reports `"phase": "M2"` from the summary while the campaign record and `WORK_PACKAGES.md` place S20-750 in M6.
+14. The campaign record is stale against `9dc78fe`: it states 23 evidenced / 11 gated, property-test counts gated, and sixty-three open obligations; the tracked dossier reads 24/10, property-test counts evidenced, and 75 open reviews. The open questions were framed against a state that no longer holds.
+
+### P3 — editorial
+
+15. §8 reads "Revision 1 carries none" in a document whose status line reads revision 2.
+16. ADR-0043 status still reads "proposed… draft at revision 1," and its context claims "Every item's evidence now exists somewhere," which the ten gated items contradict.
+17. Contract line 6 runs the revision-2 sentence into the mechanics sentence, breaking the file's wrap.
+
+### What I did not find wrong
+
+Item transcription, order, and count are exact. Purity holds — no timestamp, host, user, or absolute path; `--check` drift detection is sound; digest scoping (entries, not source bytes) is correctly reasoned and correctly implemented. `BLOCKED` is the right derived state and its six reasons are each traceable to a source field. Every publication flag is false and no code path in this package could perform one.
+
+```
+status: complete
+findings: 2 P0, 5 P1, 7 P2, 3 P3; item transcription verified exact
+validation: read-only at 9dc78fe, clean tree; exact string comparison of
+  contract §1.1 and dossier entries against Sley2.0mastergoal.md:3254-3287;
+  JSON inspection of five tracked evidence files; no cargo, no make, no writes
+blockers: none
+return_to: orchestrator (Codex); P1-4/P1-6 touch derivation design -> Nabu;
+  P0-2 and P1-7 are bounded script/test edits -> Merlin
+```
+
+S20_750_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["item 11 property-test counts is EVIDENCED from unit-test counts; repo has no proptest/quickcheck/hypothesis, so the item's actual fact is absent and a different fact is substituted (violates contract 1 and 7)","build_decision_dossier.py:103-105 shadows `inventory` with the test inventory, so license_disposition_blocked at :334 reads 0 while T52 pre-release-inventory.json records 19 BLOCKED packages"],"p1":["contract revision is ambiguous across five artifacts (spec rev2, ADR rev1, campaign rev1, WORK_PACKAGES rev1, machine-summary contract_revision 4) and the checker verifies no revision","S20_750_COMPLETE is unreachable: item 33 hardcodes value=None and section 2 names no operator-decision or final-branch source, so gated_items==0 can never hold","checker SPEC_MARKERS requires the literal 'Status: S20-750 contract draft', so freezing the contract fails make quick without editing the checker in the same commit","derive_decision ignores its entries argument and never reads ga-acceptance-report states, leaving contract 3 'derived from the entries' and 3.5 'every criterion passes' unimplemented","no test cross-checks an evidenced value against the source it cites, which is the exact class that let the license-shadowing P0 through 11 passing tests"],"p2":["CONDITIONAL_PASS 'material evidence limitation' branch unimplemented; only approved_conditional_items is checked","SUMMARY, CYCLONEDX and SPDX load with no contract/shape validation, contrary to section 2; the summary has no contract tag and is sole source for 12 items","section 1.1 forbids adding an item while master goal section 30 says 'report at minimum'","checker line 196 flags any PASS unconditionally rather than only while a gate is fail-closed","ERROR_CODES_V1.md attributes item-coverage failure to 76001 but no code path raises it","dossier reports phase M2 from the summary while the campaign and WORK_PACKAGES place S20-750 in M6","campaign record is stale at 9dc78fe: 23/11 and 63 obligations versus tracked 24/10 and 75"],"p3":["section 8 says 'Revision 1 carries none' in a revision-2 document","ADR-0043 status still reads proposed/revision 1 and claims every item's evidence exists, contradicted by ten gated items","contract line 6 breaks the file's wrap"],"notes":"34 items verified transcribed exactly from master goal section 30 by string equality; order and dossier entries match. Q1 answer: adopt a third PARTIAL state, because EVIDENCED is defined as every fact present and the two-state design makes S20_750_COMPLETE satisfiable with a null required fact. Q3 note: BLOCKED is correct per section 27 wording. Q2 is Nabu's."}
+EXIT=0 2026-09-04T08:24:25Z

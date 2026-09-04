@@ -1,0 +1,73 @@
+DISPATCH 360full-nabu-architecture forge-nabu-360full-nabu-architecture-20260904T043309 2026-09-04T04:33:09Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract artifacts and campaign record.
+
+Read-only review complete. Artifacts read at pinned commit `9dc78fe`; no repository writes, no cargo, no make targets.
+
+## status
+`FAIL` — architecture shape is sound, but two P1 contract-revision items must land before freeze.
+
+**Note on inputs:** the campaign record is not at `/home/greyforge/machineresearch/sley-2.0/...` (that directory contains only `council-queue`). I read the in-tree copy at `machineresearch/sley-2.0/s20-360-full-operation-analysis-campaign-2026-09-03.md` inside the pinned worktree; a second copy exists at `/home/greyforge/sley2/machineresearch/...`.
+
+## findings
+
+### Open question 2 (mine) — answered: keep `sley-policy → sley-vm`. Do not route through `sley-check`.
+
+Three independent reasons, high confidence:
+
+1. **It is a cycle.** `crates/sley-vm/Cargo.toml` declares `sley-check` as a dependency. For `sley-check` to re-export `judge_function_operations` it would need `sley-check → sley-vm`. The proposal is not merely undesirable, it is unbuildable.
+2. **The premise is false.** `crates/sley-policy/Cargo.toml` already declares seven internal edges — `sley-check`, `sley-id`, `sley-mutate`, `sley-scb1`, `sley-schema`, `sley-ssmc`, `sley-state-root`. `sley-vm` is the eighth, not a second. There is no "single semantic dependency" invariant to preserve.
+3. **Ownership points the same way.** The judgment is VM semantics: it selects `CacheProfile::EXTENDED_V1`, charges the lowering work budget, and returns `VM_LOWER_*` codes. `sley-check` has no notion of a cache profile or lowering work. Hosting the entry there would import VM concepts into the checker — the strictly worse direction.
+
+If VM-surface isolation is ever wanted, the only acyclic factoring is a leaf `sley-vm-judge` crate below both. One call site does not justify it.
+
+### Judgment/lowering separation — correct in shape, incomplete in acceptance set
+
+The split itself is right: `judge_function_operations` (`crates/sley-vm/src/lower.rs:246`) shares `preflight_resources`, `Maps::build`, and `judge_extended` with `lower_function`, derives no cache key, emits no bytecode, lowers no callees, and correctly drops the type-parameter/effect/contract refusal that belongs to other owners. `lower_function` is untouched, so the frozen restricted vectors hold. But the two paths' *static acceptance sets* have silently diverged — see P1-1.
+
+<details>
+<summary>Evidence for P1-1 (canonical-constant gap)</summary>
+
+- `lower_function` runs `crate::extended::require_canonical_referenced_constants(...)` after `judge_extended` (`lower.rs`, comment: *"After the judgment, so the frozen S20-260 failure order is unchanged"*).
+- `judge_function_operations` does not. Grep confirms the only call site is `lower_function`.
+- The check (`crates/sley-vm/src/extended.rs:199`) rejects a `constant_ref`/`global_get` whose named constant fails `sley_mutate::encode_const_value`, i.e. `MapOrder` / `MapDuplicate` from `encode_map_entries` (`crates/sley-mutate/src/codec.rs:2011`).
+- No equivalent exists policy-side: `candidate_validation.rs` / `candidate_program.rs` never call `encode_const_value`.
+- No equivalent exists upstream: `crates/sley-ssmc/src/` has no `MapOrder`/`MapDuplicate` enforcement, so a strictly decoded `ConstData::Map` can carry out-of-order or duplicate keys.
+- `VM_EXTENDED_OPCODE_PROFILE_V1.md` §7 E4 assigns this precondition explicitly to the VM, noting S20-210 does not establish it.
+
+Consequence: such a candidate reaches `VALID`, and the same program fails `lower_function` with `VM_LOWER_IMMEDIATE_MISMATCH`. Not demonstrated by test execution (cargo/make prohibited); this is code-path reading, confidence high on the omission, high on reachability given no upstream guard exists. No live durable path today because `commit` refuses operation-carrying candidates with `TXN_SEMANTIC_PROFILE_UNSUPPORTED` — which is why this is P1, not P0.
+</details>
+
+**P1-1** — `judge_function_operations` omits `require_canonical_referenced_constants`; `VALID` therefore does not imply lowerable under `EXTENDED_V1`, defeating the ADR's stated purpose (precondition for S20-390 full commit). Fix: call it after `judge_extended` in the judgment entry, same position as `lower_function`.
+
+**P1-2** — The contract never states the invariant that makes the split safe. Add to §3.1, normatively: *judgment accepts exactly the Functions `lower_function` accepts under `EXTENDED_V1`, minus the type-parameter/effect/contract refusal, the graph validation, the cache key, the bytecode, and callee lowering* — plus a differential-test obligation in §5. P1-1 is the first drift; without the invariant it will not be the last.
+
+**P2-1** — Judgment reuses `LoweringInput`, forcing the caller to supply `state_root` and `schema_epoch` that judgment never reads (they feed only `derive_cache_key`, `lower.rs:282-283`). The validator hands it `context.base_state.root`. Narrow to a `JudgmentInput`, or state in §3.1 that both are ignored — otherwise the judgment reads as root-bound and future code can start reading them without a contract change.
+
+**P2-2** — Opcode 144's stated exclusion reason is stale. §9 and ADR-0044 decision 4 say the five E7 opcodes "have no owner yet", but profile revision 9 lands slice E7a (`contract_assert` lowering and execution). The code carries the correct and *different* reason (`candidate_program.rs:196-206`): static typing belongs to the S20-240 checker at phase 10 (`CONTRACT_ASSERT_TYPE`, `crates/sley-check/src/contracts.rs:105`). Freezing the wrong basis leaves 144's exclusion unjustified.
+
+**P2-3** — §9 pins three other owners' phases and symbols into the *result* contract. Every E7 owner landing forces a revision of a frozen normative document. State the invariant (every excluded opcode is refused before phase 12; the phase 12 guard is the residual) in the contract and move the per-opcode symbol table to the closeout addendum, which is evidence.
+
+**P2-4** — Phase 7 evidence does not distinguish "judged, zero operations" from "judgment skipped for an excluded opcode" at contract level; both are describable as `judged_operations=0`. Phase evidence is part of result identity. Pin the skipped shape explicitly in §9.
+
+**P2-5** — ADR-0044 consequence is inverted: *"its opcode becomes analyzable by extending the excluded set"*. Making an opcode analyzable requires **removing** it from `EXCLUDED_OPERATION_OPCODES`. As written the normative maintenance instruction says the opposite of the required edit.
+
+**P2-6** *(decision belongs to Ariadne — input to open question 1)* — `operation_failure` maps both `SignatureMismatch` and `ImmediateMismatch` to `CONTROL_FLOW_ERROR`. An immediate mismatch is not a control-flow property. Phase 7 is the right *home* (judgment needs the same unit's S20-220 report and nothing later), so my answer to Q1 is "keep phase 7"; the taxonomy overload is the part worth a contract decision.
+
+**P3-1** — `operation_failure`'s `LoweringError::Cfg` arm is unreachable from the judgment entry (judgment never calls `validate_function_graph`). Note it as defense in depth beside the phase 12 guard.
+**P3-2** — `judge_function_operations` re-runs `owned_inventory`/`narrow` on inventories the validator already narrowed per unit; a no-op there. §3.1 should say which the caller supplies.
+**P3-3** — §3.1 is labelled "(revision 8)" in a document at revision 9; the campaign cites "revision 8 section 3.1". Resolve the skew before freeze.
+
+**Open question 3** *(Vulcan's)* — architectural input only: keep the phase 12 guard. Phase 12 owns the excluded *set*; the other phases each own one opcode. Deleting it would leave no owner for the set invariant, and P2-2 shows the per-opcode refusals already shift under other owners' revisions.
+
+## validation
+Read-only: `git log -1` at `9dc78fe`; targeted reads of `CANDIDATE_RESULT_V1.md` §9, `VM_EXTENDED_OPCODE_PROFILE_V1.md` head/§3.1/§6/§7, ADR-0044, the campaign record, `lower.rs:200-275`, `extended.rs:199-222`, `candidate_program.rs:185-220`, `candidate_validation.rs:795-880 / 1525-1580 / 1760-1795`, and the four `Cargo.toml` manifests. No cargo, no make, no writes. Behavioral claims are code-path reasoning, not test evidence.
+
+## blockers
+Test-execution confirmation of P1-1 is out of scope by instruction; a `constant_ref` fixture naming an out-of-order map constant would settle it in one run.
+
+## return_to
+orchestrator
+
+S20_360FULL_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["judge_function_operations omits require_canonical_referenced_constants that lower_function runs on the extended path; no policy-side or sley-ssmc equivalent exists, so a candidate whose constant_ref/global_get names a non-canonically-ordered or duplicate-key map constant reaches VALID yet fails lower_function with VM_LOWER_IMMEDIATE_MISMATCH","VM_EXTENDED_OPCODE_PROFILE_V1 section 3.1 does not state the normative invariant that judgment accepts exactly what lower_function accepts under EXTENDED_V1 minus graph validation, cache key, bytecode, callee lowering, and the type-parameter/effect/contract refusal, and section 5 adds no differential-test obligation"],"p2":["judgment reuses LoweringInput and requires callers to supply state_root and schema_epoch it never reads (used only by derive_cache_key), so the judgment reads as root-bound and future code can consume them without a contract change","CANDIDATE_RESULT_V1 section 9 and ADR-0044 justify excluding opcode 144 as having no owner, but profile revision 9 landed slice E7a contract_assert; the real reason, per candidate_program.rs, is that static typing belongs to the S20-240 checker at phase 10","section 9 pins other owners' phases and symbols for opcodes 144, 145, 160, 161, 162 into the result contract, so every E7 owner landing forces a revision of a frozen normative document; state the invariant and move the symbol table to the closeout addendum","phase 7 evidence does not distinguish judgment-performed-with-zero-operations from judgment-skipped-for-an-excluded-opcode, yet phase evidence is part of result identity","ADR-0044 consequence says an E7 opcode becomes analyzable by extending the excluded set; the required edit is removing it from EXCLUDED_OPERATION_OPCODES, so the instruction is inverted","operation_failure maps both SignatureMismatch and ImmediateMismatch to CONTROL_FLOW_ERROR although an immediate mismatch is not a control-flow property (decision belongs to Ariadne, open question 1)"],"p3":["operation_failure's LoweringError::Cfg arm is unreachable from the judgment entry, which never calls validate_function_graph; record it as defense in depth","judge_function_operations re-runs owned_inventory/narrow on inventories the validator already narrowed per unit; section 3.1 should state which form the caller supplies","section 3.1 is labelled revision 8 inside a document at revision 9, so the campaign's revision-8 citation is ambiguous after freeze"],"notes":"Boundary shape is correct: sley-policy depending on sley-vm is the right edge (sley-check re-export would be a cycle since sley-vm depends on sley-check, and sley-policy already carries seven internal deps), and the judgment-only entry is properly separated from lower_function. The defect is that the two paths' static acceptance sets diverged without a stated invariant. Read-only pass at 9dc78fe; no cargo or make run; campaign record read from the in-tree copy because the path given in the task does not exist."}
+EXIT=0 2026-09-04T04:37:55Z

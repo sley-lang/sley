@@ -1,0 +1,96 @@
+DISPATCH 720-ariadne-contract forge-ariadne-720-ariadne-contract-20260904T073759 2026-09-04T07:37:59Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its immediate authorities.
+
+## status
+
+**FAIL** — two P0 findings block freeze. The mechanics are sound and the implementation is honest in most places; the contract text overstates in two spots that would become frozen falsehoods, and eight P1 items are exactness gaps between the contract's promises and what the code actually binds.
+
+I read the contract, ADR-0038, the stage checker, `build_release_candidate.py`, `run_demo.py`, `test_packaging.py`, the fixture generator, the campaign record, the closeout, master goal 18.2/20.12/26.8, and ANTI_GOALS, at `9dc78fe` read-only. I ran no cargo and no smoke.
+
+## findings
+
+### P0 (blocks freeze)
+
+**P0-1. Cleanliness is optional in the contract but mandatory in 26.8, and MANIFEST.json asserts a commit it may not have been built from.**
+Master goal 26.8's last packaging bullet is "the source working tree is clean" and its second is "artifact is built from the final candidate commit." Contract §11 demotes this: cleanliness is "recorded in the evidence and enforced only under `--require-clean`," and `build_release_candidate.py:364` only raises `TREE_DIRTY` when that flag is passed. Meanwhile `stage_artifact` writes `commit` into MANIFEST.json unconditionally from `git rev-parse HEAD`. The reference run cited in the closeout (artifact `72d2e93…`, manifest digest `3a6ce05…`) was, by its own line 55, built on a dirty tree. That artifact's MANIFEST.json therefore claims a commit it was not built from, and the manifest carries no dirty flag. Freezing §11 as written locks a provenance untruth into the shipped object. Fix: default `--require-clean` on for any run that writes a `commit` field, or add `source_tree_clean` to MANIFEST.json and refuse to emit `commit` when false.
+
+**P0-2. ADR-0038 and the closeout record master goal 20.12 as satisfied when half of it is open.**
+ADR-0038 consequence 2 and closeout line 23 both say the demo is "the source-independence proof of master goal section 20.12 for every operation the protocol dispatches today." 20.12 names eight verbs: create, modify, execute, test, branch, merge, export, import. The demo covers four (execute, branch, export, import). The packaged method table is `method_count: 41`; the demo exercises nine methods. Separately, contract §4's gap sentence names "candidate construction, commit, test selection, and merge" but omits **create**: the demo creates its root by importing a pre-built exchange and never calls `workspace.create` (tag 200, present in the table). That is exactly campaign open question 1. Fix: enumerate in §4 the 20.12 verbs covered and the four not covered, drop "every operation the protocol dispatches today" from the ADR and closeout, and answer open question 1 yes.
+
+<details>
+<summary>P1 (must fix before freeze) — 8 items</summary>
+
+**P1-1. §6 and ADR decision 2 do not scope the reproducibility claim.** Both builds run on one host, one toolchain, one absolute source path, one `$CARGO_HOME`, back to back, in the same process environment. That establishes build determinism, not reproducibility as a consumer reads it. The closeout gets this right at line 83; the contract and ADR do not, and `evidence.json` carries no scope field. Add the scope to §6 and a `reproducibility.scope` field to the evidence.
+
+**P1-2. Failure evidence discards what §6 and 26.8 require.** `main()` (`build_release_candidate.py:441`) replaces the whole accumulated evidence dict with `{contract, result, failure}` on any `PackageError`. On `NOT_REPRODUCIBLE` the persisted record therefore loses `archive_only` entirely, truncates differing members to ten inside a detail string, and also loses `commit`, `working_tree_clean`, `ga_claimed`, `publication_authorized`, and `release_check_gate`. §6 promises "the exact differing member paths and whether the difference is archive-only"; 26.8 requires the run to "precisely identify archive-only nondeterminism." Merge the failure into the existing evidence rather than replacing it.
+
+**P1-3. The scan is a host-shaped tripwire, not sufficiency.** Needles are `str(ROOT)`, the literal `/home/`, and seven vendor prefixes. `/home/` misses `/root`, `/Users`, `/builds`, and a relocated `$CARGO_HOME`. More to the point, RUSTFLAGS remaps do not reach `cc`-compiled C objects (blake3 and cc 1.4.4 are both in the lock) or build-script-generated strings, which is precisely the class that produced the observed ten surviving registry paths. Add `str(Path.home())`, `str(cargo_home)`, `/root/`, and the build username as needles, and restate §5 as a bounded check with named residual rather than a guarantee.
+
+**P1-4. §5's "the member list is the section 2 list exactly" is unbound.** §2 lists three fixture *directories*; `stage_artifact` copytrees whatever is in them (nine files today). Neither the build script nor the stage checker asserts an allow-list or a member count. A file added to any fixture directory enters the artifact silently, and `verify_manifest` will not catch it because the manifest is generated from the stage. Bind an explicit expected member list or assert `member_count == 14`.
+
+**P1-5. SBOM.json is never bound to the built dependency closure.** The inventory carries `cargo_lock_sha256`, and it currently matches the tree's `Cargo.lock` exactly (40 of 40 cargo packages agree, no drift either way). Nothing verifies it at build time, so a lock change ships a wrong SBOM with no signal. Verify the hash in `stage_artifact` and fail `PACKAGE_MANIFEST_INVALID` on mismatch.
+
+**P1-6. The stage checker mechanically blocks its own freeze.** `SPEC_MARKERS` includes the literal `"Status: S20-720 contract draft"` (`check_release_candidate_packaging.py:50`). The moment the status line changes to frozen, `make quick` fails on `spec-marker`. The checker also never requires the evidence file and has no revision floor.
+
+**P1-7. MANIFEST.json carries no non-release marker.** The filename is release-shaped by 26.8's own requirement, and the manifest field list in §2 is artifact/commit/contract/toolchain/target/files/member_count/digest. The only in-artifact disclaimer is `LICENSE-PENDING.txt`. `evidence.json` does carry `ga_claimed: false` and `publication_authorized: false`; the artifact itself does not. A detached tarball reads as a release. Add `status: "CANDIDATE_NOT_RELEASED"`, `ga: false`, `publication_authorized: false` to the manifest.
+
+**P1-8. The required evidence is not reviewable.** §9 requires the smoke's `evidence.json`, but `/evidence/runtime/` is gitignored and untracked; at `9dc78fe` neither `evidence/runtime/s20-720-release-candidate/` nor `dist/` exists. The freeze currently rests on numbers hand-copied into the closeout that no reviewer can verify read-only. Name the durable reviewable record in §7 and §9.
+
+</details>
+
+<details>
+<summary>P2 (fix before completion) — 8 items</summary>
+
+**P2-1.** `demo/run_demo.py` is called "self-contained" in §2 and in its own docstring, but it needs a host CPython the artifact does not ship. State the interpreter dependency.
+
+**P2-2.** Two demo results are self-attestations, not measurements: `steps["branch_created"] = True` is set unconditionally after the request (`run_demo.py:210`), and `source_free_environment.cwd_is_artifact = True` is a literal. §4 step 3 claims a branch at the head; nothing reads it back. `refs.list` and `refs.resolve` are both in the table; use them to verify the branch resolves to the head transaction and survives export and clone.
+
+**P2-3.** The step pass rule is `value is False`, with a numeric check only for names ending `_exit`. `exported_bytes` is an int, so a zero-byte export would not register as a problem in that loop.
+
+**P2-4.** The three remaps are declared ROOT, registry, home in that order, and rustc resolves remappings last-declared-first, so the `$HOME` remap shadows the other two whenever ROOT and `$CARGO_HOME` sit under `$HOME`, as they do here. §11 states the three target prefixes as facts about the binary. State the observed prefixes, or order the flags most-specific-last.
+
+**P2-5.** SBOM and license scope. `SBOM.json` is the repository inventory: it lists three pypi packages the artifact does not contain, and it carries `history_anchor_commit: 51863f7…`, a different commit from MANIFEST's, unexplained inside the artifact. `LICENSES.json` silently filters to `ecosystem == "cargo"` (40 of 43), so §2's "declared licenses per package" is per cargo package. "Verbatim" (§2, ADR decision 5) is inexact: the inventory is re-serialized through `canonical()`, so it is content-verbatim, not byte-verbatim. The inventory does self-declare `full_release_sbom: false`, `standards_sbom_deferred: true`, `result: "BLOCKED"`, and that travels into the artifact, which is the honest part and worth keeping.
+
+**P2-6.** §11's "fourteen members" is the manifest entry count. The tar holds fifteen regular files plus directory entries, because MANIFEST.json is excluded from its own manifest. Say which count is meant.
+
+**P2-7.** Offline coverage: the four tests do not exercise `PACKAGE_TREE_DIRTY`, the member allow-list, `verify_manifest`'s extra-member branch, or a `/home/`-shaped leak. The scan test plants only `str(ROOT)` and an `AKIA` literal.
+
+**P2-8.** Campaign open question 3: the code raises on an archive-only difference while §11 says such a difference is "recorded, never rounded." 26.8 accepts "precisely identifies archive-only nondeterminism" as a satisfying outcome, so give it a distinct non-fatal disposition (`REPRODUCIBLE_ARCHIVE_ONLY`) rather than collapsing it into the same fatal code as a content difference. Campaign open question 2: the subset is right, since S20-730 owns independent conformance; say so in §10.
+
+</details>
+
+<details>
+<summary>P3 (editorial) — 5 items</summary>
+
+**P3-1.** §1 step 4 says the scan covers "every member"; it runs on the stage before packaging. Say "every staged member, before packaging."
+**P3-2.** `artifact = summary.get("artifact", {})` passes when the key is absent and raises `AttributeError` if `artifact` is a non-dict. §7's "stays null" should be checked as present-and-null.
+**P3-3.** `expected["implementation_complete"] = status == COMPLETE_STATUS` only checks the summary agrees with itself.
+**P3-4.** The status line needs a revision-3 form with the three Council verdicts recorded.
+**P3-5.** §11's "no local absolute path enters the binary" is an intent, not an outcome; the scan is what tests it.
+
+</details>
+
+## direct answers to the six named checks
+
+- **Three remaps plus content scan sufficient?** No. Sufficient against the observed failure class, not as a general guarantee (P1-3, P2-4). The remaps do the real work; the scan is a host-shaped tripwire that must not be described as sufficiency.
+- **Deterministic tar and byte comparison honest?** The mechanism is honest and well tested. The *claim* is not scoped (P1-1) and the failure record does not persist what it promises (P1-2).
+- **Demo a faithful source-independence proof, gap stated correctly?** Faithful for the four verbs it covers. The gap statement omits `create`, and the ADR and closeout claim full 20.12 coverage (P0-2, P2-2).
+- **Does SBOM reuse overstate?** The inventory self-declares `full_release_sbom: false` and travels with that intact, which is the right call. It overstates by scope, not by content: it describes the repository, not the artifact, and it is not bound to the built lockfile (P1-5, P2-5).
+- **Fail-closed release-check while producing a candidate: right boundary?** Yes. Mechanics-now-gate-later is the correct shape and the checker enforcing `NOT_IMPLEMENTED` on both gates is the right binding. The boundary leaks only through the artifact itself, which carries no non-release marker (P1-7).
+- **Could the evidence be misread as a release?** `evidence.json` on a passing run, no. On a failing run, yes, because the non-release markers are dropped (P1-2). The tarball, yes (P1-7).
+
+## validation
+
+Read-only inspection at `9dc78fe` in the review worktree. No cargo, no smoke, no repository modification. Cross-checks run: `method_count` = 41 against the demo's nine methods; inventory-to-`Cargo.lock` package reconciliation (40/40, `cargo_lock_sha256` matches); fixture directory file enumeration (nine files against three directory lines in §2); `.gitignore` and `git ls-files` confirming `/evidence/runtime/` untracked and absent; `git diff 51863f7..HEAD -- Cargo.lock` showing 68 inserted lines against the inventory's declared anchor.
+
+## blockers
+
+None for this review. The two P0 items block the freeze, not this pass.
+
+## return_to
+
+Orchestrator. P0-1 and P0-2 are contract and ADR text changes plus one default flip; P1-6 must land in the stage checker or freeze cannot go green in `make quick`. Nabu should take P0-2's verb accounting and campaign open question 1 (`workspace.create` with a packaged trusted genesis), since adding `create` to the demo changes what the artifact must carry.
+
+S20_720_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Contract 11 makes working-tree cleanliness optional while master goal 26.8 requires it, and MANIFEST.json asserts commit unconditionally; the cited reference artifact was built dirty, so its manifest claims a commit it was not built from","ADR-0038 consequence 2 and the closeout claim the demo proves master goal 20.12 for every dispatched operation; 20.12 names eight verbs, the demo covers four, the method table has 41 methods and the demo exercises nine, and the section 4 gap statement omits create"],"p1":["Section 6 and ADR decision 2 do not scope reproducibility to one host, one toolchain, one absolute source path, sequential builds; evidence.json has no scope field","main() replaces the evidence dict on any PackageError, so a NOT_REPRODUCIBLE run persists no archive_only flag, a ten-item truncated member list, and none of the non-release markers","Scan needles are str(ROOT), literal /home/, and seven vendor prefixes; misses /root, /Users, /builds and a relocated CARGO_HOME, and RUSTFLAGS remaps do not reach cc-compiled C objects or build-script strings","Section 5 claims the member list equals the section 2 list exactly, but section 2 names directories, stage_artifact copytrees them, and nothing asserts an allow-list or member_count","SBOM.json is never bound to the built dependency closure; inventory cargo_lock_sha256 currently matches Cargo.lock but is not verified at build time","check_release_candidate_packaging.py hard-binds the SPEC_MARKER 'Status: S20-720 contract draft', so make quick fails the moment the contract is frozen","MANIFEST.json carries no non-release marker while the artifact filename is release-shaped; add status CANDIDATE_NOT_RELEASED, ga false, publication_authorized false","Section 9 requires the smoke evidence.json but /evidence/runtime/ is gitignored and absent at 9dc78fe, so the freeze rests on hand-copied closeout numbers no reviewer can verify"],"p2":["run_demo.py is called self-contained but requires a host CPython the artifact does not ship","steps.branch_created and source_free_environment.cwd_is_artifact are hardcoded True, not measurements; the branch is never read back via refs.list or refs.resolve","The step pass rule is 'value is False', so a zero-byte exported_bytes would not register as a problem","Remap flags are declared ROOT, registry, home; rustc resolves last-declared-first so the HOME remap shadows the other two, contradicting section 11's stated prefixes","SBOM.json lists three pypi packages absent from the artifact and an unexplained history_anchor_commit 51863f7 differing from MANIFEST's commit; LICENSES.json silently filters to cargo (40 of 43); 'verbatim' is inexact since the inventory is re-canonicalized","Section 11's 'fourteen members' is the manifest entry count while the tar holds fifteen regular files plus directories","Offline tests do not cover PACKAGE_TREE_DIRTY, the member allow-list, verify_manifest's extra-member branch, or a /home/-shaped leak","Campaign open question 3: give an archive-only difference a distinct non-fatal disposition per 26.8 rather than the same fatal code as a content difference; open question 2: keep the subset and say so in section 10"],"p3":["Section 1 step 4 says 'every member' but the scan runs on the stage before packaging","summary.get('artifact', {}) passes when the key is absent and raises AttributeError on a non-dict; check present-and-null","expected implementation_complete only checks the summary agrees with itself","Status line needs a revision-3 form with the three Council verdicts recorded","Section 11's 'no local absolute path enters the binary' is an intent, not an outcome"],"notes":"Mechanics are sound and mostly honest; the two P0s are frozen-text falsehoods (dirty-tree commit provenance, 20.12 over-claim) and P1-6 blocks make quick at freeze. Read-only at 9dc78fe; no cargo, no smoke; evidence.json absent because /evidence/runtime/ is gitignored."}
+EXIT=0 2026-09-04T07:44:26Z

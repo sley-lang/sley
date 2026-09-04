@@ -1,0 +1,100 @@
+DISPATCH 390extended-ariadne-contract forge-ariadne-390extended-ariadne-contract-20260904T044328 2026-09-04T04:43:28Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+Bounded read-only review complete. Worktree confirmed at `9dc78fe`; no repository modification, no cargo, no make.
+
+## status
+
+`FAIL` — two P0 findings block freeze.
+
+## findings
+
+### P0-1: the contract still freezes the opposite rule from revision 2
+
+`docs/spec/TRANSACTION_MODEL_V1.md:13-19` (Authority boundary) still reads:
+
+> The current conformance profile accepts only executable programs containing no semantic operation entities, the restricted subset already proven by S20-360. … Unsupported semantic operation analysis or test evidence fails closed and cannot advance the accepted head.
+
+Revision 2 at lines 159-171 of the same file, and `codec.rs:702-703`, now accept operation-carrying commits. One document both permits and forbids the same transaction class. This is the rule a freeze makes binding, so it cannot ship as-is. The Authority boundary paragraph must be rewritten to scope the restriction to the empty selected-test set only.
+
+### P0-2: profile 1's restated meaning is false for ordinary operation-free commits
+
+The contract (`:157`, `:164`) and ADR-0045 (`:26-27`) now define value 1 as "no operation analysis ran in the transaction," and justify it with "which is what it always meant" and "every earlier receipt therefore still says exactly what it said."
+
+At `9dc78fe` that is not true of the ordinary case:
+
+- `crates/sley-policy/src/candidate_program.rs:207-212` — `operation_analysis_supported()` is `!operations.iter().any(excluded)`, which is vacuously **true** for a program with zero operations.
+- `crates/sley-policy/src/candidate_validation.rs:806-856` — phase 7 iterates every owned function unit and calls `judge_function_operations` whenever `operations_analyzable`; the call is gated on analyzability, never on operation count. The pass tuple records `judged_operations = 0`.
+
+So for an ordinary operation-free commit with any function unit, the S20-360 analysis **does** run and judges nothing. The receipt says profile 1 while the analysis ran. Freezing a value definition the implementation contradicts is the exactness failure this review was asked to find.
+
+The accurate formulation is a statement about judgment, not about process: value 1 means *this transaction judged no semantic operation*. That is true of both an operation-free ordinary commit and a genesis, for different reasons, which is exactly why P1-3 below is required alongside it.
+
+### P1-3: genesis ⇒ profile 1 is asserted but enforced nowhere
+
+Contract `:170` states "A trusted genesis always records `1`." Neither decoder enforces it:
+
+- `codec.rs:717-730` — the `TrustedGenesis` branch checks parents, the six ordinary fields, and mutation ordinals. It never inspects `commit_metadata`.
+- `oracle/.../transaction_receipt.py:353` — accepts `[1,1,1]` or `[1,2,1]` for either kind.
+
+A crafted genesis receipt claiming profile 2, an analysis that provably never ran, imports clean through the strict path. The contract says strict import verifies "every binding that is self-contained in the receipt" (`:203-206`); this binding is self-contained. Either enforce it as `TXN_GENESIS_INVALID` in both implementations, or demote the contract sentence to a producer-side statement and say so.
+
+### P1-4: the two values are different kinds of claim
+
+`repository.rs:1901-1902` selects the profile from `carries_operations(plan.proposed_state().entities())` — a property of the committed entity set. Value 1 is then worded as a claim about what ran. Value 2 is a property of the program; value 1 is a claim about the process. Define both from one basis. Note also that `proposed_state()` is the full proposed set, so a candidate touching only non-operation entities in a workspace whose state already carries operations commits under 2; that is defensible under "which analysis validated this program," but the contract never says which reading it means.
+
+### P1-5: the joint-reading rule is unstated
+
+After revision 2, profile 1 covers two materially different facts: ordinary, where validation ran and found no operation to judge, and genesis, where nothing was validated and the installed object set may contain operations that were never judged. These are only separable by `transaction_kind` (tag 2). The contract never tells a receipt consumer to read the two fields jointly, and never states that a genesis receipt asserts nothing about its own object set. That sentence is the load-bearing one for the whole decision and it is missing.
+
+### P1-6: tracked evidence asserts removed behavior in present tense
+
+`docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md:151-157` still states that `commit` refuses operation-carrying candidates with `TXN_SEMANTIC_PROFILE_UNSUPPORTED` (39023) and names `commit_refuses_an_operation_carrying_program_until_the_receipt_can_name_it`. Neither the code, the error code, nor the test exists at `9dc78fe` (verified by grep across `crates/` and `ERROR_CODES_V1.md`). The 2026-09-03 addendum at `:163-180` corrects the operation-free wording but never retracts the refusal. Add an explicit retraction line to the first addendum.
+
+<details>
+<summary>P2 and P3 detail</summary>
+
+**P2-7** — Closeout "Closed claim" (`:11-14`) still scopes the package to "programs containing no semantic operation entities"; "Explicitly open" (`:129`) still lists "semantic operation-entity analysis" as not completed. Both are now partly false.
+
+**P2-8** — Contract Status header (`:3-4`) does not mark revision 2 as draft with Council review pending; only the buried paragraph at `:159` does. A reader who checks the status line sees a frozen spec.
+
+**P2-9** — `ERROR_CODES_V1.md:328-330` freezes 39000 through 39022. Record 39023 as allocated-and-withdrawn so a later package does not reuse the number for unrelated semantics; a receipt corpus predating the removal could still carry it.
+
+**P3-10** — The revision-2 prose (`:159-171`) is spliced into the middle of the commit-metadata table, orphaning `| 3 | durability_profile | ...` (`:172`) outside it. The table renders broken. Move the prose below the complete table.
+
+**P3-11** — "Revision 2 (2026-09-03, ADR-0045, Council review pending)" and ADR Status "proposed" need updating once this review lands.
+
+</details>
+
+## answers to the campaign open questions
+
+**Q1 (mine): is restating acceptable, or does genesis need its own value?**
+
+Restating is the right move; the specific text is not. The direction is sound: the original "executable-program-operation-free" phrase genuinely never described a trusted genesis, and preserving an inaccurate phrase to protect a freeze would be worse. But the replacement text over-claims (P0-2) and the campaign's supporting argument, that this "is what it always meant," is not defensible against the current phase-7 behavior.
+
+**Genesis does not need its own value.** Two reasons:
+
+1. `transaction_kind` (tag 2) already separates genesis from ordinary losslessly and unconditionally. The pair `(transaction_kind, semantic_profile)` is total; a third semantic value would encode information the record already carries.
+2. A third value would change genesis `commit_metadata` bytes, therefore every genesis `TransactionId` and `ReceiptId`, therefore the frozen `GENESIS` vector and the accepted-head closure of every existing repository. That is a hard break of already-frozen identity for zero information gain. ADR-0045 decision 4 is correct to refuse it.
+
+Conditions on keeping two values: land P0-2 (define value 1 as "judged no semantic operation," not "no analysis ran"), P1-5 (state the joint-reading rule and that a genesis receipt asserts nothing about its installed object set), and P1-3 (enforce genesis ⇒ profile 1 in both decoders, or stop asserting it).
+
+**Q2 (Nabu's, not mine to decide)** — contract-relevant evidence for the routing: the commit path derives the profile from the proposed entity set (`repository.rs:1901-1902`), not from what phase 7 judged, even though the phase-7 pass tuple already carries `judged_operations` (`candidate_validation.rs:850,865`). Deriving from presence rather than from judgment is the mechanical cause of the wording drift in P0-2 and P1-4. Recommend Nabu weigh that when deciding the derivation source.
+
+**Q3 (Vulcan's, not mine to decide)** — observation only: the closed-triple rule is enforced in both implementations (`codec.rs:702-703`, oracle `:353`), but only Rust unit coverage exercises the rejection. A rejected-corpus vector for an unknown triple would be the only cross-implementation evidence that both decoders reject the same non-triples. If P1-3 is fixed by enforcement, a genesis-with-profile-2 rejection vector becomes the higher-value one.
+
+## validation
+
+Read-only inspection at `9dc78fe`. No cargo, no make, no repository mutation. Evidence: `docs/spec/TRANSACTION_MODEL_V1.md`, `docs/adr/ADR-0045-*.md`, `docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md`, `docs/spec/ERROR_CODES_V1.md`, `crates/sley-txn/src/codec.rs:20-110,690-730`, `crates/sley-txn/src/repository.rs:16-24,1780-1905,5023-5080`, `crates/sley-policy/src/candidate_validation.rs:800-870,1528-1545`, `crates/sley-policy/src/candidate_program.rs:207-219`, `oracle/scb1/src/sley2_scb1_oracle/transaction_receipt.py:225-235,350-375,558`, `conformance/transaction-receipt/v1/accepted.json` (GENESIS, ORDINARY, ORDINARY_EXTENDED present). Campaign record read from the worktree copy at `machineresearch/sley-2.0/s20-390-extended-semantic-profile-campaign-2026-09-03.md`; the path given in the task resolves under `/home/greyforge/sley2/`, not `/home/greyforge/`.
+
+## blockers
+
+None. Verdict decided within budget.
+
+## return_to
+
+Orchestrator. P0-1, P0-2, P1-5 and P1-4 are contract-text revisions Ariadne can specify; P1-3 is an implementation change in two crates plus the oracle and belongs to Merlin after Nabu answers Q2, since the derivation source may change the same code.
+
+S20_390EXTENDED_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["TRANSACTION_MODEL_V1.md:13-19 Authority boundary still restricts the profile to programs with no semantic operation entities, contradicting revision 2 at :159-171 and codec.rs:702-703","Profile 1 restated as 'no operation analysis ran in the transaction' (:157,:164; ADR-0045:26-27) is false for ordinary operation-free commits: candidate_validation.rs:806-856 calls judge_function_operations for every function unit and operation_analysis_supported() is vacuously true at candidate_program.rs:207-212, so the analysis runs and judges zero operations"],"p1":["Contract :170 asserts a trusted genesis always records profile 1 but neither decoder enforces it: codec.rs:717-730 genesis branch ignores commit_metadata and oracle :353 accepts both triples for either kind","Value 2 is derived from a property of the committed program (repository.rs:1901-1902 carries_operations over proposed_state) while value 1 is worded as a claim about process; both values must be defined from one basis","Contract never states that semantic_profile is interpretable only jointly with transaction_kind, nor that a genesis receipt asserts nothing about whether its installed object set carries operations","S20_390_ATOMIC_COMMIT_CLOSEOUT.md:151-157 still asserts in present tense the commit refusal and error 39023 and a test name, none of which exist at 9dc78fe, and the later addendum never retracts it"],"p2":["Closeout :11-14 Closed claim and :129 Explicitly open still scope the package to operation-free programs","Contract Status header :3-4 does not mark revision 2 as draft with Council review pending","ERROR_CODES_V1.md:328-330 should record 39023 as allocated and withdrawn so it is not reused"],"p3":["Revision 2 prose at :159-171 is spliced into the commit metadata table and orphans the durability_profile row at :172 outside it","Council review pending parentheticals in the contract and ADR Status need updating once this review lands"],"notes":"Restating profile 1 is the right direction but the chosen text over-claims; genesis does not need its own value because transaction_kind already separates the cases losslessly and a third value would rewrite frozen genesis receipt identity for no information gain. Read-only at 9dc78fe; no cargo, no make, no repository mutation."}
+EXIT=0 2026-09-04T04:47:42Z

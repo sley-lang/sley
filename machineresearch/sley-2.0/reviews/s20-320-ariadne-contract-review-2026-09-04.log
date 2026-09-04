@@ -1,0 +1,62 @@
+DISPATCH 320-ariadne-contract forge-ariadne-320-ariadne-contract-20260904T035905 2026-09-04T03:59:05Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its surrounding artifacts.
+
+Commit confirmed. Reading the contract and its adjacent authorities.
+
+Contract is at revision 2 but ADR-0031 still describes revision 1. Reading the implementation now.
+
+S20-330 has landed, so `Negotiated` is now constructible. Reading the implementation to check the contract against it.
+
+Found a preimage discrepancy. Verifying the shared question encoder and list encoding.
+
+`response_bytes` is already inside the `SLEYRQR1` record, yet the builder re-emits it. Checking the oracle to see which side is authoritative.
+
+Oracle confirms the implementation, not the contract, on the preimage. Checking the `0` kind sentinel and the truncation rule.
+
+Review complete. The decisive finding is a canonical-record mismatch, verified on both the Rust and Python sides.
+
+## status: FAIL (draft is not freeze-ready)
+
+## findings
+
+**P0-1 — §6 `capsule_preimage` omits a field that is actually encoded.**
+The implementation writes `u64be(response_bytes)` between `option(cursor, next_after)` and the copied record (`context_capsule.rs:599`), and the independent oracle does the same (`check_context_capsule_vector.py:225`: `out += u64(len(record)) + record`). The contract's §6 grammar goes straight from `option(cursor, next_after)` to `bytes(exact_SLEYRQR1_response_record)`. A reader implementing §6 exactly derives a different preimage and a different `ContextCapsuleId` for every vector. Note `response_bytes` is *already* inside the `SLEYRQR1` record (`ROOT_BACKED_QUERY_PROFILE_V1.md:229`), so the outer copy is a deliberate length prefix and needs to be spelled as one. The canonical record is the entire contract; this alone blocks freeze.
+
+**P0-2 — §2 and §11 contradict each other about the `Negotiated` arm.**
+§2 makes the arm constructible via `build_context_capsule_bound` with a `CONTEXT_CAPSULE_SOURCE_INVALID` provenance check. §11 still lists "negotiated sessions or handles (S20-330), whose `Negotiated` arm is reserved and not constructible" as something the contract does not claim. A frozen contract cannot both permit and forbid the arm.
+
+**P1-3 — ADR-0031 and the closeout are stranded at revision 1.** ADR-0031's status line and Decision 3 ("the session binding is the fixed arm `None`; the `Negotiated` arm is reserved... and not constructible") contradict contract revision 2, as does closeout line 19. ADR-0031 is the boundary authority `check_context_capsule_profile.py` binds; it must move with the contract.
+
+**P1-4 — the revision-2 arm has no conformance or oracle coverage.** `conformance/context-capsule/v1/accepted.json` carries one file-level `"session_binding": 1` across all 23 vectors, and the oracle hard-fails any other value (`check_context_capsule_vector.py:252`), so a `Negotiated` capsule is *unreproducible by construction*. The fuzz target never calls `build_context_capsule_bound`. §10 does not require a session-bound vector. An arm that changes the identity preimage cannot freeze on a single Rust unit test.
+
+**P1-5 — §4's central claim is unenforced.** "A single capsule can never present a page as complete" rests entirely on an S20-310 property. `validate_source` checks `returned ≤ total_count` and `truncated ⇔ next_after.is_some()`, but nothing binds `Complete ⟹ omitted == 0`. Make it a checked source precondition failing `CONTEXT_CAPSULE_SOURCE_INVALID`; the capsule's purpose is to be checkable without trusting the producer.
+
+**P2-6 — §6 overstates enforcement.** "Every repeated field must equal the trusted request and response getters" is unsatisfiable as written: `RootQueryRequest` exposes no `workspace_id()` or `schema_epoch()`, and `limits`/`allow_continuation`/`after` are never cross-checked against the response. Enumerate the actual checked set instead.
+
+**P2-7 — the `0` kind sentinel is never declared reserved.** `ModeledEntityKind` tags start at 1, so the sentinel is sound, but §5 doesn't say so and a reader can't verify non-collision from the contract.
+
+**P2-8 — the §10 "restricted response" matrix row is untestable.** Restricted responses are a distinct type, excluded by construction, not by a runtime check. Say type-excluded or drop the row.
+
+**P3-9** — §10 says "both pages of a continuation walk"; the corpus has four page vectors over two walks (entity and edge).
+**P3-10** — the class-8 consequence (a question-named namespace carries kind `0`) lives only in the closeout's "findings closed in flight"; it is normative and belongs in §5.
+
+<details><summary>Verdicts on the four campaign open questions</summary>
+
+- **Chained page lineage: not needed, and actively harmful.** Exact `total_count` on every page plus canonical key order plus the `after`/`next_after` cursors already let a reader prove a walk covers the complete result. A lineage chain would make a page's identity depend on the path taken to reach it, which breaks the property the `sley-repo` test asserts — the same capsule from a cache hit and a rebuild — and imports ordering authority the capsule explicitly disclaims. Keep the current design; the §4 rationale is correct as stated.
+- **Question's named entities in the dictionary: correct.** Classes 2 and 3 carry no payload identity, so without them `objects` and `fingerprints` have no index at all. The cost (a class-8 namespace with kind `0`) is the right trade, but state it normatively (P3-10).
+- **Parallel `kinds` with `0`: correct.** The 65,535-entity ceiling bounds the waste, and the parallel form keeps `kinds.len() == entities.len()` as a single checkable invariant, which a sparse table would not. Declare `0` reserved (P2-7).
+- **Session arm as the S20-330 seam: right seam, wrong landing.** The field placement (before the question, length-varying on the arm tag) is sound. The failure is that revision 2 edited §2 without carrying §11, ADR-0031, §10, or the evidence corpus with it.
+</details>
+
+## validation
+Read-only. No cargo, no oracle execution, no repository modification. Verified by direct reading at commit `9dc78fe`: contract §§1-11, ADR-0031, campaign record, closeout, stage checker, `context_capsule.rs` (including `encode_preimage` and `validate_source`), `encode_question` in `root_query.rs`, the oracle, the fuzz target's call sites, `ERROR_CODES_V1.md:226-241`, `ROOT_BACKED_QUERY_PROFILE_V1.md` §§3-6, and `accepted.json` decoded for vector ids and session binding. P0-1 is confirmed by agreement between two independent encoders against contract text that matches neither.
+
+## blockers
+None. Findings are contract revisions; no repository change was attempted.
+
+## return_to
+Orchestrator. P0-1, P0-2, and P1-3 through P1-5 must land as contract/ADR revisions plus one `Negotiated` conformance vector and an oracle path that accepts it before freeze. Recommend re-review of §6 and §10 only after those land.
+
+S20_320_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Section 6 capsule_preimage omits u64be(response_bytes) between option(cursor,next_after) and the copied SLEYRQR1 record; context_capsule.rs:599 and check_context_capsule_vector.py:225 both emit it, so a contract-exact reader derives a different ContextCapsuleId for every vector","Section 11 still excludes the Negotiated arm as reserved and not constructible while section 2 makes it constructible via build_context_capsule_bound; the text being frozen contradicts itself"],"p1":["ADR-0031 status line and Decision 3 plus closeout line 19 still assert revision 1 and a fixed None arm, contradicting contract revision 2; ADR-0031 is the authority the stage checker binds","The Negotiated arm has no conformance vector and no oracle path: accepted.json carries one file-level session_binding 1 and check_context_capsule_vector.py:252 hard-fails any other value, the fuzz target never calls build_context_capsule_bound, and section 10 does not require a session-bound vector, yet the arm changes the identity preimage","Section 4 claims a single capsule can never present a page as complete, but no builder check enforces Complete implies omitted == 0; it rests solely on an S20-310 property the capsule never verifies and should be a checked CONTEXT_CAPSULE_SOURCE_INVALID precondition"],"p2":["Section 6 says every repeated field must equal the trusted request and response getters, but RootQueryRequest exposes no workspace_id or schema_epoch and limits, allow_continuation, and after are never cross-checked; enumerate the actual checked set","Section 5 uses 0 as the unknown-kind sentinel without declaring 0 reserved and never a valid SSMC1 kind tag, so non-collision is unverifiable from the contract","Section 10 requires a restricted-response row in the source binding matrix, which is unsatisfiable as a runtime test because restricted responses are excluded by type"],"p3":["Section 10 says both pages of a continuation walk; the corpus holds four page vectors over two walks, entity and edge","The class-8 consequence that a question-named namespace carries kind 0 is normative but appears only in the closeout findings-closed-in-flight section, not in section 5"],"notes":"Read-only review at 9dc78fe; no cargo, no oracle run, no repo change. Endorsed as designed: no chained page lineage, question entities in the dictionary, parallel kinds with 0, and the session arm placement. Freeze blocked by the section 6 preimage gap and the section 2 versus 11 contradiction."}
+EXIT=0 2026-09-04T04:02:38Z

@@ -1,0 +1,79 @@
+DISPATCH 420-vulcan-surface forge-vulcan-420-vulcan-surface-20260904T052635 2026-09-04T05:26:35Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, spec section, and implementation in parallel.
+
+Contract is at revision 4, not 2 (task brief said revision 2). Reading implementation next.
+
+Contract is revision 4. Now reading the oracle, fuzz slice, rejection fixture, and the frozen codec's validate/encode asymmetry.
+
+Now checking the frozen codec's constraints and the rejection matrix coverage.
+
+Read-only review complete. No repository modification, no cargo. Verdict below.
+
+## status: FAIL — two P0 items block freeze
+
+## findings
+
+### P0 — blocks freeze
+
+**1. "Field encodings in field order" is undefined, and the conformance matrix contradicts the contract.**
+Section 1 defines the only "field order" in the document as the **lexicographic** emission order. Both readers use the contract's **declaration** order instead — `frame_from_value` (`crates/sley-json-bridge/src/lib.rs:678-714`) and the oracle (`scripts/check_smp1_json_bridge_vector.py:289-337`) — and two vectors bake it in:
+
+- `number-before-hex-in-field-order` → `{"body":"zz", …, "request_id":-1}` expects `NUMBER_INVALID`. Lexicographically `body` < `request_id`, so a contract-conformant reader returns `HEX_INVALID`.
+- `hex-before-method-in-field-order` → `{"method":"nope", …, "session":"zz"}` expects `HEX_INVALID`. Lexicographically `method` < `session`, so a conformant reader returns `METHOD_UNKNOWN`.
+
+A third-party implementer building from the contract text fails both vectors. The closeout's claim that precedence "is exercised explicitly by three ordered cases" is exactly what pins the wrong order. **The oracle cannot catch this** — it reproduced the implementation's declaration order rather than the contract's rule, so on precedence it is not independent.
+
+**2. Integer field widths are not declared.**
+Section 2 types every integer as `integer`, but the readers demote `protocol_version`, `max_depth`, `max_inflight`, `reached_depth` (plus `Failure.code`, `Failure.phase`) to u32 and return `NUMBER_INVALID` above 2^32-1 (`lib.rs:280-283`; oracle `U32_FIELDS`, line 38). The `u32-overflow` vector is unreproducible from the contract. The declared encodings are not complete.
+
+### P1 — must fix before freeze
+
+**3. Hello frames silently discard `protocol_version`.** Section 8 pins `session`, `request_id`, `method`, `flags`, `bounds` — not `protocol_version`. `frame_from_json` (`lib.rs:748-755`) routes hello through `encode_hello_frame` and never reads it, so `{"kind":"hello","protocol_version":2,…}` is **accepted** and re-emitted as version 1. The oracle rejects the identical text with `PROTOCOL_VERSION_UNSUPPORTED` (line 395). Implementation and oracle disagree on acceptance; uncovered, since `protocol-version-unsupported` uses `kind:"request"`.
+
+**4. Duplicate object keys are undefined and silently last-wins in both readers.** `object()` compares `map.len()` *after* serde_json collapses duplicates (`lib.rs:328-349`); the oracle's `set(value) != set(fields)` does the same. `{"kind":"request",…,"kind":"hello"}` parses as a hello frame. The oracle shares the defect, so it cannot detect the divergence.
+
+**5. Resource ceilings do not bound allocation.** `parse()` checks 256 MiB of text and depth 32, then hands the text to `serde_json::from_str`, which materializes an unbounded `Value` tree. A 256 MiB text of `[0,0,0,…]` is ~128M `Value` elements — multi-GB — built entirely inside the class the contract calls "resource, first in precedence." Depth alone bounds nesting, never breadth. Needs an element ceiling.
+
+**6. Fuzz lanes cannot reach the ceilings or see normalization.** `MAX_FUZZ_INPUT_BYTES = 65_536` (`fuzz/targets/smp1_json_bridge.rs:27`), so neither the 256 MiB nor the depth-32 lane is ever exercised. Lane 0 normalizes on its first hop, so it structurally cannot observe finding 3. Add an assertion that a text already in emitted canonical form satisfies `frame_to_json(frame_from_json(t)) == t`.
+
+### P2
+
+7. Section 1 ("a sign … is `NUMBER_INVALID`") contradicts section 8 ("`-0` reads as the integer zero"); no vector covers `-0`, so the revision 2 clarification is asserted and untested.
+8. The **emitter** rule for integers is not normative — section 1 says only that a reader accepts both forms, so "equal values emit equal text" does not follow from the text. Implementation is correct; the contract is not.
+9. `MAX_JSON_TEXT_BYTES` is a magic literal at exactly 4 × `MAX_FRAME_BYTES` (67,108,864). Derive and static-assert it.
+10. Hello is the one owner body the bridge decodes and re-encodes (`lib.rs:751`), silently re-canonicalizing it; fuzz lane 1 asserts byte-exact frame round-trip, which holds only if SCB1 decoding is canonical-only. That dependency is unstated.
+11. Reader-side validation is asymmetric and undeclared: `failure_from_json` validates through `encode()`, `hello_from_json` only through `validate()`, `chunk_from_json` through nothing. Section 8 declares the `*_to_json` side only.
+
+### P3
+
+12. Section 8 still says hello carries "both flags false"; revision 4 added a third (`failed`). Implementation checks `flags != 0`.
+13. "Lexicographic" is unqualified — specify UTF-8 byte order.
+14. State that no emitted string can contain a JSON-escapable character (true today: hex `[0-9a-f]`, symbols `[A-Z0-9_]` per `ProtocolFailure::encode`, frozen names) — currently moot but load-bearing.
+15. Closeout still reads "revision 2" against a revision 4 contract.
+16. `METHOD_TABLE_JSON` is embedded but is not the runtime authority (`method_name` uses `Method::ALL`); the binding is test-gated only.
+
+## Answers to the three open questions
+
+- **S20-440 body records as objects: no.** Hold hex. Object forms would make the bridge own record semantics and create a second representation that can diverge from the bytes. Hello is already the sole exception and is precisely where the bridge silently re-canonicalizes (finding 10). If ever wanted, a separate contract with its own conformance.
+- **Decimal strings for every integer field: yes, keep universal.** Per-field tables multiply reader surface. Close it instead by making the emitter rule normative (P2 #8) and declaring per-field widths (P0 #2).
+- **Ceiling: keep fixed and absolute, do not follow the negotiated frame ceiling.** The bridge renders hello, which precedes negotiation; a session-dependent ceiling makes the rejection matrix non-deterministic and unreproducible by the oracle; and the codec already applies `max_frame_bytes.min(MAX_FRAME_BYTES)` at decode. Derive it from `MAX_FRAME_BYTES` and, if useful, accept a caller-supplied *lower* bound.
+
+## Identity boundary: holds
+
+No path found from JSON text to program identity. `selected_to_json` has no reader, so `handshake_id` is only ever derived from a struct. `Hello::encode` calls `validate` first (`crates/sley-protocol/src/lib.rs:637-638`), so `hello_from_json`'s validate-only check cannot mint a Hello outside the wire domain. `frame_from_json` re-encodes through the codec and `frame_id` derives from the bytes. Re-encoding through the frozen codec **is** sufficient to keep bytes the only canonical form — findings 3 and 4 are non-injectivity on the text side, not identity leakage.
+
+## validation
+
+Read-only inspection at `9dc78fe`: contract rev 4, ADR-0034, `lib.rs`, fuzz target, oracle, `rejected.json` (31 mutations enumerated), `roundtrip.json` (5 vectors), campaign record, closeout, and targeted `rg`/`sed` reads of `crates/sley-protocol/src/lib.rs` for `MAX_FRAME_BYTES`, `Hello::validate`/`encode`, and the symbol charset. No cargo, no repository modification. Findings 1, 2, 4, 6, 12-16 are established from source text alone; finding 3 rests on the oracle/implementation divergence being visible in both files and uncovered by the matrix; finding 5 is an allocation-bound argument, not a measured run.
+
+## blockers
+
+Two P0 items require contract revisions plus regenerated vectors before freeze. Cannot execute cargo or the oracle to confirm runtime behavior of `-0` (P2 #7) or the duplicate-key path (P1 #4) — both are reasoned from serde_json/`json.loads` last-wins and `Number::from(i64)` semantics, so confirm with a test when the lane reopens.
+
+## return_to
+
+orchestrator
+
+S20_420_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["precedence 'field encodings in field order' is undefined: contract section 1 defines field order as lexicographic, but lib.rs frame_from_value, the oracle, and vectors number-before-hex-in-field-order and hex-before-method-in-field-order all encode declaration order, so a contract-conformant reader fails the matrix and the oracle is not independent on precedence","integer field widths are undeclared: section 2 types all fields as 'integer' but readers demote protocol_version, max_depth, max_inflight, reached_depth, code and phase to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract"],"p1":["hello frames silently discard protocol_version: section 8 does not pin it and frame_from_json never reads it, so kind=hello with protocol_version=2 is accepted and rewritten to 1 while the oracle rejects the same text with PROTOCOL_VERSION_UNSUPPORTED; uncovered by the matrix","duplicate object keys are undefined and silently last-wins in both the Rust object() length check and the oracle set() check, so kind can be overridden; the oracle shares the defect and cannot detect it","declared resource ceilings bound text size and depth but not allocation: parse builds an unbounded serde_json Value tree from up to 256 MiB inside the class the contract calls resource-first, needing an element or breadth ceiling","fuzz lanes cap input at 65536 bytes so neither resource ceiling is ever exercised, and lane 0 normalizes on its first hop so it structurally cannot catch accepted-then-discarded fields; add an assertion that canonical-form text renders back to itself"],"p2":["section 1 (a sign is NUMBER_INVALID) contradicts section 8 (-0 reads as zero) and no vector covers -0","the emitter rule for integers is not normative, so 'equal values emit equal text' does not follow from the contract text","MAX_JSON_TEXT_BYTES is a magic literal at exactly 4x MAX_FRAME_BYTES and should be derived and static-asserted","hello is the one owner body the bridge decodes and re-encodes, silently re-canonicalizing it; fuzz lane 1 byte-exact round-trip holds only if SCB1 decode is canonical-only, a dependency the contract does not state","reader-side validation is asymmetric and undeclared: failure_from_json uses encode, hello_from_json uses validate, chunk_from_json validates nothing"],"p3":["section 8 hello rule still says 'both flags false' after revision 4 added the failed flag","specify lexicographic as UTF-8 byte order","state that no emitted string can contain a JSON-escapable character, currently true but load-bearing and undeclared","closeout still reads revision 2 against a revision 4 contract","METHOD_TABLE_JSON is embedded but not the runtime authority; the binding to Method::ALL is test-gated only"],"notes":"Read-only at 9dc78fe, no cargo. Identity boundary holds: no JSON-to-program-identity path; re-encoding through the frozen codec is sufficient to keep bytes canonical. Open questions answered: keep S20-440 bodies as hex, keep decimal strings universal for every integer field, keep the text ceiling fixed and absolute rather than negotiated but derive it from MAX_FRAME_BYTES."}
+EXIT=0 2026-09-04T05:32:30Z

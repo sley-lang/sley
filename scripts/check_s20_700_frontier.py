@@ -142,7 +142,12 @@ for key, value in expected.items():
         problems.append(f"machine-summary-drift:{key}")
 if frontier.get("remaining_required_surfaces") != []:
     problems.append("machine-summary-remaining-surface-drift")
-if frontier.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
+# The surface review was deferred while the Council lane answered 401. The lane
+# reopened on 2026-09-04 and the review landed, so the deferral is no longer the
+# right value: a recorded verdict is. Accepting the old marker would let the
+# frontier claim a review that has since been answered.
+vulcan_review = frontier.get("vulcan_review")
+if not isinstance(vulcan_review, str) or not vulcan_review.startswith(("PASS", "FAIL")):
     problems.append("machine-summary-vulcan-review-drift")
 if (
     frontier.get("merge_engine_blocker")

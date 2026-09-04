@@ -1,0 +1,53 @@
+DISPATCH 780-nabu-architecture forge-nabu-780-nabu-architecture-20260904T085740 2026-09-04T08:57:40Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract artifacts and composed authorities.
+
+## Bounded architecture review — S20-780 clean-room boundary
+
+**status:** complete (read-only; worktree verified at `9dc78fe`, no repo mutation, no cargo, no make)
+
+I ran only `scripts/check_clean_room_boundary.py` directly (pure read) to ground the verdict: it currently reports `PASS`, 3 register entries, 2 artifact references, status `S20_780_CONTRACT_DRAFT_REVIEW_PENDING`.
+
+### Verdict on the three questions asked
+
+**Are the four checks the right invariants?** The *decomposition* is right and I endorse it. A clean-room boundary has exactly three architectural properties — provenance (no legacy text entered the tree), coupling (no build/link dependence), containment (runtime contact is out-of-process only) — plus register hygiene. Checks 1–4 map one-to-one onto those. My objection is not the choice of invariants; it is that each check is implemented as a strictly weaker proxy than the name the register gives it, and §2 states the strong version. A boundary contract whose text over-claims its own mechanization is a worse artifact than one that claims less, because the gap is invisible to every later reader.
+
+**Is scanning `crates, oracle, bench, fuzz, scripts` sufficient?** No. Root `Cargo.toml`, `Cargo.lock`, `Makefile`, `conformance/` (35 JSON fixtures + `SHA256SUMS`), and `evidence/` are outside every scan. `Cargo.lock` and the root workspace manifest are where a legacy dependency would actually be observable; `conformance/` and `evidence/` are where copied legacy data would land. The deeper defect is that `SCANNED_TREES` is a hardcoded allowlist — a new top-level tree is unscanned by default and silently so. Invert it: enumerate via `git ls-files` and deny `target/`, `__pycache__`, `.git/`. Default-closed, not default-open.
+
+**Could the allowed-reference list hide a violation?** Yes, but it is the second-order risk. `bench/legacy/` is granted as a whole-directory prefix with no file or count limit — which is precisely where a legacy source copy would be least conspicuous. The first-order risk is that the sentinel is a single literal, `archive/sley/1.2.0`. The same artifact is equally identifiable by `sley-1.2.0-linux-x86_64`, the SHA-256, the source snapshot `sley-1.2.0-source-397fa28.tar.gz`, or `GreyforgeLabs/sley` — and three of those tokens already appear in `bench/benchmark-plan.json`, `bench/raw/tests/test_runner.py`, and `scripts/check_legacy_runner.py` without tripping anything. A reference built by concatenation or `os.environ` evades outright. The allowlist can only hide what the sentinel finds.
+
+<details>
+<summary>Findings detail, with evidence</summary>
+
+**P1-1 — "no legacy dependency" is not enforced where it matters.** `scripts/check_clean_room_boundary.py:88` globs only `crates/*/Cargo.toml`. Root `Cargo.toml` (`[workspace.dependencies]`), `fuzz/Cargo.toml`, and `Cargo.lock` are never read for dependencies — all three exist and are tracked. The regex at line 90 matches only single-line inline path deps of form `name = { path = "../x"`; a registry dep (`sley = "1.2"`), a git dep on `GreyforgeLabs/sley.git`, the `[dependencies.x]` table form, and any deeper relative path are all invisible. The `sley1`/`legacy` name heuristic sits *inside* the path-dep loop, so it never sees a non-path dependency. ANTI_GOALS row "Sley 1.x compatibility" rests on this check.
+
+**P1-2 — §2.1 asserts a check that does not exist.** The register says no file "carries the legacy source snapshot's paths or a legacy module marker." There is no snapshot-path check and no module-marker check; there is one literal substring search. Either implement both or restate §2.1 as what it is: a single-sentinel archive-path search.
+
+**P2-3 — check 3 does not verify "one," and barely verifies "out of process."** `references` is counted (line 81) and reported but never constrained to 1. Out-of-process proof is `"subprocess" not in adapter` — satisfied by a comment or an unused import, and it says nothing about the other four files under `bench/legacy/`.
+
+**P2-4 — coverage.** As above; also the suffix allowlist at line 75 excludes `.sh`, `.lock`, `SHA256SUMS`, and extension-less files even inside scanned trees.
+
+**P2-5 — sentinel breadth.** Recommend a sentinel set: `archive/sley`, both artifact filenames, both SHA-256 digests, `GreyforgeLabs/sley`.
+
+**P2-6 — register hygiene is bypassable.** Field checks test literal presence, not non-emptiness — `- **Purpose**:` with no content passes. Line 65 exempts any entry whose *title* contains "no reused concept" from all seven fields, so a real disposition can be retitled to skip validation. And `reused_concepts == 2` is asserted against `machine-summary.json` but never reconciled with `len(entries) - 1`, so register and summary can drift.
+
+**P3-7** — the `ALLOWED_LEGACY_REFERENCES` comment says "the documents that record the freeze" (plural) but lists one; `docs/spec/LEGACY_ARTIFACT_ADAPTER_V1.md` and `machineresearch/sley-2.0/01-legacy-freeze-and-authority.md` also carry the path and are safe only because those trees are unscanned.
+
+**P3-8** — §2.3 "The single reference to the frozen artifact is the S20-600 legacy adapter" is false as written: four tracked files carry the path. Qualify to "the single reference in executable code." Relatedly, "the eighteen Sley 2 crates" is true (I counted 18) but is not machine-checked — the check only requires the target be *some* directory under `crates/`.
+
+**P3-9** — entry slicing at lines 60–61 uses first-occurrence `index()` and a fragile `end` computation; a TOC or cross-reference would mis-slice.
+
+Verified true and not findings: §4 staging — line 73 of the Makefile is inside the `quick:` target (the only target header before line 90), so the checker does run under `make quick`. §3's disclaimers are honest and correctly route wholesale-copy to review-only per ANTI_GOALS.
+
+</details>
+
+**validation:** targeted reads of the register, ADR-0002, the checker, ANTI_GOALS, `01-legacy-freeze-and-authority.md`, root `Cargo.toml`, and the machine-summary section; `git ls-tree`/`git ls-files`/`git grep` to establish tree coverage and reference counts; one read-only execution of the checker. No cargo, no make target, no write.
+
+**blockers:** none. No P0. The two P1s are contract-text and checker-scope defects, not design defects — roughly a 60–120 line checker revision plus ~15 lines of register text, one implementation session. Confidence high on the mechanical gaps (read directly against verified tree facts); medium on the P1/P2 line for finding 2, which is arguably P2 if the Council reads §3's disclaimer as governing §2.1's wording.
+
+I return **FAIL** rather than PASS because `check_clean_room_boundary.py:127` gates `S20_780_REGISTER_ACCEPTED` on this review reading `PASS`, and P1 by your own definition means "must fix before acceptance." Passing with outstanding P1s would make the acceptance status untrue. Expect revision 2; the architecture underneath it is sound.
+
+**return_to:** orchestrator — recommend handoff to Merlin for the checker revision (owned paths: `scripts/check_clean_room_boundary.py`, `docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md` §2), then re-run this review against revision 2.
+
+S20_780_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["check 2 scans only crates/*/Cargo.toml: root Cargo.toml workspace.dependencies, fuzz/Cargo.toml and Cargo.lock are never inspected, and the regex misses registry, git, table-form and deeper-path dependencies, so a git or registry dependency on GreyforgeLabs/sley is undetected","register section 2.1 asserts the checker verifies legacy snapshot paths and legacy module markers; neither check exists, only a single literal search for archive/sley/1.2.0"],"p2":["check 3 never constrains the reference count to one and allows bench/legacy/ as an unbounded directory-wide prefix; out-of-process proof is a substring test for 'subprocess' satisfied by a comment or unused import","SCANNED_TREES is a hardcoded allowlist that omits root Cargo.toml, Cargo.lock, Makefile, conformance/ and evidence/, and the suffix filter excludes .sh, .lock, SHA256SUMS and extensionless files; invert to git ls-files with a target/__pycache__ denylist so new trees are covered by default","the sentinel is one literal; the artifact is equally identifiable by sley-1.2.0-linux-x86_64, the SHA-256 digests, sley-1.2.0-source-397fa28.tar.gz and GreyforgeLabs/sley, three of which already appear in bench/benchmark-plan.json, bench/raw/tests/test_runner.py and scripts/check_legacy_runner.py without tripping the check","check 4 tests literal field presence not non-emptiness, exempts any entry whose title contains 'no reused concept' from all seven fields, and never reconciles machine-summary reused_concepts=2 against the register entry count"],"p3":["ALLOWED_LEGACY_REFERENCES comment says 'documents' plural but lists one; docs/spec/LEGACY_ARTIFACT_ADAPTER_V1.md and machineresearch/sley-2.0/01-legacy-freeze-and-authority.md also carry the path and are safe only because those trees are unscanned","section 2.3 'the single reference to the frozen artifact' is false as written: four tracked files carry the path; qualify to executable code. 'the eighteen Sley 2 crates' is true but not machine-checked","entry slicing uses first-occurrence index() with a fragile end computation that a TOC or cross-reference would mis-slice"],"notes":"Four-invariant decomposition is architecturally correct and endorsed; each check is implemented as a weaker proxy than the register's text claims. No P0, checker passes today on a genuinely clean tree, make quick staging verified. Two P1s block acceptance under the reviewer's own P1 definition and the ACCEPTED_STATUS gate; expect revision 2."}
+EXIT=0 2026-09-04T09:00:32Z

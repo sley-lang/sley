@@ -1,0 +1,49 @@
+DISPATCH 780-vulcan-surface forge-vulcan-780-vulcan-surface-20260904T090032 2026-09-04T09:00:32Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the primary contract and supporting artifacts.
+
+Read-only triage complete. Worktree pinned at `9dc78fe`. No repo modification, no `cargo`, no `make`.
+
+**status:** FAIL
+
+**findings:**
+
+### P0 — blocks acceptance
+
+**P0-1. Register §2.1 claims a mechanical check that does not exist.**
+`CLEAN_ROOM_DISPOSITION_REGISTER_V1.md:78-81` states the checker verifies "from the tree alone" that no file "carries the legacy source snapshot's paths or a legacy module marker, and no legacy source archive is unpacked into the repository." `check_clean_room_boundary.py` implements none of that. Its only tree scan (lines 71-83) is a substring search for the single literal `archive/sley/1.2.0` over `.rs/.py/.toml/.json` files in five directories. There is no snapshot-path check, no module-marker check, no unpacked-archive check. Under master goal 26.1 the checker *is* the evidence; the register's central evidence claim is false as written.
+
+**P0-2. The checker pins the un-audited state as a required value.**
+`check_clean_room_boundary.py:123` requires `machine-summary.json` to carry `similarity_audit_performed == False`. If anyone ever performs the audit and records it, `check_clean_room_boundary.py` emits `machine-summary:similarity_audit_performed` and `make quick` FAILs. The control mechanically forbids recording its own remediation. The §3 disclaimer is therefore permanent by construction, not by choice.
+
+### P1 — must fix before acceptance
+
+**P1-1. §1.3 *is* a provenance conclusion, and the checker exempts it.** "No other concept of Sley 1.2.0 is reused" (line 62) is a universal negative over the legacy source — exactly the finding a similarity audit produces, and exactly what §3 says nobody performed. Worse, `check_clean_room_boundary.py:65-66` skips any entry whose title contains `no reused concept` from all seven-field and `DISPOSITION_INCOMPLETE` enforcement. The register's strongest and least-evidenced claim is the one entry exempt from the discipline — and the exemption is a title substring any future entry can adopt to bypass field enforcement. Answer to the review question: yes, the register reads as a provenance audit, and its exempt entry is where.
+
+**P1-2. The missing audit is nowhere recorded as a blocker.** It appears only as §3 prose and one boolean. It is absent from `machine-summary.json` `evidence_gaps` (six entries, none about provenance), `remaining_gates`, and `ga_acceptance` (52 criteria). Meanwhile `ANTI_GOALS.md:19` names "provenance and similarity review" as the enforcement surface for the *wholesale legacy copy* prohibition, and `evidence/validation/anti-goal-conformance.json` currently carries it as `REVIEW_ONLY` — "no mechanical evaluation; the Council review owns it." Accepting S20-780 supplies the row's stated acceptance evidence ("disposition ADR for every reused concept; clean-room review") while the named surface was never performed, letting a `REVIEW_ONLY` constitutional prohibition read as discharged. Answer to the review question: yes — it must be a recorded GA blocker, not a disclaimer.
+
+**P1-3. The register misdescribes the execution control and omits the adapter's own stated gaps.** §1.1 and §2.3 say the artifact runs "from the archive path." It does not. `bench/legacy/runner.py:770-799` copies the pinned artifact to a private temp, re-verifies it, extracts a write-stripped stage, and execs `stage.root/bin/sley` (`:817` pins the executable). The adapter's own report records `read_only_mount_enforced: false` and `network_isolation: "NOT_ENFORCED_VERSION_ONLY"` (`:1044-1046`); the register's Security impact field ("under the S20-600 adapter's controls") omits both, overstating containment.
+
+**P1-4. "Out of process" is a substring test.** `check_clean_room_boundary.py:99` is `if "subprocess" not in adapter` — satisfied by a comment. No check for `shell=True`, `os.system`, `exec*`, ctypes/dlopen, or in-process loading. The adapter as written is genuinely well-hardened (digest pinning at every layer, `O_NOFOLLOW`, member-safety, scrubbed env, `start_new_session` + `killpg`, timeout and output caps, argv frozen to `--version`), but none of that hardening is what the gate enforces.
+
+### P2 — fix before completion
+
+- **"The single reference" is unasserted.** `references` is counted (`:81`) and reported (`:144`) but never bounded; the allowlist is prefix-based over all of `bench/legacy/`.
+- **"the eighteen Sley 2 crates" is never asserted.** The path-dep regex (`:90`) matches one inline-table spelling at line start, only under `crates/*/Cargo.toml`. Root workspace, `oracle/`, `bench/`, `fuzz/` manifests and the `[dependencies.x]` table form are unscanned. `name.startswith("sley1")` misses `sley-1`, `sley_1`, `sley`.
+- **`reused_concepts: 2` is not cross-checked** against the count of non-exempt §1 entries. A new entry 1.4 with all seven fields passes while the machine-readable count stays 2.
+- **Scan coverage gap.** `ALLOWED_LEGACY_REFERENCES` names a `docs/spec/...` path but `docs` is not in `SCANNED_TREES` (dead entry), and the suffix filter excludes `.sh`, `Makefile`, and `.yml` — a Make target or CI step invoking the artifact is invisible to the boundary check.
+
+### P3 — editorial
+
+- `:61` falls back to `register.index("## 2. Mechanical boundary")`; renaming that heading raises an uncaught `ValueError` — a traceback instead of the structured JSON failure every other path emits.
+- `runner.py:844` sets `SLEY_DISABLE_SOURCE_CACHE: "0"` (cache *enabled*) for a hermetic version smoke, and `scratch/source-cache` is never pre-created — only `home` and `tmp` are (`:777-778`).
+- §3 buries the consequential limitation last and in prose; hoist the similarity-audit gap into the Status block.
+
+**validation:** read-only inspection of the register, ADR-0002, `check_clean_room_boundary.py`, `bench/legacy/runner.py`, `ANTI_GOALS.md`, `01-legacy-freeze-and-authority.md`, `machine-summary.json`, `anti-goal-conformance.json`, and the `WORK_PACKAGES.md` S20-780 row. Checker behavior derived by reading, not execution.
+
+**blockers:** the checker was not executed (no `make`, per instruction), so P0/P1 findings are from source reading; none depends on runtime behavior. Whether the `crates/` path-dep set is in fact eighteen was not counted.
+
+**return_to:** orchestrator (S20-780 Council review; hand fixes to Merlin, ledger/GA-blocker recording to Argus as the S20-780 work-package owner)
+
+S20_780_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["Register section 2.1 claims a mechanical no-legacy-source-in-tree check (snapshot paths, module markers, unpacked archive) that check_clean_room_boundary.py does not implement; the only tree scan is a substring search for archive/sley/1.2.0 over .rs/.py/.toml/.json in five directories","check_clean_room_boundary.py:123 requires similarity_audit_performed == False, so recording a completed audit fails make quick; the control is pinned to the un-audited state"],"p1":["Section 1.3 asserts a universal no-other-reuse provenance conclusion with no evidence, and checker lines 65-66 exempt that entry from seven-field and DISPOSITION_INCOMPLETE enforcement via a title substring any future entry can adopt","The missing similarity/provenance audit is absent from machine-summary evidence_gaps, remaining_gates, and ga_acceptance; ANTI_GOALS names provenance and similarity review as the enforcement surface for wholesale legacy copy, currently REVIEW_ONLY, so acceptance would let that prohibition read as discharged. Record it as a GA blocker","Sections 1.1 and 2.3 say the artifact runs from the archive path; runner.py stages a verified private copy and execs stage.root/bin/sley, and the register omits the adapter's own read_only_mount_enforced=false and network_isolation=NOT_ENFORCED_VERSION_ONLY","Out-of-process enforcement is checker line 99, a bare 'subprocess' substring test satisfiable by a comment, with no check for shell=True, os.system, exec*, or in-process loading"],"p2":["The single-touchpoint claim is unasserted: legacy_artifact_references is counted and reported but never bounded, and the allowlist is a prefix over all of bench/legacy/","The eighteen-crate claim is never asserted; the path-dependency regex matches one inline-table spelling under crates/*/Cargo.toml only, missing root, oracle, bench, and fuzz manifests and the [dependencies.x] table form, and startswith('sley1') misses sley-1, sley_1, sley","machine-summary reused_concepts is pinned to 2 with no cross-check against the count of non-exempt section 1 entries, so a new entry 1.4 passes while the machine-readable count stays wrong","Scan coverage gap: docs is not in SCANNED_TREES so the docs allowlist entry is dead, and the suffix filter excludes .sh, Makefile, and .yml, hiding any Make or CI invocation of the artifact"],"p3":["Checker line 61 falls back to register.index('## 2. Mechanical boundary'), raising an uncaught ValueError traceback instead of structured JSON if the heading is renamed","runner.py sets SLEY_DISABLE_SOURCE_CACHE=0 (cache enabled) for a hermetic smoke and never creates scratch/source-cache","Section 3 buries the similarity-audit limitation in trailing prose; hoist it into the Status block"],"notes":"Read-only at 9dc78fe; no cargo or make run. Adapter hardening is genuinely strong but is not what the gate enforces. Both review questions answer yes: the register does read as a provenance audit at 1.3, and the missing audit belongs in the GA blocker ledger."}
+EXIT=0 2026-09-04T09:03:25Z

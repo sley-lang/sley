@@ -1,0 +1,92 @@
+DISPATCH 710full-vulcan-surface forge-vulcan-710full-vulcan-surface-20260904T073411 2026-09-04T07:34:11Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record in parallel.
+
+## Verdict
+
+**Fractured — one freeze blocker, proven by execution.** The document design is honest and the determinism work is real, but the Tier 1 drift gate does not gate anything on a clean checkout, and the contract text asserts guarantees the code does not provide.
+
+## status
+
+`FAIL` — P0 present. Read-only review, working tree verified clean after inspection (`git status --porcelain` empty). No cargo, no make targets run.
+
+## findings
+
+### P0 — `--check` is fail-open on missing or invalid inputs; every S20-710 error code is unreachable in check mode
+
+`build_standards_sbom.py:388-402` and `build_release_provenance.py:228-242`:
+
+```python
+try:
+    candidate = load_candidate()
+except SbomError:
+    return True          # -> main() prints PASS, exit 0
+```
+
+`local_build_ahead()` runs **before** any document is derived, and it swallows `PROVENANCE_EVIDENCE_MISSING`, `PROVENANCE_EVIDENCE_INVALID`, and the whole `SBOM_INVENTORY_*` / `SBOM_COMPONENT_INCOMPLETE` family into `True`. `--check` then short-circuits to `result: PASS`, rc 0, without ever recomputing a document.
+
+`evidence/runtime/` is untracked, so on **every fresh clone, every CI checkout, and this pinned worktree**, `evidence/runtime/s20-720-release-candidate/` does not exist and the gate is a permanent no-op. Confirmed by running both checkers read-only at 9dc78fe:
+
+```
+$ python3 scripts/build_standards_sbom.py --check        -> rc=0
+{"result":"PASS","state":"LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS", ...}
+$ python3 scripts/build_release_provenance.py --check     -> rc=0   (same)
+```
+
+`machine-summary` status is `S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING`, which is inside `IMPLEMENTATION_STATUSES`, so `check_standards_sbom_and_provenance.py:250-255` consumes both rc 0 as "no drift" and `make quick` (Makefile:68, 203) passes.
+
+Consequences: contract §5 ("`--check` recomputes and fails with `SBOM_DOCUMENT_DRIFT`… Tier 1 therefore stays hermetic over tracked files") is false — it is hermetic by being inert. ADR-0041 consequence 2 ("the drift check makes an unreviewed dependency addition fail `make quick`") is false; the T52 inventory **is** tracked, so the drift is detectable in principle and is simply never computed. Codes 74000-74007 are dead in the only mode `make quick` invokes. The emitted `detail` also states a fact that is not true here — no local build replaced anything; there was never a record.
+
+Fix direction: distinguish *ahead* (evidence loads, differs) from *absent/invalid* (evidence does not load). Absent evidence must either fail with its own code or fall through to a tracked-input-only drift recompute; it must not be laundered into the skew PASS. Contract §5 needs the three states named explicitly.
+
+### P1 — the in-toto statement, which §4 designs for verbatim extraction and signing, carries no not-for-distribution marker
+
+The wrapper is good: `attestation.signed=false`, `publication_authorized=false`, six named blockers. But §4's whole point is that `statement` can be lifted out and signed unchanged — and the lifted statement is a clean, well-formed SLSA v1 provenance for an unapproved artifact with zero trace of the blockers. Every marker lives in the container that gets discarded. Put the marker inside the statement (e.g. `externalParameters.publication_authorized: "false"`, `internalParameters` draft flag) **now**: adding it after a signature exists changes `statement_digest` and invalidates the signature, which is exactly the scenario decision 5 is trying to avoid.
+
+### P1 — CycloneDX has no human-legible not-for-distribution text
+
+Answering the campaign's Vulcan question directly: **the blocked dispositions are not the misuse risk, and should stay.** `BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT` on 19 workspace components (of 43) with `LicenseRef-Proprietary` is exactly right — it keeps the missing root license visible instead of laundering it through a format conversion. ADR decision 4 is sound. Nothing in the dispositions is sensitive; they name a Sley-internal gap, not third-party terms.
+
+The risk runs the other way: CycloneDX 1.6 and SPDX 2.3 are precisely the file shapes downstream tooling ingests as *release* artifacts. SPDX defends itself — `creationInfo.comment` ("local draft, no license conclusion, no publication"), a root-package `comment` ("unsigned, unpublished, and not a GA claim"), and a per-package disposition `comment`. CycloneDX defends itself only with `sley2:signed="false"` and `sley2:publication-authorized="false"` — two vendor-namespaced strings no generic consumer reads, plus `sley2:license-disposition-blocked: "19"`, a bare integer that explains nothing. `metadata.component` has no `description`.
+
+**Yes, the documents need a stronger in-band marker, and it is CycloneDX and the statement that need it, not SPDX.** Require in §2: `metadata.component.description` carrying the same sentence SPDX's root `comment` uses, and a `sley2:distribution` property whose value is a sentence rather than a boolean. Consider promoting the blocked count to a property that names the condition, not just the number.
+
+### P1 — contract revision 2 does not describe the documents the builder emits
+
+Freezing §2/§3 as normative freezes a description that does not match the artifacts. Undescribed in §2: `$schema`, `metadata.component.bom-ref`, `metadata.component.licenses`, `sley2:signed`, `sley2:publication-authorized`, and the entire per-component `properties` array (`sley2:ecosystem`, `sley2:license-disposition`, `sley2:locked-source`). Undescribed in §3: document `name`, root `comment`, per-package `comment`. Worse, §3 states `SPDXID` is `SPDXRef-<ecosystem>-<name>-<version>` while the root is `SPDXRef-Package-sley-candidate` (`build_standards_sbom.py:255`) — the stated rule has an unstated exception.
+
+### P2 — the checker's privacy scan is a three-literal, case-sensitive blocklist
+
+`check_standards_sbom_and_provenance.py:84`: `("/home/", "greyforge", "file://")`. `Greyforge`, `/Users/`, `/root/`, `C:\`, a bare hostname, or any other operator name all pass. §7 claims the checker verifies the documents "carry no timestamp or host path" — timestamps are checked only as CDX `metadata.timestamp` key presence and SPDX `created` equality; a wall clock anywhere in `components`, `packages`, or the provenance statement passes. Either narrow the §7 claim to what is checked, or make it structural (assert the allowed key set / regex for clock-shaped values).
+
+### P2 — checker crashes instead of reporting a code on an empty provenance subject
+
+`check_standards_sbom_and_provenance.py:246`: `statement.get("subject", [{}])[0]` — the default only fires when the key is absent. A present-but-empty `subject: []` raises `IndexError`, producing a traceback rather than the single JSON object §6 requires of every failure.
+
+### P2 — SPDX `documentNamespace` is not unique per document
+
+`urn:sley2:spdx:<inventory digest>` (§3, `build_standards_sbom.py:310`). Two candidates at different commits with an unchanged dependency inventory yield two materially different SPDX documents sharing one namespace, which SPDX 2.3 requires to be unique per document. Bind it to the document digest (as CycloneDX already does for `serialNumber`) or fold in the artifact digest.
+
+### P3 — internal revision inconsistencies
+
+§9 reads "Revision 1 carries none" under a header declaring revision 2 with clarifications recorded in §5. ADR-0041's status line still says "draft at revision 1." Campaign record names the final smoke artifact `c6b61983…` while tracked provenance subject is `7f578af7…`; likely a later rebuild, but the record's validation table no longer traces to tracked evidence.
+
+## Campaign open questions 1 and 2 (not my lane, surface opinion only)
+
+1. **Fixed epoch, keep it.** A commit author date reintroduces a clock-derived field with no integrity value and correlates the document to authoring time. `documentNamespace`/`serialNumber` already carry content identity.
+2. **Sign in place is acceptable only after the P1 statement marker lands.** The wrapper shape is stable; the statement's field set is not yet final, and every post-signature field addition breaks `statement_digest`.
+
+## validation
+
+Read-only inspection of the contract, ADR, both builders, the checker, the test file, all three tracked evidence documents, and the campaign record at 9dc78fe. Executed `build_standards_sbom.py --check` and `build_release_provenance.py --check` (read-only paths; both returned before any write branch) to confirm the P0. No cargo, no make target, no repository modification; `git status --porcelain` clean afterward. `bench/release/tests/test_standards_sbom.py` has 15 tests and none exercise `local_build_ahead()` — the P0 path is untested, which is why it survived.
+
+## blockers
+
+The campaign record is not at `/home/greyforge/machineresearch/sley-2.0/`; it exists only inside the worktree at `machineresearch/sley-2.0/s20-710-full-standards-sbom-provenance-campaign-2026-09-03.md`. Read from there. Not a repo defect.
+
+## return_to
+
+Orchestrator. Handoff: P0 and P2 code fixes to **Merlin** (`scripts/build_standards_sbom.py`, `scripts/build_release_provenance.py`, `scripts/check_standards_sbom_and_provenance.py`, plus regression tests for absent and invalid evidence); P1 contract/marker revisions to the integrator with **Ariadne** review; the root license disposition remains **Argus**.
+
+S20_710FULL_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["--check in both builders is fail-open: local_build_ahead() swallows missing/invalid inventory and candidate evidence into a PASS short-circuit before any document is derived, so codes 74000-74007 are unreachable in check mode and make quick's drift gate is a permanent no-op on any checkout without a candidate build; proven rc=0 PASS at 9dc78fe where evidence/runtime/s20-720-release-candidate/ does not exist; contract section 5 and ADR-0041 consequence 2 assert a guarantee the code does not provide"],"p1":["the in-toto statement, which section 4 designs for verbatim extraction and later signing, carries no not-for-distribution or unapproved marker; all markers live in the discardable wrapper, and adding them after signing would invalidate statement_digest","CycloneDX carries no human-legible not-for-distribution text: only sley2:signed and sley2:publication-authorized properties plus a bare blocked count, and metadata.component has no description, while SPDX already carries three explicit comments","contract revision 2 sections 2 and 3 do not describe fields the builder emits ($schema, metadata.component bom-ref and licenses, sley2:signed, sley2:publication-authorized, all per-component properties, SPDX name and comments) and the stated SPDXRef-<ecosystem>-<name>-<version> rule contradicts the root SPDXRef-Package-sley-candidate"],"p2":["checker privacy scan is a case-sensitive three-literal blocklist (/home/, greyforge, file://) that misses Greyforge, /Users/, /root/, C:\\ and any other operator name, and section 7's no-timestamp claim is only spot-checked on two fields","check_standards_sbom_and_provenance.py:246 raises IndexError on an empty provenance subject list, producing a traceback instead of the single JSON object section 6 requires","SPDX documentNamespace urn:sley2:spdx:<inventory digest> is not unique per document: two candidates at different commits with an unchanged inventory share one namespace, violating SPDX 2.3 uniqueness"],"p3":["contract section 9 says Revision 1 carries none while the header declares revision 2 with clarifications in section 5","ADR-0041 status still says draft at revision 1 while the contract is revision 2","campaign record names final smoke artifact c6b61983 while tracked provenance subject is 7f578af7, so the validation table no longer traces to tracked evidence"],"notes":"blocked license dispositions are correct and should stay: they keep the missing root license visible rather than laundering it, and expose nothing sensitive; the misuse risk is the inverse, standards-shaped files readable as release artifacts, so CycloneDX and the in-toto statement need in-band not-for-distribution markers while SPDX already has them; P0 path is untested by the 15-test release suite"}
+EXIT=0 2026-09-04T07:37:59Z

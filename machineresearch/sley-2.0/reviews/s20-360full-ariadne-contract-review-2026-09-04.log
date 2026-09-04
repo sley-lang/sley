@@ -1,0 +1,104 @@
+DISPATCH 360full-ariadne-contract forge-ariadne-360full-ariadne-contract-20260904T042758 2026-09-04T04:27:58Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract artifacts and campaign record.
+
+Worktree confirmed clean at 9dc78fe. Reading the contract set.
+
+Contract and ADR read. Now the profile section and the campaign open questions.
+
+Profile is at **revision 9**, not 8, and now has an `E7a contract assertions (144)` section. Checking both.
+
+Located the key artifacts. Now the campaign record and the implementation.
+
+Campaign record is inside the worktree. Reading it plus the implementation.
+
+Now the implementation — phase 7, the failure mapping, and phase 12.
+
+Program-wide skip confirmed. Now checking the E7 matrix test — it's the authoritative evidence for the per-opcode refusal claims.
+
+The matrix test uses a function declaring **no contracts**. Checking whether a well-formed `contract_assert` is accepted by the S20-240 checker.
+
+Decisive: `validate_contract_assertions` **accepts** a well-formed `contract_assert`. Verifying the 160/161/162 refusals are unconditional by contrast.
+
+Same pattern for 160/161/162 — validated, not unconditionally refused. Confirming one can succeed.
+
+Confirming the last two E7 opcodes follow the same validate-not-refuse shape.
+
+Review complete. All claims verified against the pinned tree at `9dc78fe`; no repository modification, no cargo, no make.
+
+## status
+
+**FAIL** — not freeze-ready. Two P0 findings: the contract states a reachability property that is false, and the test cited as its evidence does not test it.
+
+## findings
+
+### P0-1 — §9's "unreachable guard" claim is false for four of the five E7 opcodes
+
+`CANDIDATE_RESULT_V1.md:408-414`, ADR-0044 point 4, and the closeout addendum all assert each E7 opcode "is refused by the owner of its own phase before the analysis guard is reached" and that the phase 12 guard "is unreachable while those owners refuse first."
+
+Only opcode 145 is actually refused unconditionally — `reject_test_observations` (`sley-check/src/effects.rs`… actually `contracts.rs:743`) fires on any `TestObserve`. The other four **validate rather than refuse**, and accept a well-formed instance:
+
+| Opcode | Owner function | Well-formed result |
+|---|---|---|
+| 144 `contract_assert` | `contracts.rs:675 validate_contract_assertions` | `Ok(assertions)` |
+| 160 `effect_request` | `effects.rs:729 validate_request` | `Ok(())` at 755 |
+| 161 `adapter_invoke` | `effects.rs:758 validate_adapter_invoke` | `Ok(())` at 788 |
+| 162 `capability_narrow` | `effects.rs:791 validate_capability_narrow` | `Ok(())` at 816 |
+
+Each fails only for *malformed* instances. A well-formed one passes its owner's phase, reaches phase 12, and is caught by the guard. The guard is therefore **load-bearing and primary**, not defense in depth. Fail-closed still holds, so this is not a `VALID` soundness hole — but freezing this sentence freezes a false normative property, and it inverts the premise under Vulcan's open question 3.
+
+### P0-2 — the matrix test does not establish the claim it is cited for
+
+`resource_and_unsupported_operation_analysis_fail_closed` (`candidate_validation.rs:3181`) builds each E7 case with `contracts: []`, `effects: []`, no operands — ill-formed instances that fail their owner's type check for reasons unrelated to opcode ownership. It is cited in §9, ADR point 4, the closeout addendum, and the campaign record as evidence for the general reachability claim. It proves only "an ill-formed E7 operation is refused by its own phase."
+
+### P1-3 — §7 never says phase 7 judges operations
+
+§7's bullet reads "Phases 6 through 8 invoke the owning S20-210/S20-220/S20-230 checkers." The S20-260 judgment appears only in §9, which is *Acceptance and explicit gaps* — the wrong home for a normative phase judgment. Freezing §7 as written locks a phase description that omits what the phase now does.
+
+### P1-4 — ADR-0044 point 3's stated rationale is wrong
+
+It collapses signature mismatch into `CONTROL_FLOW_ERROR` "because the result contract pins one decision per phase." Phase 7 already yields three decisions — `operation_failure` (`candidate_validation.rs:1764`) and `cfg_failure` (`:1736`) emit `ControlFlowError`, `ResourceLimit`, and `InternalError`. The real invariant is the inverse: each decision *except* `RESOURCE_LIMIT`/`INTERNAL_ERROR` names exactly one phase (§5). The conclusion is right; the reason Council is being asked to ratify is not.
+
+### P1-5 — the skip is program-wide, contradicting §9's "once per function unit"
+
+`operation_analysis_supported()` (`candidate_program.rs:207`) scans `self.operations` program-wide. One E7 opcode anywhere makes phase 7 `continue` past judgment for **every** unit (`candidate_validation.rs:829`). §9 says phase 7 "calls the VM owner's judgment entry once per function unit"; for an E7-carrying program it calls it zero times, so an E1–E6 signature mismatch in function A goes unjudged when function B carries an E7 opcode.
+
+### P1-6 — opcode 144 is no longer unowned
+
+Profile **revision 9** lands slice E7a: `extended.rs:666` judges `ContractAssert` under `EXTENDED_V1` and `execute.rs:478` executes it. §9's "have no owner yet" and `candidate_program.rs:214`'s "The E7 opcodes no owner implements yet" are both stale. The review pin says revision 8; the doc in the tree reads revision 9.
+
+## Answer to open question 1 (mine)
+
+**Phase 7 is the right home. Keep it.** The judgment needs the S20-220 report for the same unit, which only exists at phase 7; moving it to phase 6 would let a malformed graph surface as an opcode failure — the exact hazard ADR point 2 correctly avoids.
+
+**A signature failure should not get its own decision now.** Adding tag 17 breaks the closed sixteen-decision enum across §4 field 6, §5, §8's 36000–36014 range, the "all sixteen decisions" acceptance requirement, the 16-result independent oracle corpus, and the fixed vectors — disproportionate at freeze. Instead, record in §5/§8 that `CONTROL_FLOW_ERROR` at phase 7 now carries two owner classes (S20-220 structure, S20-260 signature) separable only by `source_symbol`, and name the GA revision that should split them. I checked the one thing that would have forced the split: retryability is consistent (both `Permanent`, `:1746` and `:1781`), so §8.1's one-retryability-per-symbol rule is **not** violated — unlike the `CAP_EFFECT_MISMATCH` precedent that justified the earlier split.
+
+<details>
+<summary>P2 and P3 detail</summary>
+
+**P2-7** — `RESOURCE_LIMIT` is the wrong decision class for `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`. §5 defines it as "the first bounded phase that exhausted its ceiling"; nothing exhausted a ceiling. Pre-existing, but P0-1 makes it reachable in normal operation rather than dead, so it now labels real results.
+
+**P2-8** — §8's owner-symbol family list (`SCB_*`, `TYPE_*`, `CFG_*`, `EFFECT_*`, `POLICY_*`, `CAP_*`, `CONTRACT_*`) omits `VM_LOWER_*`, and §8.1 does not enumerate them either. A consumer resolving phase 7 source symbols has no closed list covering the new outputs.
+
+**P3-9** — §8.1 prose says "Twenty-five are the validator's own"; the table has 26 rows (counted).
+
+**P3-10** — Closeout addendum and campaign record cite "contract revision 8" while the profile reads revision 9.
+
+**Note for Vulcan (question 3):** the guard is not unreachable — P0-1 changes the answer. Keep it.
+
+</details>
+
+## validation
+
+Read-only inspection only, per the bounded contract: `git log`/`status` to confirm the pin, targeted `rg`/`sed` reads of the four docs, the campaign record, and the three implementation files plus `sley-check/src/{contracts,effects}.rs`. No cargo, no make target, no writes. Tier: none run — this is a contract review, and the campaign's own Tier 2 evidence at `9fb9ecc`/`3a56342` is unaffected by these findings, since every P0/P1 is a text-versus-behavior mismatch rather than a test failure.
+
+## blockers
+
+None. Full triage completed within budget.
+
+## return_to
+
+Orchestrator, as contract revisions before freeze. P0-1 and P0-2 need the §9 paragraph rewritten and the matrix test extended with well-formed E7 instances before the guard's status can be described accurately.
+
+S20_360FULL_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["CANDIDATE_RESULT_V1 section 9, ADR-0044 point 4, and the closeout addendum claim every E7 opcode is refused by its own phase owner and the phase 12 guard is unreachable; verified false for 144, 160, 161, 162 whose owners (validate_contract_assertions, validate_request, validate_adapter_invoke, validate_capability_narrow) return Ok for well-formed instances, so the guard is primary not defense in depth; only 145 is unconditionally refused","resource_and_unsupported_operation_analysis_fail_closed builds every E7 case with empty contracts/effects/operands, so it proves only that ill-formed E7 operations are refused; it does not support the general reachability claim it is cited for in section 9, the ADR, the closeout, and the campaign record"],"p1":["Section 7 Required phase judgments never states that phase 7 judges operations through S20-260; the judgment is described only in section 9 Acceptance and explicit gaps, the wrong home for a normative phase judgment","ADR-0044 point 3 justifies CONTROL_FLOW_ERROR by 'the result contract pins one decision per phase', which is false: phase 7 already emits ControlFlowError, ResourceLimit, and InternalError via operation_failure and cfg_failure; the real invariant is the inverse mapping in section 5","operation_analysis_supported is program-wide, so one E7 opcode anywhere skips phase 7 judgment for every unit, contradicting section 9's 'once per function unit' and leaving E1-E6 signature mismatches unjudged in mixed programs","Opcode 144 is no longer unowned: profile revision 9 slice E7a judges ContractAssert at extended.rs:666 and executes it at execute.rs:478, so section 9's 'have no owner yet' and candidate_program.rs:214 are stale; the review pin says revision 8 but the tree reads revision 9"],"p2":["RESOURCE_LIMIT is the wrong decision class for CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED since no ceiling was exhausted; P0-1 makes this path reachable in normal operation rather than dead","Section 8 owner-symbol family list and the section 8.1 table both omit VM_LOWER_*, leaving no closed list for the source symbols phase 7 can now emit","Record in sections 5 and 8 that CONTROL_FLOW_ERROR at phase 7 carries two owner classes separable only by source_symbol, and name the GA revision that splits them"],"p3":["Section 8.1 prose says 'Twenty-five are the validator's own' but the table has 26 rows","Closeout addendum and campaign record cite contract revision 8 while VM_EXTENDED_OPCODE_PROFILE_V1 is at revision 9"],"notes":"Phase 7 is the correct home: judgment needs the S20-220 report, and phase 6 would let a malformed graph surface as an opcode failure. Do not add a signature decision tag now; it breaks the closed sixteen-decision enum, oracle corpus, and fixed vectors, and retryability is consistent (both Permanent), so the CAP_EFFECT_MISMATCH precedent does not apply. Fail-closed still holds throughout; every finding is text-versus-behavior, not a test failure. Read-only; no cargo or make run."}
+EXIT=0 2026-09-04T04:33:09Z

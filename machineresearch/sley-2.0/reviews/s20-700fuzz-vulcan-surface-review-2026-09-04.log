@@ -1,0 +1,55 @@
+DISPATCH 700fuzz-vulcan-surface forge-vulcan-700fuzz-vulcan-surface-20260904T071946 2026-09-04T07:19:46Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record in parallel with the implementation files.
+
+**status: FAIL** (findings land as contract revisions before freeze)
+
+## Findings
+
+### P0 — blocks freeze
+
+**1. The extended-family lane cannot demonstrate that any extended opcode executes.**
+`fuzz_one` builds one `ExecutionRequest` from the *outer* fixture's `expected_input_types` (`vm_fixture` → Unit/Bool/Bytes/Text/Option/Result, or Bool×1–2) and hands that same request to `extended_family_lane` (`fuzz/targets/vm_canonical_inputs.rs:95, :283`). The extended fixtures declare their own parameter types — SInt32×2, SInt64×2, F64×2 — which the outer set never produces canonically. `execute_function` runs `lower_function(input)?` and then `validate_inputs(input, &request)?` (`crates/sley-vm/src/execute.rs:363-364`), so those runs terminate at `VM_EXEC_INPUT_COUNT_MISMATCH`/`VM_EXEC_INPUT_TYPE_MISMATCH` before a single extended opcode runs.
+
+Consequences, all three lane assertions degrade together:
+- determinism compares two identical `Err`s;
+- refusal is satisfied by the input error, not a profile refusal;
+- observation re-derivation is skipped outright by `if let (Ok(hashes), Ok(outcome))` (`:314`).
+
+There is **no** extended analogue of the restricted lane's `assert!(first.is_ok())` guard (`:115-123`). So a regression that made every extended fixture fail before execution stays green forever, and `make quick` still reports PASS. Meanwhile `machine-summary.json` asserts `observation_id_rederived: true` and the campaign record claims E2–E6 cover overflow, divide-by-zero, signed-minimum division, float canonicalization, cells, and the call stack. The harness cannot demonstrate any of that. Freezing on this evidence freezes a false coverage claim.
+
+Fix: build the request from `fixture.fixture.expected_input_types`, and assert a successful extended execution under canonical inputs at `limits_profile == 0`.
+
+### P1 — must fix before freeze
+
+**2. Answer to open question 1: yes, pin `VM_LOWER_OPCODE_UNSUPPORTED`.** It is free and exact, not too tight. Lowering precedes input validation, and `lower.rs:616-618` returns `OpcodeUnsupported` for every non-Boolean opcode under `RESTRICTED_V1`, so the code is deterministic and request-independent for all 8 fixtures. Today `is_err()` (`:309-312`) is equally satisfied by `SignatureMismatch`, `ImmediateMismatch`, `LocalReferenceInvalid`, `CacheKeyUnsupported`, `ResourceLimit`, or any `Exec(...)` input error — a fixture that silently became malformed would still be reported as "correctly refused." Pinning the code is the cheapest thing that makes assertion 2 non-vacuous, and it is the direct answer to your masking question.
+
+**3. The runner can emit a PASS artifact with zero executions.** `--runs 0` passes validation (`run_vm_persistent_fuzz.py:42` rejects only `runs < 0`), and `evidence.json` records no executed-run count — only `corpus_count` and a 4000-char stderr tail. The slice checker verifies neither. For a freeze gate, record the executed count as a structured field and require `runs >= corpus_count`.
+
+### P2 — fix before completion
+
+4. **Campaign record is stale**: seven fixtures / 751 seeds / 752 runs, vs. code+checker+summary at 8 fixtures / 769 seeds with E7a `ContractAssert` landed.
+5. **`machine-summary.json` contradicts itself**: `extended_family_fixture_count: 8` vs. `extended_family_lanes` listing 6 entries and no E7a. The checker pins the count but not the list, so the list drifts silently.
+6. **ADR-0039 line 4** still says "slices E1 through E6 implemented."
+7. **Contract §5** requires "128 repeated executions producing equal outcomes"; the fuzz lane repeats 2×. §5 is one sentence covering several artifacts and never says which one carries the 128. Split it per artifact.
+8. **Answer to open question 2 (Nabu): yes, separate callee inventory.** Sharing the entry's blocks/operations means per-function narrowing is never exercised — a narrowing regression letting a callee reach entry blocks passes this lane unnoticed. Same masking class as the P0.
+9. `vulcan_review: "DEFERRED_FORGE_OAUTH_401"` is hard-pinned at `check_vm_persistent_fuzz_slice.py:127`; landing this review needs a matching checker edit or `make quick` fails.
+
+### P3 — editorial
+
+10. **Answer to open question 3 (Ariadne):** worth adding, but only with the pinned code from P1 — unpinned, a negative lane for unimplemented opcodes *is* the vacuous assertion. The premise is also stale: E7a already landed.
+11. Seed-layout comments assume fixed byte offsets, but canonical/raw value construction and `generated_limits` consume variable bytes, and the family-selector byte is not consumed when the `%3` gate misses (shifting the map-order gate). `bytes([fixture, 1, 0, 0, 0, family])` does not reliably select `family`.
+12. `supported_opcodes: [102,103,104]` alongside `status: ..._AND_EXTENDED_FAMILY...` reads as contradictory.
+
+## Surface verdict: clean
+
+No new external surface. No raw bytecode entry point (checker forbids `decode_bytecode`/`execute_bytecode`/`RawBytecode`), the `no_main` shim is capped at 4096 bytes, `Cursor::byte` wraps modulo a length the `len == 0` early return guarantees non-zero, and `--manual`'s unbounded run is flag-gated and outside any `make` target.
+
+**validation:** read-only. No cargo, no make, no repo writes. Findings derived from reading `vm_canonical_inputs.rs`, `run_vm_persistent_fuzz.py`, `check_vm_persistent_fuzz_slice.py`, `crates/sley-vm/src/{execute.rs,lower.rs,extended.rs,lib.rs}`, `machine-summary.json`, contract §5, ADR-0039, campaign record, at 9dc78fe.
+
+**blockers:** none — verdict decided within budget.
+
+**return_to:** orchestrator.
+
+S20_700FUZZ_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["extended-family lane reuses the outer fixture's ExecutionRequest, so E2/E3 fixtures fail validate_inputs before any extended opcode executes; no assertion requires a successful extended execution, so claimed E2-E6 semantic coverage and observation_id_rederived are undemonstrated"],"p1":["cross-profile refusal must pin LowerErrorCode::OpcodeUnsupported; is_err() is satisfied by signature, immediate, local-reference, cache-key, resource, and input errors","run_vm_persistent_fuzz.py --runs 0 yields result PASS and evidence.json records no executed-run count; checker verifies neither"],"p2":["campaign record stale at 7 fixtures/751 seeds vs 8 fixtures/769 seeds with E7a landed","machine-summary extended_family_fixture_count 8 contradicts extended_family_lanes listing 6; checker pins count not list","ADR-0039 line 4 still says slices E1 through E6 implemented","contract section 5 requires 128 repeated executions but the fuzz lane repeats twice and section 5 never binds the 128 to an artifact","open question 2: give E6 a separate callee inventory so per-function narrowing is exercised","vulcan_review DEFERRED_FORGE_OAUTH_401 is hard-pinned in the checker and must be updated with it"],"p3":["open question 3: negative E7 lane is worth adding but only with the pinned refusal code; E7a already landed so the question premise is stale","seed-layout comments assume fixed byte offsets that variable-width value and limit construction do not preserve","supported_opcodes [102,103,104] reads as contradicting the AND_EXTENDED_FAMILY status string"],"notes":"Surface clean, no raw bytecode entry point. Failure is evidence integrity: the lane can refuse or fail input validation before executing and still report PASS."}
+EXIT=0 2026-09-04T07:23:35Z

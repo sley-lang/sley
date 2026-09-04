@@ -1,0 +1,84 @@
+DISPATCH 420-ariadne-contract forge-ariadne-420-ariadne-contract-20260904T051116 2026-09-04T05:11:16Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+Note: the contract on disk is at revision 4, not revision 2 as the task states. Continuing with the landed artifacts.
+
+SMP1 is at revision 8 while the bridge contract binds revision 6. Checking the tests and oracle now.
+
+Read-only review complete at `9dc78fe`. No repository writes, no cargo.
+
+## status
+`FAIL` — one P0 blocks freeze.
+
+## findings
+
+Note up front: the task brief describes the contract as **revision 2** composing **SMP1 revision 5**. On disk the contract is **revision 4** and SMP1 is **revision 8**. I reviewed what landed.
+
+### P0 — blocks freeze
+
+**1. §8's `-0` clause is false, and the two implementations disagree.**
+
+The contract states "The JSON text `-0` reads as the integer zero." It does not.
+
+- Rust: serde_json 1.0.145 `de.rs:508-520` converts `-0` to `ParserNumber::F64(-0.0)` — the source carries the explicit comment `// Convert into a float if we underflow, or on -0.` `Number::as_u64()` returns `None` for `N::Float` (`number.rs:152-156`), so `u64_field` (lib.rs:269-278) returns **`JSON_BRIDGE_NUMBER_INVALID`**.
+- Python oracle: `json.loads("-0")` returns `int 0`; `integer_field` (check_smp1_json_bridge_vector.py:245-264) takes the `isinstance(value, int)` branch and **accepts it as zero**.
+
+So the contract asserts one behavior, the crate does the opposite, and the "independent oracle" silently disagrees with the crate. Nothing covers it: `-0` appears in neither `rejections()` nor `rejected.json`'s 31 mutations, so `make conformance` passes over a live divergence. Freezing this enshrines a false normative rule.
+
+Fix: delete the §8 carve-out; keep §1's uniform "a sign is `JSON_BRIDGE_NUMBER_INVALID`"; make the oracle reject any number token with a leading `-`; add `-0`, `-0.0`, `-1` vectors.
+
+### P1 — must fix before freeze
+
+**2. "field order" in §5 is undefined, and §1 makes the natural reading wrong.** §1 declares emission order lexicographic, so a reader takes "field encodings … in field order" to mean lexicographic. Both implementations pin the **§2 declaration** order. Tests `number-before-hex-in-field-order` (tests.rs:242) and `hex-before-method-in-field-order` (tests.rs:251) both flip verdicts under a lexicographic reading — `body` precedes `request_id`, `method` precedes `session`. §5 must say: the order the fields are declared in section 2, not the lexicographic emission order.
+
+**3. Integer field widths are undeclared.** `protocol_version`, `max_depth`, `max_inflight`, `reached_depth` are 32-bit (and `code`, `phase` on `Failure`); everything else is 64-bit. A well-formed integer above the field's width is `NUMBER_INVALID` — pinned by test `u32-overflow` and by the oracle's `U32_FIELDS` set. §1's definition of `NUMBER_INVALID` ("fraction, exponent, sign, or a string that is not such a decimal") does not cover this case at all, and §2 writes every field as bare `integer`. An independent implementer cannot reproduce the behavior. Declare the width per field in §2.
+
+**4. Duplicate object keys are undeclared and silently accepted.** Both parsers are last-wins and both shape checks count unique keys (`map.len() != fields.len()`; `set(value) != set(fields)`), so `{"index":1,"index":2,…}` is accepted. §1 says an object carries "exactly the fields of its record", but a duplicate is neither unknown nor missing. Two distinct texts mean the same value. Declare `JSON_BRIDGE_SHAPE_INVALID` and add a vector.
+
+**5. A hello `Frame`'s `protocol_version` is accepted and silently discarded.** `frame_from_json` (lib.rs:748-755) re-encodes hello solely from `Hello::decode(&frame.body)`; `frame.protocol_version` is never read. The composite check (lib.rs:705-712) pins `session`, `request_id`, `flags`, `bounds` — not `protocol_version`. `{"kind":"hello","protocol_version":7,…}` is accepted and produces bytes asserting the frozen version. The oracle has the same hole (line 325). This is the one place where "the bytes are the only canonical form" lets a client believe it sent something it did not. §8's hello rule must pin `protocol_version` to the frozen `PROTOCOL_VERSION` as `SHAPE_INVALID`, with a vector.
+
+**6. §8's hello composite rule sits in the wrong precedence tier.** §5 puts shape ahead of all encodings, but both implementations evaluate the composite rule *after* every field is decoded (lib.rs:705 follows `hex_field` at 694; oracle line 325 follows line 324). `{"kind":"hello","request_id":5,…,"body":"zz"}` returns `HEX_INVALID` where §5 mandates `SHAPE_INVALID`. Worse, it is inconsistent: the `method` half of the rule *is* hoisted ahead of decoding (lib.rs:688). Either hoist the whole rule or declare it a post-decode shape check — and test the mixed case either way.
+
+**7. The text ceiling is a bare constant with no declared relation to the frame ceiling.** 268,435,456 is exactly `4 × MAX_FRAME_BYTES` (67,108,864) — the 2× hex expansion plus 2× headroom. That is the right value, but nothing states or gates the relationship, so a future rise in `MAX_FRAME_BYTES` silently makes a maximal valid frame un-bridgeable. Declare it as `4 × MAX_FRAME_BYTES`, state the deepest declared nesting (3: `Frame`→`bounds`→`applied_limits`) behind depth 32, and add a test that a maximal frame renders under the ceiling.
+
+**8. The contract binds a superseded SMP1.** §1 says it composes "SMP1.md (revision 6)"; SMP1 is at revision 8 (rev 7 adds appendix C body records, rev 8 adds the `execute` cache profile selector, `limits` field 6). Neither touches a bridge-owned shape — both are owner bodies crossing as hex — but nothing proves that: `check_smp1_json_bridge_contract.py` extracts only the bridge's own revision number (line 144) and never the composed one. Re-bind to revision 8, state that 7 and 8 touch only owner bodies, and make the checker fail closed on the composed revision.
+
+**9. §1 contradicts SMP1 §8 at exactly 2^53.** SMP1 §8 says integers are "decimal strings when above 2^53"; the bridge requires a string above 2^53 − 1. They differ at 9007199254740992. The bridge's boundary is the safer one, but the contract claims to "compose, and never alter" SMP1. Amend SMP1 §8 or state the tightening and why.
+
+### P2 — fix before completion
+
+**10.** §8's fixed-length-hex ordering is unstated: within `hex[64]` the hex encoding is checked before the length, so `"ABCD"` in `session` yields `HEX_INVALID` while §5's "shape then encodings" reads the other way. Both implementations agree; the contract must say so and add the mixed vector.
+**11.** §8 says a hello Frame carries "both flags false" — stale since revision 4 added `flags.failed`. The code checks all three (`flags != 0`).
+**12.** §2 describes the generated table as name/tag/family/reserved, but the rows also carry `owner` (required by `MethodEntry`), and the table's top-level shape (`contract`, `method_count`, `methods`, `reserved_count`, `source`) is undeclared — `method_table()` ignores unknown top-level fields.
+**13.** The `selected_to_json` asymmetry is explained only in the closeout ("derived by negotiation, never supplied"). Move it into the contract, with the sharper reason: `handshake_id` is derived, so a reader would have to recompute it, which is semantics the bridge forbids.
+**14.** §8's "validate through the codec first" names only `hello_to_json` and `failure_to_json`. `selected_to_json` also validates (via `handshake_id()`); `chunk_to_json` is infallible and `frame_value` validates nothing. State which renderers can fail and with what.
+
+### P3 — editorial
+
+**15.** Define "lexicographic" as byte order of the UTF-8 key. No ambiguity arises for the current key set, but `_` sorts before letters.
+**16.** Revision drift in the record set: ADR-0034 says revision 3, the closeout says revision 2, the campaign header says revision 1; the contract is revision 4.
+**17.** §6 requires "an S20-700 persistent target over `frame_from_json`"; the landed target also drives `frame_to_json`, `hello_from_json`, `failure_from_json`, and `chunk_from_json`. Match the clause to the evidence.
+**18.** §9's `""`↔tag-zero rule is stated for frame kinds, but `methods` lists round-trip it too, where a tag-zero entry is meaningless and only `Hello::validate` rejects it.
+
+### Answers to the three campaign open questions
+
+**Owner bodies as objects — no. Keep hex, and say so more strongly.** Giving the S20-440 records object forms creates a second surface that must track the frozen record codec exactly; every drift between them becomes a semantics the bridge would own, which SMP1 §8 forbids outright. It also grows the freeze surface from seven objects to seven plus N, so every future body record reopens a frozen contract. The stated purpose is a client without an SCB1 *encoder*; a client that needs cancel/stream/budget records needs a record codec regardless, which is a separate generated layer above this contract, never a revision of it. Add that sentence to §7.
+
+**Decimal strings for every integer field — yes, as implemented.** A per-field rule would require knowing which field is which before decoding and adds a second encoding rule for no gain; only u64 fields can exceed the boundary anyway. The emission rule (number when ≤ 2^53 − 1) must stay unique.
+
+**Negotiated text ceiling — no.** The bridge is a pure text function with no session state; the negotiated ceiling is per-session, so taking it as input would make the same text bridge differently on two connections and would import handshake state into a function §8 requires to be free of semantics. The ceiling is also checked *before* parsing, when nothing about the frame is known. The fix is derivation, not negotiation — see P1 #7.
+
+**Is re-encoding sufficient to keep bytes canonical?** Yes for the request/response path. The one hole is the hello path's dropped `protocol_version` (P1 #5).
+
+## validation
+Read-only inspection at pinned commit `9dc78fe`; no repository writes, no cargo, no gates run. Read in full: the contract, ADR-0034, campaign record, closeout, `lib.rs`, `tests.rs`, the oracle, the fuzz target, the stage checker; plus SMP1 §8/§9 and header, `ERROR_CODES_V1.md` §42000-42004, and `methods.json`/`roundtrip.json`/`rejected.json` structure. Confirmed `Method::ALL` = 41 = `methods.json` count, and `MAX_FRAME_BYTES` = 67,108,864. Verified the P0 by reading serde_json 1.0.145 source (`de.rs:508-520`, `number.rs:152-156`) and by running `python3 -c "json.loads('-0')"` against the oracle's decision path. Tier: none run — this was a documentary review under the read-only bound, so no Tier 1/Tier 2 claim is made and V1 was not in scope.
+
+## blockers
+None for the review. The P0 needs an implementation or oracle change, not just contract text, so it leaves this lane for Merlin once the direction is chosen.
+
+## return_to
+Orchestrator. P0 and P1 #5, #6 imply code or oracle edits (Merlin); P1 #8, #9 touch SMP1 and the stage checker, which is a cross-contract call worth Nabu's eye before the edit lands.
+
+S20_420_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Section 8 clause '-0 reads as the integer zero' is false: serde_json 1.0.145 renders -0 as F64(-0.0) so the crate returns JSON_BRIDGE_NUMBER_INVALID, while the Python oracle accepts it as zero; no test or vector covers the divergence"],"p1":["Section 5 'in field order' is undefined and contradicts section 1's lexicographic emission order; both implementations pin section 2 declaration order","Integer field widths (u32 for protocol_version, max_depth, max_inflight, reached_depth, code, phase) are undeclared though NUMBER_INVALID depends on them","Duplicate object keys are undeclared and silently accepted last-wins by both implementations","A hello Frame's protocol_version is accepted and silently discarded by frame_from_json and by the oracle","Section 8's hello composite rule is declared shape-tier but evaluated after all field decoding, so encoding codes win; the method half is inconsistently hoisted","The 268,435,456-byte ceiling is a bare constant, undeclared as 4 x MAX_FRAME_BYTES and ungated against a future rise","Contract binds SMP1 revision 6 while SMP1 is revision 8, and the stage checker never gates the composed revision","Section 1's 2^53-1 boundary contradicts SMP1 section 8's 'above 2^53' at exactly 9007199254740992"],"p2":["Fixed-length hex checks encoding before length, unstated and against section 5's ordering","Section 8 says 'both flags false' but revision 4 added flags.failed","Section 2 omits the table's owner column and its top-level shape","selected_to_json asymmetry rationale lives only in the closeout","Section 8's codec-validation list omits selected_to_json and does not say chunk_to_json is infallible"],"p3":["Define lexicographic as UTF-8 key byte order","Revision drift across ADR, closeout, and campaign headers","Section 6 understates the fuzz target, which drives all five readers","Empty-name-to-tag-zero rule unstated for methods lists"],"notes":"Read-only at 9dc78fe; no cargo. Open questions answered: keep owner bodies as hex, keep decimal strings for every integer field, keep a fixed text ceiling but derive it from MAX_FRAME_BYTES rather than negotiate it."}
+EXIT=0 2026-09-04T05:19:14Z

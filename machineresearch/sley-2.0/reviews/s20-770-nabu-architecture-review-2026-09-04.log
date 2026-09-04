@@ -1,0 +1,55 @@
+DISPATCH 770-nabu-architecture forge-nabu-770-nabu-architecture-20260904T084729 2026-09-04T08:47:29Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract index, ADR, and checker.
+
+## Bounded architecture review — S20-770 required contract index
+
+Pinned at `9dc78fe`, read-only worktree. No repository modification, no `cargo`, no `make`.
+
+### The three structural questions
+
+**1. Index vs. mapping in each defining document — the index is the right structure.** The mapping is many-to-many in both directions: 17.1 is satisfied by three documents jointly, 17.12 by two domains and two corpora, and `REPORT_ENVELOPE_PROFILE_V1.md` serves two required names (17.9 and 17.10). A per-document field cannot express "these three together satisfy 17.1" without either duplication or a partial claim in each site. Completeness — "are all twelve covered?" — is a global predicate, so a distributed form still needs a global checker, and you end up with a checker *plus* N annotation sites. Decisively, the distributed form would inject a pointer to a moving external authority into frozen contract documents; the index keeps that coupling in one unfrozen artifact. ADR-0047's "index, never restate" holds. Confidence: high.
+
+**2. The four assertions are necessary but the set is incomplete on the authority side, and one is weaker than documented.** Document-exists, domain-frozen, and corpus-exists are the right shape. "Checker invoked by the Makefile" is not the documented invariant (P1-1). The set is missing any assertion over the left-hand column, which is the half that carries the authority (P1-2). Confidence: high.
+
+**3. The identifier registry drift check does not belong in this checker.** It is an S20-110 invariant, it exceeds the index's own declared boundary ("defines no contract of its own, changes no identity"), and its failure surfaces under S20-770's reserved codes — neither `CONTRACT_INDEX_UNSATISFIED` nor `CONTRACT_INDEX_DRIFT` means "identity registry incomplete," so a crate adding a domain sends the implementer to the wrong document. But no S20-110 checker exists in `scripts/`, so the coverage must not simply be deleted (P1-4). Confidence: high.
+
+**Verdict: FAIL** — four P1s. The artifact's direction is correct and the twelve rows are accurate today; the defects are in what the checker actually asserts versus what the index and ADR claim it asserts.
+
+<details>
+<summary>Findings with evidence</summary>
+
+**P1-1 — Makefile assertion is weaker than the stated invariant.** `check_required_contract_index.py:82` tests `f"scripts/{checker}" not in makefile` — a substring match over the whole file, not the `quick:` recipe. `check_scb1_spec.py` appears at `Makefile:6` (quick) and `Makefile:106` (conformance); moving it out of `quick` leaves the substring present and passes. This contradicts index §2 ("at least one checker that `make quick` runs") and ADR-0047's consequence "dropping a checker from `make quick` now fails a gate." Fix: parse the `quick` recipe block and require membership there.
+
+**P1-2 — The twelve required names are not frozen against the authority.** Master goal §17 lives at `/home/greyforge/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md`, outside the repository; `sley-scb-object-v1` appears nowhere in the tree except the index and the ADR. The checker never reads the authority. The only guard on the authority column is `len(rows) != REQUIRED_ROWS`, and `table_rows` accepts any line starting `| 17.` — twelve duplicate `| 17.1 |` rows pass every assertion. A row renamed to an easier-to-satisfy contract is undetected. I verified the transcription is correct today (names and numbering match §17 exactly). Fix: freeze the `(number, name)` pairs as a checker constant and state in the index that the authority is external and verified by transcription, not by machine.
+
+**P1-3 — The drift check discriminates by file location, not semantic role.** `check_required_contract_index.py:99` treats any `"sley2.…"` literal in `crates/**/*.rs` as a hash domain. The `sley2.` namespace is overloaded: 20 non-hash contract identifiers already exist in `scripts/`/`oracle/` (`sley2.finding-register.v1`, `sley2.decision-dossier.v1`, `sley2.release-provenance.v1`, …), none registered. The check is correct today only because the two uses happen to be separated by file extension. The first Rust literal carrying a contract id — a crate emitting its own report envelope, or an adversarial test constructing a deliberately invalid domain — fails `make quick` and pressures the implementer to freeze a non-domain into `IDENTIFIERS_V1.md`, corrupting the identity registry to satisfy a traceability checker. Fix: derive from the domain constant declaration site in `sley-id`/the hashing crates, not from a namespace regex over all sources.
+
+**P1-4 — Registry drift ownership and error code.** See structural question 3. Extract to `scripts/check_identifier_registry.py` under an S20-110-reserved code, invoked from `make quick`, and reduce S20-770 to the domains its own table names. If extraction is deferred, the index and ADR must record that S20-770 temporarily hosts an S20-110 invariant, name the owner, and name the migration — otherwise ownership is silently forked in the one artifact whose purpose is ownership.
+
+**P2-5 — Drift check is one-directional.** The comment at `:90-93` and ADR §Decision-2 claim "the same set," but only derived-not-registered is flagged; a registered domain with no implementation is not. Sets are equal today (50 derived, 50 registered), so adding the reverse check is free right now and will not be later.
+
+**P2-6 — The "no corpus" escape hatch is unenforced.** Index §2 rule 3 says a reason "must itself be checkable" and points at the S20-290 resource-unit assertion. Nothing links row 17.10 to that checker, and the checker never requires a corpus cell to be non-empty or to contain a reason — a row with an empty corpus cell passes silently. Either enforce the linkage or downgrade the rule from "must be checkable" to a reviewed prose exception.
+
+**P2-7 — Defining-document section pointers are not checked.** `:66-71` verifies file existence only. "SCB1.md section 2", "SMP1.md sections 2 and 3", and "section on the execution envelope" are unverified; renumbering or splitting a document orphans the pointer with every assertion green. This is the one drift class the path checks structurally cannot cover. Normalizing the cell to file + heading anchor makes the numbered cases checkable; the prose cases ("section on the execution envelope") are not machine-checkable in their current form.
+
+**P3-8 —** Inconsistent registry matching: table domains use bare substring (`:74`), drift uses backtick-anchored (`:102`). No live collision (the `.v1` suffix protects), but a prose mention of a withdrawn domain satisfies the loose form. Anchor both.
+
+**P3-9 —** Defining documents are implicitly constrained to `docs/spec/` by the hardcoded path at `:70`. State that as a rule in §2 rather than leaving it as emergent checker behavior.
+
+**P3-10 —** `(ROOT / "crates").rglob("*.rs")` walks `target/` fully before filtering by string; prune the directory during traversal.
+
+</details>
+
+### Not findings, recorded
+
+Row-by-row spot check passed: all 18 named defining documents exist under `docs/spec/`, all 12 conformance corpora and `crates/sley-policy` exist, `check_required_contract_index.py` is genuinely in the `quick` target (`Makefile:72`), the four newly registered domains (`candidate-attempt`, `protocol-frame`, `root-query`, `session`) are present in `IDENTIFIERS_V1.md`, and derived-vs-registered is currently clean in both directions. The machine-summary gate (draft/accepted status plus three named `PASS` reviews) is well-shaped; that it is self-asserted in the same file is inherent to a file-based review ledger, not a defect of this artifact.
+
+status: complete
+findings: 4 P1, 3 P2, 3 P3; structure endorsed, checker assertions under-deliver against index §2 and ADR-0047
+validation: read-only — targeted reads of the index, ADR, checker, `IDENTIFIERS_V1.md`, `Makefile`; existence checks on all named documents/corpora; independent re-run of the drift derivation in a scratch interpreter; master goal §17 name comparison. No cargo, no make, no repository modification.
+blockers: none
+return_to: orchestrator
+
+S20_770_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["Makefile assertion is a whole-file substring match, not membership in the quick recipe, so moving a checker out of make quick still passes and contradicts index section 2 and ADR-0047","The twelve required names are never checked against master goal section 17, which lives outside the repository; len(rows)==12 is the only authority guard and table_rows accepts duplicate row numbers","Drift check treats any sley2. literal in crates/**/*.rs as a hash domain, but the sley2. namespace is overloaded with 20 non-hash contract identifiers already present in scripts and oracle; the check is correct only by file-extension coincidence","Identifier registry drift is an S20-110 invariant hosted under S20-770 codes 77000/77001, neither of which means registry incomplete; extract to an S20-110-owned checker without dropping coverage, or record the temporary ownership explicitly"],"p2":["Drift check is one-directional despite comment and ADR claiming set equality; registered-but-underived domains are not flagged, and sets are equal today so the reverse check is free now","The no-corpus escape hatch is unenforced: nothing links row 17.10 to the S20-290 resource-unit assertion and no rule requires the corpus cell to be non-empty or to carry a reason","Defining-document section pointers are unchecked; file existence only, so renumbering or splitting a document silently orphans the pointer"],"p3":["Table domain match uses a bare substring while drift uses backtick-anchored matching; anchor both","Defining documents are implicitly constrained to docs/spec by a hardcoded path; state it as a rule in section 2","rglob walks crates/target fully before the string-based exclusion; prune during traversal"],"notes":"Index-not-restate structure is correct and the twelve rows are accurate at 9dc78fe; the defects are the gap between what the checker asserts and what the index and ADR claim it asserts, plus misplaced S20-110 ownership."}
+EXIT=0 2026-09-04T08:51:05Z

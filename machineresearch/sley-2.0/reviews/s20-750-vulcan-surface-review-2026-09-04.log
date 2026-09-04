@@ -1,0 +1,46 @@
+DISPATCH 750-vulcan-surface forge-vulcan-750-vulcan-surface-20260904T082740 2026-09-04T08:27:40Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and campaign record, then the implementation.
+
+**Fractured — one decisive evidence-integrity defect, plus a fail-closed guard that is nominal.**
+
+## status
+FAIL (P0 present; findings land as contract + implementation revisions before freeze)
+
+## findings
+
+**P0-1 — variable shadowing makes the license entry read the wrong source, and it reports a false zero.**
+`scripts/build_decision_dossier.py:102` binds `inventory = sources["inventory"]` (the S20-710 license inventory), then `:105` rebinds `inventory = sources["inventory_of_tests"]`. The "SBOM and license inventory" entry at `:333-337` therefore iterates `evidence/validation/test-inventory.json`, which has no `packages` key, and emits `license_disposition_blocked: 0`.
+Ground truth: `evidence/security/T52/pre-release-inventory.json` holds 43 packages, **19** at `BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT`. The tracked `evidence/release/decision-dossier.json` states `0`, marked `EVIDENCED`. No test and no checker assertion covers this field. A fabricated understatement of a release blocker inside the artifact whose whole purpose is to prevent narrative optimism blocks freeze.
+
+**P1-2 — a PASS *can* stand while a product gate is fail-closed. This is the direct answer to your second question.**
+The builder's only notion of gate state is one hand-maintained string: `machine-summary.json → release_candidate_packaging.release_check_gate`. It never calls `scripts/gate_status.py` (which the *checker* does call), and it never reads the `v2` gate at all — that key does not exist in the summary. Setting that single field to `"OPEN"` removes the BLOCKED reason at `:425` and the `DOSSIER_DECISION_INVALID` guard at `:461` in the same stroke, while `make v2` and `make release-check` remain fail-closed. Contract §3 says "any product gate"; the implementation covers one self-reported string.
+
+**P1-3 — `DOSSIER_DECISION_INVALID` (76002) is unreachable dead code.**
+The guard at `:461` tests `state == "PASS" and gates_closed`, but `gates_closed` is the identical expression that already forces `BLOCKED` at precedence 1 in `derive_decision:425`. No input can reach it. `bench/review/tests/test_decision_dossier.py` (11 tests) never exercises it — `test_precedence_reaches_the_other_states` calls `derive_decision` directly and bypasses `build_dossier` entirely. The contract's "hard failure" and a reserved stable error code are unexecutable.
+
+**P1-4 — the state is not derived from the entries, contrary to contract §3 and ADR-0043 decision 3.**
+`derive_decision(sources, entries)` ignores `entries`. Nothing forbids `PASS` while entries remain `GATED`; today's coupling is incidental. §6 requires zero gated entries for `S20_750_COMPLETE` but the decision state carries no equivalent condition.
+
+**P2-5** — `SUMMARY`, `CYCLONEDX`, and `SPDX` load with `contract=None` (`:442-448`), so the largest source is unvalidated while §2 promises `DOSSIER_SOURCE_INVALID` for wrong tag or shape.
+**P2-6** — `entry()` (`:89`) derives state from `value is None` alone, so any dict-literal value can never be `GATED`: a source that loses fields yields `EVIDENCED` with all-null facts and a note still asserting what it failed to prove. Test coverage is one-sided. *(This is also my input to Ariadne's open question 1: a `PARTIAL` state, or per-fact resolution, is the safer shape. `fuzz duration and findings` sits in `EVIDENCED` today with a null `campaign_duration`, which lets a reader tally "24 evidenced" and conclude more is proven than is.)*
+**P2-7** — `check_decision_dossier.py:199` bans `PASS` unconditionally, not "PASS while a gate is fail-closed" as §6 states. Safe direction, but code and contract disagree and it fails spuriously once gates legitimately open.
+
+**P3-8** — ADR-0043 reads "draft at revision 1"; the contract is revision 2. §8 is titled "Clarifications" but records only "Revision 1 carries none".
+**P3-9** — the campaign record is stale against the tracked artifact: it claims revision 1, 23 EVIDENCED / 11 GATED, 63 open obligations; the dossier at `9dc78fe` reads 24 / 10 and 75 open obligations.
+**P3-10** — `relative()` (`:82`) is a no-op alias for `display()`.
+
+## answer to open question 3 (mine)
+`BLOCKED` is correct; do not derive `FAIL` from incompleteness. `FAIL` must mean a gate that exists failed or evidence contradicts the design. Collapsing "not yet built" into `FAIL` makes a genuine regression indistinguishable from ordinary progress, destroys the signal exactly when it matters, and creates pressure to argue `FAIL` away in prose. `BLOCKED` also enumerates its reasons, so the gated count and reason list shrink measurably. Neither state can be mistaken for approval, so the misuse surface is unchanged. One condition on keeping it: `BLOCKED` must never be reachable *by omission* — P1-2 and P1-4 are what make that condition currently unmet.
+
+## validation
+Read-only at commit `9dc78fe`. No `cargo`, no `make`, no writes. Read the contract, ADR-0043, campaign record, `build_decision_dossier.py`, `check_decision_dossier.py`, and grepped `test_decision_dossier.py`; parsed the tracked `decision-dossier.json`, `test-inventory.json`, `pre-release-inventory.json`, and `machine-summary.json` to confirm the license count and gate fields. Did not execute the builder or checker.
+
+## blockers
+None for this review. P0-1 and P1-2/3/4 are Merlin's to implement; recommend Argus confirm the 19 blocked license dispositions once the shadowing fix lands, since that count feeds the root-license gate.
+
+## return_to
+orchestrator
+
+S20_750_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["build_decision_dossier.py:102/105 variable shadowing makes the SBOM-and-license entry read the test inventory instead of the license inventory, emitting license_disposition_blocked=0 while pre-release-inventory.json records 19 BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT packages; the false fact is marked EVIDENCED and no test or checker covers it"],"p1":["a PASS can stand while a product gate is fail-closed: the builder reads only the hand-maintained machine-summary field release_candidate_packaging.release_check_gate, never scripts/gate_status.py and never the v2 gate, so one field edit clears both the BLOCKED reason and the guard","DOSSIER_DECISION_INVALID (76002) is unreachable: the guard at build_dossier:461 tests the same condition that already forces BLOCKED at derive_decision:425, and no test exercises it","derive_decision ignores its entries argument, so nothing prevents PASS while entries remain GATED, contradicting contract section 3 and ADR-0043 decision 3"],"p2":["machine-summary.json, cyclonedx-1.6.json and spdx-2.3.json load with no contract or shape validation while section 2 promises DOSSIER_SOURCE_INVALID","entry() derives GATED from value-is-None alone, so dict-literal values can never be GATED and a degraded source yields EVIDENCED with all-null facts; recommend PARTIAL or per-fact resolution (answers Ariadne open question 1)","check_decision_dossier.py:199 bans PASS unconditionally rather than PASS-while-a-gate-is-fail-closed as section 6 states"],"p3":["ADR-0043 says draft revision 1 while the contract is revision 2, and section 8 records no revision 2 clarifications","campaign record is stale against the tracked artifact: 23/11 and 63 open obligations versus 24/10 and 75 at 9dc78fe","relative() is a no-op alias for display()"],"notes":"BLOCKED is the right derived state while implementation continues; do not derive FAIL from incompleteness. But BLOCKED must not be reachable by omission, and today the fail-closed protection is nominal: one summary string, an unreachable guard, and no v2 gate read."}
+EXIT=0 2026-09-04T08:30:13Z

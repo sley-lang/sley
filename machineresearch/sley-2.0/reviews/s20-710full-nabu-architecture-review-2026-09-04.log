@@ -1,0 +1,75 @@
+DISPATCH 710full-nabu-architecture forge-nabu-710full-nabu-architecture-20260904T072919 2026-09-04T07:29:19Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record in parallel.
+
+Read-only review complete at `9dc78fe`; worktree unmodified (`git status` clean after every step). No cargo, no make target.
+
+**status:** FAIL — two P0 findings, both empirically reproduced.
+
+**findings:**
+
+## P0 — blocks freeze
+
+**P0-1. `--check` fail-opens when candidate evidence is absent; the drift gate never runs on a clean tree.**
+`local_build_ahead()` returns `True` when `load_candidate()` raises — `build_standards_sbom.py:400-401` and `build_release_provenance.py:240-241`. `evidence/runtime/` is gitignored (`.gitignore:6`), so a fresh clone has *no* candidate evidence at all. Verified at `9dc78fe`: both builders print `result: PASS, state: LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` and exit 0. The tracked provenance names commit `ebd40dcb`, not HEAD, and nothing detects it. Codes 74003 and 74007 are unreachable through `--check` in the exact state where drift detection matters, so contract §5's guarantee is unimplemented. "No local build" and "local build ahead of tracked documents" are distinct states and must not collapse into one.
+
+**P0-2. Contract §5's hermeticity claim is false in the other direction — `make quick` cannot pass on a clean tree.**
+§5 asserts Tier 1 "stays hermetic over tracked files and never fails because of an uncommitted local build." Verified: `check_standards_sbom_and_provenance.py` at `9dc78fe` with no `evidence/runtime/` returns `result: FAIL, problems: ["release-tests:fail"]` — 15 of 31 tests error, all in `setUp` via `build_documents() → load_candidate() → INVENTORY_MISSING`. The checker is wired into `make quick` (`Makefile:68`). So the same tree fail-passes the drift gate and hard-fails Tier 1. The contract cannot freeze while its stated Tier 1 property is contradicted by its own checker.
+
+## P1 — must fix before freeze
+
+**P1-3. The tolerance belongs in the checker.** *(direct answer to focus question 2)* In the builders it is inherited silently by every consumer: `check_standards_sbom_and_provenance.py:250-255` inspects only `returncode`, so it cannot distinguish "documents verified" from "verification skipped." Builders should stay pure derivation tools whose `--check` is an unconditional assertion (PASS / DRIFT / EVIDENCE_MISSING). The checker owns the policy: parse the builder JSON, record `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` as a **non-verifying** state, and refuse it under `S20_710_FULL_COMPLETE`. Today a completion status is reachable without the tracked documents ever having been verified.
+
+**P1-4. Production derives the SBOM root from the tracked file; the tests derive it in memory — the production path is untested and order-fragile.** `sbom_root_digest()` (`build_release_provenance.py:133-147`) reads tracked `cyclonedx-1.6.json`; `test_standards_sbom.py:119-122` monkeypatches it precisely to avoid that. The coupling that broke the smoke (campaign "In-flight repair", `PROVENANCE_SUBJECT_MISMATCH`) is the one the suite deliberately bypasses. Structural fix: take the root digest from an in-memory `build_documents()` call, while still digesting the *tracked* SBOM files for the dependency/byproduct entries. Makefile ordering then stops being load-bearing.
+
+**P1-5. SPDX `documentNamespace` is not unique per document.** `urn:sley2:spdx:<inventory digest>` (`build_standards_sbom.py:310`) keys only on T52. Any code-only commit — the common case — produces a different document (root package checksum changes) under an identical namespace. SPDX 2.3 §6.5 requires the namespace to uniquely identify the document. Fold the artifact digest or commit into the URN.
+
+**P1-6. The privacy assertion is a three-token denylist.** `FORBIDDEN_DOCUMENT_MARKERS = ("/home/", "greyforge", "file://")` (`check:84`, mirrored at `tests:91,182`) against a contract claim of "no timestamp, host name, user name, or absolute path anywhere." `/Users/`, `/tmp/`, `C:\`, a second operator's name, and any ISO-8601 timestamp all pass. The documents are fully enumerable — replace with a positive shape assertion over every string leaf (purl / urn / relative path / hex digest / SPDX id / known enum).
+
+## P2 — fix before completion
+
+**P2-7. `resolvedDependencies` asserts what the build did not consume.** Both SBOMs are listed as resolved dependencies (`build_release_provenance.py:193-200`) but are produced *after* the tarball, *from* it. Under SLSA Provenance v1 these are resolved build inputs; a verifier is told the tarball was built from its own SBOMs. Move both to `runDetails.byproducts`.
+
+**P2-8. `internalParameters` carries outputs.** `artifact_size_bytes`, `member_count` (`:182-183`) are artifact properties, not builder-controlled inputs, and contract §4 does not list them — implementation and contract disagree. Move to the subject entry or byproducts and reconcile §4.
+
+**P2-9. Two divergent blocker lists.** `BLOCKERS` (`build_release_provenance.py:42-49`) has six entries including `second_host_attestation_operator_lane`; `machine-summary.json` has five and omits it. Nothing asserts agreement. Name one owner and derive the other.
+
+**P2-10. §5 states two rules with no precedence.** It says `--check` fails with DRIFT when a tracked document differs, then that it reports skew with PASS. The code resolves this by short-circuiting on skew; the contract must state the order and what happens when both hold.
+
+**P2-11. The smoke rebuilds T52 after the builders that consume it.** `generate_supply_chain_evidence.py` runs late in `release-candidate-smoke`, after `build_standards_sbom.py` recorded the inventory digest. Benign today, but any inventory-affecting change makes one smoke pass self-inconsistent and require a second run — the same failure class as the recorded repair. Move the inventory generator ahead of the SBOM builders, or assert idempotence.
+
+**P2-12. The two formats carry different distribution markers.** CycloneDX has `sley2:signed` / `sley2:publication-authorized` in `metadata.properties`; SPDX carries the equivalent only in prose comments. Same evidence, two formats, unequal machine-readable status. (Feeds Vulcan's question 3; the asymmetry itself is a boundary defect in my lane.)
+
+**P2-13. Pin the canonicalization for `statement_digest`.** See the signability answer below.
+
+## P3 — editorial
+- ADR-0041 status says "draft at revision 1"; contract and summary say revision 2. `ADR_MARKERS` doesn't check revision.
+- Contract §9 reads "Revision 1 carries none" in a revision-2 document whose §5 *is* the revision-2 clarification.
+- Campaign record: "119 relationships (one `DESCRIBES` plus 118 `DEPENDS_ON`)" — the document has 120 (1 + 119). The summary's `dependency_relationships: 119` is the DEPENDS_ON count and is correct.
+- Campaign record quotes serial `9251b665…` and artifact `c6b61983…`; tracked evidence is `69009a53-be84-8c1a-80d0-8c3fd714a1ea` / `7f578af7…`. Name the commit those numbers came from or refresh.
+- `check:84` hardcodes the operator name in a tracked file — superseded by P1-6.
+
+---
+
+## Answers to the campaign's open questions
+
+**Q2 (mine) — is the wrapper stable enough to sign in place, or does it need a new contract version?**
+**Keep the wrapper; no new contract version. But stop calling it signable in place — it structurally cannot be.** DSSE does not decorate a JSON object: it produces `{"payload": base64(bytes), "payloadType": "application/vnd.in-toto+json", "signatures":[…]}`, where the payload is an opaque string, not a nested object. No edit to `provenance.json` yields that. Signing emits a **sibling** artifact (`provenance.intoto.jsonl`) whose payload is the canonical serialization of the embedded `statement`; the `attestation` block then flips and points at it. The wrapper is stable precisely *because* it is not the signed artifact — which is the stronger form of the answer the campaign was looking for.
+
+Three things must land before freeze or the "signable later" promise breaks silently:
+1. **Pin the canonicalization.** `statement_digest` is computed over `json.dumps(indent=2, sort_keys=True) + "\n"` (`:70-75`) — a Sley-local encoding. Any independent verifier will most likely use RFC 8785 JCS or compact separators, and will compute a different digest while both parties are "correct." Name the exact encoding in §4, state that `statement_digest` is a **local integrity digest, not a DSSE pre-authentication encoding**, and require the future signer to sign those same bytes.
+2. **Make the sibling-key placement an explicit invariant.** `attestation` must never migrate inside `statement`, or a signed statement would carry mutable local policy. §4 implies this; it should say it.
+3. **Pin `payloadType`** (`application/vnd.in-toto+json`) in §4 now, so the signing step has no discretion.
+
+**Q1 (Ariadne's lane) — fixed epoch vs commit author date for SPDX `created`.** Architecturally the epoch is right; recommend Ariadne concur. The author date is rebase- and cherry-pick-mutable and would change under the pending `release_candidate_history_reanchor` blocker, and `creationInfo.created` is defined as document creation, not source authorship — so it would be semantically wrong *and* break determinism at exactly the moment history moves. The commit is already carried in `sley2:commit` and `externalParameters.commit`.
+
+**Q3 (Vulcan's lane) — misuse risk of a blocked-license SBOM read outside the repo.** Not my verdict; my input is P2-12: whatever marker is chosen must appear in *both* formats, and the CycloneDX one currently lives in a custom `sley2:` namespace no generic consumer reads. `metadata.lifecycles` is the CycloneDX-native field for this.
+
+**validation:** read-only inspection of the pinned worktree at `9dc78fe`; `build_standards_sbom.py --check`, `build_release_provenance.py --check`, `check_standards_sbom_and_provenance.py`, and `python3 -m unittest discover -s bench/release/tests -t .` run in check-only mode (no writes, no cargo, no make target); `git status --porcelain` empty before and after. Contract, ADR, campaign record, both builders, the checker, the test suite, all three tracked evidence documents, `.gitignore`, `machine-summary.json`, and the `release-candidate-smoke` recipe read directly. Not verified: `ERROR_CODES_V1.md` text, `WORK_PACKAGES.md`, the T52 generator's idempotence (P2-11 is reasoned from ordering, not executed), CycloneDX/SPDX schema validation against official schemas.
+
+**blockers:** none for this review. Freeze is blocked by P0-1 and P0-2 until the tolerance is relocated and §5's hermeticity claim is either implemented or withdrawn.
+
+**return_to:** orchestrator (integrator) for contract revision 3.
+
+S20_710FULL_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["--check fail-opens when candidate evidence is absent: local_build_ahead() returns True on load_candidate() failure, so on any clean checkout (evidence/runtime is gitignored) both builders exit 0 with LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS and codes 74003/74007 are unreachable; verified at 9dc78fe where tracked provenance names commit ebd40dcb, not HEAD","Contract section 5 hermeticity claim is false: check_standards_sbom_and_provenance.py returns FAIL with release-tests:fail on a clean tree because all 15 tests require untracked evidence/runtime, and that checker runs in make quick (Makefile:68)"],"p1":["Relocate the LOCAL_BUILD_AHEAD tolerance from the builders to the checker: builders must stay pure derivation tools with an unconditional --check, and the checker must parse the JSON state rather than only returncode and must refuse the skew state under S20_710_FULL_COMPLETE","sbom_root_digest() reads the tracked CycloneDX while the test suite monkeypatches it to the derived value, so the order-fragile production path that caused the recorded PROVENANCE_SUBJECT_MISMATCH repair is untested; derive the root digest in memory instead","SPDX documentNamespace urn:sley2:spdx:<inventory digest> is not unique per document: a code-only commit yields different content under an identical namespace, violating SPDX 2.3 section 6.5; fold the artifact digest or commit into the URN","The no-host-path/no-clock assertion is a three-token denylist (/home/, greyforge, file://) that misses /Users/, /tmp/, Windows paths, other usernames and any ISO-8601 timestamp; replace with a positive shape allowlist over every string leaf"],"p2":["resolvedDependencies lists both SBOM documents, which are produced after and from the tarball, asserting a build input that did not exist; move them to runDetails.byproducts","internalParameters carries artifact_size_bytes and member_count, which are outputs not builder-controlled inputs and are absent from contract section 4","BLOCKERS in build_release_provenance.py has six entries; machine-summary blockers has five and omits second_host_attestation_operator_lane, with no check asserting agreement","Contract section 5 states the drift rule and the skew-PASS rule with no stated precedence; the code short-circuits on skew and the contract must say so","release-candidate-smoke runs generate_supply_chain_evidence.py after the SBOM builders that consume the T52 inventory, so an inventory-affecting change makes one smoke pass self-inconsistent","CycloneDX carries sley2:signed and sley2:publication-authorized as machine-readable properties while SPDX carries the equivalent only in prose comments","Pin the statement canonicalization in contract section 4 and mark statement_digest as a local integrity digest over json.dumps(indent=2,sort_keys=True)+newline, not a DSSE pre-authentication encoding; also pin payloadType application/vnd.in-toto+json and make the attestation sibling-key placement an explicit invariant"],"p3":["ADR-0041 status says draft revision 1 while the contract and summary say revision 2, and ADR_MARKERS does not check revision","Contract section 9 says Revision 1 carries none inside a revision-2 document whose section 5 is the revision-2 clarification","Campaign record says 119 SPDX relationships (1 DESCRIBES plus 118 DEPENDS_ON); the document has 120 (1 plus 119)","Campaign record quotes serial 9251b665 and artifact c6b61983 while tracked evidence is 69009a53-be84-8c1a-80d0-8c3fd714a1ea and 7f578af7; name the source commit or refresh","check_standards_sbom_and_provenance.py:84 hardcodes the operator name in a tracked file"],"notes":"Wrapper answer: keep it, no new contract version, but sign-in-place is structurally impossible under DSSE; signing emits a sibling envelope over the embedded statement, so pin the canonicalization now. Tolerance answer: it belongs in the checker, not the builders. Read-only at 9dc78fe, worktree unmodified, no cargo or make run."}
+EXIT=0 2026-09-04T07:34:11Z

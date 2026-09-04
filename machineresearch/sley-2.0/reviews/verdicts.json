@@ -61,5 +61,554 @@
     "p3": 4,
     "result": "FAIL",
     "reviewer": "ariadne"
+  },
+  "310-nabu-architecture": {
+    "key": "S20_310_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 7,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "310-vulcan-surface": {
+    "key": "S20_310_SURFACE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 4,
+    "p2": 4,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "320-ariadne-contract": {
+    "key": "S20_320_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 3,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "320-nabu-architecture": {
+    "key": "S20_320_ARCHITECTURE_REVIEW_JSON",
+    "p0": 3,
+    "p1": 4,
+    "p2": 6,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "320-vulcan-surface": {
+    "key": "S20_320_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 4,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "330-ariadne-contract": {
+    "key": "S20_330_CONTRACT_REVIEW_JSON",
+    "p0": 3,
+    "p1": 7,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "330-nabu-architecture": {
+    "key": "S20_330_ARCHITECTURE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 7,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "330-vulcan-surface": {
+    "key": "S20_330_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 3,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "360full-ariadne-contract": {
+    "key": "S20_360FULL_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "360full-nabu-architecture": {
+    "key": "S20_360FULL_ARCHITECTURE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 2,
+    "p2": 6,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "360full-vulcan-surface": {
+    "key": "S20_360FULL_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 4,
+    "p2": 2,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "390extended-ariadne-contract": {
+    "key": "S20_390EXTENDED_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "390extended-nabu-architecture": {
+    "key": "S20_390EXTENDED_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 2,
+    "p2": 2,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "390extended-vulcan-surface": {
+    "key": "S20_390EXTENDED_SURFACE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 4,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "400-ariadne-contract": {
+    "key": "S20_400_CONTRACT_REVIEW_JSON",
+    "p0": 3,
+    "p1": 12,
+    "p2": 9,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "400-nabu-architecture": {
+    "key": "S20_400_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 9,
+    "p2": 12,
+    "p3": 7,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "400-vulcan-surface": {
+    "key": "S20_400_SURFACE_REVIEW_JSON",
+    "p0": 3,
+    "p1": 8,
+    "p2": 10,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "420-ariadne-contract": {
+    "key": "S20_420_CONTRACT_REVIEW_JSON",
+    "p0": 1,
+    "p1": 8,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "420-nabu-architecture": {
+    "key": "S20_420_ARCHITECTURE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 6,
+    "p2": 8,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "420-vulcan-surface": {
+    "key": "S20_420_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 5,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "430-ariadne-contract": {
+    "key": "S20_430_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 7,
+    "p2": 7,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "430-nabu-architecture": {
+    "key": "S20_430_ARCHITECTURE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 7,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "430-vulcan-surface": {
+    "key": "S20_430_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 5,
+    "p2": 4,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "510-ariadne-contract": {
+    "key": "S20_510_CONTRACT_REVIEW_JSON",
+    "p0": 1,
+    "p1": 6,
+    "p2": 9,
+    "p3": 6,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "510-nabu-architecture": {
+    "key": "S20_510_ARCHITECTURE_REVIEW_JSON",
+    "p0": 3,
+    "p1": 5,
+    "p2": 8,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "510-vulcan-surface": {
+    "key": "S20_510_SURFACE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 4,
+    "p2": 6,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "520-ariadne-contract": {
+    "key": "S20_520_CONTRACT_REVIEW_JSON",
+    "p0": 3,
+    "p1": 5,
+    "p2": 9,
+    "p3": 6,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "520-nabu-architecture": {
+    "key": "S20_520_ARCHITECTURE_REVIEW_JSON",
+    "p0": 3,
+    "p1": 5,
+    "p2": 8,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "520-vulcan-surface": {
+    "key": "S20_520_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 5,
+    "p2": 7,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "620-ariadne-contract": {
+    "key": "S20_620_CONTRACT_REVIEW_JSON",
+    "p0": 5,
+    "p1": 8,
+    "p2": 6,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "620-nabu-architecture": {
+    "key": "S20_620_ARCHITECTURE_REVIEW_JSON",
+    "p0": 3,
+    "p1": 12,
+    "p2": 7,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "620-vulcan-surface": {
+    "key": "S20_620_SURFACE_REVIEW_JSON",
+    "p0": 4,
+    "p1": 6,
+    "p2": 9,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "630-ariadne-contract": {
+    "key": "S20_630_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 8,
+    "p2": 9,
+    "p3": 8,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "630-nabu-architecture": {
+    "key": "S20_630_ARCHITECTURE_REVIEW_JSON",
+    "p0": 4,
+    "p1": 7,
+    "p2": 8,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "630-vulcan-surface": {
+    "key": "S20_630_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 5,
+    "p2": 7,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "700fuzz-ariadne-contract": {
+    "key": "S20_700FUZZ_CONTRACT_REVIEW_JSON",
+    "p0": 1,
+    "p1": 4,
+    "p2": 6,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "700fuzz-nabu-architecture": {
+    "key": "S20_700FUZZ_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 5,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "700fuzz-vulcan-surface": {
+    "key": "S20_700FUZZ_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 2,
+    "p2": 6,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "710full-ariadne-contract": {
+    "key": "S20_710FULL_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 10,
+    "p2": 12,
+    "p3": 8,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "710full-nabu-architecture": {
+    "key": "S20_710FULL_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 7,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "710full-vulcan-surface": {
+    "key": "S20_710FULL_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 3,
+    "p2": 3,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "720-ariadne-contract": {
+    "key": "S20_720_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 8,
+    "p2": 8,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "720-nabu-architecture": {
+    "key": "S20_720_ARCHITECTURE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 6,
+    "p2": 5,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "720-vulcan-surface": {
+    "key": "S20_720_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 5,
+    "p2": 6,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "730-ariadne-contract": {
+    "key": "S20_730_CONTRACT_REVIEW_JSON",
+    "p0": 1,
+    "p1": 8,
+    "p2": 6,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "730-nabu-architecture": {
+    "key": "S20_730_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 6,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "730-vulcan-surface": {
+    "key": "S20_730_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 6,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "740-ariadne-contract": {
+    "key": "S20_740_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 5,
+    "p2": 4,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "740-nabu-architecture": {
+    "key": "S20_740_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 5,
+    "p2": 6,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "750-ariadne-contract": {
+    "key": "S20_750_CONTRACT_REVIEW_JSON",
+    "p0": 2,
+    "p1": 5,
+    "p2": 7,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "750-nabu-architecture": {
+    "key": "S20_750_ARCHITECTURE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 7,
+    "p2": 5,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "750-vulcan-surface": {
+    "key": "S20_750_SURFACE_REVIEW_JSON",
+    "p0": 1,
+    "p1": 3,
+    "p2": 3,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "760-ariadne-contract": {
+    "key": "S20_760_CONTRACT_REVIEW_JSON",
+    "p0": 0,
+    "p1": 3,
+    "p2": 4,
+    "p3": 5,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "760-nabu-architecture": {
+    "key": "S20_760_ARCHITECTURE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 5,
+    "p2": 4,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "760-vulcan-surface": {
+    "key": "S20_760_SURFACE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 3,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "770-ariadne-contract": {
+    "key": "S20_770_CONTRACT_REVIEW_JSON",
+    "p0": 0,
+    "p1": 3,
+    "p2": 6,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "770-nabu-architecture": {
+    "key": "S20_770_ARCHITECTURE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 4,
+    "p2": 3,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "770-vulcan-surface": {
+    "key": "S20_770_SURFACE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 1,
+    "p2": 4,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
+  "780-ariadne-contract": {
+    "key": "S20_780_CONTRACT_REVIEW_JSON",
+    "p0": 1,
+    "p1": 5,
+    "p2": 3,
+    "p3": 4,
+    "result": "FAIL",
+    "reviewer": "ariadne"
+  },
+  "780-nabu-architecture": {
+    "key": "S20_780_ARCHITECTURE_REVIEW_JSON",
+    "p0": 0,
+    "p1": 2,
+    "p2": 4,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "nabu"
+  },
+  "780-vulcan-surface": {
+    "key": "S20_780_SURFACE_REVIEW_JSON",
+    "p0": 2,
+    "p1": 4,
+    "p2": 4,
+    "p3": 3,
+    "result": "FAIL",
+    "reviewer": "vulcan"
   }
 }

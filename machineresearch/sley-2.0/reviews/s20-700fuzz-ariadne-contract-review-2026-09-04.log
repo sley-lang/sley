@@ -1,0 +1,70 @@
+DISPATCH 700fuzz-ariadne-contract forge-ariadne-700fuzz-ariadne-contract-20260904T070826 2026-09-04T07:08:26Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+## status
+
+**FAIL** — one P0. Read-only pass at `9dc78fe`; no repository mutation, no `cargo`, no `make`.
+
+## findings
+
+### P0 — the extended-family lane cannot reach its own positive assertions
+
+`extended_family_lane(selector, &request)` (`fuzz/targets/vm_canonical_inputs.rs:95`, `:283`) is handed the **outer** `request`, whose `inputs` were built from the *restricted* fixture's `expected_input_types` (`:45-55`, `vm_fixture` types are only `Unit`, `Bool`, `Bytes`, `Text`, `Option<Bool>`, `Result<Bool,Unit>`). The extended fixtures declare their own parameter types (`SInt32×2`, `SInt64×2`, `F64×2`, map `K,V,K,V`, `Bool`, none, none, `Bool`).
+
+`execute_function` lowers first and validates inputs second (`crates/sley-vm/src/execute.rs:363-364`, count/type checks at `:913`, `:927`). Consequences:
+
+- Assertion 2 (restricted refuses) is **sound** — the refusal is a lowering refusal, reached before inputs matter. Good.
+- Assertion 1 (determinism) degrades to `Err == Err` for nearly every draw.
+- Assertion 3 (observation identity) is gated on `Ok(outcome)` and is therefore skipped.
+- E2 (both fixtures), E3, and E4 can **never** execute: no restricted fixture ever produces canonical `SInt32`/`SInt64`/`F64`/`OrderedMap` inputs, and the raw-input lane pairs `raw_type` and `raw_data` independently (`:952`, `:975`), so a matching pair is ~1e-7. E5 and E7a execute only when the outer fixture is 1 or 6 (`Bool×1`); E1-constant and E6 only when the raw lane yields zero inputs.
+
+So the lane demonstrates **per-family lowering judgment**, not the three properties the campaign record claims. The overflow, NaN-canonicalization, map-order, cell, call-stack and contract-violation semantics have no fuzz execution behind them. The E7a comment "both the held and the violated arm are reachable from one byte" (`:569`) is false as written — the predicate operand comes from the outer request.
+
+Fix is small and local: pass the cursor into `extended_family_lane` and build the request from `fixture.fixture.expected_input_types`, then assert `first.is_ok()` under `generous_limits()` so the lane fails loudly if it stops reaching execution.
+
+### P1
+
+1. **The seed corpus family selector is positionally inert** (`scripts/run_vm_persistent_fuzz.py:149-152`). Tracing `Cursor` consumption (`:1116`, wraps mod len): for `[fixture,0,0,0,0,family]+00*64`, byte 5 is the family selector **only for fixture 0**; for fixtures 1–4 and 6 it lands on the multiple-of-three gate and the selector reads filler `0x00` → family 0; for fixtures 5, 7, 8 it lands on the cross-profile toggle → family 0. The `0xFF` variant always resolves to `0xFF % 8 = 7` → family 7, with `inputs = []`. Of 144 designed extended seeds, families 1–6 are seeded by six fixture-0 inputs. With `-runs=256` against a 769-file corpus the smoke is corpus replay with negligible mutation, so per-family execution rests on those six.
+2. **ADR-0039 is stale against the contract it justifies**: header says "draft at revision 7 … slices E1 through E6 implemented, E7 excluded" (`docs/adr/ADR-0039-…:3-5`) while the contract is revision 9 with E7a landed, and the ADR's own decision 6 describes E7a. Freezing a contract/ADR pair that disagree on which slices landed is not acceptable.
+3. **`extended_family_lanes` omits E7a** (six entries beside `extended_family_fixture_count: 8`), and `check_vm_persistent_fuzz_slice.py:107` pins only the count, never the list — the list can drift silently forever.
+4. **The campaign record miscounts what it certifies**: "seven fixtures", "625 to 751 seeds", "752 runs" vs. the tree's 8 fixtures / 769 seeds; its Validation section cites `9acf87d`/`2d1b805`, both of which predate E7a, so **no Tier-2 run is recorded for the 8-fixture state**.
+
+### P2
+
+1. `conformance/vm-extended/v1/rejected.json` is a **container-framing** matrix (`magic`, `format-version`, `truncated`, `trailing-byte`, `callee-count` — 5 mutations). §5 requires "a rejection matrix for each signature rule"; those live only as 44 unit assertions in `crates/sley-vm/src/extended_tests.rs`, outside the drift-gated vector set. Either §5 names that location or the vector file grows.
+2. **`ContractBinding::source` is never interpreted.** `crates/sley-vm/src/extended.rs:701` checks `bindings.len()` only. The fuzz fixture proves the consequence: its binding source is `ContractSource::Parameter(id(base + 1))` (`vm_canonical_inputs.rs:641`), which is the fixture's **block** entity id, not a parameter — and lowering accepts it. §3 E7a's "the binding count equals the parameter count" implies bindings carry meaning they do not. State plainly that operands, not `bindings`, supply predicate arguments and that `source` is uninterpreted under `EXTENDED_V1`.
+3. `runtime_evidence` points at `evidence/runtime/s20-700-vm-input-libfuzzer/evidence.json`, which is gitignored (`.gitignore:6 /evidence/runtime/`) and absent at `9dc78fe`. The "passes with no finding" claim is not verifiable from the frozen tree.
+4. The runner stamps `"scope": "RESTRICTED_TYPED_S20_270_VM_INPUT_BOUNDARY_ONLY"` (`:49`) and the checker pins that exact string, while the summary status says the slice now covers the extended family boundary. The artifact understates itself.
+5. **E7 exclusion has a two-opcode guard.** `extended_tests.rs:718-739` pins `OpcodeUnsupported` for `EffectRequest` (160) and `TestObserve` (145) only; `AdapterInvoke` (161) and `CapabilityNarrow` (162) are unguarded, resting on the `_ =>` arm at `extended.rs:804`.
+6. **Vector coverage is per rule-family, not per opcode.** Across the 21 accepted vectors, `function_ref` (194) and the map accessors `map_get`/`map_contains`/`map_insert`/`map_remove` (37–40) have **neither a vector nor a fuzz fixture**, though §3 E4/E5 specify their result shapes.
+
+### P3
+
+1. §5's "one lane per landed family" never says whether the lane owes per-family or per-opcode duty; say explicitly that lanes carry per-family reachability and that vectors plus the rejection matrix carry per-opcode duty.
+2. §7's heading "Revision 2 clarifications (slice E1)" now carries E2–E6 bullets.
+
+## answers to the open questions
+
+**Q3 (mine) — is a negative lane asserting E7 refusal worth adding before the owners land? No.** A fuzz lane buys adversarial value only where fuzzer-derived input can vary the outcome; the E7 refusal fires at lowering, before any input is read, so a lane would burn corpus on a constant. Two of the four opcodes are already pinned deterministically at `extended_tests.rs:718-739`. The right artifact is not a lane but a **closed-set assertion**: one exhaustive table over every epoch-1 `op` entry asserting *accepted ⇔ landed slice*, so `AdapterInvoke`, `CapabilityNarrow`, and any future half-wired opcode fail the moment they are touched. That is P2 above, and it is strictly stronger than the lane you asked about — note that E7a itself moved from excluded to landed between revisions 8 and 9, which is exactly the drift such a table catches.
+
+**Do the fixtures cover the families the contract requires? By family, yes — now eight fixtures over seven landed families (E1–E6 + E7a), one per family with E2 doubled.** The contract's literal §5 clause is met. Two caveats: the tracked lane list and the campaign record still describe the seven-fixture state (P1.3, P1.4), and per the P0 the coverage delivered is lowering judgment, not execution. Per opcode the fixtures are thin by design — E4's record/variant half has no fixture at all (`definitions` is empty in every extended fixture) and E5 covers 2 of 6 opcodes — which is acceptable only because the vectors carry that duty, and there the two gaps in P2.6 remain.
+
+**Q1 (Vulcan's, since it bears directly on the P0) — pin the exact code; it is not too tight.** Lowering precedes input validation, so the restricted refusal is deterministically `VM_LOWER_OPCODE_UNSUPPORTED` for every extended fixture regardless of the fuzzer's input draw. More to the point, once the P0 fix gives the lane its own request, a bare `is_err()` would start passing on `VM_EXEC_INPUT_COUNT_MISMATCH` — pinning the code is what keeps assertion 2 meaningful after the fix.
+
+**Q2 (Nabu's) — deferred, cross-domain.** One observation for the record: because the E6 callee's blocks and operations sit in the entry's inventories, the per-function narrowing is exercised only by the `call-direct-nested` accepted vector, not by the lane.
+
+## validation
+
+Tier 0, read-only. No build, no test, no `make` target, per the handoff bound. Evidence is source reads at `9dc78fe`: the contract, ADR-0039, the campaign record, `fuzz/targets/vm_canonical_inputs.rs` (full), both scripts, `crates/sley-vm/src/extended.rs:660-729`, `crates/sley-vm/src/execute.rs:328-380/913-929`, both conformance vector files, `machine-summary.json`. The P0 and P1.1 reachability claims are static traces of `Cursor` consumption order, not observed runs — a one-command confirmation would be to instrument the lane with a per-family completion counter and re-run `make vm-persistent-fuzz-smoke`, which I did not run.
+
+## blockers
+
+V1 not run and not applicable to a read-only review. Runtime fuzz evidence unavailable in-tree (P2.3), so the campaign's pass claim could not be independently confirmed.
+
+## return_to
+
+Orchestrator. P0 and P1.1 are Merlin-sized bounded edits in `fuzz/targets/vm_canonical_inputs.rs` and `scripts/run_vm_persistent_fuzz.py`; P1.2–P1.4, P2.1, P2.2, P3 are contract/ADR/record revisions to land before freeze; P2.5 and P2.6 are test/vector additions. Q2 remains with Nabu.
+
+S20_700FUZZ_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["extended_family_lane reuses the outer restricted request, so E2/E3/E4 never execute and the determinism plus observation-identity assertions are unreachable; the lane proves per-family lowering judgment only (fuzz/targets/vm_canonical_inputs.rs:95,283)"],"p1":["seed corpus family selector is positionally inert: byte 5 selects the family only for fixture 0, all other seeds collapse to family 0 or 7 (scripts/run_vm_persistent_fuzz.py:149-152)","ADR-0039 header states revision 7 and E7 excluded while the contract is revision 9 with E7a landed","machine-summary extended_family_lanes lists six entries beside extended_family_fixture_count 8 and the checker pins the count but never the list","campaign record states seven fixtures and 751 seeds against the tree's 8 and 769, and its Tier-2 validation commits predate E7a"],"p2":["conformance/vm-extended/v1/rejected.json is a five-mutation container matrix, not the per-signature-rule rejection matrix section 5 requires","ContractBinding::source is never validated (extended.rs:701) and the fuzz fixture points a binding at a block id; section 3 E7a must state that operands supply predicate arguments","runtime_evidence points into gitignored /evidence/runtime/ and is absent at 9dc78fe","runner stamps scope RESTRICTED_TYPED_S20_270_VM_INPUT_BOUNDARY_ONLY, understating the extended slice","E7 exclusion is guarded only for TestObserve and EffectRequest; AdapterInvoke 161 and CapabilityNarrow 162 need an exhaustive accepted-equals-landed table","function_ref 194 and map accessors 37-40 have neither an accepted vector nor a fuzz fixture"],"p3":["section 5 does not state the lane-versus-vector coverage duty split","section 7 heading says slice E1 but carries E2 through E6 bullets"],"notes":"Fixtures cover all seven landed families by family, but only lowering is exercised; a negative E7 fuzz lane is not worth adding, an exhaustive accepted-equals-landed opcode table is."}
+EXIT=0 2026-09-04T07:14:25Z

@@ -1,0 +1,68 @@
+DISPATCH 520-nabu-architecture forge-nabu-520-nabu-architecture-20260904T062102 2026-09-04T06:21:02Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+## S20-520 architecture review — Nabu
+
+**status: FAIL (findings land as contract revisions before freeze)**
+
+### Verdict on the boundary itself
+
+The composition shape is right and I would approve it unchanged: merge as an ordinary S20-350 candidate on `A` through frozen S20-390 + S20-500 direct-parent CAS, no multi-parent transaction, no direct root/object/receipt/ref write, judgment over S20-510 deltas only, merged root re-judged by S20-250 full closure, conflict as one canonical SCB1 record. The pre-commit `merged_root` checked against the committed head (`MERGE_RESULT_MISMATCH`) is the correct direction of derivation — derived state is a *check*, never authority.
+
+What fails is the **fit against the frozen packages at three concrete seams**, plus **one unenforced precondition** and **two conflict-object defects**. High confidence on the code reading; I did not run `cargo` (instructed), so the three P0s are read-verified, not executed.
+
+### findings
+
+**P0 — blocks freeze**
+
+1. **`AddEntryPoint` cannot create an entity.** The merge-plan table routes "bound in merged, not in `A`, kind 16" to `AddEntryPoint`, and `build_merge_plan` deliberately skips kind 16 in the identity map (`merge.rs:1171-1175`). But frozen `sley-mutate/src/apply.rs:370` implements `AddEntryPoint` via `replace_body`, which does `proposed.get(&target).ok_or(TargetMissing)` (`apply.rs:450-452`). A B-added entry point therefore (a) has no entity to replace and fails at commit, and (b) would carry B's foreign, non-derived `EntityId` into A's repository. No corpus case covers it.
+2. **"no fingerprint claim" is unproducible.** Composed objects are built with `semantic_fingerprint: None` (`merge.rs:1046`), but `replace_body` preserves `current.record().semantic_fingerprint` (`apply.rs:458`). Any J7 composition of an entity whose `A` object carries a fingerprint claim yields plan-root ≠ committed-root → `MERGE_RESULT_MISMATCH`. The contract asserts a property the frozen commit path cannot produce.
+3. **Label breaks symmetry and silently drops a change.** `compose` takes `ours.record().label` (`merge.rs:1045`); label is inside the object preimage. If `A` and `B` carry different labels on a J7 entity, `(O,A,B)` and `(O,B,A)` produce different objects and different merged roots — the "Determinism and symmetry" section is false as written — and B's label change vanishes with no `metadata_overridden` report. That is exactly the *silent lost change* ADR-0028 names as primary risk. Compounding: frozen `CreateEntity` forces `label: None` (`apply.rs:283`), so a labeled added entity also mismatches. The Python oracle models no labels at all, so nothing in the evidence set can catch any of this.
+
+**P1 — must fix before freeze**
+
+4. **Precondition 2 is not enforced.** `judge_merge` never calls `find_common_ancestor`; the ancestor is a caller-asserted `MergeSide`. The spec's `MERGE_ANCESTOR_MISMATCH` condition ("supplied `O` differs from that entry") has no implementation, and 52001 is instead spent in `commit_merge` on `plan.base_transaction_id != ours.transaction_id` (`merge.rs:1726`) — a different condition.
+5. **Collateral entries from theirs' direction carry the wrong `theirs_object`.** In the second tuple `other_side = &a`, so the entry records A's object as both `ours_object` and `theirs_object` (`merge.rs:762-786`). Conflict bytes and `MergeConflictId` are wrong for that direction; the ours/theirs swap symmetry fails. `check_merge_vector.py:217` uses the correct objects — the oracle disagrees with the implementation, so the corpus does not exercise this direction.
+6. **Collateral is not scoped to survivors.** The contract says "checked after J1 through J8 for every identity that survived without conflict"; the loop runs over all of `this.entities` regardless of `conflicts`, so an already-conflicted identity can gain an extra `Collateral` entry and the canonical bytes diverge from the contract.
+7. **Authority leak: unverified `MergeSide`.** All fields are `pub`; `root`, `contract_root`, `test_root`, `policy_root`, `dependency_roots`, `entry_points` are caller-asserted and never proven against `objects`. The ancestor side's anchors become the merged `StateRoot`'s anchors unconditionally (`merge.rs:835-849`), and all three asserted roots are sealed into `MergeConflictId`. Either require verified revisions or state the synthetic-side trust boundary in the contract.
+8. **Collateral "touched" is asymmetric.** Source side counts `Changed | Retyped | Removed`; the dependent side counts only `Added | Changed`. A *retyped* dependent — a strictly stronger edit — is not collateral. This looks unintended, and matters more than the `MetadataOnly` question the campaign record raises.
+
+**P2 — fix before completion**
+
+9. `commit_merge` passes an empty grant slice to both `build_capability_summary_projection` and `CommitInput::new`; no merge needing a capability grant is committable, and the contract states no such bound.
+10. Commit-path failures are downgraded to `MergeError::Commit(String)` via `to_string()`, with `code()` returning `None`. "Exact codes preserved, never remapped" holds as display text only, not as a typed or numeric code.
+11. `commit_merge` commits before `advance_branch`; an advance failure leaves a committed transaction no branch names, with no stated recovery.
+12. The contract says the plan carries workspace, schema epoch, policy root, principal, capability summary, and validation profile. `MergePlan` carries none of them — they arrive from `MergeCommitInput`/`ours` at commit. The plan is not the self-contained candidate described.
+13. **The gates do not make drift impossible.** `check_merge_spec.py` pins stage, the two frozen hashes, the code table, and the reason table — all good. It does *not* pin J1–J8 semantics, the set-valued field list, the collateral rule, or the plan table; those are bound only by heading substrings, so the contract body can change materially and still PASS. `expected["implementation_complete"] = status == COMPLETE_STATUS` is tautological. The three review gates only check that a self-written summary string starts with `PASS`.
+14. No collision rule for a derived `CreateEntity` identity already bound in `A`: the plan's union silently converts it to a `ReplaceEntityVersion` of an unrelated entity instead of failing.
+15. `conformance_registry()` authorizes the merged `StateRoot` in both `judge_merge` and `build_merge_plan`. Name the registry the merge is authoritative over rather than a conformance-named helper.
+16. Evidence gaps: `Closure` has no corpus case (closeout admits it), the symmetric conflicting pair misses the second collateral direction, and labels/fingerprints are outside the oracle's model entirely.
+
+**P3 — editorial**
+
+17. Campaign open questions 1 and 2 are unanswered in the contract text; question 3 is answered in the spec but not in ADR-0028.
+18. `SET_FIELDS` splits `PolicyBinding (17,2)` out of the 12-entry array for no stated reason; the contract lists 13 fields as one class.
+19. Set formula precedence is unstated — write `(O.value ∪ dA.added ∪ dB.added) \ (dA.removed ∪ dB.removed)`.
+20. J2's wording admits mixed classes with the same target object; the implementation requires equal classes (harmlessly, since class is a function of the shared ancestor). Tighten it.
+
+### Answers to the campaign's open questions
+
+- **J6:** keep it. Overriding a metadata-only change with a semantic one, *reported*, is the right call. The problem is not J6 — it is that J7 loses metadata **unreported** (P0 #3).
+- **Collateral and `MetadataOnly`:** yes, include it, but `Retyped` (P1 #8) is the more urgent omission.
+- **Composed label:** neither "A's label" nor "none" is safe. The composed object must be byte-identical to what frozen `replace_body` will produce — A's label *and* A's fingerprint — or the plan must stop precomputing a root the commit path cannot reproduce.
+
+### validation
+
+Read-only inspection at `9dc78fe` in the pinned worktree. Read: `MERGE_V1.md`, `ADR-0028`, `check_merge_spec.py`, campaign record, closeout, `machine-summary.json` merge section, `ERROR_CODES_V1.md` S20-520 paragraph, and targeted regions of `crates/sley-repo/src/merge.rs` (judgment, compose, field/set helpers, plan builder, commit, error model), `crates/sley-mutate/src/apply.rs` (`CreateEntity`, `AddEntryPoint`, `replace_body`), `crates/sley-id/src/lib.rs` (`EntityId::derive`), and `scripts/check_merge_vector.py` (collateral/label coverage). No cargo, no repository mutation, no fixture regeneration.
+
+### blockers
+
+None for the review. The three P0s are read-verified against frozen source; each should be confirmed by a targeted test (labeled added entity, fingerprint-bearing J7 entity, B-added entry point) before the revision lands.
+
+### return_to
+
+orchestrator
+
+S20_520_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["AddEntryPoint cannot create an entity: frozen apply.rs replace_body requires an existing target, and kind 16 is skipped by the identity remap, so a B-added entry point is unexecutable and would carry a foreign EntityId","Composed objects specify no fingerprint claim but frozen replace_body preserves A's semantic_fingerprint, forcing MERGE_RESULT_MISMATCH on any fingerprint-bearing J7 entity","Composed object takes A's label, so merge is not symmetric when labels differ and B's label change is silently dropped with no metadata_overridden report; frozen CreateEntity also forces label None"],"p1":["judge_merge never enforces the exact-common-ancestor precondition; MERGE_ANCESTOR_MISMATCH is spent on a different condition in commit_merge and the spec's 52001 case is unimplemented","Collateral entries from theirs' direction record A's object as theirs_object (other_side = &a), corrupting conflict bytes and MergeConflictId; the Python oracle disagrees, so the corpus misses this direction","Collateral is applied to every identity instead of only those that survived J1-J8 without conflict, diverging from the contract's canonical conflict bytes","Authority leak: MergeSide is an all-public struct whose roots and record anchors are caller-asserted, never proven against objects, yet become the merged root's anchors and are sealed into MergeConflictId","Collateral counts only Added|Changed on the dependent side while counting Changed|Retyped|Removed on the source side, so a retyped dependent is never collateral"],"p2":["commit_merge passes an empty grant slice, so no merge needing a capability grant is committable and the contract states no such bound","Commit-path failures are downgraded to MergeError::Commit(String) with code() returning None, so exact codes survive only as display text","commit_merge commits before advance_branch with no stated recovery if the branch advance fails","MergePlan carries none of the workspace, epoch, policy root, principal, capability summary, or validation profile the contract says it carries","check_merge_spec.py does not bind J1-J8, the set-field list, the collateral rule, or the plan table; implementation_complete is tautological and the review gates only check a self-written PASS prefix","No collision rule for a derived CreateEntity identity already bound in A: the plan silently becomes a ReplaceEntityVersion of an unrelated entity","conformance_registry() authorizes the merged StateRoot in the production merge path and should be named as the repository's registry","Evidence gaps: no Closure corpus case, no symmetric second-direction collateral case, and the oracle models neither labels nor fingerprints"],"p3":["Campaign open questions 1 and 2 unanswered in the contract; question 3 answered in the spec but not in ADR-0028","PolicyBinding (17,2) split out of SET_FIELDS with no stated reason though the contract lists 13 fields as one class","Set-composition formula precedence unstated; write (O union added) minus (removed union removed)","J2 wording admits mixed change classes with the same target object while the implementation requires equal classes"],"notes":"Composition shape over the frozen packages is correct and should stand; three P0 seams (AddEntryPoint create path, fingerprint claim, label) make the contract unproducible against frozen sley-mutate apply, and the ancestor precondition plus two conflict-object defects need contract revisions. Staged checker pins stage and identity but not the judgment rules, so rule drift is unguarded. Read-only at 9dc78fe; no cargo run."}
+EXIT=0 2026-09-04T06:27:06Z

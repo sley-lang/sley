@@ -1,0 +1,77 @@
+DISPATCH 750-nabu-architecture forge-nabu-750-nabu-architecture-20260904T082425 2026-09-04T08:24:25Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record in parallel.
+
+Read-only review complete at `9dc78fe`. No repo mutation, no cargo, no make.
+
+## status
+**FAIL** — two P0 defects. Both are contract/implementation divergences on the dossier's central claim, so they must land as revisions before freeze.
+
+## findings
+
+### P0-1 — the decision state is not derived from the entries
+`derive_decision(sources, entries)` (`scripts/build_decision_dossier.py:407`) accepts `entries` and never references it; the tests pass `[]` (`test_decision_dossier.py:117,128,135`). Contract §3 line 117 says the state derives "from the entries and the sources," and ADR-0043 decision 3 repeats it. It derives from sources only.
+
+The consequence is not cosmetic: **no rule forbids `PASS` while entries are `GATED`.** A tree with 30 gated items reaches `PASS` if the six source conditions clear. The intent exists but lives in the checker (§6 requires every entry `EVIDENCED` for `S20_750_COMPLETE`), not in the derivation the contract describes. Fix: either add `gated > 0` as a §3.1 blocking reason, or cap a dossier with any gated non-optional entry at `ALPHA_COMPLETE`.
+
+### P0-2 — variable shadowing silently zeroes the blocked-license count
+`build_entries` binds `inventory = sources["inventory"]` at line 103, then rebinds `inventory = sources["inventory_of_tests"]` at line 105. The SBOM entry (lines 331–337) iterates `inventory.get("packages", [])` against the **test** inventory, which has no `packages` key.
+
+Tracked result: `license_disposition_blocked: 0`. Actual `evidence/security/T52/pre-release-inventory.json`: **19 packages at `BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT`** (of 43). The entry reads `EVIDENCED` and cites a source it never opens.
+
+Nothing catches this. `--check` compares derived-to-derived; the digest covers derived entries; no test binds a value to its cited source. This is precisely the "drift into optimism" ADR-0043 claims the dossier prevents. The decision state is unaffected today only by luck — `BLOCKED` arrives via `root_license_text_approved is not True`.
+
+### Your assigned question — should the dossier read only derived reports, summary reduced to a pointer index?
+
+**Directionally yes, but reject the naive form.** Grounds:
+
+- 15 of 24 evidenced entries cite the summary; the other 9 citations spread across 9 reports. A pointer index needs ~15 new derived reports, most with no originating producer. Unbudgeted, and it invents sources of truth rather than pointing at them.
+- The real defect is a **cycle**: `sync_evidence_counters.py:43-54` writes `evidenced_items`, `gated_items`, `decision_state`, `decision_reasons` back into `machine-summary.json`, which is the dossier's primary source. Today it is benign — the dossier reads no `decision_dossier` field — but it is unguarded, and it is why the code comment at line 486 must special-case the digest to cover derived entries instead of source bytes.
+- The summary is also a mixed artifact: partly hand-maintained, partly machine-synced. §7 forbids narrative sources; a hand-maintained rollup is narrative-adjacent and the contract silently exempts it.
+
+**Recommended cut:** classify each summary field `ORIGINATED` (frozen facts recorded nowhere else — `legacy_freeze`, `schema_epoch`, `ssmc1`, succession methodology) versus `MIRRORED` (counters copied from a derived report — conformance, adversarial, crash recovery, register counts, dossier counters). The dossier may read `ORIGINATED` only; `MIRRORED` fields must come from the originating report, and the summary's write-back sections are declared non-inputs. That breaks the cycle, bounds the migration to ~6 entries, and lets the digest cover source bytes for the derived reports. Confidence: high on the cycle; medium-high on this cut over full pointer-index.
+
+### Your assigned question — is §3 precedence complete?
+
+**No.** Beyond P0-1:
+
+- **§3.2 `FAIL` is largely unreachable.** "A required gate fails" is pre-empted by §3.1, which sends any gate `!= "OPEN"` to `BLOCKED`. A *failing* gate and an *unimplemented* gate are indistinguishable, and neither reaches `FAIL`. "Recorded evidence contradicts the design" has no implementation. This is the substance of Vulcan's open question 3: the ladder cannot express "built and failing."
+- **§3.4 `CONDITIONAL_PASS` is unreachable as written.** Any declared open P2 short-circuits to `FAIL` at §3.2, so an "explicitly approved non-correctness P2" must simultaneously not be a declared open P2 — a disjointness no source defines. The key it reads, `approved_conditional_items`, is absent from `machine-summary.json` and from the §2 source list. Its second clause, "a material evidence limitation," is unimplemented.
+- **`DOSSIER_DECISION_INVALID` (76002) is dead by construction** — `PASS` requires the gate `OPEN`; the guard fires only when closed. Untested.
+
+<details>
+<summary>Remaining P1/P2/P3 detail</summary>
+
+**P1-3** — `evidence` lists are hand-asserted parameters of `entry()`, never derived from the reads that produced the value. The only test asserts the paths exist (`test_decision_dossier.py:49-55`). P0-2 is a symptom; this is the disease.
+
+**P1-4** — `entry()` infers `GATED` from `value is None` (line 90). A renamed or dropped key in a source resolves through `.get()` to `None` and silently converts an `EVIDENCED` item to `GATED` while keeping a note that reads as resolved (e.g. `schema_epoch.bootstrap_schema_epoch_id`). A missing key in a present source must be `DOSSIER_SOURCE_INVALID`, not silent gating.
+
+**P1-5** — Nested-null fail-open: a non-None object whose sub-fields are all null reads `EVIDENCED`. `final state-root demo identifiers` would read `EVIDENCED` with two null sub-keys. Today only `fuzz duration and findings` carries a null sub-field, but nothing bounds it. This is the structural half of Ariadne's open question 1 — a `PARTIAL` state, or a per-entry required-field list, would close both.
+
+**P1-8** — Revision incoherence, unchecked: contract header says revision 2; ADR says revision 1; campaign record says revision 1; `machine-summary.json` says `contract_revision: 4`. `contract_revision` appears nowhere in `scripts/` or `docs/` — nothing verifies it.
+
+**P2-10** — Non-`BLOCKED` reasons are generic ("an open P0, P1, or P2 finding is recorded"), against §4's "ascending list of exact reason strings." Only the `BLOCKED` branch names counts.
+
+**P2-11** — `release decision state` is `GATED` while the same document carries `decision_state: BLOCKED`. The note should distinguish derived state present / operator decision absent.
+
+**P2-12** — Campaign record "Result at this commit" is stale: says 23/11 and "sixty-three open review obligations"; tracked dossier says 24/10 and 75.
+
+**P2-13** — §2 omits `conformance/state-root/v1/accepted.json`, which entry 7 cites as evidence. §1's "or a tracked conformance fixture" covers it loosely; §2 should list it.
+
+**P3-14** — §8 reads "Revision 1 carries none" in a revision-2 document.
+**P3-15** — ADR status line still reads "draft at revision 1."
+**P3-16** — `relative()` (line 82) is a pass-through alias for `display()`.
+
+</details>
+
+## validation
+Read-only: `git log -1` (confirmed `9dc78fe`), targeted reads of contract, ADR, campaign record, 3 scripts, 1 test file, and Python inspection of `decision-dossier.json`, `test-inventory.json`, `pre-release-inventory.json`, `machine-summary.json`. No cargo, no make, no test execution, no writes.
+
+## blockers
+None. Both P0s are fixable in the contract text plus a bounded script change; neither requires a Council lane.
+
+## return_to
+Codex / S20-750 orchestrator.
+
+S20_750_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["derive_decision ignores its entries argument; contract S3 and ADR-0043 decision 3 both claim the state derives from the entries, so no rule forbids PASS while entries are GATED","variable shadowing at build_decision_dossier.py:103/105 makes the SBOM and license entry read the test inventory instead of the license inventory; license_disposition_blocked is 0 in tracked evidence while 19 packages are BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT, and the entry cites a source it never reads"],"p1":["entry evidence lists are hand-asserted parameters, never derived from the reads that produced the value, and no test binds a value to its cited source","entry() infers GATED from value is None, so a missing or renamed key in a present source silently regrades an EVIDENCED item to GATED with a note that reads as resolved; it must be DOSSIER_SOURCE_INVALID","nested-null fail-open: an object value whose sub-fields are all null still reads EVIDENCED, so an entry can be evidenced while carrying no facts","S3.2 FAIL is unreachable for a failing gate because S3.1 sends any gate not OPEN to BLOCKED, making a failing gate and an unimplemented gate indistinguishable; the contradicts-the-design clause is unimplemented","S3.4 CONDITIONAL_PASS is unreachable because any declared open P2 short-circuits to FAIL at S3.2, and its key approved_conditional_items exists in no source and no S2 source list; the material-evidence-limitation clause is unimplemented","revision incoherence unchecked: contract says revision 2, ADR says revision 1, campaign record says revision 1, machine summary says contract_revision 4, and contract_revision appears nowhere in scripts or docs","the dossier reads machine-summary.json while sync_evidence_counters.py writes dossier counters back into it; the cycle is unguarded and the contract must declare the summary write-back sections non-inputs"],"p2":["DOSSIER_DECISION_INVALID 76002 is dead by construction because PASS requires the gate OPEN while the guard fires only when closed, and no test covers it","non-BLOCKED decision reasons are generic strings, against S4's requirement of exact reason strings","the release decision state item is GATED while the same document carries decision_state BLOCKED; the note must distinguish derived state present from operator decision absent","campaign record result section is stale: 23 evidenced and 11 gated and sixty-three obligations, versus tracked 24 and 10 and 75","S2 omits conformance/state-root/v1/accepted.json, which entry 7 cites as evidence"],"p3":["S8 reads 'Revision 1 carries none' inside a revision-2 document","ADR-0043 status line still reads draft at revision 1","relative() is a pass-through alias for display()"],"notes":"Read-only at 9dc78fe; no cargo, no make, no writes. Open question 2: reject the naive pointer-index; adopt an ORIGINATED versus MIRRORED field split so the dossier reads the summary only for facts it originates, which breaks the sync_evidence_counters cycle and bounds migration to about six entries. Open question 3 answer belongs to Vulcan but the FAIL branch defect above is its root cause."}
+EXIT=0 2026-09-04T08:27:40Z

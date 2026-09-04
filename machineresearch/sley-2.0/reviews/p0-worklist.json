@@ -1,0 +1,538 @@
+{
+  "contract": "sley2.review-round-p0-worklist.v1",
+  "round": "2026-09-04",
+  "candidate_commit": "9dc78fe",
+  "count": 106,
+  "findings": [
+    {
+      "package": "260",
+      "reviewer": "ariadne",
+      "finding": "Map values are canonical only when the VM builds them: S20-210 check_map_constant imposes no key order, inputs and constant_ref/global_get maps are never normalized, so equal/not_equal over maps is representation equality and the S20-250 success value hash and observation identity depend on entry order; the claim 'exactly as constants require' is false"
+    },
+    {
+      "package": "260",
+      "reviewer": "ariadne",
+      "finding": "Signed int_shl_checked at width 128 amount 127 is inverted against the E2 rule: the multiplier 1_i128<<127 wraps to i128::MIN, so 1 shl 127 yields Value(MIN) where the rule requires overflow code 1 and -1 shl 127 yields overflow where the rule requires Value(MIN); tests cover widths 8 and 32 only"
+    },
+    {
+      "package": "260",
+      "reviewer": "vulcan",
+      "finding": "cell table contents are never charged value units and the table has no cap; cell_new in a back-edge loop over a loop-invariant register clones a full aggregate per iteration while charging only the LocalCell handle (extended.rs:1316-1320, execute.rs:899, no MAX_CELLS), so host memory exhausts with the budget intact and contract E5's 'contents count as live value units' is false; any fix changes peak_value_units and therefore every observation identity, so it cannot land after freeze"
+    },
+    {
+      "package": "300",
+      "reviewer": "ariadne",
+      "finding": "Exchange import preserves a pre-existing index/v1 cache file (exchange.rs:79 allowlist, test at exchange.rs:2411), so a cloned repository adopts a cache it never wrote; contract section 5 bound 'same local filesystem authority as objects, receipts, and refs' is false on that path. Require import to clear index/ and document the allowlist entry as tolerated-and-removed."
+    },
+    {
+      "package": "300",
+      "reviewer": "nabu",
+      "finding": "exchange import allowlists index/ into an incomplete-clone target and neither verifies nor purges it (exchange.rs:71,2411), so unverified cache bytes survive a resume and the contract section 5 bound 'same local filesystem authority as objects, receipts, and refs' is false; import must delete index/ or refuse the target"
+    },
+    {
+      "package": "310",
+      "reviewer": "ariadne",
+      "finding": "charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule cannot derive the implemented per-class constants (GetEntity 3, GetSemanticFingerprint 2, len(exports), len(dependency_roots)); the oracle reproduces the implementation, not the contract, and S20-320 already binds these bytes"
+    },
+    {
+      "package": "310",
+      "reviewer": "ariadne",
+      "finding": "class-kind applicability table required by ADR-0030 decision 1 and section 9 is absent from the contract; class_applies_to constrains only classes 6,7,8,18 so classes 16,17,19 silently accept every kind"
+    },
+    {
+      "package": "310",
+      "reviewer": "nabu",
+      "finding": "Section 1 input binding checks only shape agreement and leaves seven root-committed answer-bearing facts caller-declared: the bound ObjectIds (class 2), facts.entry_points (class 10), facts.dependency_roots (class 11), and contract_root/test_root/policy_root (class 1), none of which are in the RootQueryId preimage; verify() must recompute the StateRoot from the nine STATE_ROOT_V1 fields (adding interpretation_flags to RootQueryInput) and fail QUERY_ROOT_MISMATCH; sley-state-root depends only on sley-id/sley-scb1/sley-schema so sley-query can take it with no dependency cycle"
+    },
+    {
+      "package": "310",
+      "reviewer": "nabu",
+      "finding": "Section 4 work-charging rule does not generate the implementation's per-class numbers (GetEntity flat 3, GetSemanticFingerprint flat 2, ListOwningNamespaces zero for a namespace subject vs a full entity scan otherwise, ListDirectDependencies charging every snapshot edge), yet charged_work is a frozen SLEYRQR1 field, so the record is reproducible only from the code and not from the contract; freeze an exact per-class charging schedule or remove charged_work from the record"
+    },
+    {
+      "package": "320",
+      "reviewer": "ariadne",
+      "finding": "Section 6 capsule_preimage omits u64be(response_bytes) between option(cursor,next_after) and the copied SLEYRQR1 record; context_capsule.rs:599 and check_context_capsule_vector.py:225 both emit it, so a contract-exact reader derives a different ContextCapsuleId for every vector"
+    },
+    {
+      "package": "320",
+      "reviewer": "ariadne",
+      "finding": "Section 11 still excludes the Negotiated arm as reserved and not constructible while section 2 makes it constructible via build_context_capsule_bound; the text being frozen contradicts itself"
+    },
+    {
+      "package": "320",
+      "reviewer": "nabu",
+      "finding": "Section 6 preimage omits the u64be(response_bytes) prefix emitted before the copied record by context_capsule.rs:599 and oracle line 225; freezing it freezes a format no artifact produces"
+    },
+    {
+      "package": "320",
+      "reviewer": "nabu",
+      "finding": "S20-330 commit a0c9a70 amended the unfrozen under-review contract to revision 2 and relaxed the stage checker while ADR-0031, the campaign record and the closeout still state the fixed-None reserved-arm rule; the checker requires both sides and reports PASS"
+    },
+    {
+      "package": "320",
+      "reviewer": "nabu",
+      "finding": "The revision-2 Negotiated arm has no conformance vector, no oracle path (session_binding hardcoded to NONE at oracle:252) and no fuzz coverage, so section 10 evidence is unmet"
+    },
+    {
+      "package": "320",
+      "reviewer": "vulcan",
+      "finding": "build_context_capsule_bound is a public constructor whose session binding is entirely caller-declared: it compares response provenance only against the caller's own arguments, so any SessionId is mintable into the master capsule identity, contradicting the contract authority rule, ADR-0031 decision 3, contract section 11, campaign line 33 and closeout line 19 which all say the Negotiated arm is reserved and not constructible"
+    },
+    {
+      "package": "320",
+      "reviewer": "vulcan",
+      "finding": "Contract section 6 canonical preimage omits u64be(response_bytes) before the copied SLEYRQR1 record and never defines bytes(...); implementation context_capsule.rs:599 and oracle check_context_capsule_vector.py:226 both emit it, so section 6 as written derives a different ContextCapsuleId than every accepted vector"
+    },
+    {
+      "package": "330",
+      "reviewer": "ariadne",
+      "finding": "SESSION_UNKNOWN 33000 unreachable: SMP1 RequestRegistry::admit and the S20-440 budget gate precede the binding checks, so an unknown session answers PROTOCOL_REQUEST_ID_CONFLICT and a closed one PROTOCOL_SESSION_CLOSED; SESSION_BINDING_INVALID 33007 is specified for a headless repository but session.open answers the S20-390 loader failure there, and 33007 actually means ordinal exhaustion, duplicate identity, or bindings/kinds misalignment"
+    },
+    {
+      "package": "330",
+      "reviewer": "ariadne",
+      "finding": "Cannot freeze on unfrozen composed authorities: SMP1 is draft revision 8 and CONTEXT_CAPSULE_PROFILE_V1 is draft revision 2, the contract pins no revision for SMP1 or STATE_ROOT_V1, SMP1 moved 5 to 8 underneath it including the execute body the contract made head-bound, and ERROR_CODES_V1 says 33000-33007 are reserved rather than frozen, contradicting section 6"
+    },
+    {
+      "package": "330",
+      "reviewer": "ariadne",
+      "finding": "Authority rule false as written: SessionId is a deterministic digest of facts any caller of the same server can obtain, so a second caller can compute a live SessionId and spend, renew, or close another caller's session; check_session tests membership not ownership; determinism across servers and unpredictability are mutually exclusive and the contract must choose - identity-domain decision routed to Nabu"
+    },
+    {
+      "package": "330",
+      "reviewer": "nabu",
+      "finding": "Sessionless workspace.create/exchange.import exemption is unconditional in contract section 3 and server.rs:435-445, not gated on absence of an accepted head; exchange.import mutates the repository and advances the head with no session, bypassing the workspace (T47), epoch, admission, request-id and budget checks and invalidating every live session's bound root"
+    },
+    {
+      "package": "330",
+      "reviewer": "vulcan",
+      "finding": "Positional handles survive renewal: expand_handle only compares bound_root to head, so after session.renew the same handle numeral resolves to a different entity under the new root with no error; contract 2 and 4 contradict 7, and THREAT_REGISTER T15 handle-reuse-across-roots is not closed. Fix: handle.expand must carry the expected StateRoot, checked server-side."
+    },
+    {
+      "package": "330",
+      "reviewer": "vulcan",
+      "finding": "SessionId is a digest of public state only (handshake, workspace, root, epoch, small ordinal) with no per-instance or per-peer binding; server_tests.rs:1058-1072 asserts a twin server issues the identical id, and a restarted server re-mints it. Any peer that can read head state can name another peer's session and close it, drain its budget, or expand handles under its binding, so the contract's rule that nothing a caller declares can substitute for the binding is false as written."
+    },
+    {
+      "package": "360full",
+      "reviewer": "ariadne",
+      "finding": "CANDIDATE_RESULT_V1 section 9, ADR-0044 point 4, and the closeout addendum claim every E7 opcode is refused by its own phase owner and the phase 12 guard is unreachable; verified false for 144, 160, 161, 162 whose owners (validate_contract_assertions, validate_request, validate_adapter_invoke, validate_capability_narrow) return Ok for well-formed instances, so the guard is primary not defense in depth; only 145 is unconditionally refused"
+    },
+    {
+      "package": "360full",
+      "reviewer": "ariadne",
+      "finding": "resource_and_unsupported_operation_analysis_fail_closed builds every E7 case with empty contracts/effects/operands, so it proves only that ill-formed E7 operations are refused; it does not support the general reachability claim it is cited for in section 9, the ADR, the closeout, and the campaign record"
+    },
+    {
+      "package": "360full",
+      "reviewer": "vulcan",
+      "finding": "Phase 12 guard is reachable through well-typed opcodes 144, 160, 161, 162; CANDIDATE_RESULT_V1 section 9, ADR-0044 decision 4, and the closeout addendum all assert unreachability that the code contradicts"
+    },
+    {
+      "package": "390extended",
+      "reviewer": "ariadne",
+      "finding": "TRANSACTION_MODEL_V1.md:13-19 Authority boundary still restricts the profile to programs with no semantic operation entities, contradicting revision 2 at :159-171 and codec.rs:702-703"
+    },
+    {
+      "package": "390extended",
+      "reviewer": "ariadne",
+      "finding": "Profile 1 restated as 'no operation analysis ran in the transaction' (:157,:164; ADR-0045:26-27) is false for ordinary operation-free commits: candidate_validation.rs:806-856 calls judge_function_operations for every function unit and operation_analysis_supported() is vacuously true at candidate_program.rs:207-212, so the analysis runs and judges zero operations"
+    },
+    {
+      "package": "390extended",
+      "reviewer": "nabu",
+      "finding": "Authority boundary paragraph (TRANSACTION_MODEL_V1.md:13-15) still says only operation-free programs commit, contradicting revision 2 and repository.rs:1901-1902"
+    },
+    {
+      "package": "390extended",
+      "reviewer": "nabu",
+      "finding": "Decoder rule is kind-agnostic (codec.rs:702-706, transaction_receipt.py:353): a trusted genesis asserting semantic profile 2 decodes and imports, so ADR-0045 decision 4 is unenforceable once frozen"
+    },
+    {
+      "package": "400",
+      "reviewer": "ariadne",
+      "finding": "Cancellation is doubly normative and self-contradictory: section 7 and appendix B freeze batch admission where method 603 and flag bit 0 cancel a not-yet-executed request, while appendix A row 603 and the S20-410 closeout state the server answers every request before reading the next frame so cancel is always a no-op"
+    },
+    {
+      "package": "400",
+      "reviewer": "ariadne",
+      "finding": "Section 6 freezes 'the exact stable numeric code' and the preamble authority rule while the S20-410 closeout records validation, candidate, state-root, policy-root and pack failures all carrying numeric 0 on the wire; appendix A understates this as pack-only and assigns closure to S20-560 rather than S20-350/S20-360/S20-110"
+    },
+    {
+      "package": "400",
+      "reviewer": "ariadne",
+      "finding": "scripts/check_smp1_contract.py line 147 raises implementation-before-stage when status is S20_400_CONTRACT_FROZEN and crates/sley-protocol exists, which it does, so setting the freeze status makes the gate FAIL; the three-review requirement of section 10 is also enforced only at COMPLETE_STATUS, permitting a freeze with all reviews PENDING"
+    },
+    {
+      "package": "400",
+      "reviewer": "nabu",
+      "finding": "SelectedProfile record and selected_profile_preimage are never defined in SMP1.md; ProtocolHandshakeId, the entire T45 root of trust, is canonically defined only in crates/sley-protocol/src/lib.rs and differently in the downstream S20-420 bridge doc"
+    },
+    {
+      "package": "400",
+      "reviewer": "nabu",
+      "finding": "The frame envelope's schema_epoch ('the protocol schema epoch of section 1') is given no value or registry reference in section 1 and is never distinguished from the negotiated content schema_epoch, yet a frame is rejected on epoch mismatch"
+    },
+    {
+      "package": "400",
+      "reviewer": "vulcan",
+      "finding": "T45 downgrade detection unspecified: selected_profile_preimage undefined in-contract and ProtocolHandshakeId digests only the server's asserted selection, so a tampered client hello is undetectable; bind both hello preimages and mandate per-peer re-derivation"
+    },
+    {
+      "package": "400",
+      "reviewer": "vulcan",
+      "finding": "Section 7 plus appendix B batch cancellation contradicts appendix A row 603 and the shipped server, making cancel a permanent no-op"
+    },
+    {
+      "package": "400",
+      "reviewer": "vulcan",
+      "finding": "Appendix C gc.collect retention snapshot omits Tag, Lease, ProtectedRoot, and PackManifest anchors and every non-calling session's pin, so one session collects another session's bound root (T15)"
+    },
+    {
+      "package": "420",
+      "reviewer": "ariadne",
+      "finding": "Section 8 clause '-0 reads as the integer zero' is false: serde_json 1.0.145 renders -0 as F64(-0.0) so the crate returns JSON_BRIDGE_NUMBER_INVALID, while the Python oracle accepts it as zero; no test or vector covers the divergence"
+    },
+    {
+      "package": "420",
+      "reviewer": "nabu",
+      "finding": "bridge answers JSON_BRIDGE_SHAPE_INVALID for the SMP1 hello header rule the codec already judges PROTOCOL_FRAME_INVALID; contract section 8 contradicts section 3, SMP1 section 8 no-semantic-validation, and ADR-0034 decision 5; removing the check without routing through codec validate turns it into silent header rewriting"
+    },
+    {
+      "package": "420",
+      "reviewer": "vulcan",
+      "finding": "precedence 'field encodings in field order' is undefined: contract section 1 defines field order as lexicographic, but lib.rs frame_from_value, the oracle, and vectors number-before-hex-in-field-order and hex-before-method-in-field-order all encode declaration order, so a contract-conformant reader fails the matrix and the oracle is not independent on precedence"
+    },
+    {
+      "package": "420",
+      "reviewer": "vulcan",
+      "finding": "integer field widths are undeclared: section 2 types all fields as 'integer' but readers demote protocol_version, max_depth, max_inflight, reached_depth, code and phase to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract"
+    },
+    {
+      "package": "430",
+      "reviewer": "ariadne",
+      "finding": "--json ORs FEATURE_JSON_BRIDGE into the offered hello (cli lib.rs:270) which negotiate feeds to Server::new; features are digested into SelectedProfile::preimage field 5 and thence handshake_id and derive_session_id, so a transport flag can change semantic session identity, contradicting the 'owns no semantics' claim in section 1 and master goal 22.6"
+    },
+    {
+      "package": "430",
+      "reviewer": "ariadne",
+      "finding": "Section 6 requires JSON-mode responses byte-identical to a direct Server but tests/cli.rs:247-258 compares only method, request_id, bounds and body length; the closeout blames json_bridge entering the handshake digest, yet the fixture client hello is Server::offered_hello() without that bit and negotiate intersects it away, so either the weakened comparison masks an unidentified divergence or the recorded rationale is false"
+    },
+    {
+      "package": "430",
+      "reviewer": "nabu",
+      "finding": "byte-mode stdout is never flushed and main exits via process::exit; all 25 tests drive run() over Vec<u8>, so the sley binary and the process boundary S20-620 consumes have zero evidence"
+    },
+    {
+      "package": "430",
+      "reviewer": "vulcan",
+      "finding": "endpoint mutates Server::offered_hello with FEATURE_JSON_BRIDGE under --json; negotiate folds it into SelectedProfile so handshake_id and SessionAuthority change with a transport flag; contradicts ADR-0035 no-semantics claim; offer json_bridge always"
+    },
+    {
+      "package": "510",
+      "reviewer": "ariadne",
+      "finding": "body_delta fields base_blocks/target_blocks/base_operations/target_operations have no derivation rule in the contract yet feed the identity preimage; owned_inventory uses inconsistent block ownership (back-reference for blocks, forward list for operations and block parameters), so independent implementations yield different SemanticDeltaId"
+    },
+    {
+      "package": "510",
+      "reviewer": "nabu",
+      "finding": "collateral seed rule in contract \u00a75 excludes unchanged-with-body-delta functions that compare.rs:690 and the oracle both seed; collateral is hashed into SemanticDeltaId so conforming implementations diverge"
+    },
+    {
+      "package": "510",
+      "reviewer": "nabu",
+      "finding": "no frozen digest binds the contract's derivation semantics (change classes, field table, relation rule, collateral formula, ordering, code table); the stage checker binds ~19 substrings, not content"
+    },
+    {
+      "package": "510",
+      "reviewer": "nabu",
+      "finding": "DeltaSchemaEpochId is unpinned and inherits EpochLimits::EPOCH_1/UnicodeVersion::EPOCH_1; the oracle reads it from the artifact under test at stored[11:43]"
+    },
+    {
+      "package": "520",
+      "reviewer": "ariadne",
+      "finding": "Plan rule 'AddEntryPoint for kind 16' cannot bind a new entity: frozen apply path replace_body requires a live target (sley-mutate/apply.rs:450), so any merge adding an EntryPoint is rejected; kind-16 exemption also keeps theirs' identity in ours, violating S20-345"
+    },
+    {
+      "package": "520",
+      "reviewer": "ariadne",
+      "finding": "Creation-ordinal rule contradicts S20-345/S20-360: contract derives identities in judged raw-ID order but emits operations in remapped raw-ID order, while candidate_validation.rs:1237-1271 assigns create_ordinal by CreateEntity operation position; two or more created entities generally fail InvalidIdentity; untested (only one create in the repo test)"
+    },
+    {
+      "package": "520",
+      "reviewer": "ariadne",
+      "finding": "Theirs-side collateral entries take theirs_object from ours (merge.rs:762-787 binds other_side=&a on the second pass), diverging from the frozen oracle (check_merge_vector.py:217); canonical conflict bytes and MergeConflictId differ between the two authorities and the symmetry claim fails"
+    },
+    {
+      "package": "520",
+      "reviewer": "nabu",
+      "finding": "AddEntryPoint cannot create an entity: frozen apply.rs replace_body requires an existing target, and kind 16 is skipped by the identity remap, so a B-added entry point is unexecutable and would carry a foreign EntityId"
+    },
+    {
+      "package": "520",
+      "reviewer": "nabu",
+      "finding": "Composed objects specify no fingerprint claim but frozen replace_body preserves A's semantic_fingerprint, forcing MERGE_RESULT_MISMATCH on any fingerprint-bearing J7 entity"
+    },
+    {
+      "package": "520",
+      "reviewer": "nabu",
+      "finding": "Composed object takes A's label, so merge is not symmetric when labels differ and B's label change is silently dropped with no metadata_overridden report; frozen CreateEntity also forces label None"
+    },
+    {
+      "package": "520",
+      "reviewer": "vulcan",
+      "finding": "Common-ancestor precondition unenforced: find_common_ancestor never called by judge_merge/build_merge_plan/commit_merge; protocol merge_judge (server.rs:745) and merge_commit (server.rs:1120) accept caller-chosen O; O=A empties dA so all of B takes the J1 path with zero conflicts and ours' changes are silently overwritten by a committed transaction"
+    },
+    {
+      "package": "620",
+      "reviewer": "ariadne",
+      "finding": "Affordances are the endpoint's full 39-method offer including exchange.export, an entire-store dump master goal 20.10 forbids; freeze an explicit per-arm allowlist and record its digest as a run control"
+    },
+    {
+      "package": "620",
+      "reviewer": "ariadne",
+      "finding": "invalid_candidates and repair_loops derive from SMP1 flags.failed, which marks ProtocolFailure envelopes, not S20-360 candidate results; the arm will read zero invalid candidates in its own favor"
+    },
+    {
+      "package": "620",
+      "reviewer": "ariadne",
+      "finding": "context_bytes counts only capsule and query bodies while the agent also receives refs.list, handle.expand, diagnostics and candidate.inspect bodies; master goal 21.6 forbids unreported extra context, count every response and event body and report capsule_bytes separately"
+    },
+    {
+      "package": "620",
+      "reviewer": "ariadne",
+      "finding": "The agent's observation overrides the oracle for invalid_committed_states, stale_candidates, stale_candidates_incorrectly_accepted and collateral_semantic_changes; assign every injected metric to exactly one source"
+    },
+    {
+      "package": "620",
+      "reviewer": "ariadne",
+      "finding": "Section 2's 'nothing else existed' is false: handle._exchange.__closure__ exposes the live session, endpoint stdin and trace, and handle_surface's dir() filter cannot see it; state the cooperative-adapter trust boundary instead"
+    },
+    {
+      "package": "620",
+      "reviewer": "nabu",
+      "finding": "Two-operation handle is not a capability boundary: handle.exchange.__func__.__globals__ and handle._exchange.__closure__ expose module globals, the ungated Endpoint, the Trace descriptor and the live session id, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' are false frozen invariants"
+    },
+    {
+      "package": "620",
+      "reviewer": "nabu",
+      "finding": "context_bytes counts only capsule and query.* responses, omitting refs.list, handle.expand, candidate.inspect, compare, revision.read, execute and report bodies, understating the arm under test and breaching master goal 21.6 on unreported extra context"
+    },
+    {
+      "package": "620",
+      "reviewer": "nabu",
+      "finding": "S20-620 rescopes S20-610's run-level execution_mode offline_injected and external_command_policy forbidden by prose in section 9 while starting six or more endpoint processes per run; requires an S20-610 amendment by its owner, not a clarification"
+    },
+    {
+      "package": "620",
+      "reviewer": "vulcan",
+      "finding": "Two-operation handle is not a boundary: adapter reaches runner globals and closure cells (session id, repository path, Popen, trace) via handle.exchange.__func__.__globals__ and handle._exchange.__closure__; spec:66-68 'nothing else existed' and ADR 'mechanically audited' are unsupportable"
+    },
+    {
+      "package": "620",
+      "reviewer": "vulcan",
+      "finding": "Request-field guard is swallowable: guarded_exchange raises into the agent frame, an adapter catching it continues with no trace record, and the trial is recorded completed despite a privileged-context attempt"
+    },
+    {
+      "package": "620",
+      "reviewer": "vulcan",
+      "finding": "Agent adapter self-reports and overrides the oracle for stale_candidates*, collateral_semantic_changes, invalid_committed_states at runner.py:894"
+    },
+    {
+      "package": "620",
+      "reviewer": "vulcan",
+      "finding": "external_command_policy: forbidden and execution_mode: offline_injected are S20-610 run-level shared fairness controls narrowed only by S20-620 prose while the run executes six sley subprocesses; this is the shared-control drift S20-610 rejects"
+    },
+    {
+      "package": "630",
+      "reviewer": "ariadne",
+      "finding": "other_context_metric_max_regression_percent mirrors the context threshold result instead of evaluating the regression cap; contract 9.4 freezes it; existing test case shows 0 percent regression emitted as FAIL"
+    },
+    {
+      "package": "630",
+      "reviewer": "ariadne",
+      "finding": "contract 9.5 and _arm_claims freeze the legacy arm as always NO_CLAIM_CHAIN; a real S20-600 chain would be silently ignored with no failure code"
+    },
+    {
+      "package": "630",
+      "reviewer": "nabu",
+      "finding": "ArmAccounting omits 7 mandatory master goal 21.4 metrics (entities_inspected, relationships_inspected, files_inspected, peak_memory, canonical_storage_bytes, pack_bytes, execution_latency) that the claims already carry"
+    },
+    {
+      "package": "630",
+      "reviewer": "nabu",
+      "finding": "evidence_status is a module constant asserted into the report rather than derived from the claims' own evidence_status/oracle_verification_status/accounting_verification_status, and verify_report binds to that constant"
+    },
+    {
+      "package": "630",
+      "reviewer": "nabu",
+      "finding": "by_class carries only attempted/accepted so section 22.4's per-class collateral condition is underivable, and the unevaluated 22.4 reconstructability and 22.1 capability-bypass conditions are unnamed"
+    },
+    {
+      "package": "630",
+      "reviewer": "nabu",
+      "finding": "no per-seed accounting, forcing S20-640 to re-read and re-verify chains and bypass the boundary"
+    },
+    {
+      "package": "630",
+      "reviewer": "vulcan",
+      "finding": "Contract boundary and report claim to evaluate section 22 while three conditions are never evaluated: 22.1 no effect or capability check bypassed, 22.4 collateral semantic changes no worse than legacy and strictly lower in one multi-entity class, 22.4 accepted mutation reconstructable from base root and receipt; collateral_semantic_changes is summed per arm and never compared; add explicit NOT_EVALUATED entries and narrow the boundary sentence"
+    },
+    {
+      "package": "700fuzz",
+      "reviewer": "ariadne",
+      "finding": "extended_family_lane reuses the outer restricted request, so E2/E3/E4 never execute and the determinism plus observation-identity assertions are unreachable; the lane proves per-family lowering judgment only (fuzz/targets/vm_canonical_inputs.rs:95,283)"
+    },
+    {
+      "package": "700fuzz",
+      "reviewer": "nabu",
+      "finding": "extended_family_lane reuses the restricted fixture's ExecutionRequest; validate_inputs requires exact arity and type equality, so E2 (2x SInt32), E3 (2x F64) and E4 (UInt64/Text x4) never execute and the campaign record claims those exact surfaces"
+    },
+    {
+      "package": "700fuzz",
+      "reviewer": "nabu",
+      "finding": "family-lane seed layout uses fixed byte offsets against a data-dependent cursor: 136 of 144 family seeds collapse to family 0 or 7, and SMOKE_RUNS=256 over a 769-seed corpus makes the smoke a replay with zero mutation rounds"
+    },
+    {
+      "package": "700fuzz",
+      "reviewer": "vulcan",
+      "finding": "extended-family lane reuses the outer fixture's ExecutionRequest, so E2/E3 fixtures fail validate_inputs before any extended opcode executes; no assertion requires a successful extended execution, so claimed E2-E6 semantic coverage and observation_id_rederived are undemonstrated"
+    },
+    {
+      "package": "710full",
+      "reviewer": "ariadne",
+      "finding": "license expressions emitted verbatim; unicode-normalization@0.1.24 carries MIT/Apache-2.0 which is not a valid SPDX expression, so both tracked documents fail strict CycloneDX 1.6 and SPDX 2.3 validation and the contract has no normalization or validation rule"
+    },
+    {
+      "package": "710full",
+      "reviewer": "ariadne",
+      "finding": "SPDX documentNamespace derives from the inventory digest alone, so two different candidates sharing a dependency inventory receive the same document identity; SPDX 2.3 requires a unique namespace per document version"
+    },
+    {
+      "package": "710full",
+      "reviewer": "nabu",
+      "finding": "--check fail-opens when candidate evidence is absent: local_build_ahead() returns True on load_candidate() failure, so on any clean checkout (evidence/runtime is gitignored) both builders exit 0 with LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS and codes 74003/74007 are unreachable; verified at 9dc78fe where tracked provenance names commit ebd40dcb, not HEAD"
+    },
+    {
+      "package": "710full",
+      "reviewer": "nabu",
+      "finding": "Contract section 5 hermeticity claim is false: check_standards_sbom_and_provenance.py returns FAIL with release-tests:fail on a clean tree because all 15 tests require untracked evidence/runtime, and that checker runs in make quick (Makefile:68)"
+    },
+    {
+      "package": "710full",
+      "reviewer": "vulcan",
+      "finding": "--check in both builders is fail-open: local_build_ahead() swallows missing/invalid inventory and candidate evidence into a PASS short-circuit before any document is derived, so codes 74000-74007 are unreachable in check mode and make quick's drift gate is a permanent no-op on any checkout without a candidate build; proven rc=0 PASS at 9dc78fe where evidence/runtime/s20-720-release-candidate/ does not exist; contract section 5 and ADR-0041 consequence 2 assert a guarantee the code does not provide"
+    },
+    {
+      "package": "720",
+      "reviewer": "ariadne",
+      "finding": "Contract 11 makes working-tree cleanliness optional while master goal 26.8 requires it, and MANIFEST.json asserts commit unconditionally; the cited reference artifact was built dirty, so its manifest claims a commit it was not built from"
+    },
+    {
+      "package": "720",
+      "reviewer": "ariadne",
+      "finding": "ADR-0038 consequence 2 and the closeout claim the demo proves master goal 20.12 for every dispatched operation; 20.12 names eight verbs, the demo covers four, the method table has 41 methods and the demo exercises nine, and the section 4 gap statement omits create"
+    },
+    {
+      "package": "720",
+      "reviewer": "nabu",
+      "finding": "MANIFEST.json is not self-describing: add ga_claimed, publication_authorized, blockers, working_tree_clean inside the manifest digest, because 26.8 mandates the GA filename and the candidate is otherwise indistinguishable from a released artifact once it leaves dist/"
+    },
+    {
+      "package": "720",
+      "reviewer": "vulcan",
+      "finding": "remap order is wrong: rustc applies the last matching --remap-path-prefix, so the {HOME}=/home-remapped rule shadows both {ROOT}=/sley2 and the cargo registry rule; the binary retains /home-remapped/<full local layout> and the content scan cannot detect it because /home-remapped contains neither /home/ nor str(ROOT) - contract 1, 11, ADR-0038 decision 3 and master goal 26.8 are falsified; reverse the order and add a positive control asserting /sley2 present and /home-remapped absent"
+    },
+    {
+      "package": "720",
+      "reviewer": "vulcan",
+      "finding": "provenance is attested but not held: --require-clean is off by default, the recorded smoke ran dirty, MANIFEST.json carries a bare commit with no dirty flag, and tracked machine-summary.json publishes candidate_artifact_sha256 and candidate_reproducibility REPRODUCIBLE unqualified; master goal 26.8 requires the final candidate commit and a clean tree"
+    },
+    {
+      "package": "730",
+      "reviewer": "ariadne",
+      "finding": "reproducibility report has no integrity or freshness check: report_digest is never verified, no drift check runs, and no binding ties the attested commit to the filing tree; tracked report attests ebd40dc, 65 commits stale, and make quick passes it"
+    },
+    {
+      "package": "730",
+      "reviewer": "nabu",
+      "finding": "multi-host merge is not persistent: release-candidate-smoke rebuilds the report with no --attest and never reads the tracked report, so a committed MULTI_HOST_REPRODUCIBLE silently reverts to SINGLE_HOST_REPRODUCIBLE at exit 0"
+    },
+    {
+      "package": "730",
+      "reviewer": "nabu",
+      "finding": "coverage taxonomy has no depth axis: independent_oracle flattens semantic re-derivation and codec-and-identity checks, so INDEPENDENT_CONFORMANCE_COMPLETE hides the acknowledged vm-extended semantic gap at GA"
+    },
+    {
+      "package": "730",
+      "reviewer": "vulcan",
+      "finding": "reproducibility report attests commit ebd40dc, 65 commits behind HEAD with 15 crates/ files changed since; no freshness rule in contract and no staleness check in the checker"
+    },
+    {
+      "package": "730",
+      "reviewer": "vulcan",
+      "finding": "reproducibility report is never re-derived or digest-verified: checker runs --check on the conformance report only, report_digest is written but read by nothing, so a hand-edited MULTI_HOST report with a fabricated attestation passes make quick"
+    },
+    {
+      "package": "740",
+      "reviewer": "ariadne",
+      "finding": "HISTORICAL_ROUND is exempted from the completion invariant with no requirement of a superseding PASS: a COMPLETE section whose only disposition is FAIL/REVISE reads FINDING_REGISTER_CLEAR; live counterexamples restricted_query_profile.nabu_architecture_review=REVISE_TO_RESTRICTED_PROFILE and restricted_query_capsule_profile.nabu_architecture_review=REVISE_TO_DISTINCT_RESTRICTED_EVIDENCE_ENVELOPE"
+    },
+    {
+      "package": "740",
+      "reviewer": "ariadne",
+      "finding": "section 2 claims exact states but classifies by startswith plus a hardcoded VULCAN_PASS alias; PASS_PENDING_CONFIRMATION_2_P0_OPEN classifies PASS and yields CLEAR in a COMPLETE package; replace with first-underscore-token matching over a closed set plus a declared alias table"
+    },
+    {
+      "package": "740",
+      "reviewer": "nabu",
+      "finding": "Contract Boundary promises open-obligation severity but 0 of 75 PENDING obligations carry a severity and open_reviews entries carry only {section,field}; per-obligation vs per-finding shape must be settled with Vulcan before freeze"
+    },
+    {
+      "package": "740",
+      "reviewer": "nabu",
+      "finding": "S20_740_COMPLETE is unreachable: check_finding_register.py:141 requires independent_review==PENDING at all statuses while :194 requires PASS at COMPLETE, and independent_review is itself a collected obligation blocking FINDING_REGISTER_CLEAR"
+    },
+    {
+      "package": "750",
+      "reviewer": "ariadne",
+      "finding": "item 11 property-test counts is EVIDENCED from unit-test counts; repo has no proptest/quickcheck/hypothesis, so the item's actual fact is absent and a different fact is substituted (violates contract 1 and 7)"
+    },
+    {
+      "package": "750",
+      "reviewer": "ariadne",
+      "finding": "build_decision_dossier.py:103-105 shadows `inventory` with the test inventory, so license_disposition_blocked at :334 reads 0 while T52 pre-release-inventory.json records 19 BLOCKED packages"
+    },
+    {
+      "package": "750",
+      "reviewer": "nabu",
+      "finding": "derive_decision ignores its entries argument; contract S3 and ADR-0043 decision 3 both claim the state derives from the entries, so no rule forbids PASS while entries are GATED"
+    },
+    {
+      "package": "750",
+      "reviewer": "nabu",
+      "finding": "variable shadowing at build_decision_dossier.py:103/105 makes the SBOM and license entry read the test inventory instead of the license inventory; license_disposition_blocked is 0 in tracked evidence while 19 packages are BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT, and the entry cites a source it never reads"
+    },
+    {
+      "package": "750",
+      "reviewer": "vulcan",
+      "finding": "build_decision_dossier.py:102/105 variable shadowing makes the SBOM-and-license entry read the test inventory instead of the license inventory, emitting license_disposition_blocked=0 while pre-release-inventory.json records 19 BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT packages; the false fact is marked EVIDENCED and no test or checker covers it"
+    },
+    {
+      "package": "780",
+      "reviewer": "ariadne",
+      "finding": "Register 1.3 completeness claim is contradicted by tracked machineresearch/sley-2.0/23-disposition-matrix.md, which records reimplement dispositions for stable graph identity (EntityId/ObjectId/StateRoot), typed graph checking (SSMC/check kernel), and preserve-and-reimplement for effects/authority fixtures (effects + policy/capability); at least three reused concepts lack seven-field entries and machine-summary.json pins reused_concepts=2 on the unreconciled claim"
+    },
+    {
+      "package": "780",
+      "reviewer": "vulcan",
+      "finding": "Register section 2.1 claims a mechanical no-legacy-source-in-tree check (snapshot paths, module markers, unpacked archive) that check_clean_room_boundary.py does not implement; the only tree scan is a substring search for archive/sley/1.2.0 over .rs/.py/.toml/.json in five directories"
+    },
+    {
+      "package": "780",
+      "reviewer": "vulcan",
+      "finding": "check_clean_room_boundary.py:123 requires similarity_audit_performed == False, so recording a completed audit fails make quick; the control is pinned to the un-audited state"
+    }
+  ]
+}

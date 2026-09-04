@@ -1,0 +1,61 @@
+DISPATCH 740-nabu-architecture forge-nabu-740-nabu-architecture-20260904T081320 2026-09-04T08:13:20Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+status: FAIL (2 P0, freeze blocked)
+
+## Answers to the two questions put to me
+
+**Q2 — is the machine summary the right single source, or should campaign records also be parsed?**
+Keep the machine summary as the sole source; do **not** parse campaign records. Confidence: high. Campaign records are prose with no schema, so parsing them would make the obligation set a function of Markdown phrasing, and two sources would force a precedence policy for the case "same obligation, two dispositions" — which is exactly the hand-maintained-second-register failure ADR-0042 decision 1 was written to prevent. ADR-0042 §1 is correct and should stand.
+
+The counterargument that must be recorded rather than dismissed: the register cannot see a finding that never reached the summary. Its true guarantee is "every obligation *recorded* in the summary", but contract §Boundary claims "which review obligations **exist**". Fix the claim, not the source. Close the hole with a *presence* cross-check (every campaign record under `machineresearch/sley-2.0/` has a corresponding summary section), never a content parse.
+
+**Q3 — is the obligation digest the right fixed point rather than a source digest?**
+Yes, the obligation digest is right; the *justification* is attached to the wrong object. Confidence: high, verified against the summary. A summary-byte digest genuinely cannot converge: `finding_register.obligations`, `.open_reviews`, `.deferred_reviews`, `.complete_packages`, `.unclassified_dispositions`, `.register_result` are all register-derived and live in the summary.
+
+But drift is **not** enforced by any digest — `build_finding_register.py:227` compares the whole canonical register byte-for-byte, so `obligations_digest` is decorative. The property therefore has to hold for the *entire register*, which embeds `declared_open_findings` copied straight from the summary. It converges today only because `open_findings` happens not to be register-derived. The real invariant is **no register-derived value may be an input to the register**, and that rule is currently unstated in the contract and unchecked. State it in §3 and assert it.
+
+## findings
+
+**P0 — blocks freeze**
+
+1. **The register cannot answer the question its own Boundary sets.** §Boundary promises "which are open, and at what severity"; the dossier item is "findings by severity and disposition". Verified at 9dc78fe: **0 of 75 `PENDING` obligations name any severity**, and `open_reviews` entries carry only `{section, field}` (`build_finding_register.py:162`). `severity_mentions` aggregates across all states, so every counted severity sits inside a disposition that already records closure or supersession. The severity axis exists only for closed work. Freezing this shape decides per-obligation vs. per-finding by default — settle it with Vulcan's Q3 first; carrying severities and disposition text onto `open_reviews` is the minimum.
+
+2. **`S20_740_COMPLETE` is unreachable — the package can never complete.** `check_finding_register.py:141` asserts `independent_review == "PENDING"` at *every* status, while `:194` requires `independent_review == "PASS"` at `COMPLETE_STATUS`. Mutually unsatisfiable. Doubled by a second lock: `independent_review` is itself a collected obligation, so while it reads `PENDING` the register can never reach `FINDING_REGISTER_CLEAR`, which `:192` also requires. Contract §5 is silent on per-status field expectations, which is what allowed the contradiction; the revision must carry a status→expected-fields table.
+
+**P1 — must fix before freeze**
+
+3. `obligations` — the array holding essentially all 2,656 lines of the artifact — is present in the tracked register and **absent from the §3 schema**. The contract being frozen does not govern its own largest field.
+4. **"Section" is overloaded.** §2 defines `package_status` as the *nearest enclosing* status (`build:88`); §3's completion invariant means the *top-level* key's status (`build:144`, `.split(".")[0]`). Consequence: obligations under a top-level key with no `status` are permanently outside the invariant — 3 today (`invariant_audit`, `succession`, `threat_coverage`), 2 of them `PENDING`/`DEFERRED`/`OTHER` — and a nested package marked `COMPLETE` is never checked at all. The invariant ADR-0042 §3 claims is "machine-enforced" has a hole.
+5. Non-circularity is the actual fixed-point invariant, unstated and unenforced (see Q3 above).
+6. §Boundary overclaims "which review obligations exist"; narrow to "which the summary records" (see Q2).
+7. `build_register` raises an uncaught `AttributeError` if `open_findings` is not an object, and `:170` silently skips non-int counters — a count recorded as `"3"` yields `FINDING_REGISTER_CLEAR`. §3 says "every declared open-finding counter is zero".
+
+**P2 — fix before completion**
+
+8. `severity_mentions` is a deduped per-obligation count, not a mention count: at 9dc78fe P1 reads 45 vs 47 raw tokens, P2 47 vs 49, P3 24 vs 27. Rename or change the semantics in §2/§3. The campaign record repeats the wrong reading.
+9. `obligations_digest` provides no tamper-evidence: it digests a list published verbatim in the same file, and the drift check ignores it. Make drift compare digests, or drop the field.
+10. §5 must specify per-status expected values for the `finding_register` summary section (the gap behind P0 #2).
+11. Add the campaign-record **presence** cross-check (Q2).
+12. Obligation membership is substring matching over a schema-less document (`is_obligation`, `build:72`): 53 field names match today, 14 near-misses are excluded by `SKIP_FIELD`, whose `timestamp` and `note` patterns are unanchored while §1 writes them as `*_timestamp`/`*_note`. A future `review_summary` field silently becomes a phantom `OTHER` obligation. Require dispositions under a declared key shape.
+13. `INSTANT`/`SESSION` value filters drop candidates invisibly; a real disposition beginning `forge-` vanishes with no record. Report drops in the register.
+
+**P3 — editorial**
+
+14. `not violations` in the `clear` expression (`build:169`) is dead — a non-empty `violations` raises at `:147`.
+15. Campaign record "Result at this commit" is stale: it states 181 obligations / 84 PASS / 60 PENDING / 24 HISTORICAL_ROUND; the tracked register at 9dc78fe reads **201 / 85 PASS / 75 PENDING / 28 HISTORICAL_ROUND / 12 DEFERRED / 1 OTHER**. Don't restate derived counts in prose.
+16. `SEVERITY = re.compile(r"P[0-4]")` is unanchored; add word boundaries.
+17. §7 "Revision 1 carries none" needs the two answers above as clarifications.
+
+## validation
+Read-only at 9dc78fe. Exact reads of contract, ADR-0042, both scripts, the test file, and the campaign record (found in-repo at `machineresearch/sley-2.0/`, not at the handoff path). Re-derived obligations in-process by importing the builder and calling `collect()` only — `main()` never invoked, nothing written. No cargo, no make target, no repo mutation; `git status --porcelain` empty afterward.
+
+## blockers
+None for this review. P0 #1 needs Vulcan's Q3 answer to settle per-obligation vs. per-finding before revision 2 freezes.
+
+## return_to
+orchestrator (Codex), S20-740 contract revision 2
+
+S20_740_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["Contract Boundary promises open-obligation severity but 0 of 75 PENDING obligations carry a severity and open_reviews entries carry only {section,field}; per-obligation vs per-finding shape must be settled with Vulcan before freeze","S20_740_COMPLETE is unreachable: check_finding_register.py:141 requires independent_review==PENDING at all statuses while :194 requires PASS at COMPLETE, and independent_review is itself a collected obligation blocking FINDING_REGISTER_CLEAR"],"p1":["The obligations array carrying nearly all register content is absent from contract section 3 schema","'section' is overloaded: package_status uses nearest enclosing status while the completion invariant uses the top-level key, leaving 3 obligations under status-less top keys and all nested COMPLETE packages unchecked","Non-circularity is the real fixed-point invariant and is unstated and unenforced; drift is whole-file byte equality not the digest section 3 argues about, and declared_open_findings is a live summary-to-register input","Boundary overclaims 'which review obligations exist'; the register only covers obligations recorded in the summary","build_register raises uncaught AttributeError if open_findings is not an object and silently ignores non-int counters, so a counter recorded as a string yields FINDING_REGISTER_CLEAR"],"p2":["severity_mentions is a deduped per-obligation count not a mention count (P1 45 vs 47 raw at 9dc78fe)","obligations_digest gives no tamper-evidence: it digests a list published verbatim in the same file and the drift check ignores it","Contract section 5 does not specify per-status expected values for the finding_register summary section","Add a presence-only cross-check that every sley-2.0 campaign record has a summary section, closing the 'never reached the summary' hole without a second source","Obligation membership is substring matching over a schema-less document; SKIP_FIELD patterns timestamp and note are unanchored while section 1 writes them as suffixes, so a future review_summary field becomes a phantom OTHER obligation","INSTANT and SESSION value filters drop candidate dispositions invisibly; drops should be reported in the register"],"p3":["Dead 'not violations' term in the clear expression at build_finding_register.py:169","Campaign record states 181/84/60/24 but the tracked register at 9dc78fe reads 201/85/75/28; derived counts should not be restated in prose","SEVERITY regex is unanchored and would match P1 inside a longer token","Section 7 needs the source-of-truth and fixed-point answers as revision 2 clarifications"],"notes":"Machine summary is the correct single source; keep ADR-0042 decision 1 and narrow the Boundary claim instead. Obligation digest is the correct fixed point but the argument must be made for the whole register and the non-circularity rule stated and enforced. Read-only at 9dc78fe, no cargo or make run, worktree unmodified."}
+EXIT=0 2026-09-04T08:17:06Z

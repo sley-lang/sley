@@ -1,0 +1,72 @@
+DISPATCH 740-ariadne-contract forge-ariadne-740-ariadne-contract-20260904T080830 2026-09-04T08:08:30Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+Read-only review complete. Register is in sync at 9dc78fe (`--check` exit 0, tree clean); no cargo, no make. Findings verified against tracked evidence and against a copy of the builder in `/tmp/s740probe` driven by synthetic summaries.
+
+**status:** FAIL — two P0 defects in the one invariant the contract exists to freeze.
+
+## findings
+
+### P0-1 — the completion invariant is satisfiable by an unclosed review
+
+§3 exempts `HISTORICAL_ROUND` unconditionally, and §2 maps *every* `FAIL*`/`REVISE*` to it. Nothing checks that a superseding `PASS` exists. So a `COMPLETE` section whose only recorded disposition is a failure reads clear:
+
+`{"pkg":{"status":"S20_999_COMPLETE","vulcan_review":"FAIL_3_P0"}}` → `FINDING_REGISTER_CLEAR`, no violation.
+
+This is not hypothetical. Two tracked `COMPLETE` packages carry a Nabu review whose only recorded disposition is a REVISE, with no Nabu `PASS` anywhere in the section:
+
+- `restricted_query_profile.nabu_architecture_review = REVISE_TO_RESTRICTED_PROFILE`
+- `restricted_query_capsule_profile.nabu_architecture_review = REVISE_TO_DISTINCT_RESTRICTED_EVIDENCE_ENVELOPE`
+
+The register today reports `complete_packages_with_open_reviews: []` over those two. The ADR's stated rationale ("a package reaches completion by passing after earlier rounds failed") is exactly the fact that is never verified. `bench/review/tests/test_finding_register.py:131` pins the exemption for the *superseded* case and no test covers the unsuperseded one.
+
+### P0-2 — "States are exact" is false; prefix matching defeats the gate
+
+§2 claims exact states; the mechanism is `startswith` plus one hardcoded alias. Verified: `{"pkg":{"status":"S20_999_COMPLETE","vulcan_review":"PASS_PENDING_CONFIRMATION_2_P0_OPEN"}}` → state `PASS`, result `FINDING_REGISTER_CLEAR`. `PASSED_*`, `DEFERRED_*` and `FAIL_*` are equally open-ended. Freezing "exact" over a prefix rule bakes a false claim into the contract and leaves the P0-1 hole arbitrarily wideable by a disposition string.
+
+<details>
+<summary>Answers to the two open questions put to Ariadne</summary>
+
+**Q1 — may `HISTORICAL_ROUND` obligations stay in a completed package's record indefinitely?**
+
+Yes, keep them, and do not move them to a superseded-rounds list *in the summary*. Relocation contradicts ADR-0042 decisions 1 and 2 (one source, never edit a disposition) and would make a failed round removable by hand — the exact drift the register exists to prevent. Retention is right; the blanket exemption is wrong. Revision 2 should:
+
+1. allow a `HISTORICAL_ROUND` obligation in a `COMPLETE` section **only** when that section carries a superseding `PASS` for the same lane; otherwise `REGISTER_COMPLETION_VIOLATION`;
+2. define the pairing key exactly rather than by prefix guessing — an explicit `<field>_superseded_by` reference is the precise form; a lane rule (first underscore token) is the cheap form, but `contract_test_profile` already mixes `ariadne_initial_review` with `ariadne_profile_final_review`, so the lane rule needs its own stated normalization;
+3. emit a derived `superseded_rounds` list naming each failed round *and* the obligation that superseded it, so the independent reviewer reads the chain instead of inferring it.
+
+Consequence to state plainly: with this fix, `make quick` fails until the two `restricted_query*` records are corrected — either the missing Nabu `PASS` is recorded, or those packages are not `COMPLETE`. That is the register doing its job, but it is a repo-wide effect and belongs in the revision-2 note. I made no edits.
+
+**Q2 — is state classification by exact prefix precise enough?**
+
+No. Tokenize instead of prefix-match: split the disposition on `_`, match the **first token** against a closed set (`PASS`, `PENDING`, `DEFERRED`, `FAIL`, `REVISE`), and carry legacy strings such as `VULCAN_PASS` in a declared alias table rather than as a hardcoded branch. Everything else falls to `OTHER`. That makes §2's "exact" true, kills the `PASS_PENDING_*` class, and makes retiring or renaming a lane a visible contract change.
+</details>
+
+### P1
+1. **The terminal stage is unreachable.** `check_finding_register.py:141` pins `independent_review` to `"PENDING"` for *all* statuses, while line 194 requires it to be `"PASS"` at `S20_740_COMPLETE`. §5's final stage can never pass the checker.
+2. **Nested `COMPLETE` escapes the invariant.** `complete_packages` and the violation test read only top-level summary keys. Verified: `{"phase":{"child":{"status":"S20_999_COMPLETE","vulcan_review":"PENDING"}}}` builds clean and `complete_packages` is `[]`. §3 says "sections whose status ends COMPLETE"; the implementation means top-level sections only. (Obligations under a list *inside* a complete top-level package are caught correctly.)
+3. **§3 omits `obligations` from the frozen register shape** — the 201-entry list is the payload the ADR promises the independent reviewer, and the largest field in the file, yet it is absent from the schema being frozen.
+4. **`severity_mentions` is neither mentions nor findings.** Per-obligation `set()` dedupe and no multiplicity: `FAIL_2_P1_1_P2` contributes one P1. Register reports P1=45 against 47 raw token occurrences, and the true finding count is higher still. The dossier item is "findings by severity"; this number cannot serve it under its current name or definition.
+5. **`FINDING_REGISTER_CLEAR` is vacuous without counters.** Verified: a summary with no `open_findings` key, and one with `{"open_findings":{"by_severity":{"p0":9}}}`, both build `CLEAR` — non-int values are skipped by `all(...)`. §3 must require the counters to be present and integer-valued.
+
+### P2
+1. `str(status).endswith("COMPLETE")` also matches `INCOMPLETE`/`NOT_COMPLETE` (verified: `S20_999_INCOMPLETE` + a `PENDING` review raises `COMPLETION_VIOLATION`). Fails closed today, but it also misclassifies `complete_packages`, which is a dossier field.
+2. Silent drops. `is_obligation` rejects empty strings; a `COMPLETE` package with `vulcan_review: ""` builds clean (verified). Same for anything matching the `SESSION`/`INSTANT` patterns. §1 should route rejected-but-review-named fields to `OTHER` or record them, so an obligation cannot leave the register without a trace.
+3. §1 writes the exclusion list as suffixes (`*_note`, `*_timestamp`); `SKIP_FIELD` matches `note` and `timestamp` anywhere in the name. "A Council session identifier" is undefined in the contract while the code encodes `^forge-|^[a-z]+-[a-z]+-s20-`.
+4. The checker cross-checks only `open_reviews`, `obligations`, `register_result`. The summary's `deferred_reviews`, `complete_packages` and `unclassified_dispositions` counters are unverified and can drift silently.
+
+### P3
+1. Nothing ties the spec's stated revision to `finding_register.contract_revision`; both must move together when these findings land.
+2. Campaign record: "Result at this commit" names no commit and its numbers (181/84/60/24) are stale against 9dc78fe (201/85/75/12 DEFERRED + 28 HISTORICAL). Its claim that every severity mention sits inside a disposition recording closure or supersession is false — `vm_extended_opcode_profile.nabu_architecture_review = PASS_0_P0_7_P1_6_P2_5_P3` records neither.
+3. `VULCAN_PASS` is an undeclared legacy alias; name it in an alias table (folds into P0-2).
+4. ADR-0042's consequence "Marking a package COMPLETE while a review is pending now fails `make quick`" overstates what is enforced; narrow it once P0-1 and P1-2 land.
+
+**validation:** read-only. Tier: none run — no cargo, no make, per the handoff. Evidence: exact reads of the contract, ADR, both scripts, the tests and the campaign record; `python3 scripts/build_finding_register.py --check` (exit 0, `FINDING_REGISTER_OPEN`, 201/75/12, no drift); `git status --porcelain` empty; nine synthetic-summary probes against a `/tmp` copy of the builder. Repository unmodified. V1 not run and not needed for a contract review.
+
+**blockers:** none for this review. P0-1's fix will fail `make quick` until the two `restricted_query*` Nabu records are reconciled — that reconciliation is Nabu's call, not mine.
+
+**return_to:** orchestrator; P0-1's summary-record reconciliation to Nabu; contract revision 2 and checker fixes to Merlin.
+
+S20_740_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["HISTORICAL_ROUND is exempted from the completion invariant with no requirement of a superseding PASS: a COMPLETE section whose only disposition is FAIL/REVISE reads FINDING_REGISTER_CLEAR; live counterexamples restricted_query_profile.nabu_architecture_review=REVISE_TO_RESTRICTED_PROFILE and restricted_query_capsule_profile.nabu_architecture_review=REVISE_TO_DISTINCT_RESTRICTED_EVIDENCE_ENVELOPE","section 2 claims exact states but classifies by startswith plus a hardcoded VULCAN_PASS alias; PASS_PENDING_CONFIRMATION_2_P0_OPEN classifies PASS and yields CLEAR in a COMPLETE package; replace with first-underscore-token matching over a closed set plus a declared alias table"],"p1":["check_finding_register.py pins independent_review to PENDING for all statuses (line 141) while requiring PASS at S20_740_COMPLETE (line 194), so the terminal stage of section 5 is unreachable","complete_packages and the violation check read only top-level summary keys, so a nested section carrying its own COMPLETE status with a PENDING review builds clean; section 3 wording says any section","section 3 omits the obligations list from the frozen register shape although it is the payload the ADR promises the independent reviewer","severity_mentions dedupes per obligation and ignores multiplicity, so FAIL_2_P1_1_P2 counts one P1 (register P1=45 vs 47 raw occurrences); it cannot serve the dossier item findings by severity under this name","FINDING_REGISTER_CLEAR is vacuous when open_findings is absent or its counters are non-int or nested; both cases build CLEAR"],"p2":["status endswith COMPLETE also matches INCOMPLETE and NOT_COMPLETE, misclassifying complete_packages","empty-string dispositions and values matching the undefined SESSION/INSTANT patterns are dropped silently; a COMPLETE package with an empty vulcan_review builds clean","section 1 writes suffix exclusions but SKIP_FIELD matches note and timestamp anywhere, and Council session identifier is undefined in the contract","the checker cross-checks only open_reviews, obligations and register_result; deferred_reviews, complete_packages and unclassified_dispositions can drift silently"],"p3":["nothing ties the spec revision to finding_register.contract_revision","campaign record Result at this commit names no commit, its counts are stale against 9dc78fe, and its claim that all severity mentions sit inside closure or supersession dispositions is false for PASS_0_P0_7_P1_6_P2_5_P3","VULCAN_PASS is an undeclared legacy alias","ADR-0042 consequence overstates what the invariant enforces"],"notes":"read-only at 9dc78fe; no cargo, no make; register in sync, tree clean; open question 1 answered keep HISTORICAL_ROUND in the summary but require a superseding PASS and emit a derived superseded_rounds list; open question 2 answered prefix classification is not precise enough, tokenize; fixing P0-1 will fail make quick until the two restricted_query Nabu records are reconciled"}
+EXIT=0 2026-09-04T08:13:20Z

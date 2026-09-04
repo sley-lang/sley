@@ -446,7 +446,8 @@
       "ordered-map entry order read structurally by equal and value_hash while S20-210 imposes none; the VM now asks the codec at each supplied-value boundary and refuses a value with no canonical form, pinned by e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing",
       "cell contents were never charged value units and the table had no cap, so cell_new held unbounded host memory with the budget intact and contract E5's 'contents count as live value units' was false; cell_new and cell_set now charge the stored value and MAX_EXECUTION_CELLS caps the table, pinned by e5_each_cell_charges_its_contents_so_the_budget_bounds_the_table"
     ],
-    "p0_open": []
+    "p0_open": [],
+    "p0_open_count": 0
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -583,7 +584,8 @@
     "p0_open": [],
     "p0_closed": [
       "exchange import allowlisted a pre-existing index/v1 cache into the target, so a clone adopted a cache it never wrote; import now removes the directory before promoting anything, pinned by an_incomplete_clone_resumes_without_adopting_the_index_cache_it_carried"
-    ]
+    ],
+    "p0_open_count": 0
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -639,9 +641,9 @@
     "continuation": "EXACT_THEN_PAGED_TYPED_CURSORS_UNDER_ALLOW_CONTINUATION",
     "cache_consumer": "FIRST_AND_ONLY_S20_300_CACHE_HIT_CONSUMER_EDGES_ONLY",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_7_P1_4_P2_3_P3",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_7_P1_7_P2_4_P3",
+    "nabu_architecture_review": "FAIL_2_P0_7_P1_5_P2_4_P3",
+    "vulcan_surface_review": "FAIL_0_P0_4_P1_4_P2_3_P3",
     "implementation_complete": false,
     "implementation": [
       "crates/sley-query/src/root_query.rs",
@@ -655,7 +657,8 @@
     "p0_open": [
       "charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule cannot derive the implemented per-class constants, so the oracle reproduces the implementation rather than the contract, and S20-320 already binds these bytes",
       "the class-kind applicability table ADR-0030 decision 1 and section 9 require is absent, so classes 16, 17, and 19 silently accept every kind"
-    ]
+    ],
+    "p0_open_count": 4
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -705,9 +708,9 @@
     "new_stable_error_codes": 4,
     "new_error_code_range": "32008 through 32011",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_3_P1_3_P2_2_P3",
+    "nabu_architecture_review": "FAIL_3_P0_4_P1_6_P2_3_P3",
+    "vulcan_surface_review": "FAIL_2_P0_4_P1_4_P2_2_P3",
     "implementation_complete": false,
     "implementation": [
       "crates/sley-query/src/context_capsule.rs",
@@ -717,7 +720,8 @@
     "oracle": "scripts/check_context_capsule_vector.py",
     "persistent_fuzz_target": "fuzz/targets/context_capsule_builder.rs",
     "closeout": "docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md",
-    "fixture_vectors": 23
+    "fixture_vectors": 23,
+    "p0_open_count": 7
   },
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
@@ -745,9 +749,9 @@
       "T47_SESSION_WORKSPACE_MISMATCH"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "nabu_architecture_review": "PENDING",
-    "ariadne_contract_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "nabu_architecture_review": "FAIL_1_P0_7_P1_5_P2_4_P3",
+    "ariadne_contract_review": "FAIL_3_P0_7_P1_5_P2_4_P3",
+    "vulcan_surface_review": "FAIL_2_P0_4_P1_3_P2_3_P3",
     "implementation_complete": false,
     "unblocked_by_restricted_s20_320": false,
     "implementation_started": true,
@@ -757,7 +761,8 @@
       "crates/sley-query/src/context_capsule.rs"
     ],
     "closeout": "docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md",
-    "restricted_profile_viable": true
+    "restricted_profile_viable": true,
+    "p0_open_count": 6
   },
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
@@ -783,9 +788,9 @@
       "derived_omission_states"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_1_P0_8_P1_5_P2_4_P3",
+    "nabu_architecture_review": "FAIL_1_P0_6_P1_8_P2_5_P3",
+    "vulcan_surface_review": "FAIL_2_P0_4_P1_5_P2_5_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -797,7 +802,8 @@
     "fixture_generator": "scripts/generate_smp1_json_bridge_fixtures.py",
     "independent_oracle": "scripts/check_smp1_json_bridge_vector.py",
     "persistent_fuzz_slice": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
-    "closeout": "docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md"
+    "closeout": "docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md",
+    "p0_open_count": 4
   },
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
@@ -826,9 +832,9 @@
       "prose_output"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_7_P1_7_P2_3_P3",
+    "nabu_architecture_review": "FAIL_1_P0_7_P1_5_P2_4_P3",
+    "vulcan_surface_review": "FAIL_1_P0_5_P1_4_P2_2_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -839,7 +845,8 @@
     ],
     "binary": "sley",
     "offered_hello": "Server::offered_hello",
-    "closeout": "docs/audits/S20_430_THIN_CLI_CLOSEOUT.md"
+    "closeout": "docs/audits/S20_430_THIN_CLI_CLOSEOUT.md",
+    "p0_open_count": 4
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
@@ -1193,9 +1200,9 @@
     "stable_error_codes": 11,
     "owner_crate": "sley-repo",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_1_P0_6_P1_9_P2_6_P3",
+    "nabu_architecture_review": "FAIL_3_P0_5_P1_8_P2_5_P3",
+    "vulcan_surface_review": "FAIL_0_P0_4_P1_6_P2_3_P3",
     "implementation_complete": false,
     "implementation_started": "2026-09-03",
     "implementation_commit": "6ecfe89",
@@ -1207,7 +1214,8 @@
     "independent_python_oracle": "scripts/check_semantic_comparison_vector.py",
     "sley_repo_compare_tests": 12,
     "persistent_fuzz_target": "fuzz/targets/semantic_delta_decoder.rs",
-    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke"
+    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke",
+    "p0_open_count": 4
   },
   "merge": {
     "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
@@ -1225,9 +1233,9 @@
     "stable_error_codes": 14,
     "owner_crate": "sley-repo",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_3_P0_5_P1_9_P2_6_P3",
+    "nabu_architecture_review": "FAIL_3_P0_5_P1_8_P2_4_P3",
+    "vulcan_surface_review": "FAIL_1_P0_5_P1_7_P2_3_P3",
     "implementation_complete": false,
     "implementation_started": "2026-09-03",
     "closeout": "docs/audits/S20_520_MERGE_CLOSEOUT.md",
@@ -1240,7 +1248,8 @@
     "persistent_fuzz_target": "fuzz/targets/merge_conflict_decoder.rs",
     "identity_remap": "S20-345 derived creation identities with full reference rewrite",
     "implementation_commit": "4f01b12",
-    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_merge_smoke"
+    "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_merge_smoke",
+    "p0_open_count": 7
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1301,9 +1310,9 @@
       400
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_3_P0_12_P1_9_P2_4_P3",
+    "nabu_architecture_review": "FAIL_2_P0_9_P1_12_P2_7_P3",
+    "vulcan_surface_review": "FAIL_3_P0_8_P1_10_P2_3_P3",
     "contract_complete": false,
     "implementation_package": "S20-410",
     "implementation": "crates/sley-protocol",
@@ -1382,7 +1391,8 @@
       ]
     },
     "retryability_mapping": "explicit since 2026-09-03 (SMP1 section 6): AFTER_REQUERY names five symbols exactly, AFTER_LIMIT_CHANGE covers RESOURCE_LIMIT, REQUIRED_FACT_OMITTED, and PROTOCOL_LIMIT_EXCEEDED, and every other symbol is NEVER",
-    "retryability_finding": "the suffix rule answered NEVER for SESSION_STALE_HANDLE and STALE_ROOT while answering AFTER_REQUERY for REF_CAS_STALE, so a client gave up on two retryable conditions because of word order"
+    "retryability_finding": "the suffix rule answered NEVER for SESSION_STALE_HANDLE and STALE_ROOT while answering AFTER_REQUERY for REF_CAS_STALE, so a client gave up on two retryable conditions because of word order",
+    "p0_open_count": 8
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -1872,12 +1882,13 @@
       "162": "phase 8 CAPABILITY_REQUIREMENT_TYPE"
     },
     "adr": "docs/adr/ADR-0044-candidate-operation-analysis-through-the-vm-owner.md",
-    "ariadne_operation_analysis_review": "PENDING",
-    "nabu_operation_analysis_review": "PENDING",
-    "vulcan_operation_analysis_review": "PENDING",
+    "ariadne_operation_analysis_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
+    "nabu_operation_analysis_review": "FAIL_0_P0_2_P1_6_P2_3_P3",
+    "vulcan_operation_analysis_review": "FAIL_1_P0_4_P1_2_P2_2_P3",
     "validator_source_symbols": 26,
     "source_symbol_registration": "CANDIDATE_RESULT_V1.md section 8.1 (2026-09-03) enumerates the twenty-six source symbols the validator originates; fourteen appeared in no governed document before. The checker compares the table with the implementation's literals in both directions and requires one retryability per symbol",
-    "retryability_finding": "CAP_EFFECT_MISMATCH reported FreshAuthority for a token whose effect kind is unknown and Permanent for a program requirement whose effect does not resolve. The second case involves no token, so it now reports CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED and no longer borrows the S20-380 numeric code"
+    "retryability_finding": "CAP_EFFECT_MISMATCH reported FreshAuthority for a token whose effect kind is unknown and Permanent for a program requirement whose effect does not resolve. The second case involves no token, so it now reports CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED and no longer borrows the S20-380 numeric code",
+    "p0_open_count": 3
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
@@ -1919,9 +1930,10 @@
     },
     "adr_extended_profile": "docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md",
     "transaction_model_revision": 2,
-    "ariadne_extended_profile_review": "PENDING",
-    "nabu_extended_profile_review": "PENDING",
-    "vulcan_extended_profile_review": "PENDING"
+    "ariadne_extended_profile_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
+    "nabu_extended_profile_review": "FAIL_2_P0_2_P1_2_P2_2_P3",
+    "vulcan_extended_profile_review": "FAIL_0_P0_4_P1_3_P2_2_P3",
+    "p0_open_count": 4
   },
   "s20_500_native_refs_branches": {
     "status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
@@ -2128,7 +2140,7 @@
     "protocol_production_boundary": true,
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "FAIL_1_P0_2_P1_6_P2_3_P3",
     "next_dependency_complete_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
@@ -2139,7 +2151,10 @@
     "complete_root_snapshot_decoder_persistent_fuzz_target": true,
     "root_query_engine_persistent_fuzz_target": true,
     "context_capsule_builder_persistent_fuzz_target": true,
-    "smp1_frame_decoder_persistent_fuzz_target": true
+    "smp1_frame_decoder_persistent_fuzz_target": true,
+    "p0_open_count": 4,
+    "ariadne_contract_review": "FAIL_1_P0_4_P1_6_P2_2_P3",
+    "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3"
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -2229,9 +2244,9 @@
     "provider_or_model_execution": false,
     "actual_trials": 0,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_5_P0_8_P1_6_P2_4_P3",
+    "nabu_architecture_review": "FAIL_3_P0_12_P1_7_P2_4_P3",
+    "vulcan_surface_review": "FAIL_4_P0_6_P1_9_P2_5_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2242,7 +2257,8 @@
     "smoke_target": "make sley2-runner-smoke",
     "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
-    "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md"
+    "closeout": "docs/audits/S20_620_SLEY2_TRIAL_RUNNER_CLOSEOUT.md",
+    "p0_open_count": 12
   },
   "succession_accounting": {
     "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",
@@ -2264,9 +2280,9 @@
     "new_error_code_range": "63000 through 63007",
     "trials_accounted": 0,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_8_P1_9_P2_8_P3",
+    "nabu_architecture_review": "FAIL_4_P0_7_P1_8_P2_4_P3",
+    "vulcan_surface_review": "FAIL_1_P0_5_P1_7_P2_2_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2277,7 +2293,8 @@
     "smoke_target": "make accounting-smoke",
     "smoke_evidence": "evidence/runtime/s20-630-accounting-smoke/evidence.json",
     "smoke_report_status": "PARTIAL",
-    "closeout": "docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md"
+    "closeout": "docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md",
+    "p0_open_count": 7
   },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",
@@ -2357,9 +2374,9 @@
       "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_8_P1_8_P2_5_P3",
+    "nabu_architecture_review": "FAIL_1_P0_6_P1_5_P2_3_P3",
+    "vulcan_surface_review": "FAIL_2_P0_5_P1_6_P2_5_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2376,7 +2393,8 @@
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
     "offline_tests": 4,
-    "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md"
+    "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
+    "p0_open_count": 5
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -2550,9 +2568,9 @@
       "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_1_P0_8_P1_6_P2_3_P3",
+    "nabu_architecture_review": "FAIL_2_P0_4_P1_6_P2_5_P3",
+    "vulcan_surface_review": "FAIL_2_P0_4_P1_6_P2_4_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2564,7 +2582,8 @@
     "independent_oracles_added": [
       "oracle/scb1/src/sley2_scb1_oracle/vm_extended.py",
       "scripts/check_release_demo_vector.py"
-    ]
+    ],
+    "p0_open_count": 5
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -2597,9 +2616,9 @@
       "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_10_P1_12_P2_8_P3",
+    "nabu_architecture_review": "FAIL_2_P0_4_P1_7_P2_5_P3",
+    "vulcan_surface_review": "FAIL_1_P0_3_P1_3_P2_3_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2607,7 +2626,8 @@
       "scripts/build_release_provenance.py",
       "scripts/check_standards_sbom_and_provenance.py",
       "bench/release/tests/test_standards_sbom.py"
-    ]
+    ],
+    "p0_open_count": 5
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -2616,9 +2636,9 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 201,
-    "open_reviews": 73,
-    "deferred_reviews": 12,
+    "obligations": 203,
+    "open_reviews": 15,
+    "deferred_reviews": 11,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
     "register_result": "FINDING_REGISTER_OPEN",
@@ -2631,8 +2651,8 @@
       "independent_review_s20_740"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_5_P1_4_P2_4_P3",
+    "nabu_architecture_review": "FAIL_2_P0_5_P1_6_P2_4_P3",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
     "implementation_started": true,
@@ -2640,7 +2660,8 @@
       "scripts/build_finding_register.py",
       "scripts/check_finding_register.py",
       "bench/review/tests/test_finding_register.py"
-    ]
+    ],
+    "p0_open_count": 4
   },
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
@@ -2654,8 +2675,8 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "12 review lanes are deferred and unavailable",
-      "73 review obligations are open",
+      "11 review lanes are deferred and unavailable",
+      "15 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -2668,9 +2689,9 @@
     "ga_claimed": false,
     "publication_authorized": false,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_5_P1_7_P2_3_P3",
+    "nabu_architecture_review": "FAIL_2_P0_7_P1_5_P2_3_P3",
+    "vulcan_surface_review": "FAIL_1_P0_3_P1_3_P2_3_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -2678,7 +2699,8 @@
       "scripts/check_decision_dossier.py",
       "bench/review/tests/test_decision_dossier.py"
     ],
-    "test_inventory": "evidence/validation/test-inventory.json"
+    "test_inventory": "evidence/validation/test-inventory.json",
+    "p0_open_count": 5
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",
@@ -2711,9 +2733,9 @@
     "active_epochs": 1,
     "ga_claimed": false,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_0_P0_3_P1_4_P2_5_P3",
+    "nabu_architecture_review": "FAIL_0_P0_5_P1_4_P2_4_P3",
+    "vulcan_surface_review": "FAIL_0_P0_3_P1_3_P2_2_P3",
     "implementation_complete": false,
     "determinations": {
       "epoch_required": [
@@ -2745,9 +2767,9 @@
       "sley-test-report-v1"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_0_P0_3_P1_6_P2_2_P3",
+    "nabu_architecture_review": "FAIL_0_P0_4_P1_3_P2_3_P3",
+    "vulcan_surface_review": "FAIL_0_P0_1_P1_4_P2_3_P3",
     "implementation_complete": false,
     "identifier_registry_drift_check": true,
     "domains_added_to_registry": [
@@ -2777,10 +2799,11 @@
     "new_stable_error_codes": 2,
     "new_error_code_range": "78000 through 78001",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
-    "implementation_complete": false
+    "ariadne_contract_review": "FAIL_1_P0_5_P1_3_P2_4_P3",
+    "nabu_architecture_review": "FAIL_0_P0_2_P1_4_P2_3_P3",
+    "vulcan_surface_review": "FAIL_2_P0_4_P1_4_P2_3_P3",
+    "implementation_complete": false,
+    "p0_open_count": 3
   },
   "threat_coverage": {
     "report": "evidence/security/threat-coverage-report.json",

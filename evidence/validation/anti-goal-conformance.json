@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "local commit only; no remote/tag/upload/deploy action",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 0; commits not pushed to origin/main: 429",
+      "detail": "git tags: 0; commits not pushed to origin/main: 430",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "4f70395eae9cfdcbead3c2fbaddc7c98484ff1fb16399a934370d4208c102678",
+  "report_digest": "4c53de663f20d28b5aed927a56a093e2ef4b7e647bcf6dde1f6a66ab06800239",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

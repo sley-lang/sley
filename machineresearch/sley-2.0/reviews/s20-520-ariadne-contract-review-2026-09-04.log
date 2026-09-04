@@ -1,0 +1,67 @@
+DISPATCH 520-ariadne-contract forge-ariadne-520-ariadne-contract-20260904T061252 2026-09-04T06:12:52Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+Worktree is at 9dc78fe, clean. Reading the contract and campaign record.
+
+Now the implementation. Reading structure and key paths.
+
+status: complete (verdict decided; read-only, no cargo, no oracle execution)
+
+## findings
+
+### P0 — blocks freeze
+
+**1. The plan's kind-16 rule is unexecutable against the frozen candidate path.**
+`MERGE_V1.md:151` ("`CreateEntity`, or `AddEntryPoint` for kind 16") and `:161` ("kind 16 excepted, which `AddEntryPoint` creates without derivation"). The frozen apply path routes `MutationPayload::AddEntryPoint` through `replace_body`, which requires the target to already be live — `crates/sley-mutate/src/apply.rs:450-452` returns `TargetMissing` otherwise. `build_merge_plan` emits exactly that shape for a not-in-`A` entry point, with `ExpectedIdentityAbsent` (`merge.rs:1254-1262`). Every merge in which theirs adds an EntryPoint entity is rejected by the frozen path. The same exemption also lets a theirs-added kind-16 entity keep `B`'s identity in `A`'s repository, contradicting the S20-345 rule the paragraph invokes. Correct shape: derive the identity, `CreateEntity`, then `AddEntryPoint`.
+
+**2. The creation-ordinal rule contradicts S20-345/S20-360.**
+The contract assigns derived identities "in raw-ID order of the judged identities" (`:161-163`) but orders operations "in raw-ID order of the affected identities" post-remap (`:147`). The frozen validator assigns `create_ordinal` by **CreateEntity operation position** (`crates/sley-policy/src/candidate_validation.rs:1237-1271`). Derived ids are BLAKE3 outputs, so remapped order is uncorrelated with judged order: with two or more created entities the plan's identities generally fail `operation.target_entity != expected` → `InvalidIdentity`. `merge.rs:1167-1184` vs `:1246` reproduces the contract faithfully. The only repository test creates a single entity at ordinal 0 (`merge.rs:2729`), so the defect is untested.
+
+**3. Theirs-side collateral entries report ours' object as `theirs_object`.**
+`merge.rs:762-787`: the direction loop binds `other_side` to `&a` on the second pass, and the entry sets `ours_object: a.objects…` / `theirs_object: other_side.objects…` — both from `A`. The frozen oracle uses `b` in both directions (`scripts/check_merge_vector.py:217`). The two authorities therefore produce different canonical bytes and different `MergeConflictId` for any theirs-side collateral, and the contract's symmetry claim fails. The corpus has exactly one collateral vector, so the oracle never sees the divergence.
+
+### P1 — must fix before freeze
+
+**4. J1–J8 is not total: both sides `Removed` is unclassified.** J2 lists only `Added`/`Changed`/`MetadataOnly`/`Retyped`; J3 is "Removed on one side and any other class on the other". The table nonetheless claims "exactly one rule applies", and the Merged-root paragraph enumerates only J1/J2/J6/J7. The implementation resolves it as convergent removal (`merge.rs:689-693` → `side_resolution` → `Resolution::Remove`).
+
+**5. `MERGE_ANCESTOR_MISMATCH` (52001) is defined for one condition and produced for another.** No code compares the supplied `O` against `find_common_ancestor`'s result; that function returns only `NoCommonAncestor` (`merge.rs:444-454`) and `judge_merge` never receives ancestries. The sole producer is `commit_merge` for `plan.base_transaction_id != ours.transaction_id` (`merge.rs:1726-1728`), a condition the contract never defines. The required-evidence line "an ancestor test … with the no-ancestor and mismatch failures" is unmet.
+
+**6. Collateral runs on identities that already conflicted.** The contract restricts it to "every identity that survived without conflict" (`:112-113`); `merge.rs:766-790` iterates every touched delta entry. An entity with an incompatible field edit *and* a theirs-side dependent gets both `FieldEdit` and `Collateral`; the dedup key `(entity_id, reason, field)` does not collapse them.
+
+**7. Conflict-entry fields are unpinned for `RootAnchor`, `PolicyRoot`, and projection `Closure`.** Anchor conflicts have no identity or kind; the code zeroes `entity_id`, `kind` and both objects (`merge.rs:911-921`). `closure_conflict` is always called with `None` (`:823`, `:869`), so a `Closure` never carries the "failing identity when the judgment names one" the contract promises, and the projection path carries `detail = 0`, which is not an `IMPACT_*` code. `RootAnchor` also cannot distinguish `contract_root` from `test_root`. These are frozen record bytes.
+
+**8. Corpus does not meet the contract's own evidence bar.** `conformance/merge/v1/accepted.json` has thirteen vectors covering six of nine reasons. No `Closure`, `RootAnchor`, or `PolicyRoot` vector; no theirs-side collateral vector; no symmetric pair vector, all three named in Required evidence (`:312-320`). The closeout discloses only the `Closure` gap.
+
+### P2
+
+9. Symmetry is false for J7: the composed object takes `A`'s label (`merge.rs:1045`), which is part of the object preimage, so `merge(O,B,A)` yields a different `ObjectId` and merged `StateRoot` when labels differ — directly contradicting `:259-262`. This answers campaign open question 3: use `O`'s label or none.
+10. `kind` on an `AddAdd` entry falls back `base → a → b` (`merge.rs:668-674`), so an add/add of differing kinds is asymmetric under side swap.
+11. `candidate_nonce = … || merged.root` is ambiguous — the plan has a judged and a remapped merged root; the code uses the judged one (`merge.rs:1161`).
+12. Work accounting diverges: `find_common_ancestor` charges nothing and enforces no ancestry bound, while the contract charges per ancestry entry; the code additionally charges per reverse edge in the collateral closure (`merge.rs:891-895`), the dominant cost, which the contract's list omits.
+13. Commit order: the contract advances the branch then checks the root (`:180-182`); the code checks first, then advances (`merge.rs:1772-1777`). Also an empty plan returns ours' transaction with no commit and no advance (`:1729-1731`), undescribed.
+14. `MergePlan` does not carry the workspace, schema epoch, policy root, principal, capability summary, or validation profile that `:174-178` says the plan carries; they arrive at `commit_merge` via `MergeCommitInput`.
+15. `sley2.merge-plan-nonce.v1` is in `IDENTIFIERS_V1.md:68` but is not a `sley-id` `Domain`; `merge.rs:53,1158-1162` hashes it raw, and `check_merge_spec.py` binds only the conflict domain.
+16. Decoder rules absent from the contract: `kind > 18`, `field > 8`, non-`FieldEdit` requires `field == 0` (`merge.rs:1924`), and oversized stored bytes answer `MERGE_RESOURCE_LIMIT`, not `MERGE_CONFLICT_FORMAT_INVALID`.
+17. Rust dedups conflicts on `(entity_id, reason, field)` (`merge.rs:944`); the oracle dedups on the whole tuple (`check_merge_vector.py:219`). Divergent on key-equal, field-differing entries; the contract defines neither.
+
+### P3
+
+18. "one operation per identity" (`:148`) contradicts the two-operation entry-point delete row.
+19. `O.value ∪ dA.added ∪ dB.added \ dA.removed \ dB.removed` has no grouping; both implementations compute `(O ∪ added) \ (removed)`.
+20. Resource-limits table omits `allocation = 134,217,728`, which `decoder_limits_hash` binds (shared `sley-scb1::MAX_TOTAL_ALLOCATION`).
+21. Preconditions are "checked in order"; `judge_merge` performs 1, 3, 4 then 5, and never 2.
+22. `let _ = ImpactErrorCode::ALL;` is dead (`merge.rs:1956`).
+23. The campaign record still reads "revision 1"; its three open questions are unanswered in the contract text (9 above answers the third).
+
+## validation
+Read-only inspection at `9dc78fe` in the pinned worktree; no writes, no `cargo`, no oracle run. Evidence: `MERGE_V1.md`, ADR-0028, `check_merge_spec.py`, closeout, campaign record, `crates/sley-repo/src/merge.rs` (judgment, compose, plan, commit, codec), `crates/sley-policy/src/candidate_validation.rs:1237-1271`, `crates/sley-mutate/src/apply.rs:370-380,443-463`, `crates/sley-id/src/lib.rs:120,340-360`, `scripts/check_merge_vector.py:196-220`, `conformance/merge/v1/accepted.json`. P0-1, P0-2 and P0-3 are read-confirmed against the frozen consumers, not inferred from prose.
+
+## blockers
+None for the review. P0-2 and P0-3 want a confirming test run (two created entities; a theirs-side collateral vector) that this read-only, no-cargo pass could not execute.
+
+## return_to
+orchestrator — findings land as MERGE_V1 revision 4 plus the three implementation fixes; do not freeze at revision 3.
+
+S20_520_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Plan rule 'AddEntryPoint for kind 16' cannot bind a new entity: frozen apply path replace_body requires a live target (sley-mutate/apply.rs:450), so any merge adding an EntryPoint is rejected; kind-16 exemption also keeps theirs' identity in ours, violating S20-345","Creation-ordinal rule contradicts S20-345/S20-360: contract derives identities in judged raw-ID order but emits operations in remapped raw-ID order, while candidate_validation.rs:1237-1271 assigns create_ordinal by CreateEntity operation position; two or more created entities generally fail InvalidIdentity; untested (only one create in the repo test)","Theirs-side collateral entries take theirs_object from ours (merge.rs:762-787 binds other_side=&a on the second pass), diverging from the frozen oracle (check_merge_vector.py:217); canonical conflict bytes and MergeConflictId differ between the two authorities and the symmetry claim fails"],"p1":["J1-J8 is not total: both sides Removed is unclassified by J2 (no Removed) and J3 (requires 'any other class'), yet the table claims exactly one rule applies; the code resolves it as convergent removal","MERGE_ANCESTOR_MISMATCH 52001 is defined for a condition no code checks (supplied O vs computed ancestor) and produced only for a different, undefined condition in commit_merge; the required ancestor mismatch test does not exist","Collateral is evaluated on identities that already conflicted, contradicting 'every identity that survived without conflict'; one identity can carry both FieldEdit and Collateral","Conflict-entry fields unpinned for RootAnchor, PolicyRoot and projection Closure: entity_id/kind/objects zeroed by the code, Closure never carries the promised failing identity and can carry detail=0 which is not an IMPACT_ code; RootAnchor cannot distinguish contract_root from test_root","Corpus misses three of nine conflict reasons (Closure, RootAnchor, PolicyRoot), the theirs-side collateral case, and the symmetric pair vector that Required evidence names"],"p2":["J7 composed object takes A's label, which is part of the object preimage, so merge(O,B,A) yields different objects and merged StateRoot; contradicts the symmetry paragraph and answers campaign open question 3","AddAdd conflict kind falls back base->a->b, so differing added kinds make the conflict record asymmetric under side swap","candidate_nonce input 'merged.root' is ambiguous between the judged and the remapped merged root; the code uses the judged root","Work accounting diverges: find_common_ancestor charges nothing and bounds nothing, and the per-reverse-edge collateral charge is not in the contract's list","Commit order differs: contract advances the branch then checks the root, code checks then advances; empty-plan short circuit undescribed","MergePlan does not carry the workspace, schema epoch, policy root, principal, capability summary or validation profile the contract says the plan carries","sley2.merge-plan-nonce.v1 is registered in IDENTIFIERS_V1 but is not a sley-id Domain and is hashed raw; check_merge_spec.py does not bind it","Decoder validation rules (kind<=18, field<=8, field==0 for non-FieldEdit, oversized bytes answering MERGE_RESOURCE_LIMIT) are absent from the contract","Rust dedups conflicts on (entity_id,reason,field) while the oracle dedups on the whole tuple; contract defines neither"],"p3":["'one operation per identity' contradicts the two-operation entry-point delete row","Set-composition formula lacks grouping; write (O union added) minus (removed)","Resource-limits table omits allocation=134,217,728 that decoder_limits_hash binds","Preconditions declared 'checked in order' but judge_merge performs 1,3,4,5 and never 2","Dead statement let _ = ImpactErrorCode::ALL in the decoder","Campaign record still says revision 1 and its three open questions are unanswered in the contract text"],"notes":"Read-only at 9dc78fe; no cargo, no oracle run. Three P0s are read-confirmed against frozen consumers (sley-mutate apply, candidate_validation, oracle). Do not freeze at revision 3."}
+EXIT=0 2026-09-04T06:21:02Z

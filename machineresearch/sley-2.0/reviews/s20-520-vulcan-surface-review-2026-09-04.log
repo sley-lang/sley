@@ -1,0 +1,72 @@
+DISPATCH 520-vulcan-surface forge-vulcan-520-vulcan-surface-20260904T062707 2026-09-04T06:27:07Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and implementation.
+
+**status:** FAIL — one P0 blocks freeze. Everything green that the slice tests actually cover; the gaps are in what nothing covers.
+
+## findings
+
+### P0 — blocks freeze
+
+**1. The common-ancestor precondition is never enforced; a caller-chosen `O` is authority.**
+`find_common_ancestor` (`crates/sley-repo/src/merge.rs:444`) is called by nothing in the pipeline — only by the fuzz target and tests. `judge_merge` takes three `MergeSide`s and no ancestries, so MERGE_V1 §"Inputs and the common ancestor" precondition 2 has no implementation, and `MERGE_NO_COMMON_ANCESTOR` is unreachable in production. Both protocol handlers — `merge_judge` (`crates/sley-protocol/src/server.rs:745`) and the committing `merge_commit` (`server.rs:1120`) — read three caller-supplied transaction ids and hand them straight to `judge_merge` with no ancestry check at all.
+
+Concrete attack: supply `O = A`. Then `dA = compare(A,A)` is empty, every identity in the union takes the single-sided J1 path (`merge.rs:686`), the collateral loop finds nothing because `view_a` is empty, and the result is B's content committed onto A through the frozen S20-390 path with **zero conflicts raised**. Ours' concurrent changes are silently overwritten. That is exactly the primary risk ADR-0028 names ("a silent choice or a lost change"), reachable over the protocol surface. `ours` must still be the fixed accepted head (S20-390 CAS enforces that transitively) — the ancestor is the unguarded input.
+
+Fix direction: `judge_merge` takes the two bounded S20-500 ancestries (or a verified ancestor entry), runs `find_common_ancestor`, and fails `MERGE_ANCESTOR_MISMATCH` before any composition; both handlers must supply them.
+
+### P1 — must fix before freeze
+
+**2. Collateral conflict entries record ours' object as `theirs_object` in the theirs→ours direction.** `merge.rs:762` iterates `[(view_a, view_b, &b, &index_b), (view_b, view_a, &a, &index_a)]`; the entry built at `merge.rs:784-785` uses `a.objects` for `ours_object` and `other_side.objects` for `theirs_object`, and `other_side` is `&a` on the second pass. Every theirs-side collateral conflict therefore reports A's object as theirs (and a non-zero object where B removed the entity, which must be `zero32`). That field is digested into `MergeConflictId`, so the conflict identity and stored bytes are wrong and the §Determinism and symmetry swap property fails. The independent oracle does it correctly (`scripts/check_merge_vector.py:217` uses `b.get(entity_id)`), so implementation and oracle disagree — the `collateral` corpus vector has a single entry from the ours-side direction only, so neither the oracle run nor the 346 native tests reach it.
+
+**3. The reference rewriter silently emits partially-remapped bodies.** `remap_set` (`merge.rs:1378`) does `if let Ok(rebuilt) = EntityIdSet::from_unsorted(ids) { *set = rebuilt; }` — on error the set keeps its **un-remapped** ids and `build_merge_plan` proceeds to commit; `remap_sorted` (`merge.rs:1386`) silently dedups after remap. The contract requires every local reference rewritten and no partial result; both must return `MERGE_INTERNAL_INVARIANT`.
+
+**4. A failed `commit_merge` can leave the merge transaction committed.** `merge.rs:1758-1777` commits through S20-390 first, then checks the root, then does the branch CAS. `advance_branch` returns `BranchErrorCode::RefNamedCasStale` (`crates/sley-repo/src/refs.rs:1189`) if the branch no longer resolves to base — by which point the merged transaction is durable and is the fixed accepted head, while the caller receives a failure. Same shape for `MERGE_RESULT_MISMATCH`. Pre-check that the branch resolves to `base_transaction_id` before committing, and state the durability boundary in §Merge plan; the closeout's "a conflict commits nothing" currently reads as a stronger guarantee than the code gives.
+
+**5. `MERGE_ANCESTOR_MISMATCH` (52001) means something the contract does not define.** Its only production emission (`merge.rs:1727`) is `plan.base_transaction_id != ours.transaction_id`. The contract's defined meaning is never emitted. Reconcile the code table with the implementation.
+
+**6. §Required evidence is not met by the fuzz slice.** The contract requires a persistent target "over the merge judgment and the conflict decoder"; `fuzz/targets/merge_conflict_decoder.rs` covers the decoder and `find_common_ancestor` only (the closeout discloses this). `MAX_FUZZ_INPUT_BYTES = 65_536` also means neither the 67,108,864-byte nor the 131,070-entry declared ceiling is ever exercised. Add a judgment lane or amend the evidence line before freeze.
+
+### P2 — fix before completion
+
+<details>
+<summary>Seven items with locations</summary>
+
+**7. Decoder grammar under-validation.** `merge.rs:1924` enforces `field == 0` for non-`FieldEdit` but leaves `detail` unconstrained for non-`Closure` reasons and `kind` unconstrained for `Closure`. A forged record carrying `detail = <arbitrary IMPACT code>` on an `AddAdd` entry round-trips byte-identically and is accepted as evidence.
+
+**8. Declared resource bounds unenforced.** `find_common_ancestor` (`merge.rs:444`) builds a `BTreeSet` over the whole `theirs` slice with no 65,536 cap and no work charge; `build_merge_plan` charges no work per plan operation. Both contradict §Resource limits.
+
+**9. Empty-plan early return does not verify the pairing.** `merge.rs:1729` returns `Ok(ours_transaction)` without checking `plan.merged_root == ours.root`; a mismatched `(ours, plan)` pair reports success with nothing committed.
+
+**10. Commit-path numeric codes are dropped.** `MergeError::Commit` carries a string, `code()` returns `None` (`merge.rs:198`), and `server.rs:1138` reports numeric `0` — while the plain `commit` endpoint (`server.rs:1106`) reports `error.numeric_code()`. §Stable failures requires exact preservation.
+
+**11. Corpus does not carry every conflict reason.** `conformance/merge/v1` covers 6 of 9: `RootAnchor` and `PolicyRoot` exist only in a native test (`merge.rs:2362`), `Closure` is documented unreachable. There is also no swapped-side symmetric vector pair in the corpus; symmetry is asserted only natively.
+
+**12. `MetadataOnly` never triggers collateral, and the contract never says so.** `DeltaView::touched` (`merge.rs:492`) admits only `Changed | Retyped | Removed`. That answers campaign open question 2, but as an unstated normative rule in a contract about to freeze.
+
+**13. An input side failing its own S20-250 judgment surfaces as `MERGE_COMPARE_FAILED`** wrapping an `IMPACT_*` code (`merge.rs:196`, `merge.rs:754`). The contract defines 52005 as the dA/dB comparison failure and does not define this outcome.
+</details>
+
+### P3 — editorial
+
+- `compose` (`merge.rs:986`): a `Changed`/`Changed` pair with no field deltas on either side yields `all_fields` empty and a composed body silently equal to `O` — both sides' changes dropped, no error. Add a defensive invariant and state the S20-510 guarantee.
+- `POLICY_BINDING_SET` sits outside `SET_FIELDS` (`merge.rs:64-78`) with no stated reason; the contract lists PolicyBinding 2 alongside the other twelve.
+- Campaign open questions on J6 and the composed-object label are answered by the implementation but never recorded in the contract text.
+
+## validation
+
+- `cargo test -p sley-repo` (toolchain 1.93.0 — the `cargo` on PATH rejects `resolver = "3"`): **346 passed, 0 failed, 3 ignored**.
+- `uv run --project oracle/scb1 --frozen scripts/check_merge_vector.py`: **PASS**, 13 vectors, 4 mutations, 0 problems.
+- `python3 scripts/check_merge_spec.py`: **PASS**, revision 3, 14 stable codes, `S20_520_IMPLEMENTED_REVIEW_PENDING`.
+- Read-only throughout; no repository file modified.
+
+## blockers
+
+Finding 1 must be closed before freeze. Not run: `make quick`/`make core`/`make conformance`/fuzz smoke (bounded triage), and no fuzzing of the judgment (no target exists).
+
+## return_to
+
+orchestrator
+
+S20_520_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["Common-ancestor precondition unenforced: find_common_ancestor never called by judge_merge/build_merge_plan/commit_merge; protocol merge_judge (server.rs:745) and merge_commit (server.rs:1120) accept caller-chosen O; O=A empties dA so all of B takes the J1 path with zero conflicts and ours' changes are silently overwritten by a committed transaction"],"p1":["Collateral loop merge.rs:762-787 passes other_side=&a on the theirs-side pass, so theirs_object is read from ours; wrong MergeConflictId and broken ours/theirs symmetry; oracle check_merge_vector.py:217 disagrees and no corpus vector covers that direction","remap_set merge.rs:1378 and remap_sorted merge.rs:1386 swallow EntityIdSet::from_unsorted failure and emit partially-remapped bodies that are then committed","commit_merge merge.rs:1758-1777 commits durably before the branch CAS and root check, so BRANCH_REF_NAMED_CAS_STALE or MERGE_RESULT_MISMATCH returns a failure with the merge transaction already the accepted head","MERGE_ANCESTOR_MISMATCH 52001 emitted only for plan/side transaction mismatch (merge.rs:1727), a meaning the contract does not define, while its defined meaning is never emitted","Required-evidence fuzz line unmet: merge_conflict_decoder.rs covers only the decoder and find_common_ancestor, not the judgment, and its 65536-byte cap never reaches the declared byte or entry ceilings"],"p2":["Decoder merge.rs:1924 leaves detail unconstrained for non-Closure reasons and kind unconstrained for Closure, so forged evidence round-trips","find_common_ancestor has no 65536 ancestry bound and no work charge; build_merge_plan charges no work per operation","commit_merge merge.rs:1729 empty-plan early return does not check plan.merged_root == ours.root","Commit-path numeric codes lost: MergeError::Commit code() is None so server.rs:1138 reports numeric 0","Corpus covers 6 of 9 conflict reasons and carries no swapped-side symmetric vector pair","DeltaView::touched merge.rs:492 excludes MetadataOnly from collateral, an unstated normative rule","Input-side S20-250 judgment failure surfaces as MERGE_COMPARE_FAILED wrapping IMPACT_*, undefined by the contract"],"p3":["compose merge.rs:986 silently returns O's body when a Changed/Changed pair carries no field deltas","POLICY_BINDING_SET held outside SET_FIELDS with no stated reason","Campaign open questions on J6 and composed-object label answered in code but not in the contract text"],"notes":"Read-only review at 9dc78fe. cargo test -p sley-repo 346 passed 0 failed (toolchain 1.93.0); merge oracle PASS 13 vectors 4 mutations; check_merge_spec.py PASS revision 3. All findings are in paths no test, corpus vector, or oracle case reaches."}
+EXIT=0 2026-09-04T06:34:19Z

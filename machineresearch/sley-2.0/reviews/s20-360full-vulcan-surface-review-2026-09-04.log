@@ -1,0 +1,71 @@
+DISPATCH 360full-vulcan-surface forge-vulcan-360full-vulcan-surface-20260904T043755 2026-09-04T04:37:55Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+## S20-360 full operation analysis — surface and security review
+
+**Verdict: FAIL.** The contract's central safety claim is false against the code at `9dc78fe`. Do not freeze section 9 as drafted.
+
+### Answers to the two named questions
+
+**1. Is the phase 12 guard unreachable through every E7 opcode? No — it is reachable through four of the five.**
+
+The refusal chain only works if each owner phase refuses the opcode *unconditionally*. Only one of them does.
+
+| Opcode | Owner check | Behavior on a **well-typed** instance |
+|---|---|---|
+| 144 `contract_assert` | `sley-check/src/contracts.rs:675` `validate_contract_assertions` | **Accepts** — increments `assertions`, returns `Ok` |
+| 145 `test_observe` | `contracts.rs:735` `reject_test_observations` | Refuses unconditionally ✅ |
+| 160 `effect_request` | `effects.rs:729` `validate_request` | **Accepts** — returns `Ok`, records `local_effects` |
+| 161 `adapter_invoke` | `effects.rs:757` `validate_adapter_invoke` | **Accepts** — returns `Ok` |
+| 162 `capability_narrow` | `effects.rs:807` `validate_capability_narrow` | **Accepts** — returns `Ok` |
+
+Every one of those four is a *type* check (`RequestType`, `AdapterInvokeType`, `CapabilityRequirementType`, `AssertType`), not a feature refusal. Walk a well-typed `contract_assert` program through the validator:
+
+- **phase 7** — `operation_analysis_supported()` is false because 144 is in `EXCLUDED_OPERATION_OPCODES` (`candidate_program.rs:215`), so `candidate_validation.rs:829` hits `continue` and phase 7 **passes** with `judged_operations = 0`
+- **phase 8** — 144 falls into `effects.rs:658` `_ => {}`; passes
+- **phase 10** — well-typed assertion; passes
+- **phase 11** — no `TestObserve`; passes
+- **phase 12** — `candidate_validation.rs:1537` fires `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`
+
+So a statically valid program is refused at phase 12 with decision `ResourceLimit` and retryability `InternalRepair`. That is not defense in depth; it is the live refusal path for the feature.
+
+The matrix test at `candidate_validation.rs:3181` does not prove otherwise. Its own comment says "the constant keeps every candidate's entity set identical … so only the opcode differs" — one fixture shape reused across all five opcodes, which makes every E7 operation malformed by construction. It proves the malformed case only, and its comment plus the closeout addendum cite it as a general proof.
+
+**2. Is keeping unreachable defense in depth right?** The premise is wrong, so the question dissolves. Keep the guard — it fails closed and it is load-bearing, not redundant. But it must be re-documented as a reachable refusal, and the decision class needs a decision from the contract owner: phase 12 can only emit `ResourceLimit` (ADR-0044 pins one decision per phase), so a well-formed program using a declared effect gets told it hit a resource limit and that the validator needs internal repair. That is a misleading diagnosis to hand an author.
+
+**3. Is the E7 refusal matrix complete?** The opcode *set* is correct; the *claims* are not. Against the epoch-1 `op` table (55 ops), `{144,145,160,161,162}` is exactly the excluded range, and I confirmed the remaining 50 are all covered by named arms in `judge_extended_operation` (51 arms, including `ContractAssert` for the E7a lowering path). Nothing silently reaches `extended.rs:804` `_ => OpcodeUnsupported`. But the matrix omits the well-typed axis entirely, which is the axis that matters.
+
+### Findings
+
+**P0**
+- Phase 12 guard is reachable through 144, 160, 161, and 162. `CANDIDATE_RESULT_V1.md` §9 ("it is unreachable while those owners refuse first"), ADR-0044 decision 4 ("each is already refused by the owner of its own phase"), and the closeout addendum all assert unreachability the code contradicts. This is the claim the freeze rests on.
+
+**P1**
+- Four of five refusal-matrix rows are false: the named owner checks are type checks that accept well-formed operations.
+- `resource_and_unsupported_operation_analysis_fail_closed` proves only malformed E7 operations; its comment and the tracked closeout evidence overstate it as a general proof. Add well-typed fixtures per opcode.
+- §9 states all five E7 opcodes "have no owner yet." False for 144: profile **revision 9** landed slice E7a (`contract_assert` lowering and execution), and phase 10 statically accepts it. §9 was written against revision 8.
+- Phase 12 refusal of a statically valid program surfaces as `RESOURCE_LIMIT` / `InternalRepair`. Wrong class for an unsupported-feature refusal; needs an owner decision before freeze.
+
+**P2**
+- Phase 7 evidence cannot distinguish skipped analysis from zero operations. `operation_analysis_supported()` is program-wide, so one excluded opcode anywhere suppresses judgment for *every* unit, yet phase 7 renders `pass` with `(units, edges, cfg_work, 0, 0)` — byte-identical to a fully judged operation-free program. No false `VALID` results (phase 12 always fails these), but the recorded phase-7 pass in a failed result reads as proof of judgment. Record the analyzability flag or the total operation count beside the judged count.
+- `judge_function_operations` omits `require_canonical_referenced_constants`, which `lower_function` runs after judgment (`lower.rs`). §9 and profile §3.1 document the type-parameter/effect/contract omissions but not this one. Harmless at S20-360 (no execution), but S20-390 must not assume phase 7 established canonicality.
+
+**P3**
+- Revision pin drift: the review request, ADR-0044, and the closeout addendum all cite profile "revision 8"; the file header reads revision 9.
+- ADR-0044 says E1–E6 covers "the fifty-two remaining opcodes." The epoch-1 table has 55; 50 are analyzable after the 5 exclusions, of which 3 are the restricted Booleans, so 47 are new. Fifty-two matches neither count.
+
+### Validation
+
+Read-only against `/home/greyforge/cache/worktrees/sley2-review-2026-09-04` at `9dc78fe`. No cargo, no make, no writes. 13 targeted reads across the three spec documents, the ADR, the closeout addendum, `lower.rs`, `extended.rs`, `candidate_program.rs`, `candidate_validation.rs`, `sley-check/src/contracts.rs`, `sley-check/src/effects.rs`, and `SSMC1_EPOCH1_SCHEMA.txt`.
+
+Confidence: the P0 is high (~0.9) for opcode 144 — the accept path is directly visible in `validate_contract_assertions`. High-moderate (~0.8) for 160/161/162: the validators plainly accept well-formed operations, but I did not trace the downstream effect-closure declaration checks to a constructed fixture, and I was barred from running one. Either way, "refused by the owner of its own phase" is falsified by 144 alone.
+
+### Blockers
+
+- `machineresearch/sley-2.0/s20-360-full-operation-analysis-campaign-2026-09-03.md` does not exist. That directory holds only `council-queue/` logs and request files. I answered the three questions embedded in the request line instead; if the campaign record carries additional open questions, they are unanswered.
+
+### Return
+
+Contract revision to Ariadne (§9 rewrite: reachability, refusal matrix, 144 ownership). Decision-class question to Nabu or the contract owner. Test fixtures and phase 7 evidence field to Merlin.
+
+S20_360FULL_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["Phase 12 guard is reachable through well-typed opcodes 144, 160, 161, 162; CANDIDATE_RESULT_V1 section 9, ADR-0044 decision 4, and the closeout addendum all assert unreachability that the code contradicts"],"p1":["E7 refusal matrix is wrong in 4 of 5 rows: validate_contract_assertions, validate_request, validate_adapter_invoke, and validate_capability_narrow are type checks that accept well-formed operations; only 145 refuses unconditionally","Matrix test resource_and_unsupported_operation_analysis_fail_closed uses one fixture shape varying only the opcode, so it proves the malformed case only, yet its comment and the tracked closeout evidence cite it as general proof","Section 9 states all five E7 opcodes have no owner yet; profile revision 9 landed slice E7a contract_assert lowering and execution and phase 10 statically accepts it","Phase 12 refusal of a statically valid program surfaces as decision RESOURCE_LIMIT with retryability InternalRepair, a wrong decision class for an unsupported-feature refusal"],"p2":["Phase 7 evidence tuple cannot distinguish skipped analysis from zero operations; operation_analysis_supported is program-wide so one excluded opcode suppresses judgment for every unit while phase 7 still renders pass with judged_operations 0","judge_function_operations omits require_canonical_referenced_constants which lower_function runs after judgment, and neither section 9 nor profile section 3.1 records that omission"],"p3":["Revision pin drift: request, ADR-0044, and closeout addendum cite profile revision 8 while the file header reads revision 9","ADR-0044 says fifty-two remaining opcodes; the epoch-1 table has 55, 50 analyzable after 5 exclusions, 47 new beyond the 3 restricted Booleans"],"notes":"Read-only at 9dc78fe, no cargo or make. Blocker: campaign record file s20-360-full-operation-analysis-campaign-2026-09-03.md does not exist; answered the request-embedded questions instead."}
+EXIT=0 2026-09-04T04:43:28Z

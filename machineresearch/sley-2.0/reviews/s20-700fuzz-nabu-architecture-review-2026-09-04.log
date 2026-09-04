@@ -1,0 +1,82 @@
+DISPATCH 700fuzz-nabu-architecture forge-nabu-700fuzz-nabu-architecture-20260904T071425 2026-09-04T07:14:25Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+Now the scripts and the relevant VM ordering.
+
+## status
+
+**FAIL** — two P0 findings. The lanes exist structurally but do not reach the semantics the contract's §5 evidence and the campaign record claim for them.
+
+## findings
+
+### Direct answers to the two questions asked
+
+**Q2 — should the E6 fixture carry a separate callee inventory? No.** The shared flat block/operation inventory is the *stronger* configuration, precisely because it is the one in which wrong narrowing is representable. A separate inventory makes cross-function leakage structurally impossible and so deletes the property under test.
+
+But the current fixture doesn't exercise narrowing either. With exactly one block per function, both declared by their own `FunctionGraph.blocks`, nothing distinguishes "narrow by `block.function` ownership" from "look up by declared entity id." And `extended_family_lane` asserts only determinism, restricted refusal, and observation re-derivation — nothing inspects the lowered callee body, so a narrowing bug that still terminates deterministically is invisible. The right change is an *adversarial* shared inventory: add a third unreferenced function's block and operation to the same flat lists, add a second callee so the `SLEYBC02` callee table's `u64` count and ascending-function-id order are exercised, and assert on the lowered artifact rather than on determinism alone.
+
+**Q3 — does lane selection by cursor byte keep the corpus balanced? No, on two independent grounds.**
+
+*Positional.* `Cursor` is one sequential stream and the input constructor consumes a data-dependent number of bytes, so a fixed-offset seed layout cannot pin a selector. Tracing `bytes([fixture, 0, 0, 0, 0, family]) + bytes([0])*64` (`run_vm_persistent_fuzz.py:151`): only restricted fixture 0 (`identity_fixture(Unit)`, whose canonical value reads zero bytes) lands `family` on the selector. Fixtures 1–4 and 6 consume one byte, putting `family` on the *gate*; fixtures 5, 7, 8 consume two, putting it on `extended_lane`. In every one of those cases the selector reads filler `0x00` → family 0. Variant B (`…, family]) + bytes([0xFF])*64`) takes the raw-input path with `bounded(4)` reading `0x00` → zero inputs, and its selector reads `0xFF % 8` → family 7, always. Of 144 family seeds, **8 select the family they name**; 136 collapse onto family 0 or family 7.
+
+The runner's own limit-selector seeds (`run_vm_persistent_fuzz.py:138-143`) already use the correct trick — a constant repeated tail — and the family seeds abandoned it. Fix: constant tail byte `c` with `c ≡ 0 (mod 3)` and `c ≡ family (mod 8)`; CRT gives a solution mod 24 for every family (0→0, 1→9, 2→18, 3→3, 4→12, 5→21, 6→6, 7→15).
+
+*Distributional.* Even with positions fixed: the gate fires on 86/256 ≈ 33.6% of runs and then splits eight ways, so each extended family gets ~4.2% of executions against ~11% per restricted fixture. The families carrying all the new semantics get roughly a third the attention of the frozen ones.
+
+The structural fix behind both: read every lane decision from a fixed-position header consumed *before* any variable-length construction. Related — `if cursor.byte().is_multiple_of(3) { extended_family_lane(cursor.byte() % 8, …) }` (`vm_canonical_inputs.rs:94-96`) consumes the selector byte only when the gate fires, so `map_order_lane`'s gate shifts by one byte depending on an unrelated decision.
+
+### P0 — blocks freeze
+
+**P0-1. The extended-family lane is fed the wrong `ExecutionRequest`; E2, E3 and E4 can never execute.** `extended_family_lane(selector, &request)` (`vm_canonical_inputs.rs:95`) reuses the request built for the *restricted* fixture at line 43. `validate_inputs` (`execute.rs:913-930`) requires exact arity and exact type equality against the fixture's own parameters. The restricted fixtures only ever produce Unit/Bool/Bytes/Text/Option/Result inputs, so:
+
+| Fixture | Needs | Reachable? |
+|---|---|---|
+| E2 `IntAddChecked` | 2 × `SInt(32)` | no (~1e-7 via the raw path) |
+| E2 `IntDivChecked` | 2 × `SInt(64)` | no |
+| E3 `FloatAdd` | 2 × `F64` | no (raw path must also pass float canonicalization) |
+| E4 `MapNew` | `UInt64, Text, UInt64, Text` | no |
+| E5 `CellNew`/`CellGet` | 1 × `Bool` | yes, ~5.6% |
+| E1 `ConstantRef`, E6 `CallDirect` | 0 inputs | yes, ~15% |
+| E7a `ContractAssert` | 1 × `Bool` | yes, ~5.6% |
+
+Lowering is still exercised (`lower_function` precedes `validate_inputs`, `execute.rs:363-364`), so the *signature judgment* has real coverage. Execution semantics do not. The campaign record's table claims exactly the unreachable ones: "overflow as a value failure," "divide-by-zero and signed-minimum division," "rounding and canonical results," "canonical key order and duplicate-key failure values." That is tracked evidence asserting coverage that cannot occur. The lane needs per-fixture inputs derived from each fixture's own `expected_input_types`.
+
+**P0-2. The family-lane seed corpus does not select the families it names** (traced above), and nothing compensates: `SMOKE_RUNS = 256` against a 769-seed corpus means libFuzzer exits during seed replay. The campaign record confirms this from its own numbers — "752 executions with 751 seeds," i.e. seeds + 1, zero mutation rounds. `make vm-persistent-fuzz-smoke` is a corpus replay, so "passes with no finding" carries no adversarial weight for E2–E6.
+
+### P1 — must fix before freeze
+
+1. **The cross-profile refusal assertion is vacuous for the fixtures that matter.** `assert!(execute_function(restricted, …).is_err())` (`vm_canonical_inputs.rs:309-312`) accepts any error. Since lowering precedes input validation, a regression in which restricted lowering *accepted* an extended opcode would then fail on `InputCountMismatch`/`InputTypeMismatch` for E2/E3/E4 and still pass. This is the architecture-side answer to Vulcan's open question 1: **yes, pin `VM_LOWER_OPCODE_UNSUPPORTED`.** A fuzz lane whose assertion cannot distinguish the failure it names from an unrelated one is not a lane.
+2. **E6 covers none of the rules contract §7 states for it.** A zero-parameter callee exercises no argument copy, no parameter value-unit charge, no recursion, no 256-frame `CallDepth` ceiling, and no multi-entry callee table ordering.
+3. **E7a: `ContractSource` has no owner.** The fixture's binding is `ContractSource::Parameter(id(base + 1))` (`vm_canonical_inputs.rs:641`), which is the fixture's *block* id — `operation_fixture` places parameters at `base + 3 + i`. The lane passes anyway because `extended.rs:701` only checks `bindings.len()` and never resolves the source. Contract §3 E7a enumerates the rules judgment re-derives and source resolution is not among them, so S20-240's bindings and the VM's operand order are two binding authorities that can disagree with no owner detecting it. §3 must state explicitly that the VM ignores `ContractSource` and that operand order is authoritative — or resolve it.
+4. **§5 required evidence is unfalsifiable as written.** "one lane per landed family" is satisfied by a lane that never executes. It must state a reachability obligation: each family lane must reach a completed termination (success or the family's value failure) on the pinned corpus, and the checker must verify that rather than string presence.
+
+### P2 — fix before completion
+
+- `Cursor::byte()` wraps modulo input length instead of saturating. 256 of 769 seeds are one byte, so all their decisions alias to a single value — `extended_lane` (odd) and `map_order_lane` (even) become mutually exclusive across a third of the corpus.
+- `map_order_lane` also returns early whenever `canonical_map` yields fewer than two entries (`bounded(4)` is 0 or 1 on 40% of draws), so its real firing rate is far below the nominal 50%.
+- The tracked `machine-summary.json` `extended_family_lanes` array lists 6 entries describing 7 fixtures and omits the E7a lane entirely, while `extended_family_fixture_count` is 8. `supported_opcodes: [102, 103, 104]` still names only the three Boolean opcodes. The checker validates neither field.
+- `check_vm_persistent_fuzz_slice.py` pins string markers and integer counts only. Every defect above survives it unchanged — it gates presence, not evidence.
+- The campaign record is stale against the gate: "seven fixtures," "751 seeds," "752 runs" versus the pinned 8 and 769. It is not referenced by the checker, so nothing catches the drift.
+
+### P3 — editorial
+
+- ADR-0039 header says "draft at revision 7 … slices E1 through E6 implemented, E7 excluded" while the contract is revision 9 and the ADR's own Decision item 6 lands E7a.
+- `vm_canonical_inputs.rs:91` comments the lane as "(E2 through E6)"; it now includes E1 and E7a.
+- `ExtendedFixture.functions` is documented as "Callee inventory for the direct-call family"; it also carries the E7a predicate.
+- Campaign open question 2 conflates the `FunctionGraph` inventory (already separate) with the block/operation inventories (shared).
+
+## validation
+
+Read-only static review at `9dc78fe`. No cargo, no make, no repository mutation. Reachability claims derive from `execute.rs:913-930` (exact arity and type equality), `execute.rs:363-364` (lower-before-validate ordering), the fixture parameter types in `vm_canonical_inputs.rs:346-646`, and hand-tracing `Cursor` byte consumption through the seed layouts at `run_vm_persistent_fuzz.py:141-152`. The replay claim is sourced from the campaign record's own run/seed counts. Confidence high on P0-1, P1-1 and P1-3 (each follows deterministically from code read); high on P0-2 (hand-traced, not executed — a run of the target with instrumentation would confirm it cheaply and I did not run one).
+
+## blockers
+
+None to the review. The findings are contract and harness revisions; all are fixable without changing the profile boundary, which I judge sound: a second explicit `CacheProfile` with its own bytecode magic, manifest-and-checker-as-authority, and codec-verified map order rather than VM-side sorting are the right calls.
+
+## return_to
+
+orchestrator
+
+S20_700FUZZ_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["extended_family_lane reuses the restricted fixture's ExecutionRequest; validate_inputs requires exact arity and type equality, so E2 (2x SInt32), E3 (2x F64) and E4 (UInt64/Text x4) never execute and the campaign record claims those exact surfaces","family-lane seed layout uses fixed byte offsets against a data-dependent cursor: 136 of 144 family seeds collapse to family 0 or 7, and SMOKE_RUNS=256 over a 769-seed corpus makes the smoke a replay with zero mutation rounds"],"p1":["restricted-refusal assert is bare is_err(); lowering precedes input validation so an extended opcode leaking into RESTRICTED_V1 would still pass via InputCountMismatch for E2/E3/E4 - pin VM_LOWER_OPCODE_UNSUPPORTED","E6 fixture exercises none of contract section 7 E6: no argument copy, no parameter value-unit charge, no recursion, no 256-frame CallDepth ceiling, no multi-callee table ordering, and no assertion on the lowered callee body","E7a fixture binding names the block id (base+1) not a parameter (base+3); lowering only checks bindings.len() and never resolves ContractSource, so S20-240 bindings and VM operand order are two unowned disagreeing authorities - section 3 must state the VM ignores ContractSource","contract section 5 'one lane per landed family' is unfalsifiable; it must require each family lane to reach a completed termination and the checker must verify reachability, not string presence"],"p2":["Cursor::byte() wraps modulo input length; 256 of 769 seeds are one byte so all their lane decisions alias to a single value","map_order_lane returns early whenever canonical_map yields fewer than two entries, so its real firing rate is far below the nominal 50 percent","machine-summary extended_family_lanes lists 6 entries for 8 fixtures and omits E7a; supported_opcodes still names only 102/103/104","check_vm_persistent_fuzz_slice.py pins markers and counts only; every finding here survives it unchanged","campaign record says seven fixtures / 751 seeds / 752 runs against the pinned 8 and 769, and is not referenced by the checker"],"p3":["ADR-0039 header says revision 7 and E7 excluded while the contract is revision 9 and the ADR's own decision 6 lands E7a","fuzz target comments the lane as 'E2 through E6' though it now includes E1 and E7a","ExtendedFixture.functions documented as callee inventory but also carries the E7a predicate","campaign open question 2 conflates the FunctionGraph inventory (already separate) with the block/operation inventories (shared)"],"notes":"E6 answer: no separate callee inventory - the shared flat inventory is the stronger config because it is where wrong narrowing is representable; needs an adversarial third function plus assertions on the lowered callee table instead. Lane balance answer: not balanced, positionally (data-dependent selector offsets break the fixed-offset seeds) or distributionally (~4.2 percent per extended family vs ~11 percent per restricted fixture). Profile boundary itself is sound."}
+EXIT=0 2026-09-04T07:19:46Z

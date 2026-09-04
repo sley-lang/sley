@@ -1,0 +1,58 @@
+DISPATCH 760-ariadne-contract forge-ariadne-760-ariadne-contract-20260904T083013 2026-09-04T08:30:13Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its composed authorities.
+
+Noting already: the header says "revision 2" while §9 says "Revision 1 carries none." Let me pull the authorities.
+
+The master goal lives outside the worktree. Let me read sections 6.4 and 16.7 directly — this is the core transcription check.
+
+Master goal §6.4 and §16.7 confirmed. Now verifying the profile precedents and the mechanical facts behind the §6 determinations.
+
+Confirmed a significant fact: E7a already landed on the strength of this draft's determination. Let me verify the checker and remaining claims.
+
+Review complete. Findings below.
+
+## status
+`FAIL` — no P0, but three P1s must be fixed before acceptance. The two things you most wanted checked (the nine facts, the seven obligations) transcribe exactly; the defects are in the operative test, the non-preemption claim, and checker coverage.
+
+## findings
+
+**Transcription — clean.** §1's nine facts match master goal §6.4 (`Sley2.0mastergoal.md:824-834`) exactly, in order, with only articles added. §2's seven obligations match §6.4's numbered list (`:836-844`) exactly, in order. §16.7 does list "migration policy for Sley 2.x epochs" as an M6 deliverable, and no document supplied it.
+
+### P1
+
+**1. §1's concrete test is strictly weaker than the nine facts it claims to make concrete.** The test is framed only on prior artifacts: "alters the bytes or the acceptance of an artifact that a prior epoch's decoder produced or accepted." An additive change — a new optional field, a new entity kind, a new type tag, a raised decoder limit — leaves every prior artifact's bytes and acceptance untouched, so the test answers *no epoch* while the nine facts (field numbers; required and optional fields; decoder limits that affect validity) and the bullet list three lines below answer *epoch*. It also fails to state what actually separates your two precedents: `SLEYBC02` and `semantic_profile 2` are legitimate because they carry a **disjoint identity**, not because prior artifacts are unaffected. Under the literal test, a forward-incompatible change with no identity separation passes too. Since §6's determinations and §8's checker rest on this one sentence, the under-approximation is load-bearing. Restate as: an epoch is required when a change alters any of the nine facts *for an existing identity*; a profile is permitted only when the change carries a new identity under which no prior-identity artifact changes bytes or acceptance, and no new-identity artifact is presented to the old decoder as the old identity.
+
+**2. §7's "no decision is made on the section 6 agenda" is false at this commit.** `VM_EXTENDED_OPCODE_PROFILE_V1.md:8-10` and `:155-162` land slice E7a (`contract_assert` execution) and cite this policy as the warrant — "which the S20-760 revision 2 determination showed needs no schema epoch ... `EPOCH_MIGRATION_POLICY_V1.md` section 6 records the determination." `machine-summary.json:2446` records `e7a_contract_assertion_landed: true`, and `:2447` credits the S20-760 revision 2 answer with unblocking it. Determination 3a was consumed as authority and shipped before the schema owner reviewed it. The exclusion must record this rather than deny it.
+
+**3. §8 overclaims checker coverage.** It says the checker verifies "the facts the section 6 determinations rest on, so a determination cannot rot silently." `determination_facts()` covers items 1, 3a, 3b and opcode-tag presence. It covers **nothing** for item 2, and nothing for item 3c's explicitly time-stamped "Re-verified 2026-09-04: no narrowing function exists in `sley-policy`, and no host services an effect" — the most perishable fact in the table. Two of six determinations rot silently.
+
+### P2
+
+**4. Evidence column gaps against `SCHEMA_EPOCH_V1.md` §6.** Obligation 6 omits the reproduction requirement ("the reproduced evidence digest must equal the draft before validation succeeds") and `contract_id`; as written it can be discharged by an *asserted* digest. Obligation 4 omits that `plan_id` must equal an externally approved plan identifier rather than candidate-supplied authority — the mechanical link between §3's four approvals and the transaction that writes state.
+
+**5. Citation errors in the mechanical-basis column.** Item 1 cites `CONTRACT_TEST_PROFILE_V1.md` §1.5 and §1.6; §1.5 covers only `ResourceCeiling`, §1.6 only TypeDef invariants. `EffectBound` and `CapabilityBound` are rejected by §1.1's table and the preamble, neither cited. Item 3d cites §3.3; the replay-scope and adapter-configuration text is §3.2, which says those *must* be defined — the policy softens it to "may define". Item 3b borrows §1.1's anti-reinterpretation clause, which is scoped to ContractKind tags, and applies it to `test_observe`; correct support is §3.4 plus the preamble.
+
+**6. Item 2 is the only determination with no contract citation, and its terms don't resolve.** "Optional field 4 of the frozen epoch-1 descriptor" matches no descriptor in `SCHEMA_EPOCH_V1.md`: record field 4 is `unicode_nfc_version`, `ContractDescriptor` 4 is `field_schema_hash`, `MigrationContractDescriptor` 4 is `scope_hash`, `ExtensionDescriptor` 4 is `payload_schema_hash` — all required. `full_v1` exists only as `CandidateValidationLimits::full_v1()` in code and appears in no spec document.
+
+**7. Checker/staging coupling.** `SPEC_MARKERS` pins the literal `"Status: S20-760 contract draft, revision 2"`, so §8's own `S20_760_POLICY_ACCEPTED` transition, and any revision 3, fail the checker. `ADR_MARKERS` omit decision 6 ("A determination is not an approval") — the revision-2 addition that licenses §6 could be deleted and the checker still passes.
+
+### P3
+Header says revision 2, §9 says "Revision 1 carries none"; ADR-0046 Status says "revision 1" while its decision 6 is labelled "(revision 2)". §6's "Item 3a is unblocked today ... available as an extended-profile slice" is stale — it landed. Checker docstring says "five facts"; §8 lists six and the code checks six. Obligation 7's evidence names neither `SCHEMA_ROOT_OVERWRITE_FORBIDDEN`, the empty-target-slot rule, nor roots-must-differ. The `ContractSource` check counts variants but not names, so a rename to a value or effect source passes at four.
+
+## schema-owner rulings (exercised, not deferred)
+The three agenda items are **correctly classified**, and on the five E7 opcodes I rule: only `test_observe` (145) needs an epoch — epoch 1 *rejects* it, and a profile cannot accept what the epoch's checker refuses. `contract_assert` (144) needs neither epoch nor further profile; epoch 1 accepts it statically and assigns execution onward. `effect_request` (160) and `capability_narrow` (162) need a further profile plus owning-package semantics, not an epoch — verified: no narrowing function in `sley-policy`. `adapter_invoke` (161) splits as the policy says: invocation is profile work, replay scope, cursor, and adapter configuration *as schema* need an epoch. Item 1 is correctly EPOCH REQUIRED — `ContractSource` is exactly four variants (`crates/sley-ssmc/src/lib.rs:384-393`) and a fifth changes the frozen field schema `1983bc8d…`.
+
+Nothing in the policy pre-empts my decision *in its text* — §3 and the "determination is not an approval" framing are correct. The pre-emption is in the tree, per P1-2.
+
+## validation
+Read-only. No cargo, no make, no repository modification. Worktree confirmed pinned at `9dc78fe`, clean. Evidence: master goal §6.4/§16.7, `SCHEMA_EPOCH_V1.md`, `CONTRACT_TEST_PROFILE_V1.md`, `VM_EXTENDED_OPCODE_PROFILE_V1.md`, `TRANSACTION_MODEL_V1.md:157`, `check_epoch_migration_policy.py`, `machine-summary.json`, `crates/sley-ssmc/src/lib.rs`, `crates/sley-policy/`.
+
+## blockers
+None. Item 2's underlying fingerprint claim lives outside the documents I was given; I judged it on the citation's own terms rather than chasing it.
+
+## return_to
+Orchestrator. P1-2 needs Nabu (profile-versus-epoch call already acted on) and the operator (whether landed E7a is ratified retroactively). P1-1, P1-3, and the P2s are Merlin-shaped edits to the policy and checker under my determination above.
+
+S20_760_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":[],"p1":["Section 1 concrete test is strictly weaker than the nine facts: framed only on prior artifacts, it permits additive schema changes (new optional field, new entity kind, new type tag, raised decoder limit) that section 6.4 freezes, and it omits disjoint identity, which is what actually licenses SLEYBC02 and semantic_profile 2","Section 7 claim that no decision is made on the section 6 agenda is false at this commit: VM_EXTENDED_OPCODE_PROFILE_V1 revision 9 landed slice E7a citing section 6 as warrant, and machine-summary records e7a_contract_assertion_landed true, so determination 3a shipped before schema-owner review","Section 8 overclaims checker coverage: determination_facts verifies items 1, 3a and 3b only, and covers neither item 2 nor item 3c's time-stamped no-narrowing-function-and-no-host re-verification, so two of six determinations can rot silently"],"p2":["Obligation 6 evidence omits SCHEMA_EPOCH_V1 section 6 reproduction requirement and contract_id, so it can be discharged by an asserted digest; obligation 4 omits that plan_id must equal an externally approved plan identifier","Citation errors in section 6 basis column: item 1 cites 1.5/1.6 which do not cover EffectBound or CapabilityBound (correct support is 1.1 plus preamble); item 3d cites 3.3 but the text is 3.2 and softens its MUST to may; item 3b borrows 1.1's ContractKind-scoped anti-reinterpretation clause","Item 2 is the only determination with no contract citation: optional field 4 of the frozen epoch-1 descriptor resolves against no SCHEMA_EPOCH_V1 descriptor (all field 4s are required), and full_v1 is defined in no spec, only as CandidateValidationLimits::full_v1 in code","Checker staging coupling: SPEC_MARKERS pins the literal draft revision 2 status string so section 8's own POLICY_ACCEPTED transition and any revision 3 fail; ADR_MARKERS omit decision 6, the revision-2 addition that licenses section 6"],"p3":["Header says revision 2 while section 9 says revision 1 carries none; ADR-0046 status says revision 1 while its decision 6 is labelled revision 2","Section 6 says item 3a is available as an extended-profile slice, but it has landed","Checker docstring says five facts; section 8 lists six and the code checks six","Obligation 7 evidence names neither SCHEMA_ROOT_OVERWRITE_FORBIDDEN, the empty-target-slot rule, nor roots-must-differ","ContractSource check counts variants but not names, so a rename to a value or effect source passes at four"],"notes":"Nine facts and seven obligations transcribe exactly from master goal 6.4. All three agenda items correctly classified; as schema owner I rule only test_observe (145) of the five E7 opcodes needs an epoch, 144 needs neither epoch nor further profile, 160/162 need a further profile plus owners, 161 splits with replay and configuration as schema epoch-required. Policy text does not pre-empt my decision; the tree already did."}
+EXIT=0 2026-09-04T08:35:13Z

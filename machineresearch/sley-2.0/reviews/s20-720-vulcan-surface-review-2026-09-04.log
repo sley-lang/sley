@@ -1,0 +1,81 @@
+DISPATCH 720-vulcan-surface forge-vulcan-720-vulcan-surface-20260904T074946 2026-09-04T07:49:46Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and implementation in parallel.
+
+Contract and builder read. Now the demo, evidence, checker, and campaign record.
+
+Evidence path is gitignored — noted. Now verifying the remap-precedence question empirically (rustc only, outside the repo) and reading the offline tests.
+
+Remap precedence confirmed: **the last matching rule wins.** Two final checks.
+
+## S20-720 surface review — Vulcan
+
+**Verdict: FAIL.** Two P0s. The archive/extraction mechanics are sound; the *sanitization claim* and the *provenance claim* are not.
+
+### What passes
+- **Tar extraction safety:** `unpack()` uses `extractall(..., filter="data")` — the correct strongest stdlib filter (rejects absolute paths, `..` escapes, links outside the destination, device nodes, setuid bits). No finding.
+- **Determinism of the packaging step:** sorted members, zeroed mtime/uid/gid, normalized modes, `GzipFile(filename="", mtime=0)`. The four offline tests actually exercise this.
+- **Fail-closed boundary:** producing candidate mechanics while `release-check`/`v2` stay `NOT_IMPLEMENTED` is the right call. The checker enforces the gates, enforces `artifact` null in `machine-summary.json`, and blocks the build script appearing before the summary allows it. Keep it.
+- Fixture and generator carry no local paths (`grep` for `/home/`, `greyforge`, `/tmp/` → 0 hits).
+
+### P0-1 — the three remaps do not do what the contract says; the scan cannot see the residue
+
+`clean_build()` emits, in order: `{ROOT}→/sley2`, `{CARGO_HOME}/registry/src→/cargo/registry/src`, `{HOME}→/home-remapped`.
+
+**rustc applies the *last* matching rule, not the most specific.** Confirmed on this host:
+
+```
+--remap-path-prefix=/tmp/remaptest/sub=/AAAA --remap-path-prefix=/tmp=/BBBB  →  /BBBB/remaptest/sub/m.rs
+--remap-path-prefix=/tmp=/BBBB --remap-path-prefix=/tmp/remaptest/sub=/AAAA  →  /AAAA/m.rs
+```
+
+`ROOT` and `CARGO_HOME` are both under `$HOME`, so rule 3 shadows rules 1 and 2 entirely. `/sley2` and `/cargo/registry/src` are almost certainly **dead strings that never appear in the binary**. What lands instead is `/home-remapped/<your entire directory layout>` — worktree name, crate paths, `.cargo/registry/src/index.crates.io-*/…`, and any build-script `OUT_DIR` include paths.
+
+That residue passes `scan_forbidden_content` by construction: `/home-remapped` does not contain the literal `/home/`, and the prefix replacement destroys the `str(ROOT)` needle. This also fully explains the campaign narrative — adding the home remap "closed" `PACKAGE_CONTENT_FORBIDDEN` by *renaming* the leak, not by removing it. The scan was never working as intended on that run; it was satisfied.
+
+Contract §1 ("so no local absolute path enters the binary"), §11, ADR-0038 decision 3, and master goal 26.8 ("no … local absolute paths") are falsified as written.
+
+Fix, all three together: reverse the order (home first, ROOT last); add a **positive control** to the scan — assert `/sley2` *is present* and `/home-remapped` *is absent* — because the absence of a negative is what let this through; add `/home-remapped` and the OS username to the needle set. One-command confirmation before you patch: `strings dist/…/bin/sley | grep -c /sley2` (expect >0, predict 0).
+
+### P0-2 — the artifact and tracked canon attest a provenance they do not have
+
+`--require-clean` is **off by default** and the recorded smoke ran on a dirty tree (§11 admits this). Consequences:
+
+- `MANIFEST.json` inside the artifact carries a bare `commit` field and **no dirty flag**. The artifact self-attests build provenance it does not have.
+- `machine-summary.json` — tracked canon — carries `candidate_artifact_sha256: 72d2e93…`, `candidate_member_count: 14`, `candidate_reproducibility: "REPRODUCIBLE"` with **no dirty-tree and no scope qualifier**. `artifact` being null does not offset this; these are the fields a reader quotes.
+- Master goal 26.8 requires "built from the final candidate commit" *and* "the source working tree is clean." A run without `--require-clean` cannot satisfy 26.8.
+
+Fix: `--require-clean` default-on (opt *out* with `--allow-dirty`); `MANIFEST.json` gains `working_tree_clean` and refuses to omit it; `machine-summary.json` candidate fields carry the dirty/scope qualifier or are dropped until a clean run exists.
+
+### P1
+1. **Reproducibility scope is unqualified everywhere it is machine-readable.** Two builds, one host, one toolchain, one process, one source path, one shared registry. Contract §6, `evidence.reproducibility`, and `machine-summary.candidate_reproducibility` all say `REPRODUCIBLE` bare. Only the closeout prose qualifies it. Also: artifact bytes depend on the **Python** tarfile/gzip implementation, and `MANIFEST.toolchain` records rustc and cargo only. Add `reproducibility.scope: "same-host-same-toolchain-same-source-path"` and `toolchain.python`.
+2. **The failure path discards the evidence the contract requires.** On `NOT_REPRODUCIBLE`/`CONFORMANCE_FAILED`/`CONTENT_FORBIDDEN`, `main()` rebuilds `evidence` as a bare failure record with `detail[:500]`. `differing_members`, the `archive_only` classification, per-check conformance results, and scan findings past the first five are lost — exactly what §6 ("the exact differing member paths and whether the difference is archive-only") and §7 require. Carry the partial evidence dict through the exception.
+3. **Source-independence is asserted, never verified.** The isolation is "no env var names the tree" plus cwd — the source tree remains readable on the same filesystem, and nothing establishes the binary opened only artifact files. Contract §4's "the environment holds no `.sley` source, parser, …" is a statement about intent, not an enforced or checked property. Either enforce it (`unshare`/bind-mount, or run with the tree unreadable) or restate §4 as by-construction-and-unverified. Related: the demo needs a **host Python** that is not in the artifact, so `demo/run_demo.py` is "self-contained" only in the module sense.
+4. **20.12 overclaim.** ADR consequence and the closeout both say the demo is the source-independence proof "for every operation the protocol dispatches today." 20.12 names create, modify, execute, test, branch, merge, export, import. The demo creates the root *by importing a prebuilt exchange* and does not modify, test, or merge. §4's gap sentence is roughly right; the ADR and closeout sentences read as satisfying 20.12. **This answers campaign open question 1: yes — add `workspace.create` from a packaged trusted genesis.** Creation is explicitly in 20.12 and is currently the only listed operation you could cover today without S20-350.
+5. **The artifact has no machine-readable non-release marker.** `MANIFEST.json` has no `ga`/`released`/`status`/`blockers` field; the only disclaimer is prose in `LICENSE-PENDING.txt`. Filename and top-level dir are the exact GA name from 26.8, and after a non-`--keep` run the durable residue of a *development* smoke is precisely `dist/sley-2.0.0-linux-x86_64.tar.gz`. Do not rename (26.8 mandates the name) — put `"ga": false, "released": false, "status": "LOCAL_CANDIDATE_NOT_RELEASED"` plus the blocker list in `MANIFEST.json`, and add a top-level `NOT-A-RELEASE.txt`.
+
+### P2
+- `SBOM.json` — the filename asserts a standards SBOM that §10 explicitly excludes. Add an in-file and in-manifest marker (`"sbom_standard": "none"`, `"kind": "s20-710-pre-release-inventory"`). The content itself does not overstate; the name does.
+- `LICENSES.json` ships *declared* licenses with no license texts. The tarball is a complete redistributable shape missing attribution the declared licenses require. Fine while gated; name it as a blocker alongside the root license.
+- Scan needle set is thin: add the OS username, `/root/`, `/Users/`, and `$CARGO_HOME` when it sits outside `$HOME`.
+- `evidence/runtime/` is **gitignored**, so `evidence.json` does not exist at `9dc78fe`. The durable record is closeout prose plus `machine-summary` fields. Write a tracked evidence summary under `evidence/release/`.
+- **Answers open question 3:** an archive-only difference must block, and it already does (`build_candidate` raises before returning). Say so in §6 — right now §6 only says "recorded," which reads as non-blocking.
+- No Python version floor. `extractall(filter=...)` needs the 3.12-era tarfile; on an older interpreter it raises `TypeError`, which is **not** in `main()`'s caught tuple, so the run tracebacks and writes no `evidence.json`.
+
+### P3
+- `SECRET_PATTERNS` misses `gho_`, `github_pat_`, `AIza`, `ASIA`, `xapp-`, bare `sk-`. Declare the set as deliberately bounded and defer to T54 rather than growing it silently.
+- Demo `JSONDecodeError` path puts `completed.stderr[-300:]` into evidence — can carry host temp and interpreter paths.
+- **Answers open question 2:** the subset is correct. Record *which* corpus subset and its fixture digests in `MANIFEST.json` so S20-730 can scope independent conformance.
+- ADR status line "with a reproducible artifact" needs the same scope qualifier as P1-1.
+- `compare_artifacts` treats "member absent" and "member is a directory" as equal (both `None`); use a sentinel.
+
+### Validation actually run
+Read-only, at `9dc78fe`: contract rev 2, ADR-0038, `build_release_candidate.py`, `run_demo.py`, `test_packaging.py`, `check_release_candidate_packaging.py`, campaign record, closeout, master goal §§18.2/20.12/26.8, `machine-summary.json`, `.gitignore`, `git ls-files evidence`. Fixture/generator grepped for local paths (0 hits). One out-of-repo `rustc` experiment in `/tmp` to settle remap precedence. **No cargo build, no smoke, no repository modification.**
+
+### Blockers on this review
+Could not inspect the built binary or `evidence.json` — `dist/` and `evidence/runtime/` are gitignored and absent from the worktree, so P0-1's residue is predicted from confirmed rustc semantics, not observed in `bin/sley`. Run the `strings … | grep -c /sley2` check to convert it to observed.
+
+return_to: orchestrator
+
+S20_720_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["remap order is wrong: rustc applies the last matching --remap-path-prefix, so the {HOME}=/home-remapped rule shadows both {ROOT}=/sley2 and the cargo registry rule; the binary retains /home-remapped/<full local layout> and the content scan cannot detect it because /home-remapped contains neither /home/ nor str(ROOT) - contract 1, 11, ADR-0038 decision 3 and master goal 26.8 are falsified; reverse the order and add a positive control asserting /sley2 present and /home-remapped absent","provenance is attested but not held: --require-clean is off by default, the recorded smoke ran dirty, MANIFEST.json carries a bare commit with no dirty flag, and tracked machine-summary.json publishes candidate_artifact_sha256 and candidate_reproducibility REPRODUCIBLE unqualified; master goal 26.8 requires the final candidate commit and a clean tree"],"p1":["reproducibility recorded without scope in contract 6, evidence.json and machine-summary; one host, one toolchain, one process, shared registry; artifact bytes also depend on the Python tarfile/gzip version which MANIFEST.toolchain does not record","failure path in main() discards the evidence contract 6 and 7 require: differing_members, archive_only, per-check conformance results and scan findings are lost to a 500-char truncated detail","source-independence is asserted by construction and never verified: the source tree stays readable on the same filesystem and nothing proves the binary read only artifact files; the demo also requires a host Python absent from the artifact","20.12 overclaim in ADR consequence and closeout ('every operation the protocol dispatches today'): create, modify, test and merge are not demonstrated; answers open question 1 - yes, add workspace.create from a packaged trusted genesis","artifact carries no machine-readable non-release marker: MANIFEST.json has no ga/released/status/blockers field, the only disclaimer is prose in LICENSE-PENDING.txt, and the GA-identical filename is the durable residue of a development smoke"],"p2":["SBOM.json filename asserts a standards SBOM that section 10 excludes; add sbom_standard none and kind s20-710-pre-release-inventory markers","LICENSES.json ships declared licenses with no license texts, so the redistributable shape lacks required attribution","scan needle set omits the OS username, /root/, /Users/ and $CARGO_HOME outside $HOME","evidence/runtime/ is gitignored so evidence.json is absent at 9dc78fe; the durable record is closeout prose - add a tracked evidence summary","answers open question 3: an archive-only difference already blocks in build_candidate; contract 6 says only 'recorded' and must say blocks","no Python version floor; extractall(filter=) raises TypeError on older interpreters and TypeError is not in main()'s caught tuple, so no evidence.json is written"],"p3":["SECRET_PATTERNS misses gho_, github_pat_, AIza, ASIA, xapp- and bare sk-; declare the set as deliberately bounded and defer to T54","demo JSONDecodeError path writes completed.stderr[-300:] into evidence, carrying host temp and interpreter paths","answers open question 2: keep the subset but record which corpus subset and its fixture digests in MANIFEST for S20-730","ADR status line 'with a reproducible artifact' needs the same scope qualifier","compare_artifacts treats an absent member and a directory entry as equal (both None); use a sentinel"],"notes":"Tar extraction safety (filter=data), packaging determinism, and the fail-closed release-check boundary all pass. Two P0s: rustc last-rule-wins remap shadowing (confirmed empirically in /tmp) makes the /sley2 and /cargo remaps inert and the scan blind, and dirty-tree provenance is attested in both MANIFEST.json and tracked machine-summary. Read-only review; no cargo build or smoke run, so the binary residue is predicted from confirmed rustc semantics - run strings dist/.../bin/sley | grep -c /sley2 to observe it."}
+EXIT=0 2026-09-04T07:55:23Z

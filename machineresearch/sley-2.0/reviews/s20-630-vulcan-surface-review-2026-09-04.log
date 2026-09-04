@@ -1,0 +1,61 @@
+DISPATCH 630-vulcan-surface forge-vulcan-630-vulcan-surface-20260904T070335 2026-09-04T07:03:35Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and implementation in parallel.
+
+Contract and implementation read. Now the plan thresholds, checker, evidence, and the runner primitives.
+
+Two strong leads. Verifying corpus binding and reading the closeout.
+
+Manifest binds corpus/plan digests, so the corpus-trim vector fails closed — dropping that. Checking section 22 wording against the implementation.
+
+**status:** FAIL (1 P0) — read-only triage at `9dc78fe`, no cargo, no smokes run.
+
+## findings
+
+### P0 — blocks freeze
+
+**1. The report claims to evaluate section 22 but silently omits three of its conditions.** The boundary (contract line 19-20) says it "evaluates the master goal's section 22 thresholds," and §4 enumerates five evaluations keyed to the plan's ten threshold names. Section 22 has more conditions than the plan carries, and none of these are evaluated or named anywhere in the report:
+
+- §22.1 "No required effect or capability check is bypassed" — no threshold, no metric comparison.
+- §22.4 "semantic collateral changes are no worse than Sley 1.2.0 and strictly lower in at least one multi-entity task class" — `collateral_semantic_changes` is summed per arm (`report.py:209`) and **never compared between arms**.
+- §22.4 "every accepted mutation is reconstructable from its base state root and canonical transaction receipt" — absent.
+
+A `status: COMPLETE` report with every threshold `PASS` is therefore readable as "section 22 satisfied" when three of its conditions were never tested. This is the "presented as a succession result" failure, and freezing the contract bakes it in. Fix as a revision: narrow the boundary sentence to "the section 22 conditions the plan encodes," and make the report carry explicit `NOT_EVALUATED` entries naming each omitted §22 condition and its owning work package, so the omission is a field rather than a gap.
+
+### P1 — must fix before freeze
+
+**2. Efficiency medians include harness failures, and the thresholds reward that.** `MEDIAN_METRICS` are taken over every claim (`report.py:180`), so a harness failure or timeout contributes its near-zero `context_bytes` and `repair_loops`. An arm with *more* harness failures gets a lower median on both §22.2 and §22.3 metrics. §21.6 mandates every failed trial in the denominator — that governs correctness, not the central tendency of an efficiency metric, and applying it here manufactures apparent efficiency out of failure. Keep the every-attempt median, but add the companion median over non-harness-failure attempts with the excluded count, and have each threshold name the basis it used.
+
+**3. The 10 percent regression cap fails open.** `report.py:302-303`: `(tokens_reduction is None or -tokens_reduction <= regression_cap)`. When the other metric's reduction is undefined (legacy median 0), the cap is waived rather than blocking. A Sley 2 arm whose median model input tokens went 0 → 50,000 still passes the context threshold. An undefined regression must not read as compliant.
+
+**4. Two percent thresholds never read their plan value and pass vacuously.** `invalid_candidates_leave_state_unchanged_percent` and `stale_preconditions_rejected_percent` (`report.py:324-325`) are evaluated as `invalid_committed_states == 0` and `stale_candidates_incorrectly_accepted == 0` — the plan's `100` is never read, the `invalid_candidates` / `stale_candidates` denominators are never used, and both duplicate the dedicated zero-count thresholds on lines 326-327. A run that produced no invalid candidate at all reads `PASS` on "invalid candidates leave accepted state unchanged." Evaluate as an exact ratio against the plan's 100, `UNDETERMINED` when the denominator is zero.
+
+**5. The Sley 2 chain admits duplicates the raw chain rejects, and accounting adds no check.** `bench/raw/runner.py:637-642` rejects duplicate `trial_id` and duplicate `(task_id, seed)`; `bench/sley2/runner.py:_parse_claims` (615-639) checks neither, and accounting calls `verify_trial_claims(run_directory)` without `require_complete`, so the pair-set check never runs. For the arm that decides succession, a `PARTIAL` report can double-count one trial slot in `attempted`, every sum, and every median. `COMPLETE` stays unreachable with a duplicate (trial cap plus set equality), so no fabricated completion — but every report that exists today is `PARTIAL`. `arm_accounting` should assert distinct `trial_id` and distinct `(task_id, seed)` itself rather than inherit divergent producer guarantees.
+
+**6. `derive` prints `"result": "PASS"`.** `report.py:472` emits `{"report_digest": ..., "result": "PASS", "status": "PARTIAL"}` when the derivation merely succeeded. "PASS" beside a succession accounting digest in a log is the cheapest possible misquote. Emit `"result": "DERIVED"` and include `evidence_status`.
+
+### P2 — before completion
+
+7. `every_attempt_in_denominator: true` is a hardcoded literal (`report.py:390`) covered by the report digest, so the digest attests an unverified self-claim. The invariant does hold structurally (status counts partition `len(claims)`), so derive the flag from an assertion rather than asserting it.
+8. The smoke evidence is not retained. `/evidence/runtime/` is gitignored (`.gitignore:6`) and absent at this commit; the stage checker never reads it. Contract §7 and the closeout both say "retained." Either say "regenerated by `make accounting-smoke`" or have the checker assert its digest. I could not verify the smoke numbers without running it.
+9. `smoke()` hardcodes `trials_accounted: 0` and scope `REPORT_OVER_THE_S20_620_SCRIPTED_SMOKE_RUN_NO_TRIALS` (`report.py:418-421`) while the report it wraps is `PARTIAL` with two attempts — contradicting revision 2 §9's own correction. The checker's expected `trials_accounted: 0` is likewise a constant, never derived from a report.
+10. `_arm_claims` returns `None` for the legacy arm unconditionally (`report.py:343-344`); a chain produced later would be silently read as `NO_CLAIM_CHAIN`. Contract §1's `ACCOUNTING_ARM_UNKNOWN` sentence is unimplemented — the loop iterates required arms only, so a non-required arm's claims (`zerolang`) are never read and never flagged.
+11. §22.3's "per fixed action budget" is satisfied by prose only; carry the manifest's action budget as a fact on that threshold.
+12. The report digest is an unkeyed hash with a public domain string. "Fails closed on a tampered report" holds only against edits that do not recompute it. Say tamper-evident against edits and transcription, not authentic.
+13. **Legacy arm: should not block freeze.** §8 explicitly excludes S20-600, and `NO_CLAIM_CHAIN` → `UNDETERMINED` is the correct fail-closed shape. But it means every non-`UNDETERMINED` threshold path is exercised by synthetic tests only; the contract must state that.
+
+### P3 — editorial
+
+14. Treating every class as critical is *stricter* than §22.1 and cannot fabricate a pass — record it as a deliberate choice pending a corpus that names critical classes.
+15. Exact ratios and medians are the right internal representation, but `facts.cap` renders `10 percent` as `{numerator: 1, denominator: 10}` under a `_percent` key. Carry an exact integer basis-points field beside each ratio for dossier legibility, never as the comparison basis.
+
+**Checked and rejected:** corpus-trim tampering (manifest binds `corpus_version`, `corpus_digest`, `benchmark_plan_digest` to on-disk files, `runner.py:303-308`, fails closed); float ingress (`_require_int` plus `canonical_json_bytes` both reject); ACT definition and the "lower ACT with lower correctness" guard; the failure-rate and equal-correctness/ACT clauses; the accepted-change increase after the in-flight sign fix.
+
+**validation:** read-only inspection of the contract, `report.py`, `benchmark-plan.json` thresholds and arms, `check_succession_accounting.py`, both runners' chain parsers, the closeout, the campaign open questions, and master goal §21.4-22.7. No cargo, no smokes, no writes.
+
+**blockers:** smoke evidence artifacts are gitignored and absent at `9dc78fe`, so the campaign's smoke numbers are unverified here.
+
+**return_to:** orchestrator — findings land as contract revisions before freeze.
+
+S20_630_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["Contract boundary and report claim to evaluate section 22 while three conditions are never evaluated: 22.1 no effect or capability check bypassed, 22.4 collateral semantic changes no worse than legacy and strictly lower in one multi-entity class, 22.4 accepted mutation reconstructable from base root and receipt; collateral_semantic_changes is summed per arm and never compared; add explicit NOT_EVALUATED entries and narrow the boundary sentence"],"p1":["Efficiency medians include harness failures and timeouts whose context_bytes and repair_loops are near zero, so more harness failures improve the 22.2 and 22.3 medians; add a companion non-harness-failure median with excluded count","report.py:302-303 regression cap fails open: an undefined other-metric reduction waives the 10 percent cap","report.py:324-325 invalid_candidates_leave_state_unchanged_percent and stale_preconditions_rejected_percent never read the plan value 100, never use their denominators, duplicate the zero-count thresholds, and PASS vacuously on an unexercised population","bench/sley2/runner.py _parse_claims accepts duplicate trial_id and duplicate (task_id,seed) that bench/raw/runner.py rejects, and accounting adds no duplicate check, so a PARTIAL report can double-count a trial slot in attempted and every sum and median","report.py:472 derive prints result PASS for a successful derivation, misreadable as a threshold pass"],"p2":["every_attempt_in_denominator is a hardcoded literal covered by the report digest rather than a checked invariant","smoke evidence is gitignored under /evidence/runtime/ and absent at 9dc78fe while contract section 7 and the closeout say retained; the stage checker never reads it","smoke() hardcodes trials_accounted 0 and a NO_TRIALS scope while the report is PARTIAL with two attempts, contradicting revision 2 section 9","report.py:343-344 legacy arm loader returns None unconditionally so a future chain is silently NO_CLAIM_CHAIN, and the ACCOUNTING_ARM_UNKNOWN sentence in section 1 is unimplemented for non-required arms","section 22.3 same action budget is prose only; carry the manifest action budget as a threshold fact","report digest is an unkeyed self-certifying hash; tamper-evident against edits, not authentic, and the closeout overstates it","legacy arm should not block freeze since section 8 excludes S20-600, but the contract must state every non-UNDETERMINED threshold path is synthetic-test-only"],"p3":["state that treating every class as critical is a deliberate stricter-than-22.1 choice pending a corpus that names critical classes","facts.cap renders 10 percent as 1/10 under a _percent key; add exact integer basis points beside each ratio for dossier legibility, never as the comparison basis"],"notes":"Exact ratio and integer arithmetic, float refusal, corpus and plan digest binding, ACT definition, and the failure-rate and equal-correctness clauses all hold. Fabrication risk is concentrated in unevaluated section 22 conditions presented as a complete threshold map, vacuous percent PASSes, harness-failure-inflated efficiency medians, and a duplicate-tolerant Sley 2 chain. Smoke evidence unverifiable at this commit."}
+EXIT=0 2026-09-04T07:08:26Z
