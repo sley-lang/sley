@@ -1,79 +1,103 @@
 # Resume state, 2026-09-04
 
-Paused deliberately at the operator's request. Nothing is running in the
-background; the repository is clean; every gate below was green at the last
-commit.
+The Council review round is **running**. The repository is clean and every gate
+below was green at the commit named here.
 
 ## Where the work is
 
 | Thing | Where |
 |---|---|
-| Repository | `/home/greyforge/sley2`, clean, HEAD is the commit below |
-| Council review queue | `/home/greyforge/machineresearch/sley-2.0/council-queue/` (durable; **moved out of the session scratchpad**, which `/tmp` may clear) |
+| Repository | `/home/greyforge/sley2`, branch `main` |
+| Review candidate | `/home/greyforge/cache/worktrees/sley2-review-2026-09-04`, detached at `9dc78fe` |
+| Council review queue | `/home/greyforge/machineresearch/sley-2.0/council-queue/` (durable, and gitignored there) |
 | Retained verdicts | `machineresearch/sley-2.0/reviews/` plus `reviews/verdicts.json` |
 | Checkpoint narrative | `machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md` |
 
-## What changed outside the repository
+## Reviews run against an immutable candidate now
 
-`~/.openclaw/openclaw.json`: `plugins.allow` gained `anthropic`, and
-`plugins.entries.anthropic.enabled` is `true`. That opened the Council lane.
-Backup of the pre-change file is in the old session scratchpad; the change is
-two keys and is described in the checkpoint document.
+The first dispatches read the live checkout while it was being edited. The
+Greyforge Git Guard recorded `Dirty repo after openclaw` on `260-vulcan-surface`
+and all three `300` logs, which is the review mode's "immutable candidate"
+requirement being violated: a reviewer reading a moving tree can produce
+findings that match no commit.
 
-## Council reviews: 2 of 69 answered
+Reviews now run inside a detached worktree pinned at `9dc78fe`. Every request
+names that path, and `patient_dispatcher.sh` changes into it. Work on `main`
+no longer touches what a reviewer sees. **When the round finishes, repin the
+worktree (or make a new one) before starting another round, or reviewers will
+be reading an old candidate.**
 
-- `260-ariadne-contract`: **FAIL**, 2 P0, 6 P1.
-- `260-nabu-architecture`: **PASS**, 0 P0, 7 P1. "Profile separation is sound;
-  defects are contract completeness and vector coverage, not structure."
+## Council reviews: 5 of 69 answered
 
-P0-2 (signed `int_shl_checked` inverted at the top of every width) is **fixed**
-and pinned by `e2_left_shift_is_exact_at_every_width_boundary`; restoring the
-old multiplier fails that test.
+| Review | Result | P0 | P1 |
+|---|---|---:|---:|
+| `260-ariadne-contract` | FAIL | 2 | 6 |
+| `260-nabu-architecture` | PASS | 0 | 7 |
+| `260-vulcan-surface` | truncated, requeued | - | - |
+| `300-ariadne-contract` | FAIL | 1 | 4 |
+| `300-nabu-architecture` | FAIL | 1 | 4 |
+| `300-vulcan-surface` | FAIL | 0 | 5 |
 
-P0-1 is **open and reproduced only by reading**: `check_map_constant`
-(`crates/sley-check/src/lib.rs:829`) imposes no key order, and the VM's
-equality is `left == right` on `ConstValue`
-(`crates/sley-vm/src/extended.rs`, the `(Opcode::Equal, [left, right])` arm),
-which is order-sensitive for `ConstData::Map`. Maps built by `map_new` are
-sorted; maps arriving as execution inputs or through `constant_ref` and
-`global_get` are not. So two semantically equal maps can compare unequal and
-hash differently, which makes the observation identity representation
-dependent. Not yet demonstrated by a test.
+`260-vulcan-surface` is not a verdict: the reply ended mid-object at 2192
+characters with no closing brace. It is recorded as `TRUNCATED_REDISPATCH`, its
+log is set aside as `260-vulcan-surface.truncated.log`, and it is back in the
+queue. **Check every future reply for a closing brace before counting it.**
+
+## Findings
+
+**Both S20-260 P0s are closed.** The checked left shift was fixed earlier. The
+map entry order is fixed at `83d571a`: `equal` and `value_hash` read ordered-map
+entry order structurally, but S20-210 does not establish that order
+(`TYPE_SYSTEM_V1.md` section 5 reserves it to the SCB codec and forbids the
+checker from reimplementing it or silently sorting). The VM now asks the codec
+at each boundary where a value arrives from outside and refuses one with no
+canonical form: `VM_EXEC_INPUT_NOT_CANONICAL` (27006) for an execution input,
+`VM_LOWER_IMMEDIATE_MISMATCH` for a constant `constant_ref` or `global_get`
+names. It does not sort, and it does not tighten S20-210.
+
+**One P0 is open**, and two reviewers found it independently: exchange import
+allowlists a pre-existing `index/v1` cache into the target
+(`crates/sley-repo/src/exchange.rs`, allowlist near line 71-79, test near 2411),
+so a cloned repository adopts a cache it never wrote, and the S20-300 contract
+section 5 bound "same local filesystem authority as objects, receipts, and refs"
+is false on that path. Both reviewers propose the same remedy: import must clear
+`index/` or refuse the target. **This is the next thing to fix.**
 
 ## To resume
 
-1. **Restart the reviews** (they are restart-safe: the dispatcher skips any
-   request whose log already holds its `_REVIEW_JSON=` key):
+1. **The dispatcher is already running.** Restart only if it has stopped:
 
    ```bash
    cd /home/greyforge/machineresearch/sley-2.0/council-queue
    nohup ./patient_dispatcher.sh >/dev/null 2>&1 &
    ```
 
-   It probes `openai/gpt-5.6-sol` then `claude-cli/claude-opus-5`; the second
-   answers. Roughly seven minutes per review, so about eight hours for the
-   remaining 67. `260-vulcan-surface` was interrupted mid-flight and will be
-   redone.
+   It is restart-safe: it skips any request whose log already holds its
+   `_REVIEW_JSON=` key. Roughly five to seven minutes per review.
 
-2. **Finish P0-1**: write the failing test first (two maps, same entries,
-   different order: `equal` should be true and the value hashes should match),
-   then decide where normalization belongs. Note that making S20-210 reject
-   unsorted map constants would change which artifacts are accepted, which
-   `EPOCH_MIGRATION_POLICY_V1.md` section 1 makes an epoch-forcing change; a
-   VM-side normalization at its own boundary is the profile-shaped option.
+2. **Fix the open S20-300 P0** (exchange import and the `index/v1` cache).
 
-3. **Triage each landing verdict** into the S20-740 finding register, and keep
-   `machineresearch/sley-2.0/reviews/verdicts.json` current.
+3. **Triage each landing verdict** into the S20-740 finding register by
+   recording the disposition in `machineresearch/sley-2.0/machine-summary.json`
+   and rebuilding, and keep `reviews/verdicts.json` current. Take reviewer
+   counts from the emitted JSON, not the prose.
 
 ## Gates
 
-Council model access is **open**. Five stand, all outside the integrator:
-the narrowed schema-epoch decision, succession trials (model access plus spend
-authorization), the root license text, second-host attestation, and the
-release decision.
+Council model access is open. Five stand, all outside the integrator: the
+narrowed schema-epoch decision, succession trials (model access plus spend
+authorization), the root license text, second-host attestation, and the release
+decision.
 
-## Validation at the pause
+## Validation at this commit
 
-`make quick`, `make lint`, and Tier 2 (`core`, `conformance`, `adversarial`,
-`fuzz-smoke`) all passed at HEAD. `make persistent-fuzz-all` last ran green
-over all nineteen slices in 3m40s with no artifact.
+`make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
+`fuzz-smoke`), `make vm-persistent-fuzz-smoke`, and the full `cargo test
+--workspace` all passed. One combined Tier 2 invocation exited 2 once and did
+not reproduce across three later runs, individually or combined; every
+individual target passes.
+
+Two clippy errors exist in `fuzz/targets/root_query_engine.rs` and
+`context_capsule_builder.rs` (`manual_is_multiple_of`). They are pre-existing:
+`make lint` runs `cargo clippy --workspace`, which does not include the separate
+`fuzz` crate, so that crate has never been linted under `-D warnings`.
