@@ -1,0 +1,11 @@
+{
+  "ambiguous_codes": [],
+  "contract": "sley2.error-symbol-registration.v1",
+  "declared_namespaces": 34,
+  "emitted_symbols": 329,
+  "numeric_codes": 302,
+  "result": "PASS",
+  "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
+  "unexercised": [],
+  "unregistered": []
+}

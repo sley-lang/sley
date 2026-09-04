@@ -70,7 +70,7 @@ quick:
 	python3 scripts/check_epoch_migration_policy.py
 	python3 scripts/check_required_contract_index.py
 	python3 scripts/check_clean_room_boundary.py
-	python3 scripts/check_error_symbol_registration.py
+	python3 scripts/check_error_symbol_registration.py --check
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
@@ -167,6 +167,7 @@ accounting-smoke:
 # end because its T54 scan covers the documents the earlier steps rewrote. The reproducibility report is rebuilt
 # only by the release smoke, because it attests a clean-tree candidate build.
 evidence-refresh:
+	python3 scripts/check_error_symbol_registration.py
 	python3 scripts/generate_supply_chain_evidence.py
 	python3 scripts/build_independent_conformance_report.py
 	python3 scripts/build_standards_sbom.py

@@ -30,6 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMESPACE_SOURCE = ROOT / "docs/spec/ERROR_CODES_V1.md"
+REPORT = ROOT / "evidence/security/error-symbol-registration.json"
 CONTRACT = "sley2.error-symbol-registration.v1"
 # A symbol a document names as a family wildcard covers its members.
 WILDCARD = re.compile(r"`([A-Z][A-Z0-9]*)_\*`")
@@ -140,7 +141,12 @@ def code_symbol_pairs() -> dict[int, set[str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare the derived report with the tracked one instead of writing it",
+    )
+    arguments = parser.parse_args()
     declared = namespaces()
     assigned = registered()
     symbols = emitted(declared)
@@ -163,7 +169,26 @@ def main() -> int:
             "PASS" if not unregistered and not ambiguous and not never_exercised else "FAIL"
         ),
     }
-    print(json.dumps(result, indent=2, sort_keys=True))
+    text = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    if arguments.check:
+        current = REPORT.read_text(encoding="utf-8") if REPORT.is_file() else None
+        if current != text:
+            print(
+                json.dumps(
+                    {
+                        "mode": "check",
+                        "result": "FAIL",
+                        "detail": "the tracked registration report differs from the derived report",
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 1
+    else:
+        REPORT.parent.mkdir(parents=True, exist_ok=True)
+        REPORT.write_text(text, encoding="utf-8")
+    print(text, end="")
     return 0 if not unregistered and not ambiguous and not never_exercised else 1
 
 

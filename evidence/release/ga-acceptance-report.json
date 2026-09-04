@@ -237,7 +237,7 @@
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 45 exercised, 0 P0/P1 without a located symbol",
+      "evidence": "threat coverage report: 45 exercised, 0 P0/P1 without a located symbol; 329 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol. Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -339,7 +339,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "104a458181fce33477bccdee36dff3837581c3246a915547e6e564fe55bf0bf4",
+  "report_digest": "04121e35d07484e794d2e02ff48b8539d874920bf434fb3a64828fd9bf23668a",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
 THREATS = ROOT / "evidence/security/threat-coverage-report.json"
+SYMBOLS = ROOT / "evidence/security/error-symbol-registration.json"
 ANTI_GOALS = ROOT / "evidence/validation/anti-goal-conformance.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
@@ -53,6 +54,7 @@ def build_report() -> dict:
     summary = load(SUMMARY)
     conformance = load(CONFORMANCE)
     threats = load(THREATS)
+    symbols = load(SYMBOLS)
     anti_goals = load(ANTI_GOALS)
     register = load(REGISTER)
     repro = load(REPRO)
@@ -161,7 +163,10 @@ def build_report() -> dict:
          "anti-goal conformance report, no kernel source invokes a process"),
         ("26.6 policy and security", "all P0/P1 threats have passing tests", AWAITS_REVIEW,
          f"threat coverage report: {threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} exercised, "
-         f"{len(threats['p0_p1_without_located_symbol'])} P0/P1 without a located symbol"),
+         f"{len(threats['p0_p1_without_located_symbol'])} P0/P1 without a located symbol; "
+         f"{symbols['emitted_symbols']} stable failure symbols, {len(symbols['unexercised'])} unexercised, "
+         f"{len(symbols['ambiguous_codes'])} numeric codes carrying more than one symbol. Whether a located, "
+         "exercised control mitigates its threat stays the review's judgment"),
         ("26.6 policy and security", "no P0/P1/P2 finding remains open",
          EVIDENCED if open_p0_p2 == 0 else GATED,
          f"finding register declares {open_p0_p2} open P0/P1/P2 findings across {register['obligation_count']} obligations"),
