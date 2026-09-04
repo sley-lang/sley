@@ -1,9 +1,12 @@
 # Epoch Migration Policy v1
 
-Status: S20-760 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-760 contract draft, revision 2 (2026-09-03); Council review
 pending (Ariadne contract review as the schema owner, Nabu architecture
 review, Vulcan surface review). This is the master goal's M6 deliverable
 "migration policy for Sley 2.x epochs" (section 16.7), which had no document.
+Revision 2 answers, per item, the question section 1 requires to be answered
+before an epoch is proposed: does the change alter encoded bytes or
+acceptance, or can it be a profile?
 
 ## Boundary
 
@@ -96,32 +99,38 @@ refused, and two migrations may not interleave on one workspace.
 - Evidence documents that name an epoch (the SBOM, the provenance, the
   dossier) name the epoch of the artifact they describe.
 
-## 6. Epoch 2 candidate agenda (proposals, not decisions)
+## 6. Epoch 2 candidate agenda, with determinations
 
-These are the changes that currently want an epoch. Each is a candidate for the
-schema owner, with the reason it cannot be a profile:
+These are the changes that currently want an epoch. Section 1 requires the
+profile question to be answered before an epoch is proposed, so each item
+carries its determination and the mechanical fact the determination rests on.
+A determination is not an approval: an item marked `EPOCH REQUIRED` still
+needs the four approvals of section 3, and an item marked `PROFILE` still
+needs its own package, contract revision, and evidence.
 
-1. **The four unsupported contract kinds** (`Invariant`, `EffectBound`,
-   `CapabilityBound`, `ResourceCeiling`) of `CONTRACT_TEST_PROFILE_V1.md`.
-   They add contract descriptors the epoch record's contract set must carry,
-   so they change what a conforming epoch declares.
-2. **The production-epoch semantic fingerprint requirement** recorded by
-   S20-360 as `full_ga_fingerprint_requirement_complete: false`, which changes
-   what a candidate must present, and therefore acceptance.
-3. **The five E7 opcodes** (144 contract assertion, 145 test observation, 160
-   effect request, 161 adapter invocation, 162 capability narrowing). Their
-   semantics need owners first; whether they need an epoch or a further profile
-   depends on whether their judgment changes existing lowered bytes, which
-   section 1 says must be answered before an epoch is proposed.
+| # | Candidate | Determination | Mechanical basis |
+|---:|---|---|---|
+| 1 | The four unsupported contract kinds (`Invariant`, `EffectBound`, `CapabilityBound`, `ResourceCeiling`) | **EPOCH REQUIRED** | `ContractSource` is a closed four-variant union (`Parameter`, `Result`, `Error`, `Global`) with no value, effect, capability, or resource evidence source, and `CONTRACT_TEST_PROFILE_V1.md` sections 1.5 and 1.6 reject the four kinds for exactly that reason. A new variant changes the frozen SSMC1 field schema whose hash `1983bc8d…` is fixed in the epoch descriptor of `SSMC1.md` and in every cache-key preimage. |
+| 2 | The production-epoch semantic fingerprint requirement | **PROFILE** | The claim is already optional field 4 of the frozen epoch-1 descriptor, so the decoder does not change and every epoch-1 artifact still decodes. Requiring the claim is a candidate-validation rule, and that rule already carries its own identity through the validation profile record, exactly as `full_v1` does today. A successor profile requires the claim; `full_v1` keeps its meaning. |
+| 3a | `contract_assert` (144) execution | **PROFILE** | The opcode is in the frozen epoch-1 opcode table, `CONTRACT_TEST_PROFILE_V1.md` section 2 already accepts it statically under epoch 1, and that section assigns predicate execution to S20-270 and report evidence to S20-290. A lowering profile carries its own identity in `lowering_profile`, so no existing lowered bytes or cache key can change. |
+| 3b | `test_observe` (145) execution | **EPOCH REQUIRED** | `CONTRACT_TEST_PROFILE_V1.md` section 3.4 rejects the opcode in every supplied function under epoch 1, because epoch 1 defines no execution multiplicity, path ordering, or report matching, and section 1.1 forbids any future implementation from reinterpreting that rejection as acceptance. A profile cannot accept what the epoch's own checker refuses. |
+| 3c | `effect_request` (160) and `capability_narrow` (162) execution | **PROFILE, OWNER BLOCKED** | Both opcodes are in the frozen table and neither needs a schema field that epoch 1 lacks. Their semantics belong to the S20-230 effect closure and the S20-380 capability authority, so the blocker is an owning package, not an epoch. |
+| 3d | `adapter_invoke` (161) execution | **SPLIT** | Invoking an existing `AdapterImport` is profile-shaped for the same reason as 3c. Adapter replay and configuration are **EPOCH REQUIRED**, because `AdapterImport` carries no configuration type and epoch 1 has no replay scope or cursor semantics. |
 
-The agenda is deliberately short: everything else the goal names is
-implemented under epoch 1 with profile separation.
+Two consequences follow, and both are recorded rather than acted on here:
+
+- The epoch-2 agenda that genuinely needs an epoch is items 1, 3b, and the
+  replay half of 3d. Items 2, 3a, and 3c are profile work under epoch 1.
+- Item 3a is unblocked today: it needs no epoch, no new owner, and no schema
+  change, so it is available as an extended-profile slice.
 
 ## 7. Explicit exclusions
 
 - No epoch record is created, registered, or activated here.
 - No migration transaction, root, or receipt is produced.
-- No decision is made on the section 6 agenda.
+- No epoch is proposed, and no decision is made on the section 6 agenda. A
+  determination answers section 1's profile question; it does not approve a
+  change, schedule one, or authorize an implementation.
 - No change to the epoch-1 record, its identity, or its corpora.
 - No GA claim, release decision, or publication.
 
@@ -133,6 +142,15 @@ three reviews read `PASS`), and `S20_760_SUPERSEDED` (when a later revision
 replaces it). The checker verifies this document's sections, the ADR, the work
 package row, the machine summary section, that no epoch record beyond epoch 1
 exists in the tree, and that `release-check` and `v2` stay `NOT_IMPLEMENTED`.
+
+It also verifies the facts the section 6 determinations rest on, so a
+determination cannot rot silently: `ContractSource` still has exactly four
+variants, the SSMC1 field-schema hash in the source still equals the epoch
+descriptor's, the five E7 opcode tags are still in the frozen opcode table,
+`CONTRACT_TEST_PROFILE_V1.md` still accepts `contract_assert` statically and
+still rejects `test_observe`, and the cache-key preimage still carries the
+lowering profile. A drift in any of them fails the checker rather than leaving
+a stale determination standing.
 
 ## 9. Clarifications
 

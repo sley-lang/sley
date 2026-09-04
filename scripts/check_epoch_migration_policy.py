@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,13 +24,15 @@ SUPERSEDED_STATUS = "S20_760_SUPERSEDED"
 
 SPEC_MARKERS = (
     "# Epoch Migration Policy v1",
-    "Status: S20-760 contract draft",
+    "Status: S20-760 contract draft, revision 2",
     "## 1. What forces a new epoch",
     "## 2. What a migration must prove",
     "## 3. Who decides",
     "## 4. Ordering",
     "## 5. What stays true across an epoch",
-    "## 6. Epoch 2 candidate agenda (proposals, not decisions)",
+    "## 6. Epoch 2 candidate agenda, with determinations",
+    "| 3a | `contract_assert` (144) execution | **PROFILE** |",
+    "| 3b | `test_observe` (145) execution | **EPOCH REQUIRED** |",
     "## 7. Explicit exclusions",
     "## 8. Staging",
     "Profile separation is the preferred alternative to an epoch bump",
@@ -47,6 +50,53 @@ WORK_PACKAGE_MARKERS = ("`docs/spec/EPOCH_MIGRATION_POLICY_V1.md`", "ADR-0046")
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def determination_facts() -> list[str]:
+    """Verify the tree still supports every section 6 determination.
+
+    A determination that rests on a fact must fail when the fact changes.
+    These are the five facts the revision 2 table cites.
+    """
+    problems: list[str] = []
+    ssmc = read(ROOT / "crates/sley-ssmc/src/lib.rs")
+    sources = ssmc[ssmc.index("pub enum ContractSource") :]
+    sources = sources[: sources.index("}")]
+    variants = [
+        line.strip().rstrip(",")
+        for line in sources.splitlines()
+        if line.startswith("    ") and not line.strip().startswith("///") and line.strip()
+    ]
+    if len(variants) != 4:
+        problems.append(f"contract-source-variant-drift:{len(variants)}")
+    for tag in ("=> 144,", "=> 145,", "=> 160,", "=> 161,", "=> 162,"):
+        if tag not in ssmc:
+            problems.append(f"e7-opcode-tag-missing:{tag}")
+
+    schema_hash = "1983bc8d6ad9ac3cb5390853f43959cf2c3dc0ae8e0ca18ca8264ca4960133ae"
+    if schema_hash not in read(ROOT / "docs/spec/SSMC1.md"):
+        problems.append("ssmc1-descriptor-hash-drift")
+    fingerprint = read(ROOT / "crates/sley-ssmc/src/fingerprint.rs")
+    segment = fingerprint[
+        fingerprint.index("SSMC1_FIELD_SCHEMA_HASH") : fingerprint.index(
+            "MAX_FINGERPRINT_PREIMAGE_BYTES"
+        )
+    ]
+    packed = "".join(re.findall(r"0x([0-9a-f]{2})", segment))
+    if packed != schema_hash:
+        problems.append("field-schema-hash-drift")
+
+    profile = read(ROOT / "docs/spec/CONTRACT_TEST_PROFILE_V1.md")
+    if "`contract_assert` is supported with these exact" not in profile:
+        problems.append("contract-assert-acceptance-drift")
+    if "`test_observe` is rejected in every" not in profile:
+        problems.append("test-observe-rejection-drift")
+
+    if "push_u32(&mut preimage, profile.lowering_profile);" not in read(
+        ROOT / "crates/sley-vm/src/lib.rs"
+    ):
+        problems.append("cache-key-profile-binding-drift")
+    return problems
 
 
 def gate_stays_closed(gate: str) -> bool:
@@ -141,9 +191,15 @@ def main() -> int:
         if not gate_stays_closed(gate):
             problems.append(f"gate-open:{gate}")
 
+    problems.extend(determination_facts())
+
     result = {
         "active_epochs": 1,
         "contract": "s20-760-epoch-migration-policy-v1",
+        "determinations": {
+            "epoch_required": ["contract-kinds", "test-observe", "adapter-replay"],
+            "profile": ["fingerprint-requirement", "contract-assert", "effect-and-capability"],
+        },
         "epoch_created": False,
         "problems": problems,
         "result": "FAIL" if problems else "PASS",

@@ -42,6 +42,14 @@ profile.
    authorizes the transaction, because it writes accepted state.
 5. **An agenda, not a decision.** The document lists the three candidates that
    currently want an epoch and explicitly does not decide them.
+6. **A determination is not an approval** (revision 2). Decision 1 says the
+   profile question must be answered before an epoch is proposed, so the agenda
+   now carries that answer per item, with the mechanical fact it rests on and a
+   checker that fails when the fact drifts. Answering it narrows the epoch to
+   the four contract kinds, `test_observe`, and adapter replay, and it shows
+   that `contract_assert` execution needs no epoch at all. The schema owner
+   still decides; the determination only says which question the owner is
+   being asked.
 
 ## Consequences
 
@@ -51,3 +59,5 @@ profile.
   recalling the master goal's prose.
 - Recording the profile-first preference makes the extended opcode profile and
   the semantic profile value defensible rather than improvised.
+- The epoch gate is smaller than it looked: three of the six determinations are
+  profile work under epoch 1, and one of those three is unblocked today.
