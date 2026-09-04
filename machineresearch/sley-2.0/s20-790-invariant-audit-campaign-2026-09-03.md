@@ -37,7 +37,9 @@ Two questions, applied to the whole tree:
 
 | 8 | The oracle independence scan read `oracle/scb1/src` only | Thirteen of the nineteen independent oracles live under `scripts/`, so the check that vouches for their independence never read twelve of them | Both the checker and the conformance report scan every oracle the coverage map names, and the report labels the runner that actually runs |
 
-A ninth, smaller correction: a JSON bridge test paired the restricted query
+| 9 | Twelve named fairness invariants connected to nothing | The seventeen run-freeze controls do enforce them, but the mapping existed only in a reader's head, and an invariant with no control is a claim nothing keeps | Each invariant names its enforcing controls, and the baseline checker binds the two sets in both directions |
+
+A tenth, smaller correction: a JSON bridge test paired the restricted query
 profile's code 31004 with an invented symbol.
 
 The first full run of all nineteen persistent slices took three minutes forty

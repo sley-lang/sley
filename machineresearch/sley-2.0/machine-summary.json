@@ -2830,7 +2830,7 @@
   "invariant_audit": {
     "campaign": "machineresearch/sley-2.0/s20-790-invariant-audit-campaign-2026-09-03.md",
     "date": "2026-09-03",
-    "findings": 9,
+    "findings": 10,
     "gates_added": [
       "scripts/check_error_symbol_registration.py",
       "scripts/check_declared_limits.py",
@@ -2843,7 +2843,8 @@
     "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one",
     "oracle_independence_finding": "the S20-130 independence scan read oracle/scb1/src only, while thirteen of the nineteen independent oracles live under scripts/, so the check vouched for twelve files it never read. The property held, but nothing verified it; both the checker and the conformance report now scan every oracle the coverage map names, and the report labels the runner that actually runs",
     "oracle_sources_scanned": 22,
-    "oracle_independence_markers": "thirteen markers since 2026-09-03: the original nine with crates/ generalized, plus ctypes, cffi, os.system, and popen, because linking or launching the Rust implementation is a dependency no string in the original list caught. Dynamic loading is allowed only between oracles"
+    "oracle_independence_markers": "thirteen markers since 2026-09-03: the original nine with crates/ generalized, plus ctypes, cffi, os.system, and popen, because linking or launching the Rust implementation is a dependency no string in the original list caught. Dynamic loading is allowed only between oracles",
+    "fairness_invariant_finding": "the benchmark plan named twelve fairness invariants and seventeen run-freeze controls, and nothing connected them: a reviewer asking how no_arm_specific_prompt_rewording is enforced had to infer it. Each invariant now names the controls that enforce it, and the baseline checker requires every invariant to name declared controls and every mapping to name a declared invariant"
   },
   "persistent_fuzz_all": {
     "target": "make persistent-fuzz-all",

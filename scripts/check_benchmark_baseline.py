@@ -89,6 +89,23 @@ if set(plan.get("run_freeze_required_fields", [])) != REQUIRED_CONTROLS:
 if set(plan.get("metrics", [])) != REQUIRED_METRICS:
     problems.append("metric set differs from the required exact set")
 
+# Every named fairness invariant names the frozen controls that enforce it, and
+# every one of those controls is a run-freeze field the runner compares between
+# arms. An invariant with no control is a claim nothing keeps.
+controls = plan.get("fairness_invariant_controls", {})
+declared_controls = set(plan.get("run_freeze_required_fields", []))
+for invariant in plan.get("fairness_invariants", []):
+    enforcing = controls.get(invariant)
+    if not enforcing:
+        problems.append(f"fairness invariant {invariant} names no enforcing control")
+        continue
+    for field in enforcing:
+        if field not in declared_controls:
+            problems.append(f"fairness invariant {invariant} names unknown control {field}")
+for invariant in controls:
+    if invariant not in plan.get("fairness_invariants", []):
+        problems.append(f"control mapping names unknown fairness invariant {invariant}")
+
 retention = plan.get("failure_retention", {})
 if not all(value is True for value in retention.values()):
     problems.append("failure retention contains a non-true requirement")
