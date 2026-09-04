@@ -448,6 +448,7 @@ pub struct RecoveryRevisionClaim {
 
 impl RecoveryRevisionClaim {
     /// Binds the six exact claimed revision facts.
+    #[must_use]
     pub fn new(
         transaction_id: TransactionId,
         workspace_id: WorkspaceId,
@@ -476,6 +477,7 @@ pub struct RecoveryAncestryRequest {
 
 impl RecoveryAncestryRequest {
     /// Binds the two ordered claim slots for one visible branch.
+    #[must_use]
     pub fn with_claims(
         first_claim: RecoveryRevisionClaim,
         head_claim: RecoveryRevisionClaim,
@@ -916,6 +918,10 @@ impl TransactionRepository {
         )
     }
 
+    // One crash-recovery decision procedure: the S20-530 matrix reads as a
+    // single ordered sequence, and splitting it would hide the order the
+    // contract fixes.
+    #[allow(clippy::too_many_lines)]
     fn recover_with_maintenance_and_limits(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
@@ -1087,6 +1093,9 @@ impl TransactionRepository {
         Ok((accepted_transaction_id, verified_ancestry_transactions))
     }
 
+    // The ancestry verification walks one bounded loop with per-step
+    // charging; the steps are not independently meaningful.
+    #[allow(clippy::too_many_lines)]
     fn verify_accepted_recovery_ancestry_with_limits(
         &self,
         maintenance: &RepositoryMaintenanceGuard,
@@ -1257,7 +1266,7 @@ impl TransactionRepository {
             u64::try_from(requests.len()).map_err(|_| RecoveryAncestryError::LimitExceeded)?;
         let next_request_count = request_usage
             .checked_add(request_count)
-            .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+            .ok_or(RecoveryAncestryError::LimitExceeded)?;
         ensure_ancestry_recovery_limit(next_request_count, limits.max_requests)?;
         request_usage = next_request_count;
         let mut head_reports = ::std::vec::Vec::with_capacity(requests.len());
@@ -1383,11 +1392,11 @@ impl TransactionRepository {
                 let next_head_ancestry_transactions = head_usage
                     .ancestry_transactions
                     .checked_add(one)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
                 let next_union_ancestry_transactions = union_usage
                     .ancestry_transactions
                     .checked_add(union_delta)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
                 ensure_ancestry_recovery_limit(
                     next_head_ancestry_transactions,
                     limits.per_pointer.ancestry_transactions,
@@ -1419,57 +1428,9 @@ impl TransactionRepository {
                             TransactionErrorCode::InternalInvariant,
                         ))
                     })?
-            } else if recovery_cache.contains_key(&transaction_id) {
-                let mut head_usage = head_usages[request_index];
-                let cache_key = transaction_id;
-                let cached_work = recovery_cache
-                    .get(&cache_key)
-                    .expect("verified recovery cache entry");
-                let cached_receipt_bytes = cached_work.receipt_bytes;
-                let cached_binding_visits = cached_work.binding_visits;
-                let cached_object_verifications = cached_work.object_verifications;
-                let cached_object_bytes = cached_work.object_bytes;
-                let next_cached_head_receipt_bytes = head_usage
-                    .receipt_bytes
-                    .checked_add(cached_receipt_bytes)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
-                let next_cached_head_binding_visits = head_usage
-                    .binding_visits
-                    .checked_add(cached_binding_visits)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
-                let next_cached_head_object_verifications = head_usage
-                    .object_verifications
-                    .checked_add(cached_object_verifications)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
-                let next_cached_head_object_bytes = head_usage
-                    .object_bytes
-                    .checked_add(cached_object_bytes)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
-                ensure_ancestry_recovery_limit(
-                    next_cached_head_receipt_bytes,
-                    limits.per_pointer.receipt_bytes,
-                )?;
-                ensure_ancestry_recovery_limit(
-                    next_cached_head_binding_visits,
-                    limits.per_pointer.binding_visits,
-                )?;
-                ensure_ancestry_recovery_limit(
-                    next_cached_head_object_verifications,
-                    limits.per_pointer.object_verifications,
-                )?;
-                ensure_ancestry_recovery_limit(
-                    next_cached_head_object_bytes,
-                    limits.per_pointer.object_bytes,
-                )?;
-                head_usage.receipt_bytes = next_cached_head_receipt_bytes;
-                head_usage.binding_visits = next_cached_head_binding_visits;
-                head_usage.object_verifications = next_cached_head_object_verifications;
-                head_usage.object_bytes = next_cached_head_object_bytes;
-                let cached_revision = use_cached_recovery_fact(&cache_key, cached_work)?;
-                head_usages[request_index] = head_usage;
-                charged[request_index].insert(cache_key);
-                cached_revision
-            } else {
+            } else if let std::collections::btree_map::Entry::Vacant(e) =
+                recovery_cache.entry(transaction_id)
+            {
                 let mut head_usage = head_usages[request_index];
                 let mut current_cache_work = RecoveryWorkUsage {
                     receipt_bytes: 0,
@@ -1486,15 +1447,15 @@ impl TransactionRepository {
                 let next_head_receipt_bytes = head_usage
                     .receipt_bytes
                     .checked_add(metadata_bytes)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
                 let next_union_receipt_bytes = union_usage
                     .receipt_bytes
                     .checked_add(metadata_bytes)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
                 let next_cached_receipt_bytes = current_cache_work
                     .receipt_bytes
                     .checked_add(metadata_bytes)
-                    .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
                 ensure_ancestry_recovery_limit(
                     next_head_receipt_bytes,
                     limits.per_pointer.receipt_bytes,
@@ -1525,15 +1486,15 @@ impl TransactionRepository {
                     let next_head_binding_visits = head_usage
                         .binding_visits
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_union_binding_visits = union_usage
                         .binding_visits
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_cached_binding_visits = current_cache_work
                         .binding_visits
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     ensure_ancestry_recovery_limit(
                         next_head_binding_visits,
                         limits.per_pointer.binding_visits,
@@ -1559,27 +1520,27 @@ impl TransactionRepository {
                     let next_head_object_verifications = head_usage
                         .object_verifications
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_union_object_verifications = union_usage
                         .object_verifications
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_head_object_bytes = head_usage
                         .object_bytes
                         .checked_add(object_bytes)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_union_object_bytes = union_usage
                         .object_bytes
                         .checked_add(object_bytes)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_cached_object_verifications = current_cache_work
                         .object_verifications
                         .checked_add(one)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     let next_cached_object_bytes = current_cache_work
                         .object_bytes
                         .checked_add(object_bytes)
-                        .ok_or_else(|| RecoveryAncestryError::LimitExceeded)?;
+                        .ok_or(RecoveryAncestryError::LimitExceeded)?;
                     ensure_ancestry_recovery_limit(
                         next_head_object_verifications,
                         limits.per_pointer.object_verifications,
@@ -1650,18 +1611,65 @@ impl TransactionRepository {
                 verify_recovery_revision_shape(&facts)
                     .map_err(RecoveryAncestryError::Verification)?;
                 head_usages[request_index] = head_usage;
-                recovery_cache.insert(
-                    transaction_id,
-                    CachedRecoveryWork {
-                        receipt_bytes: current_cache_work.receipt_bytes,
-                        binding_visits: current_cache_work.binding_visits,
-                        object_verifications: current_cache_work.object_verifications,
-                        object_bytes: current_cache_work.object_bytes,
-                        revision: facts.clone(),
-                    },
-                );
+                e.insert(CachedRecoveryWork {
+                    receipt_bytes: current_cache_work.receipt_bytes,
+                    binding_visits: current_cache_work.binding_visits,
+                    object_verifications: current_cache_work.object_verifications,
+                    object_bytes: current_cache_work.object_bytes,
+                    revision: facts.clone(),
+                });
                 charged[request_index].insert(transaction_id);
                 facts
+            } else {
+                let mut head_usage = head_usages[request_index];
+                let cache_key = transaction_id;
+                let cached_work = recovery_cache
+                    .get(&cache_key)
+                    .expect("verified recovery cache entry");
+                let cached_receipt_bytes = cached_work.receipt_bytes;
+                let cached_binding_visits = cached_work.binding_visits;
+                let cached_object_verifications = cached_work.object_verifications;
+                let cached_object_bytes = cached_work.object_bytes;
+                let next_cached_head_receipt_bytes = head_usage
+                    .receipt_bytes
+                    .checked_add(cached_receipt_bytes)
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_binding_visits = head_usage
+                    .binding_visits
+                    .checked_add(cached_binding_visits)
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_object_verifications = head_usage
+                    .object_verifications
+                    .checked_add(cached_object_verifications)
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
+                let next_cached_head_object_bytes = head_usage
+                    .object_bytes
+                    .checked_add(cached_object_bytes)
+                    .ok_or(RecoveryAncestryError::LimitExceeded)?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_receipt_bytes,
+                    limits.per_pointer.receipt_bytes,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_binding_visits,
+                    limits.per_pointer.binding_visits,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_object_verifications,
+                    limits.per_pointer.object_verifications,
+                )?;
+                ensure_ancestry_recovery_limit(
+                    next_cached_head_object_bytes,
+                    limits.per_pointer.object_bytes,
+                )?;
+                head_usage.receipt_bytes = next_cached_head_receipt_bytes;
+                head_usage.binding_visits = next_cached_head_binding_visits;
+                head_usage.object_verifications = next_cached_head_object_verifications;
+                head_usage.object_bytes = next_cached_head_object_bytes;
+                let cached_revision = use_cached_recovery_fact(&cache_key, cached_work)?;
+                head_usages[request_index] = head_usage;
+                charged[request_index].insert(cache_key);
+                cached_revision
             };
 
             if let Some(claim_index) = claim_slot {
@@ -1726,6 +1734,9 @@ impl TransactionRepository {
     /// Returns the verified parents used for ancestry expansion. Only a
     /// single-parent ordinary revision passes the parent-substitution seam.
     #[allow(unused_variables)]
+    // `self` is read through the S20-530 test hook below, which a release
+    // build compiles out.
+    #[allow(clippy::unused_self)]
     fn recovery_ancestry_parents<'a>(
         &self,
         revision: &'a VerifiedRevision,
@@ -1838,6 +1849,9 @@ impl TransactionRepository {
         self.load_accepted(receipt.transaction.transaction_id)
     }
 
+    // The commit ordering (objects, receipt, head) is the contract's own
+    // durability sequence and stays in one place.
+    #[allow(clippy::too_many_lines)]
     fn commit_inner(
         &self,
         input: CommitInput<'_>,

@@ -1,4 +1,4 @@
-.PHONY: evidence-refresh quick core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: evidence-refresh quick lint core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -92,6 +92,12 @@ quick:
 core:
 	cargo test --workspace --locked
 	python3 scripts/check_m1_gate.py core
+
+# The workspace configures `clippy::all` and `clippy::pedantic` as warnings, so
+# nothing enforced them. This target denies them.
+lint:
+	cargo fmt --all --check
+	cargo clippy --no-deps --workspace --all-targets --locked -- -D warnings
 
 conformance:
 	python3 scripts/check_scb1_spec.py

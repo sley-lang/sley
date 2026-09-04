@@ -2774,5 +2774,23 @@
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim"
+  },
+  "lint_gate": {
+    "target": "make lint",
+    "commands": [
+      "cargo fmt --all --check",
+      "cargo clippy --no-deps --workspace --all-targets --locked -- -D warnings"
+    ],
+    "configured_lints": [
+      "clippy::all = warn",
+      "clippy::pedantic = warn",
+      "unsafe_code = forbid",
+      "missing_docs = warn"
+    ],
+    "warnings_at_adoption": 38,
+    "warnings_now": 0,
+    "adopted": "2026-09-03",
+    "tier": "Tier 2 handoff; the workspace configured these lints but no target enforced them",
+    "allows_with_reasons": 6
   }
 }

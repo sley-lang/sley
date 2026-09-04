@@ -390,6 +390,9 @@ impl ObjectStore {
         self.recover_staged_with_limits(object_recovery_limits())
     }
 
+    // Staged-object recovery enumerates, classifies, and removes in one
+    // pass so a partial classification cannot outlive its enumeration.
+    #[allow(clippy::too_many_lines)]
     fn recover_staged_with_limits(
         &self,
         limits: ObjectRecoveryLimits,

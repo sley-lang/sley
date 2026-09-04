@@ -8,10 +8,10 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId};
 use sley_ssmc::{
     BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    ContractDefinition, ContractKind, FieldConst,
-    FunctionGraph, FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst,
-    NamedType, Opcode, Parameter, RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr,
-    VariantCase, VariantConst, fingerprint::hash_validated_value,
+    ContractDefinition, ContractKind, FieldConst, FunctionGraph, FunctionType,
+    GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, Parameter,
+    RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr, VariantCase, VariantConst,
+    fingerprint::hash_validated_value,
 };
 
 use crate::{LowerError, LowerErrorCode};
@@ -132,7 +132,9 @@ pub fn check_result_type(result_type: &TypeExpr) -> Result<(), LowerError> {
 fn contract_assert_result() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(TypeExpr::Unit),
-        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::ContractViolation)),
+        error: Box::new(TypeExpr::BuiltinFailure(
+            BuiltinFailureKind::ContractViolation,
+        )),
     }
 }
 
@@ -633,7 +635,9 @@ pub fn judge_extended_operation(
                 .ok_or_else(|| LowerError::new(LowerErrorCode::ImmediateMismatch))?;
             if !matches!(
                 definition.contract_kind,
-                ContractKind::Precondition | ContractKind::Postcondition | ContractKind::ResultPredicate
+                ContractKind::Precondition
+                    | ContractKind::Postcondition
+                    | ContractKind::ResultPredicate
             ) || definition.resource_limits.is_some()
             {
                 return fail(LowerErrorCode::ImmediateMismatch);

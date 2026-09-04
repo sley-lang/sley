@@ -109,8 +109,13 @@ The dependency direction `sley-query -> sley-check -> sley-ssmc` is unchanged;
   entity a request carries, so every seed encodes its whole fixture set.
   `make complete-root-persistent-fuzz-smoke` passed over 191 seeds with no
   artifact.
-- Strict pedantic clippy debt in older `sley-repo` test modules is
-  pre-existing; the new paths lint clean under `--no-deps`.
+- Strict pedantic clippy debt in older `sley-repo` test modules was
+  pre-existing. Closed on 2026-09-03: the workspace configures
+  `clippy::all` and `clippy::pedantic` as warnings but nothing enforced
+  them, so thirty-eight had accumulated. All are fixed at the source, the
+  four long functions and the one cfg-gated `self` carry a reason with
+  their allow, and `make lint` now denies every warning and checks
+  formatting, so the debt cannot silently return.
 - Full S20-300 (complete-root snapshot), root-backed S20-310 queries, and
   S20-510 comparison remain separate packages.
 

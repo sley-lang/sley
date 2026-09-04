@@ -1487,9 +1487,11 @@ pub(crate) fn select_interruption(cut: ExchangeInterruption) {
 }
 
 #[cfg(test)]
+type AdvisoryHook = std::cell::RefCell<Option<Box<dyn FnOnce(&Path)>>>;
+
+#[cfg(test)]
 std::thread_local! {
-    static AFTER_ADVISORY_CLASSIFICATION: std::cell::RefCell<Option<Box<dyn FnOnce(&Path)>>> =
-        const { std::cell::RefCell::new(None) };
+    static AFTER_ADVISORY_CLASSIFICATION: AdvisoryHook = const { std::cell::RefCell::new(None) };
 }
 
 /// Runs `action` on the target once, after the advisory classification and
@@ -2100,6 +2102,8 @@ pub(crate) mod tests {
         }
 
         /// A source in workspace `workspace_byte`, for cross-workspace rejections.
+        // One fixture constructor; its parts are meaningless apart.
+        #[allow(clippy::too_many_lines)]
         fn new_with_nonce_and_workspace(label: &str, nonce_byte: u8, workspace_byte: u8) -> Self {
             let temp = TempDir::new(label);
             let root = temp.child("source");
@@ -2594,7 +2598,7 @@ pub(crate) mod tests {
             .map(|index| ExchangeReceiptEntry {
                 transaction_id: TransactionId::from_bytes({
                     let mut bytes = [0_u8; 32];
-                    bytes[..4].copy_from_slice(&(index as u32).to_be_bytes());
+                    bytes[..4].copy_from_slice(&u32::try_from(index).unwrap().to_be_bytes());
                     bytes
                 }),
                 receipt_id: fixed(1, ReceiptId::from_bytes),
@@ -2615,7 +2619,7 @@ pub(crate) mod tests {
             .map(|index| ExchangeReceiptEntry {
                 transaction_id: TransactionId::from_bytes({
                     let mut bytes = [0_u8; 32];
-                    bytes[..4].copy_from_slice(&(index as u32).to_be_bytes());
+                    bytes[..4].copy_from_slice(&u32::try_from(index).unwrap().to_be_bytes());
                     bytes
                 }),
                 receipt_id: fixed(1, ReceiptId::from_bytes),
@@ -2659,7 +2663,7 @@ pub(crate) mod tests {
     fn rebuild_with_field(
         exchange: &AcceptedRepositoryExchange,
         tag: u32,
-        value: Vec<u8>,
+        value: &[u8],
     ) -> Vec<u8> {
         let (_, payload, _) = decode_envelope(&exchange.stored_bytes).unwrap();
         let mut record = RecordReader::new(payload).unwrap();
@@ -2673,7 +2677,7 @@ pub(crate) mod tests {
         record.finish().unwrap();
         for field in &mut fields {
             if field.0 == tag {
-                field.1 = value.clone();
+                field.1 = value.to_vec();
             }
         }
         let payload = encode_record(&fields).unwrap();
@@ -2694,6 +2698,8 @@ pub(crate) mod tests {
     }
 
     #[test]
+    // One assertion per reachable code; a split would hide the coverage.
+    #[allow(clippy::too_many_lines)]
     fn every_reachable_exchange_code_has_an_asserting_rejection() {
         let source = Source::new("code-matrix");
         let exchange = source.export();
@@ -2706,15 +2712,15 @@ pub(crate) mod tests {
         };
 
         expect(
-            &rebuild_with_field(&exchange, 1, encode_uvar(2)),
+            &rebuild_with_field(&exchange, 1, &encode_uvar(2)),
             "EXCHANGE_VERSION_UNSUPPORTED",
         );
         expect(
-            &rebuild_with_field(&exchange, 6, encode_uvar(1)),
+            &rebuild_with_field(&exchange, 6, &encode_uvar(1)),
             "EXCHANGE_COMPRESSION_UNSUPPORTED",
         );
         expect(
-            &rebuild_with_field(&exchange, 8, encode_union(1, b"sig").unwrap()),
+            &rebuild_with_field(&exchange, 8, &encode_union(1, b"sig").unwrap()),
             "EXCHANGE_PROFILE_UNSUPPORTED",
         );
 
@@ -2723,7 +2729,7 @@ pub(crate) mod tests {
         let duplicated =
             encode_list(&[receipt_elements[0].to_vec(), receipt_elements[0].to_vec()]).unwrap();
         expect(
-            &rebuild_with_field(&exchange, 3, duplicated),
+            &rebuild_with_field(&exchange, 3, &duplicated),
             "EXCHANGE_DUPLICATE_ENTRY",
         );
 
@@ -2737,7 +2743,7 @@ pub(crate) mod tests {
         let flipped_tree =
             encode_record(&[(1, algorithm), (2, count), (3, leaves), (4, root)]).unwrap();
         expect(
-            &rebuild_with_field(&exchange, 7, flipped_tree),
+            &rebuild_with_field(&exchange, 7, &flipped_tree),
             "EXCHANGE_DIGEST_TREE_MISMATCH",
         );
 
@@ -2926,6 +2932,8 @@ pub(crate) mod tests {
     }
 
     #[test]
+    // One ordered rejection matrix over a single envelope.
+    #[allow(clippy::too_many_lines)]
     fn envelope_payload_and_nesting_rejections_precede_any_write() {
         let source = Source::new("rejections");
         let exchange = source.export();

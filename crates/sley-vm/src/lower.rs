@@ -371,16 +371,20 @@ fn called_functions(
         .blocks
         .iter()
         .flat_map(|block| block.instructions.iter())
-        .filter_map(|instruction| match (&instruction.immediate, instruction.opcode) {
-            (Immediate::Function(reference), tag) if tag == Opcode::CallDirect.tag() => {
-                Some(reference.function)
-            }
-            (Immediate::Entity(contract), tag) if tag == Opcode::ContractAssert.tag() => contracts
-                .iter()
-                .find(|candidate| candidate.entity_id == *contract)
-                .map(|definition| definition.predicate),
-            _ => None,
-        })
+        .filter_map(
+            |instruction| match (&instruction.immediate, instruction.opcode) {
+                (Immediate::Function(reference), tag) if tag == Opcode::CallDirect.tag() => {
+                    Some(reference.function)
+                }
+                (Immediate::Entity(contract), tag) if tag == Opcode::ContractAssert.tag() => {
+                    contracts
+                        .iter()
+                        .find(|candidate| candidate.entity_id == *contract)
+                        .map(|definition| definition.predicate)
+                }
+                _ => None,
+            },
+        )
         .collect()
 }
 

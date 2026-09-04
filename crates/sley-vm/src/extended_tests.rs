@@ -8,12 +8,12 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    ContractBinding, ContractDefinition, ContractKind, ContractSource,
-    FieldConst, FunctionGraph, FunctionRefValue, FunctionType, GlobalValueDefinition, Immediate,
-    IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode, Operation, OperationResultRef,
-    Parameter, ParameterRole, Reachability, RecordConst, RecordField, ResourceLimits, ResultConst,
-    ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase,
-    VariantConst, VariantImmediate, Visibility, fingerprint::hash_validated_value,
+    ContractBinding, ContractDefinition, ContractKind, ContractSource, FieldConst, FunctionGraph,
+    FunctionRefValue, FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst,
+    MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
+    Reachability, RecordConst, RecordField, ResourceLimits, ResultConst, ReturnTerminator,
+    Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst,
+    VariantImmediate, Visibility, fingerprint::hash_validated_value,
 };
 
 use crate::{
@@ -2197,11 +2197,20 @@ fn e7a_contract_assertions_call_the_predicate_and_carry_its_verdict() {
     // Exactly five fuel: the assertion's own dispatch, the frame, the
     // predicate's operation, and both terminators. Four refuses, and the
     // refusal is a resource limit rather than a violation.
-    assert_eq!(ceiling(4), ExecutionTermination::ResourceLimit(ResourceKind::Fuel));
-    assert_eq!(ceiling(5), ExecutionTermination::Success(assertion_value(true)));
+    assert_eq!(
+        ceiling(4),
+        ExecutionTermination::ResourceLimit(ResourceKind::Fuel)
+    );
+    assert_eq!(
+        ceiling(5),
+        ExecutionTermination::Success(assertion_value(true))
+    );
     // Deterministic across repetitions.
     for _ in 0..128 {
-        assert_eq!(success(&fixture, vec![boolean(false)]), assertion_value(false));
+        assert_eq!(
+            success(&fixture, vec![boolean(false)]),
+            assertion_value(false)
+        );
     }
 }
 
@@ -2798,7 +2807,11 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             vec![text("bad")],
         ),
         // Slice E7a: the same assertion, once holding and once violated.
-        ("contract-assert-holds", asserting_entry(), vec![boolean(true)]),
+        (
+            "contract-assert-holds",
+            asserting_entry(),
+            vec![boolean(true)],
+        ),
         (
             "contract-assert-violated",
             asserting_entry(),

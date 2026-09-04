@@ -532,7 +532,7 @@ fn acquire_exclusive_gc_with_maintenance(
 #[cfg(test)]
 fn acquire_exclusive_gc_with_gc_durability_cut(
     store: &ObjectStore,
-    cut: GcDurabilityCut,
+    cut: &GcDurabilityCut,
 ) -> Result<ExclusiveGcGuard> {
     let root_metadata = fs::symlink_metadata(store.root())
         .map_err(|error| GcError::io(GcErrorCode::ExclusiveLockRequired, error))?;
@@ -670,7 +670,7 @@ pub fn recover_gc_witness(
 fn recover_gc_witness_with_gc_durability_cut(
     store: &ObjectStore,
     maintenance: &RepositoryMaintenanceGuard,
-    cut: GcDurabilityCut,
+    cut: &GcDurabilityCut,
 ) -> Result<GcWitnessRecoveryStatus> {
     match cut {
         GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync => {}
@@ -1114,7 +1114,7 @@ fn gc_collect_with_gc_durability_cut<V: GcObjectVerifier>(
     snapshot: &RetentionSnapshot,
     verifier: &V,
     guard: &ExclusiveGcGuard,
-    cut: GcDurabilityCut,
+    cut: &GcDurabilityCut,
 ) -> Result<GcReport> {
     let cut_before_delete = match cut {
         GcDurabilityCut::Gc01BeforeSecondCandidateDelete => true,
@@ -1636,7 +1636,7 @@ mod tests {
         let fixture = fixture();
         let error = acquire_exclusive_gc_with_gc_durability_cut(
             &fixture.store,
-            GcDurabilityCut::Gcw01WitnessCreateBeforeWrite,
+            &GcDurabilityCut::Gcw01WitnessCreateBeforeWrite,
         )
         .unwrap_err();
         ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
@@ -1660,7 +1660,7 @@ mod tests {
         let fixture = fixture();
         let error = acquire_exclusive_gc_with_gc_durability_cut(
             &fixture.store,
-            GcDurabilityCut::Gcw02DuringWitnessWrite,
+            &GcDurabilityCut::Gcw02DuringWitnessWrite,
         )
         .unwrap_err();
         ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
@@ -1685,7 +1685,7 @@ mod tests {
         let fixture = fixture();
         let error = acquire_exclusive_gc_with_gc_durability_cut(
             &fixture.store,
-            GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync,
+            &GcDurabilityCut::Gcw03WitnessWriteBeforeFileSync,
         )
         .unwrap_err();
         ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
@@ -1709,7 +1709,7 @@ mod tests {
         let fixture = fixture();
         let error = acquire_exclusive_gc_with_gc_durability_cut(
             &fixture.store,
-            GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync,
+            &GcDurabilityCut::Gcw04WitnessFileSyncBeforeLockDirectorySync,
         )
         .unwrap_err();
         ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
@@ -1736,7 +1736,7 @@ mod tests {
         let error = recover_gc_witness_with_gc_durability_cut(
             &fixture.store,
             &maintenance,
-            GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync,
+            &GcDurabilityCut::Gcw05WitnessRemoveBeforeLockDirectorySync,
         )
         .unwrap_err();
         ::core::assert_eq!(error.symbol(), "GC_EXCLUSIVE_LOCK_REQUIRED");
@@ -1770,7 +1770,7 @@ mod tests {
         let owner = ::std::thread::spawn(move || {
             acquire_exclusive_gc_with_gc_durability_cut(
                 &owner_store,
-                GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess {
+                &GcDurabilityCut::Gcw06CollectionOwnsMaintenanceBeforeWitnessAccess {
                     gate: cut_gate,
                 },
             )
@@ -2036,7 +2036,7 @@ mod tests {
         let gc_witness_before_snapshot = crate::gc::tests::exact_path_snapshot(&gc_witness_path);
         let gc_witness_before_kind = gc_witness_before_snapshot.0;
         ::core::assert_eq!(gc_witness_before_kind, "non_regular");
-        ::core::assert_eq!(gc_witness_before_snapshot.1 & 0o170000, 0o140000);
+        ::core::assert_eq!(gc_witness_before_snapshot.1 & 0o170_000, 0o140_000);
         let result = super::recover_gc_witness(&store, &maintenance);
         ::core::assert!(result.is_err());
         let error = result.expect_err("expected recovery error");
@@ -2412,7 +2412,7 @@ mod tests {
             &snapshot,
             &fixture.verifier,
             &guard,
-            GcDurabilityCut::Gc01BeforeSecondCandidateDelete,
+            &GcDurabilityCut::Gc01BeforeSecondCandidateDelete,
         )
         .unwrap_err();
         ::core::assert_eq!(expected_result.symbol(), "GC_DELETE_IO");
@@ -2484,7 +2484,7 @@ mod tests {
             &snapshot,
             &fixture.verifier,
             &guard,
-            GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync,
+            &GcDurabilityCut::Gc02SecondCandidateUnlinkedBeforeLeafSync,
         )
         .unwrap_err();
         ::core::assert_eq!(expected_result.symbol(), "GC_DELETE_IO");
