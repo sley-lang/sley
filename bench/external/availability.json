@@ -3,7 +3,7 @@
   "arm_id": "zerolang",
   "availability_status": "UNAVAILABLE_NO_FROZEN_COMPARISON_PACKAGE",
   "benchmark_plan_arm_status": "UNESTABLISHED",
-  "benchmark_plan_sha256": "10dae462f0a9520cbe4b3d4fd763897ea2d8af2b3d66915e00db802f8b8560ad",
+  "benchmark_plan_sha256": "e0549d51306bcdbb0caf9f2cb5a9362bb403a87fce2c0ffddf58fd84734aef24",
   "comparison_trials_executed": 0,
   "contract": "sley2.external-arm-availability.v1",
   "corpus_sha256": "7370b6ccb8ccd3f58fa2a90e316edf4bc5a1319b41a55253a2ee14bb5d73988d",
