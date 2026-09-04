@@ -922,6 +922,124 @@ fn checked(opcode: Opcode, signed: bool, bits: u16, inputs: Vec<ConstValue>) -> 
     }
 }
 
+/// A shift amount, which is always `UInt(32)` whatever the operand width is.
+fn amount_of(value: u32) -> ConstValue {
+    int_value(false, 32, i128::from(value))
+}
+
+/// The unsigned form of `checked`: a `UInt(128)` result can exceed `i128`.
+fn checked_unsigned(opcode: Opcode, bits: u16, inputs: Vec<ConstValue>) -> Result<u128, u16> {
+    let fixture = checked_fixture(opcode, false, bits);
+    match success(&fixture, inputs).data {
+        ConstData::Result(ResultConst::Ok(value)) => match value.data {
+            ConstData::UInt(value) => Ok(value),
+            other => panic!("unexpected ok data {other:?}"),
+        },
+        ConstData::Result(ResultConst::Err(failure)) => match failure.data {
+            ConstData::BuiltinFailure(BuiltinFailureValue {
+                kind: BuiltinFailureKind::Arithmetic,
+                code,
+            }) => Err(code),
+            other => panic!("unexpected failure data {other:?}"),
+        },
+        other => panic!("unexpected result {other:?}"),
+    }
+}
+
+/// The width's signed minimum, derived without negating it.
+fn signed_min_of(bits: u16) -> i128 {
+    if bits >= 128 {
+        i128::MIN
+    } else {
+        -(1_i128 << (bits - 1))
+    }
+}
+
+/// Every width's left-shift boundary, in both signs.
+///
+/// Ariadne's S20-260 contract review, P0-2: the widths under test were 8 and
+/// 32, and the implementation multiplied by `1 << amount`, which is itself out
+/// of range at the top of the widest width. The two directions were inverted
+/// there. One case per supported width pins the rule where it is hardest.
+#[test]
+fn e2_left_shift_is_exact_at_every_width_boundary() {
+    for bits in [8_u16, 16, 32, 64, 128] {
+        let top = u64::from(bits) - 1;
+        let shift = u32::try_from(top).unwrap();
+        let signed_min = signed_min_of(bits);
+        // The only signed value that survives a shift to the sign bit is -1,
+        // and it lands exactly on the width's minimum.
+        assert_eq!(
+            checked(
+                Opcode::IntShlChecked,
+                true,
+                bits,
+                vec![int_value(true, bits, -1), amount_of(shift)],
+            ),
+            Ok(signed_min),
+            "signed -1 shl {top} at width {bits}"
+        );
+        // Its positive mirror cannot: the result would need the sign bit.
+        assert_eq!(
+            checked(
+                Opcode::IntShlChecked,
+                true,
+                bits,
+                vec![int_value(true, bits, 1), amount_of(shift)],
+            ),
+            Err(1),
+            "signed 1 shl {top} at width {bits}"
+        );
+        // One below the top stays representable in both signs.
+        if top >= 1 {
+            let below = u32::try_from(top - 1).unwrap();
+            assert_eq!(
+                checked(
+                    Opcode::IntShlChecked,
+                    true,
+                    bits,
+                    vec![int_value(true, bits, 1), amount_of(below)],
+                ),
+                Ok(1_i128 << (top - 1)),
+                "signed 1 shl {} at width {bits}",
+                top - 1
+            );
+        }
+        // Unsigned: the high bit is reachable, and one more is not. At width
+        // 128 the reachable value exceeds `i128`, which is why this arm reads
+        // the unsigned data directly.
+        assert_eq!(
+            checked_unsigned(
+                Opcode::IntShlChecked,
+                bits,
+                vec![int_value(false, bits, 1), amount_of(shift)],
+            ),
+            Ok(1_u128 << top),
+            "unsigned 1 shl {top} at width {bits}"
+        );
+        assert_eq!(
+            checked_unsigned(
+                Opcode::IntShlChecked,
+                bits,
+                vec![int_value(false, bits, 2), amount_of(shift)],
+            ),
+            Err(1),
+            "unsigned 2 shl {top} at width {bits}"
+        );
+        // A shift at the width is an invalid shift, not an overflow.
+        assert_eq!(
+            checked(
+                Opcode::IntShlChecked,
+                true,
+                bits,
+                vec![int_value(true, bits, 1), amount_of(u32::from(bits))],
+            ),
+            Err(3),
+            "signed shl at width {bits}"
+        );
+    }
+}
+
 #[test]
 fn e2_checked_integers_overflow_divide_and_shift_exactly() {
     let u8v = |value: i128| int_value(false, 8, value);

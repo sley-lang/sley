@@ -1017,17 +1017,31 @@ fn checked_integer(
             }
             // Left shift: bits shifted out must be the sign fill (signed) or
             // zero (unsigned); the result stays within the width.
+            //
+            // The test compares the operand against the width bound shifted
+            // down, never a multiplier shifted up. `1 << amount` is itself
+            // out of range at the top of the widest width (`1_i128 << 127` is
+            // `i128::MIN`), which inverted both directions there: `1 shl 127`
+            // answered `Value(MIN)` where the rule requires overflow, and
+            // `-1 shl 127` answered overflow where the rule requires
+            // `Value(MIN)`. Ariadne's S20-260 contract review, P0-2.
             if signed {
-                let shifted = signed_value.checked_mul(1_i128 << amount);
-                Ok(match shifted {
-                    Some(result) if fits(true, bits, result, 0) => Checked::Value(result, 0),
-                    _ => Checked::Failure(ARITHMETIC_OVERFLOW),
+                let (low, high) = signed_bounds(bits);
+                let representable = match signed_value.cmp(&0) {
+                    core::cmp::Ordering::Equal => true,
+                    core::cmp::Ordering::Greater => signed_value <= (high >> amount),
+                    core::cmp::Ordering::Less => signed_value >= (low >> amount),
+                };
+                Ok(if representable {
+                    Checked::Value(signed_value << amount, 0)
+                } else {
+                    Checked::Failure(ARITHMETIC_OVERFLOW)
                 })
             } else {
-                let shifted = unsigned_value.checked_mul(1_u128 << amount);
-                Ok(match shifted {
-                    Some(result) if fits(false, bits, 0, result) => Checked::Value(0, result),
-                    _ => Checked::Failure(ARITHMETIC_OVERFLOW),
+                Ok(if unsigned_value <= (unsigned_max(bits) >> amount) {
+                    Checked::Value(0, unsigned_value << amount)
+                } else {
+                    Checked::Failure(ARITHMETIC_OVERFLOW)
                 })
             }
         }

@@ -2888,7 +2888,8 @@
     "completed": 1,
     "retained": "machineresearch/sley-2.0/reviews/",
     "first_verdict": "S20-260/S20-270 Ariadne contract review: FAIL, 2 P0 and 6 P1",
-    "p0_confirmed": "signed int_shl_checked is inverted at bits=128 amount=127; reproduced 2026-09-04",
-    "p0_unverified": "map canonicality: equal/not_equal over maps may be representation equality and the observation identity may depend on entry order"
+    "p0_confirmed": "signed int_shl_checked was inverted at the top of every width; fixed 2026-09-04",
+    "p0_unverified": "map canonicality: equal/not_equal over maps may be representation equality and the observation identity may depend on entry order",
+    "p0_2_fix": "the rule now compares the operand against the width bound shifted down rather than multiplying by a multiplier shifted up, because 1 << amount is itself out of range at the top of the widest width. e2_left_shift_is_exact_at_every_width_boundary pins both signs at widths 8, 16, 32, 64, and 128, and restoring the old multiplier fails it"
   }
 }
