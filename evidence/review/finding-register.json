@@ -96,7 +96,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 200,
+  "obligation_count": 201,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -747,6 +747,16 @@
         "P2"
       ],
       "state": "PASS"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "independent_review",
+      "package_status": "IN_PROGRESS",
+      "section": "invariant_audit",
+      "severities": [],
+      "state": "PENDING"
     },
     {
       "declares_closed_findings": false,
@@ -2290,7 +2300,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "e07aeae8083f56795b2ff93e0c7b47b9cf80e563c6dc78c5edafce2c3fa5d620",
+  "obligations_digest": "b2ed50adcf28060a924aa3d6b0710dda88c6a92a9b30a334933d4d5f3bced3dd",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2391,6 +2401,10 @@
     {
       "field": "vulcan_surface_review",
       "section": "finding_register"
+    },
+    {
+      "field": "independent_review",
+      "section": "invariant_audit"
     },
     {
       "field": "ariadne_contract_review",
@@ -2609,7 +2623,7 @@
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "6ce060b4fbbe4ee48f10d6801614658c3abf6e65b43c43c9d58ef1992e1d6320",
+  "register_digest": "6b742cf1f98cb3075b9c0289c00288f8808d95f28a1805c855afd168bbc9d97c",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 29,
@@ -2624,7 +2638,7 @@
     "HISTORICAL_ROUND": 24,
     "OTHER": 1,
     "PASS": 84,
-    "PENDING": 79
+    "PENDING": 80
   },
   "unclassified": [
     {

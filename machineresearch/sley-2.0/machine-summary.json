@@ -2575,8 +2575,8 @@
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 200,
-    "open_reviews": 79,
+    "obligations": 201,
+    "open_reviews": 80,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2614,7 +2614,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "79 review obligations are open",
+      "80 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -2824,5 +2824,19 @@
     "adopted": "2026-09-03",
     "rule": "every public MAX_* value appears in docs/spec, because a decoder limit that decides validity is an epoch-frozen fact",
     "scope": "public constants only; ownership stays with the owning package's checker"
+  },
+  "invariant_audit": {
+    "campaign": "machineresearch/sley-2.0/s20-790-invariant-audit-campaign-2026-09-03.md",
+    "date": "2026-09-03",
+    "findings": 6,
+    "gates_added": [
+      "scripts/check_error_symbol_registration.py",
+      "scripts/check_declared_limits.py",
+      "make lint",
+      "candidate result source-symbol and retryability comparison",
+      "S20-770 registry drift over every crate"
+    ],
+    "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
+    "independent_review": "PENDING"
   }
 }
