@@ -30,7 +30,7 @@ the artifacts that satisfy it.
 | 17.7 | `sley-policy-v1` | `POLICY_ROOT_V1.md` | `sley2.policy-root.v1` | `check_policy_root.py` | native vectors in `crates/sley-policy` |
 | 17.8 | `sley-capability-token-v1` | `CAPABILITY_TOKEN_V1.md` with `CAPABILITY_SUMMARY_V1.md` | `sley2.capability-token.v1` | `check_capability_token.py` | native vectors in `crates/sley-policy` |
 | 17.9 | `sley-execution-report-v1` | `REPORT_ENVELOPE_PROFILE_V1.md` section on the execution envelope | `sley2.execution-report.v1` | `check_report_envelope_profile.py` | `conformance/release-demo/v1` (identity re-derived independently) |
-| 17.10 | `sley-test-report-v1` | `REPORT_ENVELOPE_PROFILE_V1.md` section on the test envelope with `CONTRACT_TEST_PROFILE_V1.md` | `sley2.test-report.v1` | `check_report_envelope_profile.py`, `check_contract_test_profile.py` | native vectors; no test has been executed, so no corpus of produced reports exists |
+| 17.10 | `sley-test-report-v1` | `REPORT_ENVELOPE_PROFILE_V1.md` section on the test envelope with `CONTRACT_TEST_PROFILE_V1.md` | `sley2.test-report.v1` | `check_report_envelope_profile.py`, `check_contract_test_profile.py` | native vectors; no test has been executed, so no corpus of produced reports exists. `REPORT_ENVELOPE_PROFILE_V1.md` section 9.1 states the exact reason: four of the six declared TestCase resource units have no epoch-1 VM counterpart |
 | 17.11 | `sley-repository-pack-v1` | `REPOSITORY_PACK_V1.md` with `REPOSITORY_EXCHANGE_V1.md` | `sley2.repository-pack.v1` | `check_repository_pack_spec.py`, `check_repository_exchange_spec.py` | `conformance/repository-pack/v1`, `conformance/repository-exchange/v1` |
 | 17.12 | `sley-protocol-handshake-v1` | `SMP1.md` sections 2 and 3 | `sley2.protocol-handshake.v1`, `sley2.protocol-frame.v1` | `check_smp1_contract.py` | `conformance/smp1/v1`, `conformance/smp1-json-bridge/v1` |
 
@@ -43,7 +43,9 @@ the artifacts that satisfy it.
   `CONTRACT_INDEX_UNSATISFIED`, and the index fails.
 - The corpus column may read that no corpus exists, but only with the reason,
   as `sley-test-report-v1` does: no test has been executed under any authority,
-  so no produced report exists to pin.
+  so no produced report exists to pin. A reason must itself be checkable, and
+  that one is: the S20-290 checker fails if the VM gains any of the four
+  resource units whose absence is the reason.
 - The index is traceability only. It does not restate a contract's rules, and
   where this table and a defining document disagree, the document wins.
 
