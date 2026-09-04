@@ -320,6 +320,52 @@ decision listed in Section 5. Their symbols are the decision prefixed with
 `CFG_*`, `EFFECT_*`, `POLICY_*`, `CAP_*`, and `CONTRACT_*` symbols remain in
 the source-code field and are never collapsed into success.
 
+### 8.1 Source symbols the validator originates
+
+Most source symbols are preserved from the owning checker that produced the
+failure. Twenty-five are the validator's own, because the check belongs to no
+other owner: it is the validator that compares the bound context, re-derives
+identity, rebuilds the capability summary, and rebuilds the root. They are
+enumerated here so a consumer reading `source_symbol` can resolve every value
+the validator can emit, and `scripts/check_candidate_result_contract.py`
+verifies that this table and the implementation name the same set.
+
+| Phase | Decision | Source symbol |
+|---:|---|---|
+| 2 | `INVALID_SCHEMA` | `CANDIDATE_CONTEXT_INVENTORY_MISMATCH` |
+| 2 | `INVALID_SCHEMA` | `CANDIDATE_CONTEXT_POLICY_BINDING_INVALID` |
+| 2 | `INVALID_SCHEMA` | `CANDIDATE_CONTEXT_STATE_ROOT_MISMATCH` |
+| 2 | `INVALID_SCHEMA` | `CANDIDATE_CONTEXT_TOMBSTONE_SET_INVALID` |
+| 2 | `INTERNAL_ERROR` | `CANDIDATE_CONTEXT_STATE_REGISTRY_INVALID` |
+| 3 | `STALE_ENTITY` | `CANDIDATE_APPLY_EXACT_PREIMAGE_MISMATCH` |
+| 3 | `STALE_ROOT` | `CANDIDATE_EXPIRY_EXPIRED` |
+| 3 | `STALE_ROOT` | `POLICY_ROOT_EXPIRED` |
+| 4 | `INVALID_IDENTITY` | `CANDIDATE_IDENTITY_COLLISION` |
+| 4 | `INVALID_IDENTITY` | `MUTATION_CANDIDATE_PRECONDITION_MISMATCH` |
+| 4 | `INVALID_IDENTITY` | `MUTATION_CANDIDATE_TARGET_ENTITY` |
+| 4 | `RESOURCE_LIMIT` | `SSMC_RESOURCE_LIMIT` |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_DEPENDENCY_ROOT_CHANGE_UNSUPPORTED` |
+| 5 | `INVALID_GRAPH` | `STATE_ROOT_ENTRY_POINT_KIND_INVALID` |
+| 9 | `CAPABILITY_DENIED` | `CAPABILITY_SUMMARY_MISMATCH` |
+| 9 | `CAPABILITY_DENIED` | `CAPABILITY_REQUIREMENT_MISSING` |
+| 9 | `CAPABILITY_DENIED` | `CAPABILITY_REQUIREMENT_UNRESOLVED` |
+| 9 | `CAPABILITY_DENIED` | `CAP_BUDGET_EXCEEDED` |
+| 9 | `CAPABILITY_DENIED` | `CAP_EFFECT_MISMATCH` |
+| 9 | `CAPABILITY_DENIED` | `CAP_PRINCIPAL_MISMATCH` |
+| 9 | `CAPABILITY_DENIED` | `CAP_SCOPE_MISMATCH` |
+| 9 | `CAPABILITY_DENIED` | `POLICY_GRANT_DENIED` |
+| 12 | `RESOURCE_LIMIT` | `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED` |
+| 12 | `INTERNAL_ERROR` | `CANDIDATE_SELECTED_TEST_UNRESOLVED` |
+| 13 | `INTERNAL_ERROR` | `CANDIDATE_ROOT_REBUILD_MISMATCH` |
+
+The three phase-9 `CAPABILITY_*` symbols name the validator's independent
+rebuild of the capability summary, which is why they are not `CAP_*`: the
+`CAP_*` family belongs to the S20-380 token authority, and these failures
+occur before any token is verified. A phase pass record may also carry the
+marker `CONTRACT_PREFIX_PASSED`, which records that the contract checker
+accepted every contract before a later phase failed; it is evidence, not a
+failure.
+
 The result symbol is the unique mapping of `result_code` and is therefore not
 duplicated as a second text field. Result-integrity shape failures use numeric
 codes 36100 through 36107 under `CANDIDATE_RESULT_*`; strict SCB1 syntax,

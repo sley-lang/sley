@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +71,35 @@ def normalized(path: Path) -> str:
     return " ".join(path.read_text(encoding="utf-8").split())
 
 
+def validator_source_symbols() -> set[str]:
+    """Every source symbol the validator itself originates.
+
+    A symbol preserved from an owning checker is that owner's to document;
+    these are the validator's own, so section 8.1 must name each one.
+    """
+    return set(
+        re.findall(
+            r'Failure::new\(\s*\d+,\s*CandidateDecision::\w+,\s*"([A-Z][A-Z0-9_]*)"',
+            VALIDATOR.read_text(encoding="utf-8"),
+        )
+    )
+
+
+def documented_source_symbols() -> set[str]:
+    text = SPEC.read_text(encoding="utf-8")
+    if "### 8.1 Source symbols the validator originates" not in text:
+        return set()
+    section = text[text.index("### 8.1 Source symbols the validator originates") :]
+    section = section[: section.index("The result symbol is the unique mapping")]
+    return {
+        cells[2].strip().strip("`")
+        for line in section.splitlines()
+        if line.startswith("| ")
+        for cells in [line.strip("|").split("|")]
+        if len(cells) == 3 and cells[2].strip().startswith("`")
+    }
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (
@@ -94,6 +124,13 @@ def main() -> int:
             problems.append(f"missing:{path}")
     if problems:
         raise SystemExit("\n".join(problems))
+
+    emitted = validator_source_symbols()
+    documented = documented_source_symbols()
+    for symbol in sorted(emitted - documented):
+        problems.append(f"source-symbol-undocumented:{symbol}")
+    for symbol in sorted(documented - emitted):
+        problems.append(f"source-symbol-not-emitted:{symbol}")
 
     spec = normalized(SPEC)
     for phase in PHASES:
@@ -259,6 +296,7 @@ def main() -> int:
         "durable_commit": False,
         "operation_success_subset": "executable-program-operation-free",
         "phase_tags": len(PHASES),
+        "validator_source_symbols": len(validator_source_symbols()),
         "problems": problems,
         "result": "PASS" if not problems else "FAIL",
     }
