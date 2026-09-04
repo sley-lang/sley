@@ -23,9 +23,15 @@ forbidden = (
     "sley_id",
     "sley-mutate",
     "sley_mutate",
-    "crates/sley-mutate",
+    "crates/",
     "value_generated.rs",
     "target/",
+    # Linking the Rust library would be an implementation dependency that no
+    # string above catches.
+    "ctypes",
+    "cffi",
+    "os.system",
+    "popen",
 )
 def coverage_oracles() -> list[Path]:
     """Every `scripts/` oracle the S20-730 coverage map runs."""
@@ -53,6 +59,16 @@ for path in sources:
         if marker in text:
             problems.append(
                 f"{path.relative_to(ROOT)} contains forbidden marker {marker!r}"
+            )
+    # Dynamic loading is allowed only between oracles: reusing another
+    # oracle's decoder keeps both independent of the Rust implementation,
+    # while loading anything else would not.
+    import re as _re
+
+    for loaded in _re.findall(r'spec_from_file_location\([^,]+,\s*([^)]+)\)', text):
+        if "scripts/" not in loaded and "oracle/" not in loaded:
+            problems.append(
+                f"{path.relative_to(ROOT)} loads {loaded.strip()} which is not another oracle"
             )
 
 result = {

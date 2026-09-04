@@ -32,9 +32,15 @@ FORBIDDEN_MARKERS = (
     "sley_id",
     "sley-mutate",
     "sley_mutate",
-    "crates/sley-mutate",
+    "crates/",
     "value_generated.rs",
     "target/",
+    # Linking the Rust library would be an implementation dependency that no
+    # string above catches.
+    "ctypes",
+    "cffi",
+    "os.system",
+    "popen",
 )
 
 ORACLE_RUNNER = "uv run --project oracle/scb1 --frozen"
