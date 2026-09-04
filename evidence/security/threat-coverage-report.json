@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "a4238c00ce44f48a603e051be4ec5d7f613bd44a56bc6e88397eeef4170ecae2",
+  "report_digest": "73dc9a7fae03d8726fb305a90604109f3dcf208e3c51598e37d6447c1550a122",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 6,
@@ -422,7 +422,7 @@
     {
       "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
       "id": "T14",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_restricted_query_profile.py",
@@ -431,6 +431,7 @@
         ],
         "implementation": [
           "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-query/src/query.rs",
           "crates/sley-query/src/root_query.rs"
         ]
@@ -480,7 +481,7 @@
     {
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 21,
+      "located_file_count": 22,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -521,7 +522,7 @@
     {
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 6,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
@@ -530,6 +531,8 @@
         ],
         "implementation": [
           "crates/sley-policy/src/candidate_result.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-txn/src/repository.rs"
         ],
         "oracle": [
@@ -874,12 +877,13 @@
     {
       "expected_failure_code": "VM_OUTPUT_LIMIT",
       "id": "T30",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py"
         ],
         "implementation": [
+          "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-vm/src/execute.rs"
         ]
       },
@@ -931,7 +935,7 @@
     {
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
@@ -939,6 +943,7 @@
         ],
         "implementation": [
           "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-vm/src/execute.rs",
           "crates/sley-vm/src/lib.rs"
         ]

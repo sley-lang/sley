@@ -181,6 +181,47 @@ fn dependency_free_bodies() -> Vec<(u8, sley_mutate::value::EntityBodyValue)> {
 }
 
 #[test]
+fn owner_retryability_is_explicit_and_word_order_independent() {
+    use crate::Retryability;
+    use crate::server::owner_retryability;
+    for symbol in [
+        "REF_CAS_STALE",
+        "REF_NAMED_CAS_STALE",
+        "SESSION_ROOT_ADVANCED",
+        "SESSION_STALE_HANDLE",
+        "STALE_ROOT",
+    ] {
+        assert_eq!(
+            owner_retryability(symbol),
+            Retryability::AfterRequery,
+            "{symbol} is retryable after a requery"
+        );
+    }
+    for symbol in [
+        "SCB_RESOURCE_LIMIT",
+        "VM_EXEC_RESOURCE_LIMIT",
+        "QUERY_REQUIRED_FACT_OMITTED",
+        "PROTOCOL_LIMIT_EXCEEDED",
+    ] {
+        assert_eq!(
+            owner_retryability(symbol),
+            Retryability::AfterLimitChange,
+            "{symbol} is retryable after a limit change"
+        );
+    }
+    // Anything unlisted stays fail closed, including a merge conflict, which
+    // is a result rather than a condition a retry can clear.
+    for symbol in [
+        "MERGE_CONFLICT_DIGEST_MISMATCH",
+        "TYPE_DEPTH_LIMIT",
+        "CAP_EXPIRED",
+        "GC_ROOT_MISSING",
+    ] {
+        assert_eq!(owner_retryability(symbol), Retryability::Never, "{symbol}");
+    }
+}
+
+#[test]
 fn exchange_export_transports_the_pack_of_a_dependency_free_root() {
     let (temp, _transactions, genesis_id) = genesis("smp1-export", dependency_free_bodies(), &[]);
     let repository = temp.child("repo");

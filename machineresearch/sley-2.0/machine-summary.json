@@ -1345,7 +1345,9 @@
       "head_bound_added": [
         600
       ]
-    }
+    },
+    "retryability_mapping": "explicit since 2026-09-03 (SMP1 section 6): AFTER_REQUERY names five symbols exactly, AFTER_LIMIT_CHANGE covers RESOURCE_LIMIT, REQUIRED_FACT_OMITTED, and PROTOCOL_LIMIT_EXCEEDED, and every other symbol is NEVER",
+    "retryability_finding": "the suffix rule answered NEVER for SESSION_STALE_HANDLE and STALE_ROOT while answering AFTER_REQUERY for REF_CAS_STALE, so a client gave up on two retryable conditions because of word order"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",

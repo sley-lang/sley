@@ -83,14 +83,42 @@ fn owner_failure<T>(symbol: &str, numeric: u32) -> Result<T> {
     Err(owner(symbol, numeric))
 }
 
+/// The exact symbols a client can retry after requerying the current head.
+///
+/// A suffix rule decided this until 2026-09-03 and answered `Never` for
+/// `SESSION_STALE_HANDLE` and `STALE_ROOT` while answering `AfterRequery`
+/// for `REF_CAS_STALE`, because only the latter ends in the word. The set is
+/// explicit so word order cannot change a client's retry decision, and an
+/// unlisted symbol stays `Never`, which is the fail-closed direction: a
+/// client retries less than it could, never more than it should.
+const RETRY_AFTER_REQUERY: [&str; 5] = [
+    "REF_CAS_STALE",
+    "REF_NAMED_CAS_STALE",
+    "SESSION_ROOT_ADVANCED",
+    "SESSION_STALE_HANDLE",
+    "STALE_ROOT",
+];
+
+/// The exact symbols a client can retry after changing its declared limits.
+const RETRY_AFTER_LIMIT_CHANGE: [&str; 2] = ["RESOURCE_LIMIT", "REQUIRED_FACT_OMITTED"];
+
+/// Maps one owner symbol to the retryability SMP1 section 6 carries.
+pub(crate) fn owner_retryability(symbol: &str) -> Retryability {
+    if RETRY_AFTER_REQUERY.contains(&symbol) {
+        return Retryability::AfterRequery;
+    }
+    if RETRY_AFTER_LIMIT_CHANGE
+        .iter()
+        .any(|suffix| symbol.ends_with(suffix))
+        || symbol == "PROTOCOL_LIMIT_EXCEEDED"
+    {
+        return Retryability::AfterLimitChange;
+    }
+    Retryability::Never
+}
+
 fn owner(symbol: &str, numeric: u32) -> ProtocolFailure {
-    let retryability = match symbol {
-        s if s.ends_with("RESOURCE_LIMIT") || s.ends_with("REQUIRED_FACT_OMITTED") => {
-            Retryability::AfterLimitChange
-        }
-        s if s.ends_with("STALE") || s.ends_with("NOT_FAST_FORWARD") => Retryability::AfterRequery,
-        _ => Retryability::Never,
-    };
+    let retryability = owner_retryability(symbol);
     ProtocolFailure {
         code: numeric,
         symbol: symbol.to_string(),

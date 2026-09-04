@@ -46,6 +46,8 @@ METHOD_TAGS = (
     + [600, 601, 602, 603, 604]
 )
 SPEC_MARKERS = (
+    "Retryability is an explicit mapping from the owner's symbol",
+    "`AFTER_REQUERY` names exactly `REF_CAS_STALE`,",
     "# Sley Machine Protocol v1 (SMP1)",
     "Status: S20-400 contract draft",
     "## 1. Framing",

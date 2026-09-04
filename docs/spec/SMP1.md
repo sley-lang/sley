@@ -222,6 +222,17 @@ Owner codes are never collapsed or renumbered; `INTERNAL_ERROR` is
 fail-closed, non-committable, and non-retryable unless the typed details
 establish `TRANSIENT_HOST`.
 
+Retryability is an explicit mapping from the owner's symbol, not a pattern
+over its text. `AFTER_REQUERY` names exactly `REF_CAS_STALE`,
+`REF_NAMED_CAS_STALE`, `SESSION_ROOT_ADVANCED`, `SESSION_STALE_HANDLE`, and
+`STALE_ROOT`. `AFTER_LIMIT_CHANGE` names every symbol ending in
+`RESOURCE_LIMIT` or `REQUIRED_FACT_OMITTED`, plus `PROTOCOL_LIMIT_EXCEEDED`.
+Every other symbol is `NEVER`, which is the fail-closed direction: a client
+retries less than it might, never more than it should. A suffix rule decided
+this until 2026-09-03 and answered `NEVER` for `SESSION_STALE_HANDLE` and
+`STALE_ROOT` while answering `AFTER_REQUERY` for `REF_CAS_STALE`, because
+only the last ends in the word.
+
 The response frame carrying a failure envelope sets flag bit 2 (`failed`;
 revision 6), so a client distinguishes a failure envelope from an owner
 body without decoding either. A request or hello frame carrying bit 2 is
