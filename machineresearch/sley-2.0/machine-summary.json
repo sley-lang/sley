@@ -424,8 +424,8 @@
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
+    "ariadne_contract_review": "FAIL_2_P0_6_P1_5_P2_5_P3",
+    "nabu_architecture_review": "PASS_0_P0_7_P1_6_P2_5_P3",
     "vulcan_surface_review": "PENDING",
     "implementation_complete": false,
     "implementation": [
@@ -439,7 +439,12 @@
     "container_rejection_vectors": 5,
     "e7a_epoch_determination": "docs/spec/EPOCH_MIGRATION_POLICY_V1.md section 6 item 3a: PROFILE, no epoch required",
     "e7a_phase_seven_boundary": "contract_assert stays outside S20-360 phase 7; the S20-240 checker keeps the CONTRACT_ASSERT_TYPE diagnosis at phase 10",
-    "e7a_campaign": "machineresearch/sley-2.0/s20-260-270-e7a-contract-assertion-campaign-2026-09-03.md"
+    "e7a_campaign": "machineresearch/sley-2.0/s20-260-270-e7a-contract-assertion-campaign-2026-09-03.md",
+    "p0_closed": [
+      "signed int_shl_checked inverted at the top of every width; pinned by e2_left_shift_is_exact_at_every_width_boundary",
+      "ordered-map entry order read structurally by equal and value_hash while S20-210 imposes none; the VM now asks the codec at each supplied-value boundary and refuses a value with no canonical form, pinned by e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing"
+    ],
+    "p0_open": []
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -559,9 +564,9 @@
     "cache_path": "index/v1/<root hex>.idx.scb1",
     "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_ONLY",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "PENDING",
-    "nabu_architecture_review": "PENDING",
-    "vulcan_surface_review": "PENDING",
+    "ariadne_contract_review": "FAIL_1_P0_4_P1_3_P2_3_P3",
+    "nabu_architecture_review": "FAIL_1_P0_4_P1_3_P2_2_P3",
+    "vulcan_surface_review": "FAIL_0_P0_5_P1_4_P2_4_P3",
     "implementation_complete": false,
     "implementation": [
       "crates/sley-query/src/snapshot.rs",
@@ -572,7 +577,10 @@
     "persistent_fuzz_target": "fuzz/targets/complete_root_snapshot_decoder.rs",
     "closeout": "docs/audits/S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_CLOSEOUT.md",
     "fixed_complete_root_snapshot_id": "8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d",
-    "fixed_complete_root_record_bytes": 5888
+    "fixed_complete_root_record_bytes": 5888,
+    "p0_open": [
+      "exchange import allowlists a pre-existing index/v1 cache into the target, so a clone adopts a cache it never wrote and the contract section 5 filesystem-authority bound is false on that path; found independently by ariadne and nabu"
+    ]
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -2602,7 +2610,7 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "obligations": 201,
-    "open_reviews": 80,
+    "open_reviews": 75,
     "deferred_reviews": 12,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2640,7 +2648,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "12 review lanes are deferred and unavailable",
-      "80 review obligations are open",
+      "75 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

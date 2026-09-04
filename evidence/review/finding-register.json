@@ -351,32 +351,47 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_1_P0_4_P1_3_P2_3_P3",
       "field": "ariadne_contract_review",
       "package_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
       "section": "complete_root_index_snapshot",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_1_P0_4_P1_3_P2_2_P3",
       "field": "nabu_architecture_review",
       "package_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
       "section": "complete_root_index_snapshot",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_0_P0_5_P1_4_P2_4_P3",
       "field": "vulcan_surface_review",
       "package_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
       "section": "complete_root_index_snapshot",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
@@ -2229,22 +2244,32 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "FAIL_2_P0_6_P1_5_P2_5_P3",
       "field": "ariadne_contract_review",
       "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
       "section": "vm_extended_opcode_profile",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND"
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "PASS_0_P0_7_P1_6_P2_5_P3",
       "field": "nabu_architecture_review",
       "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
       "section": "vm_extended_opcode_profile",
-      "severities": [],
-      "state": "PENDING"
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PASS"
     },
     {
       "declares_closed_findings": false,
@@ -2300,7 +2325,7 @@
       "state": "PASS"
     }
   ],
-  "obligations_digest": "b2ed50adcf28060a924aa3d6b0710dda88c6a92a9b30a334933d4d5f3bced3dd",
+  "obligations_digest": "3e6796e439fb34b28a66f1fc5f8f85e9262f7a8ce4894ee03bfef5df1337e9f1",
   "open_reviews": [
     {
       "field": "ariadne_contract_review",
@@ -2337,18 +2362,6 @@
     {
       "field": "vulcan_surface_review",
       "section": "complete_entity_impact_profile"
-    },
-    {
-      "field": "ariadne_contract_review",
-      "section": "complete_root_index_snapshot"
-    },
-    {
-      "field": "nabu_architecture_review",
-      "section": "complete_root_index_snapshot"
-    },
-    {
-      "field": "vulcan_surface_review",
-      "section": "complete_root_index_snapshot"
     },
     {
       "field": "ariadne_contract_review",
@@ -2611,34 +2624,26 @@
       "section": "threat_coverage"
     },
     {
-      "field": "ariadne_contract_review",
-      "section": "vm_extended_opcode_profile"
-    },
-    {
-      "field": "nabu_architecture_review",
-      "section": "vm_extended_opcode_profile"
-    },
-    {
       "field": "vulcan_surface_review",
       "section": "vm_extended_opcode_profile"
     }
   ],
-  "register_digest": "6b742cf1f98cb3075b9c0289c00288f8808d95f28a1805c855afd168bbc9d97c",
+  "register_digest": "a3a5aded5857391fce8098a2ddb353c00951b331fdc07922623df47a29c0ebe2",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 29,
-    "P1": 40,
-    "P2": 42,
-    "P3": 19,
+    "P0": 34,
+    "P1": 45,
+    "P2": 47,
+    "P3": 24,
     "P4": 15
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "DEFERRED": 12,
-    "HISTORICAL_ROUND": 24,
+    "HISTORICAL_ROUND": 28,
     "OTHER": 1,
-    "PASS": 84,
-    "PENDING": 80
+    "PASS": 85,
+    "PENDING": 75
   },
   "unclassified": [
     {

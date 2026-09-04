@@ -1,0 +1,71 @@
+DISPATCH 300-ariadne-contract forge-ariadne-300-ariadne-contract-20260904T030040 2026-09-04T03:00:40Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+Contract read. Now the ADR, checker, campaign open questions, and closeout.
+
+Now the implementation. Let me check sizes and read the key parts.
+
+Now verifying the exchange/GC/retention boundary and the binding-order invariant.
+
+## status
+
+**FAIL** — one P0 blocks freeze. The design is sound and the arm separation is correctly implemented; the blocker is that the contract's central security claim (the residual bound) is false on one path that already exists in the tree.
+
+Read-only pass at `main` / `6348a00`. No cargo, no writes.
+
+## findings
+
+**P0 — the clone/import path adopts an index cache the repository never wrote.**
+`exchange.rs:79` puts `index` in `REPOSITORY_LAYOUT_ENTRIES`, and the import *preserves* pre-existing content: `exchange.rs:2411` asserts `index/v1/stale.idx.scb1` is still a file after `import_repository_exchange` succeeds. So after a clone, objects, refs and receipts are chain-verified from the remote exchange while the cache file predates the repository and shares none of that provenance. Contract §5's bound — "the cache is under the same local filesystem authority as objects, receipts, and refs" — does not hold here. The four acceptance rules are computable by anyone who knows the root's bindings, and the exchange payload carries them, so a planted file survives the clone and is served to `run_root_query`. Fix is cheap and already licensed by the contract's own "safe to delete at any time": require import to *clear* `index/`, and document the allowlist entry as tolerated-and-removed rather than tolerated-and-kept.
+
+**P1 — the residual understates the forgeable surface: inventory kinds.**
+`accept_cached` (`index_cache.rs:114`) zips only `entry.entity == *bound`; `entity_bindings` is `Vec<(EntityId, ObjectId)>` and carries no kind. A digest-valid record with the exact identity set can therefore carry forged `ModeledEntityKind` tags, and §5 names only "wrong edges". Kinds cannot be bound cheaply (the kind lives in the object, not the binding), so widen the residual sentence — do not add a rule.
+
+**P1 — "under shared repository maintenance" is unenforceable, and the temp name is not writer-unique.**
+`complete_root_snapshot(repository: &Path, revision: &VerifiedRevision)` takes no `RepositoryMaintenanceGuard`, though `sley-repo` has one (`gc.rs:417`, `refs.rs:190`). And `write_record` uses a fixed `<hex>.idx.scb1.tmp` (`index_cache.rs:164`), so two concurrent writers for one root race on a single temp path and one can rename a torn file into place. Bounded (the digest discards it, the next call rebuilds), but the contract asserts a property the code neither expresses nor guarantees.
+
+**P1 — §9 and the closeout are stale against HEAD.** §9 excludes root-backed S20-310 as "a later package consuming this snapshot"; the closeout says "no consumer of a cache hit exists until full S20-310 lands". `crates/sley-repo/src/root_query.rs:109` is that consumer, on main now.
+
+**P1 — capsules built from cache hits need an explicit export prohibition.** `run_context_capsule` (`root_query.rs:141`) builds a `ContextCapsule` from an outcome that may be a `Hit`, and a test fixes hit/rebuild capsule equality as intended. Nothing exchanges or receipts capsules today (grep of `exchange.rs`/`gc.rs` is empty), so the bound holds — but a capsule is the natural artifact to hand to another party, and the moment one is exported the residual crosses the local-authority line.
+
+<details>
+<summary>P2 and P3, with locations</summary>
+
+- **P2 — rule order vs. code order makes discard codes underivable.** §5 lists digest as rule 2, inversion as rule 4; `inspect_candidate_for_arm` checks inversion at `snapshot.rs:741` and the digest at `:744`. A candidate failing both yields `FormatInvalid`, not `DigestMismatch`. The corpus freezes exact codes for six candidates and the fuzz target has a trailer-rehash lane, so the order is observable.
+- **P2 — `verify_cached_snapshot` conflates absent with mismatch** (`index_cache.rs:234-236`, both `Ok(false)`). Offered as audit and Tier 2 evidence; needs a three-way outcome.
+- **P2 — §5 rule 3's "in order" leans on an uncited invariant.** The positional zip is correct only because `sort_bindings` sorts by raw `EntityId` (`sley-state-root/src/lib.rs:653`) and `decode_bindings` rejects out-of-order and duplicate keys (`:532`). Correct as implemented; cite the S20-390 canonical order.
+- **P3 — `discard_reason` maps `RootIo` and `RootIncomplete` to `FormatInvalid`** (`snapshot.rs:802-805`). Unreachable from the inspection path, but reads as a real mapping.
+- **P3 — stage-checker marker `"never read\nthe cache"`** (`check_..._profile.py:48`) is line-wrap sensitive; any reflow of §5 breaks the gate for no semantic reason.
+- **P3 — the checker cannot enforce the transition it exists for.** `DRAFT_IN_PROGRESS_STATUS` is in `IMPLEMENTATION_STATUSES` and the implementation-before-freeze guard only trips on `DRAFT_STATUS`/`FROZEN_STATUS`, so nothing forces the revision number to advance when reviews land.
+
+</details>
+
+## answers to the two campaign open questions
+
+**Four rules vs. a receipt-bound manifest:** the four rules are sufficient for S20-310 and S20-320 as they stand — *provided* the P0 clone hole is closed and the capsule export prohibition is written in. A manifest is the wrong fix: it re-introduces a signing authority this profile deliberately excludes, and it buys nothing a local attacker with write access to `index/` could not also do to the manifest. Make the cache non-adoptable instead. A manifest becomes necessary only if a consumer outside read-only derived query evidence is ever contemplated.
+
+**Shared vs. exclusive maintenance:** shared is correct. Exclusive would serialize read-only queries for no safety gain, since any bad file is discarded and rebuilt. State in §5 that no maintenance lease is required and that the write uses a writer-unique temp name in the same directory, then rename.
+
+## validation
+
+Read-only: `git status`/`log`, targeted `rg`/`sed` over the contract, ADR, checker, campaign record, closeout, `snapshot.rs`, `index_cache.rs`, `exchange.rs`, `root_query.rs` (both crates), `sley-state-root/src/lib.rs`. No cargo, no oracle run, no writes. Tier: contract review only — the implementation's own Tier 1/Tier 2 record at `094a7bf` was read, not re-run; V1 not run and not applicable to a read-only review.
+
+## blockers
+
+None for the review itself. The P0 needs either a code change in the import path or a contract revision that states the clone case honestly; that is a Merlin execution item once Nabu confirms the boundary.
+
+## return_to
+
+Orchestrator. Findings land as contract revision 2 before freeze.
+
+S20_300_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Exchange import preserves a pre-existing index/v1 cache file (exchange.rs:79 allowlist, test at exchange.rs:2411), so a cloned repository adopts a cache it never wrote; contract section 5 bound 'same local filesystem authority as objects, receipts, and refs' is false on that path. Require import to clear index/ and document the allowlist entry as tolerated-and-removed."],"p1":["Acceptance rule 3 binds only EntityId (index_cache.rs:114; entity_bindings carries no kind), so a digest-valid record can forge inventory kinds; section 5 residual names only wrong edges and must be widened to edges or kinds.","complete_root_snapshot takes no RepositoryMaintenanceGuard although sley-repo has one, and write_record uses a fixed .tmp name (index_cache.rs:164) so concurrent shared writers race; contract must drop the unenforceable maintenance claim and require a writer-unique temp name.","Section 9 and the closeout say no consumer of a cache hit exists until full S20-310 lands, but crates/sley-repo/src/root_query.rs:109 consumes it at HEAD; the exclusion list contradicts the tree it would freeze.","run_context_capsule builds a ContextCapsule from a cache Hit (root_query.rs:141); nothing exports capsules today, but the contract must explicitly forbid exporting, receipting, or exchanging a capsule derived from a cache hit."],"p2":["Section 5 lists digest as rule 2 but inspect_candidate_for_arm checks inversion (snapshot.rs:741) before the digest (:744), so discard codes for multi-rule failures are not derivable from the contract while the corpus freezes them.","verify_cached_snapshot returns Ok(false) for both absent and differing (index_cache.rs:234-236), which is weak audit evidence for a section 5 audit API.","Rule 3 'in order' depends on the uncited S20-390 canonical binding order (sort_bindings at sley-state-root/src/lib.rs:653, decode_bindings order check at :532)."],"p3":["discard_reason maps RootIo and RootIncomplete to FormatInvalid (snapshot.rs:802-805) on a path where neither code is reachable.","Stage checker marker 'never read\\nthe cache' (check_complete_root_index_snapshot_profile.py:48) is line-wrap sensitive and breaks on any reflow of section 5.","DRAFT_IN_PROGRESS_STATUS sits inside IMPLEMENTATION_STATUSES so the checker cannot force the contract revision to advance when review verdicts land."],"notes":"Design and arm separation verified sound: query.rs:409 and root_query.rs:217/646/851 fail closed per arm, inversion and endpoint rules are genuinely re-derived at snapshot.rs:741. Four rules need no receipt-bound manifest once the P0 clone adoption is closed and capsule export is forbidden; shared maintenance is the right choice with a writer-unique temp name. Read-only, no cargo."}
+
+[Greyforge Git Guard] Dirty repo after openclaw: /home/greyforge/sley2
+ M crates/sley-vm/src/execute.rs
+ M crates/sley-vm/src/extended.rs
+ M crates/sley-vm/src/extended_tests.rs
+ M crates/sley-vm/src/lower.rs
+
+[Greyforge Git Guard] Non-interactive shell; leaving repo dirty.
+EXIT=0 2026-09-04T03:04:49Z

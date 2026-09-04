@@ -1,0 +1,83 @@
+DISPATCH 300-vulcan-surface forge-vulcan-300-vulcan-surface-20260904T030925 2026-09-04T03:09:25Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+I'll start by reading the contract and campaign record, then the implementation.
+
+Now let me run the validation and read the fuzz target and oracle.
+
+Validation complete. Read-only throughout — no repository modification.
+
+**status: FAIL (freeze-blocking findings; no P0)**
+
+Nothing in the arm-2 path forges authority or emits partial output. The decoder is strictly fail-closed and is in fact *stronger* than the contract states: it enforces strictly-ascending unique inventory, ascending edges, endpoint membership, and re-derives `invert_edges(&direct)` and compares (`snapshot.rs:671,687,741`), with C1 `SetNotCanonical` pinning the same ordering at build (`complete_root.rs:105`). Canonical ordering and digest binding are sound. The problems are in the contract's normative text, the cache's I/O behaviour, and the write path.
+
+## P1 — must fix before freeze
+
+**1. §1 freezes an error code the implementation never emits.** The contract says arm 2 with `claimed_root_context = None` is `INDEX_SNAPSHOT_FORMAT_INVALID`. Unreachable: `decode_complete_root_snapshot` rejects a `None` expected context at `snapshot.rs:461`, and a record carrying `OPTION_NONE` against a `Some` expected context dies at the context comparison (`:648`) — so `snapshot.rs:660-662` is dead code. Your own frozen fixture agrees with the code, not the contract: `rejected.json` case `rootless-context` expects `INDEX_SNAPSHOT_CONTEXT_MISMATCH` / 30003, and the oracle reproduces it. Revise §1 to 30003, or state that the code is context-dependent.
+
+**2. Cache I/O is not fail-open to the fresh build, contradicting §5.** §5 says `INDEX_SNAPSHOT_IO` applies "only when the fresh build itself cannot be returned." Three sites violate this: `index_cache.rs:199` (`fs::read(&path)?`) returns `Io` before attempting any rebuild; `:212` returns `Io` with `fresh` already in hand; `:216` (`write_record(...)?`) discards a valid `fresh` on any write failure. Consequence: an unreadable cache file (mode 000, planted by any local writer), a read-only mount, or a full disk denies a snapshot that a rebuild would have produced. Return `fresh` with `Rebuilt(reason)` and treat write failure as non-fatal.
+
+**3. The temp path is symlink-followable and non-unique.** `write_record` guards the destination (`symlink_metadata` + `is_file`, `:208`) but opens `<root>.idx.scb1.tmp` with `write/create/truncate` and no `O_NOFOLLOW` (`:171-175`). A symlink planted at that one name gives truncate-and-overwrite of any path the process can write, **outside** the repository — which escapes §5's "same local filesystem authority as objects, receipts, and refs" bound entirely. This is inconsistent with your own `refs` discipline (`refs::tests::symlinked_roots_locks_and_records_fail_closed`). The fixed name also collides between concurrent writers: writer B's `truncate` or surviving fd can tear the live cache file after A's rename. Use `create_new(true)` with a unique suffix.
+
+**4. No maintenance guard is acquired at all — shared vs exclusive is the wrong question.** §5 asserts writes happen "under shared repository maintenance," but `complete_root_snapshot` takes a bare `&Path` and never touches `RepositoryMaintenanceGuard`, which GC (`gc.rs:488`) and exchange (`exchange.rs:1870`) both acquire. **Answer to your open question:** shared is the correct *level* — writes are idempotent per root and the files are disposable — but it must actually be acquired and `covers()`-checked, otherwise §5 states a synchronization property nothing enforces.
+
+**5. §5's consumer grant and §9's exclusion are already stale, and the residual is live.** §9 says root-backed S20-310 and the full S20-320 capsule are "later packages"; both have landed (`76cf2a2`, `e695c7d`) and consume hits via `root_query.rs:109`. Worse, `capsules_from_a_rebuild_and_a_cache_hit_are_identical` — a `ContextCapsule` carries no marker of whether it came from verified objects or from an unauthenticated cache file, while `CacheOutcome` is discarded by the caller. **Answer to your headline open question:** the read-only-derived-query-surfaces bound is *not* sufficient as written. It stops mutation but not a forged-edge record becoming evidence. I do not require a full receipt-bound manifest to freeze, but §5 must (a) replace the open-ended "and their successors" with a named consumer list requiring re-review, and (b) require evidence-grade capsules to come from `Rebuilt` or a passing `verify_cached_snapshot`.
+
+<details>
+<summary>P2 and P3 findings</summary>
+
+**P2**
+
+6. `verify_incomplete_clone` proves every other allowlisted entry belongs to the exchange (head, receipts, origins, refs) but exempts `index` entirely — `exchange.rs:1657` allowlists it and the test at `:2412` asserts an arbitrary `stale.idx.scb1` survives resume. **Answer to "can cache files enter a pack, exchange, retention root, or recovery":** not through the pack/receipt stream, but yes through clone-resume tolerance, unverified. Since §5 calls the files disposable, delete or require-empty `index/` during verification.
+7. The fuzz slice accepts codes 30000..=30010 (`MIN/MAX_NUMERIC_CODE`), including 30008-30010, which the decoder can never emit; a decoder wrongly returning `ROOT_MISMATCH` or `ROOT_IO` from a pure decode would pass. Tighten to the decode-reachable set.
+8. The fuzz harness mirrors the candidate's own option tag into the expected context (`context_from_header`), so an arm-2 record with `OPTION_NONE` always dies at the early guard and the §1 rule is never exercised. Add a fixed-expected-context lane.
+9. `index_cache.rs:140 discard_reason_of` is an exact duplicate of `snapshot.rs:797 discard_reason`; two copies of a normative mapping will drift. Export one.
+
+**P3**
+
+10. §2 says inventory is "in raw `EntityId` order"; the decoder requires strictly ascending and unique. State it normatively — it is enforced at both ends.
+11. §7 omits that extraction-stage failures surface their `IMPACT_*`/`STORE_*` code unwrapped from `IndexCacheError::code()`, while judgment-stage failures surface as `INDEX_SNAPSHOT_ROOT_INCOMPLETE` with the code wrapped.
+12. The 65,536-byte fuzz ceiling cannot reach `MAX_SNAPSHOT_RECORD_BYTES` (67,108,864) or `MAX_SNAPSHOT_EDGES` (400,000), so the resource-limit and reverse-entry-overflow paths are uncovered. Note the bound in §8 rather than implying full decoder coverage.
+13. Campaign and closeout test counts are stale: recorded 54 / 344, observed 62 / 346.
+
+</details>
+
+**validation:** `cargo test -p sley-query` 62 passed, 0 failed; `cargo test -p sley-repo` 346 passed, 0 failed; `uv run --project oracle/scb1 --frozen scripts/check_complete_root_index_snapshot_vector.py` → `PASS`, 1 vector, 6 mutations, no problems. Toolchain 1.93.0 via `~/.cargo/bin` (bare `cargo` on PATH rejects `resolver = "3"`).
+
+**blockers:** none — review completed. Fuzz campaign not re-run (smoke only, per the campaign record); no live concurrency test was run for finding 3, which is established by code inspection of `write_record`.
+
+**return_to:** orchestrator. Fixes belong to Merlin (`index_cache.rs`, `exchange.rs` verification, fuzz target); contract revisions for §1, §2, §5, §7, §9 belong to the contract owner before freeze.
+
+S20_300_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["Section 1 freezes INDEX_SNAPSHOT_FORMAT_INVALID for arm 2 without a root, but the only reachable code is INDEX_SNAPSHOT_CONTEXT_MISMATCH 30003, which is what the frozen fixture case rootless-context and the oracle assert; snapshot.rs:660-662 is dead code","Cache I/O is not fail-open to the fresh build as section 5 requires: index_cache.rs:199 returns Io before any rebuild, and :212 and :216 discard an already-built fresh snapshot on a non-file path or a write failure, so an unreadable cache file or read-only mount denies a snapshot a rebuild would produce","write_record opens the fixed temp name <root>.idx.scb1.tmp with create+truncate and no O_NOFOLLOW while guarding only the destination, giving arbitrary-file truncate outside the repository from a single planted symlink in index/v1 and escaping the same-local-filesystem-authority bound; the fixed name also tears under concurrent writers","No RepositoryMaintenanceGuard is acquired at all, so section 5's under-shared-repository-maintenance claim is unenforced; shared is the right level but must actually be acquired and covers-checked","Section 5's read-only-derived-query-surfaces bound is insufficient as written: S20-310 and S20-320 have already landed (76cf2a2, e695c7d) and consume hits, and a ContextCapsule from a hit is byte-identical to one from a rebuild, so a forged-edge record can become evidence with no provenance marker; replace the open-ended and-their-successors grant with a named consumer list and bind evidence-grade capsules to Rebuilt or verify_cached_snapshot"],"p2":["verify_incomplete_clone proves every other allowlisted layout entry belongs to the exchange but exempts index entirely (exchange.rs:1657, test :2412), so unverified foreign cache bytes persist into a completed clone; delete or require-empty index/ during verification","Fuzz target accepts numeric codes 30008 through 30010 which the decoder can never emit, so a decoder wrongly returning ROOT_MISMATCH or ROOT_IO from a pure decode would pass","Fuzz harness mirrors the candidate's own option tag into the expected context, so the section 1 arm-2-without-root rule is never exercised; add a fixed-expected-context lane","index_cache.rs:140 discard_reason_of exactly duplicates snapshot.rs:797 discard_reason; export one to stop the normative mapping drifting"],"p3":["Section 2 says raw EntityId order but the decoder requires strictly ascending and unique; state it normatively","Section 7 omits that extraction-stage failures surface IMPACT_*/STORE_* unwrapped from IndexCacheError::code() while judgment-stage failures wrap them inside INDEX_SNAPSHOT_ROOT_INCOMPLETE","65,536-byte fuzz ceiling cannot reach MAX_SNAPSHOT_RECORD_BYTES or MAX_SNAPSHOT_EDGES, so resource-limit and reverse-entry-overflow paths are uncovered; note the bound in section 8","Campaign and closeout test counts are stale: recorded 54/344, observed 62/346"],"notes":"Read-only review. Decoder is fail-closed and stronger than the contract states (strict ordering, endpoint membership, full inversion re-derivation, C1 SetNotCanonical at build). No P0. Validation: sley-query 62 pass, sley-repo 346 pass, oracle PASS 1 vector 6 mutations."}
+
+[Greyforge Git Guard] Dirty repo after openclaw: /home/greyforge/sley2
+ M crates/sley-vm/src/execute.rs
+ M crates/sley-vm/src/extended.rs
+ M crates/sley-vm/src/extended_tests.rs
+ M crates/sley-vm/src/lower.rs
+ M docs/THREAT_REGISTER.md
+ M docs/adr/ADR-0039-vm-extended-opcode-boundary.md
+ M docs/spec/TYPE_SYSTEM_V1.md
+ M docs/spec/VM_EXECUTION_PROFILE_V1.md
+ M docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md
+ M evidence/release/decision-dossier.json
+ M evidence/release/ga-acceptance-report.json
+ M evidence/security/T54/secret-scan.json
+ M evidence/security/error-symbol-registration.json
+ M evidence/security/threat-coverage-report.json
+ M evidence/validation/anti-goal-conformance.json
+ M evidence/validation/test-inventory.json
+ M fuzz/targets/candidate_result.rs
+ M fuzz/targets/complete_root_judgment.rs
+ M fuzz/targets/complete_root_snapshot_decoder.rs
+ M fuzz/targets/context_capsule_builder.rs
+ M fuzz/targets/merge_conflict_decoder.rs
+ M fuzz/targets/repository_exchange_importer.rs
+ M fuzz/targets/root_query_engine.rs
+ M fuzz/targets/semantic_delta_decoder.rs
+ M fuzz/targets/smp1_frame_decoder.rs
+ M fuzz/targets/transaction_receipt.rs
+ M fuzz/targets/vm_canonical_inputs.rs
+
+[Greyforge Git Guard] Non-interactive shell; leaving repo dirty.
+EXIT=0 2026-09-04T03:15:16Z

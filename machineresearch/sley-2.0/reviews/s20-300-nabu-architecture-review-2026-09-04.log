@@ -1,0 +1,109 @@
+DISPATCH 300-nabu-architecture forge-nabu-300-nabu-architecture-20260904T030449 2026-09-04T03:04:49Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+I'll start by reading the contract, ADR, and campaign record in parallel.
+
+I have enough to decide. Findings below; no repository modifications, no cargo.
+
+---
+
+**status:** FAIL — one P0 blocks freeze.
+
+## findings
+
+### Composition verdict: the S20-300 boundary is right; the containment claim is not
+
+The three-way split is correct and I would not restructure it. Pure arm-2 builder in `sley-query` with no I/O; repository-backed extraction only behind the S20-390 verified loader; exactly one reuse path in `sley-repo`. Adding an arm to the frozen `SLEYIDX1` grammar rather than minting a second record is the right call — one identity domain, arm-1 and arm-2 records over the same entities provably differ, and every consumer must state its arm. Provenance-by-build-path is correctly reasoned: the digest genuinely cannot carry provenance, and the contract does not pretend otherwise.
+
+I verified the restricted consumers do fail closed on arm 2, mechanically, not just in prose: `crates/sley-query/src/query.rs:409` rejects any non-arm-1 snapshot with `QUERY_UNSUPPORTED` before deriving `QueryId`. That one holds.
+
+### P0 — the exchange import preserves unverified cache files, so the residual's stated bound is false
+
+Contract §5 accepts the forged-edge residual on the strength of one claim: *"the cache is under the same local filesystem authority as objects, receipts, and refs."* That claim does not hold at the incomplete-clone boundary.
+
+`REPOSITORY_LAYOUT_ENTRIES` (`crates/sley-repo/src/exchange.rs:71`) admits `"index"` into a marked import target. `verify_incomplete_clone` — whose entire stated job is to prove *everything already installed in a marked target belongs to this exchange* — verifies the head, every receipt, every origin record, and every ref. It does not verify, and does not purge, `index/`. The test at `exchange.rs:2411` asserts this positively: an attacker-chosen `index/v1/stale.idx.scb1` planted in the target **survives the import as a file**.
+
+So objects, receipts, and refs in a resumed clone are verified against the exchange, and the cache is not. That is precisely the asymmetry the residual's bound denies. A party who can stage the target directory — a partially transferred clone, a synced or restored directory, a CI cache — can plant a record that satisfies all four acceptance rules (arm and context, self-derived trailer, inventory equal to the root's bindings in order, endpoint and inversion consistency are all computable from the state-root record the exchange itself ships) while carrying arbitrary edges, and the first root-backed query serves them.
+
+The fix is already implied by the ADR's own decision 4 — *derived and disposable*. Import must delete `index/` in the target, or refuse a target carrying one. Deletion costs nothing, since the next query rebuilds. Both the contract §5 bound and that test's expectation have to change together.
+
+<details>
+<summary>Why I rate this P0 rather than P1</summary>
+
+Not because remote exploitation is demonstrated — the target directory is still written locally in the ordinary path. It is P0 because the contract accepts a named residual on the strength of a containment property, and the code contradicts that property inside the one module whose threat model explicitly distrusts prior target contents. Freezing text that misstates the bound it relies on is the thing freeze is supposed to prevent. Confidence high: the behavior is asserted by an existing test, not inferred.
+</details>
+
+### P1 — the consumer restriction is prose only
+
+`crates/sley-repo/src/lib.rs:21` is `pub use index_cache::*;`. `complete_root_snapshot` is unrestricted public API. "Only read-only derived query surfaces may consume a hit" is enforced by nothing — not the type system, not the checker. `merge.rs`, `gc.rs`, and `compare.rs` are in the same crate and one `use` away. The exclusion list in §9 is a denylist of *today's* subsystems, so every future subsystem is admitted by default. Invert it: gate the hit behind a wrapper only the query surfaces can unwrap, keep `verify_cached_snapshot` public, and have the staged checker assert the exact caller set.
+
+### P1 — the temp path is unguarded where the final path is guarded
+
+`complete_root_snapshot` deliberately refuses to follow or overwrite a non-file at the cache path (`index_cache.rs:203`, `:208-215`) — that care is then dropped in `write_record`, where `OpenOptions::new().write(true).create(true).truncate(true).open(&temporary)` follows symlinks. A planted `<root>.idx.scb1.tmp` symlink turns a cache write into an arbitrary write with the process's privileges, escaping the very trust boundary the final-path guard establishes. Needs exclusive create and no symlink follow.
+
+### P1 — shared maintenance is right, but its safety is accidental
+
+Answering the campaign's second open question directly: **keep shared, do not escalate to exclusive.** Exclusive would serialize a read path whose whole purpose is cheap concurrent reads, and it would put a read-only query surface in the position of taking a repository maintenance lock — which is its own authority leak, since a read surface could then block commit.
+
+But the current scheme is safe only by accident. All writers for a root share one fixed `<name>.tmp`. Writer B can truncate and write through an fd on an inode A has already renamed into place, momentarily publishing a short file; a concurrent reader discards it and rebuilds, so it fails safe — and it does so only because the record is a deterministic function of the root that names the file. That invariant is nowhere stated. The contract must state it and require unique per-writer temp names.
+
+### P1 — the staged checker is a presence gate, not a boundary gate
+
+It cannot make drift impossible, and does not:
+
+- No negative gate. Nothing greps for callers of the cache outside the query surfaces — the single check that would enforce the §5 restriction.
+- `'"index",' not in read(EXCHANGE)` is satisfied by any unrelated `"index",` literal anywhere in a 2400-line file.
+- Nothing binds the four acceptance rules, the residual paragraph, the oracle, or the fuzz target.
+- `implementation-before-freeze` fires only for `DRAFT_STATUS` and `FROZEN_STATUS`; `DRAFT_IN_PROGRESS` permits full implementation of an unfrozen contract, and there is no gate at all on *downstream* packages built on it. S20-310 full and S20-320 full landed at `e695c7d` against unfrozen revision 1 — the freeze is now a retrofit over two existing consumers.
+- `COMPLETE` requires three `PASS` reviews but never requires the contract revision to have advanced past 1, so reviews can be recorded against text they did not review.
+
+### P2
+
+- `verify_cached_snapshot` returns `Ok(false)` for both "absent" and "differs" (`index_cache.rs:234-236`). As the contract's designated audit and Tier-2 evidence API, it cannot distinguish an empty cache from a forged one — the exact question an audit asks.
+- No eviction, no file-count ceiling, no directory size bound. One file per root forever, each up to the 400,000-edge ceiling; §6 bounds the record and not the cache. GC has no `index` reference, so nothing ever reclaims it.
+- §9 exclusions and closeout line 110 ("no consumer of a cache hit exists until full S20-310 lands") are false as of `e695c7d`. Freezing a contract whose exclusion list misdescribes the tree is a defect, not an edit.
+
+### P3
+
+- `discard_reason_of` maps `RootIncomplete` and `RootIo` to `FormatInvalid` (`index_cache.rs:152-156`). Both are build/IO codes that cannot arise from decoding a candidate, so the arm is dead — but it mislabels silently if it ever fires.
+- `SPEC_MARKERS` includes `"never read\nthe cache"`, binding the gate to a hard line wrap. Reflowing the paragraph breaks the check; rewording the rule while preserving the phrase passes it.
+
+### On the first open question — is a receipt-bound manifest required?
+
+Not today, but the contract states the reason wrongly. The four rules are adequate for S20-310 and S20-320 as built; what is inadequate is the containment (P0) and the enforcement of the consumer restriction (P1). Fix those and the residual becomes what §5 claims it is.
+
+Worth recording the cost argument, because the contract implies the manifest is expensive: rule 4 already walks every edge for endpoint membership and inversion, so a cache read is *already* O(edges). A 32-byte identity comparison against a receipt-bound manifest is free relative to what is already being paid. The honest reason to defer is that the manifest needs a receipt-chain design S20-300 should not invent alone — not that the residual is inherent. Say that, and convert §9's soft exclusion into a hard gate: **any consumer outside read-only derived query surfaces, and any path by which a cache file can arrive from outside the local trust domain, requires the manifest first.**
+
+### Can cache files enter a pack, an exchange, a retention root, or recovery?
+
+Four of five: no, verified. `index` appears in `exchange.rs` only in the layout allowlist and the test — export never walks it; `gc.rs` has no index reference; no pack or retention path touches it. The fifth path the contract did not enumerate — incomplete-clone resume — is the P0.
+
+## validation
+
+Read-only inspection at `main`, working tree dirty in `crates/sley-vm/*` (unrelated to this package). Read the contract, ADR-0029, stage checker, campaign record, closeout, `index_cache.rs` in full, `root_query.rs` head, and targeted spans of `exchange.rs`, `query.rs`, `capsule.rs`, plus `machine-summary.json`. Confirmed arm-2 fail-closed at `query.rs:409` and the cache caller set by `rg`. No cargo, no oracle run, no fuzzing, no writes.
+
+## blockers
+
+None for this review. The P0 requires a contract revision plus an `exchange.rs` change and a test-expectation inversion — Merlin's lane, not mine.
+
+## return_to
+
+Orchestrator. Recommend the P0 and the four P1s land as contract revision 2 before freeze; hand the exchange purge and the temp-path hardening to Merlin, and route the forged-edge reachability judgment to Vulcan, who should treat the incomplete-clone vector as in scope for the surface review.
+
+S20_300_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["exchange import allowlists index/ into an incomplete-clone target and neither verifies nor purges it (exchange.rs:71,2411), so unverified cache bytes survive a resume and the contract section 5 bound 'same local filesystem authority as objects, receipts, and refs' is false; import must delete index/ or refuse the target"],"p1":["consumer restriction is prose only: pub use index_cache::* exports complete_root_snapshot unrestricted (lib.rs:21); gate hits behind a wrapper only query surfaces unwrap and have the checker assert the caller set","write_record opens the temp path with follow-symlink semantics while the final path is explicitly guarded (index_cache.rs:171-175 vs 203-215); require exclusive create and no symlink follow","shared maintenance is correct but unsafe by accident: all writers share one fixed <name>.tmp; contract must require unique per-writer temp names and state the determinism invariant that makes concurrent publishes safe","staged checker is a presence gate not a boundary gate: no negative caller check, substring-only exchange allowlist test, no gate on downstream consumers built pre-freeze, and COMPLETE does not require the revision to advance past the reviewed text"],"p2":["verify_cached_snapshot returns Ok(false) for both absent and forged, so the designated audit API cannot answer the audit question","cache has no eviction, file-count ceiling, or directory size bound and GC never reclaims it","section 9 exclusions and closeout line 110 are false as of e695c7d: S20-310 and S20-320 full already consume the cache"],"p3":["discard_reason_of maps RootIncomplete and RootIo to FormatInvalid, a dead arm that mislabels silently","SPEC_MARKERS binds 'never read\\nthe cache' to a hard line wrap, so reflowing breaks the gate and rewording the rule passes it"],"notes":"Boundary and composition are sound; arm-2 fail-closed verified at query.rs:409. Freeze blocked by one containment defect, not by the design. Four rules adequate for current consumers once containment and enforcement are fixed; receipt-bound manifest not required today but must become a hard gate for any new consumer or any external arrival path. Keep shared maintenance."}
+
+[Greyforge Git Guard] Dirty repo after openclaw: /home/greyforge/sley2
+ M crates/sley-vm/src/execute.rs
+ M crates/sley-vm/src/extended.rs
+ M crates/sley-vm/src/extended_tests.rs
+ M crates/sley-vm/src/lower.rs
+ M docs/THREAT_REGISTER.md
+ M docs/adr/ADR-0039-vm-extended-opcode-boundary.md
+ M docs/spec/TYPE_SYSTEM_V1.md
+ M docs/spec/VM_EXECUTION_PROFILE_V1.md
+ M docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md
+ M evidence/security/error-symbol-registration.json
+ M fuzz/targets/vm_canonical_inputs.rs
+
+[Greyforge Git Guard] Non-interactive shell; leaving repo dirty.
+EXIT=0 2026-09-04T03:09:25Z
