@@ -54,3 +54,4 @@ Current records:
 - ADR-0045: the transaction semantic profile names the analysis that validated the program
 - ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
 - ADR-0047: the required contracts are indexed, not restated
+- ADR-0048: the hash domain registry covers every crate that hashes

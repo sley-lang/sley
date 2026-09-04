@@ -1363,7 +1363,8 @@
     "registry_domains": 35,
     "frozen_domains": 50,
     "registry_drift_scope": "every crate that hashes, not only sley-id",
-    "registry_finding": "the drift check added with S20-770 read only crates/sley-id, so fifteen domains derived by sley-repo, sley-policy, sley-txn, and sley-adapter never reached the registry while it claimed completeness. Registered and the check widened 2026-09-03"
+    "registry_finding": "the drift check added with S20-770 read only crates/sley-id, so fifteen domains derived by sley-repo, sley-policy, sley-txn, and sley-adapter never reached the registry while it claimed completeness. Registered and the check widened 2026-09-03",
+    "adr": "docs/adr/ADR-0048-complete-hash-domain-registration.md"
   },
   "conformance": {
     "status": "S20_130_COMPLETE",
