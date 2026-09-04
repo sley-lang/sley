@@ -1323,10 +1323,9 @@ pub(crate) mod tests {
                         cases
                             .iter()
                             .map(|case| {
-                                case.payload_type.as_ref().map_or_else(
-                                    || "null".to_owned(),
-                                    |payload| type_expr_json(payload),
-                                )
+                                case.payload_type
+                                    .as_ref()
+                                    .map_or_else(|| "null".to_owned(), type_expr_json)
                             })
                             .collect(),
                     ),

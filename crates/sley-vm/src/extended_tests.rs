@@ -2825,8 +2825,7 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
         let subject = fixture
             .operations
             .iter()
-            .filter(|operation| entry_blocks.contains(&operation.block))
-            .next_back()
+            .rfind(|operation| entry_blocks.contains(&operation.block))
             .expect("the entry function runs at least one operation");
         println!(
             "VM_EXTENDED_VECTOR|{label}|{}|{}|{}|{}|{}|{}",
