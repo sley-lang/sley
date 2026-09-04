@@ -35,7 +35,9 @@ for field, expected in expected_report_ids.items():
         problems.append(f"machine-summary report vector drift: {field}")
 
 for token in [
-    "Status: S20-290 restricted epoch-1 normative specification.",
+    "Status: S20-290 restricted epoch-1 normative specification, revision 2",
+    "u32be(execution_profile = lowering_profile of the cache profile)",
+    "would derive a single identity while the envelope asserted a single profile",
     '"SLEYEXR1"',
     '"SLEYTSR1"',
     '"sley2.execution-report.v1"',

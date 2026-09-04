@@ -473,7 +473,7 @@
     "contract": "docs/spec/REPORT_ENVELOPE_PROFILE_V1.md",
     "implementation": "crates/sley-conformance",
     "stable_error_codes": 8,
-    "report_unit_tests": 13,
+    "report_unit_tests": 14,
     "sley_vm_total_unit_tests": 21,
     "workspace_total_unit_tests": 233,
     "deterministic_repeat_iterations": 128,
@@ -492,7 +492,14 @@
     "ariadne_review": "PASS_AFTER_GRAPH_PHASE_CLARIFICATION",
     "merlin_handoff": "BLOCKED_READ_ONLY_NO_FILES",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "contract_revision": 2,
+    "accepted_cache_profiles": [
+      "RESTRICTED_V1",
+      "EXTENDED_V1"
+    ],
+    "execution_profile_field": "the cache profile's lowering_profile, bound in the preimage since revision 2",
+    "revision_2_finding": "revision 1 wrote a constant execution_profile, so one request rejected under both profiles derived one identity; a rejected result carries no cache key to bind the profile. Found and fixed 2026-09-03 while landing slice E7a; restricted identities are unchanged"
   },
   "index_snapshot_profile": {
     "status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",

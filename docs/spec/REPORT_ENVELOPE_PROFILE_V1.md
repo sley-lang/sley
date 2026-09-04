@@ -1,6 +1,10 @@
 # Restricted Report Envelope Profile v1
 
-Status: S20-290 restricted epoch-1 normative specification.
+Status: S20-290 restricted epoch-1 normative specification, revision 2
+(2026-09-03). Revision 2 records the profile the S20-260/S20-270 extended
+opcode profile's section 4 promised and never wrote: report building accepts
+`EXTENDED_V1` beside `RESTRICTED_V1`, and the envelope binds the profile it
+actually ran under.
 
 This profile freezes deterministic derived envelopes around the evidence that
 S20-240 and S20-270 can already establish. It does not add the frozen but
@@ -25,9 +29,20 @@ the complete derived envelope bytes described here. They are not `EntityId`,
 `ObjectId`, canonical program state, a persistence receipt, policy authority,
 or proof that a caller actually ran an unobserved rejected request.
 
-The execution profile is exactly S20-270 `VM_EXEC_RESTRICTED_V1`; the VM and
-lowering semantic versions are `[1,0,0]`, and the lowering/cache profile is
-`CacheProfile::RESTRICTED_V1`. Other profiles fail closed.
+The execution profile is S20-270 `VM_EXEC_RESTRICTED_V1` or the S20-260/270
+extended profile; the VM semantic version is `[1,0,0]` for both, and the
+lowering/cache profile is `CacheProfile::RESTRICTED_V1` or
+`CacheProfile::EXTENDED_V1`. Every other profile fails closed with
+`REPORT_PROFILE_UNSUPPORTED`.
+
+The envelope binds the profile it ran under, in the `execution_profile` field,
+as that profile's `lowering_profile` value (restricted 1, extended 2). This is
+load bearing rather than descriptive: an observed result carries the
+profile-bound cache key, but a **rejected** result carries only a phase and a
+numeric code, so without the field one request rejected under both profiles
+would derive a single identity while the envelope asserted a single profile.
+Revision 1 wrote the constant `1`; restricted identities are unchanged by the
+correction, and no extended report had been produced under revision 1.
 
 ## 2. Execution envelope input evidence
 
@@ -123,7 +138,7 @@ execution_report_preimage =
   SchemaEpochId[32] || ssmc1_field_schema_hash[32] ||
   ssmc1_decoder_limits_hash[32] || StateRoot[32] || FunctionId[32] ||
   u32be(vm_major=1) || u32be(vm_minor=0) || u32be(vm_patch=0) ||
-  u32be(execution_profile=1) ||
+  u32be(execution_profile = lowering_profile of the cache profile) ||
   input_evidence ||
   u64be(max_instructions) || u64be(max_fuel) ||
   u64be(max_value_units) || u64be(max_output_units) ||

@@ -30,7 +30,6 @@ pub const MAX_REPORT_PREIMAGE_BYTES: u64 = 67_108_864;
 pub const MAX_REPORT_TEST_ENTRIES: usize = 65_535;
 
 const PROFILE_VERSION: u32 = 1;
-const EXECUTION_PROFILE: u32 = 1;
 
 /// Stable S20-290 restricted report construction failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -278,6 +277,12 @@ pub enum ExecutionReportResult {
 pub struct ExecutionReportEnvelope {
     /// Content-derived restricted report ID.
     report_id: ExecutionReportId,
+    /// The cache/lowering profile the execution actually ran under.
+    ///
+    /// A rejected result carries no cache key, so without this the same
+    /// request rejected under the restricted and the extended profile would
+    /// derive one identity while the envelope claimed a single profile.
+    profile: CacheProfile,
     /// Exact schema epoch.
     schema_epoch: SchemaEpochId,
     /// Exact state root.
@@ -402,6 +407,7 @@ pub fn build_execution_report(
     };
     let mut report = ExecutionReportEnvelope {
         report_id: ExecutionReportId::from_bytes([0; 32]),
+        profile: input.profile,
         schema_epoch: input.schema_epoch,
         state_root: input.state_root,
         function: input.function.entity_id,
@@ -429,10 +435,10 @@ pub fn execution_report_preimage(
     encoder.fixed(&SSMC1_DECODER_LIMITS_HASH)?;
     encoder.fixed(report.state_root.as_bytes())?;
     encoder.fixed(report.function.as_bytes())?;
-    for part in CacheProfile::RESTRICTED_V1.vm_version {
+    for part in report.profile.vm_version {
         encoder.u32(part)?;
     }
-    encoder.u32(EXECUTION_PROFILE)?;
+    encoder.u32(report.profile.lowering_profile)?;
     encode_input_evidence(&mut encoder, &report.inputs)?;
     encode_limits(&mut encoder, report.limits)?;
     encode_execution_result(&mut encoder, &report.result)?;
@@ -1269,6 +1275,37 @@ mod tests {
         assert_eq!(
             report.report_id.into_bytes(),
             decode_hex_32("e5aa428b5cf4fe81e72cecbbcfd901acf9c34cdbda2939945230d1f9aa3232a0")
+        );
+    }
+
+    /// A rejected result carries no cache key, so the envelope must bind the
+    /// profile itself. Without that, one request rejected under both profiles
+    /// derives one identity while claiming a single profile.
+    #[test]
+    fn a_rejection_under_two_profiles_derives_two_identities() {
+        let fixture = fixture();
+        let request = ExecutionRequest {
+            inputs: vec![ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Unit,
+            }],
+            limits: limits(),
+        };
+        let execution = Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
+        let restricted = build_execution_report(fixture.input(), &request, &execution).unwrap();
+        let extended = build_execution_report(
+            LoweringInput {
+                profile: CacheProfile::EXTENDED_V1,
+                ..fixture.input()
+            },
+            &request,
+            &execution,
+        )
+        .unwrap();
+        assert_eq!(restricted.result, extended.result, "the evidence is equal");
+        assert_ne!(
+            restricted.report_id, extended.report_id,
+            "two profiles must not share one rejected report identity"
         );
     }
 
