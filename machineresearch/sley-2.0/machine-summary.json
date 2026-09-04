@@ -2802,7 +2802,10 @@
     "emitted_symbols": 329,
     "unregistered": 0,
     "adopted": "2026-09-03",
-    "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1), the three REPORT_STORE_* symbols carried only as a family wildcard, and one bridge test that paired the restricted query profile's code 31004 with an invented symbol",
-    "scope": "registration only; meaning, number, and freeze stay with the owning contract"
+    "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1); the three REPORT_STORE_* symbols carried only as a family wildcard; one bridge test that paired the restricted query profile's code 31004 with an invented symbol; and GRAPH_RESOURCE_LIMIT, which the policy crate attached to the S20-220 owner's code 22020 while that owner's table names it CFG_RESOURCE_LIMIT",
+    "scope": "registration only; meaning, number, and freeze stay with the owning contract",
+    "registration_source": "docs/spec only; an audit, threat-register row, or ADR narrative does not register a symbol",
+    "numeric_codes": 302,
+    "ambiguous_codes": 0
   }
 }

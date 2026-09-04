@@ -51,7 +51,10 @@ impl CandidateProgramError {
             Self::OpcodeUnknown => "SSMC_OPCODE_UNKNOWN",
             Self::UnresolvedReference => "GRAPH_UNRESOLVED_REFERENCE",
             Self::WrongEntityKind => "SSMC_REFERENCE_MALFORMED",
-            Self::ResourceLimit => "GRAPH_RESOURCE_LIMIT",
+            // 22020 belongs to the S20-220 owner, whose table names it
+            // `CFG_RESOURCE_LIMIT` for every limit of that phase, graph rules
+            // included. Preserving the owner's code means preserving its symbol.
+            Self::ResourceLimit => "CFG_RESOURCE_LIMIT",
         }
     }
 

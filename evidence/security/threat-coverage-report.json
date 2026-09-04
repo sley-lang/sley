@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "59c7991d1f4665e07505a22849539a5e08c9c17c26265d445ffcda7a4c9dd5a6",
+  "report_digest": "a4238c00ce44f48a603e051be4ec5d7f613bd44a56bc6e88397eeef4170ecae2",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 6,
@@ -344,10 +344,14 @@
     {
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
-      "located_file_count": 2,
+      "located_file_count": 4,
       "located_in": {
+        "checkers": [
+          "scripts/check_error_symbol_registration.py"
+        ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
+          "crates/sley-policy/src/candidate_program.rs",
           "crates/sley-policy/src/candidate_validation.rs"
         ]
       },
@@ -476,18 +480,19 @@
     {
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 19,
+      "located_file_count": 21,
       "located_in": {
         "checkers": [
+          "scripts/check_error_symbol_registration.py",
           "scripts/check_mutation_value_codecs.py",
           "scripts/check_s20_530_crash_recovery.py",
           "scripts/check_scb1_spec.py"
         ],
         "implementation": [
+          "crates/sley-check/src/cfg.rs",
           "crates/sley-mutate/src/codec/adversarial_tests.rs",
           "crates/sley-policy/src/candidate_program.rs",
-          "crates/sley-policy/src/candidate_result.rs",
-          "crates/sley-policy/src/candidate_validation.rs"
+          "crates/sley-policy/src/candidate_result.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
@@ -507,7 +512,7 @@
       "required_test": "count/byte boundary",
       "searched_codes": [
         "SCB_RESOURCE_LIMIT",
-        "GRAPH_RESOURCE_LIMIT"
+        "CFG_RESOURCE_LIMIT"
       ],
       "severity": "P1",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
