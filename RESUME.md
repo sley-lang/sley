@@ -32,61 +32,44 @@ landed on `main` since. That is the point of pinning: a reviewer's findings
 stay reproducible from one commit. It also means a reply may raise something
 already fixed, so check a landing finding against `main` before acting on it.
 
-## Council reviews: 7 of 69 answered
+## Council reviews: round complete
 
-| Review | Result | P0 | P1 |
-|---|---|---:|---:|
-| `260-ariadne-contract` | FAIL | 2 | 6 |
-| `260-nabu-architecture` | PASS | 0 | 7 |
-| `260-vulcan-surface` | FAIL | 1 | 2 |
-| `300-ariadne-contract` | FAIL | 1 | 4 |
-| `300-nabu-architecture` | FAIL | 1 | 4 |
-| `300-vulcan-surface` | FAIL | 0 | 5 |
-| `310-ariadne-contract` | FAIL | 2 | 7 |
+All 69 dispatched; 68 answered (67 FAIL, 1 PASS) and one truncated and
+requeued. `machineresearch/sley-2.0/reviews/` holds every retained log,
+`verdicts.json` the counts, and `p0-worklist.json` the derived P0 list.
 
-The first `260-vulcan-surface` reply was not a verdict: it ended mid-object at
-2192 characters with no closing brace. Its log is set aside as
-`260-vulcan-surface.truncated.log`, it was redispatched, and the second reply is
-the one above. **Check every reply for a closing brace before counting it.**
+The round raised **106 P0 entries** across 23 packages. Two replies arrived
+truncated mid-object; **check every reply ends in `}` before counting it**.
 
-## Findings
 
-**Four P0s closed, two open.**
+## Findings: 17 of 106 P0 entries closed
 
-Closed:
+Closed, each reproduced before fixing:
 
-- **S20-260 checked left shift**, fixed before this session.
-- **S20-260 map entry order** (`83d571a`). `equal` and `value_hash` read
-  ordered-map entry order structurally, but S20-210 does not establish it
-  (`TYPE_SYSTEM_V1.md` section 5 reserves the ordering to the SCB codec and
-  forbids the checker from reimplementing it or silently sorting). The VM now
-  asks the codec at each boundary where a value arrives from outside:
-  `VM_EXEC_INPUT_NOT_CANONICAL` (27006) for an execution input,
-  `VM_LOWER_IMMEDIATE_MISMATCH` for a constant `constant_ref` or `global_get`
-  names. It does not sort and does not tighten S20-210.
-- **S20-300 inherited index cache** (`cfdd263`), found independently by Ariadne
-  and Nabu. Import now removes the target's `index/` before promoting anything,
-  because a cache record is the one entry an incomplete clone carries that
-  cannot be proved to belong to the exchange. Contract revision 2.
-- **S20-260 cell value units** (`70f4a2e`), found by Vulcan and reproduced
-  before fixing. `cell_new` and `cell_set` clone into a table that outlives the
-  instruction while only the handle was charged: a 4096-byte payload cost 61
-  units against a real 4099. Both now charge what they store, and
-  `MAX_EXECUTION_CELLS` caps the table. This moved every observation identity
-  touching a cell; all 21 extended vectors were regenerated and the independent
-  oracle agrees. Contract revision 10.
+- **S20-260** (3 entries): checked left shift; ordered-map entry order
+  (`83d571a`); cell value units (`70f4a2e`).
+- **S20-300** (2 entries, found independently by two reviewers): an exchange
+  import adopting an index cache it never wrote (`cfdd263`).
+- **S20-620** (12 entries, 7 distinct defects, the round's largest cluster):
+  the handle that was not a capability boundary (`28ec1fc`); `context_bytes`
+  undercounting and the arm grading itself (`48b71e9`); the swallowable guard
+  (`a0d8a6f`); the unfrozen affordance allowlist and protocol failures read as
+  candidate verdicts (`20e8bf4`); the shared execution controls narrowed per
+  arm (`1e5e77b`).
 
-Open, both from `310-ariadne-contract` and both contract-text rather than code:
+**89 entries remain open.** Largest clusters: 400 (8), 320 (7), 520 (7),
+630 (7), 330 (6), then 710full/720/730/750 (5 each).
 
-1. `charged_work` is normative in the frozen `SLEYRQR1` record, but the section
-   4 charging rule cannot derive the implemented per-class constants, so the
-   oracle reproduces the implementation rather than the contract, and S20-320
-   already binds these bytes.
-2. The class-kind applicability table that ADR-0030 decision 1 and section 9
-   require is absent, so classes 16, 17, and 19 silently accept every kind.
+Two patterns account for most of what has been closed, and are worth carrying
+into the rest:
 
-**These two are the next thing to work on**, and both are authoring decisions
-about `docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md` rather than defects to patch.
+1. **A contract asserted an invariant nothing executed.** The map order, the
+   cell units, the handle boundary and the affordance list were all like this.
+   When a reviewer cites a clause, check whether anything runs it.
+2. **A measurement favoured the thing it measured.** `context_bytes`,
+   `invalid_candidates` and the oracle override all read low for the arm under
+   test. Ask which side an error falls on.
+
 
 ## To resume
 
