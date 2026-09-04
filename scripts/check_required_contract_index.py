@@ -90,7 +90,15 @@ def main() -> int:
     # Registry drift validation, which IDENTIFIERS_V1.md requires of every
     # added domain: the implementation's derived domains and the frozen
     # registry must be the same set.
-    derived = sorted(set(re.findall(r'b"(sley2\.[a-z0-9.\-]+)"', read(ROOT / "crates/sley-id/src/lib.rs"))))
+    # Every crate that hashes may define a domain, not only `sley-id`.
+    derived = sorted(
+        {
+            domain
+            for path in sorted((ROOT / "crates").rglob("*.rs"))
+            if "/target/" not in str(path)
+            for domain in re.findall(r'"(sley2\.[a-z0-9.\-]+)"', read(path))
+        }
+    )
     unregistered = [domain for domain in derived if f"`{domain}`" not in identifiers]
     for domain in unregistered:
         problems.append(f"identifier-registry-drift:{domain}")

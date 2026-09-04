@@ -53,15 +53,32 @@ part of the `sley-id` kernel API.
 | protocol frame (S20-410) | `sley2.protocol-frame.v1` |
 | root-backed query (S20-310 full) | `sley2.root-query.v1` |
 | negotiated session (S20-330) | `sley2.session.v1` |
+| repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
+| repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
+| repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |
+| repository exchange node (S20-540) | `sley2.repository-exchange-node.v1` |
+| exchanged accepted head (S20-540) | `sley2.accepted-head.v1` |
+| branch record (S20-500) | `sley2.branch-record.v1` |
+| branch ref (S20-500) | `sley2.branch-ref.v1` |
+| branch name path key (S20-500) | `sley2.branch-name-path.v1` |
+| validation context (S20-345) | `sley2.validation-context.v1` |
+| validation context inventory (S20-360) | `sley2.validation-context-inventory.v1` |
+| validation context tombstones (S20-360) | `sley2.validation-context-tombstones.v1` |
+| candidate phase evidence (S20-360) | `sley2.candidate-phase-evidence.v1` |
+| merge plan nonce (S20-520) | `sley2.merge-plan-nonce.v1` |
+| reference adapter deterministic randomness (S20-280) | `sley2.reference-random.v1` |
+| S20-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
 
-The last four rows were added on 2026-09-03 (ADR-0047). Each domain was
-specified and fixtured by its own package (`CANDIDATE_RESULT_V1.md`,
-`SMP1.md`, `ROOT_BACKED_QUERY_PROFILE_V1.md`, and
-`SESSION_HANDLE_PROFILE_V1.md`) but never reached this registry, which the
-S20-770 required contract index caught. The registry now carries all
-thirty-five domains the implementation derives, and
-`scripts/check_required_contract_index.py` compares the two on every
-`make quick`, which is the registry drift validation this section demands.
+Four rows were added on 2026-09-03 (ADR-0047) and sixteen more later the same
+day. Every one was specified and fixtured by its own package but never reached
+this registry: the first four because no check compared the registry with the
+implementation, and the next sixteen because the check that was then added read
+only `crates/sley-id`, while a domain may be derived by any crate that hashes.
+The registry now carries all fifty domains the implementation derives,
+`scripts/check_required_contract_index.py` compares the two over every crate on
+every `make quick`, and the last two rows are labelled by what they are: a
+deterministic randomness domain that grants no authority, and a test-hook plan
+domain that a release build compiles out.
 
 A domain cannot be renamed, aliased, or reused for another preimage. Adding a
 domain requires an ADR, fixtures, and registry drift validation.
