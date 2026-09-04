@@ -2812,5 +2812,14 @@
     "ambiguous_codes": 0,
     "unexercised": 0,
     "exercise_rule": "every stable symbol is reached by a test, corpus, fuzz target, or oracle, by its string or by its enum variant; a refusal path nothing exercises is where a defect survives"
+  },
+  "declared_limits": {
+    "checker": "scripts/check_declared_limits.py",
+    "contract": "sley2.declared-limits.v1",
+    "declared_limits": 151,
+    "undocumented": 0,
+    "adopted": "2026-09-03",
+    "rule": "every public MAX_* value appears in docs/spec, because a decoder limit that decides validity is an epoch-frozen fact",
+    "scope": "public constants only; ownership stays with the owning package's checker"
   }
 }

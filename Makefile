@@ -71,6 +71,7 @@ quick:
 	python3 scripts/check_required_contract_index.py
 	python3 scripts/check_clean_room_boundary.py
 	python3 scripts/check_error_symbol_registration.py --check
+	python3 scripts/check_declared_limits.py
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
