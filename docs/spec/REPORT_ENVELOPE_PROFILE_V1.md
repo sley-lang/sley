@@ -1,6 +1,6 @@
 # Restricted Report Envelope Profile v1
 
-Status: S20-290 restricted epoch-1 normative specification, revision 2
+Status: S20-290 restricted epoch-1 normative specification, revision 3
 (2026-09-03). Revision 2 records the profile the S20-260/S20-270 extended
 opcode profile's section 4 promised and never wrote: report building accepts
 `EXTENDED_V1` beside `RESTRICTED_V1`, and the envelope binds the profile it
@@ -273,9 +273,35 @@ when report verification invokes their owning authorities.
 - strict lint and independent review have no open P0/P1/P2.
 
 Full S20-290 GA and the M2 exit remain blocked on canonical report entity body
-schemas, SCB1 object/persistence/reference rules, protected S20-370 test
-selection, compatible enforcement/evidence for all TestCase resource units,
-expected-observation semantics, effect/capability/adapter/replay evidence,
-complete VM execution, measured metadata provenance, and independent report
-conformance. Restricted envelope IDs cannot authorize commit, promotion,
+schemas, SCB1 object/persistence/reference rules, compatible
+enforcement/evidence for all TestCase resource units, expected-observation
+semantics, effect/capability/adapter/replay evidence, complete VM execution,
+measured metadata provenance, and independent report conformance. Protected
+S20-370 test selection is no longer among them: candidate validation phase 11
+finalizes the checker-produced plan against the protected policy root.
+
+### 9.1 Why no TestCase has been executed
+
+`build_test_report` already compares a selected test's expected outcome with
+an execution report, so the absence of a produced test-report corpus is not a
+missing comparison. It is the resource units. A `TestCase` declares six exact
+`u64` ceilings, and epoch-1 execution can honour two of them:
+
+| TestCase unit | S20-270 counterpart |
+|---|---|
+| `fuel` | `ExecutionLimits::max_fuel` |
+| `effect_count` | trivially zero; an epoch-1 test's effect environment must be empty |
+| `memory_bytes` | none. The VM charges semantic value units, never bytes |
+| `output_bytes` | none. `max_output_units` counts value units, not bytes |
+| `call_depth` | none per request. `MAX_CALL_DEPTH` is one frozen constant of 256 |
+| `wall_timeout_millis` | none, and none is possible: the VM reads no clock, which is what makes an observation reproducible |
+
+Executing a test under caller-supplied execution limits would produce a report
+whose run did not honour the test's own declared ceilings, and inventing a
+byte-to-value-unit or millisecond-to-fuel conversion would assign meaning by
+convention, which section 1.1 of the contract test profile refuses. So the
+corpus stays empty until a schema epoch expresses the units the VM can
+enforce, or the VM gains the units the schema declares. That choice belongs to
+the schema owner, and `EPOCH_MIGRATION_POLICY_V1.md` section 6 is where it
+would be recorded. Restricted envelope IDs cannot authorize commit, promotion,
 release, or a claim that a TestCase passed.

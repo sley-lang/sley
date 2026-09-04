@@ -493,14 +493,16 @@
     "merlin_handoff": "BLOCKED_READ_ONLY_NO_FILES",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2",
     "implementation_complete": true,
-    "contract_revision": 2,
+    "contract_revision": 3,
     "accepted_cache_profiles": [
       "RESTRICTED_V1",
       "EXTENDED_V1"
     ],
     "execution_profile_field": "the cache profile's lowering_profile, bound in the preimage since revision 2",
     "revision_2_finding": "revision 1 wrote a constant execution_profile, so one request rejected under both profiles derived one identity; a rejected result carries no cache key to bind the profile. Found and fixed 2026-09-03 while landing slice E7a; restricted identities are unchanged",
-    "protocol_coverage": "SMP1 execute is exercised under both profiles; the same function and inputs derive two report identities, which is the observable effect of binding the profile in the envelope"
+    "protocol_coverage": "SMP1 execute is exercised under both profiles; the same function and inputs derive two report identities, which is the observable effect of binding the profile in the envelope",
+    "test_execution_determination": "no TestCase has been executed because four of the six declared resource units have no epoch-1 VM counterpart: memory_bytes and output_bytes are byte ceilings against a value-unit budget, call_depth is a frozen constant rather than a per-request limit, and wall_timeout_millis cannot exist because the VM reads no clock. Executing under caller limits would report a run that did not honour the test's own ceilings, and converting units would assign meaning by convention. The checker fails if the VM gains any of the four, so the determination cannot go stale",
+    "protected_test_selection": "candidate validation phase 11 finalizes the plan against the protected policy root"
   },
   "index_snapshot_profile": {
     "status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",

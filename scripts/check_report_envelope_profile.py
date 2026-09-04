@@ -35,8 +35,9 @@ for field, expected in expected_report_ids.items():
         problems.append(f"machine-summary report vector drift: {field}")
 
 for token in [
-    "Status: S20-290 restricted epoch-1 normative specification, revision 2",
+    "Status: S20-290 restricted epoch-1 normative specification, revision 3",
     "u32be(execution_profile = lowering_profile of the cache profile)",
+    "### 9.1 Why no TestCase has been executed",
     "would derive a single identity while the envelope asserted a single profile",
     '"SLEYEXR1"',
     '"SLEYTSR1"',
@@ -84,6 +85,19 @@ codes = [f"29_{value:03d}" for value in range(8)]
 for stable_code in codes:
     if stable_code not in code:
         problems.append(f"stable report code missing: {stable_code}")
+
+# The four TestCase units section 9.1 says epoch-1 execution cannot honour. If
+# the VM ever gains one, the determination is stale, which is the point: the
+# test-report corpus stays empty for a stated reason, not by habit.
+vm_execute = (ROOT / "crates/sley-vm/src/execute.rs").read_text(encoding="utf-8")
+for unit, marker in (
+    ("memory_bytes", "max_memory_bytes"),
+    ("output_bytes", "max_output_bytes"),
+    ("call_depth", "max_call_depth"),
+    ("wall_timeout_millis", "wall_timeout"),
+):
+    if marker in vm_execute:
+        problems.append(f"execution-limits-gained:{unit}; section 9.1 is stale")
 
 unit_tests = code.count("#[test]")
 if unit_tests < 13:
