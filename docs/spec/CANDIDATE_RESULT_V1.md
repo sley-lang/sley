@@ -349,6 +349,7 @@ verifies that this table and the implementation name the same set.
 | 9 | `CAPABILITY_DENIED` | `CAPABILITY_SUMMARY_MISMATCH` |
 | 9 | `CAPABILITY_DENIED` | `CAPABILITY_REQUIREMENT_MISSING` |
 | 9 | `CAPABILITY_DENIED` | `CAPABILITY_REQUIREMENT_UNRESOLVED` |
+| 9 | `CAPABILITY_DENIED` | `CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED` |
 | 9 | `CAPABILITY_DENIED` | `CAP_BUDGET_EXCEEDED` |
 | 9 | `CAPABILITY_DENIED` | `CAP_EFFECT_MISMATCH` |
 | 9 | `CAPABILITY_DENIED` | `CAP_PRINCIPAL_MISMATCH` |
@@ -358,10 +359,19 @@ verifies that this table and the implementation name the same set.
 | 12 | `INTERNAL_ERROR` | `CANDIDATE_SELECTED_TEST_UNRESOLVED` |
 | 13 | `INTERNAL_ERROR` | `CANDIDATE_ROOT_REBUILD_MISMATCH` |
 
-The three phase-9 `CAPABILITY_*` symbols name the validator's independent
+The four phase-9 `CAPABILITY_*` symbols name the validator's independent
 rebuild of the capability summary, which is why they are not `CAP_*`: the
 `CAP_*` family belongs to the S20-380 token authority, and these failures
-occur before any token is verified. A phase pass record may also carry the
+occur before any token is verified.
+`CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED` is the clearest case: the
+program's own requirement names an effect that does not resolve, so no token
+is involved at all. It previously reported the token authority's
+`CAP_EFFECT_MISMATCH`, which both misattributed the failure and gave that
+one symbol two retryability answers.
+
+A symbol reports one retryability. `scripts/check_candidate_result_contract.py`
+verifies that, because a consumer that reads `(code, symbol)` and gets
+contradictory retry guidance cannot act on either answer. A phase pass record may also carry the
 marker `CONTRACT_PREFIX_PASSED`, which records that the contract checker
 accepted every contract before a later phase failed; it is evidence, not a
 failure.

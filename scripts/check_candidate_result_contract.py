@@ -85,6 +85,22 @@ def validator_source_symbols() -> set[str]:
     )
 
 
+def retryability_by_symbol() -> dict[str, set[str]]:
+    """One source symbol reports one retryability.
+
+    Two refusals that share a symbol but disagree on whether a retry can help
+    leave a consumer unable to act on either answer.
+    """
+    answers: dict[str, set[str]] = {}
+    for symbol, retryability in re.findall(
+        r'Failure::new\(\s*\d+,\s*CandidateDecision::\w+,\s*"([A-Z][A-Z0-9_]*)",'
+        r"\s*[^,]+,\s*DiagnosticRetryability::(\w+)",
+        VALIDATOR.read_text(encoding="utf-8"),
+    ):
+        answers.setdefault(symbol, set()).add(retryability)
+    return answers
+
+
 def documented_source_symbols() -> set[str]:
     text = SPEC.read_text(encoding="utf-8")
     if "### 8.1 Source symbols the validator originates" not in text:
@@ -124,6 +140,10 @@ def main() -> int:
             problems.append(f"missing:{path}")
     if problems:
         raise SystemExit("\n".join(problems))
+
+    for symbol, answers in sorted(retryability_by_symbol().items()):
+        if len(answers) > 1:
+            problems.append(f"source-symbol-retryability-split:{symbol}:{sorted(answers)}")
 
     emitted = validator_source_symbols()
     documented = documented_source_symbols()

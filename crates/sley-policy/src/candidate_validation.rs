@@ -1439,11 +1439,15 @@ fn validate_phase_nine<'a>(
             ));
         };
         let Some(effect) = effects.get(&requirement.effect) else {
+            // No token is involved: the program's own requirement names an
+            // effect that does not resolve. Reporting the S20-380 token code
+            // would misattribute the failure and would give one symbol two
+            // retryability answers.
             return Err(Failure::new(
                 9,
                 CandidateDecision::CapabilityDenied,
-                "CAP_EFFECT_MISMATCH",
-                Some(CapabilityErrorCode::EffectMismatch.numeric()),
+                "CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED",
+                None,
                 DiagnosticRetryability::Permanent,
             ));
         };

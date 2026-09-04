@@ -1834,8 +1834,9 @@
     "ariadne_operation_analysis_review": "PENDING",
     "nabu_operation_analysis_review": "PENDING",
     "vulcan_operation_analysis_review": "PENDING",
-    "validator_source_symbols": 25,
-    "source_symbol_registration": "CANDIDATE_RESULT_V1.md section 8.1 (2026-09-03) enumerates the twenty-five source symbols the validator originates; fourteen appeared in no governed document before. The checker compares the table with the implementation's literals in both directions"
+    "validator_source_symbols": 26,
+    "source_symbol_registration": "CANDIDATE_RESULT_V1.md section 8.1 (2026-09-03) enumerates the twenty-six source symbols the validator originates; fourteen appeared in no governed document before. The checker compares the table with the implementation's literals in both directions and requires one retryability per symbol",
+    "retryability_finding": "CAP_EFFECT_MISMATCH reported FreshAuthority for a token whose effect kind is unknown and Permanent for a program requirement whose effect does not resolve. The second case involves no token, so it now reports CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED and no longer borrows the S20-380 numeric code"
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
