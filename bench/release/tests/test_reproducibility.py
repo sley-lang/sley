@@ -135,6 +135,69 @@ class ReproducibilityTests(unittest.TestCase):
         with self.assertRaises(repro.ReproError):
             repro.validate_attestation({key: value for key, value in base.items() if key != "toolchain"})
 
+    def other_attestation(self, label: str, commit: str, digest: str) -> dict:
+        base = repro.local_attestation("primary", self.write_evidence())
+        return dict(base, host_label=label, commit=commit, artifact_sha256=digest)
+
+    def write_tracked(self, attestations: list[dict]) -> Path:
+        report = repro.build_report(attestations)
+        path = self.root / "reproducibility-report.json"
+        path.write_text(repro.canonical(report), encoding="utf-8")
+        return path
+
+    def test_a_rebuild_carries_attestations_no_fresh_input_supersedes(self) -> None:
+        tracked = self.write_tracked(
+            [
+                repro.local_attestation("primary", self.write_evidence()),
+                self.other_attestation("secondary", "c" * 40, "d" * 64),
+            ]
+        )
+        carried = repro.carried_attestations(tracked, {"primary"})
+        self.assertEqual([item["host_label"] for item in carried], ["secondary"])
+
+    def test_the_fresh_local_label_supersedes_its_tracked_attestation(self) -> None:
+        tracked = self.write_tracked(
+            [self.other_attestation("primary", "c" * 40, "d" * 64)]
+        )
+        self.assertEqual(repro.carried_attestations(tracked, {"primary"}), [])
+
+    def test_an_explicit_attest_file_wins_over_the_tracked_label(self) -> None:
+        tracked = self.write_tracked(
+            [self.other_attestation("secondary", "c" * 40, "d" * 64)]
+        )
+        replacement = self.other_attestation("secondary", "e" * 40, "f" * 64)
+        carried = repro.carried_attestations(tracked, {"primary", "secondary"})
+        self.assertEqual(carried, [])
+        report = repro.build_report(
+            [repro.local_attestation("primary", self.write_evidence()), replacement, *carried]
+        )
+        self.assertEqual(report["commits"]["e" * 40]["hosts"], ["secondary"])
+
+    def test_a_malformed_tracked_report_fails_closed(self) -> None:
+        path = self.root / "reproducibility-report.json"
+        path.write_text('{"contract": "something-else"}', encoding="utf-8")
+        with self.assertRaises(repro.ReproError) as error:
+            repro.carried_attestations(path, set())
+        self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_INVALID)
+
+    def test_a_missing_tracked_report_carries_nothing(self) -> None:
+        self.assertEqual(
+            repro.carried_attestations(self.root / "absent.json", set()), []
+        )
+
+    def test_a_hand_edited_report_fails_verification(self) -> None:
+        report = repro.build_report([repro.local_attestation("primary", self.write_evidence())])
+        self.assertEqual(repro.verify_report(report), [])
+        tampered = dict(report, result="MULTI_HOST_REPRODUCIBLE")
+        self.assertTrue(
+            any("report_digest" in problem for problem in repro.verify_report(tampered))
+        )
+        malformed = dict(report, attestations=[{"host_label": "primary"}])
+        self.assertTrue(
+            any("attestation invalid" in problem for problem in repro.verify_report(malformed))
+        )
+        self.assertTrue(repro.verify_report({"contract": "other"}))
+
 
 class IndependentConformanceTests(unittest.TestCase):
     def test_report_covers_every_fixture_family_from_tracked_files(self) -> None:
@@ -198,6 +261,50 @@ class IndependentConformanceTests(unittest.TestCase):
             with self.assertRaises(conformance.ConformanceError) as error:
                 conformance.family_record(directory, recipe)
             self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.SUMS_MISMATCH)
+
+
+class CoverageDepthTests(unittest.TestCase):
+    def test_every_independent_family_declares_a_valid_depth(self) -> None:
+        report = conformance.build_report()
+        depths = {"semantic": [], "codec_and_identity": []}
+        for family in report["fixtures"]:
+            coverage = family["coverage"]
+            if coverage["kind"] == "native_only":
+                continue
+            self.assertIn(coverage.get("depth"), ("semantic", "codec_and_identity"), family["directory"])
+            depths[coverage["depth"]].append(family["directory"])
+        self.assertEqual(
+            report["coverage_depths"],
+            {depth: sorted(directories) for depth, directories in depths.items()},
+        )
+
+    def test_the_semantic_families_recompute_outcomes(self) -> None:
+        report = conformance.build_report()
+        semantic = set(report["coverage_depths"]["semantic"])
+        self.assertEqual(
+            semantic,
+            {
+                "conformance/complete-entity-impact/v1",
+                "conformance/merge/v1",
+                "conformance/root-backed-query/v1",
+                "conformance/semantic-comparison/v1",
+            },
+        )
+
+    def test_the_documented_codec_families_stay_codec(self) -> None:
+        report = conformance.build_report()
+        codec = set(report["coverage_depths"]["codec_and_identity"])
+        self.assertIn("conformance/vm-extended/v1", codec)
+        self.assertIn("conformance/release-demo/v1", codec)
+        self.assertEqual(
+            len(report["coverage_depths"]["semantic"])
+            + len(report["coverage_depths"]["codec_and_identity"]),
+            report["independently_checked"],
+        )
+
+    def test_depth_coverage_matches_the_declared_map(self) -> None:
+        independent = {name for name, command in conformance.COVERAGE.items() if command}
+        self.assertEqual(set(conformance.DEPTH), independent)
 
 
 if __name__ == "__main__":

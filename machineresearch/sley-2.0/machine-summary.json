@@ -2586,7 +2586,7 @@
   "reproducibility_and_independent_conformance": {
     "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md",
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
@@ -2625,7 +2625,12 @@
       "oracle/scb1/src/sley2_scb1_oracle/vm_extended.py",
       "scripts/check_release_demo_vector.py"
     ],
-    "p0_open_count": 5
+    "p0_open_count": 0,
+    "p0_closed": 5,
+    "closeout": "docs/audits/S20_730_REPRODUCIBILITY_CLOSEOUT.md",
+    "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query; codec_and_identity: all other families",
+    "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
+    "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",

@@ -1,9 +1,12 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-730 contract draft, revision 3 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
-native-only families (section 5). The mechanics are `scripts/build_reproducibility_report.py` and
+native-only families (section 5). Revision 3 carries previously merged
+attestations across rebuilds, binds every attested commit to the filing
+history with an artifact-surface freshness rule, verifies the report digest
+in the checker, and gives the coverage taxonomy its depth axis. The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -78,10 +81,28 @@ Rules:
   an attestation that fails the section 1 shape is the same code;
 - two attestations for the same commit with different `artifact_sha256` are
   `REPRO_ATTESTATION_CONFLICT`, and no report is written;
+- a rebuild carries the tracked report's attestations forward: every
+  previously merged attestation whose label is not re-attested in the run
+  (neither as the fresh local attestation nor by an explicit `--attest`
+  file) is re-validated and merged, so a plain rebuild never silently drops
+  another host. A tracked file that is not a report, or that carries a
+  malformed attestation, is `REPRO_ATTESTATION_INVALID`;
 - the result is `MULTI_HOST_REPRODUCIBLE` exactly when some commit carries
   at least `required_hosts` agreeing attestations; otherwise it is
   `SINGLE_HOST_REPRODUCIBLE` and `second_host.status` is
   `GATED_OPERATOR_LANE`;
+- an attested commit must be an ancestor of the filing `HEAD`: the report
+  attests this history, and a commit outside it is
+  `REPRO_ATTESTATION_INVALID`. Ancestry alone does not make an attestation
+  current: no tracked file under the artifact input surface
+  (`build_release_candidate.ARTIFACT_INPUT_PATHS`: the Rust workspace, the
+  toolchain pin, the demo runner, the SBOM inventory, the conformance
+  subset, and the packaging script whose flags stage the binary) may
+  differ between the attested commit and `HEAD`, else the artifact the
+  report describes is not the artifact this tree builds, and the report is
+  stale. The attested toolchain must also match the filing toolchain: a
+  compiler upgrade changes the bytes without touching the tree. The cure
+  for a stale report is `make release-candidate-smoke`, not an edit;
 - the report contains no timestamp, so equal inputs give equal bytes; the
   canonical form is JSON with sorted keys, two-space indentation, and a
   trailing newline.
@@ -116,10 +137,13 @@ fixture = {
   "contract": string | null,
   "claim": string | null,
   "shape": { file: { list-valued key: length } },
-  "coverage": { "kind": "independent_oracle", "runner": string, "command": string }
+  "coverage": { "kind": "independent_oracle", "depth": "semantic" | "codec_and_identity", "runner": string, "command": string }
             | { "kind": "native_only", "note": string }
 }
 ```
+
+The report also carries `coverage_depths`, the ascending directories at each
+depth, so the depth distribution is readable without walking the fixtures.
 
 Rules:
 
@@ -134,8 +158,13 @@ Rules:
   `sums_consistent: null`;
 - an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`;
 - the result is `INDEPENDENT_CONFORMANCE_COMPLETE` exactly when no family is
-  native-only. Revision 2 closed the two families that were native-only at
-  revision 1: the extended VM vectors are checked by
+  native-only. `COMPLETE` promises that every family's vectors are checked
+  by an independent oracle at the recorded depth; it does not promise
+  independent semantic judgment, which stays with the owner crate by design
+  (master goal section 6.5, section 4 below). The depth axis keeps that
+  limit visible: a `COMPLETE` report whose `codec_and_identity` list is
+  non-empty names exactly where no independent oracle judges semantics.
+  Revision 2 closed the two families that were native-only at revision 1: the extended VM vectors are checked by
   `sley2_scb1_oracle.vm_extended`, which decodes the `SLEYBC02` container and
   re-derives every cache key from the frozen preimage, and the release demo by
   `scripts/check_release_demo_vector.py`, which re-derives the `RootQueryId`
@@ -162,9 +191,21 @@ kernel (master goal section 6.5).
   identities, and declared bindings; semantic judgment stays with the owner
   crate, so the oracle never becomes a second kernel (master goal section
   6.5).
+- `independent_oracle` at `semantic` depth: the checker recomputes an
+  outcome or judgment from frozen inputs with independent logic. Today that
+  is the merge checker (recomputes both deltas and applies the merge
+  judgment), the semantic-comparison checker (re-derives change classes and
+  deltas), the complete-entity-impact checker (re-derives the edge set and
+  its closure), and the root-backed-query checker (re-derives result pages,
+  work accounting, and failure precedence).
+- `independent_oracle` at `codec_and_identity` depth: the checker decodes
+  containers and re-derives records, identities, keys, or digest trees
+  without judging semantics. Today that is every other family, including
+  the extended VM vectors and the release demo, whose checkers re-derive
+  cache keys and request identities from frozen preimages.
 - `native_only`: the family is exercised only through Rust code or through
   the packaged binary; it counts against the independent PASS. No family is
-  native-only at revision 2.
+  native-only at revision 3.
 
 ## 5.1 Second-host runbook
 
@@ -217,7 +258,13 @@ one JSON object naming the code on failure.
 last requiring the three Council reviews to read `PASS`. In every
 implementation status the checker verifies both reports exist with their
 contract tags, that the independent conformance report passes `--check`,
-that the reproducibility report has at least one attestation and claims
+that every independent family carries a declared `semantic` or
+`codec_and_identity` depth and the report's depth roll-up matches, that the
+reproducibility report's digest recomputes and every attestation passes the
+section 1 shape, that every attested commit is an ancestor of the filing
+`HEAD` with no artifact-surface file changed since and the attested
+toolchain current, that the
+reproducibility report has at least one attestation and claims
 neither GA nor publication, that the unit tests pass, and that
 `release-check` and `v2` stay `NOT_IMPLEMENTED`.
 
@@ -225,9 +272,11 @@ neither GA nor publication, that the unit tests pass, and that
 
 - No second-host build, transfer, or dispatch: the laptop lane is gated by
   the operator posture and stays gated until reopened for this purpose.
-- No independent VM oracle: the extended VM vectors stay native-only until
-  an independent lowering and execution oracle is commissioned (a separate
-  package).
+- No independent VM semantic oracle: the extended VM vectors are checked at
+  `codec_and_identity` depth, and an independent lowering and execution
+  oracle that judges VM semantics would be a separate package. Revision 2
+  closed the family's native-only state; this exclusion now names the
+  remaining depth gap instead of a coverage gap.
 - No GA claim, release decision, publication, root license, standards SBOM,
   or provenance statement; `release-check` and `v2` stay fail-closed.
 - No timestamps, host names, user names, or paths in either report.
@@ -235,3 +284,13 @@ neither GA nor publication, that the unit tests pass, and that
 ## 10. Clarifications
 
 Revision 1 carries none.
+
+Revision 3 records why `COMPLETE` keeps its no-native-only rule while the
+depth axis exists: independent semantic judgment of every family was never
+the bar, because the oracle must not become a second semantic kernel
+(section 4, master goal 6.5); the bar is independent checking at a declared
+depth, and the report's `coverage_depths` stop a codec-only family from
+reading as a semantically judged one. It also records why freshness is an
+artifact-surface diff rather than a commit count: a count bound would be
+arbitrary, while a changed surface file means the attested artifact is
+provably not what this tree builds.

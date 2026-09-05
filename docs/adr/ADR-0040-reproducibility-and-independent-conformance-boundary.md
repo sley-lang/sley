@@ -1,9 +1,10 @@
 # ADR-0040: reproducibility attestations and independent conformance as derived evidence
 
-Status: proposed; the S20-730 contract is a draft at revision 1 with
-Council review pending; mechanics implemented (2026-09-03) with a
-single-host reproducibility report, a tracked independent conformance
-report, and `release-check` still fail-closed
+Status: proposed; the S20-730 contract is a draft at revision 3 with
+Council review pending; mechanics implemented (2026-09-03, revised
+2026-09-05) with a single-host reproducibility report, a tracked
+independent conformance report with coverage depths, and `release-check`
+still fail-closed
 
 Date: 2026-09-03
 
@@ -52,6 +53,13 @@ soon as a lane returns.
 - The GA dossier can cite one report per concern instead of transcript
   evidence; the second host stays an explicit blocker until the operator
   reopens that lane.
-- The extended VM vectors and the release demo are recorded as native-only,
-  which is the honest state until an independent VM oracle exists.
+- The extended VM vectors and the release demo are checked at
+  `codec_and_identity` depth (revision 2 closed their native-only state;
+  revision 3 records the depth so the report no longer reads as a semantic
+  judgment where none exists). No independent VM semantic oracle exists;
+  commissioning one is a separate package.
 - Adding a fixture family now requires declaring its coverage.
+- A rebuild carries previously merged attestations forward, and every
+  attested commit must be an ancestor of the filing HEAD with no
+  artifact-surface file changed since (revision 3): the report cannot
+  silently drop another host or present an old candidate as current.

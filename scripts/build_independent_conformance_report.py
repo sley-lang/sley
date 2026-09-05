@@ -4,8 +4,9 @@
 Derives `evidence/conformance/independent-conformance-report.json` from
 tracked files only: every `conformance/<family>/v1` directory, its file
 digests, its declared coverage (an independent oracle command of the
-`make conformance` recipe, or native-only), and the S20-130 oracle
-independence scan. Nothing here runs cargo or the oracle.
+`make conformance` recipe at a declared semantic or codec-and-identity
+depth, or native-only), and the S20-130 oracle independence scan. Nothing
+here runs cargo or the oracle.
 """
 
 from __future__ import annotations
@@ -68,6 +69,39 @@ COVERAGE: dict[str, str | None] = {
     "transaction-receipt": f"{ORACLE_RUNNER} sley2-scb1-oracle check-transaction-receipt",
     "vm-extended": f"{ORACLE_RUNNER} sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
 }
+# Coverage depth per family (contract section 5): "semantic" when the checker
+# recomputes an outcome or judgment from frozen inputs with independent logic
+# (deltas, edge closures, query results, merge judgments); "codec_and_identity"
+# when it decodes containers and re-derives records, identities, keys, or
+# digest trees without judging semantics. The assignments follow what each
+# checker recomputes: the merge checker applies the merge judgment, the
+# semantic-comparison checker re-derives change classes and deltas, the
+# complete-entity-impact checker re-derives the edge set and its closure, and
+# the root-backed-query checker re-derives result pages, accounting, and
+# failure precedence. Every other checker reconstructs encodings, identities,
+# or digest trees and compares them against the recorded fixtures.
+DEPTH: dict[str, str] = {
+    "candidate-result": "codec_and_identity",
+    "complete-entity-impact": "semantic",
+    "complete-root-index-snapshot": "codec_and_identity",
+    "context-capsule": "codec_and_identity",
+    "merge": "semantic",
+    "mutation-candidate": "codec_and_identity",
+    "mutation-value": "codec_and_identity",
+    "release-demo": "codec_and_identity",
+    "repository-exchange": "codec_and_identity",
+    "repository-pack": "codec_and_identity",
+    "root-backed-query": "semantic",
+    "scb1": "codec_and_identity",
+    "schema-epoch": "codec_and_identity",
+    "semantic-comparison": "semantic",
+    "smp1": "codec_and_identity",
+    "smp1-json-bridge": "codec_and_identity",
+    "state-root": "codec_and_identity",
+    "transaction-receipt": "codec_and_identity",
+    "vm-extended": "codec_and_identity",
+}
+COVERAGE_DEPTHS = ("semantic", "codec_and_identity")
 # Every family now has an independent checker; the mapping stays so a future
 # family can be declared native-only with its reason.
 NATIVE_ONLY_NOTES: dict[str, str] = {}
@@ -214,8 +248,14 @@ def family_record(directory: Path, recipe: str) -> dict:
                 ConformanceErrorCode.ORACLE_DRIFT,
                 f"{name}: {command!r} is not in the make conformance recipe",
             )
+        if DEPTH.get(name) not in COVERAGE_DEPTHS:
+            raise ConformanceError(
+                ConformanceErrorCode.ORACLE_DRIFT,
+                f"{name}: declares no coverage depth; add it to DEPTH",
+            )
         coverage = {
             "kind": "independent_oracle",
+            "depth": DEPTH[name],
             # Name the runner that actually runs, not the package that runs
             # most of them: twelve oracles live under `scripts/`.
             "runner": (
@@ -279,6 +319,11 @@ def build_report() -> dict:
     native_only = [
         family["directory"] for family in families if family["coverage"]["kind"] == "native_only"
     ]
+    depths: dict[str, list[str]] = {depth: [] for depth in COVERAGE_DEPTHS}
+    for family in families:
+        coverage = family["coverage"]
+        if coverage["kind"] == "independent_oracle":
+            depths[coverage["depth"]].append(family["directory"])
     report = {
         "contract": REPORT_CONTRACT,
         "work_package": "S20-730",
@@ -286,6 +331,7 @@ def build_report() -> dict:
         "fixture_directories": len(families),
         "independently_checked": len(families) - len(native_only),
         "native_only": native_only,
+        "coverage_depths": {depth: sorted(directories) for depth, directories in depths.items()},
         "fixtures": families,
         "oracle_independence": oracle_independence(),
         "result": (

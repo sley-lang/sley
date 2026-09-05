@@ -1,5 +1,30 @@
 {
   "contract": "sley2.independent-conformance-report.v1",
+  "coverage_depths": {
+    "codec_and_identity": [
+      "conformance/candidate-result/v1",
+      "conformance/complete-root-index-snapshot/v1",
+      "conformance/context-capsule/v1",
+      "conformance/mutation-candidate/v1",
+      "conformance/mutation-value/v1",
+      "conformance/release-demo/v1",
+      "conformance/repository-exchange/v1",
+      "conformance/repository-pack/v1",
+      "conformance/scb1/v1",
+      "conformance/schema-epoch/v1",
+      "conformance/smp1-json-bridge/v1",
+      "conformance/smp1/v1",
+      "conformance/state-root/v1",
+      "conformance/transaction-receipt/v1",
+      "conformance/vm-extended/v1"
+    ],
+    "semantic": [
+      "conformance/complete-entity-impact/v1",
+      "conformance/merge/v1",
+      "conformance/root-backed-query/v1",
+      "conformance/semantic-comparison/v1"
+    ]
+  },
   "fixture_directories": 19,
   "fixtures": [
     {
@@ -7,6 +32,7 @@
       "contract": "s20-360-candidate-result-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-candidate-result",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -44,6 +70,7 @@
       "contract": "sley2-complete-entity-impact-v1",
       "coverage": {
         "command": "python3 scripts/check_complete_entity_impact_vector.py",
+        "depth": "semantic",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -81,6 +108,7 @@
       "contract": "sley2-complete-root-index-snapshot-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_complete_root_index_snapshot_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -118,6 +146,7 @@
       "contract": "sley2-context-capsule-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -147,6 +176,7 @@
       "contract": "sley2-merge-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py",
+        "depth": "semantic",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -184,6 +214,7 @@
       "contract": "sley2-mutation-candidate-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-mutation-candidate",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -223,6 +254,7 @@
       "contract": "sley2-mutation-value-v1-partial",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-mutation-value",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -261,6 +293,7 @@
       "contract": "sley2-release-demo-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -288,6 +321,7 @@
       "contract": "sley2-repository-exchange-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -325,6 +359,7 @@
       "contract": "sley2-repository-pack-accepted-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -360,6 +395,7 @@
       "contract": "sley2-root-backed-query-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_root_backed_query_vector.py",
+        "depth": "semantic",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -397,6 +433,7 @@
       "contract": "sley2-scb1-accepted-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -434,6 +471,7 @@
       "contract": "sley2-schema-epoch-bootstrap-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_schema_epoch_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -467,6 +505,7 @@
       "contract": "sley2-semantic-comparison-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_semantic_comparison_vector.py",
+        "depth": "semantic",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -504,6 +543,7 @@
       "contract": "sley2-smp1-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -541,6 +581,7 @@
       "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -586,6 +627,7 @@
       "contract": "sley-state-root-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "scripts/ (Python, S20-130 independent)"
       },
@@ -613,6 +655,7 @@
       "contract": "sley2-transaction-receipt-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-transaction-receipt",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -650,6 +693,7 @@
       "contract": "sley2-vm-extended-opcode-profile-v1",
       "coverage": {
         "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
+        "depth": "codec_and_identity",
         "kind": "independent_oracle",
         "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
@@ -705,7 +749,7 @@
     "problems": [],
     "python_sources": 22
   },
-  "report_digest": "1766e62edaf10089e8d176efda0a05927904c4ab1102e80a147cfcdce845b9f1",
+  "report_digest": "b6939281e6af65915d5a2579f708c40db5b6ee0a18e0f7b32906a0b0f30809dc",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

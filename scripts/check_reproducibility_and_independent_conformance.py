@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -75,6 +76,8 @@ REPRO_MARKERS = (
     "def local_attestation(",
     "def validate_attestation(",
     "def build_report(",
+    "def verify_report(",
+    "def carried_attestations(",
     "REQUIRED_HOSTS = 2",
 )
 CONFORMANCE_MARKERS = (
@@ -84,6 +87,8 @@ CONFORMANCE_MARKERS = (
     "def family_record(",
     "def oracle_independence(",
     "COVERAGE: dict[str, str | None]",
+    "DEPTH: dict[str, str]",
+    "coverage_depths",
 )
 # Neither report may carry a host name, a user name, a path outside the tree,
 # or a time (contract section 9).
@@ -114,6 +119,72 @@ def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, *argv], cwd=ROOT, check=False, capture_output=True, text=True
     )
+
+
+def load_module(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"scripts/{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def git_text(args: list[str]) -> str | None:
+    """Stdout of a read-only git command, or None when history is unavailable."""
+    completed = subprocess.run(
+        ["git", *args], cwd=ROOT, check=False, capture_output=True, text=True
+    )
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def history_problems(report: dict, surface: tuple[str, ...]) -> list[str]:
+    """Bind every attested commit to the filing history (contract section 2).
+
+    Ancestry ties the attestation to this tree; the artifact-surface diff
+    keeps a changed tree from presenting an old candidate as current. Both
+    run on git history and the working tree, so they need no gitignored
+    local evidence and stay hermetic on a clean checkout.
+    """
+    problems: list[str] = []
+    head = git_text(["rev-parse", "HEAD"])
+    if head is None:
+        return ["reproducibility-report:history-unavailable"]
+    head = head.strip()
+    commits = sorted(
+        {
+            attestation.get("commit", "")
+            for attestation in report.get("attestations", [])
+            if isinstance(attestation, dict)
+        }
+    )
+    for commit in commits:
+        if git_text(["merge-base", "--is-ancestor", commit, head]) is None:
+            problems.append(
+                f"reproducibility-report:attestation-not-in-history:{commit[:12]}"
+            )
+            continue
+        changed = git_text(["diff", "--name-only", commit, head, "--", *surface])
+        if changed is None:
+            problems.append("reproducibility-report:history-unavailable")
+            continue
+        if changed.strip():
+            names = sorted(changed.split())
+            problems.append(
+                f"reproducibility-report:stale:{commit[:12]}:"
+                f"{len(names)}-surface-files-changed:{','.join(names[:8])}"
+            )
+    worktree = git_text(["status", "--porcelain", "--", *surface])
+    if worktree is None:
+        problems.append("reproducibility-report:history-unavailable")
+    elif worktree.strip():
+        names = sorted(line[3:] for line in worktree.splitlines() if line.strip())
+        problems.append(
+            f"reproducibility-report:uncommitted-surface-changes:"
+            f"{len(names)}:{','.join(names[:8])}"
+        )
+    return problems
 
 
 def main() -> int:
@@ -238,6 +309,59 @@ def main() -> int:
                 problems.append("reproducibility-report:ga_claimed")
             if report.get("publication_authorized") is not False:
                 problems.append("reproducibility-report:publication_authorized")
+            repro = load_module("build_reproducibility_report")
+            for integrity in repro.verify_report(report):
+                problems.append(f"reproducibility-report:integrity:{integrity}")
+            try:
+                candidate = load_module("build_release_candidate")
+                surface = tuple(candidate.ARTIFACT_INPUT_PATHS)
+            except Exception:
+                candidate = None
+                problems.append("reproducibility-report:artifact-surface-unknown")
+                surface = ()
+            if surface:
+                problems.extend(history_problems(report, surface))
+            attested_toolchains = {
+                (
+                    attestation.get("toolchain", {}).get("cargo"),
+                    attestation.get("toolchain", {}).get("rustc"),
+                )
+                for attestation in report.get("attestations", [])
+                if isinstance(attestation, dict)
+            }
+            try:
+                if candidate is None:
+                    candidate = load_module("build_release_candidate")
+                current_toolchain = candidate.toolchain_versions()
+                current = (current_toolchain.get("cargo"), current_toolchain.get("rustc"))
+            except Exception:
+                current = None
+                problems.append("reproducibility-report:toolchain-unavailable")
+            if current is not None:
+                for cargo, rustc in sorted(attested_toolchains):
+                    if (cargo, rustc) != current:
+                        problems.append(
+                            "reproducibility-report:toolchain-changed:"
+                            f"attested-{cargo}-plus-{rustc}"
+                        )
+
+        if CONFORMANCE_REPORT.exists():
+            conformance = json.loads(read(CONFORMANCE_REPORT))
+            depths: dict[str, list[str]] = {"semantic": [], "codec_and_identity": []}
+            for family in conformance.get("fixtures", []):
+                coverage = family.get("coverage", {})
+                if coverage.get("kind") != "independent_oracle":
+                    continue
+                if coverage.get("depth") not in depths:
+                    problems.append(
+                        f"independent-conformance-report:undeclared-depth:{family.get('directory')}"
+                    )
+                    continue
+                depths[coverage["depth"]].append(family.get("directory"))
+            if conformance.get("coverage_depths") != {
+                depth: sorted(directories) for depth, directories in depths.items()
+            }:
+                problems.append("independent-conformance-report:depth-rollup-mismatch")
 
         drift = run(["scripts/build_independent_conformance_report.py", "--check"])
         if drift.returncode != 0:

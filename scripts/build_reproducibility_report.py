@@ -2,7 +2,8 @@
 """S20-730 reproducibility report: host attestations of the S20-720 candidate.
 
 Derives this host's attestation from the S20-720 evidence record, merges it
-with attestations from other hosts, and writes
+with attestations from other hosts, carries previously merged attestations
+no fresh input supersedes, and writes
 `evidence/release/reproducibility-report.json`. Nothing here builds, claims
 GA, or opens `release-check`.
 """
@@ -229,6 +230,70 @@ def load_attestation(path: Path) -> dict:
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"{path}: {error}") from error
 
 
+def verify_report(report: object) -> list[str]:
+    """Hermetic integrity problems of a tracked report: digest plus shapes.
+
+    Reads only the report itself, so it runs on a clean checkout with no
+    local S20-720 evidence: a hand-edited file fails the digest, and a
+    malformed attestation fails the section 1 shape. Freshness against the
+    filing tree is the checker's job, not this function's.
+    """
+    if not isinstance(report, dict) or report.get("contract") != REPORT_CONTRACT:
+        return ["not a reproducibility report"]
+    problems: list[str] = []
+    body = {key: value for key, value in report.items() if key != "report_digest"}
+    digest = report.get("report_digest")
+    if not isinstance(digest, str) or digest != digest_of(body):
+        problems.append("report_digest does not recompute from the report body")
+    attestations = report.get("attestations")
+    if not isinstance(attestations, list) or not attestations:
+        problems.append("no attestation list")
+    else:
+        for attestation in attestations:
+            try:
+                validate_attestation(attestation)
+            except ReproError as error:
+                problems.append(f"attestation invalid: {error.detail}")
+    return problems
+
+
+def carried_attestations(report_path: Path, skip_labels: set[str]) -> list[dict]:
+    """Previously merged attestations no fresh input supersedes.
+
+    A rebuild with no --attest must not silently drop other hosts' recorded
+    attestations: every tracked attestation whose label is not re-attested in
+    this run is re-validated and carried. The fresh local attestation wins
+    its own label, and an explicit --attest file wins its label. A tracked
+    file that is not a report, or that carries a malformed attestation,
+    fails closed instead of being silently skipped.
+    """
+    if not report_path.exists():
+        return []
+    try:
+        tracked = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ReproError(
+            ReproErrorCode.ATTESTATION_INVALID, f"{display(report_path)}: {error}"
+        ) from error
+    if not isinstance(tracked, dict) or tracked.get("contract") != REPORT_CONTRACT:
+        raise ReproError(
+            ReproErrorCode.ATTESTATION_INVALID,
+            f"{display(report_path)} is not a reproducibility report",
+        )
+    attestations = tracked.get("attestations")
+    if not isinstance(attestations, list):
+        raise ReproError(
+            ReproErrorCode.ATTESTATION_INVALID,
+            f"{display(report_path)} has no attestation list",
+        )
+    carried: list[dict] = []
+    for attestation in attestations:
+        checked = validate_attestation(attestation)
+        if checked["host_label"] not in skip_labels:
+            carried.append(checked)
+    return carried
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host-label", default="primary")
@@ -244,7 +309,9 @@ def main() -> int:
             args.emit_attestation.write_text(canonical(local), encoding="utf-8")
             print(canonical({"result": "PASS", "attestation": str(args.emit_attestation)}), end="")
             return 0
-        report = build_report([local, *(load_attestation(path) for path in args.attest)])
+        explicit = [load_attestation(path) for path in args.attest]
+        skip = {args.host_label} | {attestation["host_label"] for attestation in explicit}
+        report = build_report([local, *explicit, *carried_attestations(args.output, skip)])
         text = canonical(report)
         if args.check:
             current = args.output.read_text(encoding="utf-8") if args.output.exists() else None
