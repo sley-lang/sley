@@ -268,10 +268,25 @@ fn parse_decimal(text: &str) -> Result<u64> {
 
 fn u64_field(value: &Value) -> Result<u64> {
     match value {
-        Value::Number(number) => number
-            .as_u64()
-            .filter(|value| *value <= MAX_JSON_NUMBER)
-            .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::NumberInvalid)),
+        Value::Number(number) => {
+            if let Some(value) = number.as_u64() {
+                if value <= MAX_JSON_NUMBER {
+                    return Ok(value);
+                }
+            } else if number.as_i64() == Some(0) {
+                // The text `-0`: serde_json has no negative integer zero, so
+                // the parser reports it exactly as it reports `-0.0`, and the
+                // reader normalizes either spelling to 0 (contract section 8).
+                return Ok(0);
+            } else if number
+                .as_f64()
+                .is_some_and(|float| float == 0.0 && float.is_sign_negative())
+            {
+                // The texts `-0` and `-0.0` parse as negative zero.
+                return Ok(0);
+            }
+            Err(BridgeError::Bridge(JsonBridgeErrorCode::NumberInvalid))
+        }
         Value::String(text) => parse_decimal(text),
         _ => fail(JsonBridgeErrorCode::ShapeInvalid),
     }
@@ -692,9 +707,6 @@ pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
     let request_id = u64_field(&map["request_id"])?;
     let kind = kind_from_value(&map["kind"])?;
     let name = string_field(&map["method"])?;
-    if kind == FrameKind::Hello && !name.is_empty() {
-        return fail(JsonBridgeErrorCode::ShapeInvalid);
-    }
     let method = method_tag(name)?;
     let flags = bits_from_value(&map["flags"], &FLAG_FIELDS, &FLAG_MASKS)?;
     let bounds = bounds_from_value(&map["bounds"])?;
@@ -709,13 +721,15 @@ pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
         bounds,
         body,
     };
-    if kind == FrameKind::Hello
-        && (session.is_some()
-            || request_id != 0
-            || flags != 0
-            || frame.bounds != BoundedContext::none())
-    {
-        return fail(JsonBridgeErrorCode::ShapeInvalid);
+    if kind == FrameKind::Hello {
+        // The all-zero bounds are the bridge's own rule (contract section 8);
+        // the session, request id, method, and flags are the codec's hello
+        // header rule (SMP1 section 2), so the codec judges them and a
+        // violation keeps PROTOCOL_FRAME_INVALID instead of a bridge code.
+        if frame.bounds != BoundedContext::none() {
+            return fail(JsonBridgeErrorCode::ShapeInvalid);
+        }
+        frame.validate_header()?;
     }
     Ok(frame)
 }

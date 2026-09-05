@@ -1,6 +1,6 @@
 # S20-420 SMP1 JSON Bridge Closeout
 
-Status: **implemented under the draft SMP1 JSON Bridge v1 contract (revision 2); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft SMP1 JSON Bridge v1 contract (revision 6); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -58,20 +58,26 @@ The implementation provides:
 ## Evidence
 
 - Contract draft revision 1 and ADR-0034 at `be9843c`; revision 2 and the
-  implementation at `7722d33`.
-- Native tests (`cargo test -p sley-json-bridge`): eight tests pass and the
+  implementation at `7722d33`; revisions 3 through 5 (method tag zero, the
+  `failed` flag, the eighth limit field `max_sessions`); revision 6 closes
+  the four 2026-09-04 review P0s (see below).
+- Native tests (`cargo test -p sley-json-bridge`): eleven tests pass and the
   fixture emitter is ignored. They cover the embedded table against
   `Method::ALL` (41 methods, 4 reserved, six families), every SMP1 fixture
   frame and both hello frames round-tripping through JSON to identical
   bytes with whitespace and order tolerance, the integer encoding on both
   sides (2^53 - 1 as a number, 2^53 and `u64::MAX` as strings, the string
-  form accepted for small values), the thirty-one-case rejection matrix in
+  form accepted for small values), negative zero reading as the integer
+  zero on both spellings, the hello header rule carrying the codec's code
+  with the bridge-owned all-zero bounds staying a shape failure, the
+  declared u32 fields refusing values above 2^32 - 1, the thirty-six-case
+  rejection matrix in
   contract precedence including the size and depth ceilings, unknown
   method tags and unnamed flag bits refused on rendering and every frozen
   name accepted on parsing, 128 identical lexicographic renderings, and
   hello, selected profile (with the fixture's handshake identity), failure,
   chunk, and bounds round trips.
-- Independent oracle: 5 vectors, 31 rejections, 41 methods, PASS.
+- Independent oracle: 5 vectors, 36 rejections, 41 methods, PASS.
 - Persistent fuzz smoke: 631 deterministic seeds across three lanes, 632
   runs, PASS in 12.9 seconds; evidence under
   `evidence/runtime/s20-700-smp1-json-bridge-libfuzzer/`.
@@ -91,6 +97,22 @@ The implementation provides:
 - The contract's rejection precedence (resource, then parse and shape,
   then field encodings in field order, then `PROTOCOL_*`) is exercised
   explicitly by three ordered cases in the matrix.
+- Review slice 2026-09-05 (contract revision 6, closing the four S20-420
+  P0s): `-0` and `-0.0` both read as the integer zero (serde_json parses
+  either spelling as negative zero, verified in the parser source; the
+  reader normalizes it and the oracle's float branch agrees), pinned by
+  two matrix mutations expecting the codec's version judgment plus
+  field-level probes; the hello session, request id, method, and flags
+  are the codec's header rule, so the reader builds the frame and calls
+  the codec's new `validate_header` instead of answering shape failures,
+  while the all-zero bounds stay the bridge's own shape rule (a second
+  silent-rewriting hole closed alongside: a hello text's protocol version
+  now reaches codec judgment instead of being dropped); precedence order
+  is the record's declared field order, disambiguated from the
+  lexicographic emission order both sides already produce; and integer
+  widths are declared per field (the six review-named u32 fields plus
+  `max_sessions` and method tags), making the pre-existing `u32-overflow`
+  vector reproducible from the contract with two new width mutations.
 
 ## Explicitly open and deferred
 

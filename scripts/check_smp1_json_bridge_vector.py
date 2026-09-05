@@ -16,6 +16,7 @@ implementation; the SMP1 oracle's encoders are its only import.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import check_smp1_vector as smp1
@@ -250,7 +251,13 @@ def integer_field(value: object, name: str) -> int:
             raise Reject("JSON_BRIDGE_NUMBER_INVALID")
         result = value
     elif isinstance(value, float):
-        raise Reject("JSON_BRIDGE_NUMBER_INVALID")
+        # Both `-0` (parsed as int above) and `-0.0` parse as negative zero,
+        # which the reader normalizes to 0 (contract section 8); every other
+        # float form stays invalid.
+        if value == 0.0 and math.copysign(1.0, value) < 0:
+            result = 0
+        else:
+            raise Reject("JSON_BRIDGE_NUMBER_INVALID")
     elif isinstance(value, str):
         if not value or not all(ch in "0123456789" for ch in value) or (len(value) > 1 and value[0] == "0"):
             raise Reject("JSON_BRIDGE_NUMBER_INVALID")
@@ -296,8 +303,6 @@ def frame_from_json(text: str, names: dict[str, int]) -> dict:
     kind = KIND_TAGS[fields["kind"]]
     if not isinstance(fields["method"], str):
         raise shape()
-    if kind == 4 and fields["method"] != "":
-        raise shape()
     if fields["method"] == "":
         method = 0
     elif fields["method"] in names:
@@ -322,8 +327,14 @@ def frame_from_json(text: str, names: dict[str, int]) -> dict:
         bool_field(bounds["continuation"]),
     )
     body = hex_field(fields["body"])
-    if kind == 4 and (session is not None or request_id != 0 or flags != 0 or any(limits) or any(returned)):
-        raise shape()
+    if kind == 4:
+        # The all-zero bounds are the bridge's own rule; the session, request
+        # id, method, and flags are the codec's hello header rule (SMP1
+        # section 2), so a violation keeps PROTOCOL_FRAME_INVALID.
+        if any(limits) or any(returned):
+            raise shape()
+        if session is not None or request_id != 0 or method != 0 or flags != 0:
+            raise smp1.Failure("PROTOCOL_FRAME_INVALID")
     return {
         "protocol_version": protocol_version,
         "session": session,

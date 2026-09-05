@@ -959,6 +959,22 @@ pub fn protocol_epoch_id() -> Result<SchemaEpochId> {
 }
 
 impl ProtocolFrame {
+    /// Validates a decoded frame's header with the frozen codec, including
+    /// the hello header rule of SMP1 section 2 (`session = None`,
+    /// `request_id = 0`, `method = 0`, `flags = 0` on kind 4).
+    ///
+    /// Readers that build a frame without decoding wire bytes (notably the
+    /// S20-420 JSON bridge) call this instead of re-stating the rule, so a
+    /// header the codec would not encode keeps the codec's
+    /// `PROTOCOL_FRAME_INVALID` rather than a reader-owned code.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact validation failure; never a partial judgment.
+    pub fn validate_header(&self) -> Result<()> {
+        self.validate()
+    }
+
     fn validate(&self) -> Result<()> {
         if self.protocol_version != PROTOCOL_VERSION {
             return fail(ProtocolErrorCode::VersionUnsupported);

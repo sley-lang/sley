@@ -47,6 +47,10 @@ SPEC_MARKERS = (
     "## 3. Operations",
     "## 4. Unknown and omission states",
     "## 7. Explicit exclusions",
+    "declared 32-bit fields",
+    "declared field order",
+    "never a bridge code",
+    "which the reader normalizes",
 )
 ADR_MARKERS = (
     "# ADR-0034: JSON bridge as a generated, non-canonical representation",
@@ -66,6 +70,8 @@ CRATE_MARKERS = (
     "pub fn chunk_to_json",
     "Self::MethodUnknown => 42_003,",
     "Self::ResourceLimit => 42_004,",
+    "validate_header",
+    "is_sign_negative",
 )
 
 

@@ -104,6 +104,7 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
     let number = bridge(JsonBridgeErrorCode::NumberInvalid);
     let hex = bridge(JsonBridgeErrorCode::HexInvalid);
     let method = bridge(JsonBridgeErrorCode::MethodUnknown);
+    let frame_invalid = protocol(ProtocolErrorCode::FrameInvalid);
     let mut cases = vec![
         ("not-json", "{".to_string(), shape.clone()),
         ("not-an-object", "[]".to_string(), shape.clone()),
@@ -197,6 +198,15 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
             number.clone(),
         ),
         (
+            "u32-overflow-max-sessions",
+            text(&with(
+                base.clone(),
+                &["bounds", "applied_limits", "max_sessions"],
+                Value::from(4_294_967_296_u64),
+            )),
+            number.clone(),
+        ),
+        (
             "hex-uppercase",
             text(&with(base.clone(), &["body"], Value::from("AB"))),
             hex.clone(),
@@ -263,7 +273,7 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
                 &["method"],
                 Value::from("cancel"),
             )),
-            shape.clone(),
+            frame_invalid.clone(),
         ),
         (
             "hello-with-session",
@@ -272,12 +282,36 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
                 &["session"],
                 base["session"].clone(),
             )),
-            shape.clone(),
+            frame_invalid.clone(),
         ),
         (
             "hello-with-request-id",
             text(&with(hello_base.clone(), &["request_id"], Value::from(1))),
+            frame_invalid.clone(),
+        ),
+        (
+            "hello-with-flags",
+            text(&with(
+                hello_base.clone(),
+                &["flags"],
+                serde_json::json!({"cancel": true, "failed": false, "stream": false}),
+            )),
+            frame_invalid.clone(),
+        ),
+        (
+            "hello-with-bounds",
+            text(&with(hello_base.clone(), &["bounds", "omitted"], Value::from(1))),
             shape,
+        ),
+        (
+            "negative-zero-accepted",
+            text(&base).replacen("\"protocol_version\":1", "\"protocol_version\":-0", 1),
+            protocol(ProtocolErrorCode::VersionUnsupported),
+        ),
+        (
+            "negative-zero-fraction",
+            text(&base).replacen("\"protocol_version\":1", "\"protocol_version\":-0.0", 1),
+            protocol(ProtocolErrorCode::VersionUnsupported),
         ),
         (
             "protocol-version-unsupported",
@@ -398,6 +432,132 @@ fn integers_follow_the_declared_encoding_on_both_sides() {
     let encoded = frame_from_json(&small.to_string()).expect("encodes");
     let (decoded, _) = decode_frame(&encoded.bytes, MAX_FRAME_BYTES).expect("decodes");
     assert!(matches!(decoded, DecodedFrame::Request(frame) if frame.request_id == 7));
+}
+
+#[test]
+fn negative_zero_reads_as_the_integer_zero() {
+    // Both spellings parse as negative zero, which the reader normalizes to
+    // 0 (contract section 8); the value then reaches the codec, which judges
+    // version 0 as unsupported rather than the bridge refusing the number.
+    let base = request_value().to_string();
+    for raw in ["-0", "-0.0"] {
+        let text = base.replacen("\"protocol_version\":1", &format!("\"protocol_version\":{raw}"), 1);
+        assert_eq!(
+            frame_from_json(&text).expect_err(raw).symbol(),
+            "PROTOCOL_VERSION_UNSUPPORTED",
+            "{raw}"
+        );
+    }
+    // A negative-zero request id decodes to 0 and encodes cleanly.
+    let id_text = request_value().to_string().replacen(
+        &format!("\"request_id\":{}", request_value()["request_id"]),
+        "\"request_id\":-0",
+        1,
+    );
+    let encoded = frame_from_json(&id_text).expect("-0 request id encodes");
+    let DecodedFrame::Request(frame) = decode_frame(&encoded.bytes, MAX_FRAME_BYTES)
+        .expect("decodes")
+        .0
+    else {
+        panic!("request expected");
+    };
+    assert_eq!(frame.request_id, 0);
+    // Field-level probes: only negative zero normalizes; every other
+    // float, sign, or fraction form stays invalid.
+    assert_eq!(
+        u64_field(&serde_json::from_str("-0").expect("parses")),
+        Ok(0)
+    );
+    assert_eq!(
+        u64_field(&serde_json::from_str("-0.0").expect("parses")),
+        Ok(0)
+    );
+    assert_eq!(u64_field(&Value::from(-0.0_f64)), Ok(0));
+    assert_eq!(
+        u64_field(&serde_json::from_str("0.0").expect("parses")),
+        Err(bridge(JsonBridgeErrorCode::NumberInvalid))
+    );
+    assert_eq!(
+        u64_field(&serde_json::from_str("-1").expect("parses")),
+        Err(bridge(JsonBridgeErrorCode::NumberInvalid))
+    );
+    assert_eq!(
+        u64_field(&Value::from(1.5_f64)),
+        Err(bridge(JsonBridgeErrorCode::NumberInvalid))
+    );
+}
+
+#[test]
+fn hello_header_violations_carry_the_codec_code() {
+    let (_, bytes) = fixture_frames().into_iter().nth(3).expect("hello frame");
+    let hello: Value =
+        serde_json::from_str(&frame_to_json(&bytes).expect("renders")).expect("parses");
+    let request = request_value();
+    // The session, request id, method, and flags of a hello frame are the
+    // codec's hello header rule (SMP1 section 2): the codec judges them, so
+    // the bridge carries PROTOCOL_FRAME_INVALID, never a bridge code.
+    let codec = protocol(ProtocolErrorCode::FrameInvalid);
+    for (label, value) in [
+        ("session", request["session"].clone()),
+        ("request_id", Value::from(1)),
+        ("method", Value::from("cancel")),
+        (
+            "flags",
+            serde_json::json!({"cancel": true, "failed": false, "stream": false}),
+        ),
+    ] {
+        let text = with(hello.clone(), &[label], value).to_string();
+        assert_eq!(frame_from_json(&text), Err(codec.clone()), "{label}");
+    }
+    // The all-zero bounds are the bridge's own rule (contract section 8),
+    // judged before the codec runs.
+    let bounded = with(hello.clone(), &["bounds", "omitted"], Value::from(1)).to_string();
+    assert_eq!(
+        frame_from_json(&bounded),
+        Err(bridge(JsonBridgeErrorCode::ShapeInvalid))
+    );
+    // A clean hello still encodes to the fixture bytes.
+    assert_eq!(
+        frame_from_json(&hello.to_string()).expect("encodes").bytes,
+        bytes
+    );
+}
+
+#[test]
+fn declared_u32_fields_reject_above_2_pow_32() {
+    let over = Value::from(4_294_967_296_u64);
+    let expected = Err(bridge(JsonBridgeErrorCode::NumberInvalid));
+    let request = request_value().to_string();
+    let at = |path: &[&str]| {
+        let mut value: Value = serde_json::from_str(&request).expect("parses");
+        let mut slot = &mut value;
+        for key in path {
+            slot = slot.get_mut(*key).expect("path exists");
+        }
+        *slot = over.clone();
+        value.to_string()
+    };
+    for path in [
+        &["protocol_version"][..],
+        &["bounds", "applied_limits", "max_depth"],
+        &["bounds", "applied_limits", "max_inflight"],
+        &["bounds", "applied_limits", "max_sessions"],
+        &["bounds", "reached_depth"],
+    ] {
+        assert_eq!(frame_from_json(&at(path)), expected, "{path:?}");
+    }
+    // The failure record's code and phase are u32 too.
+    let failure = ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded);
+    let rendered: Value =
+        serde_json::from_str(&failure_to_json(&failure).expect("renders")).expect("parses");
+    for field in ["code", "phase"] {
+        let text = with(rendered.clone(), &[field], over.clone()).to_string();
+        assert_eq!(
+            failure_from_json(&text),
+            Err(bridge(JsonBridgeErrorCode::NumberInvalid)),
+            "{field}"
+        );
+    }
 }
 
 #[test]
