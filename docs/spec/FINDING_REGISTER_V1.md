@@ -1,18 +1,30 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 1 (2026-09-03); Council review
+Status: S20-740 contract draft, revision 2 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
 
+Revision 2 answers the three Council reviews of the revision-1 draft (8
+P0s); the answers are itemized in section 7. No register value changed
+meaning silently: every tightened rule is stated here before it runs.
+
 ## Boundary
 
 S20-740 needs one machine-readable answer to "which review obligations exist,
-which are open, and at what severity" before an independent reviewer can issue
-a complete PASS (master goal sections 16.7 and 26.9, dossier item "findings by
-severity and disposition"). This contract freezes that register: how review
-obligations are derived from the machine summary, how their dispositions are
-classified, and which invariant a completed package must satisfy.
+which are open, and which severity tokens their dispositions name" before an
+independent reviewer can issue a complete PASS (master goal sections 16.7 and
+26.9, dossier item "findings by severity and disposition"). This contract
+freezes that register: how review obligations are derived from the machine
+summary, how their dispositions are classified, and which invariant a
+completed package must satisfy.
+
+It reports per-obligation severity *tokens named in dispositions*, not
+per-finding severity: a disposition that closes two P1s and a bare `PENDING`
+both appear honestly for what they record, and a bare pending review carries
+no severity because none was recorded. The per-finding record the dossier
+item ultimately needs (id, title, severity, disposition, owning package,
+closing commit) is future work named in section 7, not this register.
 
 It is not the independent review itself, does not issue or accept findings,
 and does not change any package's status. The review remains Vulcan's, and
@@ -24,9 +36,18 @@ and does not change any package's status. The review remains Vulcan's, and
 tracked record every package updates. The register walks it and collects every
 string field whose name contains `review` or `disposition`, except
 
-- fields naming a role, session, actor, or instant (`reviewer_role`,
-  `*_session_id`, `*_at`, `*_by`, `*_id`, `*_timestamp`, `*_note`, `*reviews`),
-- values that are an ISO instant or a Council session identifier.
+- fields naming a role, session, actor, or instant, by anchored suffix:
+  `reviewer_role`, `*_session_id`, `*_at`, `*_by`, `*_id`, `*_timestamp`,
+  `*_note`, and `*reviews`. The anchors are exact: a field that merely
+  contains one of these words elsewhere is collected, not dropped;
+- values that are an ISO-8601 instant (`^\d{4}-\d{2}-\d{2}T`) or a Council
+  session identifier (`^forge-` or `^[a-z]+-[a-z]+-s20-`), which name a
+  review event rather than record its disposition;
+- the register's own verdict field `independent_review`: it is the review's
+  output, not an input obligation. Collecting it would make
+  `S20_740_COMPLETE` unreachable, because the verdict must read `PENDING`
+  until the review it awaits has happened. The stage checker asserts it
+  separately per status instead.
 
 A missing summary is `REGISTER_SUMMARY_MISSING`; a summary that is not an
 object, or that carries no review obligation at all, is
@@ -42,22 +63,50 @@ obligation = {
   "field": field name,
   "disposition": the recorded string,
   "state": "PASS" | "PENDING" | "DEFERRED" | "HISTORICAL_ROUND" | "OTHER",
-  "severities": ascending list of the P0..P4 tokens the disposition names,
+  "reviewer": the lane token the field name carries, or null,
+  "severities": ascending list of the P0..P4 tokens the disposition names
+    outside negations,
   "declares_closed_findings": bool,
   "declares_no_open_p0_p1_p2": bool,
-  "package_status": the owning section's status, or null
+  "package_status": the owning section's status, or null,
+  "superseded_by": the superseding PASS field, or null
 }
 ```
 
-States are exact:
+States are exact over the first underscore-delimited token, matched against
+the closed head set `PASS`, `PENDING`, `DEFERRED`, `FAIL`, `REVISE`, plus the
+declared alias table (`VULCAN_PASS` reads `PASS`; the table lives in the
+builder and this section names every entry, so no alias is ever silent):
 
-- `PASS` when the disposition begins with `PASS` or is `VULCAN_PASS`;
-- `PENDING` for `PENDING`;
-- `DEFERRED` when it begins with `DEFERRED` (a lane that was unavailable);
-- `HISTORICAL_ROUND` when it begins with `FAIL` or `REVISE`, which records a
-  superseded review round of a package that later passed or was revised;
+- `PASS` when the head token is `PASS` or the disposition is a declared
+  alias; except a `PASS` head that still claims an open finding outside a
+  negation group (`P0_OPEN`, `OPEN_P1`) contradicts itself and is `OTHER`;
+- `PENDING` when the head token is `PENDING`;
+- `DEFERRED` when the head token is `DEFERRED` (a lane that was unavailable);
+- `HISTORICAL_ROUND` when the head token is `FAIL` or `REVISE` **and** the
+  same section records a `PASS` obligation carrying the same reviewer lane
+  token that closes this round (`superseded_by` names that field); a
+  `FAIL`/`REVISE` round with no closing `PASS` was never re-reviewed, so it
+  stays `PENDING`. Closure runs from the qualified or early round toward the
+  general or later review: an `initial`/`first`/`revision-N` round folds into
+  the `final` or unmarked review, and a qualified subject round folds into
+  the strictly less qualified review. A slice `PASS` never closes the
+  overall `FAIL` it belongs to. Round ordering follows the field-name
+  convention (`initial` before `final`, revision numbers ascending) and is
+  not separately enforced;
 - `OTHER` otherwise, which the register surfaces rather than silently
   normalizing.
+
+`reviewer` is the first of `ariadne`, `nabu`, `vulcan`, `merlin`, `codex`
+appearing in the field name, or null when the field names no lane; a
+`FAIL`/`REVISE` round with no lane token can never match a superseder and
+stays open.
+
+`severities` strips every `NO_OPEN_P0...` and `NO_NEW_P0...` negation group
+before scanning, then deduplicates: `PASS_NO_OPEN_P0_P1_P2` carries no
+severity tokens, while `PASS_PRIOR_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4`
+carries `P2, P3`. The list is distinct tokens per obligation, not a finding
+count, and a negated token is an absence claim, never a mention.
 
 `declares_closed_findings` is true when the disposition names `CLOSED`;
 `declares_no_open_p0_p1_p2` is true when it names `NO_OPEN_P0_P1_P2`.
@@ -69,18 +118,26 @@ States are exact:
 ```text
 register = {
   "contract": "sley2.finding-register.v1",
+  "contract_revision": integer,
   "work_package": "S20-740",
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "obligations_digest": SHA-256 of the canonical obligation list,
   "obligation_count": integer,
   "states": { state: count },
   "severity_mentions": { "P0".."P4": count },
-  "open_reviews": [ {section, field} ... ] ascending, the PENDING obligations,
+  "obligations": [ obligation ... ] ascending, the full payload the
+    obligations_digest covers,
+  "open_reviews": [ {section, field, disposition, severities} ... ]
+    ascending, the PENDING obligations with what each records,
   "deferred_reviews": [ {section, field, disposition} ... ] ascending,
   "unclassified": [ {section, field, disposition} ... ] ascending, state OTHER,
+  "superseded_rounds": [ {section, field, disposition, superseded_by} ... ]
+    ascending, the HISTORICAL_ROUND obligations and what superseded each,
   "complete_packages": [section, ...] ascending, sections whose status ends COMPLETE,
   "complete_packages_with_open_reviews": [ {section, field, state} ... ],
   "declared_open_findings": the summary's open_findings counters,
+  "package_open_claims": { "section.field": open count } ascending, every
+    per-package p0..p4 open list length and open count the summary carries,
   "result": "FINDING_REGISTER_CLEAR" | "FINDING_REGISTER_OPEN",
   "register_digest": SHA-256 of the canonical register without this field
 }
@@ -88,15 +145,26 @@ register = {
 
 Rules:
 
+- the summary's `open_findings` must carry exactly the non-negative int
+  counters `p0` through `p4`; anything else is `REGISTER_SUMMARY_INVALID`,
+  because a missing or non-numeric counter would let the register read
+  clear vacuously. Every per-package open list must be a list and every
+  per-package open count a non-negative int, or the summary is likewise
+  invalid;
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
-  `PENDING`, `complete_packages_with_open_reviews` is empty, and every declared
-  open-finding counter is zero; otherwise it is `FINDING_REGISTER_OPEN` and the
-  register names what is open;
+  `PENDING`, no obligation is `OTHER`, `complete_packages_with_open_reviews`
+  is empty, every top-level open-finding counter is zero, and every
+  per-package open claim is zero; otherwise it is `FINDING_REGISTER_OPEN`
+  and the register names what is open. A `DEFERRED` lane is recorded
+  unavailability, not an open finding, so it does not block clearance by
+  itself;
 - **a completed package may not carry an open review**: a section whose status
-  ends in `COMPLETE` with any obligation in state `PENDING`, `DEFERRED`, or
-  `OTHER` is `REGISTER_COMPLETION_VIOLATION`, and no register is written. A
+  ends in `COMPLETE` (but not `INCOMPLETE` or `NOT_COMPLETE`) with any
+  obligation in state `PENDING`, `DEFERRED`, or `OTHER` is
+  `REGISTER_COMPLETION_VIOLATION`, and no register is written. A
   `HISTORICAL_ROUND` obligation is allowed there, because a package reaches
-  completion by passing after earlier rounds failed;
+  completion by passing after earlier rounds failed, and `superseded_rounds`
+  names the passing field that proves it;
 - the register carries no timestamp, host name, user name, or path outside the
   repository, and is a pure function of the summary's obligations, so `--check`
   detects drift with `REGISTER_DRIFT`;
@@ -125,9 +193,12 @@ the code on failure.
 requiring the three Council reviews to read `PASS`, the register to read
 `FINDING_REGISTER_CLEAR`, and an independent review record. In every
 implementation status the checker verifies the register exists with its
-contract tag, that it agrees with the summary (no drift), that no completed
-package carries an open review, that the unit tests pass, and that
-`release-check` and `v2` stay `NOT_IMPLEMENTED`.
+contract tag and revision, that its obligation payload matches the summary
+(count and digest, not just the tallies), that no completed package carries
+an open review, that the unit tests pass, and that `release-check` and `v2`
+stay `NOT_IMPLEMENTED`. The checker pins the summary's `contract_revision`
+to this document's revision, so a contract edit without its revision number
+fails the gate.
 
 ## 6. Explicit exclusions
 
@@ -140,4 +211,32 @@ package carries an open review, that the unit tests pass, and that
 
 ## 7. Clarifications
 
-Revision 1 carries none.
+Revision 2 (2026-09-05) answers the Council reviews of the revision-1 draft:
+a `FAIL`/`REVISE` round needs a same-lane superseding `PASS` (Ariadne P0-1,
+Vulcan P0-2; the two restricted-query Nabu `REVISE` records were re-reviewed
+to `PASS` for exactly this rule); classification is first-token over a closed
+head set with a declared alias table, and a self-contradicting `PASS` is
+`OTHER` (Ariadne P0-2); open reviews carry disposition and severities while
+the Boundary promises tokens, not per-finding severity (Nabu P0-1); the
+register's own verdict is asserted per status instead of collected, so
+completion is reachable (Nabu P0-2); clearance reads the per-package open
+claims beside the top-level counters (Vulcan P0-1); the obligation payload is
+part of the frozen shape and digest-checked (Vulcan P0-3); severity tokens
+exclude negations (Vulcan P0-4).
+
+Completion is tested by status suffix (`COMPLETE`, excluding `INCOMPLETE`
+and `NOT_COMPLETE`); mid-string boundary statuses such as
+`S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY` are not treated as complete
+for the violation check, but their unsuperseded reviews still block
+clearance as `PENDING`, so the gap is reporting precision, not a silent
+pass.
+
+Round ordering is a field-name convention the register reads
+directionally: closure runs early-or-qualified toward late-or-general, so a
+slice `PASS` beside an overall `FAIL` does not supersede (the live case is
+the S20-700 surface audit, whose slice `PASS`es leave the audit `FAIL`
+open), and neither would a `PASS` recorded before its `FAIL`.
+
+The per-finding record (id, title, severity, disposition, owning package,
+closing commit, cross-checked by this register) that an independent review
+starts from is future S20-740 work, not this contract.

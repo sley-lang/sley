@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -33,7 +34,9 @@ CODES = (
 )
 SPEC_MARKERS = (
     "# Finding Register v1",
-    "Status: S20-740 contract draft",
+    # The revision number itself is pinned separately against the summary's
+    # contract_revision, so this marker stays a prefix across revisions.
+    "Status: S20-740 contract draft, revision",
     "## 1. Source",
     "## 2. Obligations",
     "## 3. Register",
@@ -55,16 +58,31 @@ WORK_PACKAGE_MARKERS = ("`docs/spec/FINDING_REGISTER_V1.md`", "ADR-0042")
 SCRIPT_MARKERS = (
     "class RegisterErrorCode(IntEnum)",
     '"sley2.finding-register.v1"',
-    "def classify(",
+    "def classify_token(",
+    "def reviewer_of(",
+    "def severities_of(",
+    "def supersedes(",
+    "def field_core(",
+    "def field_early(",
     "def collect(",
     "def build_register(",
     "COMPLETION_VIOLATION",
 )
-FORBIDDEN_REGISTER_MARKERS = ("/home/", "greyforge", "file://")
+FORBIDDEN_REGISTER_MARKERS = ("/home/", "/greyforge/", "file://")
 
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def load_builder():
+    """The builder module, loaded by path so the checker can re-derive."""
+    location = ROOT / "scripts/build_finding_register.py"
+    spec = importlib.util.spec_from_file_location("build_finding_register", location)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def gate_stays_closed(gate: str) -> bool:
@@ -138,7 +156,7 @@ def main() -> int:
         ("adr", "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md"),
         ("checker", "scripts/check_finding_register.py"),
         ("register", "evidence/review/finding-register.json"),
-        ("independent_review", "PENDING"),
+        ("contract_revision", 2),
         ("new_stable_error_codes", 4),
         ("new_error_code_range", "75000 through 75003"),
         ("ga_claimed", False),
@@ -146,6 +164,15 @@ def main() -> int:
     ):
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")
+    # The register's own verdict is the review's output, not an input
+    # obligation: PENDING at every status except COMPLETE, where the review
+    # it awaits has happened and recorded PASS (contract section 1).
+    if section.get("independent_review") != (
+        "PASS" if status == COMPLETE_STATUS else "PENDING"
+    ):
+        problems.append("machine-summary:independent_review")
+    if f"revision {section.get('contract_revision')}" not in spec:
+        problems.append("spec-missing:contract-revision")
 
     if status in IMPLEMENTATION_STATUSES:
         if not SCRIPT.exists():
@@ -177,6 +204,25 @@ def main() -> int:
                 problems.append("machine-summary:obligations")
             if section.get("register_result") != register.get("result"):
                 problems.append("machine-summary:register_result")
+            # The obligation payload is part of the frozen shape (contract
+            # section 3): validate it matches the summary derivation by count
+            # and digest, not just the tallies above.
+            builder = load_builder()
+            expected_obligations = builder.collect(summary)
+            if not isinstance(register.get("obligations"), list):
+                problems.append("finding-register:obligations-shape")
+            elif register.get("obligations") != expected_obligations:
+                problems.append("finding-register:obligations-drift")
+            if register.get("obligations_digest") != builder.digest_of(expected_obligations):
+                problems.append("finding-register:obligations-digest")
+            if register.get("contract_revision") != section.get("contract_revision"):
+                problems.append("finding-register:contract-revision")
+            for entry in register.get("open_reviews", []):
+                if set(entry) != {"section", "field", "disposition", "severities"}:
+                    problems.append("finding-register:open-reviews-shape")
+                    break
+            if not isinstance(register.get("superseded_rounds"), list):
+                problems.append("finding-register:superseded-rounds-shape")
         if run(["scripts/build_finding_register.py", "--check"]).returncode != 0:
             problems.append("finding-register:drift")
         if run(["-m", "unittest", "discover", "-s", "bench/review/tests", "-t", "."]).returncode != 0:

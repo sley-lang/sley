@@ -618,6 +618,7 @@
     "full_query_classes_required": 19,
     "full_ga_gap": "FULL_S20_300_ROOT_OBJECT_EXTRACTION_NINETEEN_ROOT_BACKED_QUERY_CLASSES_SMP1_CONTINUATION_AND_S20_320_CAPSULES_REQUIRED",
     "nabu_architecture_review": "REVISE_TO_RESTRICTED_PROFILE",
+    "nabu_final_review": "PASS",
     "ariadne_initial_review": "FAIL_P1_RESPONSE_LAYOUT_P2_TAG_PRECEDENCE",
     "ariadne_final_review": "PASS",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
@@ -691,6 +692,7 @@
     "workspace_root_session_provenance": false,
     "full_ga_gap": "FULL_ROOT_BACKED_QUERY_ENGINE_VERIFIED_WORKSPACE_ROOT_SESSION_FULL_FACTS_LAWFUL_OMISSION_CONTINUATION_MASTER_CONTEXT_CAPSULE_AND_SMP1_REQUIRED",
     "nabu_architecture_review": "REVISE_TO_DISTINCT_RESTRICTED_EVIDENCE_ENVELOPE",
+    "nabu_final_review": "PASS",
     "ariadne_initial_review": "FAIL_P1_SIZE_FEASIBILITY_P2_RESULT_KIND_WORDING",
     "ariadne_final_review": "PASS",
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
@@ -2671,12 +2673,13 @@
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/FINDING_REGISTER_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
-    "obligations": 203,
-    "open_reviews": 15,
+    "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
+    "obligations": 204,
+    "open_reviews": 79,
     "deferred_reviews": 11,
     "unclassified_dispositions": 1,
     "complete_packages": 24,
@@ -2700,7 +2703,17 @@
       "scripts/check_finding_register.py",
       "bench/review/tests/test_finding_register.py"
     ],
-    "p0_open_count": 4
+    "p0_open_count": 0,
+    "p0_closed": [
+      "HISTORICAL_ROUND was exempted from the completion invariant with no superseding PASS, so a COMPLETE package whose only disposition was a failure read clear, with two live restricted-query Nabu REVISE counterexamples; raised by ariadne. A FAIL/REVISE round is historical only with a same-lane superseding PASS in the same section (directional: early-or-qualified toward late-or-general) and otherwise stays PENDING; both restricted sections were re-reviewed by Nabu to PASS and the builder now fails closed on the old behavior",
+      "section 2 claimed exact states but classified by startswith plus a hardcoded VULCAN_PASS alias, admitting PASS_PENDING_CONFIRMATION_2_P0_OPEN as PASS; raised by ariadne. Classification is first-token over a closed head set with VULCAN_PASS as a declared alias entry, and a PASS head still claiming an open finding outside negations contradicts itself into OTHER",
+      "the Contract Boundary promised open-obligation severity while 0 of 75 PENDING obligations carried any and open_reviews entries carried only section and field; raised by nabu. The Boundary promises per-obligation severity tokens named in dispositions, open_reviews entries now carry disposition and severities, and the per-finding record the dossier item ultimately needs is named as future work rather than claimed",
+      "S20_740_COMPLETE was unreachable because the checker required independent_review PENDING at all statuses including COMPLETE while also requiring PASS there, with the field itself collected as a blocking obligation; raised by nabu. The register's own verdict is excluded from collection as review output and asserted per status (PENDING except PASS at COMPLETE)",
+      "declared_open_findings read only the top-level open_findings counter and ignored per-package open arrays, so CLEAR was reachable with an open P0; raised by vulcan. CLEAR now requires every per-package open list empty and every per-package open count zero alongside the validated top-level p0..p4 counters, all recorded as package_open_claims",
+      "HISTORICAL_ROUND was assigned on FAIL/REVISE prefix alone inside COMPLETE packages with no superseding PASS; raised by vulcan. Same fix as the first entry: prefix alone no longer suffices, and the complete_root_index_snapshot FAILs stay PENDING for want of any same-lane PASS",
+      "contract section 3 omitted the obligations array that carries the per-obligation payload behind obligations_digest; raised by vulcan. The obligations payload is now part of the frozen shape with superseded_rounds and package_open_claims, and the checker validates count and digest against a re-derivation rather than trusting the tallies",
+      "severity_mentions counted negations as occurrences so PASS_NO_OPEN_P0_P1_P2 contributed P0,P1,P2; raised by vulcan. NO_OPEN/NO_NEW negation groups are stripped before a deduplicating scan, and the contract states the list is distinct tokens per obligation rather than a finding count"
+    ]
   },
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
@@ -2715,7 +2728,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "11 review lanes are deferred and unavailable",
-      "15 review obligations are open",
+      "79 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
