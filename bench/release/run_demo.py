@@ -135,6 +135,9 @@ class Endpoint:
         return line
 
     def request(self, method: str, body_hex: str, *, session: bool = True) -> dict:
+        # The pre-session space carries identifier 0 only (SMP1 section
+        # 3): session-less frames never consume the session counter.
+        request_id = self.next_request if session else 0
         frame = {
             "body": body_hex,
             "bounds": ZERO_BOUNDS,
@@ -142,7 +145,7 @@ class Endpoint:
             "kind": "request",
             "method": method,
             "protocol_version": 1,
-            "request_id": self.next_request,
+            "request_id": request_id,
             "session": self.session if session else None,
         }
         self.next_request += 1
