@@ -546,6 +546,12 @@ impl Server {
         }
         let method = Method::from_tag(frame.method)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        // The pre-session space carries identifier 0 only (contract
+        // section 3): hello, `session.open`, and the genesis path share
+        // no counter with any session.
+        if frame.session.is_none() && frame.request_id != 0 {
+            return protocol_failure(ProtocolErrorCode::FrameInvalid);
+        }
         if method == Method::SessionOpen {
             if frame.session.is_some() {
                 return protocol_failure(ProtocolErrorCode::FrameInvalid);

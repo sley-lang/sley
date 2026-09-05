@@ -55,13 +55,16 @@ SPEC_MARKERS = (
     "## 1. Framing",
     "digest domain  = sley2.protocol-frame.v1 -> ProtocolFrameId",
     "frame = u64be(frame_length) || protocol_envelope",
+    "never a frame defect",
     "## 2. Handshake",
     "`PROTOCOL_DOWNGRADE` (threat T45)",
+    "The codec applies the same split at",
     "the intersection must contain `session.open` (100)",
     "A method family is the hundred-group of a tag",
     "## 3. Sessions and request identity",
     "`PROTOCOL_REQUEST_ID_CONFLICT` (threat T46)",
     "identifier 0 never enters a session",
+    "carries identifier 0, no other",
     "## 4. Method families and tags",
     "A tag added after freeze takes a new",
     "`SMP1-RESERVED-S20-370`",
@@ -69,6 +72,7 @@ SPEC_MARKERS = (
     "## 5. Bounded context",
     "Zero counts on a failure response or an event frame mean",
     "## 6. Failure envelope",
+    "transport-supplied reason bytes from the set below, else empty",
     "carries it, and the terminal frame of a failed stream carries it",
     "`details` are transport-supplied reason bytes",
     "The envelope's `incident` is none at this revision",
@@ -77,6 +81,8 @@ SPEC_MARKERS = (
     "## 8. JSON bridge",
     "## 11. Explicit exclusions",
     "cancellation (`PROTOCOL_CANCELLED`, skipping binding and budget)",
+    "## 10. Required evidence",
+    "same-lane `PASS` obligations or itemized",
     "## Appendix A. Body records of the dispatched methods (S20-410)",
     "no non-reserved method answers a deferred detail",
     "## Appendix B. Cancellation, streaming, and budget records (S20-440)",
@@ -177,15 +183,36 @@ def main() -> int:
     if "carries numeric 36002" not in codes_text:
         problems.append("error-codes:stale-root-alias")
     # The retryability enumeration in section 6 and the server lists agree
-    # symbol for symbol: a list the contract omits fails the gate.
+    # symbol for symbol in both directions: a list the contract omits and
+    # a symbol the implementation omits both fail the gate.
     server = read(ROOT / "crates/sley-protocol/src/server.rs")
-    for array in ("RETRY_AFTER_REQUERY", "RETRY_AFTER_LIMIT_CHANGE"):
-        listed = re.findall(r'"([A-Z][A-Z0-9_]+)"', server.split(array)[1].split("];")[0])
-        for symbol in listed:
-            if f"`{symbol}`" not in spec:
-                problems.append(f"retryability-map:{array}:{symbol}")
-    if "AfterCapability" not in server:
-        problems.append("retryability-map:reserved-capability")
+    AFTER = ("AFTER_REQUERY", "AFTER_LIMIT_CHANGE", "AFTER_CAPABILITY")
+    starts = {
+        name: f"`{name}` names exactly" for name in AFTER
+    }
+    ends = {
+        "AFTER_REQUERY": "`AFTER_LIMIT_CHANGE` names exactly",
+        "AFTER_LIMIT_CHANGE": "`AFTER_CAPABILITY` names exactly",
+        "AFTER_CAPABILITY": "Every other symbol is",
+    }
+    arrays = {
+        "AFTER_REQUERY": "RETRY_AFTER_REQUERY",
+        "AFTER_LIMIT_CHANGE": "RETRY_AFTER_LIMIT_CHANGE",
+    }
+    for name in AFTER:
+        span = spec.split(starts[name])[1].split(ends[name])[0]
+        contracted = set(re.findall(r"`([A-Z][A-Z0-9_]*_[A-Z0-9_]+)`", span)) - set(AFTER)
+        if name in arrays:
+            listed = re.findall(
+                r'"([A-Z][A-Z0-9_]+)"', server.split(arrays[name])[1].split("];")[0]
+            )
+            if contracted != set(listed):
+                problems.append(f"retryability-map:{name}:{sorted(contracted ^ set(listed))}")
+        else:
+            if contracted != {"PROTOCOL_METHOD_UNSUPPORTED"}:
+                problems.append(f"retryability-map:{name}:{sorted(contracted)}")
+            if "failure.retryability = Retryability::AfterCapability" not in server:
+                problems.append("retryability-map:reserved-capability")
     if "FEATURE_EXTENDED_EXECUTE" not in server:
         problems.append("execute-profile:feature-gate")
 
@@ -231,6 +258,14 @@ def main() -> int:
         for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
             if not str(section.get(key, "")).startswith("PASS"):
                 problems.append(f"completion-without-review:{key}")
+    # Implemented under a draft means tracked, never silently pending: a
+    # FAIL round must be itemized in the register-first open lists.
+    if status == IMPLEMENTED_STATUS:
+        for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
+            if str(section.get(key, "")).startswith("FAIL"):
+                for list_key in ("p1_open", "p2_open", "p3_open"):
+                    if list_key not in section:
+                        problems.append(f"review-without-register:{key}:{list_key}")
 
     revision = re.search(r"revision (\d+)", spec)
     result = {

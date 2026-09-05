@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 11 (2026-09-06; the revision
+Status: S20-400 contract draft, revision 11 (2026-09-05; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -67,10 +67,11 @@ happens before allocation. It is not SCB1 section 2's `payload_length`:
 that inner `uvar` covers only the envelope's inner payload, while the
 outer `u64be` covers the whole envelope. The envelope digest is verified
 before any field is read. A frame that fails length, magic, format
-version, tag, epoch, or digest rules, or that carries bytes after the
+version, tag, or digest rules, or that carries bytes after the
 `digest` trailer, is `PROTOCOL_FRAME_INVALID` (or
 `PROTOCOL_FRAME_TOO_LARGE` for the ceiling); a frame whose envelope epoch
-is not the protocol epoch below is `PROTOCOL_VERSION_UNSUPPORTED`. The
+is not the protocol epoch below is `PROTOCOL_VERSION_UNSUPPORTED`, never a frame defect: epoch mismatch is a version failure, and the two codes
+never overlap. The
 connection state does not change, and no partial frame is ever acted on.
 An optional checksum profile never changes payload semantics. A hello is
 decoded under the absolute 67,108,864-byte ceiling and the hello list caps
@@ -189,7 +190,10 @@ the client refuses any selection that is not that derivation. Every later
 frame names `protocol_version` and is checked against the selection: a
 frame below it is a downgrade attempt and answers `PROTOCOL_DOWNGRADE`, a
 frame above it names a version the selection does not know and answers
-`PROTOCOL_VERSION_UNSUPPORTED`. A `SchemaEpochId` is a 32-byte identity
+`PROTOCOL_VERSION_UNSUPPORTED`. The codec applies the same split at
+decode against the implementation version, so the rule holds on wire
+input before dispatch ever runs; the selection-level split in
+`SelectedProfile::check_claim` agrees with it. A `SchemaEpochId` is a 32-byte identity
 with no order, so there is no "lower epoch": a body naming any epoch
 outside the selection fails at the method layer. No silent downgrade
 exists: the selection is explicit and digested over both hellos, and the
@@ -200,7 +204,14 @@ session binds the handshake at `session.open`, so the negotiated
 
 `session.open` (method 100) is the request frame with `session = None`
 that binds a session: it carries the `ProtocolHandshakeId` and returns the
-`SessionId` under which every later frame is scoped. The only other
+`SessionId` under which every later frame is scoped. A session-less frame
+carries identifier 0, no other: hello, `session.open`, and the genesis
+path share no counter with any session, and a session-less frame naming
+any nonzero identifier is `PROTOCOL_FRAME_INVALID`. Opens are not
+idempotent: replaying an open creates another session (capped by the
+negotiated `max_sessions`), and replaying a genesis write answers the
+owner failure (a second genesis is already-initialized; after a head
+exists the session-less path is closed and the write needs a session). The only other
 session-less requests are the genesis path: `workspace.create` and
 `exchange.import` may travel without a session only while the repository
 has no accepted head, because no session can bind before there is a head
@@ -342,8 +353,8 @@ ProtocolFailure {
   phase:         u32,                  // owner phase or 0
   retryability:  u32 (1 NEVER | 2 AFTER_REQUERY | 3 AFTER_CAPABILITY |
                       4 AFTER_LIMIT_CHANGE | 5 TRANSIENT_HOST),
-  incident:      option(digest[32]),   // for INTERNAL_ERROR only
-  details:       bytes                 // the owner's frozen failure record, may be empty
+  incident:      option(digest[32]),   // none at this revision (below)
+  details:       bytes                 // transport-supplied reason bytes from the set below, else empty
 }
 ```
 
@@ -361,8 +372,8 @@ Retryability is an explicit mapping from the owner's symbol, not a pattern
 over its text. `AFTER_REQUERY` names exactly `REF_CAS_STALE`,
 `REF_NAMED_CAS_STALE`, `SESSION_ROOT_ADVANCED`, `SESSION_STALE_HANDLE`,
 and `STALE_ROOT`: the last is the emitted S20-390 repository symbol,
-numeric 36002 through the S20-360 decision mapping (registry name
-`CANDIDATE_VALIDATION_STALE_ROOT`). `AFTER_LIMIT_CHANGE` names exactly
+numeric 36002 through the S20-360 decision mapping under its registry
+name). `AFTER_LIMIT_CHANGE` names exactly
 `BRANCH_RESOURCE_LIMIT`, `CANDIDATE_TEST_RESOURCE_LIMIT`,
 `CANDIDATE_VALIDATION_RESOURCE_LIMIT`, `CFG_RESOURCE_LIMIT`,
 `COMPARE_RESOURCE_LIMIT`, `CONTEXT_CAPSULE_RESOURCE_LIMIT`,
@@ -510,7 +521,11 @@ Contract acceptance (S20-400) requires the Ariadne contract review, Nabu
 architecture review, and Vulcan surface review of this document with every
 report-grade finding closed; the freeze status is the acceptance, so no
 status at or past freeze passes the stage gate without all three reviews
-`PASS`. Implementation acceptance (S20-410) requires
+`PASS`. Before that, the implemented status means exactly what it says:
+implemented under a draft whose review rounds are either superseded by
+same-lane `PASS` obligations or itemized as open findings in the machine
+summary and the finding register, never silently pending; the stage gate
+pins that invariant. Implementation acceptance (S20-410) requires
 at least: fixed frame and hello vectors with an independent reproduction;
 the handshake matrix (no common profile, each downgrade shape, identical
 `ProtocolHandshakeId` on both peers); the request-identity matrix

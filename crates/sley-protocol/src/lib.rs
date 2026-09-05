@@ -994,7 +994,14 @@ impl ProtocolFrame {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.protocol_version != PROTOCOL_VERSION {
+        // Below the implementation version is a downgrade attempt;
+        // above it names a version this code does not know (contract
+        // section 2; the selection-level split lives in
+        // `SelectedProfile::check_claim`).
+        if self.protocol_version < PROTOCOL_VERSION {
+            return fail(ProtocolErrorCode::Downgrade);
+        }
+        if self.protocol_version > PROTOCOL_VERSION {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
         if self.flags & !FLAG_MASK != 0 {
@@ -2283,6 +2290,30 @@ mod tests {
         );
         for _ in 0..128 {
             assert_eq!(stream_response(&response, ceiling, true).unwrap(), frames);
+        }
+    }
+
+    #[test]
+    fn decode_splits_unknown_versions_below_and_above() {
+        // Below the implementation version is a downgrade attempt;
+        // above it names a version this code does not know (contract
+        // section 2). The codec classifies; the selection-level split in
+        // `check_claim` agrees.
+        let frame = request(b"");
+        for (claimed, code) in [
+            (0, ProtocolErrorCode::Downgrade),
+            (PROTOCOL_VERSION + 1, ProtocolErrorCode::VersionUnsupported),
+        ] {
+            let mut wire = frame.clone();
+            wire.protocol_version = claimed;
+            let bytes = encode_envelope(wire.kind, &wire.payload().unwrap())
+                .unwrap()
+                .bytes;
+            assert_eq!(
+                decode_frame(&bytes, 1_048_576).unwrap_err().code(),
+                code,
+                "claimed version {claimed}"
+            );
         }
     }
 

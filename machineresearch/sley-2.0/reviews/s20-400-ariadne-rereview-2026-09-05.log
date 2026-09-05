@@ -1,0 +1,30 @@
+S20-400 SMP1 Ariadne contract re-review — 2026-09-05
+Pinned repository: /home/greyforge/sley2
+Pinned commit: edb0a50ab80ae6e9596ffedeea43b916764bc6fb
+Prior review: machineresearch/sley-2.0/reviews/s20-400-ariadne-contract-review-2026-09-04.log
+Reviewed range: edb0a50~5..edb0a50 (ec90b35, f589779, fc8aa95, e65e3b9, edb0a50)
+Mode: bounded read-only triage; this log is the sole write. No cargo or make.
+
+status: FAIL
+
+findings:
+- The revision 11 package materially closes the three prior P0s and most prior P1/P2/P3 findings: cancellation is consistently split between single-frame answer and explicit-frame-list answer_batch; the five numeric-zero owner classes are disclosed; freeze status now gates all three reviews while allowing an implementation; identifier, negotiation, response-ceiling, budget, failed-stream, registry, reserved-seam, ADR, appendix-order, and campaign fixes are present.
+- P1: Section 1 assigns conflicting errors to the envelope epoch. SMP1.md:69-73 first includes epoch among failures producing PROTOCOL_FRAME_INVALID, then immediately assigns a non-protocol envelope epoch PROTOCOL_VERSION_UNSUPPORTED. The implementation chooses VERSION_UNSUPPORTED at lib.rs:1172-1174. A frozen decoder contract cannot assign two codes to the same defect.
+- P1: The claimed per-frame version rule is not reachable through the wire decoder. SMP1 requires a frame below the selected version to emit PROTOCOL_DOWNGRADE and a frame above it to emit PROTOCOL_VERSION_UNSUPPORTED. ProtocolFrame::validate rejects every protocol_version unequal to the compile-time PROTOCOL_VERSION as VERSION_UNSUPPORTED (lib.rs:996-999); answer_batch decodes before dispatch (server.rs:324-347), so dispatch's SelectedProfile::check_claim (server.rs:532-540) never sees a below-selection wire frame. The added codec test itself pins both 0 and 2 to VERSION_UNSUPPORTED. Prior P1-3 is therefore not closed by the implementation evidence claimed in the handoff.
+- P1: ProtocolFailure.details remains internally contradictory. The normative record says details is "the owner's frozen failure record" (SMP1.md:346), while the new mapping says it is transport-supplied UTF-8 reason bytes, never owner records, restricted to five values (SMP1.md:388-393). This leaves wire decoding and ownership ambiguous.
+- P2: The checker does not actually pin retryability lists equal as claimed. check_smp1_contract.py:179-186 only verifies that every server-listed token appears somewhere in the whole spec; it neither extracts the contract's exact enumerations nor rejects contract-only extras, and the AfterCapability check at :187-188 is only a source substring. Current lists agree, but drift in the contract can still pass, so prior checker-coverage P2-6 is only partially closed.
+- P3: The revision 11 status is dated 2026-09-06 (SMP1.md:3) although this package and review are on 2026-09-05; the revision is future-dated.
+
+validation:
+- git rev-parse HEAD: edb0a50ab80ae6e9596ffedeea43b916764bc6fb.
+- git status --short before the sole write showed only an unrelated untracked Nabu re-review log; it was preserved.
+- Targeted diff/read of docs/spec/SMP1.md, docs/spec/ERROR_CODES_V1.md, ADR-0032, scripts/check_smp1_contract.py, crates/sley-protocol/src/lib.rs, server.rs, server_tests.rs, machine-summary.json, campaign, and the prior Ariadne review.
+- python3 scripts/check_smp1_contract.py: PASS, revision 11, 41 methods, 12 codes; static inspection above identifies coverage gaps and contract/code contradictions not caught by that checker.
+- No cargo, make, deploy, merge, external action, or repository mutation other than this required log. No validation tier run; supplied Tier 2 evidence was not re-executed.
+
+blockers:
+- Freeze remains blocked until the three P1 contradictions are resolved and the P2 checker pin is made bidirectional/exact. Correct the future revision date before freeze.
+
+return_to: orchestrator
+
+S20_400CONTRACT_REREVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":[],"p1":["Section 1 maps a non-protocol envelope epoch both to PROTOCOL_FRAME_INVALID (epoch included in the frame-defect list) and immediately afterward to PROTOCOL_VERSION_UNSUPPORTED","The below-selection per-frame version rule is unreachable on wire input: ProtocolFrame validation maps every non-1 protocol_version to VERSION_UNSUPPORTED before Server::dispatch can apply SelectedProfile::check_claim, so a below-selection frame cannot emit DOWNGRADE as contracted","ProtocolFailure.details is defined both as the owner's frozen failure record and as transport-supplied UTF-8 reason bytes that are never owner records and limited to five constants"],"p2":["check_smp1_contract.py does not compare retryability lists for exact bidirectional equality; it only checks that server tokens occur somewhere in the spec and checks AfterCapability by substring, so contract-only drift still passes"],"p3":["Revision 11 is dated 2026-09-06 in a package and review produced on 2026-09-05"],"notes":"All three prior P0s are closed and most prior report-grade findings are materially addressed, but PASS requires no remaining or new P1/P2/P3. Read-only triage at edb0a50; checker PASS; no cargo or make."}

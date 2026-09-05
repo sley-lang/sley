@@ -84,7 +84,7 @@ impl Harness {
         let open = server
             .answer(&request_frame(
                 None,
-                1,
+                0,
                 Method::SessionOpen,
                 handshake.as_bytes().to_vec(),
             ))
@@ -269,7 +269,7 @@ fn exchange_export_transports_the_pack_of_a_dependency_free_root() {
     let open = server
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             handshake.as_bytes().to_vec(),
         ))
@@ -442,7 +442,7 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     let open = again
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             again.handshake_id().as_bytes().to_vec(),
         ))
@@ -641,7 +641,7 @@ fn identity_session_and_frame_rules_hold_at_the_server() {
     // Wrong handshake identity at open is a downgrade.
     let downgrade = harness
         .server
-        .answer(&request_frame(None, 99, Method::SessionOpen, vec![0; 32]))
+        .answer(&request_frame(None, 0, Method::SessionOpen, vec![0; 32]))
         .unwrap();
     let (DecodedFrame::Response(frame), _) =
         decode_frame(&downgrade.frame.bytes, MAX_FRAME_BYTES).unwrap()
@@ -691,7 +691,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let premature = other
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             other.handshake_id().as_bytes().to_vec(),
         ))
@@ -710,7 +710,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     ])
     .unwrap();
     let created = other
-        .answer(&request_frame(None, 2, Method::WorkspaceCreate, body))
+        .answer(&request_frame(None, 0, Method::WorkspaceCreate, body))
         .unwrap();
     let (DecodedFrame::Response(frame), _) =
         decode_frame(&created.frame.bytes, MAX_FRAME_BYTES).unwrap()
@@ -811,7 +811,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let open = source
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             source_handshake.as_bytes().to_vec(),
         ))
@@ -852,7 +852,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let imported = target
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::ExchangeImport,
             export_frame.body.clone(),
         ))
@@ -877,7 +877,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let open = target
         .answer(&request_frame(
             None,
-            2,
+            0,
             Method::SessionOpen,
             target_handshake.as_bytes().to_vec(),
         ))
@@ -978,7 +978,7 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     let open = streaming
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             streaming.handshake_id().as_bytes().to_vec(),
         ))
@@ -1033,7 +1033,7 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     let open = refusing
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             refusing.handshake_id().as_bytes().to_vec(),
         ))
@@ -1070,7 +1070,7 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     let open = budgeted
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             budgeted.handshake_id().as_bytes().to_vec(),
         ))
@@ -1139,7 +1139,7 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_name_their_root() {
     let open = twin
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             twin.handshake_id().as_bytes().to_vec(),
         ))
@@ -1274,7 +1274,7 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_name_their_root() {
     // on a headed repository is refused with SESSION_BINDING_INVALID.
     let headed = harness
         .server
-        .answer(&request_frame(None, 1, Method::WorkspaceCreate, Vec::new()))
+        .answer(&request_frame(None, 0, Method::WorkspaceCreate, Vec::new()))
         .unwrap();
     assert!(headed.failed);
     let (DecodedFrame::Response(frame), _) =
@@ -1342,7 +1342,7 @@ fn live_sessions_are_capped_and_restarts_forget() {
         .server
         .answer(&request_frame(
             None,
-            99,
+            0,
             Method::SessionOpen,
             harness.server.handshake_id().as_bytes().to_vec(),
         ))
@@ -1361,7 +1361,7 @@ fn live_sessions_are_capped_and_restarts_forget() {
         .server
         .answer(&request_frame(
             None,
-            100,
+            0,
             Method::SessionOpen,
             harness.server.handshake_id().as_bytes().to_vec(),
         ))
@@ -1573,7 +1573,7 @@ fn open_server_with_features(
     let open = server
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             handshake.as_bytes().to_vec(),
         ))
@@ -1743,7 +1743,7 @@ fn tampered_hello_is_rejected_at_session_open() {
     let answer = server
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             honest_id.as_bytes().to_vec(),
         ))
@@ -1762,7 +1762,7 @@ fn tampered_hello_is_rejected_at_session_open() {
     let answer = server
         .answer(&request_frame(
             None,
-            2,
+            0,
             Method::SessionOpen,
             server.handshake_id().as_bytes().to_vec(),
         ))
@@ -1815,7 +1815,7 @@ fn collection_retains_a_non_head_session_bound_root() {
     let open = server_a
         .answer(&request_frame(
             None,
-            2,
+            0,
             Method::SessionOpen,
             server_a.handshake_id().as_bytes().to_vec(),
         ))
@@ -2293,7 +2293,10 @@ fn frame_codec_pins_protocol_version_one() {
     // server rule lives in `SelectedProfile::check_claim` (unit-tested in
     // `crate::tests`) and the dispatch path applies it.
     let mut harness = Harness::new("smp1-version-pin");
-    for claimed in [0, PROTOCOL_VERSION + 1] {
+    for (claimed, code) in [
+        (0, ProtocolErrorCode::Downgrade),
+        (PROTOCOL_VERSION + 1, ProtocolErrorCode::VersionUnsupported),
+    ] {
         let frame = ProtocolFrame {
             protocol_version: claimed,
             session: Some(harness.session),
@@ -2306,7 +2309,7 @@ fn frame_codec_pins_protocol_version_one() {
         };
         assert_eq!(
             encode_frame(&frame).unwrap_err().code(),
-            ProtocolErrorCode::VersionUnsupported,
+            code,
             "claimed version {claimed}"
         );
     }
@@ -2330,7 +2333,7 @@ fn failed_dispatch_costs_one_budget_unit() {
     let open = budgeted
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             budgeted.handshake_id().as_bytes().to_vec(),
         ))
@@ -2367,7 +2370,7 @@ fn oversize_response_fails_before_any_partial_body() {
     let open = small
         .answer(&request_frame(
             None,
-            1,
+            0,
             Method::SessionOpen,
             small.handshake_id().as_bytes().to_vec(),
         ))
@@ -2544,4 +2547,42 @@ fn request_carrying_bounds_is_malformed() {
     );
     harness.next_request += 1;
     harness.ok(Method::SessionCapabilities, Vec::new());
+}
+
+#[test]
+fn session_less_frame_with_nonzero_identifier_is_malformed() {
+    // The pre-session space carries identifier 0 only (contract
+    // section 3): a session-less frame naming any other identifier is
+    // malformed, and the rejection consumes nothing.
+    let mut harness = Harness::new("smp1-presession-id");
+    let answer = harness
+        .server
+        .answer(&request_frame(
+            None,
+            7,
+            Method::SessionOpen,
+            harness.server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::FrameInvalid.numeric()
+    );
+    // Identifier 0 still opens.
+    let open = harness
+        .server
+        .answer(&request_frame(
+            None,
+            0,
+            Method::SessionOpen,
+            harness.server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
 }
