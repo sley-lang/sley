@@ -628,7 +628,7 @@
   "root_backed_query_profile": {
     "status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0030-root-backed-query-boundary.md",
     "checker": "scripts/check_root_backed_query_profile.py",
     "query_classes": 19,
@@ -654,11 +654,12 @@
     "persistent_fuzz_target": "fuzz/targets/root_query_engine.rs",
     "closeout": "docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md",
     "fixture_vectors": 23,
-    "p0_open": [
-      "charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule cannot derive the implemented per-class constants, so the oracle reproduces the implementation rather than the contract, and S20-320 already binds these bytes",
-      "the class-kind applicability table ADR-0030 decision 1 and section 9 require is absent, so classes 16, 17, and 19 silently accept every kind"
-    ],
-    "p0_open_count": 4
+    "p0_open": [],
+    "p0_open_count": 2,
+    "p0_closed": [
+      "charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule could not derive the implemented per-class constants, so the oracle reproduced the implementation rather than the contract; raised by ariadne. Section 4 now freezes the exact per-class traversal schedule with the traversal-plus-response-bytes rule, the oracle cites the schedule as its charge source, and a unit test pins all nineteen traversal charges and charged totals; no charge value changed",
+      "the class-kind applicability table ADR-0030 decision 1 and section 9 require was absent, so classes 16, 17, and 19 silently accepted every kind and class_applies_to constrained only classes 6, 7, 8, and 18 without ever running; raised by ariadne. Section 2 now carries the normative nineteen-class table (16, 17, and 19 explicitly every kind, since any entity may be a target or subject and the query never re-judges validity), class_applies_to executes the full table with fail-closed unknown tags, the engine checks it for every named entity and seed after binding and before running, and a matrix test pins the table unit-wide and end to end over the eighteen-kind fixture"
+    ]
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",

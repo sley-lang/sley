@@ -879,6 +879,20 @@ pub fn execute_root_query(
             return fail(RootQueryErrorCode::UnresolvedEntity);
         }
     }
+    // The class-kind applicability table (contract section 2) runs here,
+    // after input binding and presence checks and before any class runs,
+    // so an absent entity is always `UnresolvedEntity` (precedence 7) and
+    // a present entity of an unadmitted kind is always
+    // `ClassNotApplicable` (precedence 8). Presence was just established,
+    // so a missing kind here is an impossible trusted-construction state.
+    for entity in request.query.named_entities() {
+        let kind = input
+            .kind_of(entity)
+            .ok_or_else(|| RootQueryError::new(RootQueryErrorCode::InternalInvariant))?;
+        if !class_applies_to(request.query.tag(), kind) {
+            return fail(RootQueryErrorCode::ClassNotApplicable);
+        }
+    }
 
     let mut work = 0_u64;
     let max_work = request.limits.max_work;
@@ -1642,8 +1656,13 @@ fn encode_fingerprint_option(
     }
 }
 
-/// Returns the set of classes that apply to every entity kind, for
-/// applicability evidence.
+/// Returns whether the class admits the subject kind, executing the
+/// normative class-kind applicability table in section 2 of the
+/// root-backed query profile. Classes without a subject (1, 4, 5, 10,
+/// 11) accept every kind here because they name no entity; every other
+/// class bearing an entity, seed, target, or subject accepts every kind
+/// except 6, 7, 8, and 18, which are restricted to the kinds their
+/// bodies are defined over.
 #[must_use]
 pub fn class_applies_to(class_tag: u32, kind: ModeledEntityKind) -> bool {
     match class_tag {
@@ -1655,7 +1674,8 @@ pub fn class_applies_to(class_tag: u32, kind: ModeledEntityKind) -> bool {
                 | ModeledEntityKind::AdapterImport
                 | ModeledEntityKind::CapabilityRequirement
         ),
-        _ => true,
+        1 | 2 | 3 | 4 | 5 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 19 => true,
+        _ => false,
     }
 }
 
@@ -2306,6 +2326,198 @@ pub(crate) mod tests {
         assert_eq!(RootQueryErrorCode::ALL[10].numeric(), 31_010);
         for pair in RootQueryErrorCode::ALL.windows(2) {
             assert!(pair[0].numeric() < pair[1].numeric());
+        }
+    }
+
+    #[test]
+    fn class_kind_applicability_table_is_executed() {
+        // The unit matrix pins the section 2 table: only classes 6, 7, 8,
+        // and 18 restrict kinds, and unknown tags admit nothing.
+        for tag in 0..=20_u32 {
+            for kind_tag in 1..=18_u32 {
+                let kind = ModeledEntityKind::from_ssmc_tag(kind_tag).unwrap();
+                let expected = match tag {
+                    6 | 7 => kind == ModeledEntityKind::Package,
+                    8 => kind == ModeledEntityKind::Namespace,
+                    18 => matches!(
+                        kind,
+                        ModeledEntityKind::Function
+                            | ModeledEntityKind::AdapterImport
+                            | ModeledEntityKind::CapabilityRequirement
+                    ),
+                    1 | 2 | 3 | 4 | 5 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 19 => true,
+                    _ => false,
+                };
+                assert_eq!(
+                    class_applies_to(tag, kind),
+                    expected,
+                    "tag {tag} kind {kind:?}"
+                );
+            }
+        }
+        // End to end over the fixture, which covers all eighteen kinds:
+        // every-kind classes succeed for every entity, restricted classes
+        // fail `ClassNotApplicable` exactly off their table row, and an
+        // absent entity is still `UnresolvedEntity` (precedence 7 before 8).
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        let limits = QueryLimits::profile_maximum();
+        let entities: Vec<EntityId> = borrowed
+            .entities
+            .iter()
+            .map(|entry| entry.entity_id())
+            .collect();
+        assert_eq!(entities.len(), owned.snapshot.inventory().len());
+        for entity in &entities {
+            let kind = input.kind_of(*entity).unwrap();
+            for query in [
+                RootQuery::GetEntity { entity: *entity },
+                RootQuery::GetSemanticFingerprint { entity: *entity },
+                RootQuery::ListOwningNamespaces { entity: *entity },
+                RootQuery::ListDirectDependencies {
+                    entity: *entity,
+                    kinds: vec![ImpactKind::Ownership],
+                },
+                RootQuery::ListDirectDependents {
+                    entity: *entity,
+                    kinds: vec![ImpactKind::Ownership],
+                },
+                RootQuery::ReverseImpactClosure {
+                    seeds: vec![*entity],
+                },
+                RootQuery::ForwardDependencyClosure {
+                    seeds: vec![*entity],
+                },
+                RootQuery::ListContractsFor { target: *entity },
+                RootQuery::ListTestsFor { target: *entity },
+                RootQuery::ListCapabilityRequirementsFor { subject: *entity },
+            ] {
+                assert!(
+                    execute_root_query(
+                        &input,
+                        &build_root_query_request(&input, query.clone(), limits, false, None)
+                            .unwrap()
+                    )
+                    .is_ok(),
+                    "{query:?} applies to every kind, including {kind:?}"
+                );
+            }
+            let package_only = [
+                RootQuery::ListPackageExports { package: *entity },
+                RootQuery::ListPackageDependencies { package: *entity },
+            ];
+            for query in package_only {
+                if kind == ModeledEntityKind::Package {
+                    assert_eq!(run(&input, query.clone()).class_tag(), query.tag());
+                } else {
+                    assert_eq!(
+                        run_err(&input, query.clone(), limits, false, None),
+                        RootQueryErrorCode::ClassNotApplicable,
+                        "{query:?} on {kind:?}"
+                    );
+                }
+            }
+            if kind == ModeledEntityKind::Namespace {
+                assert_eq!(
+                    run(
+                        &input,
+                        RootQuery::ListNamespaceMembers { namespace: *entity }
+                    )
+                    .class_tag(),
+                    8
+                );
+            } else {
+                assert_eq!(
+                    run_err(
+                        &input,
+                        RootQuery::ListNamespaceMembers { namespace: *entity },
+                        limits,
+                        false,
+                        None
+                    ),
+                    RootQueryErrorCode::ClassNotApplicable,
+                    "class 8 on {kind:?}"
+                );
+            }
+            let effects_admitted = matches!(
+                kind,
+                ModeledEntityKind::Function
+                    | ModeledEntityKind::AdapterImport
+                    | ModeledEntityKind::CapabilityRequirement
+            );
+            if effects_admitted {
+                assert_eq!(
+                    run(&input, RootQuery::ListDeclaredEffects { entity: *entity }).class_tag(),
+                    18
+                );
+            } else {
+                assert_eq!(
+                    run_err(
+                        &input,
+                        RootQuery::ListDeclaredEffects { entity: *entity },
+                        limits,
+                        false,
+                        None
+                    ),
+                    RootQueryErrorCode::ClassNotApplicable,
+                    "class 18 on {kind:?}"
+                );
+            }
+        }
+        assert_eq!(
+            run_err(
+                &input,
+                RootQuery::ListPackageExports { package: id(0x99) },
+                limits,
+                false,
+                None
+            ),
+            RootQueryErrorCode::UnresolvedEntity
+        );
+        assert_eq!(
+            run_err(
+                &input,
+                RootQuery::ListDeclaredEffects { entity: id(0x99) },
+                limits,
+                false,
+                None
+            ),
+            RootQueryErrorCode::UnresolvedEntity
+        );
+    }
+
+    #[test]
+    fn charged_work_follows_the_section_4_schedule() {
+        // Pins the exact section 4 schedule over the fixture (19 inventory
+        // entries, 41 snapshot edges): traversal work per class plus the
+        // exact response record bytes. Any charge or layout drift fails
+        // here before it can enter a bound SLEYRQR1 record.
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        let expected_traversal = [
+            19_u64, 3, 2, 19, 19, 3, 2, 10, 7, 1, 1, 41, 41, 47, 11, 19, 19, 2, 19,
+        ];
+        let expected_charged = [
+            659_u64, 355, 318, 403, 339, 355, 418, 622, 359, 357, 321, 533, 873, 783, 427, 339,
+            339, 322, 339,
+        ];
+        assert_eq!(all_classes().len(), expected_traversal.len());
+        for (index, query) in all_classes().into_iter().enumerate() {
+            let response = run(&input, query);
+            assert_eq!(
+                response.charged_work() - response.response_bytes(),
+                expected_traversal[index],
+                "class {} traversal",
+                index + 1
+            );
+            assert_eq!(
+                response.charged_work(),
+                expected_charged[index],
+                "class {} charged",
+                index + 1
+            );
         }
     }
     fn hex(bytes: &[u8]) -> String {

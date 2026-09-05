@@ -1,6 +1,6 @@
 # S20-310 Full Root-Backed Query Closeout
 
-Status: **implemented under the draft Root-Backed Query Profile v1 contract (revision 1); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Root-Backed Query Profile v1 contract (revision 2); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -43,7 +43,9 @@ The implementation provides:
 
 ## Evidence
 
-- Contract draft revision 1 and ADR-0030 at `d7065ee`; implementation,
+- Contract draft revision 2 (revision 1 plus the section 2 class-kind
+  applicability table and the exact section 4 per-class work schedule)
+  and ADR-0030 at `d7065ee`; implementation,
   corpus, oracle, and fuzz slice at `76cf2a2`.
 - Conformance corpus: `conformance/root-backed-query/v1/accepted.json`
   (twenty-three vectors: all nineteen classes over the frozen S20-250

@@ -1,9 +1,12 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 1 (2026-09-03); implemented
+Status: S20-310 full contract draft, revision 2 (2026-09-05); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
-and the package is not complete. Implementation state is tracked in the
+and the package is not complete. Revision 2 adds the section 2 class-kind
+applicability table and the exact section 4 per-class work schedule the
+Council round required; no query semantics, record layout, or charge value
+changed. Implementation state is tracked in the
 machine summary.
 
 This profile completes S20-310. It defines the nineteen root-backed query
@@ -139,11 +142,41 @@ Exact semantics:
 
 Filters, seeds, and named entities keep the restricted rules: nonempty
 strictly increasing filter tags resolving to kinds 1 through 12, nonempty
-strict raw-order seed lists, and every named identity present in the
-inventory. A `kind` body must resolve to an SSMC1 tag 1 through 18, else
-`QUERY_UNSUPPORTED`. A class whose body names an entity of a kind the class
-does not apply to (`ListPackageExports` on a non-package, and so on) fails
-`QUERY_CLASS_NOT_APPLICABLE`.
+strictly increasing seed lists in raw `EntityId` order, and every named
+identity present in the inventory. A `kind` body must resolve to an SSMC1
+tag 1 through 18, else `QUERY_UNSUPPORTED`.
+
+### Class-kind applicability
+
+The table below is normative and exhaustive: it decides, for every class,
+which subject kinds the class accepts. A class whose body names an entity
+of a kind the table does not admit for that class fails
+`QUERY_CLASS_NOT_APPLICABLE`. The engine checks the table for every named
+entity and seed after input binding and before running the class, so the
+applicability failure (precedence item 8) can only follow items 1
+through 7.
+
+| Class (tag) | Admitted subject kinds | Note |
+|---|---|---|
+| GetRootSummary (1) | no subject | n/a |
+| GetEntity (2) | every kind | kind, binding, and fingerprint are reported for any inventory entity |
+| GetSemanticFingerprint (3) | every kind | an absent fingerprint is the exact fact `None` |
+| ListEntitiesByKind (4) | no subject; the body is a kind tag 1 through 18, not an entity | n/a |
+| ListWorkspacePackages (5) | no subject | n/a |
+| ListPackageExports (6) | Package only | else `QUERY_CLASS_NOT_APPLICABLE` |
+| ListPackageDependencies (7) | Package only | else `QUERY_CLASS_NOT_APPLICABLE` |
+| ListNamespaceMembers (8) | Namespace only | else `QUERY_CLASS_NOT_APPLICABLE` |
+| ListOwningNamespaces (9) | every kind | ownerless kinds 1, 2, 6, 7, 8, and 18 yield the exact empty chain |
+| ListEntryPoints (10) | no subject | n/a |
+| ListDependencyRoots (11) | no subject | n/a |
+| ListDirectDependencies (12) | every kind | edges may touch any entity |
+| ListDirectDependents (13) | every kind | edges may touch any entity |
+| ReverseImpactClosure (14) | every seed kind | seeds keep the restricted shape rule |
+| ForwardDependencyClosure (15) | every seed kind | seeds keep the restricted shape rule |
+| ListContractsFor (16) | every kind | any entity may be a contract target; the class reports referencing Contracts and never re-judges target validity |
+| ListTestsFor (17) | every kind | any entity may be a test target; the class reports referencing TestCases and never re-judges target validity |
+| ListDeclaredEffects (18) | Function, AdapterImport, and CapabilityRequirement only | else `QUERY_CLASS_NOT_APPLICABLE` |
+| ListCapabilityRequirementsFor (19) | every kind | any entity may be a policy subject; the workspace additionally contributes its workspace capability requirements when it is the subject |
 
 ## 3. Exact results, paging, and continuation
 
@@ -179,9 +212,37 @@ their whole result must fit the applied limits or the query fails
 
 `QueryLimits` and its ceilings are the restricted profile's, unchanged. The
 request preimage ceiling is 4,194,304 bytes, the response record ceiling
-67,108,864 bytes, and charged work 100,000,000. Work charges one unit per
-inventory lookup, body field visited, expanded entity, examined edge, and
-emitted response byte.
+67,108,864 bytes, and charged work 100,000,000. Charged work is traversal
+work plus the exact response record bytes, each addition with checked
+arithmetic against the applied `max_work` and the profile ceiling; either
+ceiling breached is `QUERY_RESOURCE_LIMIT`. Traversal work is exactly the
+per-class schedule below, one unit per item scanned, examined, followed,
+or counted as stated, plus the two fixed single-key constants. The
+independent oracle reproduces this table item for item, so an
+implementation charge outside it fails the vector check rather than
+entering a record.
+
+| Class (tag) | Traversal work |
+|---|---|
+| GetRootSummary (1) | one unit per inventory entry; the three summary counts are derived without further charge |
+| GetEntity (2) | flat 3: one inventory lookup, one binding read, one fingerprint lookup |
+| GetSemanticFingerprint (3) | flat 2 |
+| ListEntitiesByKind (4) | one unit per inventory entry |
+| ListWorkspacePackages (5) | one unit per entity body scanned |
+| ListPackageExports (6) | 1 plus one unit per export |
+| ListPackageDependencies (7) | 1 plus one unit per dependency |
+| ListNamespaceMembers (8) | 1 plus one unit per member |
+| ListOwningNamespaces (9) | one unit per scanned candidate body, skipped when the subject is a namespace, plus one unit per chain link followed |
+| ListEntryPoints (10) | one unit per entry point |
+| ListDependencyRoots (11) | one unit per dependency root |
+| ListDirectDependencies (12) | one unit per snapshot edge examined |
+| ListDirectDependents (13) | one unit per snapshot edge examined |
+| ReverseImpactClosure (14) | one unit per dequeued entity plus one unit per examined reverse edge |
+| ForwardDependencyClosure (15) | one unit per dequeued entity plus one unit per examined direct edge |
+| ListContractsFor (16) | one unit per entity body scanned |
+| ListTestsFor (17) | one unit per entity body scanned |
+| ListDeclaredEffects (18) | 1 plus one unit per effect |
+| ListCapabilityRequirementsFor (19) | one unit per entity body scanned |
 
 ## 5. Request identity
 

@@ -213,7 +213,13 @@ def named_entities(query: dict) -> list[str]:
 
 
 def compute(root: Root, query: dict, work: Work) -> tuple[str, list, int]:
-    """Returns (payload kind, complete items, reached depth)."""
+    """Returns (payload kind, complete items, reached depth).
+
+    The work charges below reproduce the exact per-class schedule in
+    section 4 of docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md item for
+    item; a charge the schedule does not contain fails the vector check
+    instead of entering a record.
+    """
     cls = query["class"]
     if cls == 1:
         counts = [0] * 18
