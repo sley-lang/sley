@@ -2,15 +2,17 @@
 //! observed through the CLI must equal a direct `Server` over the same
 //! repository, and every CLI failure must carry its exit status.
 
+use std::io::Write as _;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
 use serde_json::Value;
 use sley_id::SessionId;
 use sley_json_bridge::{METHOD_TABLE_JSON, frame_from_json, frame_to_json, hello_to_json};
 use sley_protocol::{
-    BoundedContext, DecodedFrame, FEATURE_JSON_BRIDGE, FrameKind, Hello, MAX_FRAME_BYTES, Method,
-    PROTOCOL_VERSION, ProtocolFailure, ProtocolFrame, Server, decode_frame, encode_frame,
-    encode_hello_frame, frame_length, negotiate_identity,
+    BoundedContext, DecodedFrame, FrameKind, Hello, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION,
+    ProtocolFailure, ProtocolFrame, Server, decode_frame, encode_frame, encode_hello_frame,
+    frame_length, negotiate_identity,
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
 use sley_scb1::encode_uvar;
@@ -85,6 +87,10 @@ fn stderr_object(text: &str) -> Value {
     serde_json::from_str(text.trim_end()).unwrap()
 }
 
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// A direct server over the repository, its session, and the request
 /// frames the CLI tests send after the hello.
 struct Direct {
@@ -123,6 +129,115 @@ fn direct_with(path: &PathBuf, server_hello: &Hello) -> Direct {
         session,
         frames,
     }
+}
+
+#[test]
+fn handshake_identity_does_not_depend_on_the_transport_flag() {
+    // S20-430 P0-1: --json is a transport flag, so the same client hello
+    // over the same repository must negotiate the same handshake identity
+    // in both modes, and that identity must equal a direct server built
+    // from the unedited offer.
+    let (temp, path) = repository("cli-mode-identity");
+    let repo = path.to_str().unwrap();
+
+    let byte_input = encode_hello_frame(&offered()).unwrap().bytes;
+    let byte_report = temp.child("byte-report.json");
+    let (status, _, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--report",
+            byte_report.to_str().unwrap(),
+        ],
+        &byte_input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+
+    let mut lines = frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap();
+    lines.push('\n');
+    let json_report = temp.child("json-report.json");
+    let (status, _, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--json",
+            "--report",
+            json_report.to_str().unwrap(),
+        ],
+        lines.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+
+    let byte_report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&byte_report).unwrap()).unwrap();
+    let json_report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&json_report).unwrap()).unwrap();
+    assert_eq!(
+        byte_report["handshake_id"], json_report["handshake_id"],
+        "the transport flag moved the negotiated handshake identity"
+    );
+    let client = offered();
+    let _ = negotiate_identity(&client, &offered()).unwrap();
+    let direct = Server::new(&path, &client, &offered()).unwrap();
+    assert_eq!(
+        byte_report["handshake_id"],
+        Value::from(hex(direct.handshake_id().as_bytes())),
+        "the endpoint negotiates something other than the server offer"
+    );
+}
+
+#[test]
+fn the_binary_delivers_byte_frames_across_the_process_boundary() {
+    // S20-430 nabu P0: the S20-620 runner consumes the `sley` process,
+    // not the library, so byte-mode answers must cross the real stdout
+    // pipe unfragmented and the exit status must propagate.
+    let (_temp, path) = repository("cli-process");
+    let repo = path.to_str().unwrap().to_string();
+    let handshake = negotiate_identity(&offered(), &offered()).unwrap().1;
+    let mut input = encode_hello_frame(&offered()).unwrap().bytes;
+    input.extend_from_slice(&request(
+        None,
+        1,
+        Method::SessionOpen,
+        0,
+        handshake.as_bytes().to_vec(),
+    ));
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .args(["serve", "--repository", &repo])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(&input).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stderr, b"".to_vec());
+    let frames = split_frames(&output.stdout);
+    assert_eq!(frames.len(), 2, "truncated byte output from the binary");
+    assert_eq!(frames[0], encode_hello_frame(&offered()).unwrap().bytes);
+    assert_eq!(response(&frames[1]).body.len(), 32);
+
+    // The library over the same input must produce the same hello frame:
+    // the boundary moves bytes, nothing else.
+    let (status, lib_stdout, _) = run(&["serve", "--repository", &repo], &input);
+    assert_eq!(status, 0);
+    let lib_frames = split_frames(&lib_stdout);
+    assert_eq!(frames[0], lib_frames[0]);
+
+    // Exit statuses propagate through the binary as well.
+    let output = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .args(["bogus"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
 }
 
 #[test]
@@ -199,15 +314,14 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
 
 #[test]
 fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
+    // S20-430 section 6: the same request frames over the same repository
+    // get byte-identical answers in both modes. Both runs transplant the
+    // same direct-server session, which is unknown to either CLI server
+    // instance (S20-330 section 1), so every post-open answer is the same
+    // deterministic SESSION_UNKNOWN failure; only the session-open answers
+    // differ, each carrying its own freshly minted 32-byte identity.
     let (temp, path) = repository("cli-json");
     let direct = direct(&path);
-    let mut offered_json = offered();
-    offered_json.features |= FEATURE_JSON_BRIDGE;
-    // Sessions are per mode: the handshake identity digests both hello
-    // bodies (SMP1 section 2, threat T45), and the server hello carries
-    // the json_bridge feature only in JSON mode, so byte-mode frames
-    // cannot open a JSON session. The answers stay comparable.
-    let json_direct = direct_with(&path, &offered_json.clone());
     let mut byte_input = encode_hello_frame(&offered()).unwrap().bytes;
     for frame in &direct.frames {
         byte_input.extend_from_slice(frame);
@@ -221,7 +335,7 @@ fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
     let mut lines = String::new();
     lines.push_str(&frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap());
     lines.push('\n');
-    for (index, frame) in json_direct.frames.iter().enumerate() {
+    for (index, frame) in direct.frames.iter().enumerate() {
         if index == 2 {
             lines.push_str("{\"nope\":1}\n");
             lines.push_str("not json at all\n");
@@ -248,7 +362,16 @@ fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
         .map(|line| frame_from_json(line).unwrap().bytes)
         .collect();
     assert_eq!(outputs.len(), byte_frames.len() + 2);
-    assert_eq!(outputs[0], encode_hello_frame(&offered_json).unwrap().bytes);
+    // The wire offer is mode-independent: the JSON hello frame is the
+    // byte hello frame.
+    assert_eq!(outputs[0], byte_frames[0]);
+    assert_eq!(outputs[0], encode_hello_frame(&offered()).unwrap().bytes);
+    // Both session opens succeed with a fresh 32-byte identity each; the
+    // identities differ because sessions are per server instance.
+    for open in [&byte_frames[1], &outputs[1]] {
+        assert_eq!(response(open).body.len(), 32);
+    }
+    assert_ne!(response(&byte_frames[1]).body, response(&outputs[1]).body);
     // The two rejected lines are answered in place with the bridge's code.
     for rejected in [&outputs[3], &outputs[4]] {
         let frame = response(rejected);
@@ -262,21 +385,14 @@ fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
             (42_000, "JSON_BRIDGE_SHAPE_INVALID")
         );
     }
-    // Every other answer is byte-identical to byte mode; the handshake
-    // differs only by the json_bridge feature, which the session identity
-    // digests, so compare the answers after the session open by method,
-    // failure state, and body shape.
-    let byte_answers: Vec<ProtocolFrame> = byte_frames[2..].iter().map(|f| response(f)).collect();
-    let json_answers: Vec<ProtocolFrame> = [&outputs[2], &outputs[5], &outputs[6], &outputs[7]]
-        .iter()
-        .map(|f| response(f))
-        .collect();
-    assert_eq!(byte_answers.len(), json_answers.len());
-    for (bytes, json) in byte_answers.iter().zip(&json_answers) {
-        assert_eq!(bytes.method, json.method);
-        assert_eq!(bytes.request_id, json.request_id);
-        assert_eq!(bytes.bounds, json.bounds);
-        assert_eq!(bytes.body.len(), json.body.len());
+    // Every other answer is byte-identical across the two modes.
+    for (raw_byte, raw_json) in [
+        (&byte_frames[2], &outputs[2]),
+        (&byte_frames[3], &outputs[5]),
+        (&byte_frames[4], &outputs[6]),
+        (&byte_frames[5], &outputs[7]),
+    ] {
+        assert_eq!(raw_byte, raw_json);
     }
     let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
     assert_eq!(report["mode"], "json");
@@ -538,11 +654,9 @@ fn methods_hello_and_version_expose_the_offer_without_judgment() {
     assert_eq!(stdout, encode_hello_frame(&offered()).unwrap().bytes);
     let (status, stdout, _) = run(&["hello", "--json"], &[]);
     assert_eq!(status, 0);
-    let mut with_bridge = offered();
-    with_bridge.features |= FEATURE_JSON_BRIDGE;
     assert_eq!(
         String::from_utf8(stdout).unwrap(),
-        format!("{}\n", hello_to_json(&with_bridge).unwrap())
+        format!("{}\n", hello_to_json(&offered()).unwrap())
     );
 
     let (status, stdout, _) = run(&["version"], &[]);

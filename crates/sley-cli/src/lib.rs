@@ -18,9 +18,9 @@ use sley_json_bridge::{
     frame_to_json, hello_to_json,
 };
 use sley_protocol::{
-    Answer, BoundedContext, DecodedFrame, EncodedFrame, FEATURE_JSON_BRIDGE, FrameKind, Hello,
-    MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure,
-    ProtocolFrame, Server, decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate,
+    Answer, BoundedContext, DecodedFrame, EncodedFrame, FrameKind, Hello, MAX_FRAME_BYTES,
+    PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, Server,
+    decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate,
 };
 
 /// The CLI contract name written by `sley version`.
@@ -255,7 +255,17 @@ pub fn run(
         Command::Version => version(stdout),
     });
     match outcome {
-        Ok(()) => 0,
+        Ok(()) => {
+            // Every write path flushes (contract section 2), and this
+            // final flush covers the commands that write directly, so
+            // `main`'s `process::exit` never drops buffered bytes.
+            if let Err(error) = stdout.flush() {
+                let failure = stream_failure(error);
+                let _ = writeln!(stderr, "{}", failure.value());
+                return failure.code.exit_status();
+            }
+            0
+        }
         Err(failure) => {
             // Standard error is best effort; the exit status carries the code.
             let _ = writeln!(stderr, "{}", failure.value());
@@ -264,16 +274,16 @@ pub fn run(
     }
 }
 
-fn offered_hello(json: bool) -> Result<Hello> {
-    let mut offered = Server::offered_hello().map_err(endpoint_failure)?;
-    if json {
-        offered.features |= FEATURE_JSON_BRIDGE;
-    }
-    Ok(offered)
+/// The hello the endpoint offers: the server's own hello, unedited
+/// (contract section 2). The wire form is a transport choice, never a
+/// negotiated feature, so the offer never carries a transport feature
+/// and the handshake identity does not depend on `--json`.
+fn offered_hello() -> Result<Hello> {
+    Server::offered_hello().map_err(endpoint_failure)
 }
 
 fn hello(json: bool, stdout: &mut dyn Write) -> Result<()> {
-    let offered = offered_hello(json)?;
+    let offered = offered_hello()?;
     if json {
         let text = hello_to_json(&offered).map_err(|error| render_failure(&error))?;
         writeln!(stdout, "{text}").map_err(stream_failure)
@@ -570,6 +580,10 @@ fn write_frame(
     } else {
         stdout.write_all(&frame.bytes).map_err(stream_failure)?;
     }
+    // Flush per answer (contract section 2): byte-mode frames carry no
+    // reliable trailing newline, so a pipe consumer must never wait on a
+    // response sitting in the endpoint's buffer.
+    stdout.flush().map_err(stream_failure)?;
     report.frames_written += 1;
     Ok(())
 }
@@ -620,7 +634,7 @@ fn serve_frames(
     report: &mut Report,
 ) -> Result<()> {
     let json = options.json;
-    let offered = offered_hello(json)?;
+    let offered = offered_hello()?;
     let mut source = if json {
         Source::Text(BufReader::new(stdin))
     } else {

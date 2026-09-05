@@ -82,6 +82,10 @@ def main() -> int:
                 problems.append(f"judgment:{path.name}:{pattern.pattern}")
         if METHOD_NAME.search(production):
             problems.append(f"method-name:{path.name}")
+        # The offer carries no transport feature (contract section 2): the
+        # endpoint must never name the JSON bridge feature bit.
+        if "FEATURE_JSON_BRIDGE" in production:
+            problems.append(f"transport-feature:{path.name}")
     if frame_literals > 1:
         problems.append(f"frame-literals:{frame_literals}")
     if encode_calls > 1:

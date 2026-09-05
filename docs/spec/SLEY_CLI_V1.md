@@ -1,9 +1,10 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-430 contract draft, revision 3 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
-revision 1 (section 8). The implementation is `crates/sley-cli`;
+revision 1 (section 8); revision 3 removes the transport feature from the
+offer (section 8). The implementation is `crates/sley-cli`;
 implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
@@ -11,9 +12,9 @@ between standard input, standard output, and the deterministic S20-410
 server over one repository path, in either the canonical byte form or the
 S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
-(`docs/spec/SMP1.md` revision 6, S20-440 batch admission, S20-330
+(`docs/spec/SMP1.md` revision 10, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md`). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 6). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -25,8 +26,8 @@ sley frame decode                       # stdin: frames as bytes; stdout: one Fr
 sley frame encode                       # stdin: one Frame object per line; stdout: frames as bytes
 sley methods                            # stdout: the generated method table
 sley hello [--json]                     # stdout: the hello this endpoint offers, as a hello frame
-                                        # (under --json: the Hello object it offers in JSON mode)
-sley version                            # stdout: {"cli":"1","protocol_version":1,"contract":"sley2-cli-v1"}
+                                        # (under --json: the same Hello object, rendered as JSON)
+sley version                            # stdout: {"cli":"1","contract":"sley2-cli-v1","protocol_version":1}
 ```
 
 Arguments are exact: an unknown command, a repeated or unknown option, or
@@ -37,11 +38,19 @@ stream.
 ## 2. `serve`
 
 The endpoint offers the hello of the deterministic server
-(`Server::offered_hello`): protocol version 1, the frozen conformance
-schema epoch, the limit ceilings, every method the server dispatches
-(reserved and deferred methods are not offered), the cancel and stream
-features, and no adapters or effects; under `--json` the endpoint adds the
-`json_bridge` feature. The first frame read must be the client hello
+(`Server::offered_hello`), unedited: protocol version 1, the frozen
+conformance schema epoch, the limit ceilings, every method the server
+dispatches (reserved methods are not offered), the cancel and stream
+features, and no adapters or effects. The offer never carries a transport feature:
+the wire form (byte frames or JSON lines) is a transport choice
+the endpoint makes, not a negotiated capability, so `--json` must not move
+the negotiated profile, the handshake identity, or the session identity,
+and the same client hello over the same repository negotiates the same
+session in both modes. (A per-mode feature bit would enter the
+transcript-bound handshake digest and fork session identity by mode while
+breaking session opens against the digest; offering it always would claim
+a JSON capability in byte mode the endpoint does not exercise. Hence
+neither.) The first frame read must be the client hello
 (SMP1 section 2); anything else, or no frame at all, is
 `CLI_HANDSHAKE_REQUIRED`. The endpoint derives the selected profile with
 the frozen `negotiate`, writes its own hello frame, and answers every
@@ -62,7 +71,11 @@ frame.
 Byte mode reads the eight-byte length prefix, checks it with the codec's
 `frame_length` under the ceiling in force (the absolute ceiling before the
 handshake, the negotiated `max_frame_bytes` after it), then reads exactly
-that many bytes; the bytes are handed to the server unchanged. A prefix
+that many bytes; the bytes are handed to the server unchanged. Every
+answer is flushed before the next frame is read, and the streams are
+flushed once more at exit, so a pipe consumer never waits on a response
+sitting in the endpoint's buffer and `process::exit` never drops buffered
+bytes; a flush failure is `CLI_IO_FAILURE`. A prefix
 above the ceiling is answered with the codec's `PROTOCOL_FRAME_TOO_LARGE`
 without reading the body. A short read inside a frame is
 `CLI_INPUT_INVALID`. JSON mode reads one `Frame` object per line
@@ -131,18 +144,27 @@ error.
   failure frame, and calls `encode_frame` only there;
 - the CLI source contains no `fn validate`, `fn judge`, `fn check_`, no
   method-name or method-tag match arms, and no text output that is not a
-  frame, a report, or the version object.
+  frame, a report, or the version object;
+- the CLI source never names `FEATURE_JSON_BRIDGE`: the offer carries no
+  transport feature (section 2).
 
 ## 6. Required evidence
 
 - Native tests over a trusted genesis repository: the handshake and a
   session opened through standard input in byte mode and in JSON mode with
-  byte-identical responses to a direct `Server` over the same repository;
-  the batch mode cancelling a request before execution; the negotiation
+  byte-identical answers for the same request frames to a direct `Server`
+  over the same repository (only the session-open bodies differ, each
+  carrying its own freshly minted identity); the mode-independent
+  handshake identity against the direct server's digest; the batch mode
+  cancelling a request before execution; the negotiation
   failure response; every CLI failure with its exit status and stderr
   object; the report's counts against the frames written; `frame decode`
   and `frame encode` reproducing the S20-420 fixture; `methods`, `hello`,
   and `version` outputs.
+- Process-boundary evidence: at least one test driving the real `sley`
+  binary over pipes, proving byte-mode answers cross the process boundary
+  unfragmented and exit statuses propagate; the flush-per-answer
+  obligation of section 2 holds on every write path.
 - `scripts/check_cli_rules.py` in `make quick`.
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan
   reviews with every report-grade finding closed.
@@ -174,8 +196,24 @@ release, or GA.
   frame the codec cannot encode, both `PROTOCOL_INTERNAL_INVARIANT`, or a
   server frame the bridge cannot render) is `CLI_IO_FAILURE` with the
   underlying symbol as its cause.
-- `hello --json` writes the `Hello` object the endpoint offers in JSON
-  mode, which carries the `json_bridge` feature; `hello` writes the hello
-  frame it offers in byte mode.
+- `hello --json` writes the `Hello` object the endpoint offers, rendered
+  as JSON; both renderings carry the same offer, which has no transport
+  feature in either mode.
 - Standard error is best effort: the exit status carries the code even
   when the failure object cannot be written.
+
+### Revision 3 (2026-09-05)
+
+- The `--json` transport feature is gone from the offer, the negotiation,
+  and the wire hello: the endpoint offers `Server::offered_hello`
+  unedited in both modes, so the handshake and session identity no longer
+  depend on the transport flag and session opens succeed in JSON mode.
+  The revision 2 closeout's digest rationale described the old behavior
+  correctly (the bit entered the transcript-bound handshake); the
+  weakened cross-mode comparison it justified is replaced by
+  byte-identical answers for the same request frames.
+- Every answer is flushed before the next frame is read (section 2), and
+  the process boundary is covered by a test driving the real binary.
+- The revision pins are SMP1 revision 10 and bridge revision 6; the
+  `version` example shows the emitted lexicographic field order; the
+  "deferred methods" wording is dropped (`is_deferred` exists nowhere).

@@ -194,8 +194,8 @@ impl Server {
 
     /// The hello this server offers to an endpoint (S20-430): protocol
     /// version 1, the frozen conformance schema epoch, the limit ceilings,
-    /// every method the server dispatches (reserved and deferred methods
-    /// are not offered), the cancel and stream features, and no adapters
+    /// every method the server dispatches (reserved methods are not
+    /// offered), the cancel and stream features, and no adapters
     /// or effects.
     ///
     /// # Errors

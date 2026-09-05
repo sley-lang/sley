@@ -1,6 +1,6 @@
 # S20-430 Thin CLI Closeout
 
-Status: **implemented under the draft Thin Machine-Oriented CLI v1 contract (revision 2); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Thin Machine-Oriented CLI v1 contract (revision 3); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -15,7 +15,7 @@ JSON form, answering each frame as it arrives or, under `--batch`, every
 frame together so S20-440 cancellation can precede execution. The endpoint
 offers the server's own hello (`Server::offered_hello`: version 1, the
 conformance schema epoch, the limit ceilings, the dispatched
-methods, cancel and stream, and the `json_bridge` feature in JSON mode),
+methods, cancel and stream, no adapters or effects),
 derives the profile with the frozen `negotiate`, and builds only two
 frames itself: its hello and one failure response through the codec. It
 counts what it moved into a report, maps its own four failures to exit
@@ -50,6 +50,10 @@ The implementation provides:
 - Contract draft revision 1, ADR-0035, stage checker, and rule audit at
   `d5fc242`; bridge revision 3 and the offered hello at `6e6b6bc`;
   revision 2 and the implementation at `c680894`.
+- Revision 3 (contract, implementation, both checkers, closeout): the
+  transport feature leaves the offer, the negotiation, and the wire
+  hello; flush-per-answer plus the process-boundary test; byte-identical
+  cross-mode answers.
 - Endpoint tests (`cargo test -p sley-cli`, eight tests over a trusted
   genesis repository): byte-mode answers byte-identical to a direct
   `Server` over the same repository with the report's counts; JSON mode
@@ -65,8 +69,9 @@ The implementation provides:
   the S20-420 fixture; and `methods`, `hello`, `hello --json`, and
   `version`.
 - `sley-protocol` gains one test that the offered hello names exactly the
-  dispatched methods (33) and that each answers something other than a
-  deferred or reserved refusal.
+  dispatched methods (37) and that each answers something other than an
+  unsupported-method failure (no deferred-method predicate exists; the
+  earlier "33" and "deferred" wording was wrong).
 - `scripts/check_cli_rules.py`: dependencies exactly `serde_json`,
   `sley-json-bridge`, `sley-protocol`; one frame literal; one
   `encode_frame` call; no findings.
@@ -89,13 +94,17 @@ The implementation provides:
 
 - **Council reviews.** Ariadne, Nabu, and Vulcan reviews land as contract
   revisions; the campaign record lists the open questions (per-frame
-  versus batch default, `json_bridge` always or only under `--json`, and
-  whether `Server::offered_hello` belongs to the S20-400 contract).
+  versus batch default, and whether `Server::offered_hello` belongs to
+  the S20-400 contract). The `json_bridge` offering question is decided
+  by revision 3: neither always nor only under `--json` — the offer
+  carries no transport feature in either mode, so the handshake and
+  session identity do not depend on the transport flag.
 - Cancellation reaches an earlier request only in batch mode; a streaming
   transport with interleaved cancellation is out of scope by contract.
-- Sessions are compared across modes by method, identifier, bounds, and
-  body length rather than bytes, because the `json_bridge` feature enters
-  the handshake digest and therefore the session identity.
+- Cross-mode answers are byte-identical for the same request frames
+  (revision 3 replaces the revision 2 method/identifier/bounds/length
+  comparison, whose digest rationale described the old bit-carrying
+  behavior correctly but is now obsolete).
 
 ## Validation record
 

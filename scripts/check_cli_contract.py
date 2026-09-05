@@ -42,11 +42,13 @@ SPEC_MARKERS = (
     "sley serve --repository <path> [--json] [--batch] [--report <path>]",
     "## 2. `serve`",
     "`Server::offered_hello`",
+    "The offer never carries a transport feature",
     "## 3. Report",
     '"contract": "sley2-cli-report-v1",',
     "## 4. Exit status and stable failures",
     "## 5. Rules audited mechanically",
     "`scripts/check_cli_rules.py` fails closed",
+    "## 6. Required evidence",
     "## 7. Explicit exclusions",
 )
 ADR_MARKERS = (
