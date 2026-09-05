@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `61c2ca3`.
+are green at `bd9fa8d`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 100 of 110 P0 entries closed
+## Findings: 104 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -231,9 +231,33 @@ Closed, each reproduced before fixing:
   conformance-report drift (cured by committing the deterministic rebuild),
   second smoke failed the dossier test-inventory drift on the new unit test
   (cured by committing the refresh), and two count pins hid in two scripts
-  each (corpus count and evidence expectation updated separately).
+   each (corpus count and evidence expectation updated separately).
+- **S20-510** (4 entries): forward-closure inventory plus three frozen pins
+  (`c56db69` code, dispositions in the same commit, `bd9fa8d` evidence, with
+  a `bfcda44` test-inventory refresh in between). Reading the fingerprint
+  code before fixing paid off twice: the feared divergent-`SemanticDeltaId`
+  mechanism is already impossible (the frozen fingerprint enforces
+  forward-closure agreement with back-reference checks and a no-extras rule),
+  and the oracle already walks forward lists, so the fix unifies the one
+  divergent collector rather than inventing a rule. Live repros before the
+  fix: the frozen `body-only` vector carries a body delta for function 07
+  with no entity delta and 07 sits in `collateral` (contract text seeded only
+  `MetadataOnly`-with-body-delta); the seed-formula lines are covered by zero
+  checker markers and no hashed preimage; `stored[11:43]` is uniform across
+  the corpus but pinned nowhere; a temporary test with an emptied forward
+  list failed `FINGERPRINT_INVENTORY_INVALID` through the back-ref pool
+  (deleted after). Fix: `owned_inventory` collects exactly the forward
+  closure, counts are the fingerprint input-vector lengths, the seed rule
+  takes every body-delta carrier into both seed sets with collateral defined
+  as reached, both-bound, and delta-free (enshrining the 07 behavior), and
+  `derivation_semantics_hash` plus `delta_schema_epoch` are pinned in
+  contract, checker, oracle, summary, and a native test. Corpus bytes
+  unchanged (9 pairs, 5 mutations); three native tests added. Round verdicts
+  stand as `FAIL` history with P1+ still open. Repair trail: single smoke
+  failure, the dossier test-inventory drift on the three new tests (cured by
+  committing the refresh).
 
-**10 entries remain open.** 510 (4) is the largest; then 360full (3), 780 (3).
+**6 entries remain open.** 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -255,7 +279,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 510
+2. **Work the next P0 cluster**: 360full or 780 (tied at 3)
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -273,7 +297,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`61c2ca3`. The full `make v1` gate was skipped
+`bd9fa8d`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
