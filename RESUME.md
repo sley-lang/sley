@@ -1,8 +1,9 @@
-# Resume state, 2026-09-05
+# Resume state, 2026-09-05 (evening)
 
-The Council review round is **complete (69/69)**. The repository is clean and
-Tier 1 (`make quick`, `make lint`) is green at `5580fe6` after a
-secret-scan evidence refresh (see below).
+The Council review round is **complete (69/69) plus two reconciliation
+re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
+Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
+`adversarial`, `fuzz-smoke`) are green at `524188d`.
 
 ## Where the work is
 
@@ -45,7 +46,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 52 of 110 P0 entries closed
+## Findings: 64 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -65,14 +66,29 @@ Closed, each reproduced before fixing:
 - **S20-520** (7 entries): merge contract revision 4 (`ee7451d`).
 - **S20-630** (7 entries): succession-accounting contract revision 3
   (`5580fe6`).
+- **S20-310** (4 entries): confirmed closed on `main`, not partial. The two
+  Ariadne P0s (charging schedule, applicability table) closed in `d047eaf`;
+  the two Nabu P0s (input binding, charging schedule) closed in `95c90df`.
+  Checker `PASS`, `p0_open_count` 0.
+- **S20-740** (8 entries): finding-register contract revision 2 (`524188d`).
+  First-token classification, same-lane directional supersession, negation
+  stripping, per-package clearance claims, frozen obligation payload,
+  per-status verdict assertion. The two restricted-query Nabu `REVISE`
+  records this rule surfaced were re-reviewed by Nabu to `PASS` with no
+  findings (logs retained, verdicts 71 total); the `REVISE` dispositions
+  stand as history with `superseded_by` naming the new fields. Register now
+  reads 204 obligations (87 `PASS`, 26 `HISTORICAL_ROUND`, 79 `PENDING`, 11
+  `DEFERRED`, 1 `OTHER`), result `FINDING_REGISTER_OPEN`. Closeout
+  `docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md`.
 
 Two S20-310 P0s are partially addressed on `main` (applicability-table freeze
 `d047eaf`; caller-declared query facts bound to the committed root `95c90df`)
 and need reviewer-confirmation triage against the pinned candidate.
 
-**About 56 entries remain open.** Largest remaining clusters: 740 (8, incl. the
-4 just retained), 310 (4), 360full (3), 390extended (4), 420 (4), 430 (4),
-510 (4), 700fuzz (4), 710full (5), 720 (5), 730 (5), 750 (5), 780 (3).
+**46 entries remain open.** Largest remaining clusters: 710full (5),
+720 (5), 730 (5), 750 (5), then 390extended (4), 420 (4), 430 (4), 510 (4),
+700fuzz (4), 360full (3), 780 (3). The 750 decision-dossier cluster consumes
+the register and is the natural next register-adjacent work.
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -87,18 +103,19 @@ into the rest:
 
 ## To resume
 
-1. **The dispatcher is done.** `patient_dispatcher.log` ends `ALL_DISPATCHED`;
-   do not restart it. If a new round starts, repin the worktree first (see
-   above) so reviewers read the new candidate.
+1. **The dispatcher is done.** `patient_dispatcher.log` ends `ALL_DISPATCHED`
+   (69 round reviews plus the 2 reconciliation re-reviews); do not restart
+   it. If a new round starts, repin the worktree first (see above) so
+   reviewers read the new candidate. The re-review worktree
+   `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
+   can be removed with `git worktree remove` once no session needs it.
 
-2. **Confirm the two S20-310 partial fixes** (`d047eaf`, `95c90df`) against the
-   four S20-310 P0 entries, then work the register-first clusters: 740 (8),
-   750 (5), 730 (5), 720 (5), 710full (5).
-
-3. **Triage each landing verdict** into the S20-740 finding register by
-   recording the disposition in `machineresearch/sley-2.0/machine-summary.json`
-   and rebuilding, and keep `reviews/verdicts.json` current. Take reviewer
-   counts from the emitted JSON, not the prose.
+2. **Work the next P0 cluster**: 750 decision-dossier (5, consumes the
+   register), or 710full / 720 / 730 (5 each) by size. Triage each landing
+   verdict into the S20-740 finding register by recording the disposition in
+   `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
+   `reviews/verdicts.json` current. Take reviewer counts from the emitted
+   JSON, not the prose.
 
 ## Gates
 
@@ -109,14 +126,12 @@ decision.
 
 ## Validation at this commit
 
-`make quick` and `make lint` pass at `5580fe6` after regenerating
-`evidence/security/T54/secret-scan.json` (byte-count/manifest drift from the
-five P0-fix commits). Tier 2 (`core`, `conformance`, `adversarial`,
-`fuzz-smoke`), `make vm-persistent-fuzz-smoke`, and the full `cargo test
---workspace` passed at the earlier checkpoint; one combined Tier 2 invocation
-exited 2 once and did not reproduce across three later runs, individually or
-combined; every individual target passes. Re-run Tier 2 before the next P0
-closeout commit.
+`make quick`, `make lint`, and Tier 2 (`core`, `conformance`, `adversarial`,
+`fuzz-smoke`) all pass at `524188d`. The full `make v1` gate was skipped
+because the 740 revision is a subsystem handoff, not a release boundary;
+`make v2` and `make release-check` remain intentionally fail closed. One
+combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
+not reproduce across later runs, individually or combined.
 
 Two clippy errors exist in `fuzz/targets/root_query_engine.rs` and
 `context_capsule_builder.rs` (`manual_is_multiple_of`). They are pre-existing:
