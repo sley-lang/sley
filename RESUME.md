@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `d1e031e`.
+are green at `c7ca0f1`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 107 of 110 P0 entries closed
+## Findings: 110 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -274,9 +274,28 @@ Closed, each reproduced before fixing:
   untouched (native tests only, no fixture bytes). Round verdicts stand as
   `FAIL` history with P1+ still open. Repair trail: single smoke failure,
   the dossier test-inventory drift on the two new tests (cured by committing
-  the refresh).
+   the refresh).
+- **S20-780** (3 entries, the last cluster): register-truth correction, no
+  code behavior change (`17c6bf8` fix, `c7ca0f1` evidence, clean smoke first
+  attempt). Live repros before fixing: the rev-1 register carried 3 entries
+  with zero mentions of the reimplemented concepts the matrix names; the old
+  audit predicate gates `FAIL` on a recorded audit; three non-sentinel
+  identifiers sit in the adapter while the gate passes. Fix: sections 1.3
+  through 1.5 add seven-field reimplementation dispositions (identity,
+  typed checking, effects/authority) citing the in-repo specs and the frozen
+  suites that pin them (sley-id 7, sley-ssmc 10, sley-check 75, check
+  effects 16, policy capability 10, all executed live); the matrix is
+  retained as succession evidence rather than retired; section 2.1 states
+  exactly the single-sentinel search with non-mechanized detection named as
+  a limit; the checker records the audit fact as a boolean instead of
+  freezing it false. No tests added, corpus untouched. Round verdicts stand
+  as `FAIL` history with P1+ still open. Repair trail: none, smoke passed
+  clean immediately.
 
-**3 entries remain open.** 780 (3).
+**No P0 entries remain open.** All 110 Council P0 findings are closed.
+Lower-severity findings (P1+) remain open per cluster and are tracked in the
+finding register; the review rounds stand as `FAIL` history where P1+ is
+still open.
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -298,7 +317,8 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 780 (3, the last cluster)
+2. **No open P0 cluster remains.** Candidate next work: the P1+ backlog per
+   the finding register, or a new Council round.
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -316,7 +336,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`d1e031e`. The full `make v1` gate was skipped
+`c7ca0f1`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
