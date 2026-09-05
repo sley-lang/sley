@@ -452,7 +452,11 @@ def main() -> int:
     if len(rows) != table["method_count"] or len(names_by_tag) != len(rows) or len(tags_by_name) != len(rows):
         raise SystemExit("method table is not a bijection")
     if [row["tag"] for row in rows] != sorted(names_by_tag) or sorted(names_by_tag) != smp1.ALL_METHODS:
-        raise SystemExit("method table tags drifted from the SMP1 oracle")
+        # Reserved tags ride the table as documentation (reserved: true)
+        # but never negotiate: only the live rows meet the oracle list.
+        live = sorted(row["tag"] for row in rows if not row["reserved"])
+        if [row["tag"] for row in rows] != sorted(names_by_tag) or live != smp1.ALL_METHODS:
+            raise SystemExit("method table tags drifted from the SMP1 oracle")
 
     problems: list[str] = []
     for vector in fixture["vectors"]:
