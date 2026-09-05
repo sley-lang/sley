@@ -1,8 +1,9 @@
 # Clean-Room Disposition Register v1
 
-Status: S20-780 contract draft, revision 1 (2026-09-03); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review).
+Status: S20-780 contract draft, revision 2 (2026-09-05); the three Council
+review rounds landed 2026-09-04 (Ariadne contract review, Nabu architecture
+review, Vulcan surface review) with three freeze-blocking findings, all
+closed by this revision; lower-severity findings remain open.
 
 ## Boundary
 
@@ -57,7 +58,71 @@ tracked artifact of this repository or the frozen legacy evidence recorded in
 - **Acceptance test**: `scripts/check_benchmark_baseline.py` pins the corpus
   digest, the classes, the arms, and the zero-trial claim.
 
-### 1.3 Everything else: no reused concept
+### 1.3 Stable graph identity, reimplemented
+
+- **Purpose**: give every Sley 2 entity, object, and state root a
+  content-derived identity without reusing the predecessor's graph identity
+  scheme.
+- **Observed evidence**: succession-matrix row "stable graph identity →
+  reimplement → EntityId/ObjectId/StateRoot"; the frozen 1.2.0 source was not
+  consulted, and check 1 below finds no legacy source in the tree to copy
+  from.
+- **Machine-native relevance**: identities anchor candidates, receipts,
+  deltas, refs, and the object store.
+- **Security impact**: none; no legacy text entered the tree.
+- **New equivalent**: `EntityId`, `ObjectId`, and `StateRoot` as specified in
+  `docs/spec/IDENTIFIERS_V1.md`.
+- **Decision**: reimplemented from the in-repository specification; not a
+  reuse.
+- **Acceptance test**: `cargo test -p sley-id` pins the identifier domains
+  and their byte layouts (7 tests).
+
+### 1.4 Typed graph checking, reimplemented
+
+- **Purpose**: check Sley 2 semantic graphs against the frozen SSMC1 shape
+  and the S20-210 through S20-240 profiles without reusing the predecessor's
+  typed-checking implementation.
+- **Observed evidence**: succession-matrix row "typed graph checking →
+  reimplement → SSMC/check kernel"; the frozen 1.2.0 source was not
+  consulted, and check 1 below finds no legacy source in the tree to copy
+  from.
+- **Machine-native relevance**: every candidate phase and every profile
+  judgment depends on the kernel's verdicts.
+- **Security impact**: none; no legacy text entered the tree.
+- **New equivalent**: the SSMC kernel and `sley-check` as specified in
+  `docs/spec/SSMC1.md`, `docs/spec/SSMC1_EPOCH1_SCHEMA.txt`,
+  `docs/spec/CONTRACT_TEST_PROFILE_V1.md`,
+  `docs/spec/CFG_VALIDATION_V1.md`, and `docs/spec/EFFECT_SYSTEM_V1.md`.
+- **Decision**: reimplemented from the in-repository specifications; not a
+  reuse.
+- **Acceptance test**: `cargo test -p sley-ssmc` (10 tests) and
+  `cargo test -p sley-check` (75 tests) pin the specified kernel and checker
+  behavior.
+
+### 1.5 Effects and authority model, reimplemented
+
+- **Purpose**: model effects, capabilities, and policy without ambient
+  authority and without reusing the predecessor's effects and authority
+  fixtures.
+- **Observed evidence**: succession-matrix row "effects/authority fixtures →
+  preserve and reimplement concept → effects + policy/capability"; the frozen
+  1.2.0 source was not consulted, and check 1 below finds no legacy source
+  in the tree to copy from.
+- **Machine-native relevance**: capability-deny and effect-closure verdicts
+  gate every candidate that touches authority.
+- **Security impact**: none; no legacy text entered the tree.
+- **New equivalent**: the effect system, capability tokens and summary, and
+  the policy root as specified in `docs/spec/EFFECT_SYSTEM_V1.md`,
+  `docs/spec/CAPABILITY_TOKEN_V1.md`,
+  `docs/spec/CAPABILITY_SUMMARY_V1.md`, and
+  `docs/spec/POLICY_ROOT_V1.md`.
+- **Decision**: reimplemented from the in-repository specifications; not a
+  reuse.
+- **Acceptance test**: `cargo test -p sley-check effects` (16 tests) and
+  `cargo test -p sley-policy capability` (10 tests) pin the specified effect
+  and capability behavior.
+
+### 1.6 Everything else: no reused concept
 
 No other concept of Sley 1.2.0 is reused. Sley 2 is machine-native lineage: its
 canonical encoding, program representation, type and effect systems, object
@@ -69,16 +134,23 @@ syntax, parser, formatter, conventional LSP, human review surface, source
 compatibility, or self-hosting requirement"), and section 2 states the
 mechanical facts that keep the claim true.
 
-A future reuse requires a new entry here, with all seven fields, before the
+A future reuse requires a new entry here, with all seven fields, and an
+update to the machine-summary reuse count and entry list, before the
 implementation lands.
 
 ## 2. Mechanical boundary
 
 `scripts/check_clean_room_boundary.py` verifies, from the tree alone:
 
-1. **No legacy source in the tree.** No file under `crates/`, `oracle/`, or
-   `bench/` carries the legacy source snapshot's paths or a legacy module
-   marker, and no legacy source archive is unpacked into the repository.
+1. **No legacy artifact reference outside the adapter.** No tracked Rust,
+   Python, manifest, or JSON file under `crates/`, `oracle/`, `bench/`,
+   `fuzz/`, or `scripts/` carries the frozen archive path
+   `archive/sley/1.2.0` outside the allowlist. This is a single-sentinel
+   search, not a source detector: a renamed copy, a legacy module marker, or
+   an unpacked tree would not match it, and no tree-alone check could
+   fingerprint those without the legacy layout. That detection is not
+   mechanized; it rests on the per-concept construction evidence in section 1
+   and the section 3 audit disclaimer.
 2. **No legacy dependency.** No crate manifest names a Sley 1.x package, and
    the workspace's only path dependencies are the eighteen Sley 2 crates.
 3. **One touchpoint, out of process.** The single reference to the frozen

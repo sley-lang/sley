@@ -2912,7 +2912,7 @@
   "clean_room_disposition_register": {
     "status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
     "checker": "scripts/check_clean_room_boundary.py",
     "reused_concepts": 2,
@@ -2933,7 +2933,13 @@
     "nabu_architecture_review": "FAIL_0_P0_2_P1_4_P2_3_P3",
     "vulcan_surface_review": "FAIL_2_P0_4_P1_4_P2_3_P3",
     "implementation_complete": false,
-    "p0_open_count": 3
+    "p0_open_count": 0,
+    "p0_open": [],
+    "p0_closed": [
+      "register section 1.3 denied reuse for areas where the tracked succession matrix records reimplement dispositions with named Sley 2 equivalents (stable graph identity, typed graph checking, effects/authority fixtures). Raised by ariadne (P0). Sections 1.3 through 1.5 now carry seven-field reimplementation dispositions for those three concepts, citing the in-repository specifications and the frozen suites that pin them; the matrix is retained as succession evidence, not retired (contract revision 2).",
+      "register section 2.1 claimed the checker verifies snapshot paths, module markers, and unpacked archives, which it does not implement. Raised by vulcan (P0-1). Section 2.1 now states exactly the single-sentinel archive-path search the checker performs, with the non-mechanized detection named as a stated limit resting on the section 1 construction evidence and the section 3 audit disclaimer (contract revision 2).",
+      "the checker required similarity_audit_performed == False, so recording a completed audit fails the gate. Raised by vulcan (P0-2). The checker now requires the fact to be recorded as a boolean without freezing its value (contract revision 2)."
+    ]
   },
   "threat_coverage": {
     "report": "evidence/security/threat-coverage-report.json",

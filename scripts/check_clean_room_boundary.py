@@ -120,10 +120,14 @@ def main() -> int:
         ("reused_concepts", 2),
         ("legacy_source_in_tree", False),
         ("legacy_dependencies", 0),
-        ("similarity_audit_performed", False),
     ):
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")
+    # The audit fact is recorded, never frozen: requiring False would fail
+    # the gate on the day the audit is performed and recorded, mechanically
+    # forbidding the control's own remediation.
+    if not isinstance(section.get("similarity_audit_performed"), bool):
+        problems.append("machine-summary:similarity_audit_performed")
     if status == ACCEPTED_STATUS:
         for review in (
             "ariadne_contract_review",
