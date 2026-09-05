@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `de1a6a0`.
+are green at `8cfee6d`.
 
 ## Where the work is
 
@@ -303,14 +303,32 @@ Closed, each reproduced before fixing:
   `HISTORICAL_ROUND`; every 780 open claim reads zero. Four re-review
   transcripts recorded. Repair trail: one `finding-register:drift` (rebuilt
   the derived register after the summary change) and one stale-counter sync
-  (`sync_evidence_counters.py` for obligations 204→207, open reviews
-  79→76); smoke passed clean on the first attempt after each commit.
+   (`sync_evidence_counters.py` for obligations 204→207, open reviews
+   79→76); smoke passed clean on the first attempt after each commit.
+- **S20-360 package** (single Nabu round, 0 P0 / 2 P1 / 6 P2 / 3 P3):
+  `6278eca` plus cascade `9670053`/`d02f2ee` and two live Nabu re-reviews
+  (`d1d6530`, `43d89f6`). P1-1: judgment runs the canonical-constant check
+  in lowering position. P1-2: section 3.1 normative invariant plus
+  differential test, hardened after the first re-review FAIL (same-code
+  agreement, closed lower-only code set, entry-gate pin, structural checker
+  pins). P2-1/P3-2: ignored-fields and caller-supplies statements. P2-2/P2-5
+  already corrected (section 9, ADR-0044). P2-3: excluded-opcode invariant
+  with the table moved to the closeout addendum. P2-4: phase 7 analyzability
+  flag (identity cascade through receipt and exchange fixtures re-emitted).
+  P2-6: Ariadne Q1 decision in sections 5 and 8.2 with the closed VM_LOWER
+  set. P3-1/P3-3: defense-in-depth note, landing-revision note. New
+  `nabu_review` PASS obligation supersedes the round; all three 360 rounds
+  are historical, every 360 claim reads zero. Two re-review transcripts
+  recorded. Repair trail: reproducibility-report staleness (re-attest after
+  surface changes), dossier test-inventory drift, two clippy pattern lints,
+  and the fixture/evidence cascade in dependency order; smoke passed clean
+  on the first attempt after each commit.
 
 **No P0 entries remain open.** All 110 Council P0 findings are closed, and
-the S20-780 pilot closed its package across all severities (rounds
-superseded, claims zero, register accepted). The wider P1+ backlog stands at
-76 open reviews in other packages; lower-severity findings there remain
-tracked in the finding register.
+the S20-780 pilot and S20-360 package closed across all severities (rounds
+superseded, claims zero). The wider P1+ backlog stands at 75 open reviews
+in other packages; lower-severity findings there remain tracked in the
+finding register.
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -332,10 +350,10 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **No open P0 cluster remains, and the 780 pilot is the proven closure
-   loop** (fix, live re-review, PASS-record, attest). Candidate next work:
-   the next backlog package per the finding register (76 open reviews), or a
-   new Council round.
+2. **No open P0 cluster remains, and the 780 pilot and 360 package are the
+   proven closure loop** (fix, live re-review, PASS-record, attest).
+   Candidate next work: the next backlog package per the finding register
+   (75 open reviews), or a new Council round.
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -353,7 +371,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`de1a6a0`. The full `make v1` gate was skipped
+`8cfee6d`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
