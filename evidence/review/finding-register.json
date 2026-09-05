@@ -3743,7 +3743,7 @@
     "complete_root_index_snapshot.p0_open": 0,
     "complete_root_index_snapshot.p0_open_count": 0,
     "context_capsule_profile.p0_open_count": 7,
-    "decision_dossier.p0_open_count": 5,
+    "decision_dossier.p0_open_count": 0,
     "finding_register.p0_open_count": 0,
     "json_bridge.p0_open_count": 4,
     "merge.p0_open_count": 0,
@@ -3765,7 +3765,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "25ad1b17633fe2d2e230e6f3aa6c6be5c8763b6ddc1c5e57058668dc020cf4ca",
+  "register_digest": "673b926ea16178ff44cb23203220af488e5e26a23ac85c280422d0e2b977e5ab",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

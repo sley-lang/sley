@@ -3,9 +3,12 @@
 
 Counts, from tracked sources only, the Rust unit tests per crate, the ignored
 fixture-refresh emitters, the persistent fuzz targets, the Python test
-functions, and the conformance vectors per fixture family, so the completion
-report's "property-test counts" item is evidenced rather than estimated. It
-runs nothing: the counts describe the corpus, not a test run.
+functions, the conformance vectors per fixture family, and the property tests
+per harness, so the completion report's "property-test counts" item is
+evidenced rather than estimated. A property-test count of zero is a counted
+fact, not an absence of evidence: the scan names the manifests, lockfile, and
+sources it searched. It runs nothing: the counts describe the corpus, not a
+test run.
 """
 
 from __future__ import annotations
@@ -29,6 +32,12 @@ CONTRACT = "sley2.test-inventory.v1"
 TEST_ATTRIBUTE = re.compile(r"^\s*#\[test\]\s*$", re.M)
 IGNORE_ATTRIBUTE = re.compile(r"^\s*#\[ignore", re.M)
 PYTHON_TEST = re.compile(r"^\s*def (test_[A-Za-z0-9_]+)", re.M)
+# Property-test harnesses: a use site is a macro invocation or a qualified
+# path in Rust, a @given decorator or hypothesis import in Python, and a
+# harness dependency is a manifest dependency entry naming the harness.
+RUST_PROPERTY_USE = re.compile(r"\b(?:proptest!|quickcheck!|proptest::|quickcheck::)")
+PYTHON_PROPERTY_USE = re.compile(r"@given\b|from hypothesis\b|import hypothesis\b")
+MANIFEST_HARNESS = re.compile(r"^\s*(?:proptest|quickcheck|hypothesis)\b", re.M)
 
 
 def canonical(value: object) -> str:
@@ -102,11 +111,53 @@ def conformance_counts() -> list[dict]:
     return families
 
 
+def property_counts() -> dict:
+    """Counted property tests per harness, from tracked sources only.
+
+    The scan covers every crate manifest plus the workspace manifest and
+    lockfile for harness dependencies, every Rust source for harness use
+    sites, and every counted Python test module for hypothesis use sites.
+    A zero is a counted zero: the detail names what was searched.
+    """
+    manifests = CRATES_manifests()
+    rust_uses = 0
+    for source in sorted(CRATES.rglob("*.rs")):
+        rust_uses += len(RUST_PROPERTY_USE.findall(source.read_text(encoding="utf-8")))
+    python_uses = 0
+    for directory in sorted(
+        {path.parent for path in BENCH.rglob("tests/test_*.py")} | {ORACLE_TESTS}
+    ):
+        if not directory.is_dir():
+            continue
+        for source in sorted(directory.glob("test_*.py")):
+            python_uses += len(PYTHON_PROPERTY_USE.findall(source.read_text(encoding="utf-8")))
+    harness_deps = sorted(
+        {
+            match.group(0).strip()
+            for manifest in manifests
+            for match in MANIFEST_HARNESS.finditer(manifest.read_text(encoding="utf-8"))
+        }
+    )
+    return {
+        "rust_use_sites": rust_uses,
+        "python_use_sites": python_uses,
+        "manifest_harness_deps": harness_deps,
+        "scanned_manifests": len(manifests),
+    }
+
+
+def CRATES_manifests() -> list[Path]:
+    manifests = [ROOT / "Cargo.toml", ROOT / "Cargo.lock"]
+    manifests.extend(sorted(CRATES.glob("*/Cargo.toml")))
+    return [path for path in manifests if path.is_file()]
+
+
 def build_inventory() -> dict:
     crates, rust_tests, rust_ignored = rust_counts()
     modules = python_counts()
     families = conformance_counts()
     fuzz_targets = sorted(path.stem for path in FUZZ_TARGETS.glob("*.rs"))
+    property_detail = property_counts()
     inventory = {
         "contract": CONTRACT,
         "work_package": "S20-750",
@@ -121,6 +172,8 @@ def build_inventory() -> dict:
         "conformance_families": families,
         "conformance_vectors": sum(item["vectors"] for item in families),
         "conformance_rejections": sum(item["rejections"] for item in families),
+        "property_test_detail": property_detail,
+        "property_tests": property_detail["rust_use_sites"] + property_detail["python_use_sites"],
     }
     inventory["inventory_digest"] = digest_of(inventory)
     return inventory

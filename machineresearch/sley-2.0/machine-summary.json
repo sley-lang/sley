@@ -2718,7 +2718,7 @@
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/DECISION_DOSSIER_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
     "checker": "scripts/check_decision_dossier.py",
     "dossier": "evidence/release/decision-dossier.json",
@@ -2752,7 +2752,12 @@
       "bench/review/tests/test_decision_dossier.py"
     ],
     "test_inventory": "evidence/validation/test-inventory.json",
-    "p0_open_count": 5
+    "p0_open_count": 0,
+    "p0_closed": 5,
+    "closeout": "docs/audits/S20_750_DECISION_DOSSIER_CLOSEOUT.md",
+    "decision_derivation": "entries-first per contract section 3 mapping; release-check gate, succession thresholds, and approved conditional items read tracked sources (no section 30 item carries them)",
+    "property_tests": "counted zero with harness scan in evidence/validation/test-inventory.json",
+    "license_disposition_blocked": 19
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",

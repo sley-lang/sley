@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "474865f9dd5239336a1a724d5c1481d09448183e49a2bd8e820e67a957124afe",
+  "dossier_digest": "ab8f5fe7e6513b3acba1c4e535a02aa2d1fed96b9b9e8e069230f3472a4620fa",
   "entries": [
     {
       "evidence": [
@@ -133,13 +133,20 @@
         "evidence/validation/test-inventory.json"
       ],
       "item": "property-test counts",
-      "note": "counted from tracked sources; the inventory describes the corpus and runs nothing, so a passing run is separate evidence",
+      "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
         "conformance_rejections": 172,
         "conformance_vectors": 359,
         "persistent_fuzz_targets": 21,
-        "python_tests": 113,
+        "property_test_detail": {
+          "manifest_harness_deps": [],
+          "python_use_sites": 0,
+          "rust_use_sites": 0,
+          "scanned_manifests": 20
+        },
+        "property_tests": 0,
+        "python_tests": 120,
         "rust_ignored_emitters": 13,
         "rust_unit_tests": 1044
       }
@@ -311,7 +318,7 @@
       "value": {
         "components": 43,
         "cyclonedx_spec_version": "1.6",
-        "license_disposition_blocked": 0,
+        "license_disposition_blocked": 19,
         "root_license_text_approved": false,
         "spdx_version": "SPDX-2.3"
       }
@@ -331,7 +338,9 @@
           "p3": 0,
           "p4": 0
         },
+        "deferred_reviews": 11,
         "obligations": 204,
+        "open_reviews": 79,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 71,
@@ -444,7 +453,7 @@
       }
     }
   ],
-  "entries_digest": "d8d1968c9402b731ded2b82981843e1b1aee5b989368737b95116f4cdb800cc1",
+  "entries_digest": "d578754d5fd0ac24e236b1bfcc108c86e409e0d85917bbf6b5eaff47defe4bcf",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

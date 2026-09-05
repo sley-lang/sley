@@ -72,20 +72,23 @@ class CoverageTests(unittest.TestCase):
         )
 
 
+ARM_ITEMS = (
+    "strict correctness by arm",
+    "ACT by arm",
+    "context bytes and model tokens by arm",
+    "repair loops by arm",
+    "invalid committed states",
+    "stale candidates incorrectly accepted",
+)
+
+
 class DecisionTests(unittest.TestCase):
     def sources(self, **overrides) -> dict:
         base = {
             "summary": {
-                "s20_710_pre_release_audit": {"root_license_text_approved": True},
-                "succession": {"trials_executed": 3, "thresholds_pass": True},
+                "succession": {"thresholds_pass": True},
                 "release_candidate_packaging": {"release_check_gate": "OPEN"},
             },
-            "register": {
-                "open_reviews": [],
-                "deferred_reviews": [],
-                "declared_open_findings": {"p0": 0, "p1": 0, "p2": 0},
-            },
-            "repro": {"result": "MULTI_HOST_REPRODUCIBLE"},
         }
         for key, value in overrides.items():
             if isinstance(value, dict) and isinstance(base.get(key), dict):
@@ -96,6 +99,36 @@ class DecisionTests(unittest.TestCase):
                 base[key] = value
         return base
 
+    def entries(self, **overrides) -> list[dict]:
+        base = {
+            "findings by severity and disposition": (
+                "EVIDENCED",
+                {
+                    "open_reviews": 0,
+                    "deferred_reviews": 0,
+                    "declared_open_findings": {"p0": 0, "p1": 0, "p2": 0},
+                },
+            ),
+            "SBOM and license inventory": (
+                "EVIDENCED",
+                {"root_license_text_approved": True},
+            ),
+            "reproducibility result": (
+                "EVIDENCED",
+                {"result": "MULTI_HOST_REPRODUCIBLE"},
+            ),
+        }
+        for item in ARM_ITEMS:
+            base[item] = ("EVIDENCED", {})
+        for item, change in overrides.items():
+            state, value = base[item]
+            if isinstance(change, dict):
+                value = {**value, **change}
+            else:
+                state = change
+            base[item] = (state, value)
+        return [{"item": item, "state": state, "value": value} for item, (state, value) in base.items()]
+
     def test_the_current_tree_is_blocked_with_exact_reasons(self) -> None:
         state = dossier.build_dossier()
         self.assertEqual(state["decision_state"], "BLOCKED")
@@ -103,37 +136,129 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(state["decision_reasons"], sorted(state["decision_reasons"]))
 
     def test_every_blocking_condition_yields_blocked(self) -> None:
-        for override, reason in (
-            ({"register": {"open_reviews": [{"section": "x", "field": "y"}]}}, "review obligations are open"),
-            ({"register": {"deferred_reviews": [{"section": "x"}]}}, "deferred"),
-            ({"summary": {"s20_710_pre_release_audit": {"root_license_text_approved": False}}}, "root license"),
-            ({"summary": {"succession": {"trials_executed": 0, "thresholds_pass": True}}}, "succession trial"),
-            (
-                {"summary": {"release_candidate_packaging": {"release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED"}}},
-                "fail-closed",
-            ),
-            ({"repro": {"result": "SINGLE_HOST_REPRODUCIBLE"}}, "one host"),
+        gate_closed = {"summary": {"release_candidate_packaging": {"release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED"}}}
+        for sources, entries, reason in (
+            (self.sources(), self.entries(**{"findings by severity and disposition": {"open_reviews": 1}}), "review obligations are open"),
+            (self.sources(), self.entries(**{"findings by severity and disposition": {"deferred_reviews": 2}}), "deferred"),
+            (self.sources(), self.entries(**{"SBOM and license inventory": {"root_license_text_approved": False}}), "root license"),
+            (self.sources(), self.entries(**{item: "GATED" for item in ARM_ITEMS}), "succession trial"),
+            (self.sources(**gate_closed), self.entries(), "fail-closed"),
+            (self.sources(), self.entries(**{"reproducibility result": {"result": "SINGLE_HOST_REPRODUCIBLE"}}), "one host"),
         ):
-            state, reasons = dossier.derive_decision(self.sources(**override), [])
-            self.assertEqual(state, "BLOCKED", override)
-            self.assertTrue(any(reason in line for line in reasons), (override, reasons))
+            state, reasons = dossier.derive_decision(sources, entries)
+            self.assertEqual(state, "BLOCKED", (sources, entries))
+            self.assertTrue(any(reason in line for line in reasons), (entries, reasons))
 
     def test_precedence_reaches_the_other_states(self) -> None:
         state, _ = dossier.derive_decision(
-            self.sources(register={"open_reviews": [], "deferred_reviews": [], "declared_open_findings": {"p1": 1}}),
-            [],
+            self.sources(),
+            self.entries(**{"findings by severity and disposition": {"declared_open_findings": {"p1": 1}}}),
         )
         self.assertEqual(state, "FAIL")
         state, _ = dossier.derive_decision(
-            self.sources(summary={"succession": {"trials_executed": 3, "thresholds_pass": False}}), []
+            self.sources(summary={"succession": {"thresholds_pass": False}}),
+            self.entries(),
         )
         self.assertEqual(state, "ALPHA_COMPLETE")
         state, _ = dossier.derive_decision(
-            self.sources(summary={"approved_conditional_items": ["an approved P2"]}), []
+            self.sources(summary={"approved_conditional_items": ["an approved P2"]}),
+            self.entries(),
         )
         self.assertEqual(state, "CONDITIONAL_PASS")
-        state, reasons = dossier.derive_decision(self.sources(), [])
+        state, reasons = dossier.derive_decision(self.sources(), self.entries())
         self.assertEqual((state, reasons), ("PASS", []))
+
+    def test_the_arm_entries_drive_the_trial_rule_not_the_sources(self) -> None:
+        # Sources claiming zero trials do not block while the arm entries are evidenced.
+        state, reasons = dossier.derive_decision(
+            self.sources(summary={"succession": {"trials_executed": 0, "thresholds_pass": True}}),
+            self.entries(),
+        )
+        self.assertEqual(state, "PASS")
+        # Sources claiming trials do not unblock while the arm entries are gated.
+        state, reasons = dossier.derive_decision(
+            self.sources(summary={"succession": {"trials_executed": 9, "thresholds_pass": True}}),
+            self.entries(**{item: "GATED" for item in ARM_ITEMS}),
+        )
+        self.assertEqual(state, "BLOCKED")
+        self.assertTrue(any("succession trial" in line for line in reasons))
+
+    def test_a_missing_decision_input_entry_fails_closed(self) -> None:
+        entries = [entry for entry in self.entries() if entry["item"] != "findings by severity and disposition"]
+        state, reasons = dossier.derive_decision(self.sources(), entries)
+        self.assertEqual(state, "BLOCKED")
+        self.assertTrue(any("no findings by severity and disposition entry" in line for line in reasons))
+
+    def test_a_gated_findings_entry_fails_closed(self) -> None:
+        state, reasons = dossier.derive_decision(
+            self.sources(),
+            self.entries(**{"findings by severity and disposition": "GATED"}),
+        )
+        self.assertEqual(state, "BLOCKED")
+        self.assertTrue(any("openness is unknown" in line for line in reasons))
+
+class SourceSeparationTests(unittest.TestCase):
+    def live_sources(self) -> dict:
+        return {
+            "summary": dossier.load(dossier.SUMMARY),
+            "repro": dossier.load(dossier.REPRO, "sley2.reproducibility-report.v1"),
+            "cyclonedx": dossier.load(dossier.CYCLONEDX),
+            "spdx": dossier.load(dossier.SPDX),
+            "inventory": dossier.load(dossier.INVENTORY, "s20-710-pre-release-inventory-v1"),
+            "provenance": dossier.load(dossier.PROVENANCE, "sley2.release-provenance.v1"),
+            "conformance": dossier.load(dossier.CONFORMANCE, "sley2.independent-conformance-report.v1"),
+            "register": dossier.load(dossier.REGISTER, "sley2.finding-register.v1"),
+            "inventory_of_tests": dossier.load(dossier.TEST_INVENTORY, "sley2.test-inventory.v1"),
+            "threat_coverage": dossier.load(dossier.THREAT_COVERAGE, "sley2.threat-coverage-report.v1"),
+            "ga_acceptance": dossier.load(dossier.GA_ACCEPTANCE, "sley2.ga-acceptance-report.v1"),
+        }
+
+    def entry(self, entries: list[dict], item: str) -> dict:
+        return next(entry for entry in entries if entry["item"] == item)
+
+    def test_the_sbom_entry_reads_the_license_inventory(self) -> None:
+        sources = self.live_sources()
+        sources["inventory"] = {
+            "packages": [
+                {"license_disposition": "BLOCKED_MISSING_TEXT"},
+                {"license_disposition": "BLOCKED_MISSING_TEXT"},
+                {"license_disposition": "APPROVED"},
+            ]
+        }
+        sbom = self.entry(dossier.build_entries(sources), "SBOM and license inventory")
+        self.assertEqual(sbom["value"]["license_disposition_blocked"], 2)
+        self.assertIn("evidence/security/T52/pre-release-inventory.json", sbom["evidence"])
+
+    def test_the_property_entry_reads_the_test_inventory(self) -> None:
+        sources = self.live_sources()
+        sources["inventory_of_tests"] = {
+            **sources["inventory_of_tests"],
+            "rust_unit_tests": 424242,
+            "property_tests": 7,
+        }
+        entries = dossier.build_entries(sources)
+        counts = self.entry(entries, "property-test counts")
+        self.assertEqual(counts["value"]["rust_unit_tests"], 424242)
+        self.assertEqual(counts["value"]["property_tests"], 7)
+        sbom = self.entry(entries, "SBOM and license inventory")
+        self.assertEqual(sbom["value"]["license_disposition_blocked"], 19)
+
+    def test_the_live_tree_reports_nineteen_blocked_licenses(self) -> None:
+        sbom = self.entry(dossier.build_dossier()["entries"], "SBOM and license inventory")
+        self.assertEqual(sbom["state"], "EVIDENCED")
+        self.assertEqual(sbom["value"]["license_disposition_blocked"], 19)
+
+    def test_the_property_count_is_a_counted_zero(self) -> None:
+        counts = self.entry(dossier.build_dossier()["entries"], "property-test counts")
+        self.assertEqual(counts["state"], "EVIDENCED")
+        self.assertEqual(counts["value"]["property_tests"], 0)
+        detail = counts["value"]["property_test_detail"]
+        self.assertEqual(detail["rust_use_sites"], 0)
+        self.assertEqual(detail["python_use_sites"], 0)
+        self.assertEqual(detail["manifest_harness_deps"], [])
+        self.assertGreaterEqual(detail["scanned_manifests"], 2)
+        inventory = json.loads((ROOT / "evidence/validation/test-inventory.json").read_text(encoding="utf-8"))
+        self.assertEqual(inventory["property_tests"], 0)
 
     def test_a_missing_source_fails_closed(self) -> None:
         original = dossier.REGISTER

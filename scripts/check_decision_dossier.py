@@ -20,6 +20,7 @@ SCRIPT = ROOT / "scripts/build_decision_dossier.py"
 TESTS = ROOT / "bench/review/tests/test_decision_dossier.py"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
+LICENSE_INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 
 DRAFT_STATUS = "S20_750_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -200,6 +201,36 @@ def main() -> int:
                     problems.append(f"decision-dossier:gated-with-value:{entry['item'][:40]}")
                 if entry["state"] not in ("EVIDENCED", "GATED"):
                     problems.append(f"decision-dossier:entry-state:{entry['item'][:40]}")
+            by_item = {entry["item"]: entry for entry in dossier.get("entries", [])}
+            try:
+                license_inventory = json.loads(read(LICENSE_INVENTORY))
+                license_blocked = sum(
+                    1
+                    for package in license_inventory.get("packages", [])
+                    if str(package.get("license_disposition", "")).startswith("BLOCKED")
+                )
+            except (OSError, json.JSONDecodeError):
+                license_blocked = None
+                problems.append("decision-dossier:license-inventory-unreadable")
+            sbom = by_item.get("SBOM and license inventory", {})
+            if (
+                license_blocked is not None
+                and isinstance(sbom.get("value"), dict)
+                and sbom["value"].get("license_disposition_blocked") != license_blocked
+            ):
+                problems.append("decision-dossier:license-blocked-diverges-from-T52")
+            try:
+                test_inventory = json.loads(read(TEST_INVENTORY))
+            except (OSError, json.JSONDecodeError):
+                test_inventory = None
+                problems.append("decision-dossier:test-inventory-unreadable")
+            counts = by_item.get("property-test counts", {})
+            if (
+                test_inventory is not None
+                and isinstance(counts.get("value"), dict)
+                and counts["value"].get("property_tests") != test_inventory.get("property_tests")
+            ):
+                problems.append("decision-dossier:property-count-diverges-from-inventory")
             if section.get("decision_state") != dossier.get("decision_state"):
                 problems.append("machine-summary:decision_state")
             if section.get("evidenced_items") != dossier.get("evidenced"):

@@ -1,9 +1,14 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-750 contract draft, revision 5 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 adds the tracked test inventory as a source, which
-evidences the property-test counts item. The mechanics are `scripts/build_decision_dossier.py`; implementation
+evidences the property-test counts item. Revisions 3 and 4 added the threat
+coverage and GA acceptance reports as cited inputs without a header bump.
+Revision 5 names, in section 3, the entry each decision rule derives from;
+counts the property-test absence in the test inventory instead of
+substituting unit-test counts; and reads the SBOM and license entry from the
+license inventory. The mechanics are `scripts/build_decision_dossier.py`; implementation
 state is tracked in the machine summary.
 
 ## Boundary
@@ -105,8 +110,11 @@ or adds an item is `DOSSIER_SOURCE_INVALID`:
   input;
 - `evidence/validation/test-inventory.json` (`sley2.test-inventory.v1`): the
   Rust unit tests per crate, the ignored fixture-refresh emitters, the
-  persistent fuzz targets, the Python test functions, and the conformance
-  vectors per family, all counted from tracked sources. The inventory runs no
+  persistent fuzz targets, the Python test functions, the conformance
+  vectors per family, and the property tests per harness, all counted from
+  tracked sources. A property-test count of zero is a counted fact: the
+  inventory names the manifests, lockfile, and sources it scanned for
+  proptest, quickcheck, and hypothesis. The inventory runs no
   test: it describes the corpus, and a passing run stays separate evidence.
 
 A missing or unreadable source is `DOSSIER_SOURCE_MISSING`; a source whose
@@ -134,6 +142,28 @@ The derivation is total: exactly one state, with its reasons, and a
 `decision_authority` field that always reads
 `OPERATOR_DECISION_NOT_DELEGATED`. A dossier may never record `PASS` while any
 product gate is fail-closed; that combination is `DOSSIER_DECISION_INVALID`.
+
+Each rule reads the entry that carries its fact, and a missing decision-input
+entry fails closed rather than falling back to the sources behind the
+entries' backs:
+
+- open review obligations and deferred lanes: the "findings by severity and
+  disposition" entry, which carries the open and deferred review counts;
+- unapproved root license: the "SBOM and license inventory" entry, which
+  carries the approval flag read from the license inventory;
+- no executed succession trial: the six per-arm entries (items 17 through
+  22), which are all `GATED` exactly while no trial has produced per-arm
+  evidence;
+- single attesting host: the "reproducibility result" entry;
+- release-blocking finding open: the "findings by severity and
+  disposition" entry's declared P0, P1, and P2 counts.
+
+Three inputs have no section 30 item that carries them, so those rules read
+the tracked sources this section names: the release-check gate state from the
+machine summary, the succession thresholds from the machine summary, and the
+approved conditional items from the machine summary. A `GATED` decision-input
+entry blocks with the unknown fact named, rather than treating the unknown
+as clear.
 
 ## 4. Dossier
 
@@ -195,3 +225,10 @@ fail-closed, that the unit tests pass, and that `release-check` and `v2` stay
 ## 8. Clarifications
 
 Revision 1 carries none.
+
+Revision 5 records why the property-test counts item stays `EVIDENCED` with a
+zero: the absence of a harness is a counted tracked fact, while substituting
+unit-test counts for property-test counts evidences a different fact under
+the item's name. It also records why the SBOM and license entry reads the
+license inventory and cites it: an entry that cites a source it never reads
+is the same substitution with the evidence list as the substituted fact.

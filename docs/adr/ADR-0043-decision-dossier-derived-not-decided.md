@@ -35,6 +35,11 @@ unapproved, and the second host is gated.
    Today that yields `BLOCKED`: open reviews, deferred lanes, an unapproved
    root license, no executed trial, fail-closed gates, and a single attesting
    host. A `PASS` while a product gate is fail-closed is a hard failure.
+   (2026-09-05: `derive_decision` now reads the entries the contract's
+   section 3 mapping names, with a missing or gated decision-input entry
+   failing closed; the release-check gate, succession thresholds, and
+   approved conditional items still read the tracked sources because no
+   section 30 item carries them.)
 4. **No mechanism to publish.** The dossier records that no push, tag, upload,
    deployment, or announcement occurred, and this package adds no code that
    could perform one. `decision_authority` always reads

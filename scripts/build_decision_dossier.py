@@ -99,10 +99,10 @@ def build_entries(sources: dict) -> list[dict]:
     repro = sources["repro"]
     register = sources["register"]
     conformance = sources["conformance"]
-    inventory = sources["inventory"]
+    license_inventory = sources["inventory"]
     bom = sources["cyclonedx"]
     provenance = sources["provenance"]
-    inventory = sources["inventory_of_tests"]
+    test_inventory = sources["inventory_of_tests"]
     threats = sources["threat_coverage"]
     acceptance = sources["ga_acceptance"]
     attestation = repro["attestations"][0] if repro.get("attestations") else None
@@ -212,16 +212,22 @@ def build_entries(sources: dict) -> list[dict]:
         entry(
             "property-test counts",
             value={
-                "rust_unit_tests": inventory["rust_unit_tests"],
-                "rust_ignored_emitters": inventory["rust_ignored_emitters"],
-                "python_tests": inventory["python_tests"],
-                "persistent_fuzz_targets": inventory["persistent_fuzz_target_count"],
-                "conformance_vectors": inventory["conformance_vectors"],
-                "conformance_rejections": inventory["conformance_rejections"],
+                "property_tests": test_inventory["property_tests"],
+                "property_test_detail": test_inventory["property_test_detail"],
+                "rust_unit_tests": test_inventory["rust_unit_tests"],
+                "rust_ignored_emitters": test_inventory["rust_ignored_emitters"],
+                "python_tests": test_inventory["python_tests"],
+                "persistent_fuzz_targets": test_inventory["persistent_fuzz_target_count"],
+                "conformance_vectors": test_inventory["conformance_vectors"],
+                "conformance_rejections": test_inventory["conformance_rejections"],
             },
             evidence=[TEST_INVENTORY],
-            note="counted from tracked sources; the inventory describes the corpus and runs "
-            "nothing, so a passing run is separate evidence",
+            note="the property-test count is a counted zero: the inventory scanned "
+            "the workspace and crate manifests, the lockfile, and every Rust and "
+            "Python test source and found no proptest, quickcheck, or hypothesis "
+            "harness. The unit-test, fuzz-target, and vector counts are adjacent "
+            "corpus facts, not property tests. The inventory describes the corpus "
+            "and runs nothing, so a passing run is separate evidence",
         ),
         entry(
             "fuzz duration and findings",
@@ -331,7 +337,7 @@ def build_entries(sources: dict) -> list[dict]:
                 "components": len(bom.get("components", [])),
                 "license_disposition_blocked": sum(
                     1
-                    for package in inventory.get("packages", [])
+                    for package in license_inventory.get("packages", [])
                     if str(package.get("license_disposition", "")).startswith("BLOCKED")
                 ),
                 "root_license_text_approved": audit.get("root_license_text_approved"),
@@ -347,6 +353,8 @@ def build_entries(sources: dict) -> list[dict]:
                 "states": register.get("states"),
                 "severity_mentions": register.get("severity_mentions"),
                 "declared_open_findings": register.get("declared_open_findings"),
+                "open_reviews": len(register.get("open_reviews", [])),
+                "deferred_reviews": len(register.get("deferred_reviews", [])),
                 "result": register.get("result"),
             },
             evidence=[REGISTER],
@@ -404,34 +412,88 @@ def build_entries(sources: dict) -> list[dict]:
     return entries
 
 
+ARM_ENTRIES = (
+    "strict correctness by arm",
+    "ACT by arm",
+    "context bytes and model tokens by arm",
+    "repair loops by arm",
+    "invalid committed states",
+    "stale candidates incorrectly accepted",
+)
+
+
 def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]:
-    """The contract section 3 decision state and its exact reasons."""
+    """The contract section 3 decision state and its exact reasons.
+
+    Every BLOCKED and FAIL reason is read off the entries named in the
+    contract's section 3 mapping, not re-derived from the sources behind the
+    entries' backs: a missing decision-input entry fails closed, and a gated
+    entry contributes its gated fact. Two inputs have no section 30 item that
+    carries them (the release-check gate state, the succession thresholds, and
+    the approved conditional items), so those three rules read the tracked
+    sources the contract names; everything else comes from the entries.
+    """
     summary = sources["summary"]
-    register = sources["register"]
-    repro = sources["repro"]
-    audit = summary.get("s20_710_pre_release_audit", {})
-    succession = summary.get("succession", {})
+    by_item = {item["item"]: item for item in entries}
     blocked: list[str] = []
-    if register.get("open_reviews"):
-        blocked.append(f"{len(register['open_reviews'])} review obligations are open")
-    if register.get("deferred_reviews"):
-        blocked.append(
-            f"{len(register['deferred_reviews'])} review lanes are deferred and unavailable"
-        )
-    if audit.get("root_license_text_approved") is not True:
-        blocked.append("the root license text is not operator-approved")
-    if not succession.get("trials_executed"):
+
+    def missing(item: str) -> bool:
+        if item not in by_item:
+            blocked.append(f"no {item} entry to derive from")
+            return True
+        return False
+
+    def evidenced_value(item: str) -> dict | None:
+        if missing(item):
+            return None
+        entry = by_item[item]
+        if entry["state"] != "EVIDENCED":
+            return None
+        value = entry["value"]
+        return value if isinstance(value, dict) else None
+
+    findings = evidenced_value("findings by severity and disposition")
+    if findings is not None:
+        if findings.get("open_reviews"):
+            blocked.append(f"{findings['open_reviews']} review obligations are open")
+        if findings.get("deferred_reviews"):
+            blocked.append(
+                f"{findings['deferred_reviews']} review lanes are deferred and unavailable"
+            )
+    elif "findings by severity and disposition" in by_item:
+        blocked.append("the findings entry is gated, so openness is unknown")
+
+    license_entry = evidenced_value("SBOM and license inventory")
+    if license_entry is not None:
+        if license_entry.get("root_license_text_approved") is not True:
+            blocked.append("the root license text is not operator-approved")
+    elif "SBOM and license inventory" in by_item:
+        blocked.append("the license entry is gated, so approval is unknown")
+
+    arm_states = []
+    for item in ARM_ENTRIES:
+        if missing(item):
+            continue
+        arm_states.append(by_item[item]["state"])
+    if arm_states and all(state == "GATED" for state in arm_states):
         blocked.append("no succession trial has been executed")
+
     if summary.get("release_candidate_packaging", {}).get("release_check_gate") != "OPEN":
         blocked.append("the release-check and v2 product gates are fail-closed")
-    if repro.get("result") != "MULTI_HOST_REPRODUCIBLE":
-        blocked.append("only one host has attested the candidate")
+
+    repro_entry = evidenced_value("reproducibility result")
+    if repro_entry is not None:
+        if repro_entry.get("result") != "MULTI_HOST_REPRODUCIBLE":
+            blocked.append("only one host has attested the candidate")
+    elif "reproducibility result" in by_item:
+        blocked.append("the reproducibility entry is gated, so attestation is unknown")
+
     if blocked:
         return "BLOCKED", sorted(blocked)
-    declared = register.get("declared_open_findings", {})
+    declared = (findings or {}).get("declared_open_findings", {})
     if any(declared.get(severity, 0) for severity in ("p0", "p1", "p2")):
         return "FAIL", ["an open P0, P1, or P2 finding is recorded"]
-    if not succession.get("thresholds_pass"):
+    if not summary.get("succession", {}).get("thresholds_pass"):
         return "ALPHA_COMPLETE", ["the succession thresholds do not pass"]
     if summary.get("approved_conditional_items"):
         return "CONDITIONAL_PASS", ["an approved non-correctness item remains"]
