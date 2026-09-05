@@ -1,9 +1,12 @@
 # Standards SBOM and Release Provenance v1
 
-Status: S20-710 full-audit contract draft, revision 2 (2026-09-03); Council
+Status: S20-710 full-audit contract draft, revision 3 (2026-09-05); Council
 review pending (Ariadne contract review, Nabu architecture review, Vulcan
 surface review). Revision 2 records the clarifications found while wiring the
-release smoke (section 5). The mechanics are `scripts/build_standards_sbom.py` and
+release smoke (section 5). Revision 3 closes the five S20-710 P0s: license
+normalization and validation (section 2), a candidate-bound SPDX namespace
+(section 3), and fail-closed `--check` semantics over missing evidence
+(section 5). The mechanics are `scripts/build_standards_sbom.py` and
 `scripts/build_release_provenance.py`; implementation state is tracked in the
 machine summary.
 
@@ -40,7 +43,9 @@ these documents are draft, local, and unapproved.
   provenance byproduct.
 
 Every component must carry a purl, a name, a version, an ecosystem, and a
-license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`.
+license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`, as is a
+license expression that normalizes to nothing usable under the section 2
+grammar.
 
 ## 2. CycloneDX 1.6
 
@@ -61,6 +66,16 @@ license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`.
   `licenses` as a single `expression` (a `LicenseRef-Proprietary` expression
   is emitted verbatim), `externalReferences` for the locked source, and a
   `hashes` entry only when the lock records exactly one artifact digest;
+- a declared license expression is normalized before emission: Cargo
+  documents `/` as an OR-equivalent dual-license separator, but `/` is not
+  SPDX expression syntax, so a `/`-joined declaration such as
+  `MIT/Apache-2.0` becomes the `OR` chain with that exact meaning
+  (`MIT OR Apache-2.0`); every other declaration passes through unchanged;
+- every emitted expression, normalized or not, must parse under the SPDX
+  license-expression subset the builder checks (uppercase `AND`, `OR`, and
+  `WITH`, where `WITH` joins a license id to an exception id, parentheses,
+  and license or `LicenseRef-` ids); an expression that does not parse is
+  not a usable license fact and fails as `SBOM_COMPONENT_INCOMPLETE`;
 - a component whose lock records several platform artifacts (Python wheels)
   carries no `hashes` and instead the property
   `sley2:locked-artifact-digests` with their count, because no single digest
@@ -76,8 +91,13 @@ license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`.
 
 - `spdxVersion` `SPDX-2.3`, `dataLicense` `CC0-1.0`, `SPDXID`
   `SPDXRef-DOCUMENT`;
-- `documentNamespace` is `urn:sley2:spdx:<inventory digest>`, an absolute URI
-  that names no host;
+- `documentNamespace` is
+  `urn:sley2:spdx:<inventory digest>:<candidate artifact digest>`, an
+  absolute URI that names no host; the inventory portion keeps the document
+  traceable to the lock set it was derived from, and the artifact portion
+  keeps it unique per candidate, because two candidates that share a
+  dependency inventory are different documents and SPDX requires a unique
+  namespace per document version;
 - `creationInfo.created` is `1970-01-01T00:00:00Z`, so the document is
   deterministic; `creators` is `["Tool: sley2-standards-sbom-1"]` and the
   comment names the local, unapproved status;
@@ -137,7 +157,7 @@ The statement is:
 The subject digest must equal the S20-720 evidence digest and the CycloneDX
 root component digest; any disagreement is `PROVENANCE_SUBJECT_MISMATCH`.
 
-## 5. Determinism
+## 5. Determinism and check semantics
 
 Both builders write canonical JSON (sorted keys, two-space indentation,
 trailing newline) and are pure functions of their inputs. `--check`
@@ -147,14 +167,22 @@ unchanged inputs rewrite byte-identical files.
 
 The candidate evidence record lives under untracked `evidence/runtime/`, so a
 local candidate build legitimately leaves the tracked documents describing the
-previous candidate. `--check` detects that state by comparing the tracked
-commit and artifact digest with the evidence record, reports
-`LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result `PASS`, and names
-`make release-candidate-smoke` as the reconciling command; Tier 1 therefore
-stays hermetic over tracked files and never fails because of an uncommitted
-local build. Write mode never tolerates the skew: it always derives from the
-current evidence, and a provenance derived against an SBOM that still names
-another candidate is `PROVENANCE_SUBJECT_MISMATCH`.
+previous candidate. `--check` detects exactly that state — the evidence
+loads, and its commit and artifact digest disagree with the tracked
+documents — reports `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result
+`PASS`, and names `make release-candidate-smoke` as the reconciling command.
+
+Anything else fails closed. Missing or unreadable candidate evidence is
+missing input, not a build running ahead: the SBOM `--check` fails with
+`SBOM_INVENTORY_MISSING` or `SBOM_INVENTORY_INVALID`, the provenance
+`--check` fails with `PROVENANCE_EVIDENCE_MISSING` or
+`PROVENANCE_EVIDENCE_INVALID`, and each names the command that produces the
+evidence. Tier 1 therefore requires candidate evidence and never passes the
+710 drift gates without deriving from it; on a checkout where no candidate
+has been built, the 710 check fails with the input code until
+`make release-candidate-smoke` runs. Write mode never tolerates the skew: it
+always derives from the current evidence, and a provenance derived against an
+SBOM that still names another candidate is `PROVENANCE_SUBJECT_MISMATCH`.
 
 The shared `bench/release` test suite derives the provenance against the
 *derived* CycloneDX document rather than the tracked one, for the same
@@ -206,3 +234,22 @@ digest and fails with `PROVENANCE_SUBJECT_MISMATCH`.
 ## 9. Clarifications
 
 Revision 1 carries none.
+
+Revision 3 closes the five S20-710 P0s without touching the round verdicts,
+which stand as `FAIL` history:
+
+- license expressions (Ariadne): the section 2 normalization and grammar
+  rule; `MIT/Apache-2.0` was the one inventory declaration the old verbatim
+  emission carried into both documents unparseable.
+- `documentNamespace` (Ariadne): the section 3 candidate binding; the old
+  inventory-digest-only namespace gave two candidates sharing a lock set the
+  same document identity.
+- `--check` short-circuit on missing evidence (Nabu, Vulcan): the section 5
+  rewrite; `local_build_ahead()` returned true when the evidence failed to
+  load, so both builders passed open on any checkout without a candidate
+  build and codes 74003 and 74007 were unreachable in check mode.
+- Tier 1 hermeticity (Nabu): the section 5 admission that the 710 drift
+  gates derive from untracked candidate evidence and fail with the input
+  codes where none exists; the old claim that Tier 1 stayed hermetic over
+  tracked files was false, since all fifteen release tests derive from that
+  evidence.

@@ -111,6 +111,166 @@ class StandardsSbomTests(unittest.TestCase):
         self.assertEqual(self.spdx, again_spdx)
 
 
+class LicenseExpressionTests(unittest.TestCase):
+    """The section 2 normalization and grammar rule: pure functions, no evidence."""
+
+    def test_slash_separator_normalizes_to_or(self) -> None:
+        self.assertEqual(sbom.normalize_license("MIT/Apache-2.0"), "MIT OR Apache-2.0")
+
+    def test_plain_and_proprietary_declarations_pass_through(self) -> None:
+        self.assertEqual(sbom.normalize_license("MIT OR Apache-2.0"), "MIT OR Apache-2.0")
+        self.assertEqual(sbom.normalize_license(sbom.PROPRIETARY), sbom.PROPRIETARY)
+
+    def test_empty_slash_part_fails_closed(self) -> None:
+        for bad in ("MIT/", "/MIT", "MIT//Apache-2.0"):
+            with self.assertRaises(sbom.SbomError) as error:
+                sbom.normalize_license(bad)
+            self.assertEqual(error.exception.code, sbom.SbomErrorCode.COMPONENT_INCOMPLETE)
+
+    def test_every_inventory_expression_is_usable(self) -> None:
+        inventory = json.loads(sbom.INVENTORY.read_text(encoding="utf-8"))
+        self.assertTrue(inventory["packages"])
+        for package in inventory["packages"]:
+            normalized = sbom.normalize_license(package["license_declared"])
+            self.assertTrue(
+                sbom.valid_spdx_expression(normalized),
+                f"{package['bom_ref']} declares {package['license_declared']!r}",
+            )
+
+    def test_grammar_rejects_non_expressions(self) -> None:
+        for bad in (
+            "",
+            "MIT/Apache-2.0",
+            "MIT OR",
+            "OR MIT",
+            "(MIT",
+            "MIT)",
+            "()",
+            "MIT or Apache-2.0",
+            "MIT WITH",
+            "MIT WITH (Apache-2.0)",
+            "MIT AND OR Apache-2.0",
+        ):
+            self.assertFalse(sbom.valid_spdx_expression(bad), bad)
+
+    def test_grammar_accepts_with_parens_and_plus(self) -> None:
+        for good in (
+            "Apache-2.0",
+            "MIT OR Apache-2.0",
+            "Apache-2.0 WITH LLVM-exception",
+            "(MIT OR Apache-2.0) AND Unicode-3.0",
+            sbom.PROPRIETARY,
+            "GPL-2.0+",
+        ):
+            self.assertTrue(sbom.valid_spdx_expression(good), good)
+
+    def test_component_facts_normalizes_and_rejects(self) -> None:
+        package = {
+            "bom_ref": "pkg:cargo/unicode-normalization@0.1.24",
+            "name": "unicode-normalization",
+            "version": "0.1.24",
+            "ecosystem": "cargo",
+            "license_declared": "MIT/Apache-2.0",
+        }
+        self.assertEqual(sbom.component_facts(package)["license"], "MIT OR Apache-2.0")
+        package["license_declared"] = "MIT/"
+        with self.assertRaises(sbom.SbomError) as error:
+            sbom.component_facts(package)
+        self.assertEqual(error.exception.code, sbom.SbomErrorCode.COMPONENT_INCOMPLETE)
+
+
+class SpdxNamespaceTests(unittest.TestCase):
+    """The section 3 candidate binding: synthetic candidates, no evidence."""
+
+    FACTS = [
+        {
+            "purl": "pkg:cargo/x@1",
+            "name": "x",
+            "version": "1",
+            "ecosystem": "cargo",
+            "license": "MIT",
+            "disposition": "OK",
+            "source": "registry+https://example.invalid/x",
+            "workspace": False,
+            "single_digest": "a" * 64,
+            "locked_artifact_digests": None,
+        }
+    ]
+
+    def document(self, artifact_sha256: str) -> dict:
+        return sbom.spdx(
+            self.FACTS,
+            [],
+            {"artifact_name": "sley-test.tar.gz", "artifact_sha256": artifact_sha256},
+            "b" * 64,
+        )
+
+    def test_namespace_binds_inventory_and_candidate(self) -> None:
+        namespace = self.document("c" * 64)["documentNamespace"]
+        self.assertEqual(namespace, f"urn:sley2:spdx:{'b' * 64}:{'c' * 64}")
+
+    def test_same_inventory_with_another_candidate_is_another_document(self) -> None:
+        first = self.document("c" * 64)["documentNamespace"]
+        second = self.document("d" * 64)["documentNamespace"]
+        self.assertNotEqual(first, second)
+
+    def test_namespace_is_deterministic(self) -> None:
+        self.assertEqual(
+            self.document("c" * 64)["documentNamespace"],
+            self.document("c" * 64)["documentNamespace"],
+        )
+
+
+class CheckSemanticsTests(unittest.TestCase):
+    """The section 5 fail-closed rule: missing evidence is missing input."""
+
+    def test_missing_sbom_evidence_is_not_ahead(self) -> None:
+        original = sbom.load_candidate
+
+        def missing() -> dict:
+            raise sbom.SbomError(sbom.SbomErrorCode.INVENTORY_MISSING, "gone")
+
+        sbom.load_candidate = missing
+        self.addCleanup(setattr, sbom, "load_candidate", original)
+        self.assertFalse(sbom.local_build_ahead())
+
+    def test_missing_provenance_evidence_is_not_ahead(self) -> None:
+        original = provenance.load_candidate
+
+        def missing() -> dict:
+            raise provenance.ProvenanceError(
+                provenance.ProvenanceErrorCode.EVIDENCE_MISSING, "gone"
+            )
+
+        provenance.load_candidate = missing
+        self.addCleanup(setattr, provenance, "load_candidate", original)
+        self.assertFalse(provenance.local_build_ahead())
+
+    def test_differing_evidence_is_ahead(self) -> None:
+        sbom_original = sbom.load_candidate
+        provenance_original = provenance.load_candidate
+        sbom.load_candidate = lambda: {"commit": "0" * 40, "artifact_sha256": "0" * 64}
+        provenance.load_candidate = lambda: {
+            "commit": "0" * 40,
+            "artifact_sha256": "0" * 64,
+        }
+        self.addCleanup(setattr, sbom, "load_candidate", sbom_original)
+        self.addCleanup(setattr, provenance, "load_candidate", provenance_original)
+        self.assertTrue(sbom.local_build_ahead())
+        self.assertTrue(provenance.local_build_ahead())
+
+    def test_matching_evidence_is_not_ahead(self) -> None:
+        commit, digest = sbom.tracked_candidate_facts()
+        sbom_original = sbom.load_candidate
+        provenance_original = provenance.load_candidate
+        sbom.load_candidate = lambda: {"commit": commit, "artifact_sha256": digest}
+        provenance.load_candidate = lambda: {"commit": commit, "artifact_sha256": digest}
+        self.addCleanup(setattr, sbom, "load_candidate", sbom_original)
+        self.addCleanup(setattr, provenance, "load_candidate", provenance_original)
+        self.assertFalse(sbom.local_build_ahead())
+        self.assertFalse(provenance.local_build_ahead())
+
+
 class ProvenanceTests(unittest.TestCase):
     def setUp(self) -> None:
         # The statement is derived against the *derived* CycloneDX document, so

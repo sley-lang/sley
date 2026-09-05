@@ -223,7 +223,10 @@ def local_build_ahead() -> bool:
 
     `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
     leaves the tracked statement describing the previous candidate until
-    `make release-candidate-smoke` reconciles them (contract section 5).
+    `make release-candidate-smoke` reconciles them (contract section 5). The
+    short-circuit fires only when the evidence loads and disagrees with the
+    tracked statement: missing or unreadable evidence is missing input, and
+    `--check` must fail with the input code instead of passing open.
     """
     if not PROVENANCE.exists():
         return False
@@ -238,7 +241,7 @@ def local_build_ahead() -> bool:
     try:
         candidate = load_candidate()
     except ProvenanceError:
-        return True
+        return False
     return recorded != (candidate["commit"], candidate["artifact_sha256"])
 
 

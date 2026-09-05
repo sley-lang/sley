@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -19,6 +21,8 @@ AUDIT = ROOT / "docs/audits/S20_710_PRE_RELEASE_AUDIT.md"
 SBOM_SCRIPT = ROOT / "scripts/build_standards_sbom.py"
 PROVENANCE_SCRIPT = ROOT / "scripts/build_release_provenance.py"
 TESTS = ROOT / "bench/release/tests/test_standards_sbom.py"
+INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
+CANDIDATE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
@@ -68,6 +72,8 @@ SBOM_MARKERS = (
     "def cyclonedx(",
     "def spdx(",
     "def derived_uuid(",
+    "def normalize_license(",
+    "def valid_spdx_expression(",
     '"SPDX-2.3"',
     '"specVersion": "1.6"',
 )
@@ -102,6 +108,15 @@ def gate_stays_closed(gate: str) -> bool:
         return json.loads(completed.stdout).get("result") == "NOT_IMPLEMENTED"
     except json.JSONDecodeError:
         return False
+
+
+def load_builder():
+    """The SBOM builder module, for the license-grammar pin below."""
+    spec = importlib.util.spec_from_file_location("build_standards_sbom", SBOM_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
@@ -224,6 +239,49 @@ def main() -> int:
                 problems.append("spdx:version")
             if document.get("creationInfo", {}).get("created") != "1970-01-01T00:00:00Z":
                 problems.append("spdx:created")
+            # The namespace binds the inventory and the candidate (contract
+            # section 3): two candidates sharing a lock set are different
+            # documents with different namespaces.
+            if INVENTORY.exists() and CANDIDATE.exists():
+                inventory_digest = hashlib.sha256(INVENTORY.read_bytes()).hexdigest()
+                candidate = json.loads(read(CANDIDATE))
+                expected = (
+                    f"urn:sley2:spdx:{inventory_digest}:"
+                    f"{candidate.get('artifact_sha256')}"
+                )
+                if document.get("documentNamespace") != expected:
+                    problems.append("spdx:namespace-not-candidate-bound")
+            # Every emitted license expression parses (contract section 2).
+            builder = load_builder()
+            expressions = [
+                license["expression"]
+                for component in bom.get("components", [])
+                for license in component.get("licenses", [])
+                if isinstance(license, dict) and "expression" in license
+            ] if CYCLONEDX.exists() else []
+            expressions += [
+                package.get("licenseDeclared")
+                for package in document.get("packages", [])
+                if isinstance(package.get("licenseDeclared"), str)
+            ]
+            if not expressions or not all(
+                isinstance(expression, str)
+                and builder.valid_spdx_expression(expression)
+                for expression in expressions
+            ):
+                problems.append("sbom:license-expression-invalid")
+            # The document counts agree with the recorded ones.
+            depends = sum(
+                1
+                for relationship in document.get("relationships", [])
+                if relationship.get("relationshipType") == "DEPENDS_ON"
+            )
+            if CYCLONEDX.exists():
+                bom = json.loads(read(CYCLONEDX))
+                if len(bom.get("components", [])) != section.get("components"):
+                    problems.append("machine-summary:components")
+            if depends != section.get("dependency_relationships"):
+                problems.append("machine-summary:dependency_relationships")
         if PROVENANCE.exists():
             document = json.loads(read(PROVENANCE))
             if document.get("contract") != "sley2.release-provenance.v1":

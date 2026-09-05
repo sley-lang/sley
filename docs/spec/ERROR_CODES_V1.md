@@ -456,8 +456,9 @@ Council review pending and reserves, rather than freezes, these codes.
 S20-710 full reserves numeric codes 74000 through 74007 for the exact failures
 of `STANDARDS_SBOM_AND_PROVENANCE_V1.md`: a missing
 (`SBOM_INVENTORY_MISSING`) or malformed (`SBOM_INVENTORY_INVALID`) T52
-inventory, a component without a purl, name, version, ecosystem, or license
-expression (`SBOM_COMPONENT_INCOMPLETE`), a tracked CycloneDX or SPDX document
+inventory, a component without a purl, name, version, ecosystem, or usable
+license expression (`SBOM_COMPONENT_INCOMPLETE`, which also covers a license
+declaration that does not parse under the contract section 2 SPDX grammar), a tracked CycloneDX or SPDX document
 that differs from the derived one (`SBOM_DOCUMENT_DRIFT`), a missing
 (`PROVENANCE_EVIDENCE_MISSING`) or non-reproducible
 (`PROVENANCE_EVIDENCE_INVALID`) candidate evidence record, a provenance subject

@@ -34,6 +34,8 @@ PROPRIETARY_TEXT = (
     "an operator decision (S20-710), so no license text is asserted here."
 )
 SPDX_ID = re.compile(r"[^A-Za-z0-9.\-]")
+LICENSE_TOKEN = re.compile(r"[A-Za-z0-9:._+\-]+")
+LICENSE_OPERATORS = ("AND", "OR", "WITH")
 
 
 class SbomErrorCode(IntEnum):
@@ -107,6 +109,84 @@ def load_candidate() -> dict:
     return candidate
 
 
+def normalize_license(expression: str) -> str:
+    """The SPDX expression for one declared license string.
+
+    Cargo documents `/` as an OR-equivalent dual-license separator
+    (`MIT/Apache-2.0` means MIT or Apache-2.0), but `/` is not SPDX
+    expression syntax, so emitting it verbatim produces documents that fail
+    strict validation. A `/`-joined declaration normalizes to an `OR`
+    chain with that exact meaning; anything else passes through unchanged
+    for the grammar check below, including `LicenseRef-Proprietary`.
+    """
+    if "/" not in expression:
+        return " ".join(expression.split())
+    parts = [part.strip() for part in expression.split("/")]
+    if any(not part for part in parts):
+        raise SbomError(
+            SbomErrorCode.COMPONENT_INCOMPLETE,
+            f"license declaration {expression!r} has an empty /-separated part",
+        )
+    return " OR ".join(" ".join(part.split()) for part in parts)
+
+
+def valid_spdx_expression(expression: str) -> bool:
+    """Whether an expression parses under the SPDX license-expression subset.
+
+    Operators are the uppercase `AND`, `OR`, and `WITH`; `WITH` joins a
+    license id to an exception id; parentheses group; a trailing `+` keeps
+    its spec meaning. Anything else (including `/`, lowercase operators,
+    empty operands, or unbalanced parentheses) is not a usable expression.
+    """
+
+    def parse_primary(tokens: list[str], position: int) -> int:
+        if position >= len(tokens):
+            return -1
+        token = tokens[position]
+        if token == "(":
+            position = parse_or(tokens, position + 1)
+            if position < 0 or position >= len(tokens) or tokens[position] != ")":
+                return -1
+            return position + 1
+        if token in LICENSE_OPERATORS or token == ")":
+            return -1
+        if not LICENSE_TOKEN.fullmatch(token) or not any(
+            character.isalnum() for character in token
+        ):
+            return -1
+        position += 1
+        if position < len(tokens) and tokens[position] == "WITH":
+            position += 1
+            if (
+                position >= len(tokens)
+                or tokens[position] in LICENSE_OPERATORS
+                or tokens[position] in ("(", ")")
+                or not LICENSE_TOKEN.fullmatch(tokens[position])
+            ):
+                return -1
+            position += 1
+        return position
+
+    def parse_and(tokens: list[str], position: int) -> int:
+        position = parse_primary(tokens, position)
+        while position >= 0 and position < len(tokens) and tokens[position] == "AND":
+            position = parse_primary(tokens, position + 1)
+        return position
+
+    def parse_or(tokens: list[str], position: int) -> int:
+        position = parse_and(tokens, position)
+        while position >= 0 and position < len(tokens) and tokens[position] == "OR":
+            position = parse_and(tokens, position + 1)
+        return position
+
+    spaced = expression.replace("(", " ( ").replace(")", " ) ")
+    tokens = spaced.split()
+    if not tokens:
+        return False
+    end = parse_or(tokens, 0)
+    return end == len(tokens)
+
+
 def component_facts(package: dict) -> dict:
     """The section 1 required facts of one inventory package."""
     purl = package.get("bom_ref")
@@ -126,6 +206,13 @@ def component_facts(package: dict) -> dict:
                 SbomErrorCode.COMPONENT_INCOMPLETE,
                 f"{purl or name or 'component'} has no {key}",
             )
+    normalized = normalize_license(license_expression)
+    if not valid_spdx_expression(normalized):
+        raise SbomError(
+            SbomErrorCode.COMPONENT_INCOMPLETE,
+            f"{purl or name or 'component'} declares {license_expression!r}, "
+            "which is not a usable SPDX license expression",
+        )
     digests = package.get("artifact_hashes")
     single = package.get("checksum_sha256")
     if isinstance(digests, list) and len(digests) == 1:
@@ -135,7 +222,7 @@ def component_facts(package: dict) -> dict:
         "name": name,
         "version": version,
         "ecosystem": ecosystem,
-        "license": license_expression,
+        "license": normalized,
         "disposition": package.get("license_disposition", "UNKNOWN"),
         "source": package.get("source", "workspace"),
         "workspace": bool(package.get("workspace")),
@@ -307,7 +394,7 @@ def spdx(facts: list[dict], relationships: list, candidate: dict, inventory_dige
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
         "name": f"sley-{CANDIDATE_VERSION}-linux-x86_64",
-        "documentNamespace": f"urn:sley2:spdx:{inventory_digest}",
+        "documentNamespace": f"urn:sley2:spdx:{inventory_digest}:{candidate['artifact_sha256']}",
         "creationInfo": {
             "created": "1970-01-01T00:00:00Z",
             "creators": [f"Tool: {TOOL_NAME}-{TOOL_VERSION}"],
@@ -390,7 +477,10 @@ def local_build_ahead() -> bool:
 
     `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
     leaves the tracked documents describing the previous candidate until
-    `make release-candidate-smoke` reconciles them (contract section 5).
+    `make release-candidate-smoke` reconciles them (contract section 5). The
+    short-circuit fires only when the evidence loads and disagrees with the
+    tracked documents: missing or unreadable evidence is missing input, and
+    `--check` must fail with the input code instead of passing open.
     """
     tracked = tracked_candidate_facts()
     if tracked is None:
@@ -398,7 +488,7 @@ def local_build_ahead() -> bool:
     try:
         candidate = load_candidate()
     except SbomError:
-        return True
+        return False
     return tracked != (candidate["commit"], candidate["artifact_sha256"])
 
 
