@@ -1,6 +1,6 @@
 # S20-510 Semantic Comparison Closeout
 
-Status: **implemented under the draft Semantic Comparison v1 contract (revision 1); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Semantic Comparison v1 contract (revision 2); the three Council review rounds landed 2026-09-04 with four freeze-blocking findings, all closed by revision 2; lower-severity findings remain open, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -76,11 +76,36 @@ holds, and `sley-ssmc` is now a production dependency of `sley-repo`.
   the `(contract, predicate, Contract)` edge already exists; the corpus
   retargets onto a capability requirement instead.
 
+## Revision 2 (2026-09-05)
+
+The three Council review rounds landed 2026-09-04 with four freeze-blocking
+findings, all closed by contract revision 2 with a small implementation
+change; the corpus bytes are unchanged (nine pairs, five mutations):
+
+- the owned inventory is exactly the forward closure the frozen S20-250
+  fingerprint walks, and the body-delta counts are the lengths of the
+  fingerprint input vectors (`crates/sley-repo/src/compare.rs`,
+  `owned_inventory`); disagreement fails `COMPARE_INVENTORY_INVALID` with
+  the exact `FINGERPRINT_*` code preserved (Ariadne P0);
+- the collateral seed rule seeds every entity carrying a body delta into both
+  seed sets, and collateral is the closure members bound by both roots that
+  carry no entity delta (Nabu P0-1);
+- the derivation body (`## Change classes` through `## Stable failures`) is
+  pinned by `derivation_semantics_hash`, recomputed by the stage checker
+  (Nabu P0-2);
+- the delta schema epoch is pinned as `delta_schema_epoch`, asserted by the
+  stage checker and the fixture oracle and by a native test (Nabu P0-3).
+
+Lower-severity findings — including the dependency-direction sentence, the
+per-kind field-tag domain, the precondition-4 reach, and the work-charging
+rule — remain open and are tracked in the finding register.
+
 ## Explicitly open and deferred
 
 - **Council reviews.** Ariadne contract review, Nabu architecture review,
-  and Vulcan surface review are queued behind the S20-250 reviews in the
-  session retry loop and land as contract revisions.
+  and Vulcan surface review landed 2026-09-04 as `FAIL` rounds; the four P0s
+  are closed by revision 2 above, and the remaining P1/P2/P3 findings land as
+  later contract revisions.
 - The oracle decides body-delta membership from a slot-normalized inventory
   projection and takes the restricted fingerprint bytes from the corpus; a
   Python reproduction of the S20-250 `Function` fingerprint remains outside
@@ -102,4 +127,7 @@ a subsystem handoff, not a release boundary; `make v2` and
 
 ## Independent review
 
-Pending. Sessions and verdicts are recorded here when they land.
+Landed 2026-09-04: Ariadne contract review (`FAIL`, 1 P0), Nabu architecture
+review (`FAIL`, 3 P0), Vulcan surface review (`FAIL`, 0 P0). Full logs in
+`machineresearch/sley-2.0/reviews/s20-510-*-2026-09-04.log`; dispositions in
+the machine summary and the finding register.

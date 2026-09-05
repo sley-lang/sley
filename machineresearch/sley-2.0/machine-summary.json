@@ -1222,7 +1222,7 @@
   "semantic_comparison": {
     "status": "S20_510_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SEMANTIC_COMPARISON_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0027-semantic-comparison-boundary.md",
     "checker": "scripts/check_semantic_comparison_spec.py",
     "contract_tag": 510,
@@ -1247,10 +1247,19 @@
     "corpus_pairs": 9,
     "corpus_rejections": 5,
     "independent_python_oracle": "scripts/check_semantic_comparison_vector.py",
-    "sley_repo_compare_tests": 12,
+    "sley_repo_compare_tests": 15,
     "persistent_fuzz_target": "fuzz/targets/semantic_delta_decoder.rs",
     "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_semantic_delta_smoke",
-    "p0_open_count": 4
+    "p0_open_count": 0,
+    "derivation_semantics_hash": "a1077a1bdda3c084d49cb43ad7fdfe35e3d8f99e88301cc59d6eced7325cd540",
+    "delta_schema_epoch": "25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4",
+    "p0_open": [],
+    "p0_closed": [
+      "body_delta counts (base_blocks, target_blocks, base_operations, target_operations) had no derivation rule while feeding the identity preimage, and owned inventory mixed back-reference collection for blocks with forward-list collection for operations and parameters; raised by ariadne (P0). The contract now defines the owned inventory as exactly the forward closure the frozen S20-250 fingerprint walks, with back-references verified by fingerprint_function, and the counts as the lengths of the fingerprint input vectors; the implementation collects exactly that closure, so disagreement fails COMPARE_INVENTORY_INVALID with the exact FINGERPRINT_* code preserved and no divergent SemanticDeltaId can result (contract revision 2).",
+      "collateral seed rule excluded unchanged-with-body-delta functions that the implementation and the oracle both seed; raised by nabu (P0-1) and as ariadne P1-5 and vulcan P1-1. The contract now seeds every entity carrying a body delta into both seed sets and defines collateral as closure members bound by both roots carrying no entity delta, matching the implementation, the oracle, and the frozen body-only vector (contract revision 2).",
+      "no frozen digest bound the derivation semantics (change classes, field table, relation rule, collateral formula, ordering rules, code table); raised by nabu (P0-2). The contract now pins derivation_semantics_hash over the normative derivation body, recomputed and asserted by the stage checker and recorded here (contract revision 2).",
+      "DeltaSchemaEpochId was unpinned and inherited foreign epoch-1 authority while the oracle read it from the artifact under test; raised by nabu (P0-3). The contract now pins delta_schema_epoch as a frozen literal, the stage checker asserts it, the oracle compares stored bytes against it, and a native test pins delta_epoch_id() to it (contract revision 2)."
+    ]
   },
   "merge": {
     "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",

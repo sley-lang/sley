@@ -30,6 +30,10 @@ IMPLEMENTATION_SURFACES = (SOURCE, FIXTURE_DIR)
 
 FIELD_SCHEMA_HASH = "5e58f98ecf6d7a501fc49011aa585e85abef9396ff389b5b6bb7c796f118739c"
 DECODER_LIMITS_HASH = "d25baa2eb5fcb394fb7fcfdca09326eb4373a1cc6e79139548d1d9d0fb37f370"
+DERIVATION_SEMANTICS_HASH = "a1077a1bdda3c084d49cb43ad7fdfe35e3d8f99e88301cc59d6eced7325cd540"
+DELTA_SCHEMA_EPOCH = "25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4"
+DERIVATION_SPAN_START = "## Change classes"
+DERIVATION_SPAN_END = "## Required evidence"
 DRAFT_STATUS = "S20_510_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_510_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
 FROZEN_STATUS = "S20_510_CONTRACT_FROZEN_IMPLEMENTATION_PENDING"
@@ -66,6 +70,8 @@ SPEC_MARKERS = (
     "kind_tag          = 510",
     f"field_schema_hash = {FIELD_SCHEMA_HASH}",
     f"decoder_limits_hash = {DECODER_LIMITS_HASH}",
+    f"derivation_semantics_hash = {DERIVATION_SEMANTICS_HASH}",
+    f"delta_schema_epoch = {DELTA_SCHEMA_EPOCH}",
     "## Change classes",
     "| 5 | `MetadataOnly` |",
     "### 2. Fields",
@@ -125,6 +131,40 @@ def recomputed_hashes(spec: str) -> dict[str, tuple[str, str]]:
     }
 
 
+def recomputed_derivation_hash(spec: str) -> str | None:
+    """BLAKE3-256 over the normative derivation body, line-exact.
+
+    The span runs from the `DERIVATION_SPAN_START` line through the line
+    before `DERIVATION_SPAN_END`, each line terminated by `\n`; the frozen
+    pins live outside the span so recording them never moves the digest.
+    """
+    lines = spec.splitlines(keepends=True)
+    try:
+        start = next(
+            index for index, line in enumerate(lines) if line.rstrip("\n") == DERIVATION_SPAN_START
+        )
+        end = next(
+            index for index, line in enumerate(lines) if line.rstrip("\n") == DERIVATION_SPAN_END
+        )
+    except StopIteration:
+        return None
+    if not 0 <= start < end:
+        return None
+    script = "import sys, blake3\nprint(blake3.blake3(sys.stdin.buffer.read()).hexdigest())\n"
+    completed = subprocess.run(
+        ["uv", "run", "--project", "oracle/scb1", "--frozen", "python", "-c", script],
+        cwd=ROOT,
+        input="".join(lines[start:end]),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    digest = completed.stdout.split()
+    return digest[0] if len(digest) == 1 else None
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES, IDENTIFIERS):
@@ -151,6 +191,13 @@ def main() -> int:
         problems.append("spec-hash:field schema hash differs from the checker constant")
     if hashes.get("decoder limits preimage", ("", ""))[0] not in ("", DECODER_LIMITS_HASH):
         problems.append("spec-hash:decoder limits hash differs from the checker constant")
+    derivation = recomputed_derivation_hash(spec)
+    if derivation is None:
+        problems.append("spec-hash:derivation span missing or blake3 recomputation unavailable")
+    elif derivation != DERIVATION_SEMANTICS_HASH:
+        problems.append(
+            f"spec-hash:derivation declared {DERIVATION_SEMANTICS_HASH[:12]} computed {derivation[:12]}"
+        )
     adr = ADR.read_text(encoding="utf-8")
     for marker in ADR_MARKERS:
         if marker not in adr:
@@ -176,6 +223,8 @@ def main() -> int:
         "domain": "sley2.semantic-delta.v1",
         "field_schema_hash": FIELD_SCHEMA_HASH,
         "decoder_limits_hash": DECODER_LIMITS_HASH,
+        "derivation_semantics_hash": DERIVATION_SEMANTICS_HASH,
+        "delta_schema_epoch": DELTA_SCHEMA_EPOCH,
         "sections": 5,
         "change_classes": 5,
         "stable_error_codes": len(CODES),

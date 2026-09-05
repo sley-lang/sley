@@ -27,6 +27,14 @@ DOMAIN = b"sley2.semantic-delta.v1"
 MAGIC = b"SLEYSCB1"
 CONTRACT_TAG = 510
 MAX_DELTA_BYTES = 67_108_864
+# Frozen delta schema epoch pin (S20-510 revision 2, nabu P0-3): the
+# `schema_epoch_id()` of the standalone epoch-1 record stated in
+# `SEMANTIC_COMPARISON_V1.md`. Stored deltas carry these bytes at
+# `stored[11:43]`; the oracle compares against the pin below rather than
+# trusting the artifact under test.
+DELTA_SCHEMA_EPOCH = bytes.fromhex(
+    "25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4"
+)
 
 OWNERSHIP, VALUE_REFERENCE, CONTROL_FLOW, CALL, EFFECT = 1, 3, 4, 5, 6
 CAPABILITY, CONTRACT, INITIALIZER, TEST_TARGET = 7, 8, 9, 10
@@ -511,7 +519,10 @@ def main() -> int:
     for vector in accepted.get("vectors", []):
         name = vector["id"]
         stored = bytes.fromhex(vector["stored_hex"])
-        # MAGIC (8) + uvar(1) (1) + uvar(510) (2) precede the 32-byte epoch.
+        # MAGIC (8) + uvar(1) (1) + uvar(510) (2) precede the 32-byte epoch,
+        # which must equal the frozen pin, never the artifact's own word.
+        if stored[11:43] != DELTA_SCHEMA_EPOCH:
+            problems.append(f"{name}:delta-epoch-unpinned")
         epochs.add(stored[11:43])
         expected = vector["delta"]
         try:
@@ -527,18 +538,18 @@ def main() -> int:
         for entry in expected["bodies"]:
             if entry[1] == entry[2] or len(bytes.fromhex(entry[1])) != 32:
                 problems.append(f"{name}:body-fingerprints")
-        encoded, digest = encode_delta(expected, stored[11:43])
+        encoded, digest = encode_delta(expected, DELTA_SCHEMA_EPOCH)
         if encoded != stored:
             problems.append(f"{name}:stored-bytes")
         if digest != vector["semantic_delta_id"]:
             problems.append(f"{name}:semantic-delta-id")
         try:
-            strict_decode(stored, stored[11:43])
+            strict_decode(stored, DELTA_SCHEMA_EPOCH)
         except Failure as failure:
             problems.append(f"{name}:strict-decode:{failure.code}")
-    if len(epochs) != 1:
+    if len(epochs) != 1 or next(iter(epochs)) != DELTA_SCHEMA_EPOCH:
         problems.append("delta-epoch-not-uniform")
-    epoch = next(iter(epochs)) if epochs else bytes(32)
+    epoch = DELTA_SCHEMA_EPOCH
     for mutation in rejected.get("mutations", []):
         try:
             strict_decode(bytes.fromhex(mutation["input_hex"]), epoch)

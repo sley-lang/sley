@@ -20,7 +20,7 @@ use sley_query::{
 use sley_scb1::{ScbErrorCode, encode_list, encode_record, encode_uvar};
 use sley_schema::{ContractDescriptor, EpochLimits, SchemaEpochRecordV1, UnicodeVersion};
 use sley_ssmc::{
-    Block, FunctionGraph, Operation, Parameter, ParameterRole, TypeDefForm,
+    Block, FunctionGraph, Operation, Parameter, TypeDefForm,
     fingerprint::{FingerprintError, FunctionFingerprintInput, fingerprint_function},
 };
 
@@ -466,14 +466,36 @@ fn owned_inventory(
     request: &CompleteRootRequest,
     function: &FunctionGraph,
 ) -> (Vec<Parameter>, Vec<Block>, Vec<Operation>) {
+    // The owned inventory is exactly the forward closure the frozen S20-250
+    // fingerprint walks: the function's parameter and block lists, plus the
+    // parameter and operation lists of those blocks. Back-references are
+    // verified by `fingerprint_function`, never consulted here, so a block
+    // that claims this function without being listed (or vice versa) cannot
+    // produce a second reading of the counts: the pool below either matches
+    // the closure and the derivation proceeds, or the fingerprint fails
+    // closed with the exact `FINGERPRINT_*` code preserved.
     let blocks: BTreeSet<EntityId> = function.blocks.iter().copied().collect();
+    let known_blocks: BTreeMap<EntityId, &Block> = request
+        .entities()
+        .blocks
+        .iter()
+        .map(|block| (block.entity_id, block))
+        .collect();
+    let mut block_parameters = BTreeSet::new();
+    let mut block_operations = BTreeSet::new();
+    for id in &blocks {
+        if let Some(block) = known_blocks.get(id) {
+            block_parameters.extend(block.parameters.iter().copied());
+            block_operations.extend(block.operations.iter().copied());
+        }
+    }
     let parameters = request
         .entities()
         .parameters
         .iter()
-        .filter(|parameter| match parameter.role {
-            ParameterRole::Function => parameter.owner == function.entity_id,
-            ParameterRole::Block => blocks.contains(&parameter.owner),
+        .filter(|parameter| {
+            function.parameters.contains(&parameter.entity_id)
+                || block_parameters.contains(&parameter.entity_id)
         })
         .cloned()
         .collect();
@@ -481,14 +503,14 @@ fn owned_inventory(
         .entities()
         .blocks
         .iter()
-        .filter(|block| block.function == function.entity_id)
+        .filter(|block| blocks.contains(&block.entity_id))
         .cloned()
         .collect();
     let operations = request
         .entities()
         .operations
         .iter()
-        .filter(|operation| blocks.contains(&operation.block))
+        .filter(|operation| block_operations.contains(&operation.entity_id))
         .cloned()
         .collect();
     (parameters, owned_blocks, operations)
@@ -1639,6 +1661,7 @@ pub(crate) mod tests {
         constant: ConstantDefinition,
         global: Option<GlobalValueDefinition>,
         extra_constant: Option<ConstantDefinition>,
+        extra_block: Option<Block>,
         versions: BTreeMap<u8, u8>,
         entry_points: Vec<EntityId>,
         dependency_roots: Vec<StateRoot>,
@@ -1808,6 +1831,7 @@ pub(crate) mod tests {
                     visibility: Visibility::Private,
                 }),
                 extra_constant: None,
+                extra_block: None,
                 versions: BTreeMap::new(),
                 entry_points: vec![id(10)],
                 dependency_roots: vec![root(9)],
@@ -1837,7 +1861,9 @@ pub(crate) mod tests {
                 type_definitions: vec![self.type_definition.clone()],
                 functions: vec![self.function.clone()],
                 parameters: vec![self.parameter.clone()],
-                blocks: vec![self.block.clone()],
+                blocks: core::iter::once(self.block.clone())
+                    .chain(self.extra_block.clone())
+                    .collect(),
                 operations: Vec::new(),
                 constants: vec![self.constant.clone()],
                 globals: self.global.clone().into_iter().collect(),
@@ -2094,6 +2120,57 @@ pub(crate) mod tests {
             );
         }
         assert!(!delta.collateral.contains(&id(9)));
+    }
+
+    #[test]
+    fn delta_schema_epoch_is_pinned() {
+        // S20-510 revision 2 pins the standalone delta schema epoch (nabu
+        // P0-3): delta identity moves silently if shared epoch-1 constants
+        // move, so the literal below changes deliberately or not at all.
+        let epoch = delta_epoch_id().unwrap();
+        assert_eq!(
+            hex(epoch.as_bytes()),
+            "25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4"
+        );
+    }
+
+    #[test]
+    fn stray_back_reference_block_is_not_inventoried() {
+        // S20-510 revision 2: the owned inventory is the forward closure, so
+        // a block that claims function 7 without being listed is neither
+        // counted nor fingerprinted, while section 1 still classifies it.
+        let base = Fixture::new(50);
+        let mut target = Fixture::new(51);
+        target.extra_block = Some(Block {
+            entity_id: id(90),
+            function: id(7),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Trap(TrapTerminator {
+                code: TrapCode::Unreachable,
+                payload: None,
+            }),
+            reachability: Reachability::Required,
+        });
+        let delta = compare(&base, &target).delta;
+        assert!(delta.bodies.is_empty());
+        assert_eq!(class_of(&delta, 90), Some(ChangeClass::Added));
+    }
+
+    #[test]
+    fn emptied_forward_list_fails_closed_preserving_the_wrapped_code() {
+        // Disagreement cannot produce a second reading of the counts: with
+        // the forward list emptied the entry block dangles, so the derivation
+        // fails closed with the exact `FINGERPRINT_*` code preserved.
+        let base = Fixture::new(50);
+        let mut target = Fixture::new(51);
+        target.function.blocks = Vec::new();
+        let error = compare_complete_roots(&base.request(), &target.request()).unwrap_err();
+        assert_eq!(error.code(), CompareErrorCode::InventoryInvalid);
+        assert_eq!(
+            error.source_code().as_deref(),
+            Some("FINGERPRINT_LOCAL_REFERENCE_INVALID")
+        );
     }
 
     #[test]

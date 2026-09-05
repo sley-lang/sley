@@ -1,10 +1,12 @@
 # Semantic Comparison v1
 
-Status: S20-510 contract draft, revision 1 (2026-09-03); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). The implementation landed against this draft at `6ecfe89` while every
-Council lane was unavailable (ADR-0026 context); state is tracked in the
-machine summary and `docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`.
+Status: S20-510 contract draft, revision 2 (2026-09-05); the three Council
+review rounds landed 2026-09-04 (Ariadne contract review, Nabu architecture
+review, Vulcan surface review) with four freeze-blocking findings, all closed
+by this revision; lower-severity findings remain open. The implementation
+landed against revision 1 at `6ecfe89` while every Council lane was
+unavailable (ADR-0026 context); state is tracked in the machine summary and
+`docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`.
 
 ## Notation
 
@@ -53,6 +55,18 @@ adapter. Before any delta is derived:
 4. every `Function` of either root MUST have a complete owned inventory
    (its Parameter, Block, and Operation entities are in the same root), else
    `COMPARE_INVENTORY_INVALID` with the exact `FINGERPRINT_*` code preserved.
+
+The frozen derivation pins below are part of the contract text. They bind the
+normative derivation body, which is exactly the text from the
+`## Change classes` line through the line before `## Required evidence`:
+any edit inside that span changes the digest and fails the stage checker
+until the pins are deliberately re-recorded in this document, the checker,
+and the machine summary.
+
+```text
+derivation_semantics_hash = a1077a1bdda3c084d49cb43ad7fdfe35e3d8f99e88301cc59d6eced7325cd540
+delta_schema_epoch = 25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4
+```
 
 Two identical roots compare to an empty delta, which is valid.
 
@@ -166,8 +180,28 @@ body_delta = (entity_id, base_fingerprint, target_fingerprint,
               base_blocks, target_blocks, base_operations, target_operations)
 ```
 
+The owned inventory of a function is exactly the forward closure the frozen
+S20-250 fingerprint walks: the function's `parameters` list (each a
+Function-role parameter owned by the function, ordinal its position), its
+`blocks` list (each with `block.function` the function), and the
+`parameters` and `operations` lists of those blocks (each a Block-role
+parameter owned by its block with ordinal its position; each an operation
+owned by its block with ordinal its position). `fingerprint_function`
+verifies every back-reference and rejects any missing or extra inventory
+entity, so an implementation collects exactly this closure and nothing else.
+
+`base_blocks` and `target_blocks` are the lengths of the two block vectors
+passed to `fingerprint_function`; `base_operations` and `target_operations`
+are the lengths of the two operation vectors. The counts and the fingerprints
+derive from the same vectors, so they cannot disagree with each other. When
+the forward lists and the back-references disagree — a listed block owned
+elsewhere, an unlisted block claiming the function, a dangling `entry_block`
+— there is no second reading of the counts: the derivation fails
+`COMPARE_INVENTORY_INVALID` with the exact `FINGERPRINT_*` code preserved,
+and no divergent `SemanticDeltaId` can result.
+
 The fingerprints are computed by `fingerprint_function` over each root's
-exact inventory and schema epoch. A function whose fingerprint differs is
+owned inventory and schema epoch. A function whose fingerprint differs is
 `Changed` in section 1 whenever its own body differs; a function whose own
 body is byte-identical but whose owned Parameter, Block, or Operation
 entities changed is `MetadataOnly` or unchanged in section 1 and still
@@ -196,16 +230,29 @@ so on; no relation is derived by any other rule.
 `entry_points_added`/`entry_points_removed` are the set differences of the
 two records' facts (which C9 and C10 tie to the entity inventories).
 
-`collateral` is the raw-ID-sorted set of entities that are bound by both
-roots and unchanged, and that transitively depend on a changed entity:
+`collateral` is the raw-ID-sorted set of entities bound by both roots that
+carry no entity delta, and that transitively depend on a changed entity.
+"Unchanged" in this section always means exactly that: bound by both roots
+with the same `ObjectId`, hence carrying no entity delta in section 1. A
+`MetadataOnly` entity carries a delta and is never collateral.
 
 ```text
-seeds_base   = Removed ∪ Changed ∪ Retyped ∪ MetadataOnly-with-body-delta
-seeds_target = Added ∪ Changed ∪ Retyped ∪ MetadataOnly-with-body-delta
-collateral   = (transitive_impact(base_index, seeds_base)
-               ∪ transitive_impact(target_index, seeds_target))
-               \ (seeds_base ∪ seeds_target) restricted to unchanged entities
+body_seeds   = every entity carrying a body delta (section 3)
+seeds_base   = Removed ∪ Changed ∪ Retyped ∪ body_seeds
+seeds_target = Added ∪ Changed ∪ Retyped ∪ body_seeds
+collateral   = { e ∈ transitive_impact(base_index, seeds_base)
+                   ∪ transitive_impact(target_index, seeds_target)
+               : e bound by both roots and e carries no entity delta }
 ```
+
+`body_seeds` joins both seed sets because a body delta exists only for
+functions bound by both roots — including a function unchanged in section 1
+whose owned entities changed, which section 3 explicitly allows. A body-delta
+seed with no entity delta stays in `collateral` when reached: the exclusion
+above removes entities carrying an entity delta, not seeds as such. A
+`MetadataOnly` function without a body delta seeds nothing: its normative
+body is equal, hence every impact edge and every fingerprint is equal, and no
+dependent's semantics can shift.
 
 `transitive_impact` is the restricted profile's bounded reverse reachability
 over each root's own complete-root index. A missed collateral change is the
@@ -232,6 +279,16 @@ stored_delta = delta_preimage || SemanticDeltaId[32]
 `sley2.semantic-delta.v1` is a new `sley-id` domain; adding its row to
 `IDENTIFIERS_V1.md`, the `Domain` enumeration, and the frozen vectors is
 identifier-owner work inside the S20-510 slice.
+
+The delta schema epoch identity is frozen as `delta_schema_epoch` in
+`## Inputs` above. It is the `schema_epoch_id()` of exactly the record stated
+here: epoch 1, SCB format version 1, hash algorithm tag 1, the epoch-1
+Unicode version and limits, one contract descriptor, no extensions, no
+predecessor, no migration contracts. If any shared epoch-1 constant moves,
+the recomputed identity will not match the pin and every gate fails. The
+epoch bytes carried in stored deltas (`stored[11:43]`) MUST equal the pin,
+and the fixture oracle compares against the pin rather than trusting the
+artifact under test.
 
 The delta schema epoch is a standalone epoch-1 record with exactly one
 contract descriptor: `contract_tag = 510`, `digest_domain_tag = 20`,
