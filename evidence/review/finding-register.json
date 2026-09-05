@@ -87,7 +87,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 207,
+  "obligation_count": 208,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -1946,7 +1946,24 @@
         "P2",
         "P3"
       ],
-      "state": "PENDING",
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "nabu_review"
+    },
+    {
+      "declares_closed_findings": true,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+      "field": "nabu_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
+      "reviewer": "nabu",
+      "section": "s20_360_candidate_validation",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -2996,7 +3013,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "73852c47f31e0b4fd6e6b2bd050836f3390d9b36f40a9ff04a635f608380a7ad",
+  "obligations_digest": "a295cbba28c16f61fa4d6403ea42356cf7f284f0de3fde4421f63348d13d7af2",
   "open_reviews": [
     {
       "disposition": "FAIL_2_P0_7_P1_7_P2_3_P3",
@@ -3459,17 +3476,6 @@
       ]
     },
     {
-      "disposition": "FAIL_0_P0_2_P1_6_P2_3_P3",
-      "field": "nabu_operation_analysis_review",
-      "section": "s20_360_candidate_validation",
-      "severities": [
-        "P0",
-        "P1",
-        "P2",
-        "P3"
-      ]
-    },
-    {
       "disposition": "REVISE_TO_OFFLINE_APPEND_ONLY_CONTRACT",
       "field": "nabu_review",
       "section": "s20_610_offline_raw_runner",
@@ -3774,12 +3780,12 @@
     "root_backed_query_profile.p0_open_count": 0,
     "s20_360_candidate_validation.p0_open": 0,
     "s20_360_candidate_validation.p0_open_count": 0,
-    "s20_360_candidate_validation.p1_open": 2,
-    "s20_360_candidate_validation.p1_open_count": 2,
-    "s20_360_candidate_validation.p2_open": 6,
-    "s20_360_candidate_validation.p2_open_count": 6,
-    "s20_360_candidate_validation.p3_open": 3,
-    "s20_360_candidate_validation.p3_open_count": 3,
+    "s20_360_candidate_validation.p1_open": 0,
+    "s20_360_candidate_validation.p1_open_count": 0,
+    "s20_360_candidate_validation.p2_open": 0,
+    "s20_360_candidate_validation.p2_open_count": 0,
+    "s20_360_candidate_validation.p3_open": 0,
+    "s20_360_candidate_validation.p3_open_count": 0,
     "s20_390_atomic_commit.p0_open": 0,
     "s20_390_atomic_commit.p0_open_count": 0,
     "s20_700_remaining_surface_audit.p0_open_count": 0,
@@ -3794,22 +3800,22 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "c03393a0d581b65cf76b252e8fbea32429a5d41b2a25c303b0c023e0b5b1f20a",
+  "register_digest": "cd177016f41eebe92698301798b702cf30cee364b87f2c627f933b56422f9ca6",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 74,
-    "P1": 86,
-    "P2": 89,
-    "P3": 78,
+    "P0": 75,
+    "P1": 87,
+    "P2": 90,
+    "P3": 79,
     "P4": 0
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "DEFERRED": 10,
-    "HISTORICAL_ROUND": 29,
+    "HISTORICAL_ROUND": 30,
     "OTHER": 2,
-    "PASS": 90,
-    "PENDING": 76
+    "PASS": 91,
+    "PENDING": 75
   },
   "superseded_rounds": [
     {
@@ -3937,6 +3943,12 @@
       "field": "ariadne_operation_analysis_review",
       "section": "s20_360_candidate_validation",
       "superseded_by": "ariadne_review"
+    },
+    {
+      "disposition": "FAIL_0_P0_2_P1_6_P2_3_P3",
+      "field": "nabu_operation_analysis_review",
+      "section": "s20_360_candidate_validation",
+      "superseded_by": "nabu_review"
     },
     {
       "disposition": "FAIL_1_P0_4_P1_2_P2_2_P3",
