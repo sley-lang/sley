@@ -710,7 +710,12 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     ])
     .unwrap();
     let created = other
-        .answer(&request_frame(None, 0, Method::WorkspaceCreate, body))
+        .answer(&request_frame(
+            None,
+            0,
+            Method::WorkspaceCreate,
+            body.clone(),
+        ))
         .unwrap();
     let (DecodedFrame::Response(frame), _) =
         decode_frame(&created.frame.bytes, MAX_FRAME_BYTES).unwrap()
@@ -726,6 +731,48 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
         frame.body,
         tx(genesis_id),
         "trusted genesis over identical inputs is one identity"
+    );
+    // Replay semantics (contract section 3): once a head exists the
+    // session-less path is closed, and a replay with a session runs the
+    // owner, which refuses the second genesis.
+    let replayed = other
+        .answer(&request_frame(
+            None,
+            0,
+            Method::WorkspaceCreate,
+            body.clone(),
+        ))
+        .unwrap();
+    assert!(replayed.failed);
+    let (DecodedFrame::Response(replay_frame), _) =
+        decode_frame(&replayed.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&replay_frame.body).unwrap().symbol,
+        "SESSION_BINDING_INVALID"
+    );
+    let open = other
+        .answer(&request_frame(
+            None,
+            0,
+            Method::SessionOpen,
+            other.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
+    let (DecodedFrame::Response(open_frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let replay_session = SessionId::from_bytes(open_frame.body.as_slice().try_into().unwrap());
+    let (failed, owned) = call_frame(&mut other, replay_session, 1, Method::WorkspaceCreate, body);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&owned.body).unwrap().symbol,
+        "TXN_ALREADY_INITIALIZED"
     );
     // candidate.create with a structurally empty record keeps the owner's code.
     let empty_candidate = harness.fail(Method::CandidateCreate, vec![0]);
@@ -2574,6 +2621,11 @@ fn session_less_frame_with_nonzero_identifier_is_malformed() {
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::FrameInvalid.numeric()
     );
+    // A malformed pre-session identifier is answered, never echoed:
+    // session-less answers carry identifier 0 (contract appendix B).
+    assert_eq!(answer.request_id, 0);
+    assert_eq!(frame.request_id, 0);
+    assert_eq!(frame.session, None);
     // Identifier 0 still opens.
     let open = harness
         .server

@@ -1,0 +1,36 @@
+S20-400 SMP1 revision 11 — Vulcan read-only second surface re-review
+Date: 2026-09-05
+Pinned repository: /home/greyforge/sley2
+Pinned HEAD: 94b13adb3c3893120ad4a5ea26a48013248915a8
+Mode: bounded residual triage; no cargo, make, test execution, deployment, merge, or canon mutation
+
+status: complete
+
+verdict:
+Fractured — R2 is closed, but R1 remains bypassable. Result: FAIL (high confidence).
+
+findings:
+P0: none.
+
+P1-1 — IMPLEMENTED review tracking is presence-only, so silent pending reviews can still pass.
+Section 10 requires FAIL rounds at IMPLEMENTED status to be itemized as open findings in both the machine summary and finding register, never silently pending. scripts/check_smp1_contract.py enforces only that the three keys p1_open, p2_open, and p3_open exist when any review string starts with FAIL. It does not require any list to be non-empty, reconcile open counts, associate entries with the failing lane/round, or inspect the finding register. Therefore a summary with FAIL reviews and all three keys present as empty arrays passes this check, contradicting the stated invariant. The new missing-key check closes only one malformed shape, not the residual.
+
+P2: none.
+P3: none.
+
+Residual disposition:
+- R1 (IMPLEMENTED status ungated): NOT CLOSED. Contract prose is materially clearer, and current machine-summary FAIL rounds are populated, but the checker admits an empty-list bypass.
+- R2 (below-selection unreachable): CLOSED. ProtocolFrame::validate now returns PROTOCOL_DOWNGRADE below PROTOCOL_VERSION and PROTOCOL_VERSION_UNSUPPORTED above it; decode_frame invokes that validation. SelectedProfile::check_claim agrees, and the focused decode test constructs wire frames through encode_envelope to pin both outcomes. encode_frame also preserves the same validation split.
+
+validation:
+- Read .git/HEAD and refs/heads/main; pinned HEAD is exactly 94b13adb3c3893120ad4a5ea26a48013248915a8.
+- Compared the prior Vulcan FAIL findings against current SMP1 section 2/10, scripts/check_smp1_contract.py, ProtocolFrame validation/decode, SelectedProfile dispatch use, and focused protocol tests.
+- Static review only, as required. No cargo, make, provider action, deployment, merge, or locked-canon mutation performed.
+
+blockers:
+none; verdict decided from static evidence.
+
+return_to:
+orchestrator
+
+S20_400SURFACE_REREVIEW2_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["IMPLEMENTED review tracking remains presence-only: check_smp1_contract.py accepts FAIL reviews when p1_open/p2_open/p3_open keys exist but are empty, without reconciling counts, lane obligations, or the finding register, so silent pending review can still pass"],"p2":[],"p3":[]}

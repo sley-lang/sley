@@ -259,13 +259,26 @@ def main() -> int:
             if not str(section.get(key, "")).startswith("PASS"):
                 problems.append(f"completion-without-review:{key}")
     # Implemented under a draft means tracked, never silently pending: a
-    # FAIL round must be itemized in the register-first open lists.
+    # FAIL round must be itemized in non-empty register-first open lists,
+    # or superseded by a same-lane PASS obligation. An empty list set
+    # with no same-lane PASS fails the gate.
+    lane_pass_field = {
+        "ariadne_contract_review": "ariadne_review",
+        "nabu_architecture_review": "nabu_review",
+        "vulcan_surface_review": "vulcan_review",
+    }
     if status == IMPLEMENTED_STATUS:
         for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
             if str(section.get(key, "")).startswith("FAIL"):
-                for list_key in ("p1_open", "p2_open", "p3_open"):
-                    if list_key not in section:
-                        problems.append(f"review-without-register:{key}:{list_key}")
+                tracked = sum(
+                    len(section.get(list_key, []))
+                    for list_key in ("p1_open", "p2_open", "p3_open")
+                )
+                superseded = str(
+                    section.get(lane_pass_field[key], "")
+                ).startswith("PASS")
+                if tracked == 0 and not superseded:
+                    problems.append(f"review-without-register:{key}")
 
     revision = re.search(r"revision (\d+)", spec)
     result = {

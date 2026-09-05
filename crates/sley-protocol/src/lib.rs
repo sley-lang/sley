@@ -2318,6 +2318,31 @@ mod tests {
     }
 
     #[test]
+    fn envelope_format_version_mismatch_is_unsupported() {
+        // The SCB1 envelope format version is a version failure, not a
+        // frame defect (contract section 1): a foreign format version
+        // answers PROTOCOL_VERSION_UNSUPPORTED.
+        let frame = request(b"");
+        let payload = frame.payload().unwrap();
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(MAGIC);
+        preimage.extend_from_slice(&encode_uvar(FORMAT_VERSION + 1));
+        preimage.extend_from_slice(&encode_uvar(u64::from(FRAME_CONTRACT_TAG)));
+        preimage.extend_from_slice(protocol_epoch_id().unwrap().as_bytes());
+        preimage.extend_from_slice(&encode_uvar(payload.len() as u64));
+        preimage.extend_from_slice(&payload);
+        let frame_id = ProtocolFrameId::derive(&preimage);
+        let envelope_len = (preimage.len() + ID_LEN) as u64;
+        let mut bytes = envelope_len.to_be_bytes().to_vec();
+        bytes.extend_from_slice(&preimage);
+        bytes.extend_from_slice(frame_id.as_bytes());
+        assert_eq!(
+            decode_frame(&bytes, 1_048_576).unwrap_err().code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+    }
+
+    #[test]
     fn streamed_failure_keeps_the_failed_bit_on_every_frame() {
         // A streamed failed response keeps its failure bit on every event
         // frame and the terminal frame (contract section 6); reassembly

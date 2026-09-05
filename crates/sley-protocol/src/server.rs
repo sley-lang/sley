@@ -380,7 +380,15 @@ impl Server {
                 }
                 _ => self.dispatch(&frame),
             };
-            answers.push(self.respond(frame.session, frame.request_id, frame.method, outcome)?);
+            // Session-less answers carry identifier 0 (contract section 3
+            // and appendix B): a malformed pre-session identifier is
+            // answered, never echoed.
+            let answer_id = if frame.session.is_none() {
+                0
+            } else {
+                frame.request_id
+            };
+            answers.push(self.respond(frame.session, answer_id, frame.method, outcome)?);
         }
         Ok(answers)
     }

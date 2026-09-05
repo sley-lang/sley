@@ -66,12 +66,12 @@ the negotiated `max_frame_bytes` (never above 67,108,864); the check
 happens before allocation. It is not SCB1 section 2's `payload_length`:
 that inner `uvar` covers only the envelope's inner payload, while the
 outer `u64be` covers the whole envelope. The envelope digest is verified
-before any field is read. A frame that fails length, magic, format
-version, tag, or digest rules, or that carries bytes after the
-`digest` trailer, is `PROTOCOL_FRAME_INVALID` (or
-`PROTOCOL_FRAME_TOO_LARGE` for the ceiling); a frame whose envelope epoch
-is not the protocol epoch below is `PROTOCOL_VERSION_UNSUPPORTED`, never a frame defect: epoch mismatch is a version failure, and the two codes
-never overlap. The
+before any field is read. A frame that fails length, magic, tag, or
+digest rules, or that carries bytes after the `digest` trailer, is
+`PROTOCOL_FRAME_INVALID` (or `PROTOCOL_FRAME_TOO_LARGE` for the
+ceiling); a format-version or envelope-epoch mismatch is
+`PROTOCOL_VERSION_UNSUPPORTED`, never a frame defect: version mismatch
+is a version failure, and the two codes never overlap. The
 connection state does not change, and no partial frame is ever acted on.
 An optional checksum profile never changes payload semantics. A hello is
 decoded under the absolute 67,108,864-byte ceiling and the hello list caps
@@ -209,9 +209,10 @@ carries identifier 0, no other: hello, `session.open`, and the genesis
 path share no counter with any session, and a session-less frame naming
 any nonzero identifier is `PROTOCOL_FRAME_INVALID`. Opens are not
 idempotent: replaying an open creates another session (capped by the
-negotiated `max_sessions`), and replaying a genesis write answers the
-owner failure (a second genesis is already-initialized; after a head
-exists the session-less path is closed and the write needs a session). The only other
+negotiated `max_sessions`). Replaying a genesis write once a head exists
+needs a session like any other write and answers the owner's
+`TXN_ALREADY_INITIALIZED`; while no head exists the session-less replay
+answers the owner failure directly. The only other
 session-less requests are the genesis path: `workspace.create` and
 `exchange.import` may travel without a session only while the repository
 has no accepted head, because no session can bind before there is a head
@@ -525,7 +526,8 @@ status at or past freeze passes the stage gate without all three reviews
 implemented under a draft whose review rounds are either superseded by
 same-lane `PASS` obligations or itemized as open findings in the machine
 summary and the finding register, never silently pending; the stage gate
-pins that invariant. Implementation acceptance (S20-410) requires
+pins that invariant, and an empty list set with no same-lane `PASS`
+fails it. Implementation acceptance (S20-410) requires
 at least: fixed frame and hello vectors with an independent reproduction;
 the handshake matrix (no common profile, each downgrade shape, identical
 `ProtocolHandshakeId` on both peers); the request-identity matrix
@@ -631,8 +633,10 @@ admitted, released, and answered `PROTOCOL_CANCELLED`. Admission precedes
 the cancel: a cancel naming an unadmitted identifier answers the admission
 failure. Frame-level failures are answered without a session and with
 identifier 0 in their batch position; 0 is reserved there, never a
-session's identifier (section 3). Equal frame lists over equal repository
-state produce equal answer sequences.
+session's identifier (section 3). A session-less request refused as
+malformed is answered the same way: the forbidden identifier is never
+echoed. Equal frame lists over equal repository state produce equal
+answer sequences.
 
 Budget accounting: `remaining := max_work` at `session.open`;
 `remaining := remaining - 1` at dispatch, then `remaining := remaining -
