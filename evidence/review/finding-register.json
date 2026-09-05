@@ -3774,6 +3774,12 @@
     "root_backed_query_profile.p0_open_count": 0,
     "s20_360_candidate_validation.p0_open": 0,
     "s20_360_candidate_validation.p0_open_count": 0,
+    "s20_360_candidate_validation.p1_open": 2,
+    "s20_360_candidate_validation.p1_open_count": 2,
+    "s20_360_candidate_validation.p2_open": 6,
+    "s20_360_candidate_validation.p2_open_count": 6,
+    "s20_360_candidate_validation.p3_open": 3,
+    "s20_360_candidate_validation.p3_open_count": 3,
     "s20_390_atomic_commit.p0_open": 0,
     "s20_390_atomic_commit.p0_open_count": 0,
     "s20_700_remaining_surface_audit.p0_open_count": 0,
@@ -3788,7 +3794,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "939f85882ffe59755f4f7eb4a6bda94eeab8c1a1dcedced31e847a761cc22583",
+  "register_digest": "c03393a0d581b65cf76b252e8fbea32429a5d41b2a25c303b0c023e0b5b1f20a",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 74,

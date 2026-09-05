@@ -17,6 +17,7 @@ VALIDATOR = ROOT / "crates/sley-policy/src/candidate_validation.rs"
 PROGRAM = ROOT / "crates/sley-policy/src/candidate_program.rs"
 RESULT_CODEC = ROOT / "crates/sley-policy/src/candidate_result.rs"
 LIB = ROOT / "crates/sley-policy/src/lib.rs"
+VM_LIB = ROOT / "crates/sley-vm/src/lib.rs"
 ORACLE = ROOT / "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
 ACCEPTED = ROOT / "conformance/candidate-result/v1/accepted.json"
 REJECTED = ROOT / "conformance/candidate-result/v1/rejected.json"
@@ -174,6 +175,10 @@ def main() -> int:
         "The primary diagnostic is exactly list element zero",
         "no caller-supplied phase outcome",
         "S20-390 remains the first package allowed to perform durable commit",
+        "carries two owner classes separable only by `source_symbol`",
+        "Phase 7 judges every operation of every function unit",
+        "Excluded-opcode invariant: every excluded opcode is refused before phase 12",
+        "the analyzability flag in the phase evidence",
     ):
         if marker not in spec:
             problems.append(f"candidate-result-boundary-missing:{marker}")
@@ -208,6 +213,36 @@ def main() -> int:
         marker = f"| {numeric} | `CANDIDATE_RESULT_{symbol}` |"
         if errors.count(marker) != 1:
             problems.append(f"candidate-result-integrity-error-drift:{numeric}:{symbol}")
+
+    if "### 8.2 Preserved VM lowering symbols at phase 7" not in SPEC.read_text(encoding="utf-8"):
+        problems.append("candidate-result-missing-vm-lowering-symbols")
+    else:
+        vm_impl = VM_LIB.read_text(encoding="utf-8").split("impl LowerErrorCode {")[1].split("\n}\n")[0]
+        crate_symbols = dict(re.findall(r"Self::(\w+) => \"(VM_LOWER_[A-Z0-9_]+)\"", vm_impl))
+        crate_numerics = {
+            variant: int(value.replace("_", ""))
+            for variant, value in re.findall(r"Self::(\w+) => ([\d_]+)", vm_impl)
+        }
+        spec_section = SPEC.read_text(encoding="utf-8").split(
+            "### 8.2 Preserved VM lowering symbols at phase 7"
+        )[1]
+        documented = re.findall(
+            r"\| `(VM_LOWER_[A-Z0-9_]+)` \| (\d+) \| `([A-Z_]+)` \|", spec_section
+        )
+        documented_symbols = {symbol for symbol, _, _ in documented}
+        if documented_symbols != set(crate_symbols.values()):
+            problems.append(
+                "candidate-result-vm-lowering-symbol-drift:"
+                f"{sorted(set(crate_symbols.values()) ^ documented_symbols)}"
+            )
+        for symbol, numeric, _ in documented:
+            variant = next(
+                (name for name, code in crate_symbols.items() if code == symbol), None
+            )
+            if variant is not None and crate_numerics.get(variant) != int(numeric):
+                problems.append(f"candidate-result-vm-lowering-numeric-drift:{symbol}")
+        if len(documented) != len(documented_symbols):
+            problems.append("candidate-result-vm-lowering-symbol-duplicate")
 
     validator = VALIDATOR.read_text(encoding="utf-8")
     for marker in (
@@ -288,6 +323,7 @@ def main() -> int:
         "Vulcan",
         "Tier 2 subsystem handoff",
         "S20-390",
+        "Malformed instances fail with",
     ):
         if marker not in closeout:
             problems.append(f"candidate-validation-closeout-missing:{marker}")

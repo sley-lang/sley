@@ -121,7 +121,9 @@ The S20-260/S20-270 extended opcode profile supplied the judgment this slice
 waited for, so phase 7 now calls `sley_vm::judge_function_operations` (contract
 revision 8, judgment only: no bytecode, no cache key, no execution) once per
 function unit after the S20-220 graph report. The phase evidence gained the
-judged-operation count and the judgment work, and phase 12 adds the operation
+judged-operation count, the judgment work, and the analyzability flag (which
+distinguishes judged-zero-operations from judgment-skipped), and phase 12
+adds the operation
 count to the graph work total, so the recorded result identity of the valid
 fixture changed with the evidence.
 
@@ -135,7 +137,9 @@ observation 145 is refused unconditionally (phase 11
 `TEST_PLAN_OBSERVATION_UNSUPPORTED`, whatever shape it takes). The other four
 owners validate shapes and accept well-formed instances — 144 at phase 10,
 160, 161, and 162 at phase 8 — so the phase 12 guard is the live refusal path
-for well-formed E7 programs, not defense in depth. The malformed-operation
+for well-formed E7 programs, not defense in depth. Malformed instances fail
+with `CONTRACT_ASSERT_TYPE` (144), `EFFECT_REQUEST_TYPE` (160),
+`ADAPTER_INVOKE_TYPE` (161), and `CAPABILITY_REQUIREMENT_TYPE` (162). The malformed-operation
 matrix test records owner refusal of ill-formed instances only; well-formed
 instances are proven by `well_formed_contract_assert_reaches_the_phase_twelve_guard`
 (144 refused at phase 12), `well_formed_effect_operations_pass_the_phase_eight_owner`

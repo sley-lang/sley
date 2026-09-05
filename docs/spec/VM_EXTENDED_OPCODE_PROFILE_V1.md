@@ -213,13 +213,15 @@ until S20-240 full, S20-280 full, and S20-380 full own their runtime.
 `test_observe` additionally needs a schema epoch, because epoch 1 rejects it
 outright rather than leaving its semantics open.
 
-### 3.1 Judgment without lowering (revision 8)
+### 3.1 Judgment without lowering
 
 `judge_function_operations(input)` judges every operation of one Function
 under `EXTENDED_V1` and returns the operation count and the judgment work,
 without emitting bytecode, deriving a cache key, lowering callees, or
 executing anything. It is the surface external owners use: S20-360 candidate
 validation calls it once per function unit after the S20-220 graph report.
+The entry first landed in revision 8 and is unchanged in substance since;
+the campaign record cites revision 8 section 3.1 for that landing.
 
 Unlike `lower_function` it does not refuse a Function that declares type
 parameters, effects, or contracts, because those belong to the S20-210,
@@ -228,6 +230,25 @@ S20-230, and S20-240 owners; a caller that needs bytecode still uses
 `VM_LOWER_*` codes, so a caller can map them onto its own decisions without
 inventing a code. A restricted-profile request is
 `VM_LOWER_PROFILE_UNSUPPORTED`.
+
+Normative acceptance invariant: judgment accepts exactly the Functions
+`lower_function` accepts under `EXTENDED_V1`, minus the type-parameter /
+effect / contract refusal, the graph validation, the cache key, the
+bytecode, and callee lowering. In particular the judgment runs
+`require_canonical_referenced_constants` in the same position as lowering
+(after the judgment, so the frozen S20-260 failure order is unchanged), so a
+judged Function is lowerable. The differential test
+`judgment_acceptance_matches_lowering_acceptance` pins both directions of
+the invariant: lowering accepted implies judgment accepted, and judgment
+refused implies lowering refused.
+
+The judgment ignores `LoweringInput.state_root` and
+`LoweringInput.schema_epoch`: both feed only `derive_cache_key`, which the
+judgment never calls. No judgment code may start reading them without a
+contract change. The caller supplies the same root-wide inventories and the
+same per-unit Function that lowering takes; the judgment re-narrows them to
+the unit exactly as lowering does, which is a no-op when the caller already
+narrowed per unit.
 
 ## 4. Observation and reports
 
@@ -265,7 +286,11 @@ completes, while the restricted-profile refusal pins
 reaching execution fails loudly instead of comparing two input errors, and the
 runner requires the executed run count to cover the corpus. Lanes carry
 per-family reachability; vectors plus the rejection matrix carry per-opcode
-duty. For the profile: Tier 1 plus
+duty. For the judgment entry: the differential test
+`judgment_acceptance_matches_lowering_acceptance` runs on every change to
+either entry and asserts the section 3.1 acceptance invariant in both
+directions, so the two paths' static acceptance sets cannot silently diverge
+again. For the profile: Tier 1 plus
 Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews with every
 report-grade finding closed.
 

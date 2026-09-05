@@ -858,13 +858,14 @@ pub fn validate_candidate_bytes(
     }
     renderer.pass(
         7,
-        &[
-            encode_uvar(owned_units.len() as u64),
-            encode_uvar(cfg_edges),
-            encode_uvar(cfg_work),
-            encode_uvar(judged_operations),
-            encode_uvar(operation_work),
-        ],
+        &phase7_evidence_values(
+            owned_units.len() as u64,
+            cfg_edges,
+            cfg_work,
+            judged_operations,
+            operation_work,
+            operations_analyzable,
+        ),
     )?;
 
     // Phase 8: exact static effect closure through S20-230.
@@ -1648,6 +1649,30 @@ fn borrow_units(units: &[OwnedFunctionUnit]) -> Vec<FunctionUnit<'_>> {
         .collect()
 }
 
+/// Encodes the six phase 7 evidence values: unit count, CFG edges, CFG
+/// work, judged-operation count, judgment work, and the analyzability flag.
+///
+/// The flag distinguishes "judged, zero operations" from "judgment skipped
+/// for an excluded opcode" (contract section 9): both otherwise read as
+/// `judged_operations=0`, and phase evidence is part of result identity.
+fn phase7_evidence_values(
+    units: u64,
+    edges: u64,
+    work: u64,
+    judged: u64,
+    operation_work: u64,
+    analyzable: bool,
+) -> [Vec<u8>; 6] {
+    [
+        encode_uvar(units),
+        encode_uvar(edges),
+        encode_uvar(work),
+        encode_uvar(judged),
+        encode_uvar(operation_work),
+        encode_uvar(u64::from(analyzable)),
+    ]
+}
+
 fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
     left.iter()
         .chain(right)
@@ -1763,6 +1788,10 @@ fn cfg_failure(error: &CfgValidationError) -> Failure {
 /// decision (the frozen decision of that phase).
 fn operation_failure(error: &LoweringError) -> Failure {
     match error {
+        // Defense in depth beside the phase 12 guard: the judgment entry
+        // never calls `validate_function_graph`, so judgment cannot produce
+        // this arm; the match stays total so a future caller that can fail
+        // the graph still maps deterministically.
         LoweringError::Cfg(error) => cfg_failure(error),
         LoweringError::Lower(error) if error.code() == LowerErrorCode::ResourceLimit => {
             resource_failure(7, error.code().as_str())
@@ -2337,7 +2366,7 @@ mod tests {
         assert!(first.result().record.candidate_root.is_some());
         assert_eq!(
             hex(first.result().candidate_result_id.as_bytes()),
-            "6a2bae847413d88bc8f9fabdee234a7ccad2513c8d28bb8da13efd73a48e85ec"
+            "1cbc2a9514fa95d0cf53c44900aebeb7a630d79aeb489c87e66fecd68ceb05a6"
         );
         assert_eq!(first.result().record.phase_results.len(), 14);
         assert!(
@@ -2363,6 +2392,16 @@ mod tests {
             write!(&mut output, "{byte:02x}").unwrap();
         }
         output
+    }
+
+    #[test]
+    fn phase_seven_evidence_distinguishes_skipped_judgment_from_empty_judgment() {
+        let judged = phase7_evidence_values(1, 0, 0, 0, 0, true);
+        let skipped = phase7_evidence_values(1, 0, 0, 0, 0, false);
+        assert_eq!(judged.len(), 6);
+        assert_eq!(judged[5], encode_uvar(1));
+        assert_eq!(skipped[5], encode_uvar(0));
+        assert_ne!(judged, skipped);
     }
 
     #[test]

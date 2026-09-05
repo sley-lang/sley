@@ -18,7 +18,8 @@ use sley_ssmc::{
 
 use crate::{
     CacheProfile, ExecutionError, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    LowerErrorCode, LoweringError, LoweringInput, ResourceKind, execute_function, lower_function,
+    LowerErrorCode, LoweringError, LoweringInput, ResourceKind, execute_function,
+    judge_function_operations, lower_function,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -3137,6 +3138,149 @@ fn e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing() {
         lowering_code(&global_fixture(reversed)),
         LowerErrorCode::ImmediateMismatch
     );
+}
+
+/// The judgment entry enforces the canonical-constant precondition exactly
+/// like lowering does (contract section 3.1 invariant): a candidate that
+/// reaches `VALID` is lowerable under `EXTENDED_V1`, so the judgment must
+/// refuse the same non-canonical `constant_ref` that lowering refuses.
+#[test]
+fn judgment_rejects_non_canonical_referenced_constant() {
+    let reference = |value: ConstValue| {
+        Fixture::new(
+            &[TypeExpr::Bool],
+            &[step(
+                Opcode::ConstantRef,
+                vec![],
+                Immediate::Entity(id(200)),
+                map_type(),
+            )],
+            vec![ConstantDefinition {
+                entity_id: id(200),
+                value,
+            }],
+        )
+    };
+    let judgment_code = |fixture: &Fixture| match judge_function_operations(
+        fixture.input(CacheProfile::EXTENDED_V1),
+    )
+    .unwrap_err()
+    {
+        LoweringError::Lower(error) => error.code(),
+        LoweringError::Cfg(error) => panic!("cfg failure: {error}"),
+    };
+    // Canonical order: judgment and lowering both accept.
+    let mut entries = vec![(300_u128, "big"), (7, "small")];
+    entries.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+    let canonical = reference(map_of(entries));
+    assert!(lower_function(canonical.input(CacheProfile::EXTENDED_V1)).is_ok());
+    assert!(judge_function_operations(canonical.input(CacheProfile::EXTENDED_V1)).is_ok());
+    // Out-of-order keys: the codec rejects the value, and both entries
+    // refuse it with the immediate code.
+    let mut flipped = vec![(300_u128, "big"), (7, "small")];
+    flipped.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+    flipped.reverse();
+    let reversed = reference(map_of(flipped));
+    assert_eq!(lowering_code(&reversed), LowerErrorCode::ImmediateMismatch);
+    assert_eq!(judgment_code(&reversed), LowerErrorCode::ImmediateMismatch);
+    // Duplicate keys likewise: refused by the codec, the lowering, and the
+    // judgment with the same code.
+    let duplicated = reference(map_of(vec![(7_u128, "first"), (7, "second")]));
+    assert_eq!(
+        lowering_code(&duplicated),
+        LowerErrorCode::ImmediateMismatch
+    );
+    assert_eq!(
+        judgment_code(&duplicated),
+        LowerErrorCode::ImmediateMismatch
+    );
+}
+
+/// Judgment accepts exactly what lowering accepts, minus the documented
+/// judgment exclusions (contract section 3.1 invariant, section 5
+/// differential-test obligation): lowering accepted implies judgment
+/// accepted, and judgment refused implies lowering refused. The designed
+/// asymmetry runs one way only — the judgment skips the graph validation,
+/// the cache key, and the type-parameter/effect/contract refusal, so it may
+/// accept what lowering refuses, never the reverse.
+#[test]
+fn judgment_acceptance_matches_lowering_acceptance() {
+    let boolean = Fixture::new(
+        &[TypeExpr::Bool, TypeExpr::Bool],
+        &[step(
+            Opcode::BoolAnd,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    let mut entries = vec![(300_u128, "big"), (7, "small")];
+    entries.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+    let canonical = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::ConstantRef,
+            vec![],
+            Immediate::Entity(id(200)),
+            map_type(),
+        )],
+        vec![ConstantDefinition {
+            entity_id: id(200),
+            value: map_of(entries),
+        }],
+    );
+    let mut flipped = vec![(300_u128, "big"), (7, "small")];
+    flipped.sort_by_key(|(key, _)| sley_mutate::encode_const_value(&uint(*key)).unwrap());
+    flipped.reverse();
+    let reversed = Fixture::new(
+        &[TypeExpr::Bool],
+        &[step(
+            Opcode::ConstantRef,
+            vec![],
+            Immediate::Entity(id(200)),
+            map_type(),
+        )],
+        vec![ConstantDefinition {
+            entity_id: id(200),
+            value: map_of(flipped),
+        }],
+    );
+    let bad_signature = Fixture::new(
+        &[TypeExpr::Bool, TypeExpr::Bool],
+        &[step(
+            Opcode::BoolAnd,
+            vec![Arg::P(0)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    let mut effected = Fixture::new(
+        &[TypeExpr::Bool, TypeExpr::Bool],
+        &[step(
+            Opcode::BoolAnd,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::None,
+            TypeExpr::Bool,
+        )],
+        Vec::new(),
+    );
+    effected.function.effects.push(id(50));
+    for fixture in [&boolean, &canonical, &reversed, &bad_signature, &effected] {
+        let judged = judge_function_operations(fixture.input(CacheProfile::EXTENDED_V1));
+        let lowered = lower_function(fixture.input(CacheProfile::EXTENDED_V1));
+        match (&judged, &lowered) {
+            (Ok(_), Ok(_)) | (Err(_), Err(_)) | (Ok(_), Err(_)) => {}
+            (Err(error), Ok(_)) => {
+                panic!("judgment refused what lowering accepted: {error:?}")
+            }
+        }
+    }
+    // The designed asymmetry, pinned: effects belong to the S20-230 owner,
+    // so the judgment accepts while lowering refuses with the profile code.
+    assert!(judge_function_operations(effected.input(CacheProfile::EXTENDED_V1)).is_ok());
+    assert_eq!(lowering_code(&effected), LowerErrorCode::ProfileUnsupported);
 }
 
 /// A cell's contents are live value units, not a free handle.

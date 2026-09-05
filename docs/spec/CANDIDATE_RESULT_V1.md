@@ -217,6 +217,14 @@ Tags are closed and preserve the master-goal states:
 `RESOURCE_LIMIT` records the actual first failed phase; it never permits a
 later phase to run. Unknown decisions are invalid result bytes.
 
+Tag 10 `CONTROL_FLOW_ERROR` at phase 7 carries two owner classes separable
+only by `source_symbol`: S20-220 structure failures (the `CFG_*` family) and
+S20-260 signature failures (the `VM_LOWER_*` family, section 8.2). Both
+report `Permanent` retryability, so section 8.1's one-retryability-per-symbol
+rule is not violated. No seventeenth tag is added: the closed sixteen-tag
+enum, the 36000–36014 range, and the fixed vectors stay frozen. The GA
+revision that lands E7 runtime ownership must split tag 10 by owner class.
+
 ## 6. Phase records and monotonicity
 
 The exact phase order is:
@@ -282,6 +290,10 @@ phase 14 as executed or passed.
   malformed graph structure from a missing referenced identity.
 - Phases 6 through 8 invoke the owning S20-210/S20-220/S20-230 checkers and
   preserve their exact source code in diagnostics.
+- Phase 7 judges every operation of every function unit through the S20-260
+  judgment owner after the same unit's S20-220 graph report; a program
+  containing an excluded E7 opcode skips judgment program-wide and keeps its
+  frozen phase 12 refusal (section 9).
 - Present semantic-fingerprint claims on supported TypeDef and Function
   entities are recomputed only after their owning semantic checker passes.
   A mismatch is reported at phase 6 for TypeDef or phase 8 for Function while
@@ -323,7 +335,7 @@ the source-code field and are never collapsed into success.
 ### 8.1 Source symbols the validator originates
 
 Most source symbols are preserved from the owning checker that produced the
-failure. Twenty-five are the validator's own, because the check belongs to no
+failure. Twenty-six are the validator's own, because the check belongs to no
 other owner: it is the validator that compares the bound context, re-derives
 identity, rebuilds the capability summary, and rebuilds the root. They are
 enumerated here so a consumer reading `source_symbol` can resolve every value
@@ -382,6 +394,28 @@ codes 36100 through 36107 under `CANDIDATE_RESULT_*`; strict SCB1 syntax,
 canonicality, resource, envelope, and digest failures retain their exact
 `SCB_*` source code.
 
+### 8.2 Preserved VM lowering symbols at phase 7
+
+Phase 7 preserves the exact `VM_LOWER_*` symbol and numeric code of a
+judgment failure in the diagnostic source-code field; the validator never
+renames them. The set is closed — it is exactly the `LowerErrorCode`
+enumeration in `crates/sley-vm/src/lib.rs` — and
+`scripts/check_candidate_result_contract.py` verifies this table names the
+same set. The phase 7 decision mapping is: a signature or immediate mismatch
+is `CONTROL_FLOW_ERROR` (carrying the two owner classes of section 5), a
+lowering resource ceiling is `RESOURCE_LIMIT`, and any other lowering failure
+is `INTERNAL_ERROR`.
+
+| Source symbol | Numeric code | Phase 7 decision |
+|---|---|---|
+| `VM_LOWER_PROFILE_UNSUPPORTED` | 26000 | `INTERNAL_ERROR` |
+| `VM_LOWER_OPCODE_UNSUPPORTED` | 26001 | `INTERNAL_ERROR` |
+| `VM_LOWER_SIGNATURE_MISMATCH` | 26002 | `CONTROL_FLOW_ERROR` |
+| `VM_LOWER_IMMEDIATE_MISMATCH` | 26003 | `CONTROL_FLOW_ERROR` |
+| `VM_LOWER_LOCAL_REFERENCE_INVALID` | 26004 | `INTERNAL_ERROR` |
+| `VM_LOWER_CACHE_KEY_UNSUPPORTED` | 26005 | `INTERNAL_ERROR` |
+| `VM_LOWER_RESOURCE_LIMIT` | 26006 | `RESOURCE_LIMIT` |
+
 ## 9. Acceptance and explicit gaps
 
 Acceptance requires exact result round trips and fixed vectors; all sixteen
@@ -396,32 +430,33 @@ The landed slice judges every operation whose opcode belongs to the
 S20-260/S20-270 extended families E1 through E6: for a program with no
 excluded opcode, phase 7 calls the VM owner's judgment entry once per
 function unit after the S20-220 graph report, charges its work, and records
-the judged-operation count and judgment work in the phase evidence. A program
-containing any excluded E7 opcode skips phase 7 judgment for every unit and
-keeps its frozen phase 12 refusal instead of failing here. A judgment failure
-keeps its exact `VM_LOWER_*` symbol and numeric code: a signature or
-immediate mismatch is a phase 7 `CONTROL_FLOW_ERROR`, a lowering resource
-ceiling is a phase 7 `RESOURCE_LIMIT`, and any other lowering failure is a
-phase 7 `INTERNAL_ERROR`.
+the judged-operation count, the judgment work, and the analyzability flag in
+the phase evidence. The flag distinguishes "judged, zero operations" from
+"judgment skipped for an excluded opcode" — both otherwise read as
+`judged_operations=0` — and phase evidence is part of result identity. A
+program containing any excluded E7 opcode skips phase 7 judgment for every
+unit and keeps its frozen phase 12 refusal instead of failing here. A
+judgment failure keeps its exact `VM_LOWER_*` symbol and numeric code
+(section 8.2): a signature or immediate mismatch is a phase 7
+`CONTROL_FLOW_ERROR`, a lowering resource ceiling is a phase 7
+`RESOURCE_LIMIT`, and any other lowering failure is a phase 7
+`INTERNAL_ERROR`.
 
-The five excluded E7 opcodes (contract assertion 144, test observation 145,
-effect request 160, adapter invocation 161, capability narrowing 162) are
-unanalyzable in phase 7. Only test observation 145 is refused unconditionally:
-its owner rejects any instance at phase 11 with
-`TEST_PLAN_OBSERVATION_UNSUPPORTED`. The other four owners validate the
-operation shape and accept well-formed instances: 144 passes phase 10 when
-the assertion names a contract targeting its function with matching operands
-(malformed ones fail with `CONTRACT_ASSERT_TYPE`), and 160, 161, and 162 pass
-phase 8 when the request, invocation, and narrowing shapes match their
-declared effect, adapter, and requirement (malformed ones fail with
-`EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
-`CAPABILITY_REQUIREMENT_TYPE`). Opcode 144 is owned since profile revision 9
-slice E7a, which lowers and executes `contract_assert`; it stays excluded
-from phase 7 because its static typing belongs to the S20-240 checker at
-phase 10. The phase 12 guard that answers `RESOURCE_LIMIT` with source symbol
-`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED` is therefore the live refusal path
-for well-formed E7 programs that clear their owners — not defense in depth.
-The validator still exercises all fourteen phases, all sixteen terminal
+Excluded-opcode invariant: every excluded opcode is refused before phase 12
+— unconditionally by its owner, or by shape validation at its owner's phase
+— and the phase 12 guard that answers `RESOURCE_LIMIT` with source symbol
+`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED` is the live residual refusal path
+for the well-formed E7 programs that clear their owners, not defense in
+depth. The five excluded E7 opcodes are contract assertion 144, test
+observation 145, effect request 160, adapter invocation 161, and capability
+narrowing 162. The per-opcode owner phases, refusal symbols, and proving
+tests live in the closeout addendum, which is evidence: when an E7 owner
+lands, its opcode becomes analyzable by removing it from
+`EXCLUDED_OPERATION_OPCODES` and revising the addendum, without revising
+this contract. Opcode 144 is owned since profile revision 9 slice E7a, which
+lowers and executes `contract_assert`; it stays excluded from phase 7
+because its static typing belongs to the S20-240 checker at phase 10. The
+validator still exercises all fourteen phases, all sixteen terminal
 decision encodings, complete all-18-kind reference extraction, native
 type/CFG/effect/contract owners, capability and policy checks, mandatory test
 planning, in-memory root reconstruction, and byte-identical result

@@ -1958,7 +1958,27 @@
       "CANDIDATE_RESULT_V1 section 9, ADR-0044 point 4, and the closeout addendum claimed every E7 opcode is refused by its own phase owner and the phase 12 guard is unreachable; verified false for 144, 160, 161, and 162, whose owners validate shapes and accept well-formed instances. Raised by ariadne (P0-1) and vulcan (P0). Section 9 now states the per-opcode behavior accurately, only 145 is refused unconditionally, and the guard as the live refusal path for well-formed E7 programs; ADR-0044 decision 4 corrected the same way.",
       "the malformed-operation matrix test built every E7 case with empty contracts, effects, and operands, proving only ill-formed refusal while cited as general proof. Raised by ariadne (P0-2). The test comment now states the malformed-only scope; well-formed instances are proven by well_formed_contract_assert_reaches_the_phase_twelve_guard (144 refused at phase 12), well_formed_effect_operations_pass_the_phase_eight_owner (160 and 161 pass phase 8; 162 refused at phase 12), and a shaped-145 case proving unconditional refusal at phase 11.",
       "Phase 12 guard reachability through well-typed opcodes 144, 160, 161, and 162, executed live: a well-formed contract_assert program clears phases 1 through 11 and is refused at phase 12 with CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED. Raised by vulcan (P0); same root cause and fix as the ariadne P0-1 above."
-    ]
+    ],
+    "p1_open": [
+      "P1-1 (nabu_operation_analysis_review): judge_function_operations omits require_canonical_referenced_constants; fixed by calling it after judge_extended, pinned by check_vm_extended_opcode_profile judgment-canonical-constant tests",
+      "P1-2 (nabu_operation_analysis_review): section 3.1 states no acceptance invariant and section 5 no differential obligation; fixed by the normative invariant, the judgment_acceptance_matches_lowering_acceptance test, and the section 5 obligation"
+    ],
+    "p1_open_count": 2,
+    "p2_open": [
+      "P2-1 (nabu_operation_analysis_review): judgment reuses LoweringInput with unread state_root/schema_epoch; fixed by the section 3.1 ignored-fields statement and field rustdoc",
+      "P2-2 (nabu_operation_analysis_review): opcode 144 exclusion basis stale after slice E7a; already corrected in result contract section 9, ADR-0044 decision 4, and candidate_program operation_analysis_supported docs",
+      "P2-3 (nabu_operation_analysis_review): section 9 pins per-opcode owner phases and symbols normatively; fixed by the excluded-opcode invariant with the table moved to the closeout addendum",
+      "P2-4 (nabu_operation_analysis_review): phase 7 evidence cannot distinguish judged-zero from skipped; fixed by the analyzability flag in the phase evidence, contract section 9, and the closeout addendum",
+      "P2-5 (nabu_operation_analysis_review): ADR-0044 consequence inverted (extending vs removing from the excluded set); already corrected in the ADR consequences",
+      "P2-6 (nabu_operation_analysis_review): operation_failure overloads CONTROL_FLOW_ERROR across S20-220 and S20-260; Ariadne Q1 decision recorded (keep phase 7, no new tag, two owner classes in sections 5 and 8.2, GA split named)"
+    ],
+    "p2_open_count": 6,
+    "p3_open": [
+      "P3-1 (nabu_operation_analysis_review): operation_failure Cfg arm unreachable from the judgment entry; noted as defense in depth on the match arm",
+      "P3-2 (nabu_operation_analysis_review): section 3.1 does not say which inventory the caller supplies; fixed by the caller-supplies statement",
+      "P3-3 (nabu_operation_analysis_review): section 3.1 labelled revision 8 in a revision 11 document; fixed by the landing-revision note"
+    ],
+    "p3_open_count": 3
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",

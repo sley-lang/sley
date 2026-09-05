@@ -16,6 +16,7 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 VM_LIB = ROOT / "crates/sley-vm/src/lib.rs"
 LOWER = ROOT / "crates/sley-vm/src/lower.rs"
 EXECUTE = ROOT / "crates/sley-vm/src/execute.rs"
+EXTENDED_TESTS = ROOT / "crates/sley-vm/src/extended_tests.rs"
 
 DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
@@ -47,6 +48,10 @@ SPEC_MARKERS = (
     "### E6 direct calls (112)",
     "### E7a contract assertions (144)",
     "### E7 tests, effects, adapters, capabilities (145, 160 to 162)",
+    "### 3.1 Judgment without lowering",
+    "Normative acceptance invariant: judgment accepts exactly the Functions",
+    "The judgment ignores `LoweringInput.state_root`",
+    "judgment_acceptance_matches_lowering_acceptance",
     "`Err(BuiltinFailure(ContractViolation, 1))`",
     "stays outside S20-360 phase 7 operation analysis",
     "overflow 1, divide by zero 2, invalid shift 3",
@@ -73,7 +78,7 @@ def read(path: Path) -> str:
 
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE):
+    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE, EXTENDED_TESTS):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -149,6 +154,23 @@ def main() -> int:
             problems.append("crate-marker:fn judge_extended")
         if "fn execute_extended" not in execute:
             problems.append("crate-marker:fn execute_extended")
+    # The judgment runs the canonical-constant precondition in the same
+    # position as lowering (contract section 3.1 invariant): the call must
+    # sit inside the judgment entry, after the judgment itself.
+    judge_body = lower.split("pub fn judge_function_operations")[1].split("\n}\n")[0]
+    if "require_canonical_referenced_constants" not in judge_body:
+        problems.append("judgment-missing-canonical-constant-check")
+    elif judge_body.index("judge_extended(") > judge_body.index(
+        "require_canonical_referenced_constants"
+    ):
+        problems.append("judgment-canonical-constant-check-misordered")
+    extended_tests = read(EXTENDED_TESTS)
+    for test in (
+        "fn judgment_rejects_non_canonical_referenced_constant",
+        "fn judgment_acceptance_matches_lowering_acceptance",
+    ):
+        if test not in extended_tests:
+            problems.append(f"judgment-test-missing:{test}")
     if "supported_opcodes" in section:
         problems.append("machine-summary:restricted-key-misplaced")
     if status == COMPLETE_STATUS:

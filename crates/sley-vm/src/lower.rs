@@ -175,8 +175,16 @@ pub struct LoweringInput<'a> {
     /// Complete Operation inventory.
     pub operations: &'a [Operation],
     /// Exact schema epoch.
+    ///
+    /// Read only by `derive_cache_key`, which `judge_function_operations`
+    /// never calls: the judgment ignores this field (contract section 3.1),
+    /// so no judgment code may start reading it without a contract change.
     pub schema_epoch: sley_id::SchemaEpochId,
     /// Exact state root.
+    ///
+    /// Read only by `derive_cache_key`, which `judge_function_operations`
+    /// never calls: the judgment ignores this field (contract section 3.1),
+    /// so no judgment code may start reading it without a contract change.
     pub state_root: sley_id::StateRoot,
     /// Requested cache/lowering profile.
     pub profile: CacheProfile,
@@ -254,6 +262,15 @@ pub fn judge_function_operations(
     let mut work = preflight_resources(input)?;
     let maps = Maps::build(input, &mut work)?;
     judge_extended(input, root, &maps, &mut work)?;
+    // Same position as `lower_function`, so the frozen S20-260 failure order
+    // is unchanged and judgment accepts exactly what lowering accepts (the
+    // S20-360 contract section 3.1 invariant): a candidate that reaches
+    // VALID is lowerable under `EXTENDED_V1`.
+    crate::extended::require_canonical_referenced_constants(
+        input.operations,
+        input.constants,
+        input.globals,
+    )?;
     Ok(OperationJudgment {
         operations: input.operations.len() as u64,
         work,
