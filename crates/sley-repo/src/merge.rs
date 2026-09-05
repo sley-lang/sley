@@ -24,10 +24,12 @@ use sley_policy::{CandidateValidationLimits, build_capability_summary_projection
 use sley_query::ImpactErrorCode;
 use sley_scb1::{ScbErrorCode, encode_list, encode_record, encode_uvar};
 use sley_schema::{ContractDescriptor, EpochLimits, SchemaEpochRecordV1, UnicodeVersion};
-use sley_state_root::{AcceptedStateRoot, StateRootBuilder, conformance_registry};
+use sley_state_root::{
+    AcceptedStateRoot, StateRootBuilder, conformance_registry as merge_registry,
+};
 use sley_txn::{CommitInput, TransactionRepository, VerifiedRevision};
 
-use crate::refs::{BranchAncestryEntry, BranchRepository};
+use crate::refs::{BranchAncestryEntry, BranchErrorCode, BranchRepository};
 use crate::{
     ChangeClass, CompareError, CompleteRootRequest, FieldDelta, PackError, Reader, RecordReader,
     SemanticDelta, compare_complete_roots, complete_root::CompleteRootError, decode_list,
@@ -38,6 +40,8 @@ use crate::{
 pub const MAX_CONFLICT_ENTRIES: usize = 131_070;
 /// Maximum plan operations.
 pub const MAX_PLAN_OPERATIONS: usize = 131_070;
+/// Maximum ancestry entries per side (S20-500 bound enforced at verification).
+pub const MAX_ANCESTRY_NODES: usize = 65_536;
 /// Maximum stored conflict bytes.
 pub const MAX_CONFLICT_BYTES: usize = 67_108_864;
 /// Maximum charged merge work.
@@ -61,7 +65,7 @@ const DECODER_LIMITS_HASH: [u8; 32] = [
 ];
 
 /// Set-valued identity fields that compose deterministically: (kind, field).
-const SET_FIELDS: [(u32, u32); 12] = [
+const SET_FIELDS: [(u32, u32); 13] = [
     (1, 1),
     (1, 3),
     (1, 4),
@@ -74,8 +78,8 @@ const SET_FIELDS: [(u32, u32); 12] = [
     (5, 7),
     (12, 3),
     (15, 6),
+    (17, 2),
 ];
-const POLICY_BINDING_SET: (u32, u32) = (17, 2);
 
 /// Stable S20-520 failure code.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -183,8 +187,19 @@ pub enum MergeError {
     Extraction(CompleteRootError),
     /// `MERGE_CONFLICT_FORMAT_INVALID` wrapping the exact SCB1 code.
     Format(&'static str),
-    /// A frozen commit-path failure (`TXN_*`, `BRANCH_*`, `CAP_*`, `SCB_*`).
-    Commit(String),
+    /// A frozen commit-path failure (`TXN_*`, `BRANCH_*`, `CAP_*`, `SCB_*`)
+    /// with its exact symbol and owning numeric code, never remapped.
+    Commit(CommitFailure),
+}
+
+/// A preserved commit-path failure: the exact symbol plus the owning layer's
+/// numeric code when it froze one (`None` only for codeless SCB1 failures).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommitFailure {
+    /// Exact source symbol (`TXN_*`, `BRANCH_*`, `CAP_*`, `SCB_*`).
+    pub symbol: String,
+    /// Owning numeric code, when frozen.
+    pub numeric: Option<u32>,
 }
 
 impl MergeError {
@@ -208,7 +223,7 @@ impl MergeError {
                 MergeErrorCode::CompareFailed.as_str().to_owned()
             }
             Self::Format(_) => MergeErrorCode::ConflictFormatInvalid.as_str().to_owned(),
-            Self::Commit(code) => code.clone(),
+            Self::Commit(failure) => failure.symbol.clone(),
         }
     }
 
@@ -220,7 +235,17 @@ impl MergeError {
             Self::Compare(error) => Some(error.code().as_str().to_owned()),
             Self::Extraction(error) => Some(error.code().to_owned()),
             Self::Format(code) => Some((*code).to_owned()),
-            Self::Commit(code) => Some(code.clone()),
+            Self::Commit(failure) => Some(failure.symbol.clone()),
+        }
+    }
+
+    /// Returns the preserved commit-path numeric code, if the owning layer
+    /// froze one.
+    #[must_use]
+    pub const fn commit_numeric(&self) -> Option<u32> {
+        match self {
+            Self::Commit(failure) => failure.numeric,
+            Self::Merge(_) | Self::Compare(_) | Self::Extraction(_) | Self::Format(_) => None,
         }
     }
 }
@@ -243,6 +268,45 @@ type Result<T> = core::result::Result<T, MergeError>;
 
 fn fail<T>(code: MergeErrorCode) -> Result<T> {
     Err(MergeError::Merge(code))
+}
+
+/// Maps a commit-path failure into `MergeError::Commit` with its exact
+/// symbol and owning numeric preserved. The helpers take their error by
+/// value so they compose as `map_err` function items.
+#[allow(clippy::needless_pass_by_value)]
+fn commit_capability(error: sley_policy::CapabilityError) -> MergeError {
+    let numeric = match &error {
+        sley_policy::CapabilityError::Capability(code) => Some(code.numeric()),
+        sley_policy::CapabilityError::Scb(_) => None,
+    };
+    MergeError::Commit(CommitFailure {
+        symbol: error.code_str().to_owned(),
+        numeric,
+    })
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn commit_candidate(error: sley_mutate::CandidateError) -> MergeError {
+    MergeError::Commit(CommitFailure {
+        symbol: error.code().to_owned(),
+        numeric: error.numeric_code(),
+    })
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn commit_transaction(error: sley_txn::CommitError) -> MergeError {
+    MergeError::Commit(CommitFailure {
+        symbol: error.code().to_owned(),
+        numeric: error.numeric_code(),
+    })
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn commit_branch(error: crate::refs::BranchError) -> MergeError {
+    MergeError::Commit(CommitFailure {
+        symbol: error.code().to_owned(),
+        numeric: error.numeric_code(),
+    })
 }
 
 /// Frozen conflict reason.
@@ -445,12 +509,133 @@ pub fn find_common_ancestor(
     ours: &[BranchAncestryEntry],
     theirs: &[BranchAncestryEntry],
 ) -> Result<BranchAncestryEntry> {
+    if ours.len() > MAX_ANCESTRY_NODES || theirs.len() > MAX_ANCESTRY_NODES {
+        return fail(MergeErrorCode::ResourceLimit);
+    }
     let theirs_ids: BTreeSet<TransactionId> =
         theirs.iter().map(|entry| entry.transaction_id).collect();
     ours.iter()
         .find(|entry| theirs_ids.contains(&entry.transaction_id))
         .cloned()
         .ok_or(MergeError::Merge(MergeErrorCode::NoCommonAncestor))
+}
+
+/// Walks the head-first ancestry of one transaction over the frozen
+/// repository, following every recorded parent, cycle-checked and bounded.
+///
+/// # Errors
+///
+/// Returns `MERGE_RESOURCE_LIMIT` past `max_nodes` and the exact frozen
+/// commit-path failure when a revision in the chain does not verify.
+pub fn transaction_ancestry(
+    transactions: &TransactionRepository,
+    head: TransactionId,
+    max_nodes: usize,
+) -> Result<Vec<BranchAncestryEntry>> {
+    let mut output = Vec::new();
+    let mut completed = BTreeSet::new();
+    let mut active = BTreeSet::new();
+    let mut stack = vec![(head, false)];
+    while let Some((transaction_id, exiting)) = stack.pop() {
+        if exiting {
+            active.remove(&transaction_id);
+            completed.insert(transaction_id);
+            continue;
+        }
+        if completed.contains(&transaction_id) {
+            continue;
+        }
+        if active.contains(&transaction_id) || output.len() >= max_nodes {
+            return fail(MergeErrorCode::ResourceLimit);
+        }
+        let revision = transactions
+            .verified_revision(transaction_id)
+            .map_err(commit_transaction)?;
+        let entry = BranchAncestryEntry {
+            transaction_id,
+            state_root: revision.state_root().root,
+            parent_transaction_ids: revision
+                .receipt()
+                .transaction
+                .record
+                .parent_transaction_ids
+                .clone(),
+        };
+        active.insert(transaction_id);
+        stack.push((transaction_id, true));
+        for parent in entry.parent_transaction_ids.iter().rev() {
+            stack.push((*parent, false));
+        }
+        output.push(entry);
+    }
+    Ok(output)
+}
+
+/// Verifies the merge precondition the judgment takes as proven: the two
+/// caller-supplied head-first ancestries belong to `ours` and `theirs`, and
+/// the supplied ancestor is their computed common entry.
+///
+/// # Errors
+///
+/// Returns `MERGE_RESOURCE_LIMIT` past the per-side ancestry bound,
+/// `MERGE_NO_COMMON_ANCESTOR` when the chains share nothing,
+/// `MERGE_ANCESTOR_MISMATCH` when the supplied ancestor differs from the
+/// computed entry (or carries no transaction to prove), and
+/// `MERGE_INTERNAL_INVARIANT` when an ancestry head is not its side.
+pub fn verify_merge_ancestor(
+    ancestor: &MergeSide,
+    ours: &MergeSide,
+    theirs: &MergeSide,
+    ours_ancestry: &[BranchAncestryEntry],
+    theirs_ancestry: &[BranchAncestryEntry],
+) -> Result<BranchAncestryEntry> {
+    if ours_ancestry.len() > MAX_ANCESTRY_NODES || theirs_ancestry.len() > MAX_ANCESTRY_NODES {
+        return fail(MergeErrorCode::ResourceLimit);
+    }
+    let mut work = Work(0);
+    work.charge(
+        u64::try_from(ours_ancestry.len())
+            .unwrap_or(u64::MAX)
+            .saturating_add(u64::try_from(theirs_ancestry.len()).unwrap_or(u64::MAX)),
+    )?;
+    let ours_head = ours_ancestry
+        .first()
+        .ok_or(MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+    let theirs_head = theirs_ancestry
+        .first()
+        .ok_or(MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+    if Some(ours_head.transaction_id) != ours.transaction_id
+        || Some(theirs_head.transaction_id) != theirs.transaction_id
+    {
+        return fail(MergeErrorCode::InternalInvariant);
+    }
+    let common = find_common_ancestor(ours_ancestry, theirs_ancestry)?;
+    if ancestor.transaction_id != Some(common.transaction_id) {
+        return fail(MergeErrorCode::AncestorMismatch);
+    }
+    Ok(common)
+}
+
+/// Judges a merge after proving the ancestor precondition: the supplied
+/// ancestries must belong to `ours` and `theirs` and their computed common
+/// entry must be the supplied ancestor. This is the production entry point;
+/// bare `judge_merge` takes the ancestor as proven and stays available for
+/// synthetic test inputs that carry no transaction chain.
+///
+/// # Errors
+///
+/// Returns `MERGE_NO_COMMON_ANCESTOR`, `MERGE_ANCESTOR_MISMATCH`, or
+/// `MERGE_RESOURCE_LIMIT` from verification, then whatever `judge_merge`
+/// returns.
+pub fn judge_merge_verified(
+    ancestor: &MergeSide,
+    ours: &MergeSide,
+    theirs: &MergeSide,
+    ours_ancestry: &[BranchAncestryEntry],
+    theirs_ancestry: &[BranchAncestryEntry],
+) -> Result<MergeOutcome> {
+    verify_merge_ancestor(ancestor, ours, theirs, ours_ancestry, theirs_ancestry)?;
+    judge_merge(ancestor, ours, theirs)
 }
 
 struct Work(u64);
@@ -637,15 +822,20 @@ pub fn judge_merge(
     }
     let mut work = Work(0);
     let mut conflicts: Vec<ConflictEntry> = Vec::new();
-    if ours.contract_root != ancestor.contract_root
-        || ours.test_root != ancestor.test_root
-        || theirs.contract_root != ancestor.contract_root
-        || theirs.test_root != ancestor.test_root
-    {
-        conflicts.push(anchor_conflict(ConflictReason::RootAnchor));
+    let contract_differs = ours.contract_root != ancestor.contract_root
+        || theirs.contract_root != ancestor.contract_root;
+    let test_differs =
+        ours.test_root != ancestor.test_root || theirs.test_root != ancestor.test_root;
+    // One pinned entry per anchor class that moved: 1 is the contract root,
+    // 2 is the test root, 3 is both, so the record names which anchor failed.
+    if contract_differs || test_differs {
+        conflicts.push(anchor_conflict(
+            ConflictReason::RootAnchor,
+            u32::from(contract_differs) | (u32::from(test_differs) << 1),
+        ));
     }
     if ours.policy_root != ancestor.policy_root || theirs.policy_root != ancestor.policy_root {
-        conflicts.push(anchor_conflict(ConflictReason::PolicyRoot));
+        conflicts.push(anchor_conflict(ConflictReason::PolicyRoot, 0));
     }
 
     let view_a = DeltaView::new(&delta_a.delta);
@@ -731,6 +921,7 @@ pub fn judge_merge(
                         view_a.fields.get(id).map_or(&[][..], Vec::as_slice),
                         view_b.fields.get(id).map_or(&[][..], Vec::as_slice),
                         &mut work,
+                        &mut metadata_overridden,
                     )? {
                         Ok(object) => {
                             composed.insert(*id, object);
@@ -747,6 +938,13 @@ pub fn judge_merge(
         };
         resolutions.insert(*id, resolution);
     }
+    // Collateral runs only on identities that survived J1 through J8
+    // without conflict: anything resolved here took no conflict branch.
+    let conflicted: BTreeSet<EntityId> = union
+        .iter()
+        .filter(|id| !resolutions.contains_key(id))
+        .copied()
+        .collect();
 
     // Collateral rule.
     let index_a = a
@@ -759,20 +957,22 @@ pub fn judge_merge(
         .judge()
         .map_err(MergeError::Extraction)?
         .into_index();
-    for (this, other, other_side, other_index) in [
-        (&view_a, &view_b, &b, &index_b),
-        (&view_b, &view_a, &a, &index_a),
-    ] {
+    for (this, other, other_index) in [(&view_a, &view_b, &index_b), (&view_b, &view_a, &index_a)] {
         for (id, entry) in &this.entities {
             work.charge(1)?;
-            if !this.touched(*id) {
+            if !this.touched(*id) || conflicted.contains(id) {
                 continue;
             }
             let dependents = non_ownership_dependents(other_index, *id, &mut work)?;
+            // The dependent side counts Added, Changed, and Retyped: a
+            // retyped dependent is a strictly stronger edit than a changed
+            // one. Removed dependents are excluded (their removal resolves
+            // by removal), as are MetadataOnly touches, which never prove
+            // semantic dependence.
             let collateral = other.entities.iter().any(|(other_id, other_entry)| {
                 matches!(
                     other_entry.change,
-                    ChangeClass::Added | ChangeClass::Changed
+                    ChangeClass::Added | ChangeClass::Changed | ChangeClass::Retyped
                 ) && dependents.contains(other_id)
             });
             if collateral {
@@ -781,8 +981,10 @@ pub fn judge_merge(
                     reason: ConflictReason::Collateral,
                     kind: base.kinds.get(id).copied().unwrap_or(0),
                     field: 0,
+                    // Ours' object always comes from A and theirs'
+                    // always from B, whichever direction is checked.
                     ours_object: a.objects.get(id).map(|o| o.object_id()),
-                    theirs_object: other_side.objects.get(id).map(|o| o.object_id()),
+                    theirs_object: b.objects.get(id).map(|o| o.object_id()),
                     detail: 0,
                 });
             }
@@ -817,11 +1019,13 @@ pub fn judge_merge(
     if objects.len() > sley_query::MAX_IMPACT_ENTITIES {
         return fail(MergeErrorCode::ResourceLimit);
     }
-    let entities = sley_policy::complete_entities::project_complete_entities(&objects)
-        .map_err(|error| MergeError::Extraction(CompleteRootError::Projection(error)));
-    let Ok(entities) = entities else {
-        conflicts.push(closure_conflict(None, 0));
-        return conflict_outcome(&base, &a, &b, &delta_a, &delta_b, conflicts);
+    let entities = match sley_policy::complete_entities::project_complete_entities(&objects) {
+        Ok(entities) => entities,
+        Err(error) => {
+            let code = crate::complete_root::CompleteRootError::Projection(error).numeric();
+            conflicts.push(closure_conflict(None, code));
+            return conflict_outcome(&base, &a, &b, &delta_a, &delta_b, conflicts);
+        }
     };
     let entry_points: Vec<EntityId> = objects
         .iter()
@@ -848,7 +1052,7 @@ pub fn judge_merge(
         builder = builder.dependency_root(*dependency_root);
     }
     let registry =
-        conformance_registry().map_err(|_| MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+        merge_registry().map_err(|_| MergeError::Merge(MergeErrorCode::InternalInvariant))?;
     let state_root = builder
         .build(&registry)
         .map_err(|_| MergeError::Merge(MergeErrorCode::ResourceLimit))?;
@@ -862,11 +1066,7 @@ pub fn judge_merge(
         ancestor.dependency_roots.clone(),
     );
     if let Err(error) = request.judge() {
-        let (code, id) = match &error {
-            CompleteRootError::Impact(impact) => (impact.code().numeric(), None),
-            CompleteRootError::Projection(_) => (0, None),
-        };
-        conflicts.push(closure_conflict(id, code));
+        conflicts.push(closure_conflict(None, error.numeric()));
         return conflict_outcome(&base, &a, &b, &delta_a, &delta_b, conflicts);
     }
     Ok(MergeOutcome::Merged(Box::new(MergedRoot {
@@ -908,7 +1108,7 @@ fn side_resolution<'a>(entry: &crate::EntityDelta, side: &Side<'a>) -> Resolutio
     }
 }
 
-const fn anchor_conflict(reason: ConflictReason) -> ConflictEntry {
+const fn anchor_conflict(reason: ConflictReason, detail: u32) -> ConflictEntry {
     ConflictEntry {
         entity_id: EntityId::from_bytes(ZERO32),
         reason,
@@ -916,7 +1116,7 @@ const fn anchor_conflict(reason: ConflictReason) -> ConflictEntry {
         field: 0,
         ours_object: None,
         theirs_object: None,
-        detail: 0,
+        detail,
     }
 }
 
@@ -941,7 +1141,7 @@ fn conflict_outcome(
     mut conflicts: Vec<ConflictEntry>,
 ) -> Result<MergeOutcome> {
     conflicts.sort_by_key(|entry| (entry.entity_id, entry.reason, entry.field));
-    conflicts.dedup_by_key(|entry| (entry.entity_id, entry.reason, entry.field));
+    conflicts.dedup();
     let conflict = MergeConflict {
         workspace_id: base.request.workspace_id(),
         ancestor_root: base.request.root(),
@@ -958,6 +1158,7 @@ fn conflict_outcome(
 
 /// Composes one entity changed on both sides; `Err(field)` names the first
 /// conflicting field.
+#[allow(clippy::too_many_arguments)]
 fn compose(
     id: EntityId,
     base: &Side<'_>,
@@ -966,6 +1167,7 @@ fn compose(
     fields_a: &[&FieldDelta],
     fields_b: &[&FieldDelta],
     work: &mut Work,
+    metadata_overridden: &mut Vec<EntityId>,
 ) -> Result<core::result::Result<EntityObject, u32>> {
     let base_object = base
         .objects
@@ -988,6 +1190,13 @@ fn compose(
         .chain(by_field_b.keys())
         .copied()
         .collect();
+    // Both sides `Changed` with no field delta on either side means the S20-510
+    // delta names no field the composition can take: yielding `O`'s body would
+    // silently drop both changes, so this is a defensive invariant, never a
+    // composition.
+    if all_fields.is_empty() {
+        return fail(MergeErrorCode::InternalInvariant);
+    }
     for field in all_fields {
         work.charge(1)?;
         match (by_field_a.get(&field), by_field_b.get(&field)) {
@@ -1002,8 +1211,7 @@ fn compose(
                 }
             }
             (Some(fa), Some(fb)) => {
-                let set_field =
-                    SET_FIELDS.contains(&(kind, field)) || (kind, field) == POLICY_BINDING_SET;
+                let set_field = SET_FIELDS.contains(&(kind, field));
                 if set_field {
                     let a_added: BTreeSet<EntityId> = fa.added.iter().copied().collect();
                     let a_removed: BTreeSet<EntityId> = fa.removed.iter().copied().collect();
@@ -1042,9 +1250,16 @@ fn compose(
     let record = EntityObjectRecord {
         entity_id: id,
         body,
+        // The frozen commit path preserves exactly the current side's label
+        // and fingerprint claim, so the composed object carries A's: any
+        // other choice makes the precomputed root uncommittable. A label
+        // theirs changed is reported, never dropped silently.
         label: ours.record().label.clone(),
-        semantic_fingerprint: None,
+        semantic_fingerprint: ours.record().semantic_fingerprint,
     };
+    if ours.record().label != theirs.record().label {
+        metadata_overridden.push(id);
+    }
     let object = build_entity_object(ours.schema_epoch_id(), &record)
         .map_err(|_| MergeError::Merge(MergeErrorCode::ResourceLimit))?;
     Ok(Ok(object))
@@ -1164,14 +1379,24 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
     // S20-345: every identity a candidate creates derives from the candidate
     // nonce, kind, and creation ordinal, so entities the merged root adds to
     // ours are re-identified in raw-ID order and every reference follows.
+    // Created entry points are the one exclusion: the frozen S20-350
+    // descriptor binds `AddEntryPoint` to `ExactEntityVersion`, and frozen
+    // S20-360 phase 3 checks every such precondition against the base state,
+    // so no single candidate can bind an entry point it also creates. The
+    // plan fails closed instead of emitting an unexecutable shape or a
+    // foreign identity; the recovery is to bind the entry point on ours
+    // first (create, then add in a second candidate) and merge again.
     let mut identity_map: BTreeMap<EntityId, EntityId> = BTreeMap::new();
     let mut create_ordinal = 0_u64;
     for object in &merged.objects {
         let id = object.record().entity_id;
-        if ours_objects.contains_key(&id)
-            || matches!(object.record().body, EntityBodyValue::EntryPoint(_))
-        {
+        if ours_objects.contains_key(&id) {
             continue;
+        }
+        if matches!(object.record().body, EntityBodyValue::EntryPoint(_)) {
+            // A theirs-added entry point the plan would have to both create
+            // and bind: inexpressible in one frozen candidate.
+            return fail(MergeErrorCode::PlanUnsupported);
         }
         let derived = EntityId::derive(
             ours.workspace_id,
@@ -1179,6 +1404,11 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
             u32::from(object.record().body.kind_tag()),
             create_ordinal,
         );
+        if ours_objects.contains_key(&derived) {
+            // A derived identity that already names an unrelated live
+            // entity must fail, never silently replace it.
+            return fail(MergeErrorCode::PlanUnsupported);
+        }
         identity_map.insert(id, derived);
         create_ordinal += 1;
     }
@@ -1186,12 +1416,29 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
     for object in &merged.objects {
         let record = object.record();
         let mut body = record.body.clone();
-        remap_body(&mut body, &identity_map);
-        let entity_id = identity_map
-            .get(&record.entity_id)
-            .copied()
-            .unwrap_or(record.entity_id);
-        if body == record.body && entity_id == record.entity_id {
+        remap_body(&mut body, &identity_map)?;
+        // The plan object must be byte-identical to what the frozen commit
+        // path will produce for its operation: created entities go through
+        // `CreateEntity` (no label, no fingerprint claim) and every other
+        // changed entity through `replace_body` (A's label and fingerprint).
+        // Reused objects whose metadata already matches are kept by identity.
+        let (entity_id, label, fingerprint) =
+            if let Some(mapped) = identity_map.get(&record.entity_id) {
+                (*mapped, None, None)
+            } else if let Some(current) = ours_objects.get(&record.entity_id) {
+                (
+                    record.entity_id,
+                    current.record().label.clone(),
+                    current.record().semantic_fingerprint,
+                )
+            } else {
+                return fail(MergeErrorCode::InternalInvariant);
+            };
+        if body == record.body
+            && entity_id == record.entity_id
+            && label == record.label
+            && fingerprint == record.semantic_fingerprint
+        {
             remapped.push(object.clone());
         } else {
             remapped.push(
@@ -1200,8 +1447,8 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
                     &EntityObjectRecord {
                         entity_id,
                         body,
-                        label: record.label.clone(),
-                        semantic_fingerprint: None,
+                        label,
+                        semantic_fingerprint: fingerprint,
                     },
                 )
                 .map_err(|_| MergeError::Merge(MergeErrorCode::ResourceLimit))?,
@@ -1243,33 +1490,47 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
             payload: precondition,
         });
     };
+    // Created entities come first, in derivation order (raw-ID order of the
+    // judged identities): the frozen S20-345 rule numbers creation ordinals
+    // by `CreateEntity` operation position, so derivation order and
+    // operation order must agree. Every other operation follows in raw-ID
+    // order of its plan target.
+    for derived in identity_map.values() {
+        let object = merged_objects
+            .get(derived)
+            .ok_or(MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+        let body = object.record().body.clone();
+        let kind = body.kind_tag();
+        let absent = PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+            entity_id: *derived,
+        });
+        push(
+            MutationClass::CreateEntity,
+            kind,
+            *derived,
+            MutationPayload::CreateEntity(body),
+            absent,
+            PreimageRequirement::ExpectedIdentityAbsent,
+        );
+        if let EntityBodyValue::EntryPoint(entry) = &object.record().body {
+            // The frozen apply path binds an entry point only on a live
+            // entity, so a created entry point takes a second operation.
+            push(
+                MutationClass::AddEntryPoint,
+                kind,
+                *derived,
+                MutationPayload::AddEntryPoint(entry.clone()),
+                PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                    entity_id: *derived,
+                }),
+                PreimageRequirement::ExpectedIdentityAbsent,
+            );
+        }
+    }
     for id in union {
         match (ours_objects.get(&id), merged_objects.get(&id)) {
-            (None, Some(object)) => {
-                let body = object.record().body.clone();
-                let kind = body.kind_tag();
-                let absent = PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
-                    entity_id: id,
-                });
-                if let EntityBodyValue::EntryPoint(entry) = &body {
-                    push(
-                        MutationClass::AddEntryPoint,
-                        kind,
-                        id,
-                        MutationPayload::AddEntryPoint(entry.clone()),
-                        absent,
-                        PreimageRequirement::ExpectedIdentityAbsent,
-                    );
-                } else {
-                    push(
-                        MutationClass::CreateEntity,
-                        kind,
-                        id,
-                        MutationPayload::CreateEntity(body),
-                        absent,
-                        PreimageRequirement::ExpectedIdentityAbsent,
-                    );
-                }
+            (None, Some(_)) => {
+                // Created above in derivation order.
             }
             (Some(object), None) => {
                 let kind = object.record().body.kind_tag();
@@ -1318,6 +1579,8 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
             (None, None) => return fail(MergeErrorCode::InternalInvariant),
         }
     }
+    let mut work = Work(0);
+    work.charge(u64::try_from(operations.len()).unwrap_or(u64::MAX))?;
     if operations.len() > MAX_PLAN_OPERATIONS {
         return fail(MergeErrorCode::ResourceLimit);
     }
@@ -1345,7 +1608,7 @@ pub fn build_merge_plan(ours: &MergeSide, merged: &MergedRoot) -> Result<MergePl
         builder = builder.dependency_root(*dependency_root);
     }
     let registry =
-        conformance_registry().map_err(|_| MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+        merge_registry().map_err(|_| MergeError::Merge(MergeErrorCode::InternalInvariant))?;
     let merged_root = builder
         .build(&registry)
         .map_err(|_| MergeError::Merge(MergeErrorCode::ResourceLimit))?
@@ -1375,51 +1638,56 @@ fn remap_list(ids: &mut [EntityId], map: &BTreeMap<EntityId, EntityId>) {
     }
 }
 
-fn remap_set(set: &mut EntityIdSet, map: &BTreeMap<EntityId, EntityId>) {
+fn remap_set(set: &mut EntityIdSet, map: &BTreeMap<EntityId, EntityId>) -> Result<()> {
     let mut ids = set.as_slice().to_vec();
     remap_list(&mut ids, map);
-    if let Ok(rebuilt) = EntityIdSet::from_unsorted(ids) {
-        *set = rebuilt;
-    }
+    // A remap that collapses two distinct identities, or input that already
+    // held a duplicate, must fail, never emit a partially-remapped body.
+    *set = EntityIdSet::from_unsorted(ids)
+        .map_err(|_| MergeError::Merge(MergeErrorCode::InternalInvariant))?;
+    Ok(())
 }
 
-fn remap_sorted(ids: &mut Vec<EntityId>, map: &BTreeMap<EntityId, EntityId>) {
+fn remap_sorted(ids: &mut [EntityId], map: &BTreeMap<EntityId, EntityId>) -> Result<()> {
     remap_list(ids, map);
     ids.sort_unstable();
-    ids.dedup();
+    if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return fail(MergeErrorCode::InternalInvariant);
+    }
+    Ok(())
 }
 
-fn remap_type(value: &mut sley_ssmc::TypeExpr, map: &BTreeMap<EntityId, EntityId>) {
+fn remap_type(value: &mut sley_ssmc::TypeExpr, map: &BTreeMap<EntityId, EntityId>) -> Result<()> {
     use sley_ssmc::TypeExpr;
     match value {
         TypeExpr::Named(named) => {
             remap_id(&mut named.definition, map);
             for argument in &mut named.arguments {
-                remap_type(argument, map);
+                remap_type(argument, map)?;
             }
         }
         TypeExpr::Tuple(items) => {
             for item in items {
-                remap_type(item, map);
+                remap_type(item, map)?;
             }
         }
         TypeExpr::Vector(inner) | TypeExpr::Option(inner) | TypeExpr::LocalCell(inner) => {
-            remap_type(inner, map);
+            remap_type(inner, map)?;
         }
         TypeExpr::OrderedMap { key, value } => {
-            remap_type(key, map);
-            remap_type(value, map);
+            remap_type(key, map)?;
+            remap_type(value, map)?;
         }
         TypeExpr::Result { ok, error } => {
-            remap_type(ok, map);
-            remap_type(error, map);
+            remap_type(ok, map)?;
+            remap_type(error, map)?;
         }
         TypeExpr::FunctionRef(function) => {
             for parameter in &mut function.parameters {
-                remap_type(parameter, map);
+                remap_type(parameter, map)?;
             }
-            remap_type(&mut function.result, map);
-            remap_sorted(&mut function.effects, map);
+            remap_type(&mut function.result, map)?;
+            remap_sorted(&mut function.effects, map)?;
         }
         TypeExpr::AdapterHandle(id) | TypeExpr::CapabilityToken(id) => remap_id(id, map),
         TypeExpr::Unit
@@ -1433,43 +1701,47 @@ fn remap_type(value: &mut sley_ssmc::TypeExpr, map: &BTreeMap<EntityId, EntityId
         | TypeExpr::TypeParameter(_)
         | TypeExpr::BuiltinFailure(_) => {}
     }
+    Ok(())
 }
 
-fn remap_const(value: &mut sley_ssmc::ConstValue, map: &BTreeMap<EntityId, EntityId>) {
+fn remap_const(
+    value: &mut sley_ssmc::ConstValue,
+    map: &BTreeMap<EntityId, EntityId>,
+) -> Result<()> {
     use sley_ssmc::{ConstData, ResultConst};
-    remap_type(&mut value.value_type, map);
+    remap_type(&mut value.value_type, map)?;
     match &mut value.data {
         ConstData::Sequence(values) => {
             for item in values {
-                remap_const(item, map);
+                remap_const(item, map)?;
             }
         }
         ConstData::Record(record) => {
             remap_id(&mut record.definition, map);
             for field in &mut record.fields {
-                remap_const(&mut field.value, map);
+                remap_const(&mut field.value, map)?;
             }
         }
         ConstData::Variant(variant) => {
             remap_id(&mut variant.definition, map);
             if let Some(payload) = &mut variant.payload {
-                remap_const(payload, map);
+                remap_const(payload, map)?;
             }
         }
         ConstData::Map(entries) => {
             for entry in entries {
-                remap_const(&mut entry.key, map);
-                remap_const(&mut entry.value, map);
+                remap_const(&mut entry.key, map)?;
+                remap_const(&mut entry.value, map)?;
             }
         }
-        ConstData::Option(Some(inner)) => remap_const(inner, map),
+        ConstData::Option(Some(inner)) => remap_const(inner, map)?,
         ConstData::Result(ResultConst::Ok(inner) | ResultConst::Err(inner)) => {
-            remap_const(inner, map);
+            remap_const(inner, map)?;
         }
         ConstData::FunctionRef(function) => {
             remap_id(&mut function.function, map);
             for argument in &mut function.type_arguments {
-                remap_type(argument, map);
+                remap_type(argument, map)?;
             }
         }
         ConstData::Option(None)
@@ -1483,6 +1755,7 @@ fn remap_const(value: &mut sley_ssmc::ConstValue, map: &BTreeMap<EntityId, Entit
         | ConstData::Text(_)
         | ConstData::BuiltinFailure(_) => {}
     }
+    Ok(())
 }
 
 fn remap_value_ref(value: &mut sley_ssmc::ValueRef, map: &BTreeMap<EntityId, EntityId>) {
@@ -1503,8 +1776,12 @@ fn remap_edge(edge: &mut sley_ssmc::TargetEdge, map: &BTreeMap<EntityId, EntityI
 fn remap_terminator(value: &mut sley_ssmc::Terminator, map: &BTreeMap<EntityId, EntityId>) {
     use sley_ssmc::{SwitchArgument, Terminator};
     match value {
-        Terminator::Return(terminator) => remap_value_ref(&mut terminator.value, map),
-        Terminator::Branch(terminator) => remap_edge(&mut terminator.edge, map),
+        Terminator::Return(terminator) => {
+            remap_value_ref(&mut terminator.value, map);
+        }
+        Terminator::Branch(terminator) => {
+            remap_edge(&mut terminator.edge, map);
+        }
         Terminator::CondBranch(terminator) => {
             remap_value_ref(&mut terminator.condition, map);
             remap_edge(&mut terminator.if_true, map);
@@ -1531,56 +1808,56 @@ fn remap_terminator(value: &mut sley_ssmc::Terminator, map: &BTreeMap<EntityId, 
 
 /// Rewrites every local entity reference of one body through `map`.
 #[allow(clippy::too_many_lines)]
-fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
+fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) -> Result<()> {
     use sley_ssmc::{ContractSource, EffectEnvironment, ExpectedOutcome, Immediate, TypeDefForm};
     match body {
         EntityBodyValue::Workspace(value) => {
-            remap_set(&mut value.packages, map);
+            remap_set(&mut value.packages, map)?;
             remap_id(&mut value.root_namespace, map);
-            remap_set(&mut value.capability_requirements, map);
-            remap_set(&mut value.contracts, map);
-            remap_set(&mut value.tests, map);
+            remap_set(&mut value.capability_requirements, map)?;
+            remap_set(&mut value.contracts, map)?;
+            remap_set(&mut value.tests, map)?;
         }
         EntityBodyValue::Package(value) => {
             remap_id(&mut value.workspace, map);
             remap_id(&mut value.root_namespace, map);
-            remap_set(&mut value.dependencies, map);
-            remap_set(&mut value.exports, map);
+            remap_set(&mut value.dependencies, map)?;
+            remap_set(&mut value.exports, map)?;
         }
         EntityBodyValue::Namespace(value) => {
             if let Some(parent) = &mut value.parent {
                 remap_id(parent, map);
             }
-            remap_set(&mut value.members, map);
+            remap_set(&mut value.members, map)?;
         }
         EntityBodyValue::TypeDef(value) => {
             match &mut value.form {
                 TypeDefForm::Record(fields) => {
                     for field in fields {
-                        remap_type(&mut field.value_type, map);
+                        remap_type(&mut field.value_type, map)?;
                     }
                 }
                 TypeDefForm::Variant(cases) => {
                     for case in cases {
                         if let Some(payload) = &mut case.payload_type {
-                            remap_type(payload, map);
+                            remap_type(payload, map)?;
                         }
                     }
                 }
             }
-            remap_set(&mut value.invariants, map);
+            remap_set(&mut value.invariants, map)?;
         }
         EntityBodyValue::Function(value) => {
             remap_list(&mut value.parameters, map);
-            remap_type(&mut value.result_type, map);
-            remap_set(&mut value.effects, map);
+            remap_type(&mut value.result_type, map)?;
+            remap_set(&mut value.effects, map)?;
             remap_id(&mut value.entry_block, map);
             remap_list(&mut value.blocks, map);
-            remap_set(&mut value.contracts, map);
+            remap_set(&mut value.contracts, map)?;
         }
         EntityBodyValue::Parameter(value) => {
             remap_id(&mut value.owner, map);
-            remap_type(&mut value.value_type, map);
+            remap_type(&mut value.value_type, map)?;
         }
         EntityBodyValue::Block(value) => {
             remap_id(&mut value.function, map);
@@ -1594,7 +1871,7 @@ fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
                 remap_value_ref(operand, map);
             }
             for result_type in &mut value.result_types {
-                remap_type(result_type, map);
+                remap_type(result_type, map)?;
             }
             match &mut value.immediate {
                 Immediate::Entity(id) => remap_id(id, map),
@@ -1602,7 +1879,7 @@ fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
                 Immediate::Function(function) => {
                     remap_id(&mut function.function, map);
                     for argument in &mut function.type_arguments {
-                        remap_type(argument, map);
+                        remap_type(argument, map)?;
                     }
                 }
                 Immediate::None
@@ -1611,23 +1888,23 @@ fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
                 | Immediate::Observation(_) => {}
             }
         }
-        EntityBodyValue::Constant(value) => remap_const(&mut value.value, map),
+        EntityBodyValue::Constant(value) => remap_const(&mut value.value, map)?,
         EntityBodyValue::GlobalValue(value) => {
-            remap_type(&mut value.value_type, map);
+            remap_type(&mut value.value_type, map)?;
             remap_id(&mut value.initializer, map);
         }
         EntityBodyValue::EffectDef(value) => {
-            remap_type(&mut value.scope_type, map);
-            remap_type(&mut value.request_type, map);
-            remap_type(&mut value.response_type, map);
-            remap_type(&mut value.failure_type, map);
+            remap_type(&mut value.scope_type, map)?;
+            remap_type(&mut value.request_type, map)?;
+            remap_type(&mut value.response_type, map)?;
+            remap_type(&mut value.failure_type, map)?;
         }
         EntityBodyValue::CapabilityRequirement(value) => {
             remap_id(&mut value.effect, map);
             for scope in &mut value.allowed_scopes {
-                remap_const(scope, map);
+                remap_const(scope, map)?;
             }
-            remap_set(&mut value.constraint_contracts, map);
+            remap_set(&mut value.constraint_contracts, map)?;
         }
         EntityBodyValue::Contract(value) => {
             remap_id(&mut value.target, map);
@@ -1644,45 +1921,45 @@ fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
         EntityBodyValue::TestCase(value) => {
             remap_id(&mut value.target, map);
             for input in &mut value.inputs {
-                remap_const(input, map);
+                remap_const(input, map)?;
             }
             match &mut value.effect_environment {
                 EffectEnvironment::Replay(bindings) => {
                     for binding in bindings {
                         remap_id(&mut binding.adapter_import, map);
                         for request in &mut binding.request {
-                            remap_const(request, map);
+                            remap_const(request, map)?;
                         }
                         match &mut binding.response {
                             sley_ssmc::ResultConst::Ok(inner)
-                            | sley_ssmc::ResultConst::Err(inner) => remap_const(inner, map),
+                            | sley_ssmc::ResultConst::Err(inner) => remap_const(inner, map)?,
                         }
                     }
                 }
                 EffectEnvironment::DeterministicAdapters(configurations) => {
                     for configuration in configurations {
                         remap_id(&mut configuration.adapter_import, map);
-                        remap_const(&mut configuration.configuration, map);
+                        remap_const(&mut configuration.configuration, map)?;
                     }
                 }
             }
             if let ExpectedOutcome::Value(expected) = &mut value.expected {
-                remap_const(expected, map);
+                remap_const(expected, map)?;
             }
             for observation in &mut value.observations {
-                remap_const(&mut observation.value, map);
+                remap_const(&mut observation.value, map)?;
             }
         }
         EntityBodyValue::AdapterImport(value) => {
-            remap_type(&mut value.request_type, map);
-            remap_type(&mut value.response_type, map);
-            remap_type(&mut value.failure_type, map);
-            remap_set(&mut value.effects, map);
+            remap_type(&mut value.request_type, map)?;
+            remap_type(&mut value.response_type, map)?;
+            remap_type(&mut value.failure_type, map)?;
+            remap_set(&mut value.effects, map)?;
         }
         EntityBodyValue::EntryPoint(value) => remap_id(&mut value.function, map),
         EntityBodyValue::PolicyBinding(value) => {
             remap_id(&mut value.subject, map);
-            remap_set(&mut value.requirements, map);
+            remap_set(&mut value.requirements, map)?;
         }
         EntityBodyValue::DependencyBinding(value) => {
             // `external_package` names an entity of the external root and
@@ -1690,6 +1967,7 @@ fn remap_body(body: &mut EntityBodyValue, map: &BTreeMap<EntityId, EntityId>) {
             remap_id(&mut value.local_namespace, map);
         }
     }
+    Ok(())
 }
 
 /// Commit parameters for a merge plan.
@@ -1726,7 +2004,26 @@ pub fn commit_merge(
     if plan.base_transaction_id != ours_transaction {
         return fail(MergeErrorCode::AncestorMismatch);
     }
+    // Fail fast before anything is durable: the branch must still resolve to
+    // the plan base. The later `advance_branch` CAS remains the authority (a
+    // concurrent advance can still land between this read and the commit),
+    // so a failure after the commit leaves the merge transaction durable but
+    // unnamed; the contract states that boundary.
+    let resolved = branches
+        .resolve_branch(input.branch)
+        .map_err(commit_branch)?;
+    if resolved.reference.record.head_transaction_id != plan.base_transaction_id {
+        return Err(MergeError::Commit(CommitFailure {
+            symbol: BranchErrorCode::RefNamedCasStale.symbol().to_owned(),
+            numeric: Some(BranchErrorCode::RefNamedCasStale.numeric()),
+        }));
+    }
     if plan.operations.is_empty() {
+        // An empty plan pairs only with ours' own root; anything else is a
+        // mismatched (ours, plan) pair, never a silent success.
+        if plan.merged_root != ours.root {
+            return fail(MergeErrorCode::ResultMismatch);
+        }
         return Ok(ours_transaction);
     }
     let policy_root = ours.policy_root;
@@ -1737,7 +2034,7 @@ pub fn commit_merge(
         plan.base_root,
         &[],
     )
-    .map_err(|error| MergeError::Commit(error.to_string()))?;
+    .map_err(commit_capability)?;
     let candidate = build_candidate(&CandidateRecord {
         format_version: 1,
         workspace_id: ours.workspace_id,
@@ -1749,12 +2046,11 @@ pub fn commit_merge(
         capability_summary_digest: summary.digest(),
         operations: plan.operations.clone(),
         preconditions: plan.preconditions.clone(),
-        validation_profile_id: full_validation_profile_id()
-            .map_err(|error| MergeError::Commit(error.to_string()))?,
+        validation_profile_id: full_validation_profile_id().map_err(commit_candidate)?,
         candidate_nonce: plan.candidate_nonce,
         expiry: CandidateExpiry::unix_millis(input.expiry_unix_millis),
     })
-    .map_err(|error| MergeError::Commit(error.to_string()))?;
+    .map_err(commit_candidate)?;
     let output = transactions
         .commit(CommitInput::new(
             plan.base_transaction_id,
@@ -1764,17 +2060,17 @@ pub fn commit_merge(
             input.now_unix_millis,
             input.limits,
         ))
-        .map_err(|error| MergeError::Commit(error.to_string()))?;
+        .map_err(commit_transaction)?;
     let new_head = output.transaction_id();
     let revision = transactions
         .verified_revision(new_head)
-        .map_err(|error| MergeError::Commit(error.to_string()))?;
+        .map_err(commit_transaction)?;
     if revision.state_root().root != plan.merged_root {
         return fail(MergeErrorCode::ResultMismatch);
     }
     branches
         .advance_branch(input.branch, plan.base_transaction_id, new_head)
-        .map_err(|error| MergeError::Commit(error.to_string()))?;
+        .map_err(commit_branch)?;
     Ok(new_head)
 }
 
@@ -1921,7 +2217,29 @@ pub fn decode_merge_conflict(input: &[u8]) -> Result<StoredMergeConflict> {
         let theirs_bytes = fixed32(entry.required(6)?)?;
         let detail = small_u32(entry.required(7)?)?;
         entry.finish()?;
-        if kind > 18 || field > 8 || (reason != ConflictReason::FieldEdit && field != 0) {
+        let identity_free = matches!(
+            reason,
+            ConflictReason::Closure | ConflictReason::RootAnchor | ConflictReason::PolicyRoot
+        );
+        // Identity-free reasons carry no kind; every other reason names a
+        // real SSMC1 kind. Detail is the IMPACT code on Closure, the anchor
+        // class on RootAnchor (1 contract, 2 test, 3 both), and zero
+        // otherwise, so forged evidence cannot smuggle arbitrary codes.
+        let detail_ok = match reason {
+            ConflictReason::Closure => detail != 0,
+            ConflictReason::RootAnchor => (1..=3).contains(&detail),
+            _ => detail == 0,
+        };
+        let field_ok = if reason == ConflictReason::FieldEdit {
+            (1..=8).contains(&field)
+        } else {
+            field == 0
+        };
+        if !detail_ok
+            || !field_ok
+            || (identity_free && (kind != 0 || entity_id != EntityId::from_bytes(ZERO32)))
+            || (!identity_free && (kind == 0 || kind > 18))
+        {
             return fail(MergeErrorCode::ConflictFormatInvalid);
         }
         conflicts.push(ConflictEntry {
@@ -1953,7 +2271,6 @@ pub fn decode_merge_conflict(input: &[u8]) -> Result<StoredMergeConflict> {
     if reencoded.stored_bytes != input {
         return fail(MergeErrorCode::ConflictCanonicalOrder);
     }
-    let _ = ImpactErrorCode::ALL;
     Ok(reencoded)
 }
 
@@ -1963,21 +2280,24 @@ pub(crate) mod tests {
     use std::path::PathBuf;
 
     use sley_id::{
-        CandidateNonce, EntityId, ObjectId, PolicyRootId, PrincipalId, SchemaEpochId, StateRoot,
-        TransactionId, WorkspaceId,
+        CandidateNonce, EntityId, ObjectId, PolicyRootId, PrincipalId, SchemaEpochId,
+        SemanticFingerprint, StateRoot, TransactionId, WorkspaceId,
     };
     use sley_mutate::{
         EntityObjectRecord, MutationClass, build_candidate, build_entity_object,
         value::{
-            ConstantBody, EntityBodyValue, GlobalValueBody, NamespaceBody, PolicyBindingBody,
-            TypeDefBody,
+            BlockBody, ConstantBody, EntityBodyValue, EntryPointBody, FunctionBody,
+            GlobalValueBody, NamespaceBody, PolicyBindingBody, TypeDefBody,
         },
     };
     use sley_policy::{
         AcceptedPolicyRoot, CandidateValidationLimits, PolicyResourceCeilings, PolicyRootBuilder,
         PrincipalGrantBuilder, conformance_registry as policy_registry,
     };
-    use sley_ssmc::{ConstData, ConstValue, TypeDefForm, TypeExpr, Visibility};
+    use sley_ssmc::{
+        ConstData, ConstValue, EntryExposure, Reachability, Terminator, TrapCode, TrapTerminator,
+        TypeDefForm, TypeExpr, Visibility,
+    };
     use sley_state_root::{
         StateRootBuilder, conformance_epoch_id as state_epoch_id,
         conformance_registry as state_registry,
@@ -2705,9 +3025,13 @@ pub(crate) mod tests {
     }
 
     fn current_object(side: &MergeSide, byte: u8) -> ObjectId {
+        object_of_side(side, id(byte))
+    }
+
+    fn object_of_side(side: &MergeSide, entity: EntityId) -> ObjectId {
         side.objects
             .iter()
-            .find(|object| object.record().entity_id == id(byte))
+            .find(|object| object.record().entity_id == entity)
             .unwrap()
             .object_id()
     }
@@ -2884,10 +3208,573 @@ pub(crate) mod tests {
             ours_head
         );
     }
+    // ---- S20-520 revision 4 review evidence ----
+
+    /// Operation-free function 30 (block 31, trap terminator) a merge-added
+    /// entry point can target through the frozen commit path.
+    fn trap_function() -> Vec<(u8, EntityBodyValue)> {
+        vec![
+            (
+                30,
+                EntityBodyValue::Function(FunctionBody {
+                    type_parameters: Vec::new(),
+                    parameters: Vec::new(),
+                    result_type: TypeExpr::Bool,
+                    effects: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                    entry_block: id(31),
+                    blocks: vec![id(31)],
+                    contracts: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            ),
+            (
+                31,
+                EntityBodyValue::Block(BlockBody {
+                    function: id(30),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Trap(TrapTerminator {
+                        code: TrapCode::Unreachable,
+                        payload: None,
+                    }),
+                    reachability: Reachability::Required,
+                }),
+            ),
+        ]
+    }
+
+    fn entry_point(function: u8) -> EntityBodyValue {
+        EntityBodyValue::EntryPoint(EntryPointBody {
+            function: id(function),
+            exposure: EntryExposure::Local,
+        })
+    }
+
+    fn graft_fingerprint(side: &mut MergeSide, byte: u8, fingerprint: SemanticFingerprint) {
+        let epoch = state_epoch_id().unwrap();
+        for object in &mut side.objects {
+            if object.record().entity_id == id(byte) {
+                let record = object.record().clone();
+                *object = build_entity_object(
+                    epoch,
+                    &EntityObjectRecord {
+                        entity_id: record.entity_id,
+                        body: record.body,
+                        label: record.label,
+                        semantic_fingerprint: Some(fingerprint),
+                    },
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    fn add_entry_point_op(
+        ordinal: u32,
+        entity: EntityId,
+        body: sley_mutate::value::EntryPointBody,
+        current: ObjectId,
+    ) -> (MutationOperation, BoundPrecondition) {
+        // The frozen descriptor binds `AddEntryPoint` to `ExactEntityVersion`
+        // against the base state: only a live entity can be bound, never one
+        // the same candidate creates.
+        (
+            MutationOperation {
+                ordinal,
+                class: MutationClass::AddEntryPoint,
+                target_kind: 16,
+                target_entity: entity,
+                field_tag: None,
+                payload: MutationPayload::AddEntryPoint(body),
+                precondition_ordinal: ordinal,
+            },
+            BoundPrecondition {
+                operation_ordinal: ordinal,
+                requirement: PreimageRequirement::ExactEntityVersion,
+                payload: PreconditionPayload::ExactEntityVersion(ExactEntityVersion {
+                    entity_id: entity,
+                    object_id: current,
+                }),
+            },
+        )
+    }
+
+    /// P0-1/P0-4: a theirs-added entry point is inexpressible in one frozen
+    /// candidate (create-then-add fails the `ExactEntityVersion` descriptor
+    /// and the base-state precondition check), so the plan fails closed with
+    /// `MERGE_PLAN_UNSUPPORTED` instead of emitting an unexecutable shape or
+    /// a foreign identity.
+    #[test]
+    fn added_entry_point_plan_is_unsupported() {
+        let mut base = base_bodies();
+        base.extend(trap_function());
+        let o = synthetic(50, &base, &[]);
+        let mut a = synthetic(50, &base, &[]);
+        a.transaction_id = Some(TransactionId::from_bytes([60; 32]));
+        let mut theirs = with(&base, 4, namespace(None, &[6, 16, 18, 19, 35]));
+        theirs.push((35, entry_point(30)));
+        let b = synthetic(52, &theirs, &[]);
+        // The judgment itself is exact: theirs' entry point is bound.
+        let result = merged(judge_merge(&o, &a, &b).unwrap());
+        assert!(
+            result.request.facts().entry_points.contains(&id(35)),
+            "the judged root binds theirs' entry point"
+        );
+        assert_eq!(
+            build_merge_plan(&a, &result).unwrap_err().code(),
+            Some(MergeErrorCode::PlanUnsupported)
+        );
+    }
+
+    /// P0-1/P0-4 recovery: binding the entry point on ours first (create,
+    /// then add in a second candidate) leaves the merge with nothing to
+    /// create, and the plan commits through the frozen path.
+    #[test]
+    fn merge_after_binding_the_entry_point_on_ours_commits() {
+        let mut bodies = base_bodies();
+        bodies.extend(trap_function());
+        let mut ours_repo = Repo::new("ep-ours", &bodies);
+        let mut theirs_repo = Repo::new("ep-theirs", &bodies);
+        let ancestor = ours_repo.side(ours_repo.genesis);
+        // Ours binds entry point 35 itself: create, then add.
+        let created_35 = EntityId::derive(ours_repo.workspace_id, ours_repo.next_nonce(), 16, 0);
+        let (create_op, create_pre) = create(0, created_35, entry_point(30));
+        let created_head = ours_repo.commit(ours_repo.genesis, vec![create_op], vec![create_pre]);
+        let created_side = ours_repo.side(created_head);
+        let EntityBodyValue::EntryPoint(entry) = entry_point(30) else {
+            unreachable!()
+        };
+        let (add_op, add_pre) = add_entry_point_op(
+            0,
+            created_35,
+            entry,
+            object_of_side(&created_side, created_35),
+        );
+        let ours_head = ours_repo.commit(created_head, vec![add_op], vec![add_pre]);
+        // Theirs only retargets the policy binding.
+        let (op, pre) = replace(0, 16, policy_binding(3), current_object(&ancestor, 16));
+        let theirs_head = theirs_repo.commit(theirs_repo.genesis, vec![op], vec![pre]);
+        let ours = ours_repo.side(ours_head);
+        let theirs = theirs_repo.side(theirs_head);
+        let result = merged(judge_merge(&ancestor, &ours, &theirs).unwrap());
+        let plan = build_merge_plan(&ours, &result).unwrap();
+        assert!(plan.identity_map.is_empty());
+        let head = commit_merge(
+            &ours_repo.transactions,
+            &ours_repo.branches,
+            &ours,
+            &plan,
+            MergeCommitInput {
+                principal_id: ours_repo.principal_id,
+                now_unix_millis: NOW,
+                expiry_unix_millis: NOW + 1_000,
+                limits: CandidateValidationLimits::full_v1(),
+                branch: b"main",
+            },
+        )
+        .unwrap();
+        let committed = ours_repo.transactions.verified_revision(head).unwrap();
+        assert_eq!(committed.state_root().root, plan.merged_root);
+        assert!(
+            committed
+                .state_root()
+                .record
+                .entry_points
+                .contains(&created_35)
+        );
+    }
+
+    /// P0-2: two created entities derive in operation order, so the frozen
+    /// S20-345 creation-ordinal check passes and the plan commits.
+    #[test]
+    fn two_created_entities_derive_in_operation_order_and_commit() {
+        let base = base_bodies();
+        let ours_repo = Repo::new("ord-ours", &base);
+        let mut theirs_repo = Repo::new("ord-theirs", &base);
+        let ancestor = ours_repo.side(ours_repo.genesis);
+        // Theirs adds two constants; their judged order is raw-ID order.
+        let created_30 = EntityId::derive(theirs_repo.workspace_id, theirs_repo.next_nonce(), 9, 0);
+        let created_31 = EntityId::derive(theirs_repo.workspace_id, theirs_repo.next_nonce(), 9, 1);
+        let (make_30, pre_30) = create(0, created_30, constant(false));
+        let (make_31, pre_31) = create(1, created_31, constant(true));
+        let mut members: Vec<EntityId> = [6, 16, 18, 19].iter().map(|byte| id(*byte)).collect();
+        members.push(created_30);
+        members.push(created_31);
+        let namespace_body = EntityBodyValue::Namespace(NamespaceBody {
+            parent: None,
+            members: EntityIdSet::from_unsorted(members).unwrap(),
+        });
+        let (replace_op, replace_pre) = replace(2, 4, namespace_body, current_object(&ancestor, 4));
+        let theirs_head = theirs_repo.commit(
+            theirs_repo.genesis,
+            vec![make_30, make_31, replace_op],
+            vec![pre_30, pre_31, replace_pre],
+        );
+        let ours = ours_repo.side(ours_repo.genesis);
+        let theirs = theirs_repo.side(theirs_head);
+        let result = merged(judge_merge(&ancestor, &ours, &theirs).unwrap());
+        let plan = build_merge_plan(&ours, &result).unwrap();
+        assert_eq!(plan.identity_map.len(), 2);
+        let targets: Vec<EntityId> = plan
+            .operations
+            .iter()
+            .filter(|op| op.class == MutationClass::CreateEntity)
+            .map(|op| op.target_entity)
+            .collect();
+        assert_eq!(targets.len(), 2);
+        assert_eq!(
+            targets,
+            plan.identity_map
+                .iter()
+                .map(|(_, derived)| *derived)
+                .collect::<Vec<_>>(),
+            "creation operation order is derivation order"
+        );
+        let head = commit_merge(
+            &ours_repo.transactions,
+            &ours_repo.branches,
+            &ours,
+            &plan,
+            MergeCommitInput {
+                principal_id: ours_repo.principal_id,
+                now_unix_millis: NOW,
+                expiry_unix_millis: NOW + 1_000,
+                limits: CandidateValidationLimits::full_v1(),
+                branch: b"main",
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            ours_repo
+                .transactions
+                .verified_revision(head)
+                .unwrap()
+                .state_root()
+                .root,
+            plan.merged_root
+        );
+    }
+
+    /// P0-5/P0-6: the composed object carries A's fingerprint and label (the
+    /// only bytes the frozen commit reproduces); a theirs-changed label is
+    /// reported in `metadata_overridden`, and the swap composes the same
+    /// bodies with its own ours-side metadata.
+    #[test]
+    fn composed_object_keeps_a_side_metadata_and_reports_divergence() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        let mut ours_bodies = with(&base, 4, namespace(None, &[6, 16, 18, 19, 30]));
+        ours_bodies.push((30, constant(false)));
+        let mut theirs_bodies = with(&base, 4, namespace(None, &[6, 16, 18, 19, 31]));
+        theirs_bodies.push((31, constant(true)));
+        let fingerprint = SemanticFingerprint::from_bytes([7; 32]);
+        let mut a = synthetic(51, &ours_bodies, &[(4, "ours")]);
+        graft_fingerprint(&mut a, 4, fingerprint);
+        let b = synthetic(52, &theirs_bodies, &[(4, "theirs")]);
+        let result = merged(judge_merge(&o, &a, &b).unwrap());
+        let composed = object_of(&result, 4).unwrap();
+        assert_eq!(composed.record().label.as_deref(), Some("ours"));
+        assert_eq!(composed.record().semantic_fingerprint, Some(fingerprint));
+        assert_eq!(result.metadata_overridden, vec![id(4)]);
+        let swapped = merged(judge_merge(&o, &b, &a).unwrap());
+        assert_eq!(swapped.metadata_overridden, vec![id(4)]);
+        let swapped_composed = swapped
+            .objects
+            .iter()
+            .find(|object| object.record().entity_id == id(4))
+            .unwrap();
+        assert_eq!(swapped_composed.record().label.as_deref(), Some("theirs"));
+        // Same entity set and same composed bodies either way around.
+        let bodies = |merged: &MergedRoot| {
+            merged
+                .objects
+                .iter()
+                .map(|object| (object.record().entity_id, object.record().body.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bodies(&swapped), bodies(&result));
+    }
+
+    /// Survivor scope: an identity that already conflicted gains no second
+    /// `Collateral` entry even when the other side touched its dependent.
+    #[test]
+    fn conflicted_identities_gain_no_collateral() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        // Ours retypes the constant into a global over a new constant (so
+        // every side still projects); theirs edits the constant and retargets
+        // its dependent global. 18 conflicts KindEdit and must not also gain
+        // Collateral for 19.
+        let mut ab = with(&base, 18, global(30, Visibility::Private));
+        ab = with(&ab, 19, global(30, Visibility::Private));
+        ab = with(&ab, 4, namespace(None, &[6, 16, 18, 19, 30]));
+        ab.push((30, constant(true)));
+        let a = synthetic(51, &ab, &[]);
+        let mut tb = with(&base, 18, constant(false));
+        tb = with(&tb, 19, global(18, Visibility::Exported));
+        let b = synthetic(52, &tb, &[]);
+        assert_eq!(
+            conflict_reasons(&judge_merge(&o, &a, &b).unwrap()),
+            vec![(18, ConflictReason::KindEdit, 0)]
+        );
+    }
+
+    /// Collateral is mirror-symmetric: ours' and theirs' objects never swap
+    /// sides, whichever direction the check runs.
+    #[test]
+    fn collateral_entries_keep_their_sides_under_swap() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        let a = synthetic(51, &with(&base, 18, constant(false)), &[]);
+        let b = synthetic(52, &with(&base, 19, global(18, Visibility::Exported)), &[]);
+        let MergeOutcome::Conflict(forward) = judge_merge(&o, &a, &b).unwrap() else {
+            panic!("expected a collateral conflict");
+        };
+        let MergeOutcome::Conflict(swapped) = judge_merge(&o, &b, &a).unwrap() else {
+            panic!("expected a collateral conflict");
+        };
+        assert_eq!(forward.conflict.conflicts.len(), 1);
+        assert_eq!(swapped.conflict.conflicts.len(), 1);
+        assert_eq!(
+            forward.conflict.conflicts[0].reason,
+            ConflictReason::Collateral
+        );
+        assert_eq!(
+            forward.conflict.conflicts[0].ours_object,
+            swapped.conflict.conflicts[0].theirs_object
+        );
+        assert_eq!(
+            forward.conflict.conflicts[0].theirs_object,
+            swapped.conflict.conflicts[0].ours_object
+        );
+    }
+
+    /// J2 totality: removal on both sides converges with no conflict.
+    #[test]
+    fn removal_on_both_sides_converges() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        let mut ours = with(&without(&base, 16), 4, namespace(None, &[6, 18, 19]));
+        let mut theirs = with(&without(&base, 16), 4, namespace(None, &[6, 18, 19, 30]));
+        theirs.push((30, constant(false)));
+        let result = merged(
+            judge_merge(&o, &synthetic(51, &ours, &[]), &synthetic(52, &theirs, &[])).unwrap(),
+        );
+        assert!(object_of(&result, 16).is_none());
+        assert!(object_of(&result, 30).is_some());
+        ours = with(&without(&base, 16), 4, namespace(None, &[6, 18, 19]));
+        let identical = merged(
+            judge_merge(&o, &synthetic(51, &ours, &[]), &synthetic(52, &ours, &[])).unwrap(),
+        );
+        assert!(object_of(&identical, 16).is_none());
+    }
+
+    /// Anchor conflicts pin which class moved: 1 contract, 2 test, 3 both.
+    #[test]
+    fn anchor_conflicts_pin_the_moved_class() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        let a = synthetic(51, &base, &[]);
+        let mut contract = synthetic(52, &base, &[]);
+        contract.contract_root = ObjectId::from_bytes([23; 32]);
+        let MergeOutcome::Conflict(stored) = judge_merge(&o, &a, &contract).unwrap() else {
+            panic!("expected a root-anchor conflict");
+        };
+        assert_eq!(stored.conflict.conflicts.len(), 1);
+        assert_eq!(
+            stored.conflict.conflicts[0].reason,
+            ConflictReason::RootAnchor
+        );
+        assert_eq!(stored.conflict.conflicts[0].detail, 1);
+        assert_eq!(
+            decode_merge_conflict(&stored.stored_bytes).unwrap(),
+            *stored
+        );
+        let mut both = synthetic(53, &base, &[]);
+        both.contract_root = ObjectId::from_bytes([23; 32]);
+        both.test_root = ObjectId::from_bytes([24; 32]);
+        let MergeOutcome::Conflict(stored) = judge_merge(&o, &a, &both).unwrap() else {
+            panic!("expected a root-anchor conflict");
+        };
+        assert_eq!(stored.conflict.conflicts[0].detail, 3);
+    }
+
+    /// P0-7: bare `judge_merge` takes the ancestor as proven (the O=A hole is
+    /// real: everything takes the silent J1 path), while the verified entry
+    /// point rejects it before any composition.
+    #[test]
+    fn verified_judgment_rejects_a_non_ancestor_o() {
+        let base = base_bodies();
+        let mut ours_repo = Repo::new("anc-ours", &base);
+        let mut theirs_repo = Repo::new("anc-theirs", &base);
+        let ancestor = ours_repo.side(ours_repo.genesis);
+        let (op, pre) = replace(
+            0,
+            6,
+            typedef(Visibility::Exported),
+            current_object(&ancestor, 6),
+        );
+        let ours_head = ours_repo.commit(ours_repo.genesis, vec![op], vec![pre]);
+        let (op, pre) = replace(0, 16, policy_binding(3), current_object(&ancestor, 16));
+        let theirs_head = theirs_repo.commit(theirs_repo.genesis, vec![op], vec![pre]);
+        let ours = ours_repo.side(ours_head);
+        let theirs = theirs_repo.side(theirs_head);
+        let ours_ancestry = ours_repo.branches.branch_ancestry("main", 16).unwrap();
+        let theirs_ancestry = theirs_repo.branches.branch_ancestry("main", 16).unwrap();
+        verify_merge_ancestor(&ancestor, &ours, &theirs, &ours_ancestry, &theirs_ancestry).unwrap();
+        let attack = judge_merge(&ours, &ours, &theirs).unwrap();
+        assert!(
+            matches!(attack, MergeOutcome::Merged(_)),
+            "O=A empties dA, so bare judgment silently takes all of B"
+        );
+        assert_eq!(
+            judge_merge_verified(&ours, &ours, &theirs, &ours_ancestry, &theirs_ancestry)
+                .unwrap_err()
+                .code(),
+            Some(MergeErrorCode::AncestorMismatch)
+        );
+        let lone = vec![theirs_ancestry[0].clone()];
+        assert_eq!(
+            judge_merge_verified(&ancestor, &ours, &theirs, &ours_ancestry, &lone)
+                .unwrap_err()
+                .code(),
+            Some(MergeErrorCode::NoCommonAncestor)
+        );
+    }
+
+    /// Oversized ancestry slices fail before any search.
+    #[test]
+    fn oversized_ancestries_fail_before_search() {
+        let entry = BranchAncestryEntry {
+            transaction_id: TransactionId::from_bytes([1; 32]),
+            state_root: root(1),
+            parent_transaction_ids: Vec::new(),
+        };
+        let big = vec![entry; MAX_ANCESTRY_NODES + 1];
+        assert_eq!(
+            find_common_ancestor(&big, &big).unwrap_err().code(),
+            Some(MergeErrorCode::ResourceLimit)
+        );
+    }
+
+    /// The branch pre-check fires before anything is durable, preserving the
+    /// exact frozen code and numeric.
+    #[test]
+    fn commit_merge_rejects_a_stale_branch_before_committing() {
+        let base = base_bodies();
+        let mut ours_repo = Repo::new("stale-ours", &base);
+        let ancestor = ours_repo.side(ours_repo.genesis);
+        let (op, pre) = replace(
+            0,
+            6,
+            typedef(Visibility::Exported),
+            current_object(&ancestor, 6),
+        );
+        let ours_head = ours_repo.commit(ours_repo.genesis, vec![op], vec![pre]);
+        let ours = ours_repo.side(ours_head);
+        let again = merged(judge_merge(&ancestor, &ours, &ancestor).unwrap());
+        let plan = build_merge_plan(&ours, &again).unwrap();
+        assert!(plan.operations.is_empty());
+        // A concurrent advance moves the branch past the plan base.
+        let (op, pre) = replace(0, 16, policy_binding(3), current_object(&ours, 16));
+        let concurrent = ours_repo.commit(ours_head, vec![op], vec![pre]);
+        let error = commit_merge(
+            &ours_repo.transactions,
+            &ours_repo.branches,
+            &ours,
+            &plan,
+            MergeCommitInput {
+                principal_id: ours_repo.principal_id,
+                now_unix_millis: NOW,
+                expiry_unix_millis: NOW + 1_000,
+                limits: CandidateValidationLimits::full_v1(),
+                branch: b"main",
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "REF_NAMED_CAS_STALE");
+        assert_eq!(error.commit_numeric(), Some(50_010));
+        assert_eq!(
+            ours_repo
+                .branches
+                .resolve_branch("main")
+                .unwrap()
+                .reference
+                .record
+                .head_transaction_id,
+            concurrent
+        );
+    }
+
+    /// An empty plan pairs only with ours' own root.
+    #[test]
+    fn empty_plan_with_a_foreign_root_fails() {
+        let base = base_bodies();
+        let ours_repo = Repo::new("empty-ours", &base);
+        let ancestor = ours_repo.side(ours_repo.genesis);
+        let ours = ours_repo.side(ours_repo.genesis);
+        let again = merged(judge_merge(&ancestor, &ours, &ancestor).unwrap());
+        let mut plan = build_merge_plan(&ours, &again).unwrap();
+        plan.merged_root = root(99);
+        assert_eq!(
+            commit_merge(
+                &ours_repo.transactions,
+                &ours_repo.branches,
+                &ours,
+                &plan,
+                MergeCommitInput {
+                    principal_id: ours_repo.principal_id,
+                    now_unix_millis: NOW,
+                    expiry_unix_millis: NOW + 1_000,
+                    limits: CandidateValidationLimits::full_v1(),
+                    branch: b"main",
+                },
+            )
+            .unwrap_err()
+            .code(),
+            Some(MergeErrorCode::ResultMismatch)
+        );
+    }
+
+    /// Forged conflict evidence (smuggled detail or zeroed kind) fails the
+    /// strict decoder even though it re-encodes from the same structs.
+    #[test]
+    fn forged_conflict_detail_and_kind_fail_strict_decode() {
+        let base = base_bodies();
+        let o = synthetic(50, &base, &[]);
+        let a = synthetic(51, &with(&base, 6, typedef(Visibility::Exported)), &[]);
+        let b = synthetic(52, &with(&base, 6, typedef(Visibility::Workspace)), &[]);
+        let MergeOutcome::Conflict(stored) = judge_merge(&o, &a, &b).unwrap() else {
+            panic!("expected a conflict");
+        };
+        let mut forged = stored.conflict.clone();
+        forged.conflicts[0].detail = 25_000;
+        let bytes = encode_merge_conflict(&forged).unwrap().stored_bytes;
+        assert_eq!(
+            decode_merge_conflict(&bytes).unwrap_err().code(),
+            Some(MergeErrorCode::ConflictFormatInvalid)
+        );
+        let mut forged_kind = stored.conflict.clone();
+        forged_kind.conflicts[0].kind = 0;
+        let bytes = encode_merge_conflict(&forged_kind).unwrap().stored_bytes;
+        assert_eq!(
+            decode_merge_conflict(&bytes).unwrap_err().code(),
+            Some(MergeErrorCode::ConflictFormatInvalid)
+        );
+    }
+
     // ---- corpus emitter (scripts/generate_merge_fixtures.py) ----
 
     fn side_json(side: &MergeSide) -> String {
-        crate::compare::tests::root_json(&side.request().unwrap())
+        let hex = crate::compare::tests::hex;
+        let mut json = crate::compare::tests::root_json(&side.request().unwrap());
+        json.pop();
+        format!(
+            "{json},\"contract_root\":\"{}\",\"test_root\":\"{}\",\"policy_root\":\"{}\"}}",
+            hex(side.contract_root.as_bytes()),
+            hex(side.test_root.as_bytes()),
+            hex(side.policy_root.as_bytes())
+        )
     }
 
     fn conflict_json(conflict: &MergeConflict) -> String {
@@ -3039,6 +3926,59 @@ pub(crate) mod tests {
                 Box::new(|b| (with(b, 19, global(18, Visibility::Exported)), Vec::new())),
             ),
             (
+                "collateral-theirs",
+                Box::new(|b| (with(b, 19, global(18, Visibility::Exported)), Vec::new())),
+                Box::new(|b| (with(b, 18, constant(false)), Vec::new())),
+            ),
+            (
+                "both-removed",
+                Box::new(|b| {
+                    (
+                        with(&without(b, 16), 4, namespace(None, &[6, 18, 19])),
+                        Vec::new(),
+                    )
+                }),
+                Box::new(|b| {
+                    let mut t = with(&without(b, 16), 4, namespace(None, &[6, 18, 19, 30]));
+                    t.push((30, constant(false)));
+                    (t, Vec::new())
+                }),
+            ),
+            (
+                "conflict-excludes-collateral",
+                Box::new(|b| {
+                    let mut t = with(b, 18, global(30, Visibility::Private));
+                    t = with(&t, 19, global(30, Visibility::Private));
+                    t = with(&t, 4, namespace(None, &[6, 16, 18, 19, 30]));
+                    t.push((30, constant(true)));
+                    (t, Vec::new())
+                }),
+                Box::new(|b| {
+                    let mut t = with(b, 18, constant(false));
+                    t = with(&t, 19, global(18, Visibility::Exported));
+                    (t, Vec::new())
+                }),
+            ),
+            (
+                "root-anchor",
+                Box::new(|b| (b.to_vec(), Vec::new())),
+                Box::new(|b| (b.to_vec(), Vec::new())),
+            ),
+            (
+                "policy-root",
+                Box::new(|b| (b.to_vec(), Vec::new())),
+                Box::new(|b| (b.to_vec(), Vec::new())),
+            ),
+            (
+                "disjoint-entities-swapped",
+                Box::new(|b| {
+                    let mut t = with(b, 4, namespace(None, &[6, 16, 18, 19, 30]));
+                    t.push((30, constant(false)));
+                    (t, Vec::new())
+                }),
+                Box::new(|b| (with(b, 16, policy_binding(3)), Vec::new())),
+            ),
+            (
                 "metadata-edit",
                 Box::new(|b| (b.to_vec(), vec![(6, "one")])),
                 Box::new(|b| (b.to_vec(), vec![(6, "two")])),
@@ -3051,7 +3991,13 @@ pub(crate) mod tests {
             let (ours_bodies, ours_labels) = ours_mutation(&base);
             let (theirs_bodies, theirs_labels) = theirs_mutation(&base);
             let ours = synthetic(51, &ours_bodies, &ours_labels);
-            let theirs = synthetic(52, &theirs_bodies, &theirs_labels);
+            let mut theirs = synthetic(52, &theirs_bodies, &theirs_labels);
+            if name == "root-anchor" {
+                theirs.contract_root = ObjectId::from_bytes([23; 32]);
+            }
+            if name == "policy-root" {
+                theirs.policy_root = PolicyRootId::from_bytes([24; 32]);
+            }
             let outcome = judge_merge(&ancestor, &ours, &theirs).unwrap();
             match &outcome {
                 MergeOutcome::Merged(merged) => {

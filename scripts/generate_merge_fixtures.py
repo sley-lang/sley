@@ -25,6 +25,12 @@ EXPECTED_CASES = [
     "delete-edit",
     "kind-edit",
     "collateral",
+    "collateral-theirs",
+    "both-removed",
+    "conflict-excludes-collateral",
+    "root-anchor",
+    "policy-root",
+    "disjoint-entities-swapped",
     "metadata-edit",
 ]
 EXPECTED_REJECTIONS = ["version", "flip-trailer", "contract-tag", "trailing-byte"]

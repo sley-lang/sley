@@ -1226,7 +1226,7 @@
   "merge": {
     "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/MERGE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0028-merge-composition-boundary.md",
     "checker": "scripts/check_merge_spec.py",
     "contract_tag": 520,
@@ -1247,15 +1247,18 @@
     "closeout": "docs/audits/S20_520_MERGE_CLOSEOUT.md",
     "implementation": "crates/sley-repo/src/merge.rs",
     "conformance_corpus": "conformance/merge/v1",
-    "corpus_cases": 13,
+    "corpus_cases": 19,
     "corpus_rejections": 4,
     "independent_python_oracle": "scripts/check_merge_vector.py",
-    "sley_repo_merge_tests": 8,
-    "persistent_fuzz_target": "fuzz/targets/merge_conflict_decoder.rs",
-    "identity_remap": "S20-345 derived creation identities with full reference rewrite",
+    "sley_repo_merge_tests": 21,
+    "persistent_fuzz_target": "fuzz/targets/merge_conflict_decoder.rs + fuzz/targets/merge_judgment.rs",
+    "identity_remap": "S20-345 derived creation identities in derivation-is-operation order with fail-closed rewrite; theirs-added entry points are MERGE_PLAN_UNSUPPORTED with bind-first recovery",
     "implementation_commit": "4f01b12",
     "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_merge_smoke",
-    "p0_open_count": 7
+    "p0_open_count": 0,
+    "ancestor_enforcement": "verify_merge_ancestor over server-walked ancestries; judge_merge_verified production entry for both protocol handlers",
+    "composed_metadata": "ours-side label and fingerprint with theirs-side divergence in metadata_overridden",
+    "collateral_rule": "survivor-scoped, dependent Added/Changed/Retyped, side-correct objects, pinned anchor entries, strict decoder"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1602,6 +1605,20 @@
     "manual_command": "python3 scripts/run_merge_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "PENDING",
+    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
+  },
+  "s20_700_merge_judgment_fuzz_slice": {
+    "status": "IMPLEMENTED_S20_520_MERGE_JUDGMENT_OUTCOME_AND_DETERMINISM",
+    "section_18_5_surface": "merge engine",
+    "target": "fuzz/targets/merge_judgment.rs",
+    "runner": "scripts/run_merge_judgment_fuzz.py",
+    "checker": "scripts/check_merge_judgment_fuzz_slice.py",
+    "persistent_fuzz_harness": true,
+    "full_s20_700_complete": false,
+    "max_script_bytes": 34,
+    "seed_corpus": "deterministically generated under evidence/runtime/s20-700-merge-judgment-libfuzzer/corpus",
+    "runtime_evidence": "evidence/runtime/s20-700-merge-judgment-libfuzzer/evidence.json",
+    "manual_command": "python3 scripts/run_merge_judgment_fuzz.py --manual",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {

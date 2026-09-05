@@ -23,7 +23,7 @@
     {
       "family": "merge",
       "rejections": 4,
-      "vectors": 13
+      "vectors": 19
     },
     {
       "family": "mutation-candidate",
@@ -97,10 +97,10 @@
     }
   ],
   "conformance_rejections": 172,
-  "conformance_vectors": 353,
+  "conformance_vectors": 359,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "f5c3a9a9c071a91f3f3faf2d0963aefa7ea10c360d591475a3a87c12b5cc6542",
-  "persistent_fuzz_target_count": 20,
+  "inventory_digest": "de1bd49e505cb6d9b930bbf0534be35f484b885f9808be8728d225df6e77e25d",
+  "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
     "candidate_result",
@@ -108,6 +108,7 @@
     "complete_root_snapshot_decoder",
     "context_capsule_builder",
     "merge_conflict_decoder",
+    "merge_judgment",
     "mutation_candidate",
     "repository_exchange_importer",
     "repository_pack_importer",
@@ -215,7 +216,7 @@
     {
       "crate": "sley-repo",
       "ignored": 3,
-      "tests": 349
+      "tests": 362
     },
     {
       "crate": "sley-scb1",
@@ -254,7 +255,7 @@
     }
   ],
   "rust_ignored_emitters": 13,
-  "rust_unit_tests": 1031,
+  "rust_unit_tests": 1044,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

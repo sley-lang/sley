@@ -1,10 +1,11 @@
 # ADR-0028: Merge composition and conflict boundary
 
-Status: proposed; the S20-520 contract is a draft at revision 3 with Council
-review pending; implementation landed against the draft (closeout
+Status: accepted with revision 4 of the S20-520 contract (2026-09-05);
+written against the draft at revision 3 while Council lanes were
+unavailable, then revised against all three Council reviews (closeout
 `docs/audits/S20_520_MERGE_CLOSEOUT.md`)
 
-Date: 2026-09-03
+Date: 2026-09-03; revised 2026-09-05
 
 ## Context
 
@@ -34,7 +35,11 @@ soon as a lane returns.
    set-valued field composition, and the collateral rule of
    `docs/spec/MERGE_V1.md` are the whole judgment. Anything not proven
    disjoint or deterministically composable is a conflict; a metadata-only
-   change overridden by a semantic change is reported, never silent.
+   change overridden by a semantic change is reported, never silent. The
+   composed object carries ours-side metadata (label and fingerprint
+   claim), the only bytes the frozen commit reproduces, and a theirs-side
+   label change joins the same report. Collateral runs only on identities
+   that survived J1 through J8 without conflict.
 3. **Merged root is re-judged.** The merged request must pass the S20-250
    full complete-root judgment before any plan exists; failure is a
    `Closure` conflict, and the merged `StateRoot` is derived by the frozen
@@ -53,13 +58,22 @@ soon as a lane returns.
 7. **Created identities are re-derived.** Because S20-345 derives every
    `CreateEntity` target from the candidate nonce, kind, and creation
    ordinal, entities the other side added are re-identified in the plan
-   with every local reference rewritten; the judged merged root stays
-   symmetric and the plan's merged root is the committed one.
+   with every local reference rewritten; derivation order is operation
+   order, so the frozen ordinal check passes. A theirs-added entry point
+   is the exclusion the frozen profile forces: no single candidate can
+   bind what it creates, so the plan reports `MERGE_PLAN_UNSUPPORTED`
+   (bind on ours first, then merge) instead of emitting an unexecutable
+   shape or a foreign identity.
+8. **The ancestor is proven, not asserted.** Both protocol handlers walk
+   the ancestries server-side and verify the supplied `O` before any
+   composition; bare `judge_merge` stays available for synthetic inputs
+   only.
 
 ## Consequences
 
-- The merge engine becomes the eleventh Section 18.5 persistent-fuzz
-  surface, closing the last S20-700 required surface once its target lands.
+- The merge engine is the eleventh Section 18.5 persistent-fuzz surface:
+  the conflict-decoder lane and the judgment lane both run under
+  `make merge-persistent-fuzz-smoke`.
 - Restricted S20-360 bounds which merged roots can be committed today; the
   judgment and plan are exact for every root regardless.
 - Rename detection and block-level merging stay outside the frozen boundary.

@@ -151,11 +151,15 @@ and resource ceilings; wrapped `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*` codes
 are preserved. They do not claim merge, conflict objects, or S20-520.
 
 S20-520 reserves numeric codes 52000 through 52013 for the exact `MERGE_*`
-failures listed in `MERGE_V1.md` (contract draft; frozen with that contract).
-They cover the common-ancestor preconditions, shared workspace and epoch,
-unsupported dependency-root changes, wrapped comparison failures, resource
-ceilings, the canonical conflict record, unsupported plans, and the
-post-commit result check. A conflict is a successful judgment carrying a
+failures listed in `MERGE_V1.md` (contract draft revision 4; frozen with
+that contract).
+They cover the verified common-ancestor preconditions, shared workspace and epoch,
+unsupported dependency-root changes, wrapped comparison and extraction failures, resource
+ceilings, the canonical conflict record with its strict decoder, unsupported plans
+(including the single-candidate entry-point bound), the branch pre-check, and the
+post-commit result check. Commit-path failures keep their exact `TXN_*`, `REF_*`, `CAP_*`, and `SCB_*`
+symbols with owning numerics, including the exact frozen `REF_NAMED_CAS_STALE`
+from the branch pre-check. A conflict is a successful judgment carrying a
 conflict object, not a failure code.
 
 S20-260 freezes numeric codes 26000 through 26006 for the exact `VM_LOWER_*`

@@ -32,6 +32,29 @@ truncation, trailing-byte, single-bit mutation, and ancestor seeds in all
 three lanes. Runtime corpus, binaries, artifacts, and evidence remain under
 ignored `evidence/runtime/s20-700-merge-libfuzzer/` paths.
 
+## Judgment lane
+
+A second target, `fuzz/targets/merge_judgment.rs`, covers the merge judgment
+itself: the first input byte gates the lane (only `0x00` runs), and the rest
+is a mutation script of up to sixteen two-byte ops. Each op names a side by
+its high bit and an entity slot (`4`, `6`, `16`, `18`, `19`) plus a mutation
+(primary field toggle, label set, label clear, or no-op) applied to one fixed
+valid base root. Both sides stay encodable by construction; projectability
+is left to the judgment, so scripts also reach the extraction-failure path.
+
+Every script must judge deterministically to a well-formed outcome — a
+merged root that repeats its root, entity set, and override report, or a
+conflict that repeats its bytes and round-trips through the strict decoder
+— or to a failure carrying one of the fourteen frozen `MERGE_*` codes. A
+panic, a divergent repeat, or an undiagnosed error is a crash.
+
+Seeds are deterministic scripts (every single-mutation script on each side
+plus two-sided disjoint, convergent, conflicting, collateral, and
+metadata-edit combinations and the empty script) under ignored
+`evidence/runtime/s20-700-merge-judgment-libfuzzer/` paths. The judgment
+lane runs inside `make merge-persistent-fuzz-smoke` alongside the
+decoder lane.
+
 Focused validation:
 
 ```text

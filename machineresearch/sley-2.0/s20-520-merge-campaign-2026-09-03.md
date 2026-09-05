@@ -1,6 +1,8 @@
 # S20-520 merge: campaign record (opened 2026-09-03)
 
-Status: contract draft revision 1 committed; Council review pending.
+Status: contract draft revision 4 committed; all three Council reviews
+received (2026-09-04, all FAIL) with every P0 and P1 closed in revision 4;
+re-review pending.
 
 ## Why now
 
@@ -38,6 +40,20 @@ first. The S20-510 and S20-520 review requests follow when a lane returns.
   touching an entity.
 - Whether composed objects should carry `A`'s label or none.
 
+## Answers recorded in contract revision 4 (2026-09-05)
+
+- J6 stays: overriding a metadata-only change with a semantic one,
+  reported, is composition with a receipt. The defect was elsewhere: J7
+  used to drop a theirs-side label change unreported.
+- No: `MetadataOnly` never triggers collateral on either side (a removed
+  dependent likewise resolves by removal). The dependent side counts
+  `Added`, `Changed`, and `Retyped`.
+- `A`'s label and `A`'s fingerprint claim, because the frozen
+  `replace_body` preserves exactly those and anything else makes the
+  precomputed root uncommittable; a theirs-side label change joins the
+  `metadata_overridden` report. Neither "A's label, dropped silently" nor
+  "none" survives the frozen commit path.
+
 ## Commits
 
 - `ded0943` contract draft revision 1, ADR-0028, checker, this record;
@@ -45,3 +61,10 @@ first. The S20-510 and S20-520 review requests follow when a lane returns.
 - implementation, revisions 2 (non-ownership collateral) and 3 (identity
   remap), corpus, oracle, fuzz slice, closeout, and the S20-700 surface
   closure: the commit after the staging commit.
+- revision 4: all seven P0s and every P1 from the three 2026-09-04 Council
+  reviews closed (verified ancestor enforcement, ours-side composed
+  metadata with divergence report, survivor-scoped and side-correct
+  collateral, derivation-ordered creations, single-candidate entry-point
+  bound with recovery, strict decoder, commit guards with preserved
+  numerics, 19-vector corpus with anchors, judgment fuzz lane); the
+  revision 4 commit on `main` (see `git log --oneline`).

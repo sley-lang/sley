@@ -38,8 +38,8 @@ use sley_repo::{
     RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
     RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
     compare_complete_roots, export_repository_exchange, gc_collect, gc_dry_run,
-    import_repository_exchange, judge_merge, read_execution_report, run_root_query,
-    store_execution_report,
+    import_repository_exchange, judge_merge_verified, read_execution_report, run_root_query,
+    store_execution_report, transaction_ancestry,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
@@ -800,6 +800,41 @@ impl Server {
         Ok((body, bounds))
     }
 
+    /// Judges a merge with the ancestor precondition proven server-side: the
+    /// ancestries are walked from the supplied revisions (never caller
+    /// chains), so a caller-chosen `O` that is not the exact common ancestor
+    /// fails `MERGE_ANCESTOR_MISMATCH` before any composition.
+    fn verified_merge(
+        &self,
+        ancestor: &MergeSide,
+        ours: &MergeSide,
+        theirs: &MergeSide,
+    ) -> Result<MergeOutcome> {
+        let failure = |error: sley_repo::MergeError| {
+            owner(
+                &error.symbol(),
+                error.code().map_or_else(
+                    || error.commit_numeric().unwrap_or(0),
+                    sley_repo::MergeErrorCode::numeric,
+                ),
+            )
+        };
+        let (Some(ours_id), Some(theirs_id)) = (ours.transaction_id, theirs.transaction_id) else {
+            return Err(failure(sley_repo::MergeError::Merge(
+                sley_repo::MergeErrorCode::PlanUnsupported,
+            )));
+        };
+        let transactions = self.transactions();
+        let ours_ancestry =
+            transaction_ancestry(&transactions, ours_id, sley_repo::MAX_ANCESTRY_NODES)
+                .map_err(failure)?;
+        let theirs_ancestry =
+            transaction_ancestry(&transactions, theirs_id, sley_repo::MAX_ANCESTRY_NODES)
+                .map_err(failure)?;
+        judge_merge_verified(ancestor, ours, theirs, &ours_ancestry, &theirs_ancestry)
+            .map_err(failure)
+    }
+
     fn merge_judge(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 3)?;
         let ancestor = MergeSide::from_revision(
@@ -811,12 +846,7 @@ impl Server {
         let theirs = MergeSide::from_revision(
             &self.revision(TransactionId::from_bytes(fixed32(fields[2])?))?,
         );
-        let outcome = judge_merge(&ancestor, &ours, &theirs).map_err(|error| {
-            owner(
-                &error.symbol(),
-                error.code().map_or(0, sley_repo::MergeErrorCode::numeric),
-            )
-        })?;
+        let outcome = self.verified_merge(&ancestor, &ours, &theirs)?;
         let (payload, count) = match outcome {
             MergeOutcome::Merged(merged) => {
                 let inner = scb(encode_record(&[
@@ -1214,10 +1244,13 @@ impl Server {
         let merge_failure = |error: sley_repo::MergeError| {
             owner(
                 &error.symbol(),
-                error.code().map_or(0, sley_repo::MergeErrorCode::numeric),
+                error.code().map_or_else(
+                    || error.commit_numeric().unwrap_or(0),
+                    sley_repo::MergeErrorCode::numeric,
+                ),
             )
         };
-        let outcome = judge_merge(&ancestor, &ours, &theirs).map_err(merge_failure)?;
+        let outcome = self.verified_merge(&ancestor, &ours, &theirs)?;
         match outcome {
             MergeOutcome::Conflict(conflict) => {
                 let count = to_u64(conflict.conflict.conflicts.len())?;

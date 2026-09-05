@@ -67,6 +67,10 @@ name = "merge_conflict_decoder"
 path = "targets/merge_conflict_decoder.rs"
 
 [[bin]]
+name = "merge_judgment"
+path = "targets/merge_judgment.rs"
+
+[[bin]]
 name = "complete_root_snapshot_decoder"
 path = "targets/complete_root_snapshot_decoder.rs"
 

@@ -259,6 +259,8 @@ semantic-delta-persistent-fuzz-smoke:
 merge-persistent-fuzz-smoke:
 	python3 scripts/check_merge_persistent_fuzz_slice.py
 	python3 scripts/run_merge_persistent_fuzz.py
+	python3 scripts/check_merge_judgment_fuzz_slice.py
+	python3 scripts/run_merge_judgment_fuzz.py
 
 complete-root-snapshot-persistent-fuzz-smoke:
 	python3 scripts/check_complete_root_snapshot_persistent_fuzz_slice.py

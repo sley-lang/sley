@@ -89,7 +89,7 @@
           },
           {
             "digest": {
-              "sha256": "83d4551a29ebb9d9dd1c47e8d515a6075a9ca34cccc3ba3abcffd62b1cc864fe"
+              "sha256": "d1cb17285a428fc87b0f4c702541807a925e015bf66f62c1062b704fde80f577"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "statement_digest": "51750a5871ef848e55cacdb3794ba0f0acc7774d11eaef57e55612441826718e"
+  "statement_digest": "2d4e94eeb4867ca0ee713c4afb15ee758e02a406e6e87e9249d92f867a2b1228"
 }

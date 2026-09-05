@@ -125,6 +125,7 @@ def judge(ancestor: dict, ours: dict, theirs: dict) -> dict:
     for entry in delta_b["fields"]:
         fields_b.setdefault(entry[0], {})[entry[2]] = entry
     conflicts: list[tuple] = []
+    conflicted: set[str] = set()
     merged: dict[str, dict] = {entity_id: {"body": body_of(e), "object": e["object"], "composed": False} for entity_id, e in base.items()}
     overridden: list[str] = []
     touched_a: set[str] = set()
@@ -132,6 +133,14 @@ def judge(ancestor: dict, ours: dict, theirs: dict) -> dict:
 
     def take(entity_id: str, side: dict) -> None:
         merged[entity_id] = {"body": body_of(side[entity_id]), "object": side[entity_id]["object"], "composed": False}
+
+    zero = "00" * 32
+    contract_differs = ours.get("contract_root") != ancestor.get("contract_root") or theirs.get("contract_root") != ancestor.get("contract_root")
+    test_differs = ours.get("test_root") != ancestor.get("test_root") or theirs.get("test_root") != ancestor.get("test_root")
+    if contract_differs or test_differs:
+        conflicts.append((zero, REASON["RootAnchor"], 0, 0, None, None, int(contract_differs) | (int(test_differs) << 1)))
+    if ours.get("policy_root") != ancestor.get("policy_root") or theirs.get("policy_root") != ancestor.get("policy_root"):
+        conflicts.append((zero, REASON["PolicyRoot"], 0, 0, None, None, 0))
 
     for entity_id in sorted(set(entries_a) | set(entries_b)):
         ea, eb = entries_a.get(entity_id), entries_b.get(entity_id)
@@ -141,6 +150,7 @@ def judge(ancestor: dict, ours: dict, theirs: dict) -> dict:
 
         def conflict(reason: str, field: int = 0) -> None:
             conflicts.append((entity_id, REASON[reason], kind, field, ours_object, theirs_object, 0))
+            conflicted.add(entity_id)
 
         if ea is not None and ea[1] in (CHANGED, RETYPED, REMOVED):
             touched_a.add(entity_id)
@@ -211,8 +221,10 @@ def judge(ancestor: dict, ours: dict, theirs: dict) -> dict:
     edges_b = comparison.direct_edges(b)
     for this_touched, other_entries, other_edges in ((touched_a, entries_b, edges_b), (touched_b, entries_a, edges_a)):
         for entity_id in sorted(this_touched):
+            if entity_id in conflicted:
+                continue
             dependents = non_ownership_dependents(other_edges, entity_id)
-            if any(other[1] in (ADDED, CHANGED) and other[0] in dependents for other in other_entries.values()):
+            if any(other[1] in (ADDED, CHANGED, RETYPED) and other[0] in dependents for other in other_entries.values()):
                 conflicts.append(
                     (entity_id, REASON["Collateral"], base.get(entity_id, {}).get("kind", 0), 0, a.get(entity_id, {}).get("object"), b.get(entity_id, {}).get("object"), 0)
                 )
