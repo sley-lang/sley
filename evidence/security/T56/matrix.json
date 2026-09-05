@@ -5,7 +5,7 @@
     "a restarted instance answers SESSION_UNKNOWN to every pre-restart name",
     "live sessions are capped at the negotiated max_sessions"
   ],
-  "commit": "43d89f60bfefcf0f72b8844c7fe74ae66fe462c6",
+  "commit": "1f5f5ee6b39e9e1044b72797c54b9641a2302597",
   "contract": "s20-330-session-handle-profile-v1",
   "expected_failure": "SESSION_UNKNOWN for foreign-instance names",
   "result": "PASS",
