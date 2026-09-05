@@ -211,7 +211,10 @@ impl CandidateProgram {
             .any(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
     }
 
-    /// The E7 opcodes no owner implements yet (contract section 3).
+    /// The E7 opcodes excluded from phase 7 analysis: 145 has no owner and
+    /// is refused unconditionally, while 144, 160, 161, and 162 are validated
+    /// by their owning phases and refused at the phase 12 guard when
+    /// well-formed (contract section 9).
     const EXCLUDED_OPERATION_OPCODES: [u32; 5] = [144, 145, 160, 161, 162];
 
     pub(crate) fn operation_count(&self) -> u64 {

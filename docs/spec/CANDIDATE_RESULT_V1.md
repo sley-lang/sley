@@ -393,29 +393,39 @@ ceilings; byte-identical repeated valid results; invalid-state immutability;
 and persistent fuzzing of result import and monotonic phase shape.
 
 The landed slice judges every operation whose opcode belongs to the
-S20-260/S20-270 extended families E1 through E6: phase 7 calls the VM owner's
-judgment entry once per function unit after the S20-220 graph report, charges
-its work, and records the judged-operation count and judgment work in the
-phase evidence. A judgment failure keeps its exact `VM_LOWER_*` symbol and
-numeric code: a signature or immediate mismatch is a phase 7
-`CONTROL_FLOW_ERROR`, a lowering resource ceiling is a phase 7
-`RESOURCE_LIMIT`, and any other lowering failure is a phase 7
-`INTERNAL_ERROR`.
+S20-260/S20-270 extended families E1 through E6: for a program with no
+excluded opcode, phase 7 calls the VM owner's judgment entry once per
+function unit after the S20-220 graph report, charges its work, and records
+the judged-operation count and judgment work in the phase evidence. A program
+containing any excluded E7 opcode skips phase 7 judgment for every unit and
+keeps its frozen phase 12 refusal instead of failing here. A judgment failure
+keeps its exact `VM_LOWER_*` symbol and numeric code: a signature or
+immediate mismatch is a phase 7 `CONTROL_FLOW_ERROR`, a lowering resource
+ceiling is a phase 7 `RESOURCE_LIMIT`, and any other lowering failure is a
+phase 7 `INTERNAL_ERROR`.
 
 The five excluded E7 opcodes (contract assertion 144, test observation 145,
-effect request 160, adapter invocation 161, capability narrowing 162) have no
-owner yet. Each is refused by the owner of its own phase before the analysis
-guard is reached: 144 fails phase 10 with `CONTRACT_ASSERT_TYPE`, 145 fails
-phase 11 with `TEST_PLAN_OBSERVATION_UNSUPPORTED`, and 160, 161, and 162 fail
-phase 8 with `EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
-`CAPABILITY_REQUIREMENT_TYPE`. The phase 12 guard that answers
-`RESOURCE_LIMIT` with source symbol `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`
-remains as the last line of defense if an owner ever admits an E7 operation;
-it is unreachable while those owners refuse first. The validator still
-exercises all fourteen phases, all sixteen terminal decision encodings,
-complete all-18-kind reference extraction, native type/CFG/effect/contract
-owners, capability and policy checks, mandatory test planning, in-memory root
-reconstruction, and byte-identical result generation.
+effect request 160, adapter invocation 161, capability narrowing 162) are
+unanalyzable in phase 7. Only test observation 145 is refused unconditionally:
+its owner rejects any instance at phase 11 with
+`TEST_PLAN_OBSERVATION_UNSUPPORTED`. The other four owners validate the
+operation shape and accept well-formed instances: 144 passes phase 10 when
+the assertion names a contract targeting its function with matching operands
+(malformed ones fail with `CONTRACT_ASSERT_TYPE`), and 160, 161, and 162 pass
+phase 8 when the request, invocation, and narrowing shapes match their
+declared effect, adapter, and requirement (malformed ones fail with
+`EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
+`CAPABILITY_REQUIREMENT_TYPE`). Opcode 144 is owned since profile revision 9
+slice E7a, which lowers and executes `contract_assert`; it stays excluded
+from phase 7 because its static typing belongs to the S20-240 checker at
+phase 10. The phase 12 guard that answers `RESOURCE_LIMIT` with source symbol
+`CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED` is therefore the live refusal path
+for well-formed E7 programs that clear their owners — not defense in depth.
+The validator still exercises all fourteen phases, all sixteen terminal
+decision encodings, complete all-18-kind reference extraction, native
+type/CFG/effect/contract owners, capability and policy checks, mandatory test
+planning, in-memory root reconstruction, and byte-identical result
+generation.
 
 S20-360 does not authorize policy transitions, mutate accepted state, consume
 runtime capability budget, execute tests or effects, write objects, commit,

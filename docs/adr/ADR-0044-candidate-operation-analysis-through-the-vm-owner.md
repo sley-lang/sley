@@ -1,7 +1,8 @@
 # ADR-0044: candidate operation analysis runs through the VM judgment owner
 
-Status: proposed; implemented 2026-09-03 under the S20-260/S20-270 extended
-opcode profile draft (revision 8) with Council review pending; no commit,
+Status: accepted; implemented 2026-09-03 under the S20-260/S20-270 extended
+opcode profile draft with Council review pending; decision 4 corrected
+2026-09-05 after the S20-360 full review rounds; no commit,
 execution, or runtime authority is added
 
 Date: 2026-09-03
@@ -36,9 +37,14 @@ needs nor may derive.
    symbol and numeric code in the diagnostic, because the result contract pins
    one decision per phase; a lowering resource ceiling stays a resource limit,
    and anything else is an internal error.
-4. **E7 stays unowned and fails closed.** The five E7 opcodes have no owner;
-   each is already refused by the owner of its own phase, and the phase 12
-   guard remains as defense in depth rather than being deleted as unreachable.
+4. **E7 stays unanalyzable and fails closed.** The five E7 opcodes are
+   excluded from phase 7 judgment. Only test observation 145 is refused
+   unconditionally, by its phase 11 owner. The other four owners validate
+   shapes and accept well-formed instances — 144 at phase 10, 160, 161, and
+   162 at phase 8 — so the phase 12 guard is the live refusal path for
+   well-formed E7 programs, not defense in depth. Opcode 144 is owned since
+   profile slice E7a; it stays excluded because its static typing belongs to
+   the S20-240 checker.
 5. **Work is accounted.** The judgment work joins the phase 7 evidence and the
    operation count joins the phase 12 graph-work total, so an operation-heavy
    candidate meets the same ceilings as any other work.
@@ -52,5 +58,5 @@ needs nor may derive.
 - `sley-policy` now depends on `sley-vm` (acyclic: the VM depends on check,
   ssmc, id, and mutate only), and the supply-chain inventory records the new
   edges.
-- If an E7 owner lands, its opcode becomes analyzable by extending the excluded
-  set, not by weakening the guard.
+- If an E7 owner lands, its opcode becomes analyzable by removing it from the
+  excluded set, not by weakening the guard.

@@ -2032,16 +2032,16 @@ mod tests {
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
         build_entity_object,
         value::{
-            BlockBody, ConstantBody, ContractBody, DependencyBindingBody, EffectDefBody,
-            EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody, OperationBody,
-            ParameterBody, TestCaseBody, TypeDefBody,
+            AdapterImportBody, BlockBody, CapabilityRequirementBody, ConstantBody, ContractBody,
+            DependencyBindingBody, EffectDefBody, EntityBodyValue, EntityIdSet, FunctionBody,
+            NamespaceBody, OperationBody, ParameterBody, TestCaseBody, TypeDefBody,
         },
     };
     use sley_ssmc::{
-        ConstData, ConstValue, ContractBinding, ContractKind, ContractSource, EffectEnvironment,
-        ExpectedOutcome, Immediate, Opcode, OperationResultRef, ParameterRole, Reachability,
-        ResourceLimits, ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr,
-        TypeParameterDef, ValueRef, Visibility,
+        BuiltinFailureKind, ConstData, ConstValue, ContractBinding, ContractKind, ContractSource,
+        EffectEnvironment, ExpectedOutcome, Immediate, Opcode, OperationResultRef, ParameterRole,
+        Reachability, ResourceLimits, ReturnTerminator, Terminator, TypeDefForm, TypeDefinition,
+        TypeExpr, TypeParameterDef, ValueRef, Visibility,
     };
     use sley_state_root::{
         StateRootBuilder, conformance_epoch_id as state_epoch_id,
@@ -3191,10 +3191,12 @@ mod tests {
             "SCB_RESOURCE_LIMIT",
         );
 
-        // Every E7 opcode is refused by its own owner before the phase 12
-        // guard can see it: contracts at phase 10, tests at phase 11, and
-        // effects, adapters, and capabilities at phase 8. The guard stays as
-        // the last line of defense if an owner ever admits one.
+        // Ill-formed E7 operations are refused by their owner's type check:
+        // contracts at phase 10, tests at phase 11, and effects, adapters,
+        // and capabilities at phase 8. Every case below carries empty
+        // contracts, effects, and operands by construction, so this loop
+        // proves only the malformed case; well-formed instances pass their
+        // owners and are covered by the next two tests.
         for (nonce, opcode, decision, phase, symbol) in [
             (
                 62_u8,
@@ -3292,6 +3294,592 @@ mod tests {
             assert_eq!(record.diagnostics[0].source_symbol, symbol, "{opcode:?}");
             assert_eq!(record.candidate_root, None, "{opcode:?}");
         }
+
+        // Opcode 145 is refused unconditionally: even a shaped `TestObserve`
+        // with an operand and a result never passes its owner.
+        let nonce = 69_u8;
+        let function = fixture.created_id(nonce, 5, 0);
+        let block = fixture.created_id(nonce, 7, 1);
+        let constant = fixture.created_id(nonce, 9, 2);
+        let produce = fixture.created_id(nonce, 8, 3);
+        let observe = fixture.created_id(nonce, 8, 4);
+        let shaped = fixture.create_candidate(
+            nonce,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![],
+                        result_type: TypeExpr::Unit,
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![produce, observe],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation: observe,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::Entity(constant),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 1,
+                        opcode: Opcode::TestObserve.tag(),
+                        operands: vec![ValueRef::OperationResult(OperationResultRef {
+                            operation: produce,
+                            result_index: 0,
+                        })],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::None,
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &shaped.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::TestPlanError,
+            11,
+            "TEST_PLAN_OBSERVATION_UNSUPPORTED",
+        );
+    }
+
+    /// S20-360 full: a well-formed excluded operation passes its owner's
+    /// phase, so the phase 12 guard is the live refusal path, not defense in
+    /// depth. A well-formed `ContractAssert` clears phase 10 and is refused
+    /// at phase 12 with `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn well_formed_contract_assert_reaches_the_phase_twelve_guard() {
+        let fixture = Fixture::valid();
+        let nonce = 72_u8;
+        let function = fixture.created_id(nonce, 5, 0);
+        let parameter = fixture.created_id(nonce, 6, 1);
+        let block = fixture.created_id(nonce, 7, 2);
+        let contract = fixture.created_id(nonce, 13, 3);
+        let operation = fixture.created_id(nonce, 8, 4);
+        let predicate = fixture.created_id(nonce, 5, 5);
+        let predicate_parameter = fixture.created_id(nonce, 6, 6);
+        let predicate_block = fixture.created_id(nonce, 7, 7);
+        let predicate_constant = fixture.created_id(nonce, 9, 8);
+        let predicate_operation = fixture.created_id(nonce, 8, 9);
+        let assert_result = TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::BuiltinFailure(
+                BuiltinFailureKind::ContractViolation,
+            )),
+        };
+        let candidate = fixture.create_candidate(
+            nonce,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![parameter],
+                        result_type: assert_result.clone(),
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![contract]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: TypeExpr::Unit,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![operation],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (
+                    13,
+                    EntityBodyValue::Contract(ContractBody {
+                        target: function,
+                        contract_kind: ContractKind::Precondition,
+                        predicate,
+                        bindings: vec![ContractBinding {
+                            predicate_parameter: 0,
+                            source: ContractSource::Parameter(parameter),
+                        }],
+                        resource_limits: None,
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: Opcode::ContractAssert.tag(),
+                        operands: vec![ValueRef::Parameter(parameter)],
+                        result_types: vec![assert_result],
+                        immediate: Immediate::Entity(contract),
+                    }),
+                ),
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![predicate_parameter],
+                        result_type: TypeExpr::Bool,
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: predicate_block,
+                        blocks: vec![predicate_block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: predicate,
+                        role: ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: TypeExpr::Unit,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function: predicate,
+                        parameters: vec![],
+                        operations: vec![predicate_operation],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation: predicate_operation,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (
+                    9,
+                    EntityBodyValue::Constant(ConstantBody {
+                        value: ConstValue {
+                            value_type: TypeExpr::Bool,
+                            data: ConstData::Bool(false),
+                        },
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block: predicate_block,
+                        ordinal: 0,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Bool],
+                        immediate: Immediate::Entity(predicate_constant),
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::ResourceLimit,
+            12,
+            "CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED",
+        );
+    }
+
+    /// S20-360 full: well-formed effect operations pass the phase 8 owner,
+    /// which validates the request shape instead of refusing the opcode. The
+    /// candidates below stop past phase 8 on their documented downstream
+    /// gates; none fails with the owner's type symbol.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn well_formed_effect_operations_pass_the_phase_eight_owner() {
+        let fixture = Fixture::valid();
+
+        // 160 `effect_request` with a well-typed scope and request: phase 8
+        // accepts the request, and the candidate stops at the phase 9
+        // capability gate, which this fixture does not satisfy.
+        let nonce = 71_u8;
+        let function = fixture.created_id(nonce, 5, 0);
+        let block = fixture.created_id(nonce, 7, 1);
+        let constant = fixture.created_id(nonce, 9, 2);
+        let effect = fixture.created_id(nonce, 11, 3);
+        let const_a = fixture.created_id(nonce, 8, 4);
+        let const_b = fixture.created_id(nonce, 8, 5);
+        let request = fixture.created_id(nonce, 8, 6);
+        let request_result = TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::Unit),
+        };
+        let candidate = fixture.create_candidate(
+            nonce,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![],
+                        result_type: request_result.clone(),
+                        effects: EntityIdSet::from_unsorted(vec![effect]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![const_a, const_b, request],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation: request,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
+                (
+                    11,
+                    EntityBodyValue::EffectDef(EffectDefBody {
+                        effect_kind: EffectKind::StdoutWrite,
+                        scope_type: TypeExpr::Unit,
+                        request_type: TypeExpr::Unit,
+                        response_type: TypeExpr::Unit,
+                        failure_type: TypeExpr::Unit,
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::Entity(constant),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 1,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::Entity(constant),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 2,
+                        opcode: Opcode::EffectRequest.tag(),
+                        operands: vec![
+                            ValueRef::OperationResult(OperationResultRef {
+                                operation: const_a,
+                                result_index: 0,
+                            }),
+                            ValueRef::OperationResult(OperationResultRef {
+                                operation: const_b,
+                                result_index: 0,
+                            }),
+                        ],
+                        result_types: vec![request_result],
+                        immediate: Immediate::Entity(effect),
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        let record = &output.result().record;
+        assert_ne!(record.diagnostics[0].phase_tag, 8, "effect_request refused");
+        assert_terminal(
+            &output,
+            CandidateDecision::CapabilityDenied,
+            9,
+            "CAPABILITY_REQUIREMENT_MISSING",
+        );
+
+        // 161 `adapter_invoke` against a single-effect adapter: phase 8
+        // accepts the invocation shape, and the candidate stops at the same
+        // phase 9 gate.
+        let nonce = 73_u8;
+        let function = fixture.created_id(nonce, 5, 0);
+        let block = fixture.created_id(nonce, 7, 1);
+        let constant = fixture.created_id(nonce, 9, 2);
+        let effect = fixture.created_id(nonce, 11, 3);
+        let adapter = fixture.created_id(nonce, 15, 4);
+        let const_a = fixture.created_id(nonce, 8, 5);
+        let const_b = fixture.created_id(nonce, 8, 6);
+        let invoke = fixture.created_id(nonce, 8, 7);
+        let invoke_result = TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::Unit),
+        };
+        let candidate = fixture.create_candidate(
+            nonce,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![],
+                        result_type: invoke_result.clone(),
+                        effects: EntityIdSet::from_unsorted(vec![effect]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![const_a, const_b, invoke],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation: invoke,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (9, EntityBodyValue::Constant(ConstantBody { value: unit() })),
+                (
+                    11,
+                    EntityBodyValue::EffectDef(EffectDefBody {
+                        effect_kind: EffectKind::AdapterCall,
+                        scope_type: TypeExpr::Unit,
+                        request_type: TypeExpr::Unit,
+                        response_type: TypeExpr::Unit,
+                        failure_type: TypeExpr::Unit,
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    15,
+                    EntityBodyValue::AdapterImport(AdapterImportBody {
+                        adapter_id: [7; 32],
+                        abi_version: 1,
+                        request_type: TypeExpr::Unit,
+                        response_type: TypeExpr::Unit,
+                        failure_type: TypeExpr::Unit,
+                        effects: EntityIdSet::from_unsorted(vec![effect]).unwrap(),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::Entity(constant),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 1,
+                        opcode: Opcode::ConstantRef.tag(),
+                        operands: vec![],
+                        result_types: vec![TypeExpr::Unit],
+                        immediate: Immediate::Entity(constant),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 2,
+                        opcode: Opcode::AdapterInvoke.tag(),
+                        operands: vec![
+                            ValueRef::OperationResult(OperationResultRef {
+                                operation: const_a,
+                                result_index: 0,
+                            }),
+                            ValueRef::OperationResult(OperationResultRef {
+                                operation: const_b,
+                                result_index: 0,
+                            }),
+                        ],
+                        result_types: vec![invoke_result],
+                        immediate: Immediate::Entity(adapter),
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        let record = &output.result().record;
+        assert_ne!(record.diagnostics[0].phase_tag, 8, "adapter_invoke refused");
+        assert_terminal(
+            &output,
+            CandidateDecision::CapabilityDenied,
+            9,
+            "CAPABILITY_REQUIREMENT_MISSING",
+        );
+
+        // 162 `capability_narrow` over a declared requirement: narrowing
+        // adds nothing to the effect closure, so the candidate clears phases
+        // 8 and 9 and is refused at the phase 12 guard.
+        let nonce = 74_u8;
+        let function = fixture.created_id(nonce, 5, 0);
+        let token_parameter = fixture.created_id(nonce, 6, 1);
+        let scope_parameter = fixture.created_id(nonce, 6, 2);
+        let block = fixture.created_id(nonce, 7, 3);
+        let effect = fixture.created_id(nonce, 11, 4);
+        let requirement = fixture.created_id(nonce, 12, 5);
+        let narrow = fixture.created_id(nonce, 8, 6);
+        let token = TypeExpr::CapabilityToken(requirement);
+        let narrow_result = TypeExpr::Result {
+            ok: Box::new(token.clone()),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability)),
+        };
+        let candidate = fixture.create_candidate(
+            nonce,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![token_parameter, scope_parameter],
+                        result_type: narrow_result.clone(),
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: token,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: ParameterRole::Function,
+                        ordinal: 1,
+                        value_type: TypeExpr::Unit,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![narrow],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::OperationResult(OperationResultRef {
+                                operation: narrow,
+                                result_index: 0,
+                            }),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (
+                    11,
+                    EntityBodyValue::EffectDef(EffectDefBody {
+                        effect_kind: EffectKind::StdoutWrite,
+                        scope_type: TypeExpr::Unit,
+                        request_type: TypeExpr::Unit,
+                        response_type: TypeExpr::Unit,
+                        failure_type: TypeExpr::Unit,
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    12,
+                    EntityBodyValue::CapabilityRequirement(CapabilityRequirementBody {
+                        effect,
+                        allowed_scopes: vec![],
+                        constraint_contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    }),
+                ),
+                (
+                    8,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: Opcode::CapabilityNarrow.tag(),
+                        operands: vec![
+                            ValueRef::Parameter(token_parameter),
+                            ValueRef::Parameter(scope_parameter),
+                        ],
+                        result_types: vec![narrow_result],
+                        immediate: Immediate::Entity(requirement),
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::ResourceLimit,
+            12,
+            "CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED",
+        );
     }
 
     /// S20-360 full: a program whose operations are all E1 through E6 is

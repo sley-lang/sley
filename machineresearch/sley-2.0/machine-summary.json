@@ -1904,7 +1904,7 @@
     "result_codec": "crates/sley-policy/src/candidate_result.rs",
     "validation_phases": 14,
     "terminal_decisions": 16,
-    "native_pipeline_tests": 12,
+    "native_pipeline_tests": 14,
     "accepted_result_vectors": 16,
     "rejected_result_mutations": 4,
     "native_fixture_byte_agreement": "PASS",
@@ -1918,7 +1918,7 @@
     "closeout_audit": "docs/audits/S20_360_CANDIDATE_VALIDATION_CLOSEOUT.md",
     "validation_evidence": "evidence/validation/s20-360-candidate-validation-closeout-v1.json",
     "operation_success_subset": "extended-opcode-families-e1-through-e6",
-    "unsupported_operation_result": "CANDIDATE_VALIDATION_RESOURCE_LIMIT:CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED (defense in depth; every E7 opcode is refused by its own phase first)",
+    "unsupported_operation_result": "CANDIDATE_VALIDATION_RESOURCE_LIMIT:CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED (live refusal path for well-formed E7 programs that clear their owning phases; only opcode 145 is refused unconditionally)",
     "accepted_state_mutation": false,
     "capability_ledger_mutation": false,
     "candidate_authority": false,
@@ -1939,11 +1939,11 @@
       162
     ],
     "excluded_operation_refusals": {
-      "144": "phase 10 CONTRACT_ASSERT_TYPE",
-      "145": "phase 11 TEST_PLAN_OBSERVATION_UNSUPPORTED",
-      "160": "phase 8 EFFECT_REQUEST_TYPE",
-      "161": "phase 8 ADAPTER_INVOKE_TYPE",
-      "162": "phase 8 CAPABILITY_REQUIREMENT_TYPE"
+      "144": "phase 10 validates the assertion shape (CONTRACT_ASSERT_TYPE only when malformed); well-formed instances are refused at the phase 12 guard",
+      "145": "phase 11 TEST_PLAN_OBSERVATION_UNSUPPORTED unconditionally",
+      "160": "phase 8 validates the request shape (EFFECT_REQUEST_TYPE only when malformed); well-formed instances pass phase 8",
+      "161": "phase 8 validates the invocation shape (ADAPTER_INVOKE_TYPE only when malformed); well-formed instances pass phase 8",
+      "162": "phase 8 validates the narrowing shape (CAPABILITY_REQUIREMENT_TYPE only when malformed); well-formed instances are refused at the phase 12 guard"
     },
     "adr": "docs/adr/ADR-0044-candidate-operation-analysis-through-the-vm-owner.md",
     "ariadne_operation_analysis_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
@@ -1952,7 +1952,13 @@
     "validator_source_symbols": 26,
     "source_symbol_registration": "CANDIDATE_RESULT_V1.md section 8.1 (2026-09-03) enumerates the twenty-six source symbols the validator originates; fourteen appeared in no governed document before. The checker compares the table with the implementation's literals in both directions and requires one retryability per symbol",
     "retryability_finding": "CAP_EFFECT_MISMATCH reported FreshAuthority for a token whose effect kind is unknown and Permanent for a program requirement whose effect does not resolve. The second case involves no token, so it now reports CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED and no longer borrows the S20-380 numeric code",
-    "p0_open_count": 3
+    "p0_open_count": 0,
+    "p0_open": [],
+    "p0_closed": [
+      "CANDIDATE_RESULT_V1 section 9, ADR-0044 point 4, and the closeout addendum claimed every E7 opcode is refused by its own phase owner and the phase 12 guard is unreachable; verified false for 144, 160, 161, and 162, whose owners validate shapes and accept well-formed instances. Raised by ariadne (P0-1) and vulcan (P0). Section 9 now states the per-opcode behavior accurately, only 145 is refused unconditionally, and the guard as the live refusal path for well-formed E7 programs; ADR-0044 decision 4 corrected the same way.",
+      "the malformed-operation matrix test built every E7 case with empty contracts, effects, and operands, proving only ill-formed refusal while cited as general proof. Raised by ariadne (P0-2). The test comment now states the malformed-only scope; well-formed instances are proven by well_formed_contract_assert_reaches_the_phase_twelve_guard (144 refused at phase 12), well_formed_effect_operations_pass_the_phase_eight_owner (160 and 161 pass phase 8; 162 refused at phase 12), and a shaped-145 case proving unconditional refusal at phase 11.",
+      "Phase 12 guard reachability through well-typed opcodes 144, 160, 161, and 162, executed live: a well-formed contract_assert program clears phases 1 through 11 and is refused at phase 12 with CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED. Raised by vulcan (P0); same root cause and fix as the ariadne P0-1 above."
+    ]
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",

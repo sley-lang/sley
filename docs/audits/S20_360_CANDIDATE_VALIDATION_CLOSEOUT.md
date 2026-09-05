@@ -130,14 +130,22 @@ a phase 7 `CONTROL_FLOW_ERROR` carrying `VM_LOWER_SIGNATURE_MISMATCH` or
 `VM_LOWER_IMMEDIATE_MISMATCH`, a lowering resource ceiling is a phase 7
 `RESOURCE_LIMIT`, and anything else is a phase 7 `INTERNAL_ERROR`.
 
-The five E7 opcodes stay unowned, and the matrix test records that each is
-refused by the owner of its own phase before the phase 12 guard is reached
-(144 at phase 10 `CONTRACT_ASSERT_TYPE`; 145 at phase 11
-`TEST_PLAN_OBSERVATION_UNSUPPORTED`; 160, 161, and 162 at phase 8
-`EFFECT_REQUEST_TYPE`, `ADAPTER_INVOKE_TYPE`, and
-`CAPABILITY_REQUIREMENT_TYPE`). The guard remains as defense in depth.
+The five E7 opcodes stay excluded from phase 7 analysis, and only test
+observation 145 is refused unconditionally (phase 11
+`TEST_PLAN_OBSERVATION_UNSUPPORTED`, whatever shape it takes). The other four
+owners validate shapes and accept well-formed instances — 144 at phase 10,
+160, 161, and 162 at phase 8 — so the phase 12 guard is the live refusal path
+for well-formed E7 programs, not defense in depth. The malformed-operation
+matrix test records owner refusal of ill-formed instances only; well-formed
+instances are proven by `well_formed_contract_assert_reaches_the_phase_twelve_guard`
+(144 refused at phase 12), `well_formed_effect_operations_pass_the_phase_eight_owner`
+(160 and 161 pass phase 8; 162 clears phases 8 and 9 and is refused at phase
+12), and the shaped-145 case inside the matrix test.
 
 Still absent: mandatory production-epoch semantic fingerprints, accepted-state
 writes, capability budget consumption, atomic commit, receipts, refs, CAS,
 runtime effects, and every publication gate. The package's Council reviews of
-the extended profile and of this addendum remain pending.
+the extended profile and of this addendum landed 2026-09-04 with three
+freeze-blocking findings, closed by the revision recorded in
+`docs/spec/CANDIDATE_RESULT_V1.md` section 9; lower-severity findings remain
+open and are tracked in the finding register.
