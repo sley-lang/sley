@@ -726,7 +726,14 @@
     "persistent_fuzz_target": "fuzz/targets/context_capsule_builder.rs",
     "closeout": "docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md",
     "fixture_vectors": 24,
-    "p0_open_count": 7
+    "p0_open_count": 0,
+    "p0_closed": [
+      "section 6 omitted the u64be(response_bytes) length prefix both encoders emit before the copied SLEYRQR1 record and never defined bytes(x), so a contract-exact reader derived a different ContextCapsuleId for every vector; raised independently by ariadne, nabu, and vulcan. Section 6 now spells the prefix, defines bytes(x) as raw bytes without a prefix, and refuses a length mismatch with CONTEXT_CAPSULE_SOURCE_INVALID; the oracle reproduces all 24 vectors to PASS",
+      "section 11 excluded the Negotiated arm as reserved and not constructible while section 2 made it constructible via build_context_capsule_bound; raised by ariadne. The arm is kept and minted only by SessionAuthority::bind_context_capsule over a live session, and section 11, ADR-0031, the closeout, and the campaign record all state the kept arm",
+      "the stage checker required both the old fixed-None rule and the new arm and reported PASS while ADR-0031, the campaign record, and the closeout still stated the old rule; raised by nabu. The checker binds the authority markers and cross-checks the contract, ADR, and closeout revisions, and fails closed with revision-drift on a stale boundary record (verified live by drift injection in the disposition session)",
+      "the kept Negotiated arm had no conformance vector, no oracle path, and no fuzz coverage; raised by nabu. The corpus carries the bound class-01 vector under a fixed fixture session (24 vectors), the oracle reproduces the arm bytes and session identity and refuses a corpus with no negotiated vector, and the persistent fuzz target covers the arm encoding",
+      "build_context_capsule_bound was a public constructor with entirely caller-declared session binding, so any SessionId was mintable into the master capsule identity; raised by vulcan. The constructor is deleted (zero references in tree) and the encoding primitive takes no provenance; minting runs only through the session authority, pinned by session_bound_capsules_are_minted_from_live_authority_state"
+    ]
   },
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
@@ -770,7 +777,15 @@
     ],
     "closeout": "docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md",
     "restricted_profile_viable": true,
-    "p0_open_count": 6
+    "p0_open_count": 0,
+    "p0_closed": [
+      "SESSION_UNKNOWN 33000 was unreachable because admission and the budget gate preceded the binding checks, and SESSION_BINDING_INVALID 33007 was specified for a headless repository while actually meaning ordinal exhaustion, duplicate identity, or bindings/kinds misalignment; raised by ariadne. Liveness precedes admission and the budget follows the binding checks so the documented order is the implemented order, pinned by binding_failures_precede_budget_exhaustion, and 33007 is enumerated as the authority-cannot-bind bucket with headless open traveling under the S20-390 loader owner code",
+      "the contract floated over draft SMP1 revision 8 and capsule revision 2 while pinning neither, and ERROR_CODES_V1 called 33000-33007 reserved rather than frozen; raised by ariadne. Revision 2 pins SMP1 revision 10 and capsule revision 3 with checker-enforced pins, and ERROR_CODES_V1 freezes the eight codes per row",
+      "SessionId was a deterministic digest of public head state with no per-instance or per-peer binding, so any peer could compute a live SessionId and spend, renew, or close another caller's session, and a twin server minted the identical id; raised by ariadne and vulcan. The preimage gains a per-instance server nonce, twin instances never share an identity space, restarts forget every pre-restart name, and peer isolation is a recorded T56 transport obligation rather than a silent gap; pinned by issuance_binds_head_and_nonce_separates_instances",
+      "the sessionless workspace.create/exchange.import exemption was unconditional, so exchange.import mutated the repository and advanced the head with no session, bypassing workspace, epoch, admission, request-id, and budget checks; raised by nabu. The exemption ends at the first head, pinned by the sessionless genesis gate in the server matrix",
+      "positional handles survived renewal because only the bound root was compared, so the same handle numeral resolved to a different entity under the new root with no error; raised by vulcan. handle.expand carries the expected StateRoot checked server-side, and old-root handles stay stale after renewal by construction; pinned by handles_name_their_expected_root and the T15 lifecycle in the server matrix",
+      "live sessions and remembered closes grew without bound and renewal/close were under-checked (the freeze-blocking P1s); negotiated max_sessions travels as the eighth limit field capping live sessions with remembered closes capped FIFO at the same number, close and renew are fully checked, and the renew body must name the frame session; pinned by live_sessions_are_capped_by_max_sessions, live_sessions_are_capped_and_restarts_forget, and renewal_limit_is_exact"
+    ]
   },
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
