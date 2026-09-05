@@ -790,7 +790,7 @@
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 5,
+    "contract_revision": 6,
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -826,7 +826,13 @@
     "independent_oracle": "scripts/check_smp1_json_bridge_vector.py",
     "persistent_fuzz_slice": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
     "closeout": "docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md",
-    "p0_open_count": 4
+    "p0_open_count": 0,
+    "p0_closed": [
+      "section 8 said -0 reads as the integer zero, but serde_json parses -0 as F64(-0.0) so the crate answered NUMBER_INVALID while the Python oracle accepted it as zero, with no test or vector covering the divergence; raised by ariadne. The reader normalizes negative zero to 0 on both spellings (-0 and -0.0, verified indistinguishable in the parser source), the oracle's float branch agrees, and the contract states both spellings; pinned by two matrix mutations plus field-level probes",
+      "the bridge answered SHAPE_INVALID for the hello session, request id, method, and flags that the codec already judges PROTOCOL_FRAME_INVALID, contradicting section 3, SMP1 section 8, and ADR-0034 decision 5; raised by nabu. The reader builds the frame and calls the codec's new ProtocolFrame::validate_header, so violations keep the codec's code with no silent header rewriting (which also closed a second hole: a hello text's protocol version now reaches codec judgment instead of being dropped); the all-zero bounds stay the bridge's own shape rule since SMP1 states no bounds rule; pinned by four re-coded plus two new matrix mutations",
+      "precedence 'field encodings in field order' was undefined because section 1 defined field order as lexicographic while the crate, the oracle, and the vectors all ran declaration order, so a contract-conformant reader failed the matrix; raised by vulcan. Precedence order is now the record's declared field order, disambiguated in section 1 from the lexicographic emission order both sides produce (emission untouched, round-trip fixture byte-identical)",
+      "integer field widths were undeclared: section 2 typed every field 'integer' while readers demote six fields to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract; raised by vulcan. Widths are declared per field (the six named fields plus max_sessions and method tags), and the matrix gains max_sessions overflow plus failure code/phase unit pins"
+    ]
   },
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
