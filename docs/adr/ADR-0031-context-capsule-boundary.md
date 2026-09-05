@@ -1,6 +1,6 @@
 # ADR-0031: Context capsule provenance and omission boundary
 
-Status: proposed; the S20-320 full contract is a draft at revision 1 with
+Status: proposed; the S20-320 full contract is a draft at revision 3 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`)
 
@@ -15,7 +15,9 @@ lawfully and no verified workspace, root, or session existed (ADR-0013).
 The full S20-310 engine now answers nineteen classes over a verified root
 with exact `total_count` and typed continuation cursors, so a capsule can
 carry lawful omission status and verified provenance without inventing
-either. S20-330 still owns negotiated session authority.
+either. S20-330 owns negotiated session authority, and the capsule
+consumes its binding only through the authority's mint; the capsule
+itself stays evidence, never a handle.
 
 The Council lanes were still unavailable at this draft (see ADR-0026); the
 design is the integrator's and is submitted to Ariadne, Nabu, and Vulcan as
@@ -32,9 +34,12 @@ soon as a lane returns.
 2. **Bound source only.** The constructor accepts one `RootQueryRequest`
    and the `RootQueryResponse` produced for it, bound by query identity;
    nothing else can construct a capsule.
-3. **Session reserved, never implied.** The session binding is the fixed
-   arm `None`; the `Negotiated` arm is reserved for S20-330 and not
-   constructible, so no capsule is a handle.
+3. **Session bound, never implied.** The session binding is the arm
+   `None` outside a session. The `Negotiated` arm is minted only by
+   `SessionAuthority::bind_context_capsule` over a live session whose
+   authority-held workspace, root, and epoch equal the response
+   provenance; unknown and closed sessions are refused, so no capsule
+   is a handle and no caller-declared provenance enters the identity.
 4. **Master identity.** The registered `sley2.context-capsule.v1` domain
    names the capsule; the restricted `SLEYRQC1` capsule is untouched.
 5. **Codes.** Four codes 32008 through 32011 are appended to the frozen

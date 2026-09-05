@@ -701,7 +701,7 @@
   "context_capsule_profile": {
     "status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
     "checker": "scripts/check_context_capsule_profile.py",
     "identifier_domain": "sley2.context-capsule.v1",
@@ -723,7 +723,7 @@
     "oracle": "scripts/check_context_capsule_vector.py",
     "persistent_fuzz_target": "fuzz/targets/context_capsule_builder.rs",
     "closeout": "docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md",
-    "fixture_vectors": 23,
+    "fixture_vectors": 24,
     "p0_open_count": 7
   },
   "session_handle_profile": {

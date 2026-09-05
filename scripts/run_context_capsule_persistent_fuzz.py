@@ -159,7 +159,7 @@ def generate_seed_corpus() -> int:
     accepted = json.loads(FIXTURE.read_text(encoding="utf-8"))
     if accepted.get("contract") != "sley2-context-capsule-v1":
         raise SystemExit("context capsule fixture contract drifted")
-    if len(accepted.get("vectors", [])) != 23:
+    if len(accepted.get("vectors", [])) != 24:
         raise SystemExit("context capsule fixture vector count drifted")
 
     seeds: list[bytes] = []

@@ -15,13 +15,14 @@
 use core::slice;
 
 use sley_id::{
-    EntityId, ObjectId, PolicyRootId, SchemaEpochId, SemanticFingerprint, StateRoot, WorkspaceId,
+    EntityId, ObjectId, PolicyRootId, SchemaEpochId, SemanticFingerprint, SessionId, StateRoot,
+    WorkspaceId,
 };
 use sley_query::{
     CapsuleCompleteness, CompleteRootFacts, ContextCapsuleErrorCode, Cursor, ImpactEntity,
     ImpactKind, ModeledEntityKind, QueryLimits, RootQuery, RootQueryInput,
-    build_complete_root_snapshot, build_context_capsule, build_root_query_request,
-    execute_root_query, judge_complete_root,
+    build_complete_root_snapshot, build_context_capsule, build_context_capsule_session,
+    build_root_query_request, execute_root_query, judge_complete_root,
 };
 use sley_ssmc::{
     AdapterImport, Block, CapabilityRequirement, ConstData, ConstValue, ConstantDefinition,
@@ -571,6 +572,30 @@ fn fuzz_one(input: &[u8]) {
     }
     let again = build_context_capsule(&request, &response).expect("repeatable capsule");
     assert_eq!(again, capsule, "capsule drifted between builds");
+    // The negotiated arm is orthogonal encoding: the same pair under a
+    // fuzz-derived session carries the session, changes the identity,
+    // and keeps the facts. Provenance verification is not fuzzed here;
+    // it belongs to `SessionAuthority::bind_context_capsule`, which the
+    // target cannot mint by construction.
+    let mut session_bytes = [0x5E; 32];
+    session_bytes[0] = reader.byte();
+    let session = SessionId::from_bytes(session_bytes);
+    let bound = build_context_capsule_session(&request, &response, session)
+        .expect("the arm must not refuse an engine pair");
+    assert_eq!(bound.session(), Some(session));
+    assert_ne!(bound.capsule_id(), capsule.capsule_id());
+    assert_eq!(bound.entities(), capsule.entities());
+    assert_eq!(bound.kinds(), capsule.kinds());
+    assert_eq!(bound.omitted(), capsule.omitted());
+    assert!(
+        bound
+            .record()
+            .windows(32)
+            .any(|window| window == session.as_bytes())
+    );
+    let bound_again = build_context_capsule_session(&request, &response, session)
+        .expect("repeatable bound capsule");
+    assert_eq!(bound_again, bound, "bound capsule drifted between builds");
     // Walk the continuation as capsules: one exact total, never complete.
     let mut pages = 1;
     let mut cursor = capsule.next_after();

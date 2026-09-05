@@ -29,7 +29,7 @@ use sley_policy::{
 };
 use sley_query::{
     Cursor, ImpactEdge, ImpactKind, IndexCompleteness, ModeledEntityKind, QueryLimits,
-    RestrictedQuery, RootQuery, SnapshotContext, build_context_capsule_bound, build_index_snapshot,
+    RestrictedQuery, RootQuery, SnapshotContext, build_index_snapshot,
     build_restricted_query_request, execute_restricted_query,
 };
 use sley_repo::{
@@ -50,7 +50,7 @@ use sley_store::ObjectStore;
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
 use sley_vm::{CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, execute_function};
 
-use crate::session::{HeadBinding, SessionAuthority, SessionError};
+use crate::session::{CapsuleBindError, HeadBinding, SessionAuthority, SessionError};
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
     FLAG_FAILED, FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError,
@@ -927,18 +927,25 @@ impl Server {
         if outcome.request.preimage() != body {
             return owner_failure("QUERY_SNAPSHOT_MISMATCH", 31_003);
         }
-        let record = self.authority.record(session).copied().ok_or_else(|| {
-            session_failure(SessionError::new(crate::session::SessionErrorCode::Unknown))
-        })?;
-        let capsule = build_context_capsule_bound(
-            &outcome.request,
-            &outcome.response,
-            session,
-            record.workspace_id,
-            record.bound_root,
-            record.schema_epoch,
-        )
-        .map_err(|error| owner(error.code().as_str(), error.code().numeric()))?;
+        // The bound capsule is minted by the session authority, never
+        // from caller-declared provenance: the authority verifies the
+        // session is live and its binding equals the response provenance
+        // (capsule contract section 2).
+        let capsule =
+            match self
+                .authority
+                .bind_context_capsule(session, &outcome.request, &outcome.response)
+            {
+                Ok(capsule) => capsule,
+                Err(CapsuleBindError::UnknownSession) => {
+                    return Err(session_failure(SessionError::new(
+                        crate::session::SessionErrorCode::Unknown,
+                    )));
+                }
+                Err(CapsuleBindError::Capsule(error)) => {
+                    return Err(owner(error.code().as_str(), error.code().numeric()));
+                }
+            };
         let body = capsule.record().to_vec();
         let bounds = BoundedContext {
             applied_limits: self.profile.limits,

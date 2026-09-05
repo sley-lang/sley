@@ -30,8 +30,9 @@ checker `scripts/check_context_capsule_profile.py`.
   fingerprints).
 - The constructor accepts one `RootQueryRequest` and its `RootQueryResponse`
   bound by query identity; nothing else constructs a capsule.
-- Session binding is the fixed arm `None`; `Negotiated` is reserved for
-  S20-330.
+- Session binding is the arm `None` outside a session; `Negotiated` is
+  minted only by `SessionAuthority::bind_context_capsule` over a live
+  session (contract revision 3, review slice 2026-09-05).
 - `SLEYCCP1` record under the master domain; codes 32008 through 32011.
 - Repository surface `run_context_capsule` over the S20-310 full surface.
 

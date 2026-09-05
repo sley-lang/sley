@@ -1,7 +1,9 @@
 # Context Capsule Profile v1
 
-Status: S20-320 full contract draft, revision 2 (2026-09-03; revision 2 fills
-the `Negotiated` session arm from S20-330); implemented
+Status: S20-320 full contract draft, revision 3 (2026-09-05; revision 3
+spells the `u64be(response_bytes)` record prefix, mints the `Negotiated`
+session arm through the session authority only, and reconciles section 11
+and ADR-0031 with the kept arm); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Implementation state is tracked in the
@@ -39,14 +41,19 @@ sley2.context-capsule.v1 -> ContextCapsuleId
 ContextCapsuleId = BLAKE3-256("sley2.context-capsule.v1" || capsule_preimage)
 ```
 
-The only public constructor is
+The two public construction paths are
 `build_context_capsule(request, response)` over one `RootQueryRequest` and
-the `RootQueryResponse` the engine produced for it. The two are bound by
-`request.query_id == response.query_id`, and both can only be constructed
-by the S20-310 full engine, whose input binding verified the root, epoch,
-workspace, snapshot, bodies, and bindings. Query failures, partial bytes,
-raw `SLEYRQR1` records, restricted responses, caller-provided
-dictionaries, and caller-declared provenance cannot construct a capsule.
+the `RootQueryResponse` the engine produced for it, which carries arm
+`None`; and `SessionAuthority::bind_context_capsule(session, request,
+response)` (S20-330 session authority), which carries arm `Negotiated`.
+The two are bound by `request.query_id == response.query_id`, and both
+can only be constructed by the S20-310 full engine, whose input binding
+verified the root, epoch, workspace, snapshot, bodies, and bindings.
+Query failures, partial bytes, raw `SLEYRQR1` records, restricted
+responses, caller-provided dictionaries, and caller-declared provenance
+cannot construct a capsule: the session arm takes no provenance arguments,
+and whether a response's provenance equals a live session's binding is
+known only to the authority, which refuses unknown and closed sessions.
 
 ## 2. Provenance and session binding
 
@@ -58,17 +65,21 @@ Provenance {
   snapshot_id:  IndexSnapshotId,
   query_id:     RootQueryId
 }
-SessionBinding = None(1) | Negotiated(2) || SessionId[32]   // S20-330
+SessionBinding = None(1) | Negotiated(2); when the arm is
+Negotiated(2), SessionId[32] follows the arm tag.   // S20-330
 ```
 
 Provenance is copied from the response, whose fields the engine bound to a
 verified root; the capsule adds no claim of its own. A capsule built
 outside a session carries arm `None`. A capsule built under a negotiated
-session (S20-330, `build_context_capsule_bound`) carries arm `Negotiated`
-with the `SessionId`, and the builder fails `CONTEXT_CAPSULE_SOURCE_INVALID`
-when the response's workspace, root, or epoch differs from the session's
-binding. The capsule is root-, epoch-, and workspace-bound evidence, and
-never a handle.
+session (S20-330, `SessionAuthority::bind_context_capsule`) carries arm
+`Negotiated` with the `SessionId`, and minting fails `SESSION_UNKNOWN`
+when the session is not live under the authority, and
+`CONTEXT_CAPSULE_SOURCE_INVALID` when the response's workspace, root, or
+epoch differs from the session's authority-held binding. The capsule is
+root-, epoch-, and workspace-bound evidence, and never a handle: no
+consumer may read `capsule.session()` as session authority, and the arm
+carries the binding the authority verified, not a right to act.
 
 ## 3. Question
 
@@ -129,7 +140,9 @@ copied record.
 ## 6. Canonical record
 
 All integers are fixed-width big endian; lists, options, and cursors use
-the S20-310 encodings.
+the S20-310 encodings. `bytes(x)` is the raw bytes of `x` with no length
+prefix; every other variable-length field in this preimage is
+length-prefixed as written.
 
 ```text
 capsule_preimage =
@@ -142,7 +155,7 @@ capsule_preimage =
   u32be(completeness) || u32be(truncation) ||
   u64be(total_count) || u64be(returned) || u64be(omitted) ||
   option(cursor, next_after) ||
-  bytes(exact_SLEYRQR1_response_record) ||
+  u64be(response_bytes) || bytes(exact_SLEYRQR1_response_record) ||
   list(EntityId[32], entities) || list(u32be(kind), kinds) ||
   list(u32be(dependent_index) || u32be(dependency_index) ||
        u32be(impact_kind), relationships) ||
@@ -155,7 +168,10 @@ capsule_record = capsule_preimage || ContextCapsuleId[32]
 
 Every repeated field must equal the trusted request and response getters,
 the copied record must begin `SLEYRQR1` and have the response's exact
-length, and `kinds` must have the length of `entities`. The trailer is
+length, `u64be(response_bytes)` is the byte length of the copied record
+(the builder refuses a record whose length differs with
+`CONTEXT_CAPSULE_SOURCE_INVALID`), and `kinds` must have the length of
+`entities`. The trailer is
 outside its own preimage. There is no public record decoder, importer,
 hydrator, continuation expander, or constructor from components.
 
@@ -198,7 +214,9 @@ Precedence: request and response identity or record disagreement
 (`CONTEXT_CAPSULE_RESOURCE_LIMIT`); dictionary or index canonicality
 (`CONTEXT_CAPSULE_DICTIONARY_INVALID`); checked encoding and identity
 derivation (`CONTEXT_CAPSULE_INTERNAL_INVARIANT`). S20-310 failures occur
-before construction and keep their `QUERY_*` codes.
+before construction and keep their `QUERY_*` codes; session failures occur
+before construction and keep their `SESSION_*` codes (`SESSION_UNKNOWN`
+for a session that is not live).
 
 ## 10. Required evidence
 
@@ -207,6 +225,8 @@ Implementation acceptance requires at least:
 - fixed capsule record and identity vectors for all nineteen classes and
   for both pages of a continuation walk over the frozen S20-310 fixture,
   with an independent Python reproduction from the fixture records;
+  one vector carries the `Negotiated` arm under a fixed fixture session,
+  reproduced by the same independent path;
 - 128 equal derivations producing byte-identical records and identities;
 - proof that a page capsule is never `Complete`, that `omitted` equals
   `total_count - returned`, and that the capsules of a walk cover the
@@ -216,7 +236,8 @@ Implementation acceptance requires at least:
   failing without a capsule;
 - a repository test producing the same capsule from a cache hit and a
   rebuild;
-- an S20-700 persistent libFuzzer target over the capsule builder;
+- an S20-700 persistent libFuzzer target over the capsule builder,
+  covering the `Negotiated` arm encoding;
 - Tier 1 plus semantics-focused Tier 2 validation;
 - Ariadne contract review, Nabu architecture review, and Vulcan surface
   review with every report-grade finding closed.
@@ -225,8 +246,9 @@ Implementation acceptance requires at least:
 
 This contract does not claim:
 
-- negotiated sessions or handles (S20-330), whose `Negotiated` arm is
-  reserved and not constructible;
+- session handles: a `Negotiated` capsule carries the binding the session
+  authority verified and grants no right to act (S20-330 owns the
+  authority; section 2 names the only minting path);
 - SMP1 transport (S20-400) or any protocol framing;
 - diagnostics, mutation affordances, type, effect, contract, or test facts
   beyond what the nineteen classes return;

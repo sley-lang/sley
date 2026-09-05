@@ -26,6 +26,7 @@ DOMAIN = b"sley2.context-capsule.v1"
 MAGIC = b"SLEYCCP1"
 RESPONSE_MAGIC = b"SLEYRQR1"
 SESSION_NONE = 1
+SESSION_NEGOTIATED = 2
 COMPLETE, PAGE = 1, 2
 FLAG_FALSE, FLAG_TRUE = 1, 2
 OPTION_NONE, OPTION_SOME = 1, 2
@@ -200,6 +201,9 @@ def build(context: dict, vector: dict) -> tuple[bytes, dict]:
     cls = vector["query"]["class"]
     facts = decode_payload(record, cls)
     subjects = named_entities(vector["query"])
+    binding = vector.get("session_binding", SESSION_NONE)
+    if binding == SESSION_NEGOTIATED and "session_id" not in vector:
+        raise ValueError("negotiated arm without a session identity")
     entities = sorted(set(facts["ids"]) | set(subjects))
     kinds = [0] * len(entities)
     index = {entity: position for position, entity in enumerate(entities)}
@@ -218,7 +222,11 @@ def build(context: dict, vector: dict) -> tuple[bytes, dict]:
     omitted = total - returned
     out = bytearray(MAGIC + u32(1) + u32(1))
     out += h(context["workspace_id"]) + h(context["schema_epoch_hex"]) + h(context["root_hex"])
-    out += h(context["snapshot_id"]) + h(vector["query_id"]) + u32(SESSION_NONE)
+    out += h(context["snapshot_id"]) + h(vector["query_id"])
+    if binding == SESSION_NEGOTIATED:
+        out += u32(SESSION_NEGOTIATED) + h(vector["session_id"])
+    else:
+        out += u32(SESSION_NONE)
     out += encode_question(vector)
     out += u32(completeness) + u32(FLAG_TRUE if truncated else FLAG_FALSE)
     out += u64(total) + u64(returned) + u64(omitted) + encode_cursor(vector["next_after"])
@@ -249,8 +257,17 @@ def main() -> int:
     problems: list[str] = []
     if accepted.get("contract") != "sley2-context-capsule-v1" or accepted.get("domain") != DOMAIN.decode():
         problems.append("accepted-contract")
-    if accepted.get("session_binding") != SESSION_NONE:
-        problems.append("accepted-session-binding")
+    bound = 0
+    for vector in accepted.get("vectors", []):
+        binding = vector.get("session_binding", SESSION_NONE)
+        if binding == SESSION_NEGOTIATED:
+            bound += 1
+            if "session_id" not in vector:
+                problems.append(f"{vector['id']}:negotiated-without-session")
+        elif binding != SESSION_NONE:
+            problems.append(f"{vector['id']}:unknown-session-binding")
+    if bound < 1:
+        problems.append("vectors:no-negotiated-arm")
     for vector in accepted.get("vectors", []):
         source_vector = by_id.get(vector["source_vector"])
         if source_vector is None or source_vector["query_id"] != vector["query_id"]:
@@ -258,7 +275,14 @@ def main() -> int:
             continue
         record = h(source_vector["record_hex"])
         total, returned = total_and_returned(record)
-        merged = dict(source_vector, total_count=total, returned=returned)
+        merged = dict(
+            source_vector,
+            total_count=total,
+            returned=returned,
+            session_binding=vector.get("session_binding", SESSION_NONE),
+        )
+        if "session_id" in vector:
+            merged["session_id"] = vector["session_id"]
         try:
             capsule, status = build(context, merged)
         except (ValueError, KeyError) as error:

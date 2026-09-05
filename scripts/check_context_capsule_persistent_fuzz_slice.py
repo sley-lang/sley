@@ -22,6 +22,7 @@ for marker in [
     "LLVMFuzzerTestOneInput",
     "judge_complete_root(&entities, facts)",
     "build_context_capsule(&request, &response)",
+    "build_context_capsule_session(&request, &response, session)",
     "ContextCapsuleErrorCode::ALL.contains(&error.code())",
     "capsule drifted between builds",
     "CapsuleCompleteness::Complete",
@@ -57,7 +58,7 @@ for marker in [
 fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
 if fixture.get("contract") != "sley2-context-capsule-v1":
     problems.append("fixture-contract-drift")
-if len(fixture.get("vectors", [])) != 23:
+if len(fixture.get("vectors", [])) != 24:
     problems.append("fixture-vector-count-drift")
 
 makefile = MAKEFILE.read_text(encoding="utf-8")

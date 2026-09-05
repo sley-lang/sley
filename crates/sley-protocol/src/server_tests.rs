@@ -5,8 +5,8 @@
 
 use sley_id::{SchemaEpochId, TransactionId};
 use sley_query::{
-    ModeledEntityKind, QueryLimits, RestrictedQuery, RootQuery, SnapshotContext,
-    build_index_snapshot, build_restricted_query_request,
+    ContextCapsuleError, ContextCapsuleErrorCode, ModeledEntityKind, QueryLimits, RestrictedQuery,
+    RootQuery, SnapshotContext, build_index_snapshot, build_restricted_query_request,
 };
 use sley_repo::test_support::{
     complete_bodies, complete_dependency_root, executable_bodies, genesis,
@@ -17,7 +17,7 @@ use sley_scb1::{encode_record, encode_uvar};
 use crate::server::{
     FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_METHOD_REASON, Server,
 };
-use crate::session::HeadBinding;
+use crate::session::{CapsuleBindError, HeadBinding};
 use crate::{
     BoundedContext, DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method,
     PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, SessionId, decode_frame,
@@ -1183,6 +1183,86 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
         failure.code,
         ProtocolErrorCode::RequestIdConflict.numeric(),
         "the registry refuses first"
+    );
+}
+
+#[test]
+fn session_bound_capsules_are_minted_from_live_authority_state() {
+    use sley_repo::test_support::genesis_in_workspace;
+    let mut harness = Harness::new("capsule-bind");
+    let session = harness.session;
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository);
+    let head = transactions.accepted_head().unwrap();
+    let outcome = run_root_query(
+        &harness.repository,
+        head.verified_revision(),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    // The live session mints a capsule carrying the negotiated arm.
+    let capsule = harness
+        .server
+        .authority_mut()
+        .bind_context_capsule(session, &outcome.request, &outcome.response)
+        .unwrap();
+    assert_eq!(capsule.session(), Some(session));
+    // A session the authority never issued mints nothing.
+    assert_eq!(
+        harness
+            .server
+            .authority_mut()
+            .bind_context_capsule(
+                SessionId::from_bytes([0xAA; 32]),
+                &outcome.request,
+                &outcome.response,
+            )
+            .unwrap_err(),
+        CapsuleBindError::UnknownSession
+    );
+    // A consistent request/response pair from another workspace fails
+    // the authority-held binding: the session's workspace, root, and
+    // epoch come from authority state, never from caller arguments.
+    let (foreign_temp, _foreign_transactions, _foreign_genesis) =
+        genesis_in_workspace("capsule-bind-foreign", dependency_free_bodies(), &[], 2);
+    let foreign_repo = foreign_temp.child("repo");
+    let foreign_head = sley_txn::TransactionRepository::new(&foreign_repo)
+        .accepted_head()
+        .unwrap();
+    let foreign = run_root_query(
+        &foreign_repo,
+        foreign_head.verified_revision(),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        harness
+            .server
+            .authority_mut()
+            .bind_context_capsule(session, &foreign.request, &foreign.response)
+            .unwrap_err(),
+        CapsuleBindError::Capsule(ContextCapsuleError::new(
+            ContextCapsuleErrorCode::SourceInvalid
+        ))
+    );
+    // Closing the session revokes minting: no live session, no capsule.
+    harness
+        .server
+        .authority_mut()
+        .close_session(session)
+        .unwrap();
+    assert_eq!(
+        harness
+            .server
+            .authority_mut()
+            .bind_context_capsule(session, &outcome.request, &outcome.response)
+            .unwrap_err(),
+        CapsuleBindError::UnknownSession
     );
 }
 

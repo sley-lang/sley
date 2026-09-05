@@ -18,7 +18,7 @@
     {
       "family": "context-capsule",
       "rejections": 0,
-      "vectors": 23
+      "vectors": 24
     },
     {
       "family": "merge",
@@ -97,9 +97,9 @@
     }
   ],
   "conformance_rejections": 172,
-  "conformance_vectors": 352,
+  "conformance_vectors": 353,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "48ec1e7f54c6fed7293c5fc723244a74af38d9d7082ef6a611796df9f40c1f50",
+  "inventory_digest": "a013d5e9af70bf33f9bc3a6a1e6a8ecbbb1d89a67f5e72042787603e1fba4219",
   "persistent_fuzz_target_count": 20,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -205,7 +205,7 @@
     {
       "crate": "sley-protocol",
       "ignored": 2,
-      "tests": 26
+      "tests": 27
     },
     {
       "crate": "sley-query",
@@ -254,7 +254,7 @@
     }
   ],
   "rust_ignored_emitters": 13,
-  "rust_unit_tests": 1025,
+  "rust_unit_tests": 1026,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

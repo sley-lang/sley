@@ -20,7 +20,12 @@ in-range relationship and table indexes, `omitted` equal to
 A capsule is `Complete` only for an untruncated first page with nothing
 omitted, and the walk of page capsules keeps one exact total and
 never presents a page as complete. Every capsule must be repeatable byte for
-byte.
+byte. The target also covers the `Negotiated` arm encoding through the
+authority-delegated primitive: the same answered pair under a fuzz-derived
+session carries the session, changes the identity, and keeps the facts.
+Session provenance verification is not fuzzed here; it belongs to
+`SessionAuthority::bind_context_capsule`, which the target cannot mint by
+construction.
 
 The deterministic corpus seeds every class over a minimal complete root
 with and without continuation across limit and cursor spreads, plus raw

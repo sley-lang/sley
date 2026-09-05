@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md"
 RESTRICTED_SPEC = ROOT / "docs/spec/RESTRICTED_QUERY_CAPSULE_PROFILE_V1.md"
 ADR = ROOT / "docs/adr/ADR-0031-context-capsule-boundary.md"
+CLOSEOUT = ROOT / "docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md"
 WORK_PACKAGES = ROOT / "docs/WORK_PACKAGES.md"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
@@ -43,7 +44,7 @@ SPEC_MARKERS = (
     "Status: S20-320 full contract",
     "sley2.context-capsule.v1 -> ContextCapsuleId",
     "`build_context_capsule(request, response)`",
-    "SessionBinding = None(1) | Negotiated(2) || SessionId[32]   // S20-330",
+    "SessionBinding = None(1) | Negotiated(2); when the arm is",
     "## 4. Omission and continuation status",
     "omitted = total_count - returned",
     '"SLEYCCP1"',
@@ -58,7 +59,7 @@ ADR_MARKERS = (
     "# ADR-0031: Context capsule provenance and omission boundary",
     "1. **Question, provenance, status, facts.**",
     "2. **Bound source only.**",
-    "3. **Session reserved, never implied.**",
+    "3. **Session bound, never implied.**",
     "4. **Master identity.**",
     "5. **Codes.**",
     "6. **Staging.**",
@@ -66,7 +67,7 @@ ADR_MARKERS = (
 WORK_PACKAGE_MARKERS = ("`docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md`", "ADR-0031")
 ENGINE_MARKERS = (
     "pub fn build_context_capsule",
-    "pub fn build_context_capsule_bound",
+    "pub fn build_context_capsule_session",
     "const SESSION_BINDING_NEGOTIATED: u32 = 2;",
     "pub struct ContextCapsule",
     'const MAGIC: &[u8; 8] = b"SLEYCCP1";',
@@ -75,6 +76,11 @@ ENGINE_MARKERS = (
     "Self::DictionaryInvalid => 32_009,",
     "Self::ResourceLimit => 32_010,",
     "Self::InternalInvariant => 32_011,",
+)
+AUTHORITY = ROOT / "crates/sley-protocol/src/session.rs"
+AUTHORITY_MARKERS = (
+    "pub fn bind_context_capsule",
+    "CapsuleBindError::UnknownSession",
 )
 REPOSITORY_MARKERS = ("pub fn run_context_capsule",)
 
@@ -85,7 +91,7 @@ def read(path: Path) -> str:
 
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, RESTRICTED_SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
+    for path in (SPEC, RESTRICTED_SPEC, ADR, CLOSEOUT, WORK_PACKAGES, SUMMARY, ERROR_CODES):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -151,6 +157,10 @@ def main() -> int:
         for numeric, symbol in CODES:
             if symbol not in engine:
                 problems.append(f"engine-code:{symbol}")
+        authority = read(AUTHORITY) if AUTHORITY.exists() else ""
+        for marker in AUTHORITY_MARKERS:
+            if marker not in authority:
+                problems.append(f"authority-marker:{marker}")
         repository = read(REPOSITORY) if REPOSITORY.exists() else ""
         for marker in REPOSITORY_MARKERS:
             if marker not in repository:
@@ -164,6 +174,16 @@ def main() -> int:
                     problems.append(f"completion-without-review:{key}")
 
     revision = re.search(r"revision (\d+)", spec)
+    # The contract revision is the single source: the ADR and the
+    # closeout must name the same revision, so a downstream package can
+    # never again amend the contract while the boundary record still
+    # states the old rule and the gate reports clean.
+    for path, label in ((ADR, "adr"), (CLOSEOUT, "closeout")):
+        match = re.search(r"revision (\d+)", read(path)) if path.exists() else None
+        if match is None:
+            problems.append(f"revision-missing:{label}")
+        elif revision is None or int(match.group(1)) != int(revision.group(1)):
+            problems.append(f"revision-drift:{label}")
     result = {
         "contract": "s20-320-full-context-capsule-profile-v1",
         "status": status,

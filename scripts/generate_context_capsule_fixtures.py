@@ -14,11 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/context-capsule/v1"
 SOURCE = ROOT / "conformance/root-backed-query/v1/accepted.json"
 EXPECTED_VECTORS = [f"class-{index:02}" for index in range(1, 20)] + [
+    "class-01-bound",
     "page-namespaces-1",
     "page-namespaces-2",
     "page-edges-1",
     "page-edges-2",
 ]
+SESSION_NONE = 1
+SESSION_NEGOTIATED = 2
 
 
 def main() -> int:
@@ -53,22 +56,32 @@ def main() -> int:
         if line.startswith("CONTEXT_CAPSULE_VECTOR|"):
             parts = line.split("|")
             vector_id = parts[1]
-            if source_ids.get(vector_id) != parts[2]:
+            # The bound vector reuses the class-01 question under the
+            # fixed fixture session; its source is class-01.
+            source_id = "class-01" if vector_id == "class-01-bound" else vector_id
+            if source_ids.get(source_id) != parts[2]:
                 raise RuntimeError(f"{vector_id}: query identity drifted from the S20-310 fixture")
-            vectors.append(
-                {
-                    "capsule_id": parts[3],
-                    "completeness": int(parts[5]),
-                    "id": vector_id,
-                    "omitted": int(parts[8]),
-                    "query_id": parts[2],
-                    "record_bytes": len(parts[4]) // 2,
-                    "record_hex": parts[4],
-                    "returned": int(parts[7]),
-                    "source_vector": vector_id,
-                    "total_count": int(parts[6]),
-                }
-            )
+            binding = int(parts[9])
+            if binding not in (SESSION_NONE, SESSION_NEGOTIATED):
+                raise RuntimeError(f"{vector_id}: unknown session binding {binding}")
+            vector: dict[str, object] = {
+                "capsule_id": parts[3],
+                "completeness": int(parts[5]),
+                "id": vector_id,
+                "omitted": int(parts[8]),
+                "query_id": parts[2],
+                "record_bytes": len(parts[4]) // 2,
+                "record_hex": parts[4],
+                "returned": int(parts[7]),
+                "session_binding": binding,
+                "source_vector": source_id,
+                "total_count": int(parts[6]),
+            }
+            if binding == SESSION_NEGOTIATED:
+                if not parts[10]:
+                    raise RuntimeError(f"{vector_id}: negotiated arm without a session identity")
+                vector["session_id"] = parts[10]
+            vectors.append(vector)
     if [vector["id"] for vector in vectors] != EXPECTED_VECTORS:
         raise RuntimeError(f"unexpected vector set {[v['id'] for v in vectors]}")
     accepted = {
@@ -76,7 +89,6 @@ def main() -> int:
         "contract": "sley2-context-capsule-v1",
         "domain": "sley2.context-capsule.v1",
         "generator": "scripts/generate_context_capsule_fixtures.py",
-        "session_binding": 1,
         "source_fixture": str(SOURCE.relative_to(ROOT)),
         "vectors": vectors,
     }

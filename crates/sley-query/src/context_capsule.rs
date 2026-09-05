@@ -326,28 +326,30 @@ pub fn build_context_capsule(
 }
 
 /// Builds the capsule under a negotiated session (S20-330, S20-320 full
-/// revision 2): the session binding arm is `Negotiated(2)` with the
-/// session identity, and the response's provenance must equal the
-/// session's workspace, root, and epoch.
+/// revision 3): the session binding arm is `Negotiated(2)` with the
+/// session identity.
+///
+/// This is the authority-delegated encoding primitive, not the supported
+/// construction path. It takes no provenance because there is no
+/// provenance for the caller to declare: the response's provenance is
+/// engine-verified, and whether that provenance equals a live session's
+/// binding is known only to the session authority. The supported path is
+/// `SessionAuthority::bind_context_capsule`, which refuses unknown and
+/// closed sessions and fails `CONTEXT_CAPSULE_SOURCE_INVALID` when the
+/// response's workspace, root, or epoch differs from the session's
+/// authority-held binding. Call this primitive directly only when no
+/// provenance claim is being made (fixture emission, fuzz encoding
+/// coverage); a capsule built this way carries the session identity but
+/// no authority verified the binding.
 ///
 /// # Errors
 ///
-/// Fails `CONTEXT_CAPSULE_SOURCE_INVALID` on a provenance mismatch and
-/// otherwise as `build_context_capsule`.
-pub fn build_context_capsule_bound(
+/// Otherwise as `build_context_capsule`.
+pub fn build_context_capsule_session(
     request: &RootQueryRequest,
     response: &RootQueryResponse,
     session: SessionId,
-    workspace_id: WorkspaceId,
-    root: StateRoot,
-    schema_epoch: SchemaEpochId,
 ) -> Result<ContextCapsule, ContextCapsuleError> {
-    if response.workspace_id() != workspace_id
-        || response.root() != root
-        || response.schema_epoch() != schema_epoch
-    {
-        return fail(ContextCapsuleErrorCode::SourceInvalid);
-    }
     build_capsule(request, response, Some(session))
 }
 
@@ -701,6 +703,10 @@ mod tests {
         execute_root_query,
     };
 
+    /// Session identity of the frozen `class-01-bound` fixture vector: the
+    /// arm is proved under a fixed session, never a live one.
+    const FIXTURE_SESSION_ID: [u8; 32] = [0x5E; 32];
+
     fn capsule(
         input: &crate::RootQueryInput<'_>,
         query: RootQuery,
@@ -866,7 +872,7 @@ mod tests {
     }
 
     #[test]
-    fn a_session_bound_capsule_carries_the_negotiated_arm_and_refuses_foreign_provenance() {
+    fn a_session_bound_capsule_carries_the_negotiated_arm() {
         let owned = Owned::new();
         let borrowed = Borrowed::new(&owned);
         let input = borrowed.input();
@@ -874,15 +880,10 @@ mod tests {
         let (request, response, plain) =
             capsule(&input, RootQuery::GetRootSummary, full, false, None);
         let session = SessionId::from_bytes([0x5E; 32]);
-        let bound = build_context_capsule_bound(
-            &request,
-            &response,
-            session,
-            response.workspace_id(),
-            response.root(),
-            response.schema_epoch(),
-        )
-        .unwrap();
+        // The primitive binds the arm with no provenance to declare; the
+        // authority's refusal of foreign provenance is pinned by
+        // `SessionAuthority::bind_context_capsule` in `sley-protocol`.
+        let bound = build_context_capsule_session(&request, &response, session).unwrap();
         assert_eq!(bound.session(), Some(session));
         assert_eq!(plain.session(), None);
         assert_ne!(bound.capsule_id(), plain.capsule_id());
@@ -892,19 +893,6 @@ mod tests {
                 .record()
                 .windows(32)
                 .any(|window| window == session.as_bytes())
-        );
-        assert_eq!(
-            build_context_capsule_bound(
-                &request,
-                &response,
-                session,
-                response.workspace_id(),
-                StateRoot::from_bytes([0x34; 32]),
-                response.schema_epoch(),
-            )
-            .unwrap_err()
-            .code(),
-            ContextCapsuleErrorCode::SourceInvalid
         );
     }
 
@@ -917,7 +905,15 @@ mod tests {
     }
 
     /// Emits the frozen context capsule vectors for
-    /// `scripts/generate_context_capsule_fixtures.py`.
+    /// `scripts/generate_context_capsule_fixtures.py`. The bound vector
+    /// reuses the class-01 question and proves the `Negotiated` arm under
+    /// the fixed fixture session; the authority verification behind the
+    /// arm is covered by `SessionAuthority::bind_context_capsule`, not by
+    /// fixture bytes.
+    ///
+    /// Prints `CONTEXT_CAPSULE_VECTOR|id|query_id|capsule_id|record_hex|
+    /// completeness|total|returned|omitted|session_binding|session_id_hex`
+    /// with an empty session field for the unbound arm.
     #[test]
     #[ignore = "fixture refresh emitter; run through the generator script"]
     fn emit_context_capsule_vectors_for_fixture_refresh() {
@@ -929,23 +925,53 @@ mod tests {
                     query: RootQuery,
                     limits: QueryLimits,
                     allow: bool,
-                    after: Option<Cursor>| {
-            let (_, _, capsule) = capsule(&input, query, limits, allow, after);
+                    after: Option<Cursor>,
+                    session: Option<SessionId>| {
+            let (request, response, _) = capsule(&input, query, limits, allow, after);
+            let capsule = match session {
+                None => build_context_capsule(&request, &response).unwrap(),
+                Some(session) => {
+                    build_context_capsule_session(&request, &response, session).unwrap()
+                }
+            };
             println!(
-                "CONTEXT_CAPSULE_VECTOR|{label}|{}|{}|{}|{}|{}|{}|{}",
+                "CONTEXT_CAPSULE_VECTOR|{label}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
                 hex(capsule.query_id().as_bytes()),
                 hex(capsule.capsule_id().as_bytes()),
                 hex(capsule.record()),
                 capsule.completeness().tag(),
                 capsule.total_count(),
                 capsule.returned(),
-                capsule.omitted()
+                capsule.omitted(),
+                capsule
+                    .session()
+                    .map_or(SESSION_BINDING_NONE, |_| SESSION_BINDING_NEGOTIATED),
+                capsule
+                    .session()
+                    .map_or(String::new(), |id| hex(id.as_bytes())),
             );
             capsule
         };
         for (index, query) in all_classes().into_iter().enumerate() {
-            emit(&format!("class-{:02}", index + 1), query, full, false, None);
+            emit(
+                &format!("class-{:02}", index + 1),
+                query,
+                full,
+                false,
+                None,
+                None,
+            );
         }
+        // The bound arm over the class-01 question under the fixed
+        // fixture session.
+        emit(
+            "class-01-bound",
+            all_classes().into_iter().next().unwrap(),
+            full,
+            false,
+            None,
+            Some(SessionId::from_bytes(FIXTURE_SESSION_ID)),
+        );
         let paged = QueryLimits {
             max_returned_entities: 2,
             max_returned_edges: 3,
@@ -954,13 +980,21 @@ mod tests {
         let namespaces = RootQuery::ListEntitiesByKind {
             kind: ModeledEntityKind::Namespace,
         };
-        let first = emit("page-namespaces-1", namespaces.clone(), paged, true, None);
+        let first = emit(
+            "page-namespaces-1",
+            namespaces.clone(),
+            paged,
+            true,
+            None,
+            None,
+        );
         emit(
             "page-namespaces-2",
             namespaces,
             paged,
             true,
             first.next_after(),
+            None,
         );
         let edges = RootQuery::ListDirectDependencies {
             entity: id(0x01),
@@ -971,7 +1005,7 @@ mod tests {
                 ImpactKind::TestTarget,
             ],
         };
-        let first = emit("page-edges-1", edges.clone(), paged, true, None);
-        emit("page-edges-2", edges, paged, true, first.next_after());
+        let first = emit("page-edges-1", edges.clone(), paged, true, None, None);
+        emit("page-edges-2", edges, paged, true, first.next_after(), None);
     }
 }

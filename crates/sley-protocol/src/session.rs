@@ -17,6 +17,10 @@ use std::collections::BTreeMap;
 use sley_id::{
     EntityId, ObjectId, ProtocolHandshakeId, SchemaEpochId, SessionId, StateRoot, WorkspaceId,
 };
+use sley_query::{
+    ContextCapsule, ContextCapsuleError, RootQueryRequest, RootQueryResponse,
+    build_context_capsule_session,
+};
 use sley_state_root::AcceptedStateRoot;
 
 /// Renewals a session may perform (contract section 2).
@@ -97,6 +101,32 @@ impl fmt::Display for SessionError {
 }
 
 impl std::error::Error for SessionError {}
+
+/// Failure to mint a session-bound context capsule (capsule contract
+/// section 2): the session is not live under this authority, or the
+/// capsule builder refused the bound source.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CapsuleBindError {
+    /// The session was never issued or is already closed. Liveness is
+    /// checked against the authority's live map, so a copied record of a
+    /// dead session cannot mint a capsule.
+    UnknownSession,
+    /// The session is live but the capsule builder refused the source:
+    /// response provenance differs from the session's authority-held
+    /// binding, or the request and response disagree.
+    Capsule(ContextCapsuleError),
+}
+
+impl fmt::Display for CapsuleBindError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownSession => formatter.write_str("SESSION_UNKNOWN"),
+            Self::Capsule(error) => fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for CapsuleBindError {}
 
 fn fail<T>(code: SessionErrorCode) -> Result<T, SessionError> {
     Err(SessionError(code))
@@ -182,6 +212,40 @@ impl SessionAuthority {
     #[must_use]
     pub fn record(&self, session: SessionId) -> Option<&SessionRecord> {
         self.sessions.get(&session)
+    }
+
+    /// Mints the session-bound context capsule (capsule contract section
+    /// 2): the only supported path to the `Negotiated` arm. The session
+    /// must be live under this authority, and the response's workspace,
+    /// root, and epoch must equal the session's authority-held binding;
+    /// both facts come from authority state, never from caller arguments,
+    /// so no caller can declare a binding into the capsule identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownSession` for a session this authority never issued
+    /// or already closed, and the builder's `CONTEXT_CAPSULE_*` failure
+    /// otherwise.
+    pub fn bind_context_capsule(
+        &self,
+        session: SessionId,
+        request: &RootQueryRequest,
+        response: &RootQueryResponse,
+    ) -> Result<ContextCapsule, CapsuleBindError> {
+        let record = self
+            .sessions
+            .get(&session)
+            .ok_or(CapsuleBindError::UnknownSession)?;
+        if response.workspace_id() != record.workspace_id
+            || response.root() != record.bound_root
+            || response.schema_epoch() != record.schema_epoch
+        {
+            return Err(CapsuleBindError::Capsule(ContextCapsuleError::new(
+                sley_query::ContextCapsuleErrorCode::SourceInvalid,
+            )));
+        }
+        build_context_capsule_session(request, response, record.session_id)
+            .map_err(CapsuleBindError::Capsule)
     }
 
     /// Every live session with its bound root, in session order. `gc`
