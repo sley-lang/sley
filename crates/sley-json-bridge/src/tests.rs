@@ -310,12 +310,12 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
         (
             "negative-zero-accepted",
             text(&base).replacen("\"protocol_version\":1", "\"protocol_version\":-0", 1),
-            protocol(ProtocolErrorCode::VersionUnsupported),
+            protocol(ProtocolErrorCode::Downgrade),
         ),
         (
             "negative-zero-fraction",
             text(&base).replacen("\"protocol_version\":1", "\"protocol_version\":-0.0", 1),
-            protocol(ProtocolErrorCode::VersionUnsupported),
+            protocol(ProtocolErrorCode::Downgrade),
         ),
         (
             "protocol-version-unsupported",
@@ -442,7 +442,8 @@ fn integers_follow_the_declared_encoding_on_both_sides() {
 fn negative_zero_reads_as_the_integer_zero() {
     // Both spellings parse as negative zero, which the reader normalizes to
     // 0 (contract section 8); the value then reaches the codec, which judges
-    // version 0 as unsupported rather than the bridge refusing the number.
+    // version 0 as below the implementation version (downgrade) rather than
+    // the bridge refusing the number.
     let base = request_value().to_string();
     for raw in ["-0", "-0.0"] {
         let text = base.replacen(
@@ -452,7 +453,7 @@ fn negative_zero_reads_as_the_integer_zero() {
         );
         assert_eq!(
             frame_from_json(&text).expect_err(raw).symbol(),
-            "PROTOCOL_VERSION_UNSUPPORTED",
+            "PROTOCOL_DOWNGRADE",
             "{raw}"
         );
     }

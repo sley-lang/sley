@@ -115,7 +115,7 @@ fn direct_with(path: &PathBuf, server_hello: &Hello) -> Direct {
     let mut server = Server::new(path, &client, server_hello).unwrap();
     let open_frame = request(
         None,
-        1,
+        0,
         Method::SessionOpen,
         0,
         handshake.as_bytes().to_vec(),
@@ -205,7 +205,7 @@ fn the_binary_delivers_byte_frames_across_the_process_boundary() {
     let mut input = encode_hello_frame(&offered()).unwrap().bytes;
     input.extend_from_slice(&request(
         None,
-        1,
+        0,
         Method::SessionOpen,
         0,
         handshake.as_bytes().to_vec(),
@@ -420,14 +420,14 @@ fn batch_mode_answers_one_batch_per_server() {
     let mut input = encode_hello_frame(&offered()).unwrap().bytes;
     input.extend_from_slice(&request(
         None,
-        1,
+        0,
         Method::SessionOpen,
         0,
         handshake.as_bytes().to_vec(),
     ));
     input.extend_from_slice(&request(
         None,
-        2,
+        0,
         Method::SessionOpen,
         0,
         handshake.as_bytes().to_vec(),
