@@ -63,6 +63,10 @@ SENTINEL_INVENTORY = (
     "scripts/verify_s20_530_accepted_state.py",
 )
 TRANSCRIPT_TREE = "machineresearch/sley-2.0/reviews/"
+# Transcripts record reviews and are never imported, but a whole-tree pass
+# could hide executable code, so only non-executable transcript suffixes are
+# admitted there; anything else under the tree is a violation.
+TRANSCRIPT_SUFFIXES = (".log", ".json", ".md")
 # The executable files allowed to carry a sentinel: the adapter, its tests,
 # and the boundary scripts that name the sentinels to search for them.
 EXECUTABLE_INVENTORY = (
@@ -182,6 +186,8 @@ def main() -> int:
     executable_with_sentinel: list[str] = []
     for relative in sorted(tracked):
         if relative.startswith(TRANSCRIPT_TREE):
+            if Path(relative).suffix not in TRANSCRIPT_SUFFIXES:
+                problems.append(f"clean-room-violation:transcript-executable:{relative}")
             continue
         try:
             text = (ROOT / relative).read_bytes().decode("utf-8", errors="replace")
@@ -229,9 +235,13 @@ def main() -> int:
                 problems.append(f"clean-room-violation:legacy-dependency:{relative}:{name}:git")
     lock = ROOT / "Cargo.lock"
     if lock.exists():
-        for name in re.findall(r'\[\[package\]\]\nname = "([^"]+)"', read(lock)):
-            if LEGACY_NAME.search(name) or name == "sley":
+        for stanza in read(lock).split("[[package]]")[1:]:
+            fields = dict(re.findall(r'^(name|version|source) = "([^"]+)"', stanza, re.M))
+            name = fields.get("name", "")
+            if LEGACY_NAME.search(name) or (name == "sley" and fields.get("version", "").startswith("1")):
                 problems.append(f"clean-room-violation:legacy-locked-dependency:{name}")
+            if "GreyforgeLabs/sley" in fields.get("source", ""):
+                problems.append(f"clean-room-violation:legacy-locked-dependency:{name}:git")
 
     # 3. The bounded touchpoint runs out of process.
     adapter = read(LEGACY_ADAPTER)

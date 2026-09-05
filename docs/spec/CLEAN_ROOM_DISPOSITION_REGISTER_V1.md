@@ -1,10 +1,10 @@
 # Clean-Room Disposition Register v1
 
-Status: S20-780 contract draft, revision 3 (2026-09-05); the three Council
-review rounds landed 2026-09-04 (Ariadne contract review, Nabu architecture
-review, Vulcan surface review) with three freeze-blocking findings, all
-closed by revision 2; the eleven P1, eleven P2, and ten P3 findings are
-addressed by this revision, and re-review of revision 3 is pending. No
+Status: S20-780 contract draft, revision 4 (2026-09-05); revision 3 closed
+the P0s and addressed the P1/P2/P3 findings; the first re-review round
+returned Ariadne PASS and Vulcan PASS with no new findings, and Nabu FAIL
+with two residuals (lockfile stanza parsing, transcript-tree bounding), both
+closed by this revision; Nabu re-review of revision 4 is pending. No
 similarity or provenance audit of the legacy source has been performed; that
 gap is recorded as a remaining gate, not waived (§3).
 
@@ -221,8 +221,9 @@ entry list, before the implementation lands.
    `scripts/check_legacy_runner.py`,
    `scripts/check_s20_530_crash_recovery.py`,
    `scripts/verify_s20_530_accepted_state.py`), and the review transcripts
-   under `machineresearch/sley-2.0/reviews/`, which record reviews and are
-   never imported. This is a sentinel search, not a source detector: a
+   under `machineresearch/sley-2.0/reviews/`, which record reviews, are never
+   imported, and are admitted only with non-executable transcript suffixes
+   (`.log`, `.json`, `.md`). This is a sentinel search, not a source detector: a
    renamed copy, a legacy module marker, or an unpacked tree would not match
    it, and no tree-alone check could fingerprint those without the legacy
    layout. That detection is not mechanized; it rests on the per-concept
@@ -230,10 +231,11 @@ entry list, before the implementation lands.
 2. **No legacy dependency.** The root workspace manifest, every crate
    manifest, the fuzz manifest, and `Cargo.lock` are parsed for dependencies
    in inline and table form (normal, dev, and build): any `sley` 1.x
-   registry version, any `GreyforgeLabs/sley` git source, and any
-   `sley1`/`sley-1`/`sley_1`/`legacy` name is a violation; every path
-   dependency must resolve to one of the eighteen Sley 2 workspace crates,
-   and the crate count is asserted.
+   registry version, any `GreyforgeLabs/sley` git source (manifest or
+   lockfile, where each `[[package]]` stanza is parsed for name, version,
+   and source), and any `sley1`/`sley-1`/`sley_1`/`legacy` name is a
+   violation; every path dependency must resolve to one of the eighteen Sley
+   2 workspace crates, and the crate count is asserted.
 3. **Bounded touchpoint, out of process.** The tracked Python files carrying
    a sentinel are exactly the executable inventory (the adapter, its tests,
    and the boundary scripts named in check 1); anything else executable is a

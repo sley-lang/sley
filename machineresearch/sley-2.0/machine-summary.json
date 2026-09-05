@@ -2914,7 +2914,7 @@
   "clean_room_disposition_register": {
     "status": "S20_780_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
     "checker": "scripts/check_clean_room_boundary.py",
     "reused_concepts": 3,
