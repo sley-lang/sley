@@ -3271,7 +3271,7 @@ fn judgment_acceptance_matches_lowering_acceptance() {
         let judged = judge_function_operations(fixture.input(CacheProfile::EXTENDED_V1));
         let lowered = lower_function(fixture.input(CacheProfile::EXTENDED_V1));
         match (&judged, &lowered) {
-            (Ok(_), Ok(_)) | (Err(_), Err(_)) | (Ok(_), Err(_)) => {}
+            (Ok(_), Ok(_) | Err(_)) | (Err(_), Err(_)) => {}
             (Err(error), Ok(_)) => {
                 panic!("judgment refused what lowering accepted: {error:?}")
             }

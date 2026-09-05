@@ -49,9 +49,9 @@ SOURCE_MARKERS = (
 )
 FIXTURE = ROOT / "conformance/repository-exchange/v1/accepted.json"
 FIXTURE_EXPECTED = {
-    "repository_exchange_id": "1fb84fe0a1cf05f6b765c046fe69aedf5a69f8a835bb9568adffcfaf3f4d55c0",
+    "repository_exchange_id": "bdf85c99bd8d364008491f77323b3fcc5b17f203dde3905055c090d77f1c2261",
     "repository_pack_id": "cd6b423ab5bbbc1a8e13326d24dffb8ff537775abb1cb9d4703ebcbbd4a5e3b6",
-    "digest_tree_root": "ae229b641d0f6de2da81c89d365113b271eab4ffaa2e4031dacb4c818b68f52d",
+    "digest_tree_root": "f813cb803785daa05c90d175e2064430e122d4ff71862c7afbe50533210b6731",
     "stored_bytes": 7754,
     "receipts": 2,
     "branches": 2,
