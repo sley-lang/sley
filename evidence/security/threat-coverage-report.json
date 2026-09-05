@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "2168b32dc85b319a6d9c1f914c7b320bfda33e24a16d3e7bdb37040b57ce6651",
+  "report_digest": "d613d6dc0e532535de3b73b082954e862971396739516efd20d0fba1532c9e88",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -865,7 +865,7 @@
         "VM_EXEC_INTERNAL_INVARIANT",
         "VM_EXEC_RESOURCE_LIMIT",
         "VM_EXEC_TRAP",
-        "VM_LOWER_CACHE_KEY_UNSUPPORTED"
+        "VM_INPUT_EXTENDED_FAMILY_S20_700_BOUNDARY"
       ],
       "required_test": "clean/poisoned env equivalence",
       "searched_codes": [
