@@ -524,10 +524,10 @@ report-grade finding closed; the freeze status is the acceptance, so no
 status at or past freeze passes the stage gate without all three reviews
 `PASS`. Before that, the implemented status means exactly what it says:
 implemented under a draft whose review rounds are either superseded by
-same-lane `PASS` obligations or itemized as open findings in the machine
-summary and the finding register, never silently pending; the stage gate
-pins that invariant, and an empty list set with no same-lane `PASS`
-fails it. Implementation acceptance (S20-410) requires
+same-lane `PASS` obligations or itemized as same-lane open findings in
+the machine summary and the finding register, never silently pending:
+one lane's items never satisfy another lane. The stage gate pins that
+invariant, and an empty list set with no same-lane `PASS` fails it. Implementation acceptance (S20-410) requires
 at least: fixed frame and hello vectors with an independent reproduction;
 the handshake matrix (no common profile, each downgrade shape, identical
 `ProtocolHandshakeId` on both peers); the request-identity matrix

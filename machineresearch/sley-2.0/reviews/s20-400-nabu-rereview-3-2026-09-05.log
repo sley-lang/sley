@@ -1,0 +1,27 @@
+S20-400 SMP1 ARCHITECTURE THIRD RE-REVIEW — NABU
+Date: 2026-09-05 EDT
+Mode: bounded read-only residual triage; this review log is the sole write
+Pinned subject: /home/greyforge/sley2, commit a4f9fb9b3e261537b8d23c19925301f864be2cdf
+Input: prior Nabu second re-review and a4f9fb9~1..a4f9fb9
+
+status: PASS
+
+findings:
+- High confidence: both Nabu P1 residuals are closed, with no new P0/P1/P2/P3 in the bounded diff.
+- Echo residual closed: answer_batch normalizes every session-less answer identifier to 0 before respond; the malformation test now pins Answer.request_id=0, decoded response request_id=0, and session=None. SMP1 section 3 and appendix B state the zero/never-echo rule.
+- Genesis replay residual closed: section 3 distinguishes the pre-head session-less genesis path from writes after a head, which require a session. The shared dispatch branch covers workspace.create and exchange.import and rejects the session-less headed path with SESSION_BINDING_INVALID. The workspace.create end-to-end test pins that result, then opens a session and pins owner execution returning TXN_ALREADY_INITIALIZED for the repeated genesis creation.
+- The additional format-version classification and review-register changes do not introduce an architecture contradiction in the reviewed range.
+
+validation:
+- git rev-parse HEAD: a4f9fb9b3e261537b8d23c19925301f864be2cdf.
+- Inspected the prior Nabu re-review from the pinned commit, a4f9fb9~1..a4f9fb9, and exact numbered context in server.rs, server_tests.rs, SMP1.md, and the exchange-import owner path.
+- git diff --check a4f9fb9~1..a4f9fb9: clean.
+- No cargo, make, executable tests, provider action, deploy, merge, service activation, peer access, or public action. Supplied Tier 2 result was not re-executed.
+- Pre-write status had only two unrelated untracked third-review logs (Ariadne and Vulcan); no tracked worktree changes were present.
+
+blockers:
+- none
+
+S20_400ARCHITECTURE_REREVIEW3_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}
+
+return_to: orchestrator

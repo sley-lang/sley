@@ -259,26 +259,37 @@ def main() -> int:
             if not str(section.get(key, "")).startswith("PASS"):
                 problems.append(f"completion-without-review:{key}")
     # Implemented under a draft means tracked, never silently pending: a
-    # FAIL round must be itemized in non-empty register-first open lists,
-    # or superseded by a same-lane PASS obligation. An empty list set
-    # with no same-lane PASS fails the gate.
+    # FAIL round must be itemized in non-empty same-lane register-first
+    # open lists, or superseded by a same-lane PASS obligation. Unrelated
+    # lanes' items never satisfy a lane, and an empty list set with no
+    # same-lane PASS fails the gate.
     lane_pass_field = {
         "ariadne_contract_review": "ariadne_review",
         "nabu_architecture_review": "nabu_review",
         "vulcan_surface_review": "vulcan_review",
     }
+    lane_prefix = {
+        "ariadne_contract_review": "Ariadne ",
+        "nabu_architecture_review": "Nabu ",
+        "vulcan_surface_review": "Vulcan ",
+    }
+    open_lists = ("p1_open", "p2_open", "p3_open")
     if status == IMPLEMENTED_STATUS:
         for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
             if str(section.get(key, "")).startswith("FAIL"):
-                tracked = sum(
-                    len(section.get(list_key, []))
-                    for list_key in ("p1_open", "p2_open", "p3_open")
-                )
+                items = [
+                    item
+                    for list_key in open_lists
+                    for item in section.get(list_key, [])
+                ]
+                lane_items = [
+                    item for item in items if item.startswith(lane_prefix[key])
+                ]
                 superseded = str(
                     section.get(lane_pass_field[key], "")
                 ).startswith("PASS")
-                if tracked == 0 and not superseded:
-                    problems.append(f"review-without-register:{key}")
+                if not lane_items and not superseded:
+                    problems.append(f"review-without-lane-items:{key}")
 
     revision = re.search(r"revision (\d+)", spec)
     result = {
