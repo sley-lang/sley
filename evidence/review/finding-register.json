@@ -3742,7 +3742,7 @@
     "cli.p0_open_count": 4,
     "complete_root_index_snapshot.p0_open": 0,
     "complete_root_index_snapshot.p0_open_count": 0,
-    "context_capsule_profile.p0_open_count": 7,
+    "context_capsule_profile.p0_open_count": 0,
     "decision_dossier.p0_open_count": 0,
     "finding_register.p0_open_count": 0,
     "json_bridge.p0_open_count": 4,
@@ -3756,7 +3756,7 @@
     "s20_390_atomic_commit.p0_open_count": 4,
     "s20_700_remaining_surface_audit.p0_open_count": 4,
     "semantic_comparison.p0_open_count": 4,
-    "session_handle_profile.p0_open_count": 6,
+    "session_handle_profile.p0_open_count": 0,
     "sley2_trial_runner.p0_open": 0,
     "sley2_trial_runner.p0_open_count": 0,
     "standards_sbom_and_provenance.p0_open_count": 0,
@@ -3765,7 +3765,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "13baebca8d258edf526ee3ba5abcb5bff7d3369f8a131d3c00b98f050f8fb03f",
+  "register_digest": "8001e7664da70a3604350161d0e8589e53beb2cf1cd71f1c59a151faa1d840f4",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

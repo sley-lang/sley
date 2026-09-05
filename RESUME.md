@@ -64,6 +64,14 @@ Closed, each reproduced before fixing:
 - **S20-400** (8 entries): SMP1 frame contract revision 9 (`19587b5`).
 - **S20-320** (7 entries): context-capsule contract revision 3 (`9164ba3`).
 - **S20-330** (6 entries): negotiated-session contract revision 2 (`ed7fe87`).
+  Repair 2026-09-05 (`9cb1fc6`): both fixes landed with closeout
+  mappings but the register-first step was skipped, so the summary
+  still read open 7/6 against this list's claim. Each of the thirteen
+  findings was verified against `main` (oracle PASS 24 vectors,
+  negotiated arm required; both stage checkers PASS; sley-protocol
+  30/30; the 320 revision cross-check verified live by drift
+  injection) and the dispositions recorded; the 84 count below is now
+  what the register actually reads.
 - **S20-520** (7 entries): merge contract revision 4 (`ee7451d`).
 - **S20-630** (7 entries): succession-accounting contract revision 3
   (`5580fe6`).
@@ -131,10 +139,6 @@ Closed, each reproduced before fixing:
   failed `PACKAGE_TREE_DIRTY` on pre-smoke refresh drift; corrected by
   committing dispositions, discarding derived drift, and re-running
   clean.
-
-Two S20-310 P0s are partially addressed on `main` (applicability-table freeze
-`d047eaf`; caller-declared query facts bound to the committed root `95c90df`)
-and need reviewer-confirmation triage against the pinned candidate.
 
 **26 entries remain open.** Five clusters tied at 4: 390extended, 420,
 430, 510, 700fuzz; then 360full (3), 780 (3).

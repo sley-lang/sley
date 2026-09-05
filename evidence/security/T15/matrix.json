@@ -8,7 +8,7 @@
     "only a handle naming the new root resolves after renewal",
     "the closed head-bound set refuses branch reads under a stale session"
   ],
-  "commit": "ad53ee8dde612234da314d31d1d65db83d41e7a7",
+  "commit": "4d067cdeb728f3740f053d34847bb9e99bf7aa2e",
   "contract": "s20-330-session-handle-profile-v1",
   "expected_failure": "SESSION_STALE_HANDLE",
   "result": "PASS",
