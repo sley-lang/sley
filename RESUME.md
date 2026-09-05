@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `c7ca0f1`.
+are green at `de1a6a0`.
 
 ## Where the work is
 
@@ -288,14 +288,29 @@ Closed, each reproduced before fixing:
   retained as succession evidence rather than retired; section 2.1 states
   exactly the single-sentinel search with non-mechanized detection named as
   a limit; the checker records the audit fact as a boolean instead of
-  freezing it false. No tests added, corpus untouched. Round verdicts stand
-  as `FAIL` history with P1+ still open. Repair trail: none, smoke passed
-  clean immediately.
+   freezing it false. No tests added, corpus untouched. Round verdicts stood
+   as `FAIL` history until the P1+ pilot below superseded them.
+- **S20-780 pilot** (P1+ backlog pilot, all severities): register revisions 3
+  (`d149c68`) and 4 (`57f509e`) plus three live Council re-reviews
+  (`2798f1b`), status `S20_780_REGISTER_ACCEPTED`. Rev3 addressed the eleven
+  P1, eleven P2, and ten P3 findings (entry split, staged-execution truth,
+  reimplementation criterion, exact sentinel/dependency/executable inventory,
+  lineage enforcement, audit recorded as a remaining gate). First re-review
+  round: Ariadne PASS and Vulcan PASS with no new findings, Nabu FAIL with
+  two residuals (lockfile stanza parsing, transcript-tree bounding); rev4
+  closed both and Nabu PASS followed. New `ariadne_review`, `nabu_review`,
+  and `vulcan_review` PASS obligations supersede the three FAIL rounds to
+  `HISTORICAL_ROUND`; every 780 open claim reads zero. Four re-review
+  transcripts recorded. Repair trail: one `finding-register:drift` (rebuilt
+  the derived register after the summary change) and one stale-counter sync
+  (`sync_evidence_counters.py` for obligations 204→207, open reviews
+  79→76); smoke passed clean on the first attempt after each commit.
 
-**No P0 entries remain open.** All 110 Council P0 findings are closed.
-Lower-severity findings (P1+) remain open per cluster and are tracked in the
-finding register; the review rounds stand as `FAIL` history where P1+ is
-still open.
+**No P0 entries remain open.** All 110 Council P0 findings are closed, and
+the S20-780 pilot closed its package across all severities (rounds
+superseded, claims zero, register accepted). The wider P1+ backlog stands at
+76 open reviews in other packages; lower-severity findings there remain
+tracked in the finding register.
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -317,8 +332,10 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **No open P0 cluster remains.** Candidate next work: the P1+ backlog per
-   the finding register, or a new Council round.
+2. **No open P0 cluster remains, and the 780 pilot is the proven closure
+   loop** (fix, live re-review, PASS-record, attest). Candidate next work:
+   the next backlog package per the finding register (76 open reviews), or a
+   new Council round.
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -336,7 +353,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`c7ca0f1`. The full `make v1` gate was skipped
+`de1a6a0`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
