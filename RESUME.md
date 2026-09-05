@@ -1,9 +1,10 @@
-# Resume state, 2026-09-05 (night)
+# Resume state, 2026-09-05 (night, second push)
 
 The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
-`adversarial`, `fuzz-smoke`) are green at `5e4f1ae`.
+`adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
+are green at `8722a55`.
 
 ## Where the work is
 
@@ -46,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 69 of 110 P0 entries closed
+## Findings: 79 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -90,14 +91,39 @@ Closed, each reproduced before fixing:
   Closeout `docs/audits/S20_750_DECISION_DOSSIER_CLOSEOUT.md`. The register
   picked up the closure (`decision_dossier.p0_open_count` 5 to 0) on
   rebuild.
+- **S20-720** (5 entries): packaging contract revision 3 (`42e5b00` plus a
+  call-site repair `935a5d5`). Remaps ordered most-general-first (the old
+  order shadowed the tree rule; the shipped binary carried fourteen
+  `/home-remapped` paths, confirmed with `strings`), scan needles for the
+  residue and username, `--require-clean` default with `--allow-dirty`
+  escape, self-describing manifest (GA/publication/blockers/cleanliness
+  inside the digest), honest 20.12 verb enumeration (four covered, four
+  residual; open question 1 answered yes as a `workspace.create`
+  extension), and a demo-limits repair (the S20-330 `max_sessions` field
+  broke every demo frame; fixed with a bridge-pinned limit set). Round
+  verdicts stand as `FAIL` history. Closeout
+  `docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md`.
+- **S20-730** (5 entries): reproducibility contract revision 3
+  (`b9bab83`). Hermetic digest/shape verification in the checker,
+  attestation ancestry plus artifact-surface freshness plus toolchain
+  matching, carry-forward rebuilds, and a semantic/codec-and-identity
+  depth axis with the `COMPLETE` limits stated. Round verdicts stand as
+  `FAIL` history. Closeout
+  `docs/audits/S20_730_REPRODUCIBILITY_CLOSEOUT.md`.
+- Evidence commit `8722a55`: clean smoke at `e20b9ad` (2,083,924-byte
+  artifact, demo 12/12, byte-identical rebuild, 4 `/sley2` / 0
+  `/home-remapped` / 0 username strings); the repro report attests the
+  commit single-host; `make quick` fully green including the new gates.
 
 Two S20-310 P0s are partially addressed on `main` (applicability-table freeze
 `d047eaf`; caller-declared query facts bound to the committed root `95c90df`)
 and need reviewer-confirmation triage against the pinned candidate.
 
-**41 entries remain open.** Largest remaining clusters: 710full (5),
-720 (5), 730 (5), then 390extended (4), 420 (4), 430 (4), 510 (4),
-700fuzz (4), 360full (3), 780 (3).
+**31 entries remain open.** Largest remaining cluster is 710full (5,
+SBOM/provenance — note this session observed its tests failing on a
+field-dropping smoke `FAIL` record, the P1-2 failure mode live), then
+390extended (4), 420 (4), 430 (4), 510 (4), 700fuzz (4), 360full (3),
+780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -119,7 +145,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 710full, 720, or 730 (5 each) by size.
+2. **Work the next P0 cluster**: 710full (5, SBOM/provenance) is largest.
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
    `reviews/verdicts.json` current. Take reviewer counts from the emitted
@@ -134,8 +160,9 @@ decision.
 
 ## Validation at this commit
 
-`make quick`, `make lint`, and Tier 2 (`core`, `conformance`, `adversarial`,
-`fuzz-smoke`) all pass at `5e4f1ae`. The full `make v1` gate was skipped
+`make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
+`fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
+`8722a55`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
