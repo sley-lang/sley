@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "d613d6dc0e532535de3b73b082954e862971396739516efd20d0fba1532c9e88",
+  "report_digest": "d4ebfb19e62752052e4df8ecf835eb76166d11c4de604e40196a0592f7f4dfb6",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -344,7 +344,7 @@
     {
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py"
@@ -352,7 +352,8 @@
         "implementation": [
           "crates/sley-check/src/cfg.rs",
           "crates/sley-policy/src/candidate_program.rs",
-          "crates/sley-policy/src/candidate_validation.rs"
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-protocol/src/server.rs"
         ]
       },
       "owner": "sley-check",
@@ -372,10 +373,11 @@
     {
       "expected_failure_code": "TYPE_RESOURCE_LIMIT",
       "id": "T12",
-      "located_file_count": 1,
+      "located_file_count": 2,
       "located_in": {
         "implementation": [
-          "crates/sley-check/src/lib.rs"
+          "crates/sley-check/src/lib.rs",
+          "crates/sley-protocol/src/server.rs"
         ]
       },
       "owner": "sley-check",
@@ -395,12 +397,13 @@
     {
       "expected_failure_code": "QUERY_RESOURCE_LIMIT",
       "id": "T13",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
           "scripts/check_root_backed_query_vector.py"
         ],
         "implementation": [
+          "crates/sley-protocol/src/server.rs",
           "crates/sley-query/src/query.rs",
           "crates/sley-query/src/root_query.rs"
         ]
@@ -422,7 +425,7 @@
     {
       "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
       "id": "T14",
-      "located_file_count": 7,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_restricted_query_profile.py",
@@ -431,9 +434,9 @@
         ],
         "implementation": [
           "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-query/src/query.rs",
-          "crates/sley-query/src/root_query.rs"
+          "crates/sley-query/src/query.rs"
         ]
       },
       "owner": "sley-query",
@@ -482,7 +485,7 @@
     {
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 22,
+      "located_file_count": 23,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -878,12 +881,13 @@
     {
       "expected_failure_code": "VM_OUTPUT_LIMIT",
       "id": "T30",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py"
         ],
         "implementation": [
+          "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-vm/src/execute.rs"
         ]
@@ -936,7 +940,7 @@
     {
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
@@ -944,9 +948,9 @@
         ],
         "implementation": [
           "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-vm/src/execute.rs",
-          "crates/sley-vm/src/lib.rs"
+          "crates/sley-vm/src/execute.rs"
         ]
       },
       "owner": "sley-vm",
