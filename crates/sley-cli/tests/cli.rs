@@ -8,9 +8,9 @@ use serde_json::Value;
 use sley_id::SessionId;
 use sley_json_bridge::{METHOD_TABLE_JSON, frame_from_json, frame_to_json, hello_to_json};
 use sley_protocol::{
-    BoundedContext, DecodedFrame, FEATURE_JSON_BRIDGE, FLAG_CANCEL, FrameKind, Hello,
-    MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolFailure, ProtocolFrame, Server,
-    decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate_identity,
+    BoundedContext, DecodedFrame, FEATURE_JSON_BRIDGE, FrameKind, Hello, MAX_FRAME_BYTES, Method,
+    PROTOCOL_VERSION, ProtocolFailure, ProtocolFrame, Server, decode_frame, encode_frame,
+    encode_hello_frame, frame_length, negotiate_identity,
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
 use sley_scb1::encode_uvar;
@@ -129,11 +129,12 @@ fn direct_with(path: &PathBuf, server_hello: &Hello) -> Direct {
 fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
     let (temp, path) = repository("cli-bytes");
     let mut direct = direct(&path);
-    let mut expected = Vec::new();
+    // Baseline: the transplanted session is live on its own server, so
+    // the direct answers all succeed there.
     for frame in &direct.frames[1..] {
         let answer = direct.server.answer(frame).unwrap();
         assert!(answer.events.is_empty());
-        expected.push(answer.frame.bytes);
+        assert!(!answer.failed);
     }
     let mut input = encode_hello_frame(&offered()).unwrap().bytes;
     for frame in &direct.frames {
@@ -154,9 +155,20 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
     let frames = split_frames(&stdout);
     assert_eq!(frames.len(), 1 + direct.frames.len());
     assert_eq!(frames[0], encode_hello_frame(&offered()).unwrap().bytes);
+    // Session identities are per server instance (S20-330 section 1): the
+    // CLI server mints a fresh 32-byte identity no other instance shares,
+    // so a session transplanted from the direct server is unknown here
+    // rather than silently accepted.
     let open = response(&frames[1]);
-    assert_eq!(open.body, direct.session.as_bytes().to_vec());
-    assert_eq!(&frames[2..], &expected[..]);
+    assert_eq!(open.body.len(), 32);
+    assert_ne!(open.body, direct.session.as_bytes().to_vec());
+    for frame in &frames[2..] {
+        let failure = failure(frame);
+        assert_eq!(
+            (failure.code, failure.symbol.as_str()),
+            (33_000, "SESSION_UNKNOWN")
+        );
+    }
     let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
     assert_eq!(report["contract"], "sley2-cli-report-v1");
     assert_eq!(report["mode"], "bytes");
@@ -164,6 +176,8 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
     assert_eq!(report["frames_read"], 6);
     assert_eq!(report["frames_written"], 6);
     assert_eq!(report["answers"], 5);
+    assert_eq!(report["failed_answers"], 4);
+    assert_eq!(report["codes"]["33000"], 4);
     assert_eq!(report["events_written"], 0);
     assert_eq!(report["exit_code"], 0);
     assert_eq!(report["cli_failure"], Value::Null);
@@ -272,32 +286,29 @@ fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
 }
 
 #[test]
-fn batch_mode_lets_a_cancellation_precede_execution() {
+fn batch_mode_answers_one_batch_per_server() {
+    // Cancellation-before-execution across one batch is covered at the
+    // owning layer (`batch_cancel_precedes_execution_in_one_batch` in
+    // sley-protocol): a batch cannot transplant a session across server
+    // instances (S20-330 section 1), so the CLI batch test proves the
+    // plumbing instead. One batch carrying the hello and two opens is
+    // answered frame for frame with two distinct fresh identities.
     let (_temp, path) = repository("cli-batch");
-    let direct = direct(&path);
-    let session = direct.session;
+    let handshake = negotiate_identity(&offered(), &offered()).unwrap().1;
     let mut input = encode_hello_frame(&offered()).unwrap().bytes;
-    input.extend_from_slice(&direct.frames[0]);
     input.extend_from_slice(&request(
-        Some(session),
+        None,
+        1,
+        Method::SessionOpen,
+        0,
+        handshake.as_bytes().to_vec(),
+    ));
+    input.extend_from_slice(&request(
+        None,
         2,
-        Method::SessionCapabilities,
+        Method::SessionOpen,
         0,
-        Vec::new(),
-    ));
-    input.extend_from_slice(&request(
-        Some(session),
-        3,
-        Method::Cancel,
-        0,
-        encode_uvar(2),
-    ));
-    input.extend_from_slice(&request(
-        Some(session),
-        4,
-        Method::SessionBudgets,
-        FLAG_CANCEL,
-        Vec::new(),
+        handshake.as_bytes().to_vec(),
     ));
 
     let (status, stdout, _) = run(
@@ -306,26 +317,12 @@ fn batch_mode_lets_a_cancellation_precede_execution() {
     );
     assert_eq!(status, 0);
     let frames = split_frames(&stdout);
-    assert_eq!(frames.len(), 5);
-    let cancelled = failure(&frames[2]);
-    assert_eq!(
-        (cancelled.code, cancelled.symbol.as_str()),
-        (40_010, "PROTOCOL_CANCELLED")
-    );
-    assert_eq!(response(&frames[2]).request_id, 2);
-    let self_cancelled = failure(&frames[4]);
-    assert_eq!(self_cancelled.code, 40_010);
-
-    let (status, stdout, _) = run(&["serve", "--repository", path.to_str().unwrap()], &input);
-    assert_eq!(status, 0);
-    let frames = split_frames(&stdout);
-    let capabilities = response(&frames[2]);
-    assert_eq!(capabilities.request_id, 2);
-    assert!(
-        ProtocolFailure::decode(&capabilities.body)
-            .map(|f| f.code != 40_010)
-            .unwrap_or(true)
-    );
+    assert_eq!(frames.len(), 3);
+    let first = response(&frames[1]);
+    let second = response(&frames[2]);
+    assert_eq!(first.body.len(), 32);
+    assert_eq!(second.body.len(), 32);
+    assert_ne!(first.body, second.body);
 }
 
 #[test]

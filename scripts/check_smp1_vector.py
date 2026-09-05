@@ -50,7 +50,7 @@ CODES = {
 CLIENT_HELLO = {
     "protocol_versions": [1, 2],
     "schema_epochs": [bytes([0x11]) * 32, bytes([0x12]) * 32],
-    "limits": (1_048_576, 1_000, 10_000, 16, 1_048_576, 1_000_000, 4),
+    "limits": (1_048_576, 1_000, 10_000, 16, 1_048_576, 1_000_000, 4, 16),
     "methods": ALL_METHODS,
     "features": 1 | 2 | 4,
     "adapters": [bytes([0xA1]) * 32, bytes([0xA2]) * 32],
@@ -59,7 +59,7 @@ CLIENT_HELLO = {
 SERVER_HELLO = {
     "protocol_versions": [1],
     "schema_epochs": [bytes([0x12]) * 32, bytes([0x11]) * 32],
-    "limits": (4_194_304, 500, 20_000, 8, 2_097_152, 5_000_000, 2),
+    "limits": (4_194_304, 500, 20_000, 8, 2_097_152, 5_000_000, 2, 8),
     "methods": [100, 102, 103, 300, 301, 302, 303, 603],
     "features": 1 | 8,
     "adapters": [bytes([0xA2]) * 32],
@@ -238,7 +238,7 @@ def main() -> int:
     epoch = bytes.fromhex(accepted["protocol_epoch_hex"])
     # Hellos.
     for label, source in (("client", CLIENT_HELLO), ("server", SERVER_HELLO)):
-        payload = frame_payload(None, 0, 4, 0, 0, bounds((0,) * 7, (0, 0, 0, 0, 0, False, False)), hello(source))
+        payload = frame_payload(None, 0, 4, 0, 0, bounds((0,) * 8, (0, 0, 0, 0, 0, False, False)), hello(source))
         frame, frame_id = envelope(epoch, payload)
         expected = accepted["hellos"][label]
         if frame.hex() != expected["frame_hex"]:
@@ -259,7 +259,7 @@ def main() -> int:
     if selected["schema_epoch"].hex() != expected["schema_epoch_hex"] or selected["features"] != expected["features"]:
         problems.append("selected:epoch-or-features")
     # Frames.
-    zero = bounds((0,) * 7, (0, 0, 0, 0, 0, False, False))
+    zero = bounds((0,) * 8, (0, 0, 0, 0, 0, False, False))
     request_payload = frame_payload(SESSION, 7, 1, 300, 0, zero, b"SLEYRQQ1-body")
     response_bounds = bounds(selected["limits"], (300, 3, 0, 0, 1, True, True))
     response_payload = frame_payload(SESSION, 7, 2, 300, 0, response_bounds, b"SLEYRQR1-body")

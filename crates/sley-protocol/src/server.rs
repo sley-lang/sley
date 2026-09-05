@@ -50,7 +50,9 @@ use sley_store::ObjectStore;
 use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
 use sley_vm::{CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, execute_function};
 
-use crate::session::{CapsuleBindError, HeadBinding, SessionAuthority, SessionError};
+use crate::session::{
+    CapsuleBindError, HeadBinding, SessionAuthority, SessionError, fresh_server_nonce,
+};
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
     FLAG_FAILED, FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError,
@@ -185,7 +187,7 @@ impl Server {
             profile,
             handshake_id,
             registry: RequestRegistry::new(),
-            authority: SessionAuthority::new(handshake_id),
+            authority: SessionAuthority::new(handshake_id, fresh_server_nonce()),
             budgets: BTreeMap::new(),
         })
     }
@@ -446,12 +448,20 @@ impl Server {
         }
         // A repository without an accepted head cannot bind a session, so
         // the two methods that create one may travel without a session
-        // (contract section 3); under a session they are checked normally.
+        // only while no head exists (contract section 2): once a head
+        // exists they require a session like every other method, because
+        // `exchange.import` advances the head and would otherwise
+        // invalidate every live binding from an unbound caller.
         if frame.session.is_none()
             && matches!(method, Method::WorkspaceCreate | Method::ExchangeImport)
         {
             if !self.profile.admits(method) {
                 return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
+            }
+            if self.head_binding().is_ok() {
+                return Err(session_failure(SessionError::new(
+                    crate::session::SessionErrorCode::BindingInvalid,
+                )));
             }
             return match method {
                 Method::WorkspaceCreate => self.workspace_create(&frame.body),
@@ -461,17 +471,31 @@ impl Server {
         let Some(session) = frame.session else {
             return protocol_failure(ProtocolErrorCode::SessionClosed);
         };
+        // Liveness precedes admission (contract section 3): a name no
+        // live session holds answers `SESSION_UNKNOWN`, a remembered
+        // close answers `PROTOCOL_SESSION_CLOSED`, and only a live name
+        // reaches request-identity admission.
+        if self.authority.record(session).is_none() {
+            if self.registry.is_closed(session) {
+                return protocol_failure(ProtocolErrorCode::SessionClosed);
+            }
+            return Err(session_failure(SessionError::new(
+                crate::session::SessionErrorCode::Unknown,
+            )));
+        }
         self.registry
             .admit(session, frame.request_id, self.profile.limits.max_inflight)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-        if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
-            self.registry
-                .complete(session)
-                .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-            return protocol_failure(ProtocolErrorCode::LimitExceeded);
-        }
         let outcome = match self.session_check(session, method) {
-            Ok(()) => self.dispatch_admitted(session, method, frame),
+            Ok(()) => {
+                if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
+                    self.registry
+                        .complete(session)
+                        .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+                    return protocol_failure(ProtocolErrorCode::LimitExceeded);
+                }
+                self.dispatch_admitted(session, method, frame)
+            }
             Err(failure) => Err(failure),
         };
         // Synchronous server: the request completes before the next frame.
@@ -507,6 +531,12 @@ impl Server {
         match method {
             Method::SessionOpen => protocol_failure(ProtocolErrorCode::InternalInvariant),
             Method::SessionRenew => {
+                // The renew body names the session being renewed; the
+                // frame's session scopes the request. They must agree
+                // (contract section 2).
+                if fixed32(body)? != *session.as_bytes() {
+                    return protocol_failure(ProtocolErrorCode::FrameInvalid);
+                }
                 let (head, binding) = self.head_binding()?;
                 let record = self
                     .authority
@@ -516,7 +546,7 @@ impl Server {
             }
             Method::SessionClose => {
                 self.registry
-                    .close(session)
+                    .close(session, self.profile.limits.max_sessions)
                     .map_err(|error| ProtocolFailure::protocol(error.code()))?;
                 self.authority
                     .close_session(session)
@@ -590,8 +620,13 @@ impl Server {
     }
 
     /// Head-bound methods answer over the accepted head without naming it
-    /// (contract section 3). `handle.expand` performs the same root check
-    /// itself and reports `SESSION_STALE_HANDLE`.
+    /// (contract section 3). The set is closed: a method is head-bound
+    /// exactly when it answers over current repository state without
+    /// naming the state it answers over. Methods naming an explicit
+    /// `TransactionId`, receipt, candidate bytes, or merge inputs answer
+    /// over caller-named state; methods that mutate advance the head and
+    /// leave rebinding to explicit renewal. `handle.expand` performs the
+    /// same root check itself and reports `SESSION_STALE_HANDLE`.
     const fn head_bound(method: Method) -> bool {
         matches!(
             method,
@@ -601,6 +636,13 @@ impl Server {
                 | Method::Capsule
                 | Method::QueryRestricted
                 | Method::Execute
+                | Method::RefsList
+                | Method::RefsResolve
+                | Method::RefsRecover
+                | Method::Recovery
+                | Method::ExchangeExport
+                | Method::GcDryRun
+                | Method::Report
         )
     }
 
@@ -616,9 +658,6 @@ impl Server {
     }
 
     fn session_check(&self, session: SessionId, method: Method) -> Result<()> {
-        if matches!(method, Method::SessionRenew | Method::SessionClose) {
-            return Ok(());
-        }
         let (_, binding) = self.head_binding()?;
         self.authority
             .check_session(session, &binding, Self::head_bound(method))
@@ -643,7 +682,11 @@ impl Server {
         let (head, binding) = self.head_binding()?;
         let record = self
             .authority
-            .open_session(&binding, head.state_root())
+            .open_session(
+                &binding,
+                head.state_root(),
+                self.profile.limits.max_sessions,
+            )
             .map_err(session_failure)?;
         let session = record.session_id;
         self.registry
@@ -889,7 +932,14 @@ impl Server {
     }
 
     fn handle_expand(&self, body: &[u8], session: SessionId) -> Result<(Vec<u8>, BoundedContext)> {
-        let handle = single_uvar(body)?;
+        // The request names the root it expects alongside the position
+        // (contract section 4): `uvar(handle) || StateRoot[32]`.
+        let mut offset = 0_usize;
+        let handle = uvar_at(body, &mut offset)?;
+        let expected_root = StateRoot::from_bytes(fixed32(body.get(offset..).unwrap_or(&[]))?);
+        if body.len() != offset + 32 {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
         let (head, binding) = self.head_binding()?;
         let request = CompleteRootRequest::extract(&head)
             .map_err(|error| owner(error.code(), error.numeric()))?;
@@ -900,7 +950,14 @@ impl Server {
             .collect();
         let facts = self
             .authority
-            .expand_handle(session, &binding, request.bound_objects(), &kinds, handle)
+            .expand_handle(
+                session,
+                &binding,
+                request.bound_objects(),
+                &kinds,
+                handle,
+                expected_root,
+            )
             .map_err(session_failure)?;
         let record = scb(encode_record(&[
             (1, facts.entity.as_bytes().to_vec()),

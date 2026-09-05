@@ -162,14 +162,19 @@ pub struct HandleFacts {
     pub session_id: SessionId,
 }
 
-/// Derives the session identity (contract section 1).
+/// Derives the session identity (contract section 1): the per-instance
+/// server nonce first, so equal servers over equal repository state issue
+/// different identities and no caller can compute another instance's live
+/// names from public head state.
 #[must_use]
 pub fn derive_session_id(
+    server_nonce: &[u8; 32],
     handshake_id: ProtocolHandshakeId,
     head: &HeadBinding,
     issue_ordinal: u64,
 ) -> SessionId {
-    let mut preimage = Vec::with_capacity(136);
+    let mut preimage = Vec::with_capacity(168);
+    preimage.extend_from_slice(server_nonce);
     preimage.extend_from_slice(handshake_id.as_bytes());
     preimage.extend_from_slice(head.workspace_id.as_bytes());
     preimage.extend_from_slice(head.root.as_bytes());
@@ -178,10 +183,36 @@ pub fn derive_session_id(
     SessionId::derive(&preimage)
 }
 
+/// Mints a fresh per-instance server nonce (contract section 1): four
+/// keyed hashes from the platform's documented-random `RandomState` keys,
+/// so twin servers and restarted servers never share an identity space.
+/// The nonce is instance binding, not a secret: it never leaves the
+/// server except inside the identities it digests.
+#[must_use]
+pub fn fresh_server_nonce() -> [u8; 32] {
+    use std::collections::hash_map::RandomState;
+    use std::hash::BuildHasher;
+    let random = RandomState::new();
+    let mut nonce = [0_u8; 32];
+    for (slot, tag) in nonce.chunks_exact_mut(8).zip([
+        "sley2.session-server-nonce.v1:0",
+        "sley2.session-server-nonce.v1:1",
+        "sley2.session-server-nonce.v1:2",
+        "sley2.session-server-nonce.v1:3",
+    ]) {
+        slot.copy_from_slice(&random.hash_one(tag).to_be_bytes());
+    }
+    nonce
+}
+
 /// The session authority of one server over one repository.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionAuthority {
     handshake_id: ProtocolHandshakeId,
+    /// Per-instance binding mixed into every issued identity: no two
+    /// server instances share an identity space, and a restart forgets
+    /// every pre-restart name (contract section 1).
+    server_nonce: [u8; 32],
     issued: u64,
     sessions: BTreeMap<SessionId, SessionRecord>,
     /// Full root records bound by live sessions. `gc` catalogs exactly
@@ -195,9 +226,10 @@ pub struct SessionAuthority {
 
 impl SessionAuthority {
     #[must_use]
-    pub const fn new(handshake_id: ProtocolHandshakeId) -> Self {
+    pub const fn new(handshake_id: ProtocolHandshakeId, server_nonce: [u8; 32]) -> Self {
         Self {
             handshake_id,
+            server_nonce,
             issued: 0,
             sessions: BTreeMap::new(),
             retained: BTreeMap::new(),
@@ -272,22 +304,28 @@ impl SessionAuthority {
     ///
     /// # Errors
     ///
-    /// Returns `SESSION_BINDING_INVALID` when the ordinal space is exhausted,
+    /// Returns `SESSION_BINDING_INVALID` when the live session count
+    /// already reaches `max_sessions`, the ordinal space is exhausted,
     /// the identity is already issued, or the retained record is not the
     /// bound root's own record.
     pub fn open_session(
         &mut self,
         head: &HeadBinding,
         root_record: &AcceptedStateRoot,
+        max_sessions: u32,
     ) -> Result<SessionRecord, SessionError> {
         if root_record.root != head.root {
+            return fail(SessionErrorCode::BindingInvalid);
+        }
+        if u64::try_from(self.sessions.len()).unwrap_or(u64::MAX) >= u64::from(max_sessions) {
             return fail(SessionErrorCode::BindingInvalid);
         }
         let issue_ordinal = self
             .issued
             .checked_add(1)
             .ok_or(SessionError(SessionErrorCode::BindingInvalid))?;
-        let session_id = derive_session_id(self.handshake_id, head, issue_ordinal);
+        let session_id =
+            derive_session_id(&self.server_nonce, self.handshake_id, head, issue_ordinal);
         if self.sessions.contains_key(&session_id) {
             return fail(SessionErrorCode::BindingInvalid);
         }
@@ -400,10 +438,15 @@ impl SessionAuthority {
     }
 
     /// Expands a positional handle under its session and root (section 4).
+    /// The request names the root it expects alongside the position: a
+    /// handle is the pair, never the bare numeral, so a renewal that
+    /// rebinds the session leaves every handle naming the old root stale
+    /// instead of silently resolving to another entity.
     ///
     /// # Errors
     ///
-    /// Returns the binding failures, `SESSION_STALE_HANDLE` when the head
+    /// Returns the binding failures, `SESSION_STALE_HANDLE` when the
+    /// expected root differs from the session's bound root or the head
     /// root differs from the bound root, or `SESSION_HANDLE_UNKNOWN`.
     pub fn expand_handle(
         &self,
@@ -412,9 +455,10 @@ impl SessionAuthority {
         bindings: &[(EntityId, ObjectId)],
         kinds: &[u32],
         handle: u64,
+        expected_root: StateRoot,
     ) -> Result<HandleFacts, SessionError> {
         let record = self.check_session(session, head, false)?;
-        if record.bound_root != head.root {
+        if expected_root != record.bound_root || record.bound_root != head.root {
             return fail(SessionErrorCode::StaleHandle);
         }
         let index =
@@ -476,38 +520,31 @@ mod tests {
         ProtocolHandshakeId::from_bytes([0x44; 32])
     }
 
-    #[test]
-    fn issuance_is_deterministic_and_binds_the_head() {
-        let mut a = SessionAuthority::new(handshake());
-        let mut b = SessionAuthority::new(handshake());
-        let first = a
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap();
-        let again = b
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap();
-        assert_eq!(first, again);
-        assert_eq!(first.issue_ordinal, 1);
-        assert_eq!(first.bound_root, StateRoot::from_bytes([0x10; 32]));
-        let second = a
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap();
-        assert_ne!(second.session_id, first.session_id);
-        assert_eq!(second.issue_ordinal, 2);
-        assert_ne!(
-            derive_session_id(handshake(), &head(1, 0x10, 0x11), 1),
-            derive_session_id(handshake(), &head(1, 0x20, 0x11), 1)
-        );
-        assert_eq!(a.record(first.session_id).map(|r| r.renewals), Some(0));
+    /// Fixed instance nonces for the unit matrix: one shared nonce proves
+    /// same-instance determinism, a second proves instance separation.
+    const FIXTURE_NONCE: [u8; 32] = [0x51; 32];
+    const OTHER_NONCE: [u8; 32] = [0x52; 32];
+    const FIXTURE_MAX_SESSIONS: u32 = 256;
+
+    fn open(authority: &mut SessionAuthority, workspace: u8, root: u8, epoch: u8) -> SessionRecord {
+        authority
+            .open_session(
+                &head(workspace, root, epoch),
+                &retained(root),
+                FIXTURE_MAX_SESSIONS,
+            )
+            .unwrap()
     }
 
-    #[test]
-    fn checks_follow_contract_order_and_handles_die_with_the_root() {
-        let mut authority = SessionAuthority::new(handshake());
-        let session = authority
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap()
-            .session_id;
+    /// The two-entity inventory every handle test expands against.
+    fn expand(
+        authority: &SessionAuthority,
+        session: SessionId,
+        workspace: u8,
+        root: u8,
+        position: u64,
+        expected_root: StateRoot,
+    ) -> Result<HandleFacts, SessionError> {
         let bindings = [
             (
                 EntityId::from_bytes([1; 32]),
@@ -518,7 +555,72 @@ mod tests {
                 ObjectId::from_bytes([0x82; 32]),
             ),
         ];
-        let kinds = [1, 3];
+        authority.expand_handle(
+            session,
+            &head(workspace, root, 0x11),
+            &bindings,
+            &[1, 3],
+            position,
+            expected_root,
+        )
+    }
+
+    #[test]
+    fn issuance_binds_head_and_nonce_separates_instances() {
+        let mut a = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let mut b = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let mut other = SessionAuthority::new(handshake(), OTHER_NONCE);
+        let first = open(&mut a, 1, 0x10, 0x11);
+        let again = open(&mut b, 1, 0x10, 0x11);
+        // Same instance nonce over equal state issues equal identities;
+        // the ordinal still separates successive opens.
+        assert_eq!(first, again);
+        assert_eq!(first.issue_ordinal, 1);
+        assert_eq!(first.bound_root, StateRoot::from_bytes([0x10; 32]));
+        let second = open(&mut a, 1, 0x10, 0x11);
+        assert_ne!(second.session_id, first.session_id);
+        assert_eq!(second.issue_ordinal, 2);
+        // Another instance nonce over equal state issues a different
+        // identity: no caller derives another instance's live names from
+        // public head state (contract section 1, threat T56).
+        let foreign = open(&mut other, 1, 0x10, 0x11);
+        assert_ne!(foreign.session_id, first.session_id);
+        assert_ne!(
+            derive_session_id(&FIXTURE_NONCE, handshake(), &head(1, 0x10, 0x11), 1),
+            derive_session_id(&FIXTURE_NONCE, handshake(), &head(1, 0x20, 0x11), 1)
+        );
+        assert_eq!(
+            derive_session_id(&FIXTURE_NONCE, handshake(), &head(1, 0x10, 0x11), 1),
+            derive_session_id(&FIXTURE_NONCE, handshake(), &head(1, 0x10, 0x11), 1)
+        );
+        assert_eq!(a.record(first.session_id).map(|r| r.renewals), Some(0));
+    }
+
+    #[test]
+    fn live_sessions_are_capped_by_max_sessions() {
+        let mut authority = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        open(&mut authority, 1, 0x10, 0x11);
+        // A second live session past a cap of one is refused: session
+        // state never grows without bound (contract section 8).
+        assert_eq!(
+            authority
+                .open_session(&head(1, 0x20, 0x11), &retained(0x20), 1)
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::BindingInvalid
+        );
+        // Closing frees the slot: the cap bounds live sessions, not
+        // sessions ever issued.
+        let live: Vec<SessionId> = authority.live_pins().iter().map(|(id, _)| *id).collect();
+        assert_eq!(live.len(), 1);
+        authority.close_session(live[0]).unwrap();
+        open(&mut authority, 1, 0x20, 0x11);
+    }
+
+    #[test]
+    fn checks_follow_contract_order() {
+        let mut authority = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let session = open(&mut authority, 1, 0x10, 0x11).session_id;
         // T47: another workspace is refused before anything else.
         assert_eq!(
             authority
@@ -553,38 +655,6 @@ mod tests {
                 .code(),
             SessionErrorCode::Unknown
         );
-        // T15: the handle resolves under the bound root, is stale after the
-        // root advances, and resolves again after renewal.
-        let facts = authority
-            .expand_handle(session, &head(1, 0x10, 0x11), &bindings, &kinds, 1)
-            .unwrap();
-        assert_eq!(facts.entity, EntityId::from_bytes([2; 32]));
-        assert_eq!(facts.kind, 3);
-        assert_eq!(facts.session_id, session);
-        assert_eq!(
-            authority
-                .expand_handle(session, &head(1, 0x20, 0x11), &bindings, &kinds, 1)
-                .unwrap_err()
-                .code(),
-            SessionErrorCode::StaleHandle
-        );
-        assert_eq!(
-            authority
-                .expand_handle(session, &head(1, 0x10, 0x11), &bindings, &kinds, 2)
-                .unwrap_err()
-                .code(),
-            SessionErrorCode::HandleUnknown
-        );
-        let renewed = authority
-            .renew_session(session, &head(1, 0x20, 0x11), &retained(0x20))
-            .unwrap();
-        assert_eq!(renewed.renewals, 1);
-        assert_eq!(renewed.bound_root, StateRoot::from_bytes([0x20; 32]));
-        assert!(
-            authority
-                .expand_handle(session, &head(1, 0x20, 0x11), &bindings, &kinds, 0)
-                .is_ok()
-        );
         assert_eq!(
             authority
                 .renew_session(session, &head(2, 0x20, 0x11), &retained(0x20))
@@ -604,16 +674,60 @@ mod tests {
     }
 
     #[test]
+    fn handles_name_their_expected_root() {
+        let mut authority = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let session = open(&mut authority, 1, 0x10, 0x11).session_id;
+        let old_root = StateRoot::from_bytes([0x10; 32]);
+        let new_root = StateRoot::from_bytes([0x20; 32]);
+        // T15: the handle resolves under the bound root it names, is
+        // stale after the root advances, and stays stale after renewal
+        // while it names the old root: a handle is the pair of position
+        // and expected root, never the bare numeral.
+        let facts = expand(&authority, session, 1, 0x10, 1, old_root).unwrap();
+        assert_eq!(facts.entity, EntityId::from_bytes([2; 32]));
+        assert_eq!(facts.kind, 3);
+        assert_eq!(facts.session_id, session);
+        // Naming a root the session does not bind is stale even before
+        // any advance.
+        assert_eq!(
+            expand(&authority, session, 1, 0x10, 1, new_root)
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::StaleHandle
+        );
+        assert_eq!(
+            expand(&authority, session, 1, 0x20, 1, old_root)
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::StaleHandle
+        );
+        assert_eq!(
+            expand(&authority, session, 1, 0x10, 2, old_root)
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::HandleUnknown
+        );
+        let renewed = authority
+            .renew_session(session, &head(1, 0x20, 0x11), &retained(0x20))
+            .unwrap();
+        assert_eq!(renewed.renewals, 1);
+        assert_eq!(renewed.bound_root, StateRoot::from_bytes([0x20; 32]));
+        // The old handle does not resolve against the new root after
+        // renewal; only a handle naming the new root does.
+        assert_eq!(
+            expand(&authority, session, 1, 0x20, 0, old_root)
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::StaleHandle
+        );
+        assert!(expand(&authority, session, 1, 0x20, 0, new_root).is_ok());
+    }
+
+    #[test]
     fn retention_pins_exactly_the_live_sessions_roots() {
-        let mut authority = SessionAuthority::new(handshake());
-        let first = authority
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap()
-            .session_id;
-        let second = authority
-            .open_session(&head(1, 0x20, 0x11), &retained(0x20))
-            .unwrap()
-            .session_id;
+        let mut authority = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let first = open(&mut authority, 1, 0x10, 0x11).session_id;
+        let second = open(&mut authority, 1, 0x20, 0x11).session_id;
         let mut pins = authority.live_pins();
         pins.sort();
         let mut expected = vec![
@@ -645,15 +759,12 @@ mod tests {
         // the wrong root.
         assert_eq!(
             authority
-                .open_session(&head(1, 0x10, 0x11), &retained(0x20))
+                .open_session(&head(1, 0x10, 0x11), &retained(0x20), FIXTURE_MAX_SESSIONS)
                 .unwrap_err()
                 .code(),
             SessionErrorCode::BindingInvalid
         );
-        let session = authority
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap()
-            .session_id;
+        let session = open(&mut authority, 1, 0x10, 0x11).session_id;
         assert_eq!(
             authority
                 .renew_session(session, &head(1, 0x10, 0x11), &retained(0x20))
@@ -665,11 +776,8 @@ mod tests {
 
     #[test]
     fn renewal_limit_is_exact() {
-        let mut authority = SessionAuthority::new(handshake());
-        let session = authority
-            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
-            .unwrap()
-            .session_id;
+        let mut authority = SessionAuthority::new(handshake(), FIXTURE_NONCE);
+        let session = open(&mut authority, 1, 0x10, 0x11).session_id;
         for _ in 0..MAX_SESSION_RENEWALS {
             authority
                 .renew_session(session, &head(1, 0x10, 0x11), &retained(0x10))

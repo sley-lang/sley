@@ -54,6 +54,7 @@ fn server_hello() -> Hello {
             max_response_bytes: 2_097_152,
             max_work: 5_000_000,
             max_inflight: 2,
+            max_sessions: 8,
         },
         methods: Method::ALL.iter().map(|method| method.tag()).collect(),
         features: 1,

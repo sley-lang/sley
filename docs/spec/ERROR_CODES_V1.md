@@ -242,12 +242,25 @@ construction of the master capsule under `sley2.context-capsule.v1`. Codes
 a draft with Council review pending and reserves, rather than freezes, these
 codes.
 
-S20-330 reserves numeric codes 33000 through 33007 for the exact `SESSION_*`
-failures of `SESSION_HANDLE_PROFILE_V1.md`: unknown session, workspace
-mismatch (threat T47), root advanced, epoch mismatch, stale handle (threat
-T15), unknown handle, renewal limit, and binding invalid. They travel in the
-SMP1 failure envelope. The contract is a draft with Council review pending and
-reserves, rather than freezes, these codes.
+S20-330 freezes numeric codes 33000 through 33007 for the exact `SESSION_*`
+failures of `SESSION_HANDLE_PROFILE_V1.md` (contract draft revision 2,
+implemented under the draft with Council re-reviews pending). They travel
+in the SMP1 failure envelope:
+
+| Numeric | Symbolic |
+|---:|---|
+| 33000 | `SESSION_UNKNOWN` |
+| 33001 | `SESSION_WORKSPACE_MISMATCH` |
+| 33002 | `SESSION_ROOT_ADVANCED` |
+| 33003 | `SESSION_EPOCH_MISMATCH` |
+| 33004 | `SESSION_STALE_HANDLE` |
+| 33005 | `SESSION_HANDLE_UNKNOWN` |
+| 33006 | `SESSION_RENEWAL_LIMIT` |
+| 33007 | `SESSION_BINDING_INVALID` |
+
+`SESSION_UNKNOWN` answers for a name no live session holds; a remembered
+close answers `PROTOCOL_SESSION_CLOSED`. `SESSION_BINDING_INVALID` is the
+enumerated authority-cannot-bind bucket named by the owning contract.
 
 S20-350 freezes numeric codes 35000 through 35010 for candidate-specific
 proposal-construction failures:

@@ -26,7 +26,7 @@ assertion that they are untested.
 | T12 | type-checker nontermination | P0 | sley-check | `TYPE_RESOURCE_LIMIT` | recursive-type/fuel fuzz | `evidence/security/T12/` |
 | T13 | query explosion | P1 | sley-query | `QUERY_RESOURCE_LIMIT` | fanout/depth adversarial | `evidence/security/T13/` |
 | T14 | truncation hides required facts | P0 | sley-query | `QUERY_REQUIRED_FACT_OMITTED` | truncation/validation independence | `evidence/security/T14/` |
-| T15 | handle reuse across roots | P0 | sley-query | `SESSION_STALE_HANDLE` | root/session/epoch matrix | `evidence/security/T15/` |
+| T15 | handle reuse across roots | P0 | sley-protocol | `SESSION_STALE_HANDLE` | root/session/epoch matrix | `evidence/security/T15/` |
 | T16 | oversized mutation list | P1 | sley-mutate | `MUTATION_RESOURCE_LIMIT` | count/byte boundary | `evidence/security/T16/` |
 | T17 | stale-root commit | P0 | sley-txn | `STALE_ROOT` | concurrent CAS scenario; restricted S20-390 coverage present | `evidence/validation/s20-390-atomic-commit-closeout-v1.json` |
 | T18 | stale-entity commit | P0 | sley-txn | `STALE_ENTITY` | exact preimage mutation; restricted S20-360/S20-390 coverage present | `evidence/validation/s20-390-atomic-commit-closeout-v1.json` |
@@ -67,6 +67,7 @@ assertion that they are untested.
 | T53 | release artifact substitution | P1 | release | `RELEASE_ARTIFACT_MISMATCH` | manifest/hash verification | `evidence/security/T53/` |
 | T54 | secret committed in fixtures | P1 | release | `RELEASE_SECRET_FINDING` | bounded high-confidence candidate/history scan present; release re-anchor, wider privacy review, and independent disposition pending | `evidence/security/T54/` |
 | T55 | benchmark contamination/cherry-pick | P1 | sley-bench | `BENCH_CONTROL_VIOLATION` | manifest denominator/control audit | `evidence/security/T55/` |
+| T56 | live session name used by a non-opening caller | P1 | sley-protocol | `SESSION_UNKNOWN` for foreign-instance names | twin-instance inequality and restart-unknown matrix; peer isolation is a transport obligation on the S20-420/430 boundary | `evidence/security/T56/` |
 
 P0/P1 evidence requires independent Vulcan disposition. A green test without a
 fault-seeding or assertion-effectiveness check remains an open release finding.

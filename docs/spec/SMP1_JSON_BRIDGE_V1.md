@@ -1,11 +1,12 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 4 (2026-09-03); Council review
+Status: S20-420 contract draft, revision 5 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
 S20-430 endpoint; revision 4 follows SMP1 revision 6 by naming the `failed`
-response flag. The implementation is `crates/sley-json-bridge`;
+response flag; revision 5 follows SMP1 revision 10 with the eighth limit
+field `max_sessions`. The implementation is `crates/sley-json-bridge`;
 implementation state is tracked in the machine summary.
 
 The bridge is a generated, non-canonical text representation of SMP1
@@ -59,7 +60,8 @@ Frame {
 }
 LimitProfile {
   "max_frame_bytes", "max_entities", "max_edges", "max_depth",
-  "max_response_bytes", "max_work", "max_inflight": integer
+  "max_response_bytes", "max_work", "max_inflight",
+  "max_sessions": integer
 }
 BoundedContext {
   "applied_limits": LimitProfile,

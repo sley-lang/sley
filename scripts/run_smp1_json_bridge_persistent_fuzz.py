@@ -167,6 +167,7 @@ def generate_seed_corpus() -> int:
             "max_entities": 1_000,
             "max_frame_bytes": 1_048_576,
             "max_inflight": 4,
+            "max_sessions": 16,
             "max_response_bytes": 1_048_576,
             "max_work": 1_000_000,
         },

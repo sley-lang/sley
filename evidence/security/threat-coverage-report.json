@@ -1,12 +1,12 @@
 {
   "by_severity": {
     "P0": {
-      "PLANNED_EVIDENCE_PRESENT": 4,
+      "PLANNED_EVIDENCE_PRESENT": 6,
       "STRUCTURAL_CONTROL_RECORDED": 3,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 39
+      "SYMBOL_REALIZED_WITH_EXERCISE": 37
     },
     "P1": {
-      "PLANNED_EVIDENCE_PRESENT": 2,
+      "PLANNED_EVIDENCE_PRESENT": 3,
       "SYMBOL_REALIZED_WITH_EXERCISE": 7
     }
   },
@@ -15,14 +15,14 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "14eaf58cede37f8330648cd8005ee692afc1ebdcbe9d8d27dfea7dc13df519fa",
+  "report_digest": "2168b32dc85b319a6d9c1f914c7b320bfda33e24a16d3e7bdb37040b57ce6651",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
-    "PLANNED_EVIDENCE_PRESENT": 6,
+    "PLANNED_EVIDENCE_PRESENT": 9,
     "STRUCTURAL_CONTROL_RECORDED": 3,
-    "SYMBOL_REALIZED_WITH_EXERCISE": 46
+    "SYMBOL_REALIZED_WITH_EXERCISE": 44
   },
-  "threat_count": 55,
+  "threat_count": 56,
   "threats": [
     {
       "expected_failure_code": "SCB_MALFORMED",
@@ -453,10 +453,11 @@
     {
       "expected_failure_code": "SESSION_STALE_HANDLE",
       "id": "T15",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "checkers": [
-          "scripts/check_session_handle_profile.py"
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
         ],
         "implementation": [
           "crates/sley-protocol/src/server.rs",
@@ -464,9 +465,9 @@
           "crates/sley-protocol/src/session.rs"
         ]
       },
-      "owner": "sley-query",
+      "owner": "sley-protocol",
       "planned_evidence_path": "evidence/security/T15/",
-      "planned_evidence_present": false,
+      "planned_evidence_present": true,
       "realized_code_recorded": false,
       "recorded_exercise": [],
       "related_family_symbols": [],
@@ -475,7 +476,7 @@
         "SESSION_STALE_HANDLE"
       ],
       "severity": "P0",
-      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "state": "PLANNED_EVIDENCE_PRESENT",
       "threat": "handle reuse across roots"
     },
     {
@@ -1361,10 +1362,11 @@
     {
       "expected_failure_code": "SESSION_WORKSPACE_MISMATCH",
       "id": "T47",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
-          "scripts/check_session_handle_profile.py"
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
         ],
         "implementation": [
           "crates/sley-protocol/src/server_tests.rs",
@@ -1373,7 +1375,7 @@
       },
       "owner": "sley-protocol",
       "planned_evidence_path": "evidence/security/T47/",
-      "planned_evidence_present": false,
+      "planned_evidence_present": true,
       "realized_code_recorded": false,
       "recorded_exercise": [],
       "related_family_symbols": [],
@@ -1382,7 +1384,7 @@
         "SESSION_WORKSPACE_MISMATCH"
       ],
       "severity": "P0",
-      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "state": "PLANNED_EVIDENCE_PRESENT",
       "threat": "cross-workspace leakage"
     },
     {
@@ -1593,6 +1595,25 @@
       "severity": "P1",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "benchmark contamination/cherry-pick"
+    },
+    {
+      "expected_failure_code": "SESSION_UNKNOWN` for foreign-instance names",
+      "id": "T56",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T56/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "twin-instance inequality and restart-unknown matrix; peer isolation is a transport obligation on the S20-420/430 boundary",
+      "searched_codes": [
+        "SESSION_UNKNOWN` for foreign-instance names"
+      ],
+      "severity": "P1",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "live session name used by a non-opening caller"
     }
   ],
   "unlocated_with_no_family_symbol": [],

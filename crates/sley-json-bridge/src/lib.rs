@@ -403,7 +403,7 @@ fn parse(text: &str) -> Result<Value> {
 // Limits, bounds, flags, features
 // ---------------------------------------------------------------------------
 
-const LIMIT_FIELDS: [&str; 7] = [
+const LIMIT_FIELDS: [&str; 8] = [
     "max_frame_bytes",
     "max_entities",
     "max_edges",
@@ -411,6 +411,7 @@ const LIMIT_FIELDS: [&str; 7] = [
     "max_response_bytes",
     "max_work",
     "max_inflight",
+    "max_sessions",
 ];
 const BOUNDS_FIELDS: [&str; 8] = [
     "applied_limits",
@@ -480,6 +481,11 @@ fn limits_value(limits: &LimitProfile) -> Value {
         "max_inflight",
         integer(u64::from(limits.max_inflight)),
     );
+    insert(
+        &mut map,
+        "max_sessions",
+        integer(u64::from(limits.max_sessions)),
+    );
     Value::Object(map)
 }
 
@@ -493,6 +499,7 @@ fn limits_from_value(value: &Value) -> Result<LimitProfile> {
         max_response_bytes: u64_field(&map["max_response_bytes"])?,
         max_work: u64_field(&map["max_work"])?,
         max_inflight: u32_field(&map["max_inflight"])?,
+        max_sessions: u32_field(&map["max_sessions"])?,
     })
 }
 

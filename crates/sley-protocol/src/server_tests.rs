@@ -40,6 +40,7 @@ fn hello(methods: Vec<u32>, inflight: u32) -> Hello {
             max_response_bytes: 8_388_608,
             max_work: 100_000_000,
             max_inflight: inflight,
+            max_sessions: 256,
         },
         methods,
         features: 1,
@@ -65,11 +66,14 @@ struct Harness {
 
 impl Harness {
     fn new(label: &str) -> Self {
+        let client_hello = hello(all_methods(), 4);
+        Self::with_hellos(label, client_hello, hello(all_methods(), 8))
+    }
+
+    fn with_hellos(label: &str, client_hello: Hello, server_hello: Hello) -> Self {
         let (temp, _transactions, genesis) =
             genesis(label, complete_bodies(), &[complete_dependency_root()]);
         let repository = temp.child("repo");
-        let client_hello = hello(all_methods(), 4);
-        let server_hello = hello(all_methods(), 8);
         let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
         let handshake = server.handshake_id();
         let open = server
@@ -128,6 +132,24 @@ impl Harness {
             ProtocolFailure::decode(&frame.body)
         );
         frame
+    }
+
+    /// The repository's current accepted head root, for naming in
+    /// `handle.expand` requests (contract section 4).
+    fn head_root(&self) -> sley_id::StateRoot {
+        sley_txn::TransactionRepository::new(&self.repository)
+            .accepted_head()
+            .unwrap()
+            .verified_revision()
+            .state_root()
+            .root
+    }
+
+    /// A `handle.expand` request body naming position and expected root.
+    fn expand_body(position: u64, root: sley_id::StateRoot) -> Vec<u8> {
+        let mut body = encode_uvar(position);
+        body.extend_from_slice(root.as_bytes());
+        body
     }
 
     fn fail(&mut self, method: Method, body: Vec<u8>) -> ProtocolFailure {
@@ -396,7 +418,12 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     let malformed = harness.fail(Method::RevisionRead, vec![1, 2, 3]);
     assert_eq!(malformed.code, ProtocolErrorCode::PayloadInvalid.numeric());
 
-    // A second server over the same repository answers byte for byte.
+    // A second server instance over the same repository issues a
+    // different identity for the same ordinal: the per-instance nonce
+    // keeps identity spaces disjoint (contract section 1, threat T56).
+    // The first server's live name is unknown to the second, and a
+    // revision read under the second server's own session answers byte
+    // for byte.
     let mut again = Server::new(
         &harness.repository,
         &harness.client_hello,
@@ -416,16 +443,35 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     else {
         panic!();
     };
-    assert_eq!(
+    assert_ne!(
         frame.body,
         harness.session.as_bytes().to_vec(),
-        "session issuance is deterministic"
+        "twin instances never share an identity space"
+    );
+    let twin_session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let foreign = again
+        .answer(&request_frame(
+            Some(harness.session),
+            2,
+            Method::RevisionRead,
+            tx(genesis),
+        ))
+        .unwrap();
+    assert!(foreign.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&foreign.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().symbol,
+        "SESSION_UNKNOWN"
     );
     for index in 0..128_u64 {
-        let request_id = 2 + index;
+        let request_id = 3 + index;
         let first = again
             .answer(&request_frame(
-                Some(harness.session),
+                Some(twin_session),
                 request_id,
                 Method::RevisionRead,
                 tx(genesis),
@@ -565,7 +611,8 @@ fn identity_session_and_frame_rules_hold_at_the_server() {
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::RequestIdConflict.numeric()
     );
-    // Unknown session.
+    // Unknown session: liveness precedes admission, so the name is
+    // refused as a session with SESSION_UNKNOWN.
     let unknown = harness
         .server
         .answer(&request_frame(
@@ -576,6 +623,12 @@ fn identity_session_and_frame_rules_hold_at_the_server() {
         ))
         .unwrap();
     assert!(unknown.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&unknown.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(ProtocolFailure::decode(&frame.body).unwrap().code, 33_000);
     // Wrong handshake identity at open is a downgrade.
     let downgrade = harness
         .server
@@ -1061,13 +1114,13 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
 }
 
 #[test]
-fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
+fn sessions_bind_workspace_root_and_epoch_and_handles_name_their_root() {
     use sley_repo::test_support::{TempDir, genesis_in_workspace};
     let mut harness = Harness::new("smp1-330");
     let genesis_id = harness.genesis;
     let session = harness.session;
-    // Deterministic issuance: a second server over the same state issues
-    // the same identity, derived under sley2.session.v1.
+    // Instance separation: a second server over the same state issues a
+    // different identity for the same ordinal (contract section 1).
     let mut twin = Server::new(
         &harness.repository,
         &harness.client_hello,
@@ -1087,9 +1140,14 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
     else {
         panic!();
     };
-    assert_eq!(frame.body, session.as_bytes().to_vec());
-    // A positional handle expands under the bound root.
-    let expanded = harness.ok(Method::HandleExpand, encode_uvar(1));
+    assert_ne!(
+        frame.body,
+        session.as_bytes().to_vec(),
+        "twin instances never share an identity space"
+    );
+    // A positional handle expands under the bound root it names.
+    let root = harness.head_root();
+    let expanded = harness.ok(Method::HandleExpand, Harness::expand_body(1, root));
     assert_eq!(expanded.bounds.returned_entities, 1);
     assert!(
         expanded
@@ -1097,7 +1155,11 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
             .windows(32)
             .any(|window| window == session.as_bytes())
     );
-    let unknown = harness.fail(Method::HandleExpand, encode_uvar(7));
+    // Naming a root the session does not bind is stale immediately.
+    let foreign_root = Harness::expand_body(1, sley_id::StateRoot::from_bytes([0x77; 32]));
+    let wrong = harness.fail(Method::HandleExpand, foreign_root);
+    assert_eq!(wrong.symbol, "SESSION_STALE_HANDLE");
+    let unknown = harness.fail(Method::HandleExpand, Harness::expand_body(7, root));
     assert_eq!(unknown.symbol, "SESSION_HANDLE_UNKNOWN");
     assert_eq!(unknown.code, 33_005);
     // The head advances: another root under the same workspace replaces the
@@ -1108,11 +1170,15 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
     let parked_repo = parked.child("repo");
     std::fs::rename(&harness.repository, &parked_repo).unwrap();
     std::fs::rename(other_temp.child("repo"), &harness.repository).unwrap();
-    let stale = harness.fail(Method::HandleExpand, encode_uvar(1));
+    let stale = harness.fail(Method::HandleExpand, Harness::expand_body(1, root));
     assert_eq!(stale.symbol, "SESSION_STALE_HANDLE");
     assert_eq!(stale.code, 33_004);
     let advanced = harness.fail(Method::WorkspaceOpen, Vec::new());
     assert_eq!(advanced.symbol, "SESSION_ROOT_ADVANCED");
+    // The head-bound set is closed: branch reads answer over current
+    // repository state, so they refuse a stale session too.
+    let refs_stale = harness.fail(Method::RefsResolve, b"main".to_vec());
+    assert_eq!(refs_stale.symbol, "SESSION_ROOT_ADVANCED");
     // Methods naming explicit transactions are not head-bound.
     let explicit = harness.fail(Method::RevisionRead, tx(genesis_id));
     assert!(
@@ -1120,10 +1186,20 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
         "{}",
         explicit.symbol
     );
-    // Renewal rebinds to the new head and handles resolve again.
+    // Renewal rebinds to the new head. A body that does not name the
+    // frame's session is a frame failure, not a renewal.
+    let new_root = harness.head_root();
+    assert_ne!(new_root, root);
+    let mismatch = harness.fail(Method::SessionRenew, vec![0xFF; 32]);
+    assert_eq!(mismatch.code, ProtocolErrorCode::FrameInvalid.numeric());
     let renewed = harness.ok(Method::SessionRenew, session.as_bytes().to_vec());
     assert_eq!(renewed.body, session.as_bytes().to_vec());
-    let fresh = harness.ok(Method::HandleExpand, encode_uvar(0));
+    // The pre-renewal handle names the old root: it stays stale after
+    // renewal instead of resolving to another entity. Only a handle
+    // naming the new root resolves (contract section 4, threat T15).
+    let still_stale = harness.fail(Method::HandleExpand, Harness::expand_body(0, root));
+    assert_eq!(still_stale.symbol, "SESSION_STALE_HANDLE");
+    let fresh = harness.ok(Method::HandleExpand, Harness::expand_body(0, new_root));
     assert_eq!(fresh.bounds.returned_entities, 1);
     let reopened = harness.ok(Method::WorkspaceOpen, Vec::new());
     assert_eq!(reopened.bounds.returned_entities, 1);
@@ -1134,7 +1210,10 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
     let parked_two = TempDir::new("smp1-330-parked-two");
     std::fs::rename(&harness.repository, parked_two.child("repo")).unwrap();
     std::fs::rename(foreign_temp.child("repo"), &harness.repository).unwrap();
-    let mismatch = harness.fail(Method::HandleExpand, encode_uvar(0));
+    let mismatch = harness.fail(
+        Method::HandleExpand,
+        Harness::expand_body(0, harness.head_root()),
+    );
     assert_eq!(mismatch.symbol, "SESSION_WORKSPACE_MISMATCH");
     assert_eq!(mismatch.code, 33_001);
     let refused_renew = harness.fail(Method::SessionRenew, session.as_bytes().to_vec());
@@ -1162,7 +1241,8 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
             .windows(32)
             .any(|window| window == session.as_bytes())
     );
-    // Unknown sessions are refused as sessions, not as frames.
+    // Unknown sessions are refused as sessions with SESSION_UNKNOWN: the
+    // liveness check precedes request-identity admission.
     let ghost = harness
         .server
         .answer(&request_frame(
@@ -1179,11 +1259,157 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
         panic!();
     };
     let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(failure.symbol, "SESSION_UNKNOWN");
+    assert_eq!(failure.code, 33_000);
+    // The genesis exemption ends at the first head: sessionless creation
+    // on a headed repository is refused with SESSION_BINDING_INVALID.
+    let headed = harness
+        .server
+        .answer(&request_frame(None, 1, Method::WorkspaceCreate, Vec::new()))
+        .unwrap();
+    assert!(headed.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&headed.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(failure.symbol, "SESSION_BINDING_INVALID");
+    assert_eq!(failure.code, 33_007);
+    // Close, and the name answers SESSION_CLOSED while remembered.
+    harness.ok(Method::SessionClose, Vec::new());
+    let closed = harness.fail(Method::RevisionRead, tx(genesis_id));
+    assert_eq!(closed.symbol, "PROTOCOL_SESSION_CLOSED");
+    assert_eq!(closed.code, ProtocolErrorCode::SessionClosed.numeric());
+}
+
+#[test]
+fn batch_cancel_precedes_execution_in_one_batch() {
+    use crate::ProtocolErrorCode;
+    let mut harness = Harness::new("smp1-batch-cancel");
+    let session = harness.session;
+    // One batch: a capabilities request, a cancel naming it, and a
+    // budgets request. The cancel is collected before anything
+    // executes, so the capabilities request is admitted (keeping the
+    // sequence exact) but never executed.
+    let frames = [
+        request_frame(Some(session), 2, Method::SessionCapabilities, Vec::new()),
+        request_frame(Some(session), 3, Method::Cancel, encode_uvar(2)),
+        request_frame(Some(session), 4, Method::SessionBudgets, Vec::new()),
+    ];
+    let borrowed: Vec<&[u8]> = frames.iter().map(Vec::as_slice).collect();
+    let answers = harness.server.answer_batch(&borrowed).unwrap();
+    assert_eq!(answers.len(), 3);
+    assert!(answers[0].failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answers[0].frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
     assert_eq!(
-        failure.code,
-        ProtocolErrorCode::RequestIdConflict.numeric(),
-        "the registry refuses first"
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::Cancelled.numeric()
     );
+    assert!(!answers[1].failed);
+    assert!(!answers[2].failed);
+    // The cancelled request consumed no budget: budgets still report a
+    // full session.
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answers[2].frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert!(!frame.body.is_empty());
+}
+
+#[test]
+fn live_sessions_are_capped_and_restarts_forget() {
+    // A negotiated cap of one live session: the second open is refused
+    // with SESSION_BINDING_INVALID, and closing frees the slot.
+    let mut small_client = hello(all_methods(), 4);
+    small_client.limits.max_sessions = 1;
+    let mut harness = Harness::with_hellos("smp1-330-cap", small_client, hello(all_methods(), 8));
+    let second = harness
+        .server
+        .answer(&request_frame(
+            None,
+            99,
+            Method::SessionOpen,
+            harness.server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(second.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&second.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(failure.symbol, "SESSION_BINDING_INVALID");
+    assert_eq!(failure.code, 33_007);
+    harness.ok(Method::SessionClose, Vec::new());
+    let reopened = harness
+        .server
+        .answer(&request_frame(
+            None,
+            100,
+            Method::SessionOpen,
+            harness.server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!reopened.failed);
+
+    // A restart forgets every pre-restart name: the new instance mints a
+    // fresh nonce, so the old name is unknown rather than silently
+    // re-minted (contract section 1, threat T56).
+    let mut harness = Harness::new("smp1-330-restart");
+    let old = harness.session;
+    let client_hello = harness.client_hello.clone();
+    let server_hello = harness.server_hello.clone();
+    harness.server = Server::new(&harness.repository, &client_hello, &server_hello).unwrap();
+    let ghost = harness
+        .server
+        .answer(&request_frame(
+            Some(old),
+            1,
+            Method::WorkspaceOpen,
+            Vec::new(),
+        ))
+        .unwrap();
+    assert!(ghost.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&ghost.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!();
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().symbol,
+        "SESSION_UNKNOWN"
+    );
+}
+
+#[test]
+fn binding_failures_precede_budget_exhaustion() {
+    use sley_repo::test_support::genesis_in_workspace;
+    // One unit of work: the first call drains the session exactly.
+    let mut tiny_client = hello(all_methods(), 4);
+    tiny_client.limits.max_work = 1;
+    let mut harness = Harness::with_hellos("smp1-330-budget", tiny_client, hello(all_methods(), 8));
+    harness.ok(Method::WorkspaceOpen, Vec::new());
+    // Exhausted and workspace-mismatched: the binding failure answers,
+    // not the budget failure (contract section 3).
+    let (foreign_temp, _foreign_transactions, _foreign_genesis) =
+        genesis_in_workspace("smp1-330-budget-foreign", dependency_free_bodies(), &[], 2);
+    let parked = sley_repo::test_support::TempDir::new("smp1-330-budget-parked");
+    std::fs::rename(&harness.repository, parked.child("repo")).unwrap();
+    std::fs::rename(foreign_temp.child("repo"), &harness.repository).unwrap();
+    let mismatch = harness.fail(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(mismatch.symbol, "SESSION_WORKSPACE_MISMATCH");
+    // Exhausted and validly bound: the budget failure answers.
+    std::fs::rename(&harness.repository, foreign_temp.child("repo")).unwrap();
+    std::fs::rename(parked.child("repo"), &harness.repository).unwrap();
+    let exhausted = harness.fail(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(exhausted.code, ProtocolErrorCode::LimitExceeded.numeric());
 }
 
 #[test]

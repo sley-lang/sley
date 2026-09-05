@@ -729,13 +729,13 @@
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
     "checker": "scripts/check_session_handle_profile.py",
     "identifier_domain": "sley2.session.v1",
     "new_stable_error_codes": 8,
     "new_error_code_range": "33000 through 33007",
-    "handles": "POSITIONAL_IN_BOUND_ROOT_BINDING_ORDER",
+    "handles": "POSITIONAL_WITH_EXPECTED_ROOT",
     "required_binding": [
       "negotiated_session",
       "workspace",
@@ -749,8 +749,11 @@
     ],
     "threat_gates": [
       "T15_SESSION_STALE_HANDLE",
-      "T47_SESSION_WORKSPACE_MISMATCH"
+      "T47_SESSION_WORKSPACE_MISMATCH",
+      "T56_FOREIGN_INSTANCE_UNKNOWN"
     ],
+    "identity_binding": "PER_INSTANCE_SERVER_NONCE",
+    "session_cap": "NEGOTIATED_MAX_SESSIONS",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "nabu_architecture_review": "FAIL_1_P0_7_P1_5_P2_4_P3",
     "ariadne_contract_review": "FAIL_3_P0_7_P1_5_P2_4_P3",
@@ -770,7 +773,7 @@
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -1300,7 +1303,7 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 9,
+    "contract_revision": 10,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,

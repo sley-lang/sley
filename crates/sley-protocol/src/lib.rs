@@ -51,6 +51,10 @@ pub const MAX_LIMIT_DEPTH: u32 = 65_535;
 pub const MAX_LIMIT_RESPONSE_BYTES: u64 = 67_108_864;
 pub const MAX_LIMIT_WORK: u64 = 100_000_000;
 pub const MAX_LIMIT_INFLIGHT: u32 = 1_024;
+/// Ceiling of negotiable live sessions (contract section 3): sessions pin
+/// bound roots, so the live count and the remembered closed names are both
+/// capped by the selected `max_sessions`.
+pub const MAX_LIMIT_SESSIONS: u32 = 256;
 /// List ceilings inside hello records.
 pub const MAX_HELLO_LIST: usize = 4_096;
 
@@ -190,6 +194,7 @@ pub struct LimitProfile {
     pub max_response_bytes: u64,
     pub max_work: u64,
     pub max_inflight: u32,
+    pub max_sessions: u32,
 }
 
 impl LimitProfile {
@@ -204,6 +209,7 @@ impl LimitProfile {
             max_response_bytes: MAX_LIMIT_RESPONSE_BYTES,
             max_work: MAX_LIMIT_WORK,
             max_inflight: MAX_LIMIT_INFLIGHT,
+            max_sessions: MAX_LIMIT_SESSIONS,
         }
     }
 
@@ -218,6 +224,7 @@ impl LimitProfile {
             max_response_bytes: 0,
             max_work: 0,
             max_inflight: 0,
+            max_sessions: 0,
         }
     }
 
@@ -241,6 +248,8 @@ impl LimitProfile {
             || self.max_work > ceiling.max_work
             || self.max_inflight == 0
             || self.max_inflight > ceiling.max_inflight
+            || self.max_sessions == 0
+            || self.max_sessions > ceiling.max_sessions
         {
             return fail(ProtocolErrorCode::LimitExceeded);
         }
@@ -258,6 +267,7 @@ impl LimitProfile {
             max_response_bytes: self.max_response_bytes.min(other.max_response_bytes),
             max_work: self.max_work.min(other.max_work),
             max_inflight: self.max_inflight.min(other.max_inflight),
+            max_sessions: self.max_sessions.min(other.max_sessions),
         }
     }
 
@@ -270,11 +280,12 @@ impl LimitProfile {
             (5, encode_uvar(self.max_response_bytes)),
             (6, encode_uvar(self.max_work)),
             (7, encode_uvar(u64::from(self.max_inflight))),
+            (8, encode_uvar(u64::from(self.max_sessions))),
         ]))
     }
 
     fn decode(input: &[u8]) -> Result<Self> {
-        let fields = Reader::new(input).record(7)?;
+        let fields = Reader::new(input).record(8)?;
         Ok(Self {
             max_frame_bytes: single_uvar(fields[0])?,
             max_entities: single_uvar(fields[1])?,
@@ -283,6 +294,7 @@ impl LimitProfile {
             max_response_bytes: single_uvar(fields[4])?,
             max_work: single_uvar(fields[5])?,
             max_inflight: single_u32(fields[6])?,
+            max_sessions: single_u32(fields[7])?,
         })
     }
 }
@@ -1279,6 +1291,15 @@ struct SessionState {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RequestRegistry {
     sessions: BTreeMap<SessionId, SessionState>,
+    /// Close order of remembered sessions. A closed session keeps its
+    /// entry so later frames answer `PROTOCOL_SESSION_CLOSED`, but only
+    /// the most recently closed names are remembered: closing past the
+    /// cap forgets the oldest closed name (which then answers
+    /// `SESSION_UNKNOWN` at the session layer), so registry memory is
+    /// bounded by live sessions plus remembered closes (contract
+    /// section 8).
+    close_order: std::collections::VecDeque<SessionId>,
+    closed_names: u32,
 }
 
 impl RequestRegistry {
@@ -1349,12 +1370,15 @@ impl RequestRegistry {
         Ok(())
     }
 
-    /// Closes a session; every later frame naming it fails.
+    /// Closes a session; every later frame naming it fails. At most
+    /// `max_remembered` closed names are remembered: forgetting the
+    /// oldest closed name bounds registry memory, and a forgotten name
+    /// answers `SESSION_UNKNOWN` instead of `PROTOCOL_SESSION_CLOSED`.
     ///
     /// # Errors
     ///
     /// Returns `PROTOCOL_SESSION_CLOSED` when already closed or unknown.
-    pub fn close(&mut self, session: SessionId) -> Result<()> {
+    pub fn close(&mut self, session: SessionId, max_remembered: u32) -> Result<()> {
         let state = self
             .sessions
             .get_mut(&session)
@@ -1363,7 +1387,33 @@ impl RequestRegistry {
             return fail(ProtocolErrorCode::SessionClosed);
         }
         state.closed = true;
+        self.close_order.push_back(session);
+        self.closed_names = self.closed_names.saturating_add(1);
+        // Every close pushes exactly one entry and a name is closed at
+        // most once (re-close fails above), so one pop retires exactly
+        // one remembered close and the loop always terminates.
+        while self.closed_names > max_remembered {
+            let Some(oldest) = self.close_order.pop_front() else {
+                self.closed_names = self.closed_names.min(max_remembered);
+                break;
+            };
+            self.closed_names = self.closed_names.saturating_sub(1);
+            if self.sessions.get(&oldest).is_some_and(|state| state.closed) {
+                self.sessions.remove(&oldest);
+            }
+        }
         Ok(())
+    }
+
+    /// Whether the registry remembers this session as closed (a later
+    /// frame answers `PROTOCOL_SESSION_CLOSED`). A name the registry
+    /// never saw, or forgot after the remembered-close cap, is not
+    /// closed here: the session layer answers `SESSION_UNKNOWN`.
+    #[must_use]
+    pub fn is_closed(&self, session: SessionId) -> bool {
+        self.sessions
+            .get(&session)
+            .is_some_and(|state| state.closed)
     }
 
     #[must_use]
@@ -1732,6 +1782,7 @@ mod tests {
                 max_response_bytes: 1_048_576,
                 max_work: 1_000_000,
                 max_inflight: 4,
+                max_sessions: 16,
             },
             methods: Method::ALL.iter().map(|method| method.tag()).collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM | FEATURE_JSON_BRIDGE,
@@ -1752,6 +1803,7 @@ mod tests {
                 max_response_bytes: 2_097_152,
                 max_work: 5_000_000,
                 max_inflight: 2,
+                max_sessions: 8,
             },
             methods: vec![100, 102, 103, 300, 301, 302, 303, 603],
             features: FEATURE_CANCEL | FEATURE_CHECKSUM,
@@ -2008,17 +2060,29 @@ mod tests {
             ProtocolErrorCode::RequestIdConflict
         );
         // Closed sessions refuse everything.
-        registry.close(a).unwrap();
+        registry.close(a, 8).unwrap();
         assert!(!registry.is_open(a));
+        assert!(registry.is_closed(a));
         assert_eq!(
             registry.admit(a, 9, 2).unwrap_err().code(),
             ProtocolErrorCode::SessionClosed
         );
         assert_eq!(
-            registry.close(a).unwrap_err().code(),
+            registry.close(a, 8).unwrap_err().code(),
             ProtocolErrorCode::SessionClosed
         );
         assert!(registry.is_open(b));
+        assert!(!registry.is_closed(b));
+        assert!(!registry.is_closed(session(0xC0)));
+        // Remembered closes are capped: closing past the cap forgets the
+        // oldest closed name, which is then unknown rather than closed.
+        registry.close(b, 1).unwrap();
+        assert!(!registry.is_closed(a));
+        assert!(registry.is_closed(b));
+        assert_eq!(
+            registry.admit(a, 10, 2).unwrap_err().code(),
+            ProtocolErrorCode::RequestIdConflict
+        );
     }
 
     #[test]

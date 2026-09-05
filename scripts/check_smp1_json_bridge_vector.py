@@ -33,9 +33,9 @@ MAX_NUMBER = 2**53 - 1
 MAX_HELLO_LIST = 4_096
 KIND_NAMES = {1: "request", 2: "response", 3: "event", 4: "hello"}
 KIND_TAGS = {name: tag for tag, name in KIND_NAMES.items()}
-LIMIT_FIELDS = ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight")
-LIMIT_CEILINGS = (67_108_864, 65_535, 400_000, 65_535, 67_108_864, 100_000_000, 1_024)
-U32_FIELDS = {"protocol_version", "max_depth", "max_inflight", "reached_depth"}
+LIMIT_FIELDS = ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")
+LIMIT_CEILINGS = (67_108_864, 65_535, 400_000, 65_535, 67_108_864, 100_000_000, 1_024, 256)
+U32_FIELDS = {"protocol_version", "max_depth", "max_inflight", "max_sessions", "reached_depth"}
 BOUNDS_FIELDS = ("applied_limits", "returned_bytes", "returned_entities", "returned_edges", "reached_depth", "omitted", "truncated", "continuation")
 FRAME_FIELDS = ("protocol_version", "session", "request_id", "kind", "method", "flags", "bounds", "body")
 FLAG_FIELDS = ("cancel", "stream", "failed")
@@ -134,7 +134,7 @@ def decode_frame(data: bytes, epoch: bytes) -> dict:
     else:
         raise smp1.Failure("PROTOCOL_FRAME_INVALID")
     bounds = read_record(fields[6], 8)
-    limits = [read_only_uvar(item) for item in read_record(bounds[0], 7)]
+    limits = [read_only_uvar(item) for item in read_record(bounds[0], 8)]
     return {
         "protocol_version": read_only_uvar(fields[0]),
         "session": session,
@@ -347,7 +347,7 @@ def decode_hello(body: bytes) -> dict:
         fields = read_record(body, 7)
         versions = [read_only_uvar(item) for item in read_list(fields[0])]
         epochs = read_list(fields[1])
-        limits = tuple(read_only_uvar(item) for item in read_record(fields[2], 7))
+        limits = tuple(read_only_uvar(item) for item in read_record(fields[2], 8))
         methods = [read_only_uvar(item) for item in read_list(fields[3])]
         features = read_only_uvar(fields[4])
         adapters = read_list(fields[5])

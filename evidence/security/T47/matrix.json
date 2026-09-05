@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "another workspace is refused before epoch, budget, and root checks",
+    "the epoch refusal holds at the authority level",
+    "a foreign workspace refuses renewal and transaction reads alike",
+    "an exhausted budget answers the workspace failure, not the budget failure"
+  ],
+  "commit": "9164ba3d0c74dfed42c5e7ba5f0950393358e75d",
+  "contract": "s20-330-session-handle-profile-v1",
+  "expected_failure": "SESSION_WORKSPACE_MISMATCH",
+  "result": "PASS",
+  "tests": [
+    "checks_follow_contract_order",
+    "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root",
+    "binding_failures_precede_budget_exhaustion"
+  ],
+  "threat": "T47",
+  "threat_name": "cross-workspace leakage"
+}

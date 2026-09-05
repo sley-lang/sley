@@ -175,6 +175,7 @@ evidence-refresh:
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_test_inventory.py
+	python3 scripts/record_session_threat_matrices.py
 	python3 scripts/build_threat_coverage_report.py
 	python3 scripts/build_anti_goal_conformance.py
 	python3 scripts/build_ga_acceptance_report.py

@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "5c56ce26e3d121cc8080243194ea160a98f6043f137cad3597635bd801fee226",
+  "dossier_digest": "edf60c749e12bc687153eeed787639a81aa01537a8242380ff97c3f93ca0d3f5",
   "entries": [
     {
       "evidence": [
@@ -141,7 +141,7 @@
         "persistent_fuzz_targets": 20,
         "python_tests": 97,
         "rust_ignored_emitters": 13,
-        "rust_unit_tests": 1026
+        "rust_unit_tests": 1031
       }
     },
     {
@@ -184,7 +184,7 @@
     {
       "evidence": [],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 55 registered threats, 46 have a located and exercised failure code, 6 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json)",
+      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located and exercised failure code, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -444,7 +444,7 @@
       }
     }
   ],
-  "entries_digest": "bfa20ab3a90e512089b83bad4a5fe43263d62af2d82f57b19be7e553f58ce696",
+  "entries_digest": "58a14efa87d858951567c79eddb422c54b6110d4d1a1c98f0fc18ed4b7edc420",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

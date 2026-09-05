@@ -512,17 +512,17 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "d574c690dc019ea1a9ad3683c87b9a87b33e196a1fa4583db2cfa915fce3148f"
+          "sha256": "f84c0bb54b1cbfb89290f87f38f97a2442d387a409329fd01a3a20fe4a618702"
         },
         {
-          "bytes": 6155,
+          "bytes": 6223,
           "name": "accepted.json",
-          "sha256": "3808357826bf5f8061d8c7ff38eb0314427a33386480388b0fe6d8e42f57aab9"
+          "sha256": "65737bcdc2da7946b921d2f97b8e9d9039c387294e5b132f306d7d96ffc8795f"
         },
         {
-          "bytes": 2302,
+          "bytes": 2326,
           "name": "rejected.json",
-          "sha256": "a3d06c2b1348c277e0ddc012ef5d112d4a13eed6dc30e558085b5ea95fc7ebbc"
+          "sha256": "db6fb84ddeb5c86bec1a7a20ca177fd6ce73c420d492c488bb08c634a9791db9"
         }
       ],
       "shape": {
@@ -549,7 +549,7 @@
         {
           "bytes": 240,
           "name": "SHA256SUMS",
-          "sha256": "7aed525f5304763914cdc35afb993b0ffa44beb15719ee18004d05ced520a7c9"
+          "sha256": "1670e8258ec005697615a201481a6ed9ff6af0157250039e427854b674376567"
         },
         {
           "bytes": 5911,
@@ -557,14 +557,14 @@
           "sha256": "2056678771fa25feffaa08727bbbabe16bdc7b188056eb2bbb53d43e065f9eb2"
         },
         {
-          "bytes": 21548,
+          "bytes": 22098,
           "name": "rejected.json",
-          "sha256": "97863da9d134a425d020d645090585c120f76dbd83f4637f678a57252f2bfdff"
+          "sha256": "d27fa9f597ab68bed16f4cbf4bec66363a6720b98772f756ed24d0f903a18c37"
         },
         {
-          "bytes": 8072,
+          "bytes": 8223,
           "name": "roundtrip.json",
-          "sha256": "85619651c4d12dbb611d21057c139322f88047c5bd0455633ea80c35e3d38e96"
+          "sha256": "841b242ea7588c1efa4c7a61089c724006519383624022fe7868979dbbe20eae"
         }
       ],
       "shape": {
@@ -705,7 +705,7 @@
     "problems": [],
     "python_sources": 22
   },
-  "report_digest": "52d43b0eae97965795b360b9b9b00d5ab829ef4bedd1a96cee3d55f51d9eae52",
+  "report_digest": "aa3fe47f75ee665a88ea81ab79c4020770cc34d8ebc9612ebbdb52690309f74f",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

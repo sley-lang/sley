@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 9 (2026-09-05; revision 2 folds the
+Status: S20-400 contract draft, revision 10 (2026-09-05; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
 the exact body records of the methods S20-410 dispatches; revision 4 freezes
 the S20-440 cancellation, streaming, and budget rules of section 7 and
@@ -8,7 +8,9 @@ appendix B; revision 5 hands `handle.expand` and session issuance to the
 S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches; revision 8 adds the `execute` cache profile selector, `limits` field 6; revision 9 binds
 both hello bodies into the handshake identity with per-peer re-derivation,
 values the envelope epoch, scopes cancel to the answering path, completes
-the zero-code table, and pins every live session in gc); Council review
+the zero-code table, and pins every live session in gc; revision 10 adds
+`limits` field 8 `max_sessions` and binds the S20-330 revision 2
+`handle.expand` expected-root request field, with no other body changes); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -96,7 +98,8 @@ Hello {
 }
 LimitProfile {
   max_frame_bytes: u64, max_entities: u64, max_edges: u64, max_depth: u32,
-  max_response_bytes: u64, max_work: u64, max_inflight: u32
+  max_response_bytes: u64, max_work: u64, max_inflight: u32,
+  max_sessions: u32
 }
 ```
 
@@ -208,7 +211,7 @@ owns its request and response bodies; SMP1 adds nothing to them.
 | 301 | `query.continue` | request with `after` | `SLEYRQR1` response | S20-310 full |
 | 302 | `capsule` | `SLEYRQQ1` request | `SLEYCCP1` capsule | S20-320 full |
 | 303 | `query.restricted` | `SLEYQRY1` request | `SLEYQRS1` response | S20-310 restricted |
-| 304 | `handle.expand` | `uvar(handle)` | handle facts record | S20-330 |
+| 304 | `handle.expand` | `uvar(handle) \|\| StateRoot[32]`, the binding position in the session's bound root with the root it is expected under | handle facts record | S20-330 |
 | 305 | `diagnostics` | reserved | reserved | S20-620 |
 | 400 | `candidate.create` | candidate record | stored candidate | S20-350 |
 | 401 | `candidate.append` | candidate plus operation | stored candidate | S20-350 |
@@ -397,7 +400,7 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 
 | Method | Request body | Response body |
 |---|---|---|
-| 100 `session.open` | `ProtocolHandshakeId[32]`; a claim that is not the negotiated identity is `PROTOCOL_DOWNGRADE` | `SessionId[32]` issued by the S20-330 authority (`sley2.session.v1` over the handshake, workspace, accepted head root, epoch, and issuance ordinal) |
+| 100 `session.open` | `ProtocolHandshakeId[32]`; a claim that is not the negotiated identity is `PROTOCOL_DOWNGRADE` | `SessionId[32]` issued by the S20-330 authority (`sley2.session.v1` over the per-instance server nonce, handshake, workspace, accepted head root, epoch, and issuance ordinal) |
 | 101 `session.renew` | `SessionId[32]` | the same `SessionId[32]`, rebound to the current accepted head (S20-330) |
 | 102 `session.close` | empty | empty |
 | 103 `session.capabilities` | empty | the `SelectedProfile` record (section 2) |
@@ -415,7 +418,7 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 | 209 `merge.commit` | `record(1: ancestor, 2: ours, 3: theirs, 4: PrincipalId, 5: uvar(now millis), 6: uvar(expiry millis), 7: branch name bytes)` | `union(1: TransactionId \| 2: the S20-520 stored conflict bytes)` |
 | 211 `exchange.import` | the S20-540 exchange stored bytes | `record(1: RepositoryExchangeId, 2: accepted head TransactionId, 3: uvar(receipts), 4: uvar(branches))` |
 | 214 `refs.recover` | empty | `record(1: removed branch stages, 2: removed ref stages, 3: visible branches)` |
-| 304 `handle.expand` | `uvar(handle)`, the binding position in the session's bound root | `record(1: EntityId, 2: uvar(kind), 3: ObjectId, 4: bound StateRoot, 5: SessionId)`; stale after a root advance (S20-330) |
+| 304 `handle.expand` | `uvar(handle) \|\| StateRoot[32] expected_root`, the binding position with the root it is expected under; any expected root but the session's bound root is `SESSION_STALE_HANDLE` | `record(1: EntityId, 2: uvar(kind), 3: ObjectId, 4: bound StateRoot, 5: SessionId)`; stale after a root advance and after a renewal naming the old root (S20-330) |
 | 300 `query.root` | the exact `SLEYRQQ1` request preimage over the accepted head's snapshot; a preimage bound to another snapshot is the owner's `QUERY_SNAPSHOT_MISMATCH` | the `SLEYRQR1` record |
 | 301 `query.continue` | as 300 with `after` present (`PROTOCOL_PAYLOAD_INVALID` otherwise) | the `SLEYRQR1` record |
 | 302 `capsule` | as 300 | the `SLEYCCP1` record |
