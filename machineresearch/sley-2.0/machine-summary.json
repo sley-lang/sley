@@ -2298,7 +2298,7 @@
   "succession_accounting": {
     "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SUCCESSION_ACCOUNTING_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0037-succession-accounting-boundary.md",
     "checker": "scripts/check_succession_accounting.py",
     "report_contract": "sley2.succession-accounting-report.v1",
@@ -2324,12 +2324,16 @@
       "bench/accounting/report.py",
       "bench/accounting/tests/test_report.py"
     ],
-    "offline_tests": 4,
+    "offline_tests": 8,
     "smoke_target": "make accounting-smoke",
     "smoke_evidence": "evidence/runtime/s20-630-accounting-smoke/evidence.json",
     "smoke_report_status": "PARTIAL",
     "closeout": "docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md",
-    "p0_open_count": 7
+    "p0_open_count": 0,
+    "p1_open_count": 0,
+    "smoke_report_digest": "614212d22568a68c178da81b6bb70df15ba07cb3a9f19d27bea443b5ca9b6b67",
+    "smoke_scope": "REPORT_OVER_THE_S20_620_SCRIPTED_SMOKE_RUN_PARTIAL_2_SCRIPTED_ATTEMPTS",
+    "revision_3_closes": "ariadne 2 P0 + 8 P1, nabu 4 P0 + 7 P1, vulcan 1 P0 + 5 P1; re-review pending"
   },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",

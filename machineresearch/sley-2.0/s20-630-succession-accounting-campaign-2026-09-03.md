@@ -1,8 +1,9 @@
 # S20-630 Succession Accounting Campaign (2026-09-03)
 
-Status: contract draft revision 1 written by the integrator with every
-Council lane unavailable; Ariadne contract review, Nabu architecture
-review, and Vulcan surface review queued.
+Status: contract draft revision 3 written closing every Council finding;
+Ariadne contract review, Nabu architecture review, and Vulcan surface
+review returned FAIL against revision 2 (7 P0, 20 P1) and re-review of
+revision 3 is queued.
 
 ## Frontier at start
 
@@ -46,6 +47,21 @@ Contract: `docs/spec/SUCCESSION_ACCOUNTING_V1.md`, ADR-0037, stage checker
 |---|---|---|---|
 | Contract draft revision 1 | `539c0f9` | green | ADR-0037, stage checker |
 | Implementation, revision 2 | `33d90af` | green | `bench/accounting`; 4 offline tests; smoke over the S20-620 run: PARTIAL, 2 attempts, no accepted change, thresholds UNDETERMINED; closeout `docs/audits/S20_630_SUCCESSION_ACCOUNTING_CLOSEOUT.md` |
+| Reviews against revision 2 | n/a | n/a | Ariadne FAIL (2 P0, 8 P1, 9 P2, 8 P3), Nabu FAIL (4 P0, 7 P1, 8 P2, 4 P3), Vulcan FAIL (1 P0, 5 P1, 7 P2, 2 P3); logs under `machineresearch/sley-2.0/reviews/s20-630-*.log` |
+| Contract revision 3 | this slice, see closeout | green | every P0 and every P1 closed: NOT_EVALUATED section 22 rows, measured regression cap with named-null legs, verifier registry with legacy reserved path, all 25 plan metrics, derived evidence status, per-class collateral sums, per-seed grouping, exact percent rows, stated median basis with companions, structural coverage, per-arm fixture and per-row evidence status, regenerable smoke with derived scope, DERIVED output, shared action budget read and recorded, end-to-end threshold tests on real arm outputs; 8 offline tests; closeout revision 3 |
+
+## Tier 2 handoff record (2026-09-05, revision 3 slice)
+
+| Gate | Result | Evidence |
+|---|---|---|
+| `make core` | exit 0 | 0 failures |
+| `make conformance` | exit 0 | oracle results PASS |
+| `make adversarial` | exit 0 | 0 failures |
+| `make fuzz-smoke` | exit 0 | bounded smoke tests passed |
+| `make accounting-smoke` | exit 0 | report PARTIAL over the S20-620 run; evidence PASS; stage checker PASS |
+| `make sley2-runner-smoke` | FAIL, pre-existing | identical FAIL with the slice stashed; bisected to `ed7fe87` (S20-330 nonce vs smoke handshake reuse); owned by S20-330/S20-620, see closeout |
+
+Logs were captured under the session scratchpad; `make v1` was skipped because this is a subsystem handoff, not a release boundary.
 
 ## Tier 2 handoff record (2026-09-03, at `33d90af`)
 

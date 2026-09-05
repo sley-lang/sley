@@ -1,8 +1,9 @@
 # ADR-0037: accounting as exact derivation from immutable claims
 
-Status: proposed; the S20-630 contract is a draft at revision 2 with
-Council review pending; implemented at `bench/accounting/report.py`
-(2026-09-03) with four offline tests and a smoke over the S20-620 run
+Status: accepted at contract revision 3 (2026-09-05), closing the
+Ariadne, Nabu, and Vulcan review findings; implemented at
+`bench/accounting/report.py` with eight offline tests and a smoke over
+the S20-620 run
 
 Date: 2026-09-03
 
@@ -29,17 +30,26 @@ soon as a lane returns.
    status; timeouts and harness failures stay in every denominator.
 4. **Thresholds need complete arms.** A threshold is `UNDETERMINED` unless
    both compared arms cover the full task and seed product.
-5. **Inherited evidence status.** The report is derived from unverified
-   claims and says so; the dossier's succession fields stay null until a
-   complete report over verified claims exists.
+5. **Inherited evidence status.** The report derives its evidence status
+   from the claims' own statuses and records them, and says so; the
+   dossier's succession fields stay null until a complete report over
+   verified claims exists.
 6. **Codes.** Eight `ACCOUNTING_*` codes 63000 through 63007.
 7. **Staging.** `scripts/check_succession_accounting.py` binds the
    contract, ADR, work-package row, and summary section, and fails closed
    if the accounting module appears before the summary allows it.
+8. **Named omissions.** The section 22 conditions the plan does not
+   encode travel as `NOT_EVALUATED` rows with their owners; the boundary
+   sentence claims only the conditions the plan encodes.
+9. **Registry, not branches.** Arms load through one verifier registry;
+   the legacy arm's missing producer is registry data, and a premature
+   chain at its reserved path fails closed.
 
 ## Consequences
 
 - When real trials are approved, the same module produces the succession
   numbers with no new arithmetic.
-- No number in the report can be misread as a result: the status and
-  evidence status travel with it.
+- Every number in the report travels with its threshold verdict (or its
+  explicit non-verdict), its evidence status, and its arm's fixture
+  status, so nothing in the report reads as a result on its own; the
+  `derive` command prints `DERIVED`, never `PASS`.

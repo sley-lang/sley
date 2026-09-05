@@ -70,7 +70,11 @@ WORK_PACKAGE_MARKERS = ("`docs/spec/SUCCESSION_ACCOUNTING_V1.md`", "ADR-0037")
 MODULE_MARKERS = (
     "class AccountingErrorCode(IntEnum)",
     'REPORT_CONTRACT = "sley2.succession-accounting-report.v1"',
-    'EVIDENCE_STATUS = "DERIVED_FROM_UNVERIFIED_CLAIMS"',
+    'EVIDENCE_UNVERIFIED = "DERIVED_FROM_UNVERIFIED_CLAIMS"',
+    "def derive_evidence_status(",
+    "ARM_VERIFIERS",
+    "NOT_EVALUATED_CONDITIONS",
+    "LEGACY_CHAIN_RELATIVE",
     "def ratio(",
     "def median(",
     "def arm_accounting(",

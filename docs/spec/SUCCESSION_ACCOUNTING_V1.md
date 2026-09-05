@@ -1,10 +1,11 @@
 # Succession Accounting v1
 
-Status: S20-630 contract draft, revision 2 (2026-09-03); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). Revision 2 records the clarifications found while implementing
-revision 1 (section 9). The implementation is `bench/accounting/report.py`;
-implementation state is tracked in the machine summary.
+Status: S20-630 contract draft, revision 3 (2026-09-05); the Ariadne
+contract review (2 P0, 8 P1), Nabu architecture review (4 P0, 7 P1), and
+Vulcan surface review (1 P0, 5 P1) all returned FAIL against revision 2,
+and every P0 and every P1 lands in this revision. The implementation is
+`bench/accounting/report.py`; implementation state is tracked in the
+machine summary.
 
 ## Boundary
 
@@ -16,27 +17,40 @@ trial claims (`sley2.raw-trial-digest-claim.v1` under `raw_files`,
 chain when S20-600 produces one). It reads nothing else: no trace body, no
 model, no provider, no oracle, no clock. It performs exact integer and
 rational arithmetic only, keeps every attempted trial in every denominator,
-and evaluates the master goal's section 22 thresholds as recorded in
-`bench/benchmark-plan.json` (`thresholds`). It makes no succession claim:
-with zero trials every arm is `NO_CLAIM_CHAIN` and every threshold is
-`UNDETERMINED` (master goal sections 21.4 through 21.6, 22.1 through 22.4;
-dossiers 16 through 18).
+and evaluates the section 22 conditions the plan encodes as recorded in
+`bench/benchmark-plan.json` (`thresholds`). The three section 22
+conditions the plan does not encode are not evaluated and are carried as
+explicit `NOT_EVALUATED` rows (section 4), so the omission is a field,
+never a gap. It makes no succession claim: with zero trials every arm is
+`NO_CLAIM_CHAIN` and every threshold is `UNDETERMINED` (master goal
+sections 21.4 through 21.6, 22.1 through 22.4; dossiers 16 through 18).
 
 ## 1. Inputs
 
 - the run directory's create-once manifest, verified exactly as S20-610
   verifies it;
-- each arm's claim chain, verified by that arm's own runner
-  (`bench.raw.runner.verify_digest_claim_directory`,
+- each required arm's claim chain, verified by that arm's own runner
+  through the registry `ARM_VERIFIERS` (`raw_files` by
+  `bench.raw.runner.verify_digest_claim_directory`, `sley_2_0` by
   `bench.sley2.runner.verify_trial_claims`); a chain the arm's verifier
   rejects is `ACCOUNTING_CHAIN_INVALID` and the whole report fails closed;
-- the plan's metric names, thresholds, and required arms, and the corpus'
-  task identifiers and classes.
+- the plan's metric names, thresholds, required arms, and arm
+  `fixture_status` values, and the corpus' task identifiers and classes.
 
 An arm whose chain is absent is reported as `NO_CLAIM_CHAIN`; an arm whose
 chain does not cover the manifest's full task and seed product is
-`PARTIAL`; a covered arm is `COMPLETE`. A claim naming an arm the plan does
-not require is `ACCOUNTING_ARM_UNKNOWN`.
+`PARTIAL`; a covered arm is `COMPLETE`. A claim loaded under a required
+arm that names a different arm is `ACCOUNTING_ARM_UNKNOWN`. Chain
+discovery covers required arms only; chains for non-required plan arms
+(such as `zerolang`) are not discovered until a verifier is registered
+for them (section 8). The legacy arm has no verifier until S20-600
+supplies a chain producer, and the registry records that fact as data
+rather than code: a legacy chain that appears at the reserved path
+`legacy/claims.jsonl` before its verifier is registered is
+`ACCOUNTING_CHAIN_INVALID`, never silent absence. Each loaded arm records
+the verifier used (`chain_verifier`) and its plan `fixture_status`, and
+the report records every required arm's `fixture_status`, so a threshold
+row lifted out of the report still carries its provenance.
 
 ## 2. Arithmetic
 
@@ -46,7 +60,9 @@ positive denominator. Floats never appear in inputs, intermediate values, or
 outputs (`ACCOUNTING_FLOAT_FORBIDDEN`). A median over an even count is the
 exact ratio of the two middle values' sum to two. A ratio whose denominator
 would be zero is `null` with a named reason, never an error and never a
-substituted value.
+substituted value. Dossier display may render a ratio as a decimal string
+by explicit formatting of the exact numerator and denominator; that
+rendering is display-only and never enters a comparison.
 
 ## 3. Arm accounting
 
@@ -54,51 +70,128 @@ substituted value.
 ArmAccounting {
   "status": "COMPLETE" | "PARTIAL",
   "claims": integer, "chain_head_digest": hex[64],
+  "chain_verifier": string, "fixture_status": string,
   "attempted": integer,            // every claim, whatever its status
   "accepted": integer, "rejected": integer, "timeouts": integer,
   "harness_failures": integer,
   "strict_correctness": Ratio,     // accepted / attempted
-  "total_observable_tokens": integer, "model_input_tokens": integer,
-  "model_output_tokens": integer,
+  "total_observable_tokens": integer, "model_output_tokens": integer,
   "accepted_change_tokens": Ratio | null,   // total_observable_tokens / accepted
-  "context_bytes": { "sum": integer, "median": Ratio | null },
-  "model_input_tokens_median": Ratio | null,
-  "repair_loops": { "sum": integer, "median": Ratio | null },
+  "accepted_change_tokens_reason": "no_accepted_change" | null,
+  "context_bytes": Median3, "model_input_tokens": Median3,
+  "repair_loops": Median3, "wall_time": Median3,
+  "peak_memory": Median3, "execution_latency": Median3,
   "tool_calls": integer, "compile_or_check_attempts": integer,
   "invalid_candidates": integer, "invalid_committed_states": integer,
   "stale_candidates": integer, "stale_candidates_incorrectly_accepted": integer,
   "collateral_semantic_changes": integer, "human_interventions": integer,
-  "wall_time": { "sum": integer, "median": Ratio | null },
+  "entities_inspected": integer, "relationships_inspected": integer,
+  "files_inspected": integer, "canonical_storage_bytes": integer,
+  "pack_bytes": integer,
+  "median_excluded_harness_failures": integer,
   "by_task": { task_id: { "attempted": integer, "accepted": integer } },
+  "by_seed": { seed: { "attempted": integer, "accepted": integer,
+                       "strict_correctness": Ratio } },
   "by_class": { class: { "attempted": integer, "accepted": integer,
-                         "strict_correctness": Ratio } }
+                         "strict_correctness": Ratio,
+                         "collateral_semantic_changes": integer } },
+  "claim_statuses": { "evidence_status": [string],
+                      "oracle_verification_status": [string],
+                      "accounting_verification_status": [string] },
+  "every_attempt_in_denominator": true
 }
+// Median3 = { "sum": integer, "median": Ratio | null,
+//             "median_non_harness_failure": Ratio | null }
 ```
 
 `accepted_change_tokens` follows master goal section 21.5 exactly: total
 observable model tokens over accepted correct changes, `null` with reason
 `no_accepted_change` when no change was accepted. A lower ACT with lower
 correctness is not a win, and the report never ranks arms by ACT alone.
+The claim-level plan metric of the same name must be null on every claim:
+both runners refuse a pre-derived ACT at the claim layer, and accounting
+restates that refusal with `ACCOUNTING_METRIC_INVALID`, so the two
+meanings of the name can never mix.
+
+Every median is taken over every attempt, including timeouts and harness
+failures, and every threshold names that basis (`ALL_ATTEMPTS`). This is
+deliberate: section 21.6 keeps every failed trial in the denominator, and
+one rule governs denominators and efficiency medians alike rather than a
+per-metric population choice that could be tuned per comparison. Each
+median travels with its companion over non-harness-failure attempts and
+the excluded count, so the sensitivity is visible beside the verdict. A
+duplicated trial id or a duplicated (task, seed) pair fails the report
+with `ACCOUNTING_INTERNAL_INVARIANT`: set-equality `COMPLETE` is blind to
+multiplicity, so the boundary restates one-claim-per-slot locally rather
+than inheriting divergent producer guarantees. `every_attempt_in_
+denominator` is derived, not asserted: the status partition, every median
+series, and every grouping must account for exactly the claims seen, else
+`ACCOUNTING_INTERNAL_INVARIANT`.
 
 ## 4. Thresholds
 
-Each plan threshold is evaluated between `sley_2_0` and `sley_1_2_0` (and
-`raw_files` where the plan names it) only when both arms are `COMPLETE`;
-otherwise it is `UNDETERMINED` with the arms' statuses as its reason. A
-`PASS` or `FAIL` carries the exact ratios it compared. The evaluations are:
+Each plan threshold is evaluated between `sley_2_0` and `sley_1_2_0` only
+when both arms are `COMPLETE`; otherwise it is `UNDETERMINED` with the
+arms' statuses as its reason. The plan names no threshold over
+`raw_files`, so `raw_files` is never compared; it still gates report
+status (section 5). A `PASS` or `FAIL` carries the exact ratios it
+compared and the evidence status it inherits. The plan's ten threshold
+keys, in full, are evaluated as:
 
-- correctness not lower in any task class (all classes are treated as
-  critical);
-- failure-rate relative reduction of at least 20 percent, or equal accepted
-  correctness with an ACT reduction of at least 30 percent;
-- median context bytes reduced by at least 40 percent, or median model
-  input tokens reduced by at least 30 percent, with the other metric
-  regressing by at most 10 percent;
-- median repair loops reduced by at least 25 percent, or accepted correct
-  changes increased by at least 20 percent under the same action budget;
-- `invalid_committed_states`, `stale_candidates_incorrectly_accepted`, and
-  the Sley 2 arm's `human_interventions` all zero, and every invalid
-  candidate leaving accepted state unchanged.
+- `critical_class_correctness_not_lower_than_legacy`: the plan flag must
+  read `true`, else `ACCOUNTING_METRIC_INVALID`; until the corpus names
+  critical classes every class counts as critical, a deliberate
+  strengthening recorded as `critical_class_selection: ALL_CLASSES`, so a
+  `FAIL` is attributable to the classes named in the facts;
+- `failure_rate_relative_reduction_percent_or_equal_correctness_act_
+  reduction_percent`: failure rate is one minus strict correctness; at
+  least 20 percent relative failure reduction, or equal strict
+  correctness ratios with at least 30 percent ACT reduction; a perfect
+  legacy arm leaves the reduction undefined with reason
+  `legacy_failure_rate_zero`, never a pass;
+- `median_context_bytes_reduction_percent_or_model_input_tokens_
+  reduction_percent`: each leg passes only on its own measured reduction
+  (40 percent context, 30 percent input tokens) with the other metric's
+  regression inside the cap; a leg with an undefined reduction or an
+  undefined other-metric regression is `UNDETERMINED`, never compliant;
+  the row passes when either leg passes, reads `UNDETERMINED` when no leg
+  passes and some leg is undefined, and fails otherwise;
+- `other_context_metric_max_regression_percent`: the measured regressions
+  of both context metrics against the 10 percent cap, computed
+  independently of the threshold above; either regression undefined
+  leaves the row `UNDETERMINED` with the missing metric named;
+- `median_repair_loop_reduction_percent_or_accepted_changes_increase_
+  percent`: 25 percent median repair reduction or 20 percent accepted
+  increase, where the increase is `(accepted_sley2 - accepted_legacy) /
+  accepted_legacy`, null with reason `legacy_accepted_zero` when the
+  legacy arm accepted nothing; counts compare directly only under the
+  manifest's single shared `action_budget`, which the row carries as a
+  fact and which must be one integer, while any other budget-named
+  manifest field fails the report with `ACCOUNTING_RUN_INVALID`;
+- `invalid_candidates_leave_state_unchanged_percent` and
+  `stale_preconditions_rejected_percent`: the exact good ratio against
+  the plan value (100); a zero denominator is `UNDETERMINED` with reason
+  `no_invalid_candidates` / `no_stale_candidates` and the denominator in
+  the facts, never a vacuous pass;
+- `invalid_committed_states`, `stale_conflicting_candidates_accepted`,
+  and `human_interventions_sley2`: exact equality with the plan value
+  (all zero).
+
+The report must contain exactly the plan's threshold names plus the three
+rows below, else `ACCOUNTING_METRIC_INVALID`. The section 22 conditions
+the plan does not encode are carried as `NOT_EVALUATED` rows with the
+condition and its owning package, and no all-`PASS` report may be read as
+section 22 satisfied:
+
+- `section_22_1_no_required_check_bypassed` (owner `S20-360`): no
+  required effect or capability check is bypassed;
+- `section_22_4_collateral_semantic_comparison` (owner `UNASSIGNED`):
+  collateral semantic changes no worse than Sley 1.2.0 and strictly
+  lower in at least one multi-entity task class; per-class collateral
+  sums are carried above so the future comparison has its inputs;
+- `section_22_4_mutation_reconstructability` (owner `UNASSIGNED`):
+  every accepted mutation reconstructable from its base state root and
+  canonical transaction receipt.
 
 ## 5. Report
 
@@ -106,22 +199,39 @@ otherwise it is `UNDETERMINED` with the arms' statuses as its reason. A
 AccountingReport {
   "contract": "sley2.succession-accounting-report.v1",
   "run_id": string, "run_manifest_digest": hex[64],
+  "benchmark_plan_digest": hex[64], "corpus_digest": hex[64],
   "corpus_version": integer, "required_arms": [arm_id],
+  "arm_fixture_status": { arm_id: string },
   "arms": { arm_id: ArmAccounting | "NO_CLAIM_CHAIN" },
-  "thresholds": { name: { "result": "PASS" | "FAIL" | "UNDETERMINED", ... } },
+  "claim_statuses": { "evidence_status": [string],
+                      "oracle_verification_status": [string],
+                      "accounting_verification_status": [string] },
+  "thresholds": { name: { "result": "PASS" | "FAIL" | "UNDETERMINED" | "NOT_EVALUATED", ... } },
   "status": "NO_TRIALS" | "PARTIAL" | "COMPLETE",
-  "every_attempt_in_denominator": true,
-  "evidence_status": "DERIVED_FROM_UNVERIFIED_CLAIMS",
+  "evidence_status": string,     // derived, see below
   "report_digest": hex[64]        // SHA256("sley2.succession-accounting-report.v1\0" || canonical report without this field)
 }
 ```
 
-The report is canonical JSON. `evidence_status` is fixed: the claims it
-reads are explicitly unverified (S20-610, S20-620), so the report inherits
-that status and becomes evidence only after the operator-approved artifact
-and provenance verification those contracts name. The dossier's succession
-fields (`machine-summary.json` `succession`) stay `null` until a report
-with status `COMPLETE` over verified claims exists.
+The report is canonical JSON. `evidence_status` is derived from the
+claims' own statuses: `"evidence_status": "DERIVED_FROM_UNVERIFIED_CLAIMS"`
+when every observed claim status starts with `UNVERIFIED`
+(`DERIVED_FROM_VERIFIED_CLAIMS` when every observed status starts with
+`VERIFIED`, `DERIVED_FROM_MIXED_CLAIM_STATUSES` otherwise), with the
+distinct observed statuses recorded in `claim_statuses`; vacuous over
+zero claims. `verify_report` re-derives the recorded status from the
+recorded claim statuses instead of checking a module constant, so
+already-written reports keep verifying after any future vocabulary
+change. The dossier's succession fields (`machine-summary.json`
+`succession`) stay `null` until a report with status `COMPLETE` over
+verified claims exists. Report status is `COMPLETE` only when every
+required arm is complete, including `raw_files`, even though thresholds
+compare legacy and Sley 2 only. Every threshold row carries the report's
+evidence status, so a row lifted out of the report is still marked as
+derived, and every arm carries the plan's `fixture_status`, so a report
+over scripted claims is distinguishable from one over real trials. The
+`derive` command prints `DERIVED` for a successful derivation, never
+`PASS`: threshold verdicts live on the rows, not in the log.
 
 ## 6. Stable failures
 
@@ -143,14 +253,22 @@ report (`--require-complete`) over partial chains.
 
 - offline tests: exact ratios and medians (odd and even counts, zero
   denominators), every-attempt denominators with timeouts and harness
-  failures, per-class correctness, threshold evaluation on synthetic
-  complete chains built through the S20-610 and S20-620 append functions
-  (both PASS and FAIL cases), `UNDETERMINED` on absent and partial arms, a
+  failures plus the non-harness-failure companions, per-class
+  correctness with collateral sums, per-seed grouping, threshold
+  evaluation on real `arm_accounting` outputs over synthetic complete
+  chains (both PASS and FAIL cases), a complete report through
+  `derive_report` over two full chains, `UNDETERMINED` on absent and
+  partial arms and on undefined regressions and empty denominators,
+  `NOT_EVALUATED` rows, threshold-coverage and criticality-flag failure
+  closure, duplicate-slot and pre-derived-ACT refusal, the legacy
+  reserved-path gate, evidence-status derivation and mismatch refusal, a
   tampered chain failing closed, and the report digest;
 - `scripts/check_succession_accounting.py` in `make quick`;
 - a report over the S20-620 smoke run directory (`make accounting-smoke`),
   reading `PARTIAL` with two scripted attempts, no accepted change, and
-  every threshold `UNDETERMINED`, retained as runtime evidence;
+  every evaluated threshold `UNDETERMINED`, regenerable at any time (the
+  runtime directory is not tracked; the closeout records the smoke
+  report's digest);
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews
   with every report-grade finding closed.
 
@@ -158,25 +276,40 @@ report (`--require-complete`) over partial chains.
 
 This contract does not claim: any trial; model, provider, or oracle
 execution; artifact or provenance verification; statistics beyond exact
-sums, ratios, and medians (S20-640); the legacy arm's claim chain (S20-600);
+sums, ratios, and medians (S20-640, which reads the per-seed grouping
+rather than re-verifying chains); the legacy arm's claim chain (S20-600,
+which must either use the reserved path or revise this contract);
+discovery of non-required arm chains; a documented-reason override for
+the section 22.2 cap (a reasoned exception needs a plan revision);
+per-arm action budgets; corpus-declared critical classes (the corpus is
+S20-610's frozen input; the plan flag is the control accounting owns);
 publication; runtime, packaging, release, or GA.
 
-## 9. Revision 2 clarifications
+## 9. Revision 3 changes
 
-- `ArmAccounting` carries `accepted_change_tokens_reason`
-  (`no_accepted_change` or null) beside the nullable ratio, so a null is
-  never silent.
-- The S20-620 smoke run holds two scripted claims (one rejected, one
-  harness failure), so the report over it is `PARTIAL`, not `NO_TRIALS`;
-  `NO_TRIALS` names a run whose every arm has no chain.
-- "Accepted correct changes increased by at least 20 percent" is
-  `(accepted_sley2 - accepted_legacy) / accepted_legacy`, null when the
-  legacy arm accepted nothing; the shared action budget makes counts
-  comparable directly.
-- `other_context_metric_max_regression_percent` reports the same result as
-  the context threshold it caps, with the cap as its fact.
-- Each arm's chain is loaded through that arm's runner (`raw_files` by
-  `bench.raw.runner`, `sley_2_0` by `bench.sley2.runner`); the legacy arm
-  has no chain producer yet and is always `NO_CLAIM_CHAIN`.
-- The runner's `Fraction` arithmetic is exact rational arithmetic over
-  integers; no float is constructed anywhere.
+Revision 2 bullets 4 and 5 ("the cap row mirrors the threshold result",
+"the legacy arm is always `NO_CLAIM_CHAIN`") canonized behavior the
+Council reviews proved wrong and are superseded below; the remaining
+revision 2 clarifications stand.
+
+- The boundary evaluates the section 22 conditions the plan encodes;
+  the three it does not encode are `NOT_EVALUATED` rows with owners.
+- The regression cap is measured on both context metrics; undefined
+  means `UNDETERMINED`, and threshold legs carry the same rule.
+- The legacy arm loads through the verifier registry with its verifier
+  and fixture recorded; a premature chain at the reserved path fails
+  closed; the plan's non-`PENDING` fixture no longer means absence.
+- `ArmAccounting` carries the seven section 21.4 metrics the claims
+  already had (with medians for latency and peak memory), per-class
+  collateral sums, per-seed grouping, claim statuses, a derived
+  every-attempt flag, and duplicate-slot refusal.
+- The evidence status is derived from the claims and re-derived on
+  verify; every row carries it; every arm carries its fixture status.
+- Medians stay every-attempt by stated rule with non-harness-failure
+  companions; percent rows compute exact ratios with named-null empty
+  denominators; the shared action budget is read and recorded; failure
+  rate is one minus strict correctness with the perfect-legacy null
+  named; criticality is read from the plan flag with all-classes
+  recorded; threshold coverage is asserted structurally.
+- The smoke report is regenerable runtime evidence with its digest in
+  the closeout; `derive` prints `DERIVED`.
