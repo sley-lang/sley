@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:fe9b3186352550bc2a52d56eded4a51147cfb265ecf2a844a88e3fc6fdcaef39:4d551ef331027026cef87572b15864820cabaa26c4c6877e2a7aeb5c20a1701f",
+  "documentNamespace": "urn:sley2:spdx:fe9b3186352550bc2a52d56eded4a51147cfb265ecf2a844a88e3fc6fdcaef39:5fca419f75967e8393cd03b83ac30d4f6535758637de94f8e92fe89ea2879592",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "The Sley 2 workspace packages declare a proprietary license reference. The exact root license text, copyright holder, term, and notice language await an operator decision (S20-710), so no license text is asserted here.",
@@ -23,7 +23,7 @@
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "4d551ef331027026cef87572b15864820cabaa26c4c6877e2a7aeb5c20a1701f"
+          "checksumValue": "5fca419f75967e8393cd03b83ac30d4f6535758637de94f8e92fe89ea2879592"
         }
       ],
       "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",
