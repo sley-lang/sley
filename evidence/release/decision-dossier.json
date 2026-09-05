@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e78e2f8d66f88e0f1146a61347b3c154cd72735b7533d0e9485071f1f1f233b3",
+  "dossier_digest": "e08e91ff327286f457362ca915f1987b8d8f58b8d862af7b4d89533cae7946d1",
   "entries": [
     {
       "evidence": [
@@ -415,7 +415,8 @@
           "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
           "M6 release: the evidence chain is built and drift-checked (SBOM, provenance, reproducibility, finding register, GA acceptance, decision dossier). What remains is the operator's: the root license text, a second host attestation, and the release decision itself",
-          "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down"
+          "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down",
+          "Provenance/similarity audit of the Sley 1.2 source: not performed (S20-780 revision 3, Vulcan P1-2). Blocks GA acceptance of the clean-room claim; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
       }
     },
@@ -453,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "99b0304bc930b9cf640e7967f76ece884790ca3c50af0606152e599a12520d86",
+  "entries_digest": "c55ca91984703de44d5529e12cd94f391245dc1b63b4da8b886561de33b48a73",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
