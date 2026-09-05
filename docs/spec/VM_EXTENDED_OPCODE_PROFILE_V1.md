@@ -1,15 +1,23 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 11 (2026-09-05);
-Council review pending (Ariadne contract review, Nabu architecture review,
-Vulcan surface review). Revisions 2 through 7 record the clarifications of
+Status: S20-260/S20-270 full-profile contract draft, revision 12 (2026-09-05);
+Council review pending (Ariadne contract review, Vulcan surface review; Nabu
+architecture review PASS). Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
 the judgment-only entry external owners use (section 3.1). Revision 9 lands
 slice E7a, `contract_assert` execution, which the S20-760 revision 2
 determination showed needs no schema epoch. Revision 11 makes the family fuzz
 lanes reach execution (section 5): per-fixture requests, a completion
 assertion, a pinned refusal code, and position-stable seed selection.
-Implementation lands in family slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
+Revision 12 answers the Ariadne contract review and Vulcan surface review
+freeze findings: the `lowerer_version` bump with its rule and the full
+`SLEYBC02` layout in section 1; the stated post-construction invariant and
+the liveness-not-peak charging bound in section 2; the exact equality rows,
+the named negative-zero deviation with its consequence, the pinned float
+environment, the encoding-order decision with byte key identity, the absent-key
+and operand-arity gaps, the failure-name mapping, and the five-fuel
+derivation in section 3; the preimage field name in section 4; and the
+same-toolchain evidence scope in section 5. Implementation lands in family slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
 stays excluded until its owners exist.
 
 ## Boundary
@@ -26,15 +34,29 @@ and its vectors stay frozen; the extended profile is a second cache profile,
 selected explicitly by the caller. It reuses the seven `VM_LOWER_*` and six
 `VM_EXEC_*` codes and adds no numeric range; the manifest's shapes and the
 type checker's closed builtin-failure codes are the authority for every
-operand, result, immediate, and failure value.
+operand, result, immediate, and failure value. The manifest op table spells
+the failure kinds `ArithmeticError`, `IndexError`, `DuplicateKeyError`;
+those are the wire spellings of `BuiltinFailureKind::Arithmetic`, `::Index`,
+`::DuplicateKey`, and this contract uses the kind names (`ContractViolation`
+is spelled alike in both).
 
 ## 1. Profile and bytecode
 
 - `CacheProfile::EXTENDED_V1 = { vm_version [1,0,0], lowering_profile 2,
-  lowerer_version [1,0,0], entry_type_arguments 0, adapter_abi_entries 0,
+  lowerer_version [2,0,0], entry_type_arguments 0, adapter_abi_entries 0,
   execution_abi_flags 0 }`; the cache key preimage is the S20-260 preimage
-  with this profile, so restricted and extended keys never collide.
-- Bytecode `SLEYBC02` is `SLEYBC01` with one `immediate` per instruction
+  with this profile, so restricted and extended keys never collide. The
+  lowerer version separates bytecode layouts in cache identity: slice E6
+  appended the callee table below to the `SLEYBC02` body under `[1, 0, 0]`
+  without a bump, so two incompatible layouts shared one cache key;
+  revision 12 bumps to `[2, 0, 0]`, and any future `SLEYBC02` layout change
+  bumps `lowerer_version` again or the change does not land. Pre-freeze
+  caches under `[1, 0, 0]` are discarded, not migrated.
+- Bytecode `SLEYBC02` is a header, one entry body, then a callee table:
+  the magic, a `u32` format version, the entry body, then a `u64` callee
+  count followed by each callee body in ascending function-id order (the
+  entry never repeats itself in the table; a self-call resolves to the
+  entry body). Each body is `SLEYBC01` with one `immediate` per instruction
   after its results: `u32 tag` (1 none, 2 entity, 3 index, 4 field, 5
   variant, 6 observation, 7 function) followed by the SSMC1 immediate
   payload (`EntityId[32]`, `u32`, `MemberId[32]`, `EntityId[32] ||
@@ -53,9 +75,17 @@ by two execution-local forms that never persist, never enter an observation,
 and are rejected as a Function result type at lowering
 (`VM_LOWER_SIGNATURE_MISMATCH`): local cells (a slot in the execution's
 cell table) and adapter handles or capability tokens (E7, excluded). Every
-constructed value satisfies `check_constant` of its register type; a value
-that would not is `VM_EXEC_INTERNAL_INVARIANT`. Value units are charged for
-every constructed value as in S20-270.
+constructed value carries exactly its register type; a value whose
+`value_type` differs from the result register's type is
+`VM_EXEC_INTERNAL_INVARIANT`. That identity check is the whole
+post-construction check: `check_constant` runs on execution inputs at the
+boundary (with the canonical-form refusal), never on constructed values,
+because the E5 cell handle is register-only and has no constant form to
+check against. Value units are charged for every constructed value as in
+S20-270; `max_value_units` bounds charged liveness, not transient peak
+allocation: the whole result is built before it is charged, so one
+`tuple_new` (arity at most 64) or `map_insert` can transiently allocate
+past the budget before the limit fires.
 
 ## 3. Signature judgment and semantics by family
 
@@ -78,8 +108,8 @@ narrows it; integer widths are 8, 16, 32, 64, or 128.
 | 33 `vector_len` | `Vector<T>` | none | `UInt(64)` | the length |
 | 34 `vector_get` | `Vector<T>`, `UInt(64)` | none | `Option<T>` | `Some` in range, `None` otherwise |
 | 35 `vector_set` | `Vector<T>`, `UInt(64)`, `T` | none | `Result<Vector<T>, BuiltinFailure(Index)>` | a new vector, or `Err(Index, 1)` out of range |
-| 96 `equal`, 97 `not_equal` | `T`, `T`, `T` hashable and float-free | none | `Bool` | canonical value equality |
-| 98 to 101 order predicates | `T`, `T`, `T` in `Bool`, `SInt`, `UInt`, `Bytes`, `Text` | none | `Bool` | `false < true`; numeric order; `Bytes` and `Text` by byte then length; floats in E3 |
+| 96 `equal`, 97 `not_equal` | two `T` operands, `T` hashable and containing no float (bare `F32`/`F64` admitted with IEEE meaning, E3) | none | `Bool` | canonical value equality; structural equality would make `NaN == NaN` true, so aggregates holding floats stay excluded |
+| 98 to 101 order predicates | two `T` operands in `Bool`, `SInt`, `UInt`, `Bytes`, `Text`, `F32`, `F64` | none | `Bool` | `false < true`; numeric order; `Bytes` and `Text` by byte then length; bare floats by IEEE (E3), unordered pairs all false |
 | 128 `option_some` | `T` | none | `Option<T>` | `Some` |
 | 129 `option_none` | none | none | the declared `Option<T>` | `None` |
 | 130 `result_ok` | `T` | none | the declared `Result<T, E>` | `Ok` |
@@ -101,15 +131,24 @@ wrapping exists.
 
 ### E3 deterministic floats (80 to 85) and float order
 
-Operands are `F32` or `F64` (three for `float_fma`); the result is the
+Operands are `F32` or `F64`: one for `float_neg`, three for `float_fma`,
+two for the rest; the result is the
 same type. Semantics are IEEE-754 binary32 or binary64,
 round-to-nearest-ties-to-even, subnormals preserved, `float_fma` a single
 rounding; every result that is a NaN is canonicalized to the quiet NaN with
-a zero sign and zero payload (`0x7fc00000`, `0x7ff8000000000000`), and the
-result bits are stored exactly. The order predicates over floats follow
+a zero sign and zero payload (`0x7fc00000`, `0x7ff8000000000000`), and every
+other result bit is stored exactly. Named deviation: a negative-zero result
+becomes positive zero, so `-0` never appears in a value, which composes
+observably (`float_div(1.0, float_mul(-1.0, 0.0))` is `+inf` where IEEE gives
+`-inf`). The order predicates over floats follow
 IEEE: an unordered pair makes `equal`, `less_than`, `less_equal`,
 `greater_than`, and `greater_equal` false and `not_equal` true; negative
-zero cannot occur (section 7).
+zero cannot occur (section 7). The determinism claim is pinned to the
+toolchain in `rust-toolchain.toml` on one target triple: the evidence is
+same-toolchain repeatability, and cross-host identity additionally requires
+that floating-point environment (binary32/64, round-to-nearest-ties-to-even,
+subnormals preserved, no flush-to-zero), which is the default build with no
+fast-math anywhere in this repo.
 
 ### E4 aggregates and maps (18 to 21, 36 to 40)
 
@@ -123,9 +162,17 @@ none otherwise, and yields the named type; `variant_get` takes Variant: a
 case with a payload and yields `Option<payload>` (`Some` when the value is
 that case). `map_new` takes `2n` operands (`K, V` pairs, `K` hashable)
 and yields `Result<OrderedMap<K, V>, BuiltinFailure(DuplicateKey)>` with
-code 1 on a repeated key; `map_get` yields `Option<V>`; `map_contains`
-`Bool`; `map_insert` and `map_remove` yield the new map. Map order is the
-order of the keys' S20-350 canonical bytes, exactly as constants require.
+code 1 on a repeated key; `map_get` takes the map and a key and yields
+`Option<V>`; `map_contains` takes the map and a key and yields `Bool`;
+`map_insert` takes map, key, and value and `map_remove` takes map and key,
+both yielding the new map; removing an absent key returns the map unchanged.
+Map order is the lexicographic order of the keys' S20-350 canonical bytes:
+the encoding order, named as such. It is deterministic and canonical, but
+it is not the numeric key order (`UInt(255)` encodes as `FF 01` and sorts
+after `UInt(256)` as `80 02`), and the S20-210 total order stays only the
+admissibility precondition for key types. Key identity is the encoding too:
+duplicate detection and every probe compare canonical key bytes, so the map
+`map_new` accepts is exactly the map the codec accepts.
 Maps the profile builds are sorted on construction; maps supplied from outside
 are required to arrive in that order, because `equal` and `value_hash` read it
 structurally.
@@ -138,9 +185,8 @@ are per execution and their contents count as live value units. `cell_new`
 and `cell_set` clone their value into the cell table, so each charges the
 stored value's units in addition to its result: the table is a second place
 the value lives, and a budget that did not count it would bound nothing. At
-most 1,048,576 cells exist in one execution, which holds when a request
-declares a value-unit budget large enough to make the charge no bound at
-all; exceeding either is `VM_EXEC_RESOURCE_LIMIT` with `ResourceKind` value
+most 1,048,576 cells exist in one execution; exceeding the count or the
+value-unit budget is `VM_EXEC_RESOURCE_LIMIT` with `ResourceKind` value
 units.
 `value_hash` takes a hashable `T` and yields `Bytes` of exactly 32 bytes,
 the S20-250 `hash_validated_value` of the operand under the schema epoch.
@@ -156,8 +202,16 @@ zero-parameter-type Function of the root and yields
 operand per callee parameter with its type, and yields the callee's result
 type. Lowering lowers every Function reachable through direct calls under
 the same profile, cache key, and limits; execution keeps an explicit call
-stack with a depth ceiling of 256 frames (`ResourceKind::CallDepth`, tag
-5, a resource-limit termination) and charges one fuel and one instruction
+stack with a depth ceiling of 256 live frames, entry frame included
+(`ResourceKind::CallDepth`, tag 5, a resource-limit termination): the frame
+that would make 257 live is refused, so 256 live is the deepest reachable
+stack, pinned by `e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included`
+and the `call-direct-depth-ceiling` vector. The ceiling is fixed and ignores
+the manifest `ResourceLimits` call-depth field (field 5): no request path
+delivers that field to execution (the SMP1 limits record carries no depth),
+so honoring a caller-supplied depth needs a protocol change and a new
+`lowering_profile`; until then a declared depth binds nothing. Execution
+charges one fuel and one instruction
 per call. Recursion within the ceiling is allowed; a callee's trap or
 resource termination terminates the whole execution.
 
@@ -198,7 +252,9 @@ checker admits for that family. A violated contract is a value, never a trap:
 the caller decides what a failed assertion means.
 
 The predicate's frame is charged like any call, so one assertion over a
-one-operation predicate costs exactly five fuel.
+one-operation predicate costs exactly five fuel: 1 for the assertion's
+dispatch, 1 for the frame, 1 for the predicate's operation, and 2 for the
+two terminators.
 
 `contract_assert` stays outside S20-360 phase 7 operation analysis. Its static
 typing belongs to the S20-240 checker at phase 10, which reports the exact
@@ -211,7 +267,9 @@ validation has passed.
 Excluded from this revision: they answer `VM_LOWER_OPCODE_UNSUPPORTED`
 until S20-240 full, S20-280 full, and S20-380 full own their runtime.
 `test_observe` additionally needs a schema epoch, because epoch 1 rejects it
-outright rather than leaving its semantics open.
+outright rather than leaving its semantics open (`CONTRACT_TEST_PROFILE_V1.md`
+section 3.4 carries the rejection; op 145 is in the epoch-1 table, so the
+manifest alone does not).
 
 ### 3.1 Judgment without lowering
 
@@ -257,7 +315,8 @@ The observation preimage of S20-270 is unchanged; the extended profile
 enters it through the cache key and the new resource kind, and every
 `Success` value is hashed with `hash_validated_value` as before. The
 preimage's own `execution_profile` field stays at its frozen value because
-the cache key it already carries binds the lowering profile, so no two
+the cache key it already carries binds `lowering_profile` in its preimage
+(`cache_key_preimage` hashes the field), so no two
 profiles can share an observation identity.
 
 S20-290 report building accepts `EXTENDED_V1` beside `RESTRICTED_V1`, which
@@ -275,9 +334,9 @@ field is absent.
 Per slice: fixed vectors under `conformance/vm-extended/v1/` (function
 graphs, inputs, expected termination, and observation identity) emitted
 from the crate and drift-gated in `make quick`; a rejection matrix for each
-signature rule; 128 repeated vector executions producing equal outcomes (the
-count belongs to the vectors: the fuzz lane asserts determinism twice per
-draw instead); the `vm_canonical_inputs` persistent slice extended with one
+signature rule; 128 repeated vector executions producing equal outcomes under
+the pinned toolchain (the count belongs to the vectors: the fuzz lane asserts determinism twice per
+draw instead, and cross-host identity needs the section E3 floating-point environment); the `vm_canonical_inputs` persistent slice extended with one
 lane per landed family; and the restricted vectors unchanged. Each family lane
 must reach a completed termination, success or the family's value failure, on
 the pinned corpus: the lane builds its request from the fixture's own
@@ -304,8 +363,10 @@ S20-360 full operation analysis; or GA.
 
 ## 7. Revisions 2 through 7 clarifications (slices E1 through E6)
 
-- E1 equality excludes any type containing `F32` or `F64` (S20-210 counts
-  floats as hashable); E3 defines float equality and order under IEEE.
+- E1 equality excludes any type containing `F32` or `F64`: structural
+  `ConstValue` equality would make `NaN == NaN` true, contradicting the IEEE
+  rule E3 fixes (S20-210 counts floats as hashable, which is why the
+  exclusion needs stating); E3 defines float equality and order under IEEE.
 - The E1 vectors live in `conformance/vm-extended/v1/accepted.json`
   (bytecode bytes, cache key, success value hash, observation identity,
   instruction count) under the fixed epoch `08`\*32 and root `09`\*32,
@@ -342,8 +403,12 @@ S20-360 full operation analysis; or GA.
   types from the declared result; the runtime map order is the
   lexicographic order of the keys' S20-350 canonical bytes, obtained
   through `sley_mutate::encode_const_value` (the VM crate now depends on
-  the mutation crate, which the dependency direction allows), and
-  `map_insert` of an existing key replaces its value in place. That order
+  the mutation crate, which the dependency direction allows), and duplicate
+  detection and every probe compare those bytes, so key identity is the
+  encoding and the map `map_new` accepts is exactly the map the codec
+  accepts; `map_insert` of an existing key replaces its value with the
+  order recomputed, and `map_remove` of an absent key returns the map
+  unchanged. That order
   is a precondition on every value the profile does not build itself, and
   S20-210 does not establish it (`TYPE_SYSTEM_V1.md` section 5), so the VM
   verifies it against the same encoder where such a value is supplied: an
@@ -360,7 +425,9 @@ S20-360 full operation analysis; or GA.
   charge the stored value's units on top of their result, because the cell
   table holds a clone that outlives the instruction and is live independently
   of the register file (charging only the result charged the handle, so a
-  loop could hold unbounded host memory with the budget intact);
+  loop could hold unbounded host memory with the budget intact); at most
+  1,048,576 cells exist in one execution and the count check fires at the
+  cap;
   `value_hash` is the S20-250 `hash_validated_value` under the execution's
   schema epoch; `global_get` resolves the global's initializer Constant in
   the lowering inventory and the constant's type must equal the global's
@@ -381,8 +448,8 @@ S20-360 full operation analysis; or GA.
   (charging their value units), shares the instruction, fuel, value-unit,
   and cell state across frames, charges one fuel per call up front, counts
   the call instruction only when the callee returns (a call chain cut by a
-  termination counts no call instructions), and refuses a frame beyond the
-  256-frame ceiling (entry frame included) with `ResourceLimit(CallDepth)`,
+  termination counts no call instructions), and refuses the frame that would
+  make 257 live, so 256 live frames is the deepest reachable stack (entry frame included) with `ResourceLimit(CallDepth)`,
   tag 5, which occurs only under `EXTENDED_V1`; the restricted profile's
   closed `ResourceKind` set is unchanged. The call stack is explicit
   (suspended caller frames in a list), so the ceiling never depends on the

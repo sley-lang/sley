@@ -16,7 +16,9 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 VM_LIB = ROOT / "crates/sley-vm/src/lib.rs"
 LOWER = ROOT / "crates/sley-vm/src/lower.rs"
 EXECUTE = ROOT / "crates/sley-vm/src/execute.rs"
+EXTENDED = ROOT / "crates/sley-vm/src/extended.rs"
 EXTENDED_TESTS = ROOT / "crates/sley-vm/src/extended_tests.rs"
+ACCEPTED = ROOT / "conformance/vm-extended/v1/accepted.json"
 
 DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
@@ -56,6 +58,26 @@ SPEC_MARKERS = (
     "stays outside S20-360 phase 7 operation analysis",
     "overflow 1, divide by zero 2, invalid shift 3",
     "`0x7fc00000`, `0x7ff8000000000000`",
+    # Revision 12 freeze findings: every marker below pins one answered
+    # Ariadne or Vulcan finding, so a future edit that drops the answer
+    # fails here.
+    "lowerer_version [2,0,0]",
+    "bumps `lowerer_version` again or the change does not land",
+    "followed by each callee body in ascending function-id order",
+    "two `T` operands, `T` hashable and containing no float",
+    "two `T` operands in `Bool`",
+    "Named deviation: a negative-zero result",
+    "one for `float_neg`, three for `float_fma`",
+    "the encoding order, named as such",
+    "removing an absent key returns the map unchanged",
+    "call-depth field (field 5)",
+    "1 for the predicate's operation, and 2 for the",
+    "those are the wire spellings",
+    "binds `lowering_profile` in its preimage",
+    "same-toolchain repeatability",
+    "would make `NaN == NaN` true",
+    "exceeding the count or the",
+    "bounds charged liveness, not transient peak",
     "## 4. Observation and reports",
     "## 6. Explicit exclusions",
 )
@@ -78,7 +100,7 @@ def read(path: Path) -> str:
 
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE, EXTENDED_TESTS):
+    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE, EXTENDED, EXTENDED_TESTS, ACCEPTED):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -141,6 +163,7 @@ def main() -> int:
     vm_lib = read(VM_LIB)
     lower = read(LOWER)
     execute = read(EXECUTE)
+    extended = read(EXTENDED)
     profile_present = "EXTENDED_V1" in vm_lib
     if profile_present and not started:
         problems.append("extended-profile-before-slice")
@@ -192,13 +215,42 @@ def main() -> int:
     ):
         if call in judge_body:
             problems.append(f"judgment-lower-only-step-present:{call}")
+    # The lowerer version separates bytecode layouts in cache identity: E6
+    # appended the callee table without a bump, so revision 12 bumps the
+    # extended profile to [2, 0, 0] and the rule forbids a recurrence.
+    if "lowerer_version: [2, 0, 0]" not in vm_lib:
+        problems.append("crate-marker:extended-lowerer-version")
+    # The depth ceiling counts live frames including the entry: the frame
+    # that would make 257 live is refused.
+    if "saturating_add(1) > MAX_CALL_DEPTH" not in execute:
+        problems.append("crate-marker:depth-ceiling-comparison")
+    # At most MAX_EXECUTION_CELLS cells exist: the count check fires at the
+    # cap, not past it.
+    if "cells.len() >= MAX_EXECUTION_CELLS" not in execute:
+        problems.append("crate-marker:cell-count-comparison")
+    # Map key identity is the canonical encoding: dedup and every probe
+    # compare key bytes.
+    if "fn keyed_entries" not in extended:
+        problems.append("crate-marker:keyed_entries")
+    for probe in ("let query = key_bytes(key)?", "seen.push(bytes)"):
+        if probe not in extended:
+            problems.append(f"crate-marker:byte-identity:{probe}")
     extended_tests = read(EXTENDED_TESTS)
     for test in (
         "fn judgment_rejects_non_canonical_referenced_constant",
         "fn judgment_acceptance_matches_lowering_acceptance",
+        # The boundary pins: 256 live frames succeed, 257 are refused, and
+        # the encoding order inverts numeric order at 255/256.
+        "fn e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included",
+        "fn e4_map_order_is_the_encoding_order_not_numeric_key_order",
+        "depth_chain_fixture(255)",
     ):
         if test not in extended_tests:
             problems.append(f"judgment-test-missing:{test}")
+    accepted = json.loads(read(ACCEPTED))
+    vector_ids = [vector.get("id") for vector in accepted.get("vectors", [])]
+    if "call-direct-depth-ceiling" not in vector_ids:
+        problems.append("fixture:depth-ceiling-vector")
     if "supported_opcodes" in section:
         problems.append("machine-summary:restricted-key-misplaced")
     if status == COMPLETE_STATUS:

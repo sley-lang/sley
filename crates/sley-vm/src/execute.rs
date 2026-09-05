@@ -767,7 +767,10 @@ fn prepare_frame<'a>(
     function: sley_id::EntityId,
     shape: ReturnShape,
 ) -> RuntimeResult<CallStep<'a>> {
-    if frames.saturating_add(1) >= MAX_CALL_DEPTH {
+    // The ceiling counts live frames including the running one: opening a
+    // frame that would make 257 live is refused, so 256 live frames (entry
+    // included) is the deepest reachable stack (contract E6).
+    if frames.saturating_add(1) > MAX_CALL_DEPTH {
         return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
             ResourceKind::CallDepth,
         )));
@@ -902,7 +905,10 @@ fn execute_extended(
     if &value.value_type != result_type {
         return Err(RuntimeFault);
     }
-    if runtime.cells.len() > MAX_EXECUTION_CELLS {
+    // At most MAX_EXECUTION_CELLS cells exist in one execution (contract
+    // E5): the check fires as soon as the count reaches the cap, so the
+    // table never holds more.
+    if runtime.cells.len() >= MAX_EXECUTION_CELLS {
         return Ok(Some(ExecutionTermination::ResourceLimit(
             ResourceKind::ValueUnits,
         )));

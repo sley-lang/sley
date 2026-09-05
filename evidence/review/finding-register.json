@@ -3798,9 +3798,15 @@
     "succession_accounting.p0_open_count": 0,
     "succession_accounting.p1_open_count": 0,
     "vm_extended_opcode_profile.p0_open": 0,
-    "vm_extended_opcode_profile.p0_open_count": 0
+    "vm_extended_opcode_profile.p0_open_count": 0,
+    "vm_extended_opcode_profile.p1_open": 8,
+    "vm_extended_opcode_profile.p1_open_count": 8,
+    "vm_extended_opcode_profile.p2_open": 8,
+    "vm_extended_opcode_profile.p2_open_count": 8,
+    "vm_extended_opcode_profile.p3_open": 7,
+    "vm_extended_opcode_profile.p3_open_count": 7
   },
-  "register_digest": "cd177016f41eebe92698301798b702cf30cee364b87f2c627f933b56422f9ca6",
+  "register_digest": "268483871f9e21515c9f399d44b2a7d9a0dbab6e9526937d9ec93fa0ca2a1628",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 75,

@@ -1139,6 +1139,19 @@ fn sorted_map(entries: Vec<MapEntryConst>) -> Result<Vec<MapEntryConst>, Extende
     Ok(keyed.into_iter().map(|(_, entry)| entry).collect())
 }
 
+/// The canonical key bytes alongside each entry. Key identity is the
+/// encoding, not structural equality: dedup and every probe compare these
+/// bytes, so the map that `map_new` accepts is exactly the map the codec
+/// would accept, and two keys that encode alike are one key (contract E4).
+fn keyed_entries(
+    entries: &[MapEntryConst],
+) -> Result<Vec<(Vec<u8>, &MapEntryConst)>, ExtendedFault> {
+    entries
+        .iter()
+        .map(|entry| key_bytes(&entry.key).map(|bytes| (bytes, entry)))
+        .collect()
+}
+
 fn map_entries(value: &ConstValue) -> Result<&[MapEntryConst], ExtendedFault> {
     match &value.data {
         ConstData::Map(entries) => Ok(entries),
@@ -1259,11 +1272,13 @@ pub fn execute_extended_instruction(
                 return Err(ExtendedFault);
             };
             let mut entries: Vec<MapEntryConst> = Vec::with_capacity(values.len() / 2);
+            let mut seen: Vec<Vec<u8>> = Vec::with_capacity(values.len() / 2);
             for pair in values.chunks(2) {
                 let [key, value] = pair else {
                     return Err(ExtendedFault);
                 };
-                if entries.iter().any(|entry| entry.key == *key) {
+                let bytes = key_bytes(key)?;
+                if seen.contains(&bytes) {
                     return Ok(typed(ConstData::Result(ResultConst::Err(Box::new(
                         ConstValue {
                             value_type: error.as_ref().clone(),
@@ -1278,26 +1293,35 @@ pub fn execute_extended_instruction(
                     key: key.clone(),
                     value: value.clone(),
                 });
+                seen.push(bytes);
             }
             typed(ConstData::Result(ResultConst::Ok(Box::new(map_value(
                 ok, entries,
             )?))))
         }
         (Opcode::MapGet, [map, key]) => {
-            let found = map_entries(map)?
-                .iter()
-                .find(|entry| entry.key == *key)
-                .map(|entry| Box::new(entry.value.clone()));
+            let query = key_bytes(key)?;
+            let found = keyed_entries(map_entries(map)?)?
+                .into_iter()
+                .find(|(bytes, _)| *bytes == query)
+                .map(|(_, entry)| Box::new(entry.value.clone()));
             typed(ConstData::Option(found))
         }
         (Opcode::MapContains, [map, key]) => {
-            bool_value(map_entries(map)?.iter().any(|entry| entry.key == *key))
+            let query = key_bytes(key)?;
+            bool_value(
+                keyed_entries(map_entries(map)?)?
+                    .iter()
+                    .any(|(bytes, _)| *bytes == query),
+            )
         }
         (Opcode::MapInsert, [map, key, value]) => {
-            let mut entries: Vec<MapEntryConst> = map_entries(map)?
-                .iter()
-                .filter(|entry| entry.key != *key)
-                .cloned()
+            let query = key_bytes(key)?;
+            let keyed = keyed_entries(map_entries(map)?)?;
+            let mut entries: Vec<MapEntryConst> = keyed
+                .into_iter()
+                .filter(|(bytes, _)| *bytes != query)
+                .map(|(_, entry)| entry.clone())
                 .collect();
             entries.push(MapEntryConst {
                 key: key.clone(),
@@ -1306,10 +1330,11 @@ pub fn execute_extended_instruction(
             map_value(result_type, entries)?
         }
         (Opcode::MapRemove, [map, key]) => {
-            let entries: Vec<MapEntryConst> = map_entries(map)?
-                .iter()
-                .filter(|entry| entry.key != *key)
-                .cloned()
+            let query = key_bytes(key)?;
+            let entries: Vec<MapEntryConst> = keyed_entries(map_entries(map)?)?
+                .into_iter()
+                .filter(|(bytes, _)| *bytes != query)
+                .map(|(_, entry)| entry.clone())
                 .collect();
             map_value(result_type, entries)?
         }

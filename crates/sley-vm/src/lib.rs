@@ -146,10 +146,15 @@ impl CacheProfile {
     };
 
     /// The extended opcode profile (`docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md`).
+    ///
+    /// The lowerer version is `[2, 0, 0]`: slice E6 appended the callee
+    /// table to the `SLEYBC02` body, an incompatible layout change that
+    /// shipped under `[1, 0, 0]`, so the bump separates the two layouts in
+    /// cache identity (contract section 1).
     pub const EXTENDED_V1: Self = Self {
         vm_version: [1, 0, 0],
         lowering_profile: 2,
-        lowerer_version: [1, 0, 0],
+        lowerer_version: [2, 0, 0],
         entry_type_arguments: 0,
         adapter_abi_entries: 0,
         execution_abi_flags: 0,

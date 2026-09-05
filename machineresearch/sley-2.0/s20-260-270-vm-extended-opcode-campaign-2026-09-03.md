@@ -1,9 +1,13 @@
 # S20-260/S20-270 VM Extended Opcode Campaign (2026-09-03)
 
-Status: contract draft revision 1 written by the integrator with every
-Council lane unavailable; Ariadne contract review, Nabu architecture
-review, and Vulcan surface review queued. Slices E1 through E6 land under
-it in order; E7 is excluded until its owners exist.
+Status: contract draft revision 12 with slices E1 through E6 plus E7a
+landed (twenty-two conformance vectors); Nabu architecture review PASS;
+Ariadne contract review and Vulcan surface review re-reviews queued. Slices
+E1 through E6 landed under revisions 2 through 7 in order; revision 8 added
+the judgment-only entry, revision 9 landed slice E7a (`contract_assert`,
+opcode 144), revision 11 made the family fuzz lanes reach execution, and
+revision 12 answers the Ariadne and Vulcan freeze findings. The rest of E7
+is excluded until its owners exist.
 
 ## Frontier at start
 
@@ -31,12 +35,17 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 ## Open questions for the reviews
 
 - Whether `vector_new` with zero operands should take its element type
-  from the declared result or from an immediate.
+  from the declared result or from an immediate. Answered: the declared
+  result names `T` (contract E1).
 - Whether float order predicates should follow IEEE unordered semantics or
-  a total order.
+  a total order. Answered: IEEE unordered semantics (contract E3).
 - Whether the call-depth ceiling of 256 belongs in the request limits.
+  Answered: the ceiling is fixed at 256 live frames and ignores the
+  manifest call-depth field; honoring a caller depth needs a new lowering
+  profile (contract E6, revision 12).
 - Whether map order by S20-350 canonical key bytes is the right frozen
-  rule for runtime maps.
+  rule for runtime maps. Answered: the encoding order is frozen and named
+  as such, with byte key identity (contract E4, revision 12).
 
 ## Records
 
@@ -49,6 +58,10 @@ checker `scripts/check_vm_extended_opcode_profile.py`.
 | Slice E4 (records, variants, maps), revision 5 | `4f1e197` | green | definition-bound immediates and canonical map order in `extended.rs`; 1 test with 7 rejections; 3 vectors |
 | Slice E5 (cells, hashing, globals, references), revision 6 | `4491b1c` | green | register-only cell handles, escape guard, S20-250 hashing, inventory-bound globals and references in `extended.rs`; 1 test with 9 rejections; 3 vectors |
 | Slice E6 (direct calls), revision 7 | `04ef631` | green | callee closure lowering and `SLEYBC02` callee table in `lower.rs`, per-frame execution with shared budgets and the 256-frame ceiling in `execute.rs`; 1 test with 4 rejections; 2 vectors |
+| Judgment entry, revision 8 | `9fb9ecc` | green | `judge_function_operations` judges every extended operation without lowering; E7 opcodes refused by their own phases |
+| Slice E7a (contract assertions), revision 9 | contract revision 9 | green | `contract_assert` judgment plus predicate-frame execution in `extended.rs`/`execute.rs`; 2 vectors (`contract-assert-holds`, `contract-assert-violated`) |
+| Fuzz lanes reach execution, revision 11 | contract revision 11 | green | per-fixture requests, completion assertion, pinned refusal code, position-stable seed selection |
+| Freeze findings, revision 12 | contract revision 12 | green | `lowerer_version [2, 0, 0]` with the bump rule and full `SLEYBC02` layout in section 1; stated post-construction invariant and liveness bound in section 2; exact equality rows, named negative-zero deviation, pinned float environment, encoding-order decision with byte key identity, absent-key and arity gaps, failure-name mapping, five-fuel derivation in section 3; depth comparison fix (`>`), cell count fix (`>=`), byte-identity dedup and probes in the crate; 2 new pinning tests plus the `call-direct-depth-ceiling` vector (22 vectors); stage checker pins for every finding |
 
 ## Slice E1 Tier 2 handoff record (2026-09-03, at `f1a5e6f`)
 
@@ -125,16 +138,18 @@ The slice added the `sley-vm` to `sley-mutate` dependency edge for canonical map
 
 `make v1` was skipped because this is a subsystem handoff, not a release boundary.
 
-## Program status after slice E6 (2026-09-03)
+## Program status at revision 12 (2026-09-05)
 
-Every family slice E1 through E6 is implemented under contract revision 7
-(E7 stays excluded until its owners exist). The machine summary records
+Every family slice E1 through E6 plus E7a is implemented under contract
+revision 12 (the rest of E7 stays excluded until its owners exist). The
+machine summary records
 `vm_extended_opcode_profile.status = S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING`
-with nineteen conformance vectors in `conformance/vm-extended/v1/accepted.json`
-and thirty `sley-vm` unit tests. The three Council reviews (Ariadne contract,
-Nabu architecture, Vulcan surface) stay queued in the session review loop with
-their request texts refreshed to revision 7; their findings land as contract
-revisions before the freeze that turns the status to `S20_260_270_EXTENDED_COMPLETE`.
+with twenty-two conformance vectors in `conformance/vm-extended/v1/accepted.json`
+and thirty-nine `sley-vm` unit tests. Nabu architecture review is PASS;
+the Ariadne contract review and Vulcan surface review re-reviews are queued
+in the session review loop with their request texts refreshed to revision
+12; their findings land as contract revisions before the freeze that turns
+the status to `S20_260_270_EXTENDED_COMPLETE`.
 
 The next authority-safe package is the SMP1 appendix C revision 8 execute
 profile selector (`S20-410-EXECUTE-PROFILE-SELECTOR`): an `execute` limits

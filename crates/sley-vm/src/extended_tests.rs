@@ -2657,6 +2657,212 @@ fn e6_direct_calls_open_frames_share_budgets_and_stop_at_the_depth_ceiling() {
     );
 }
 
+/// Builds an entry whose call chain is `links` deep: the entry calls link 0,
+/// link `i` calls link `i + 1`, and the last link builds a one-element
+/// vector from its parameter. The deepest execution holds `links + 1` live
+/// frames. Entity ids use a `u16` index space because a boundary chain needs
+/// more functions than the `u8` fixture helpers address.
+fn depth_chain_fixture(links: u16) -> Fixture {
+    fn chain_id(tag: u8, index: u16) -> EntityId {
+        let mut bytes = [0xD0; 32];
+        bytes[0] = tag;
+        bytes[1..3].copy_from_slice(&index.to_be_bytes());
+        EntityId::from_bytes(bytes)
+    }
+    fn chain_function(index: u16, links: u16) -> (FunctionGraph, Parameter, Block, Operation) {
+        let function = chain_id(b'F', index);
+        let block = chain_id(b'B', index);
+        let parameter = chain_id(b'P', index);
+        let operation = chain_id(b'O', index);
+        let (opcode, immediate, result) = if index + 1 < links {
+            (
+                Opcode::CallDirect,
+                Immediate::Function(FunctionRefValue {
+                    function: chain_id(b'F', index + 1),
+                    type_arguments: Vec::new(),
+                }),
+                TypeExpr::Vector(Box::new(u64_type())),
+            )
+        } else {
+            (
+                Opcode::VectorNew,
+                Immediate::None,
+                TypeExpr::Vector(Box::new(u64_type())),
+            )
+        };
+        (
+            FunctionGraph {
+                entity_id: function,
+                type_parameters: Vec::new(),
+                parameters: vec![parameter],
+                result_type: result.clone(),
+                effects: Vec::new(),
+                entry_block: block,
+                blocks: vec![block],
+                contracts: Vec::new(),
+                visibility: Visibility::Private,
+            },
+            Parameter {
+                entity_id: parameter,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 0,
+                value_type: u64_type(),
+            },
+            Block {
+                entity_id: block,
+                function,
+                parameters: Vec::new(),
+                operations: vec![operation],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: ValueRef::OperationResult(OperationResultRef {
+                        operation,
+                        result_index: 0,
+                    }),
+                }),
+                reachability: Reachability::Required,
+            },
+            Operation {
+                entity_id: operation,
+                block,
+                ordinal: 0,
+                opcode,
+                operands: vec![ValueRef::Parameter(parameter)],
+                result_types: vec![result],
+                immediate,
+            },
+        )
+    }
+    let entry = chain_id(b'F', u16::MAX);
+    let entry_block = chain_id(b'B', u16::MAX);
+    let entry_parameter = chain_id(b'P', u16::MAX);
+    let entry_operation = chain_id(b'O', u16::MAX);
+    let vector = TypeExpr::Vector(Box::new(u64_type()));
+    let mut functions = Vec::new();
+    let mut parameters = vec![Parameter {
+        entity_id: entry_parameter,
+        owner: entry,
+        role: ParameterRole::Function,
+        ordinal: 0,
+        value_type: u64_type(),
+    }];
+    let mut blocks = vec![Block {
+        entity_id: entry_block,
+        function: entry,
+        parameters: Vec::new(),
+        operations: vec![entry_operation],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: entry_operation,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    }];
+    let mut operations = vec![Operation {
+        entity_id: entry_operation,
+        block: entry_block,
+        ordinal: 0,
+        opcode: Opcode::CallDirect,
+        operands: vec![ValueRef::Parameter(entry_parameter)],
+        result_types: vec![vector.clone()],
+        immediate: Immediate::Function(FunctionRefValue {
+            function: chain_id(b'F', 0),
+            type_arguments: Vec::new(),
+        }),
+    }];
+    for index in 0..links {
+        let (graph, parameter, block, operation) = chain_function(index, links);
+        functions.push(graph);
+        parameters.push(parameter);
+        blocks.push(block);
+        operations.push(operation);
+    }
+    Fixture {
+        types: TypeEnvironment::new(Vec::new()).expect("empty environment"),
+        function: FunctionGraph {
+            entity_id: entry,
+            type_parameters: Vec::new(),
+            parameters: vec![entry_parameter],
+            result_type: vector,
+            effects: Vec::new(),
+            entry_block,
+            blocks: vec![entry_block],
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        parameters,
+        blocks,
+        operations,
+        constants: Vec::new(),
+        globals: Vec::new(),
+        functions,
+        contracts: Vec::new(),
+    }
+}
+
+#[test]
+fn e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included() {
+    let generous = || ExecutionLimits {
+        max_instructions: 100_000,
+        max_fuel: 100_000,
+        max_value_units: 100_000_000,
+        max_output_units: 10_000,
+        cancel_at_fuel: None,
+    };
+    let run = |links: u16| {
+        let fixture = depth_chain_fixture(links);
+        execute_function(
+            fixture.input(CacheProfile::EXTENDED_V1),
+            ExecutionRequest {
+                inputs: vec![uint(9)],
+                limits: generous(),
+            },
+        )
+        .expect("executes")
+        .termination
+    };
+    // 255 links: 256 live frames at the deepest point, exactly the ceiling.
+    assert_eq!(
+        run(255),
+        ExecutionTermination::Success(vector_of(vec![uint(9)], u64_type()))
+    );
+    // 256 links: 257 live frames, one beyond the ceiling.
+    assert_eq!(
+        run(256),
+        ExecutionTermination::ResourceLimit(ResourceKind::CallDepth)
+    );
+}
+
+#[test]
+fn e4_map_order_is_the_encoding_order_not_numeric_key_order() {
+    // `UInt(255)` encodes as `FF 01` and `UInt(256)` as `80 02`, so the
+    // encoding order inverts the numeric order. The profile freezes the
+    // encoding order (contract E4); this pins the inversion so a future
+    // numeric-order sort fails here instead of silently moving vectors.
+    let map_new = Fixture::new(
+        &[u64_type(), TypeExpr::Text, u64_type(), TypeExpr::Text],
+        &[step(
+            Opcode::MapNew,
+            vec![Arg::P(0), Arg::P(1), Arg::P(2), Arg::P(3)],
+            Immediate::None,
+            map_new_type(),
+        )],
+        Vec::new(),
+    );
+    let ordered = success(
+        &map_new,
+        vec![uint(255), text("big"), uint(256), text("small")],
+    );
+    assert_eq!(
+        ordered.data,
+        ConstData::Result(ResultConst::Ok(Box::new(map_of(vec![
+            (256, "small"),
+            (255, "big")
+        ]))))
+    );
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -2935,6 +3141,11 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             "contract-assert-violated",
             asserting_entry(),
             vec![boolean(false)],
+        ),
+        (
+            "call-direct-depth-ceiling",
+            depth_chain_fixture(255),
+            vec![uint(9)],
         ),
     ];
     for (label, fixture, inputs) in vectors {

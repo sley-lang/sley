@@ -304,7 +304,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 11,
+    "contract_revision": 12,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -447,7 +447,39 @@
       "cell contents were never charged value units and the table had no cap, so cell_new held unbounded host memory with the budget intact and contract E5's 'contents count as live value units' was false; cell_new and cell_set now charge the stored value and MAX_EXECUTION_CELLS caps the table, pinned by e5_each_cell_charges_its_contents_so_the_budget_bounds_the_table"
     ],
     "p0_open": [],
-    "p0_open_count": 0
+    "p0_open_count": 0,
+    "p1_open": [
+      "Ariadne P1-3: E1 equality row says hashable-and-float-free while bare F32/F64 are admitted and nested floats excluded; normative table must carry the implemented rule",
+      "Ariadne P1-4: fixed 256 ceiling silently overrides manifest ResourceLimits call-depth field 5; honor or state the deliberate non-honoring with a new-lowering_profile gate",
+      "Ariadne P1-5: off-by-one, real ceiling is 255 frames not the contracted 256, no boundary test; fix the comparison or restate, add a vector at the last accepted depth",
+      "Ariadne P1-6: canonical byte order is not key order (LEB128 inverts 255/256); name encoding order or sort by S20-210 order before map-new-sorted freezes it",
+      "Ariadne P1-7: E3 claims exact IEEE while zeros flush -0 to +0, composing observably; move the zero rule into section 3 as a named deviation with the consequence",
+      "Ariadne P1-8: section 1 bytecode layout omits the SLEYBC02 callee table; a format freeze needs the complete layout in the normative clause",
+      "Vulcan P1-1: lowerer_version stayed [1,0,0] when E6 appended the callee table, so two incompatible layouts share one cache key; bump before freeze and state the rule",
+      "Vulcan P1-2: section 2 check_constant invariant is unimplemented and unimplementable for cell handles; state the actual invariant and carve the cell handle out"
+    ],
+    "p1_open_count": 8,
+    "p2_open": [
+      "Ariadne P2-1: campaign record stale at revision 7 with nineteen vectors, no E7a slice row or Tier 2 handoff",
+      "Ariadne P2-2: ADR-0039 header reads revision 7 with E7 excluded while decision 6 lands E7a; status proposed into a freeze",
+      "Ariadne P2-3: E4 gaps the vectors will freeze: map_remove of an absent key unstated, map_get/map_contains operand types implicit",
+      "Ariadne P2-4: section 3 E3 operand counts name only float_fma; float_neg is one operand in the manifest",
+      "Ariadne P2-5: exactly-five-fuel frozen number carried only by a test comment; show the derivation in section 3 or drop it",
+      "Vulcan P2-1: value units charged after construction, so one tuple_new/map_insert transiently allocates past budget; sections 2/5 must bound charged liveness not peak",
+      "Vulcan P2-2: map key identity uses structural equality while order is canonical bytes; dedupe on key bytes plus a contract sentence",
+      "Vulcan P2-3: float determinism asserted on host arithmetic with same-process evidence only; pin the required target guarantee or narrow to one target triple"
+    ],
+    "p2_open_count": 8,
+    "p3_open": [
+      "Ariadne P3-1: T,T,T reads as three operands in the E1 rows",
+      "Ariadne P3-2: failure-kind names diverge from the manifest wire spellings",
+      "Ariadne P3-3: E7 epoch-1 rejection authority is CONTRACT_TEST_PROFILE_V1 section 3.4, not the manifest; cite it",
+      "Ariadne P3-4: fuzz target comment says E2 through E6 though fixtures include E7a (verified: already carries E7a, no change)",
+      "Ariadne P3-5: E1 order row omits floats from the admitted set while ordered() admits F32/F64",
+      "Vulcan P3-1: campaign record states revision 7 and E7 excluded while E7a landed; add the E7a row and Tier 2 gates",
+      "Vulcan P3-2: E1 float-exclusion rationale cites S20-210 hashability instead of the operative NaN==NaN reason"
+    ],
+    "p3_open_count": 7
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
