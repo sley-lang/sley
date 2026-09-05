@@ -2644,7 +2644,7 @@
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0041-standards-sbom-and-unsigned-provenance.md",
     "checker": "scripts/check_standards_sbom_and_provenance.py",
     "cyclonedx_document": "evidence/release/sbom/cyclonedx-1.6.json",
@@ -2655,7 +2655,7 @@
     "statement_type": "https://in-toto.io/Statement/v1",
     "predicate_type": "https://slsa.dev/provenance/v1",
     "components": 43,
-    "dependency_relationships": 119,
+    "dependency_relationships": 120,
     "license_disposition_blocked_components": 19,
     "signed": false,
     "transparency_log": false,
@@ -2683,7 +2683,9 @@
       "scripts/check_standards_sbom_and_provenance.py",
       "bench/release/tests/test_standards_sbom.py"
     ],
-    "p0_open_count": 5
+    "p0_open_count": 0,
+    "closeout": "docs/audits/S20_710_STANDARDS_SBOM_CLOSEOUT.md",
+    "p0_closed": 5
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
