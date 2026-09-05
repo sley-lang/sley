@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `d30452f`.
+are green at `61c2ca3`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 96 of 110 P0 entries closed
+## Findings: 100 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -211,10 +211,29 @@ Closed, each reproduced before fixing:
   the inventory path, cured by the per-family expectation, not by
   weakening the pin); the executed-count parser missed twice (libFuzzer
   prints `Done N runs`, not the stat line, and rejects `-print_stats`),
-  cured and verified at executed 1024 of 769.
+   cured and verified at executed 1024 of 769.
+- **S20-390extended** (4 entries): kind-conditioned decoder rule, no new
+  error code (`f4c05db` code, `620a38a` dispositions, `61c2ca3` evidence,
+  with `c3048b3` conformance-report rebuild and `20ea506` test-inventory
+  refresh in between). A trusted genesis asserting semantic profile 2 built
+  and imported clean on both implementations (reproduced live: the public
+  builder minted it, the wire accepted it, the oracle decoded kind 1 with
+  profile 2), so genesis-always-1 was a writer convention, not a wire rule;
+  both decoders now accept only `[1, 1, 1]` for genesis and fail anything
+  else as `TXN_FIELD_SHAPE`. The contract stops contradicting revision 2 in
+  its authority boundary, restates profile 1 as judged-no-operation (phase 7
+  runs on operation-free programs and judges nothing) with the joint-reading
+  rule, whole-state derivation, and profile-2 binding invariant, and records
+  the revision-1 prose correction; ADR-0045 corrected the same way. Accepted
+  corpus bytes unchanged; rejected corpus 9 to 10 vectors with a
+  provided-genesis-profile vector both sides prove. Round verdicts stand as
+  `FAIL` history. Repair trail: first smoke failed the 730
+  conformance-report drift (cured by committing the deterministic rebuild),
+  second smoke failed the dossier test-inventory drift on the new unit test
+  (cured by committing the refresh), and two count pins hid in two scripts
+  each (corpus count and evidence expectation updated separately).
 
-**14 entries remain open.** Two clusters tied at 4: 390extended, 510;
-then 360full (3), 780 (3).
+**10 entries remain open.** 510 (4) is the largest; then 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -236,7 +255,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 390extended or 510
+2. **Work the next P0 cluster**: 510
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -254,7 +273,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`d30452f`. The full `make v1` gate was skipped
+`61c2ca3`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
