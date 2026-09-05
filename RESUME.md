@@ -1,7 +1,8 @@
-# Resume state, 2026-09-04
+# Resume state, 2026-09-05
 
-The Council review round is **running**. The repository is clean and every gate
-below was green at the commit named here.
+The Council review round is **complete (69/69)**. The repository is clean and
+Tier 1 (`make quick`, `make lint`) is green at `5580fe6` after a
+secret-scan evidence refresh (see below).
 
 ## Where the work is
 
@@ -32,17 +33,19 @@ landed on `main` since. That is the point of pinning: a reviewer's findings
 stay reproducible from one commit. It also means a reply may raise something
 already fixed, so check a landing finding against `main` before acting on it.
 
-## Council reviews: round complete
+## Council reviews: round complete (69/69)
 
-All 69 dispatched; 68 answered (67 FAIL, 1 PASS) and one truncated and
-requeued. `machineresearch/sley-2.0/reviews/` holds every retained log,
+All 69 dispatched and all 69 answered (68 FAIL, 1 PASS).
+`machineresearch/sley-2.0/reviews/` holds every retained log,
 `verdicts.json` the counts, and `p0-worklist.json` the derived P0 list.
 
-The round raised **106 P0 entries** across 23 packages. Two replies arrived
-truncated mid-object; **check every reply ends in `}` before counting it**.
+The round raised **110 P0 entries** across 23 packages. Three replies arrived
+truncated mid-object and were requeued; **check every reply ends in `}` before
+counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
+`4aa867b` retain commit and is now retained here.
 
 
-## Findings: 17 of 106 P0 entries closed
+## Findings: 52 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -56,9 +59,20 @@ Closed, each reproduced before fixing:
   (`a0d8a6f`); the unfrozen affordance allowlist and protocol failures read as
   candidate verdicts (`20e8bf4`); the shared execution controls narrowed per
   arm (`1e5e77b`).
+- **S20-400** (8 entries): SMP1 frame contract revision 9 (`19587b5`).
+- **S20-320** (7 entries): context-capsule contract revision 3 (`9164ba3`).
+- **S20-330** (6 entries): negotiated-session contract revision 2 (`ed7fe87`).
+- **S20-520** (7 entries): merge contract revision 4 (`ee7451d`).
+- **S20-630** (7 entries): succession-accounting contract revision 3
+  (`5580fe6`).
 
-**89 entries remain open.** Largest clusters: 400 (8), 320 (7), 520 (7),
-630 (7), 330 (6), then 710full/720/730/750 (5 each).
+Two S20-310 P0s are partially addressed on `main` (applicability-table freeze
+`d047eaf`; caller-declared query facts bound to the committed root `95c90df`)
+and need reviewer-confirmation triage against the pinned candidate.
+
+**About 56 entries remain open.** Largest remaining clusters: 740 (8, incl. the
+4 just retained), 310 (4), 360full (3), 390extended (4), 420 (4), 430 (4),
+510 (4), 700fuzz (4), 710full (5), 720 (5), 730 (5), 750 (5), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -73,17 +87,13 @@ into the rest:
 
 ## To resume
 
-1. **The dispatcher is already running.** Restart only if it has stopped:
+1. **The dispatcher is done.** `patient_dispatcher.log` ends `ALL_DISPATCHED`;
+   do not restart it. If a new round starts, repin the worktree first (see
+   above) so reviewers read the new candidate.
 
-   ```bash
-   cd /home/greyforge/machineresearch/sley-2.0/council-queue
-   nohup ./patient_dispatcher.sh >/dev/null 2>&1 &
-   ```
-
-   It is restart-safe: it skips any request whose log already holds its
-   `_REVIEW_JSON=` key. Roughly five to seven minutes per review.
-
-2. **Answer the two open S20-310 contract P0s** above.
+2. **Confirm the two S20-310 partial fixes** (`d047eaf`, `95c90df`) against the
+   four S20-310 P0 entries, then work the register-first clusters: 740 (8),
+   750 (5), 730 (5), 720 (5), 710full (5).
 
 3. **Triage each landing verdict** into the S20-740 finding register by
    recording the disposition in `machineresearch/sley-2.0/machine-summary.json`
@@ -99,11 +109,14 @@ decision.
 
 ## Validation at this commit
 
-`make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
+`make quick` and `make lint` pass at `5580fe6` after regenerating
+`evidence/security/T54/secret-scan.json` (byte-count/manifest drift from the
+five P0-fix commits). Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), `make vm-persistent-fuzz-smoke`, and the full `cargo test
---workspace` all passed. One combined Tier 2 invocation exited 2 once and did
-not reproduce across three later runs, individually or combined; every
-individual target passes.
+--workspace` passed at the earlier checkpoint; one combined Tier 2 invocation
+exited 2 once and did not reproduce across three later runs, individually or
+combined; every individual target passes. Re-run Tier 2 before the next P0
+closeout commit.
 
 Two clippy errors exist in `fuzz/targets/root_query_engine.rs` and
 `context_capsule_builder.rs` (`manual_is_multiple_of`). They are pre-existing:

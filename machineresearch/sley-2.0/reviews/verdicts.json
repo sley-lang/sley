@@ -503,6 +503,15 @@
     "result": "FAIL",
     "reviewer": "nabu"
   },
+  "740-vulcan-surface": {
+    "key": "S20_740_SURFACE_REVIEW_JSON",
+    "p0": 4,
+    "p1": 4,
+    "p2": 3,
+    "p3": 2,
+    "result": "FAIL",
+    "reviewer": "vulcan"
+  },
   "750-ariadne-contract": {
     "key": "S20_750_CONTRACT_REVIEW_JSON",
     "p0": 2,

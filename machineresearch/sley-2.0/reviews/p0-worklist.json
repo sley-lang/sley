@@ -2,7 +2,7 @@
   "contract": "sley2.review-round-p0-worklist.v1",
   "round": "2026-09-04",
   "candidate_commit": "9dc78fe",
-  "count": 106,
+  "count": 110,
   "findings": [
     {
       "package": "260",
@@ -533,6 +533,26 @@
       "package": "780",
       "reviewer": "vulcan",
       "finding": "check_clean_room_boundary.py:123 requires similarity_audit_performed == False, so recording a completed audit fails make quick; the control is pinned to the un-audited state"
+    },
+    {
+      "package": "740",
+      "reviewer": "vulcan",
+      "finding": "declared_open_findings reads only the top-level open_findings counter and ignores per-package *_open arrays; complete_root_index_snapshot.p0_open holds a live open P0 while the counter reads zero, so FINDING_REGISTER_CLEAR is reachable with an open P0"
+    },
+    {
+      "package": "740",
+      "reviewer": "vulcan",
+      "finding": "HISTORICAL_ROUND is assigned on FAIL/REVISE prefix alone and is permitted inside COMPLETE packages with no required superseding PASS; complete_root_index_snapshot has three FAIL reviews, no PASS, status REVIEW_PENDING and an open P0, so the completion invariant is bypassable by naming an open failure FAIL_*"
+    },
+    {
+      "package": "740",
+      "reviewer": "vulcan",
+      "finding": "contract section 3 register schema omits the obligations array that carries the entire per-obligation payload and feeds obligations_digest; check_finding_register.py never validates it, so freezing revision 1 freezes a schema that does not describe the artifact"
+    },
+    {
+      "package": "740",
+      "reviewer": "vulcan",
+      "finding": "severity_mentions counts negations as occurrences (PASS_NO_OPEN_P0_P1_P2 contributes P0,P1,P2), so the reported severity totals are not findings by severity and the master goal 16.7/26.9 dossier item is unmet"
     }
   ]
 }
