@@ -33,11 +33,13 @@ FIELD_SCHEMA_HASH = bytes.fromhex(
 DECODER_LIMITS_HASH = bytes.fromhex(
     "389791b170bc9d8575f7e6f338e4f9e9f2b75f35d7a2e52c7cb106cb2cd6136a"
 )
-# `CacheProfile::EXTENDED_V1` of the extended profile contract, section 1.
+# `CacheProfile::EXTENDED_V1` of the extended profile contract, section 1,
+# revision 12: the E6 callee-table layout change bumped the lowerer to
+# [2, 0, 0], and any future SLEYBC02 layout change bumps it again.
 EXTENDED_PROFILE = {
     "vm_version": (1, 0, 0),
     "lowering_profile": 2,
-    "lowerer_version": (1, 0, 0),
+    "lowerer_version": (2, 0, 0),
     "entry_type_arguments": 0,
     "adapter_abi_entries": 0,
     "execution_abi_flags": 0,
