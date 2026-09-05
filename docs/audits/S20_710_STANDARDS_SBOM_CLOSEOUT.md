@@ -92,5 +92,16 @@ gates green. The full `make v1` gate was skipped because this is a
 subsystem handoff, not a release boundary. `make v2` and
 `make release-check` remain intentionally fail-closed.
 
-Smoke record: pending at this commit; the evidence commit records the
-exact documents and gate states.
+Smoke record: `make release-candidate-smoke` passes clean on the
+committed tree at `ad53ee8` (35.1 seconds): artifact
+`sley-2.0.0-linux-x86_64.tar.gz`, 2,083,924 bytes, fourteen members,
+demo PASS on all twelve steps, byte-for-byte `REPRODUCIBLE`, repro
+report `SINGLE_HOST_REPRODUCIBLE`. The smoke rebuilds both SBOM
+documents and the provenance statement in order after the candidate:
+the SPDX namespace binds the fresh artifact digest, no `/`-style
+license survives, and the drift, namespace, license, count, subject,
+and staleness gates are green under `make quick`. The fail-closed
+semantics were also verified live outside the smoke: with the evidence
+record hidden, both builders exit 1 with 74000
+(`SBOM_INVENTORY_MISSING`) and 74004 (`PROVENANCE_EVIDENCE_MISSING`)
+instead of the old open `PASS`.

@@ -3759,13 +3759,13 @@
     "session_handle_profile.p0_open_count": 6,
     "sley2_trial_runner.p0_open": 0,
     "sley2_trial_runner.p0_open_count": 0,
-    "standards_sbom_and_provenance.p0_open_count": 5,
+    "standards_sbom_and_provenance.p0_open_count": 0,
     "succession_accounting.p0_open_count": 0,
     "succession_accounting.p1_open_count": 0,
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "5b3e011cdfc9492ca39773b77ce714a5fc3e8470c2d5437bbeb49d165e3fb54c",
+  "register_digest": "13baebca8d258edf526ee3ba5abcb5bff7d3369f8a131d3c00b98f050f8fb03f",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

@@ -1284,7 +1284,7 @@
       ],
       "licenses": [
         {
-          "expression": "MIT/Apache-2.0"
+          "expression": "MIT OR Apache-2.0"
         }
       ],
       "name": "unicode-normalization",
@@ -1759,7 +1759,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "ec20da7ba6611d8ab4fc041d6a373803cf3b28e74b92ea23f9e0ee6136a46b3a"
+          "content": "5b0bacf78c28f069e3f28d2dd0081de4820ef5c7e04025c06083e16228450a82"
         }
       ],
       "licenses": [
@@ -1774,7 +1774,7 @@
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "e20b9adcfc97eb5b0eec4686d61686930c11acc6"
+        "value": "ad53ee8dde612234da314d31d1d65db83d41e7a7"
       },
       {
         "name": "sley2:inventory-digest",
@@ -1786,7 +1786,7 @@
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "114a940a6ec73641b852e9160353df5e5135912a21892344fb33e791bb100ae8"
+        "value": "012cd86ba6b1aabae0b2f0f00c313c77705f8953f7f63d42c8572f41bb3d4b94"
       },
       {
         "name": "sley2:publication-authorized",
@@ -1807,7 +1807,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:b1e78f02-7e17-81b4-8703-6cd4e9b2cdd9",
+  "serialNumber": "urn:uuid:da2b3b4c-b2e5-88ac-8b28-2a677bd813dc",
   "specVersion": "1.6",
   "version": 1
 }
