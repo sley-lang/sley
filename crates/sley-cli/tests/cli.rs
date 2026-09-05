@@ -88,7 +88,13 @@ fn stderr_object(text: &str) -> Value {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        })
 }
 
 /// A direct server over the repository, its session, and the request
