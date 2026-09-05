@@ -3196,13 +3196,16 @@ fn judgment_rejects_non_canonical_referenced_constant() {
     );
 }
 
-/// Judgment accepts exactly what lowering accepts, minus the documented
+/// Judgment accepts exactly what lowering accepts, minus the enumerated
 /// judgment exclusions (contract section 3.1 invariant, section 5
-/// differential-test obligation): lowering accepted implies judgment
-/// accepted, and judgment refused implies lowering refused. The designed
-/// asymmetry runs one way only — the judgment skips the graph validation,
-/// the cache key, and the type-parameter/effect/contract refusal, so it may
-/// accept what lowering refuses, never the reverse.
+/// differential-test obligation). The exclusions are closed, not open: the
+/// graph validation, the cache key, and the type-parameter / effect /
+/// contract refusal run in lowering only, so a judgment acceptance that
+/// lowering refuses must fail with exactly one of their three codes. A
+/// future divergence in any shared check fails loudly here instead of
+/// passing silently. Both directions are pinned: lowering accepted implies
+/// judgment accepted, and judgment refused implies lowering refused with the
+/// same code.
 #[test]
 fn judgment_acceptance_matches_lowering_acceptance() {
     let boolean = Fixture::new(
@@ -3271,16 +3274,64 @@ fn judgment_acceptance_matches_lowering_acceptance() {
         let judged = judge_function_operations(fixture.input(CacheProfile::EXTENDED_V1));
         let lowered = lower_function(fixture.input(CacheProfile::EXTENDED_V1));
         match (&judged, &lowered) {
-            (Ok(_), Ok(_) | Err(_)) | (Err(_), Err(_)) => {}
+            (Ok(_), Ok(_)) => {}
+            (Err(judged), Err(lowered)) => {
+                assert_eq!(
+                    lowering_code_of(judged),
+                    lowering_code_of(lowered),
+                    "shared checks must fail identically"
+                );
+            }
+            // The closed exclusion set: the graph validation, the cache
+            // key, and the type-parameter / effect / contract refusal run
+            // in lowering only. Any other lowering-only failure here is a
+            // new divergence, not a documented asymmetry.
+            (Ok(_), Err(LoweringError::Lower(error))) => assert!(
+                matches!(
+                    error.code(),
+                    LowerErrorCode::ProfileUnsupported | LowerErrorCode::CacheKeyUnsupported
+                ),
+                "undocumented judgment/lowering divergence: {error:?}"
+            ),
+            (Ok(_), Err(LoweringError::Cfg(_))) => {}
             (Err(error), Ok(_)) => {
                 panic!("judgment refused what lowering accepted: {error:?}")
             }
         }
     }
-    // The designed asymmetry, pinned: effects belong to the S20-230 owner,
-    // so the judgment accepts while lowering refuses with the profile code.
+    // The refusal exclusion, pinned with its exact code: effects belong to
+    // the S20-230 owner, so the judgment accepts while lowering refuses.
     assert!(judge_function_operations(effected.input(CacheProfile::EXTENDED_V1)).is_ok());
     assert_eq!(lowering_code(&effected), LowerErrorCode::ProfileUnsupported);
+    // The entry gate, pinned with both codes: a set ABI flag makes the
+    // profile miss `EXTENDED_V1`, so the judgment refuses up front with the
+    // profile code while lowering reaches its own cache-key refusal. The
+    // cache-key exclusion is therefore unreachable behind a judgment
+    // acceptance — the permitted code stays listed because the exclusion is
+    // enumerated in section 3.1, not because a fixture can exhibit it.
+    let mut unsupported_abi = CacheProfile::EXTENDED_V1;
+    unsupported_abi.execution_abi_flags = 1;
+    assert!(matches!(
+        judge_function_operations(boolean.input(unsupported_abi)).unwrap_err(),
+        LoweringError::Lower(error) if error.code() == LowerErrorCode::ProfileUnsupported
+    ));
+    assert_eq!(
+        match lower_function(boolean.input(unsupported_abi)).unwrap_err() {
+            LoweringError::Lower(error) => error.code(),
+            LoweringError::Cfg(error) => panic!("cfg failure: {error}"),
+        },
+        LowerErrorCode::CacheKeyUnsupported
+    );
+}
+
+/// The `LowerErrorCode` of a judgment or lowering failure both entries can
+/// produce; the graph-validation arm is the caller's to handle because only
+/// lowering runs it.
+fn lowering_code_of(error: &LoweringError) -> LowerErrorCode {
+    match error {
+        LoweringError::Lower(lower) => lower.code(),
+        LoweringError::Cfg(failure) => panic!("cfg failure: {failure}"),
+    }
 }
 
 /// A cell's contents are live value units, not a free handle.

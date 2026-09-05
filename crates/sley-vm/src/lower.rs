@@ -264,8 +264,9 @@ pub fn judge_function_operations(
     judge_extended(input, root, &maps, &mut work)?;
     // Same position as `lower_function`, so the frozen S20-260 failure order
     // is unchanged and judgment accepts exactly what lowering accepts (the
-    // S20-360 contract section 3.1 invariant): a candidate that reaches
-    // VALID is lowerable under `EXTENDED_V1`.
+    // S20-360 contract section 3.1 invariant): a judged Function with no
+    // type parameters, effects, or contracts is lowerable under
+    // `EXTENDED_V1`.
     crate::extended::require_canonical_referenced_constants(
         input.operations,
         input.constants,

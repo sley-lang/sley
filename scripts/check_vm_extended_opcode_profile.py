@@ -158,12 +158,40 @@ def main() -> int:
     # position as lowering (contract section 3.1 invariant): the call must
     # sit inside the judgment entry, after the judgment itself.
     judge_body = lower.split("pub fn judge_function_operations")[1].split("\n}\n")[0]
+    # The shared check set is exactly these four, in this order; the
+    # differential test pins behavior, this pins structure, so a future edit
+    # that drops or reorders a shared check fails here.
+    shared = ("preflight_resources(", "Maps::build(", "judge_extended(", "require_canonical_referenced_constants(")
+    if any(call not in judge_body for call in shared):
+        problems.append("judgment-shared-check-missing")
+    elif [judge_body.index(call) for call in shared] != sorted(
+        judge_body.index(call) for call in shared
+    ):
+        problems.append("judgment-shared-check-misordered")
     if "require_canonical_referenced_constants" not in judge_body:
         problems.append("judgment-missing-canonical-constant-check")
     elif judge_body.index("judge_extended(") > judge_body.index(
         "require_canonical_referenced_constants"
     ):
         problems.append("judgment-canonical-constant-check-misordered")
+    # The lower-only steps must stay out of the judgment entry: the graph
+    # validation, the cache key, the refusals, the bytecode, and callee
+    # lowering. Their absence is what makes the section 3.1 exclusion set
+    # closed rather than tasseled with future divergence.
+    for call in (
+        "validate_function_graph",
+        "derive_cache_key",
+        "cache_key_preimage",
+        "type_parameters",
+        "effects.is_empty",
+        "contracts.is_empty",
+        "emit_function",
+        "lower_callees",
+        "encode_function",
+        "validate_operations",
+    ):
+        if call in judge_body:
+            problems.append(f"judgment-lower-only-step-present:{call}")
     extended_tests = read(EXTENDED_TESTS)
     for test in (
         "fn judgment_rejects_non_canonical_referenced_constant",

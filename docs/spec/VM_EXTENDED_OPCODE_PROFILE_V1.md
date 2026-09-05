@@ -237,7 +237,8 @@ effect / contract refusal, the graph validation, the cache key, the
 bytecode, and callee lowering. In particular the judgment runs
 `require_canonical_referenced_constants` in the same position as lowering
 (after the judgment, so the frozen S20-260 failure order is unchanged), so a
-judged Function is lowerable. The differential test
+judged Function with no type parameters, effects, or contracts is lowerable.
+The differential test
 `judgment_acceptance_matches_lowering_acceptance` pins both directions of
 the invariant: lowering accepted implies judgment accepted, and judgment
 refused implies lowering refused.
