@@ -348,9 +348,13 @@ def decode_transaction(data: bytes) -> dict[str, object]:
     test_result_refs = _decode_fixed_set(fields[16])
     tombstones = _decode_fixed_set(fields[17])
     metadata = [_complete_uvar(value, 32) for value in _record(fields[18], 3)]
-    # Commit profile 1, semantic profile 1 (operation-free) or 2 (the S20-360
-    # full operation analysis), durability profile 1.
+    # Commit profile 1, semantic profile 1 (this transaction judged no
+    # semantic operation) or 2 (it judged at least one under the S20-360 full
+    # operation analysis), durability profile 1. A trusted genesis performs no
+    # analysis, so only the restricted triple is a genesis wire state.
     if metadata not in ([1, 1, 1], [1, 2, 1]):
+        _fail("TXN_FIELD_SHAPE")
+    if kind == 1 and metadata != [1, 1, 1]:
         _fail("TXN_FIELD_SHAPE")
     if selected_tests or test_result_refs:
         _fail("TXN_TEST_EVIDENCE_UNSUPPORTED")
@@ -567,6 +571,8 @@ def check_transaction_receipt(
                     bytes.fromhex(str(vector["input_hex"])),
                     vector["expected_object_manifest"],
                 )
+            elif operation == "provided-genesis-profile":
+                decode_transaction(bytes.fromhex(str(vector["input_hex"])))
             else:
                 source = seeds[str(vector["seed"])][str(vector["target"])]
                 mutated = _mutate(source, operation)

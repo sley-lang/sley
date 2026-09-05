@@ -46,16 +46,24 @@ def main() -> int:
             _, vector_id, expected_code, input_hex, manifest = line.split(
                 "|", maxsplit=4
             )
-            emitted_rejections.append(
-                {
-                    "expected_code": expected_code,
-                    "expected_object_manifest": parse_manifest(manifest),
-                    "id": vector_id,
-                    "input_hex": input_hex,
-                    "operation": "provided-inventory-mismatch",
-                    "target": "receipt",
-                }
-            )
+            emitted: dict[str, object] = {
+                "expected_code": expected_code,
+                "id": vector_id,
+                "input_hex": input_hex,
+                "operation": (
+                    "provided-genesis-profile"
+                    if vector_id == "genesis-extended-profile"
+                    else "provided-inventory-mismatch"
+                ),
+                "target": (
+                    "transaction"
+                    if vector_id == "genesis-extended-profile"
+                    else "receipt"
+                ),
+            }
+            if vector_id != "genesis-extended-profile":
+                emitted["expected_object_manifest"] = parse_manifest(manifest)
+            emitted_rejections.append(emitted)
             continue
         if not line.startswith("TXN_VECTOR|"):
             continue
@@ -94,9 +102,13 @@ def main() -> int:
             "expected ordered GENESIS, ORDINARY, and ORDINARY_EXTENDED vectors, found "
             f"{[vector['kind'] for vector in vectors]}"
         )
-    if len(emitted_rejections) != 1:
+    if [entry["id"] for entry in emitted_rejections] != [
+        "genesis-extended-profile",
+        "manifest-stored-length",
+    ]:
         raise RuntimeError(
-            f"expected one emitted inventory rejection, found {len(emitted_rejections)}"
+            "expected the genesis-profile and inventory emitted rejections, found "
+            f"{[entry['id'] for entry in emitted_rejections]}"
         )
 
     mutations = []

@@ -284,7 +284,7 @@ def main() -> int:
         "ORDINARY_EXTENDED",
     ]:
         problems.append("transaction-fixture-kind-drift")
-    if len(rejected.get("mutations", [])) != 9:
+    if len(rejected.get("mutations", [])) != 10:
         problems.append("transaction-fixture-rejection-count-drift")
     problems.extend(fixture_checksum_problems())
 
@@ -349,7 +349,7 @@ def main() -> int:
     deterministic = evidence.get("deterministic_inputs", {})
     for field, expected in (
         ("accepted_fixture_vectors", 3),
-        ("rejected_fixture_vectors", 9),
+        ("rejected_fixture_vectors", 10),
         ("fault_boundaries", 5),
         ("persistent_fuzz_runs", 512),
     ):

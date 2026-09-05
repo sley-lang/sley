@@ -78,7 +78,7 @@ def main() -> int:
         "ORDINARY_EXTENDED",
     ]:
         problems.append("accepted-kind-coverage-drift")
-    if len(rejected.get("mutations", [])) != 9:
+    if len(rejected.get("mutations", [])) != 10:
         problems.append("rejected-vector-count-drift")
     if {value.get("target") for value in rejected.get("mutations", [])} != {
         "transaction",
@@ -91,12 +91,20 @@ def main() -> int:
         for value in rejected.get("mutations", [])
     ):
         problems.append("manifest-length-rejection-missing")
+    if not any(
+        value.get("operation") == "provided-genesis-profile"
+        and value.get("target") == "transaction"
+        and value.get("expected_code") == "TXN_FIELD_SHAPE"
+        for value in rejected.get("mutations", [])
+    ):
+        problems.append("genesis-profile-rejection-missing")
 
     generator = GENERATOR.read_text(encoding="utf-8")
     for marker in (
         "emit_transaction_receipt_vectors_for_fixture_refresh",
         'parser.add_argument(\n        "--check"',
         '"ORDINARY_EXTENDED",',
+        '"genesis-extended-profile",',
         '"generator": "scripts/generate_transaction_receipt_fixtures.py"',
     ):
         if marker not in generator:

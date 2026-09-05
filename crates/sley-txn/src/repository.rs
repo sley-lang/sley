@@ -3675,6 +3675,9 @@ mod tests {
         build_capability_summary_projection, conformance_registry as policy_registry,
     };
     use crate::codec::SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1;
+    use crate::codec::{
+        TRANSACTION_MAGIC, append_digest, encode_envelope, encode_transaction_record,
+    };
     use sley_ssmc::{
         ConstData, ConstValue, Immediate, Opcode, OperationResultRef, Reachability, ReturnTerminator,
         Terminator, TypeExpr, ValueRef, Visibility,
@@ -18493,6 +18496,23 @@ mod tests {
             hex(&receipt.stored_bytes),
             manifest_descriptor(&receipt.record.object_manifest),
         );
+        if kind == "GENESIS" {
+            // A trusted genesis performs no analysis, so the extended triple
+            // is not a genesis wire state (transaction model revision 3). Mint
+            // the bytes below validation so the corpus proves both decoders
+            // refuse them with TXN_FIELD_SHAPE.
+            let mut forged = receipt.transaction.record.clone();
+            forged.commit_metadata = CommitMetadata::extended_operations_v1();
+            let payload = encode_transaction_record(&forged).unwrap();
+            let preimage = encode_envelope(TRANSACTION_MAGIC, &payload).unwrap();
+            let forged_id = TransactionId::derive(&preimage);
+            let stored = append_digest(&preimage, forged_id.as_bytes()).unwrap();
+            println!(
+                "TXN_REJECT|genesis-extended-profile|TXN_FIELD_SHAPE|{}|{}",
+                hex(&stored),
+                manifest_descriptor(&receipt.record.object_manifest),
+            );
+        }
         if kind == "ORDINARY" {
             let mut record = receipt.record.clone();
             record.object_manifest[0].stored_length = record.object_manifest[0]

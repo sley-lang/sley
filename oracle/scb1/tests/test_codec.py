@@ -117,7 +117,7 @@ class OracleTests(unittest.TestCase):
         # GENESIS, ORDINARY, and the ORDINARY_EXTENDED vector of semantic
         # profile 2 (transaction model revision 2).
         self.assertEqual(result["accepted_vectors"], 3)
-        self.assertEqual(result["rejected_vectors"], 9)
+        self.assertEqual(result["rejected_vectors"], 10)
 
 
 if __name__ == "__main__":

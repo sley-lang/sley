@@ -1,6 +1,7 @@
 # Transaction Model v1
 
-Status: restricted S20-390 implementation complete; S20-500 named refs and
+Status: restricted S20-390 implementation complete with the extended operation
+profile at draft revision 3 (Council review pending); S20-500 named refs and
 S20-530 full recovery remain separate.
 
 ## Authority boundary
@@ -10,13 +11,15 @@ into durable accepted state. Candidate bytes, imported result bytes, object
 bytes, a root digest, a receipt, or a caller-provided head value grants no
 commit authority by itself.
 
-The current conformance profile accepts only executable programs containing no
-semantic operation entities, the restricted subset already proven by S20-360.
-This does not mean candidate mutation operations are absent: typed mutation
-operations may construct or change entities inside that semantic boundary. The
-profile also requires an empty selected-test set until executable test-report
-verification is connected to this kernel layer. Unsupported semantic operation
-analysis or test evidence fails closed and cannot advance the accepted head.
+The current conformance profile accepts executable programs validated under
+the restricted subset already proven by S20-360, and programs carrying
+semantic operation entities validated by the S20-360 full operation analysis
+(revision 2, ADR-0045). This does not mean candidate mutation operations are
+absent: typed mutation operations may construct or change entities inside that
+semantic boundary. The profile also requires an empty selected-test set until
+executable test-report verification is connected to this kernel layer.
+Unsupported semantic operation analysis or test evidence fails closed and
+cannot advance the accepted head.
 
 ## Candidate binding
 
@@ -154,22 +157,44 @@ Commit metadata contains only deterministic profile tags:
 | Tag | Field | Value |
 |---:|---|---:|
 | 1 | commit_profile | `1` |
-| 2 | semantic_profile | `1` when the transaction ran no operation analysis, `2` for the extended operation analysis |
+| 2 | semantic_profile | `1` when the transaction judged no semantic operation, `2` when it judged at least one under the extended operation analysis |
+| 3 | durability_profile | `1` for receipt-before-head CAS |
 
 Revision 2 (2026-09-03, ADR-0045, Council review pending) adds semantic profile
-`2`: this transaction validated its program with the S20-360 full operation
-analysis, which judges the S20-260/S20-270 opcode families E1 through E6. Value
-`1` states that no operation analysis ran in the transaction, which is what it
-always meant: a trusted genesis installs an object set without validating it,
-and an ordinary commit of a program without operations judged none. Every
-earlier receipt therefore still says exactly what it said.
+`2`: this transaction judged at least one semantic operation under the S20-360
+full operation analysis, which judges the S20-260/S20-270 opcode families E1
+through E6.
 
-`commit` selects the value from the validated program: a proposed state carrying
-an `Operation` entity commits under `2`, one without under `1`. A trusted
-genesis always records `1`, because it performs no analysis whatever its object
-set contains. The decoder accepts exactly those two triples and nothing else
-(`TXN_FIELD_SHAPE`).
-| 3 | durability_profile | `1` for receipt-before-head CAS |
+Revision 3 (2026-09-05, Council review pending) corrects the revision 2
+wording. Value `1` never meant "no operation analysis ran": for an ordinary
+commit of a program without operations the analysis runs and judges nothing,
+so value `1` states that the transaction judged no semantic operation. That
+reading is true of both an ordinary operation-free commit and a trusted
+genesis, for different reasons: the genesis installs its object set without
+validating it, while the ordinary commit ran validation over a program with no
+operation to judge. The two values are therefore claims about judgment drawn
+from one basis, the validated program:
+
+- `commit` selects the value from the whole proposed entity state, inherited
+  entities included: a proposed state carrying an `Operation` entity commits
+  under `2`, one without under `1`. An edit unrelated to any operation still
+  commits under `2` when the workspace already holds one, because validation
+  judges the whole program.
+- `semantic_profile` is interpretable only jointly with `transaction_kind`
+  (tag 2). A genesis receipt asserts nothing about whether its installed
+  object set carries operations; only the pair `(genesis, 1)` is a genesis
+  wire state, and a genesis asserting `2` fails as `TXN_FIELD_SHAPE`.
+- Value `2` may only be emitted under a validation profile that performs the
+  S20-360 E1 through E6 analysis. A future profile that skips operation
+  analysis must not reach this selection path.
+- Consumers holding the revision 1 prose ("executable-program-operation-free")
+  must re-read earlier receipts under this correction: the bytes are
+  unchanged, but a genesis receipt whose object set carries operations never
+  claimed operation-freedom.
+
+The decoder accepts exactly the two closed triples and nothing else
+(`TXN_FIELD_SHAPE`), conditioned on the transaction kind: genesis accepts
+only `[1, 1, 1]`, an ordinary commit accepts `[1, 1, 1]` or `[1, 2, 1]`.
 
 No timestamp, ref name, host fact, filesystem path, label, source, Git fact,
 session handle, or model output enters transaction identity.

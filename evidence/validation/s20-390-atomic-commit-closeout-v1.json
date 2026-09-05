@@ -35,10 +35,11 @@
   "deterministic_inputs": {
     "accepted_fixture_vectors": 3,
     "fault_boundaries": 5,
+    "genesis_profile_rejections": 1,
     "manifest_inventory_rejections": 1,
     "persistent_fuzz_runs": 512,
     "persistent_fuzz_seeds": 19,
-    "rejected_fixture_vectors": 9,
+    "rejected_fixture_vectors": 10,
     "transaction_error_codes": 22
   },
   "full_gate": {

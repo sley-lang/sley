@@ -29,12 +29,13 @@ pub const TRANSACTION_FORMAT_VERSION: u32 = 1;
 pub const COMMIT_PROFILE_RESTRICTED_V1: u32 = 1;
 /// Exact restricted semantic profile tag.
 pub const SEMANTIC_PROFILE_OPERATION_FREE_V1: u32 = 1;
-/// Exact extended semantic profile tag: this transaction validated its program
-/// with the S20-360 full operation analysis, which judges the S20-260/S20-270
-/// opcode families E1 through E6 (transaction model revision 2, ADR-0045).
-/// Profile 1 means no operation analysis ran in the transaction, which is the
-/// case for a trusted genesis and for an ordinary commit of a program without
-/// operations.
+/// Exact extended semantic profile tag: this transaction judged at least one
+/// semantic operation under the S20-360 full operation analysis, which judges
+/// the S20-260/S20-270 opcode families E1 through E6 (transaction model
+/// revision 2, ADR-0045). Profile 1 means the transaction judged no semantic
+/// operation: a trusted genesis installs its object set without validating it,
+/// and an ordinary commit of a program without operations ran the analysis and
+/// judged none (transaction model revision 3).
 pub const SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1: u32 = 2;
 /// Exact receipt-before-head durability profile tag.
 pub const DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1: u32 = 1;
@@ -699,10 +700,23 @@ fn validate_transaction_record(record: &TransactionRecord) -> Result<(), Transac
     )?;
     validate_sorted_ids(&record.test_result_refs, TransactionErrorCode::FieldShape)?;
     validate_changed_bindings(&record.changed_entity_bindings, record.transaction_kind)?;
-    if record.commit_metadata != CommitMetadata::restricted_v1()
-        && record.commit_metadata != CommitMetadata::extended_operations_v1()
-    {
-        return Err(txn_error(TransactionErrorCode::FieldShape));
+    // The accepted triple is conditioned on the transaction kind: a trusted
+    // genesis performs no analysis, so only the restricted triple is a
+    // genesis wire state (transaction model revision 3). An ordinary commit
+    // accepts either triple.
+    match record.transaction_kind {
+        TransactionKind::TrustedGenesis => {
+            if record.commit_metadata != CommitMetadata::restricted_v1() {
+                return Err(txn_error(TransactionErrorCode::FieldShape));
+            }
+        }
+        TransactionKind::OrdinaryCandidate => {
+            if record.commit_metadata != CommitMetadata::restricted_v1()
+                && record.commit_metadata != CommitMetadata::extended_operations_v1()
+            {
+                return Err(txn_error(TransactionErrorCode::FieldShape));
+            }
+        }
     }
     if !record.selected_tests.is_empty() || !record.test_result_refs.is_empty() {
         return Err(txn_error(TransactionErrorCode::TestEvidenceUnsupported));
@@ -795,7 +809,7 @@ fn validate_sorted_ids<T: Ord>(
     }
 }
 
-fn encode_transaction_record(record: &TransactionRecord) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_transaction_record(record: &TransactionRecord) -> Result<Vec<u8>, ScbError> {
     let parents = encode_fixed_list(
         record
             .parent_transaction_ids
@@ -1023,7 +1037,7 @@ fn decode_receipt_record(input: &[u8]) -> Result<TransactionReceiptRecord, Trans
     })
 }
 
-fn encode_envelope(magic: [u8; 8], payload: &[u8]) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_envelope(magic: [u8; 8], payload: &[u8]) -> Result<Vec<u8>, ScbError> {
     let payload_len =
         u64::try_from(payload.len()).map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
     let mut preimage = Vec::with_capacity(magic.len() + 12 + payload.len());
@@ -1037,7 +1051,7 @@ fn encode_envelope(magic: [u8; 8], payload: &[u8]) -> Result<Vec<u8>, ScbError> 
     Ok(preimage)
 }
 
-fn append_digest(preimage: &[u8], digest: &[u8; 32]) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn append_digest(preimage: &[u8], digest: &[u8; 32]) -> Result<Vec<u8>, ScbError> {
     if preimage.len() + digest.len() > MAX_STANDALONE_BYTES {
         return Err(ScbError::new(ScbErrorCode::ResourceLimit));
     }
@@ -1280,6 +1294,50 @@ mod tests {
         ordinary.parent_transaction_ids[0] = id(15, TransactionId::from_bytes);
         let second = build_transaction(&ordinary).unwrap();
         assert_ne!(first.transaction_id, second.transaction_id);
+    }
+
+    #[test]
+    fn genesis_with_extended_profile_fails_closed_as_field_shape() {
+        // A trusted genesis performs no analysis, so the extended triple is
+        // not a genesis wire state even though it is a closed triple
+        // (transaction model revision 3).
+        let mut forged = genesis_record();
+        forged.commit_metadata = CommitMetadata::extended_operations_v1();
+        assert_eq!(
+            build_transaction(&forged).unwrap_err().code(),
+            "TXN_FIELD_SHAPE"
+        );
+        let payload = encode_transaction_record(&forged).unwrap();
+        let preimage = encode_envelope(TRANSACTION_MAGIC, &payload).unwrap();
+        let stored = append_digest(&preimage, TransactionId::derive(&preimage).as_bytes()).unwrap();
+        assert_eq!(
+            import_transaction(&stored).unwrap_err().code(),
+            "TXN_FIELD_SHAPE"
+        );
+
+        // The ordinary kind keeps both triples.
+        let mut ordinary = genesis_record();
+        ordinary.transaction_kind = TransactionKind::OrdinaryCandidate;
+        ordinary.parent_transaction_ids = vec![id(7, TransactionId::from_bytes)];
+        ordinary.parent_roots = vec![id(8, StateRoot::from_bytes)];
+        ordinary.principal_id = Some(id(9, PrincipalId::from_bytes));
+        ordinary.candidate_id = Some(id(10, CandidateId::from_bytes));
+        ordinary.candidate_result_id = Some(id(11, CandidateResultId::from_bytes));
+        ordinary.validation_context_digest = Some(id(12, ValidationContextDigest::from_bytes));
+        ordinary.validation_profile_id = Some(id(13, ValidationProfileId::from_bytes));
+        ordinary.capability_summary_digest = Some(id(14, CapabilitySummaryDigest::from_bytes));
+        ordinary.changed_entity_bindings[0].mutation_ordinals = vec![0];
+        let restricted = build_transaction(&ordinary).unwrap();
+        assert_eq!(
+            import_transaction(&restricted.stored_bytes).unwrap(),
+            restricted
+        );
+        ordinary.commit_metadata = CommitMetadata::extended_operations_v1();
+        let extended = build_transaction(&ordinary).unwrap();
+        assert_eq!(
+            import_transaction(&extended.stored_bytes).unwrap(),
+            extended
+        );
     }
 
     #[test]
