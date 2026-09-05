@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `5cb36ed`.
+are green at `cecb84c`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 88 of 110 P0 entries closed
+## Findings: 92 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -160,8 +160,35 @@ Closed, each reproduced before fixing:
   correctly refused (cured by discarding drift and re-running clean),
   second smoke failed the dossier test-inventory drift (cured by
   committing the refresh), fmt-only change re-attested clean.
+- **S20-430** (4 entries): thin-CLI contract revision 3 (`981d6a1`
+  code, `281d781` dispositions, `cecb84c` evidence, with `6c1a722`
+  test-inventory refresh, `be157c5` clippy fix, and `c14c669` closeout
+  note in between). The transport feature leaves the offer, the
+  negotiation, and the wire hello: the endpoint offers
+  `Server::offered_hello` unedited in both modes, so the handshake and
+  session identity no longer depend on `--json` and session opens
+  succeed in JSON mode (reproduced live: same hello and repo gave two
+  different handshake ids before the fix). Neither literal prescription
+  survived contact with the transcript binding, which `session_open`
+  checks byte-exact: per-mode advertisement would fork identity by mode
+  and break opens against the digest, and always-offer would claim a
+  JSON capability in byte mode the endpoint never exercises; all three
+  reviews' underlying demands are met instead, recorded in the
+  dispositions. Every answer flushes before the next frame is read with
+  a final flush at exit (flush failure is `CLI_IO_FAILURE`); a
+  subprocess test drives the real binary over pipes. Exit-time
+  truncation did not reproduce on this toolchain (newline-free 572-byte
+  and 63KB payloads cross intact); the flush is the liveness guarantee
+  and defense in depth. The JSON test runs the same session in both
+  modes and asserts byte-identical answers; pins are SMP1 rev10, bridge
+  rev6, the audit's transport-feature ban, and new contract-checker
+  markers for sections 2, 6, and 8. Round verdicts stand as `FAIL`
+  history. Closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`. Repair
+  trail: first smoke failed the dossier test-inventory drift on the two
+  new CLI tests (cured by committing the refresh), clippy
+  format-collect on the new test helper fixed and re-attested clean.
 
-**22 entries remain open.** Four clusters tied at 4: 390extended, 430,
+**18 entries remain open.** Three clusters tied at 4: 390extended,
 510, 700fuzz; then 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
@@ -184,7 +211,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 390extended, 430, 510, or
+2. **Work the next P0 cluster**: 390extended, 510, or
    700fuzz (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -202,7 +229,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`5cb36ed`. The full `make v1` gate was skipped
+`cecb84c`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
