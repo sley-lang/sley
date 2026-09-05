@@ -117,6 +117,13 @@ full `make v1` gate was skipped because this is a subsystem handoff, not a
 release boundary; `make v2` and `make release-check` remain intentionally
 fail closed.
 
+Revision 3 re-attestation: Tier 1 (`make quick`, `make lint`) and Tier 2
+(`make core`, `make conformance`, `make adversarial`, `make fuzz-smoke`)
+all exit 0 on the revision 3 tree, and `make release-candidate-smoke`
+passes clean with both SBOM documents and the provenance statement
+rebuilding in order and the register and dossier cascades recording the
+four closed P0s.
+
 ## Independent review
 
 Pending. Sessions and verdicts are recorded here when they land.
