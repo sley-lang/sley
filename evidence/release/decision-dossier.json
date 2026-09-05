@@ -3,14 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "10 review lanes are deferred and unavailable",
-    "79 review obligations are open",
+    "76 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e08e91ff327286f457362ca915f1987b8d8f58b8d862af7b4d89533cae7946d1",
+  "dossier_digest": "dffab88c4f09f0727b54effbcaff7455a2fca6af92a347fb1afaabb2e7b85208",
   "entries": [
     {
       "evidence": [
@@ -339,22 +339,22 @@
           "p4": 0
         },
         "deferred_reviews": 10,
-        "obligations": 204,
-        "open_reviews": 79,
+        "obligations": 207,
+        "open_reviews": 76,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 71,
-          "P1": 83,
-          "P2": 86,
-          "P3": 75,
+          "P0": 74,
+          "P1": 86,
+          "P2": 89,
+          "P3": 78,
           "P4": 0
         },
         "states": {
           "DEFERRED": 10,
-          "HISTORICAL_ROUND": 26,
+          "HISTORICAL_ROUND": 29,
           "OTHER": 2,
-          "PASS": 87,
-          "PENDING": 79
+          "PASS": 90,
+          "PENDING": 76
         }
       }
     },
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "c55ca91984703de44d5529e12cd94f391245dc1b63b4da8b886561de33b48a73",
+  "entries_digest": "a9bc15c3b2417f4c0c04ee4bc753feab68354499a4d8e47598f4b2088f56a448",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
