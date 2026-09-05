@@ -78,11 +78,6 @@
     },
     {
       "disposition": "DEFERRED_FORGE_OAUTH_401",
-      "field": "vulcan_review",
-      "section": "s20_700_vm_persistent_fuzz_slice"
-    },
-    {
-      "disposition": "DEFERRED_FORGE_OAUTH_401",
       "field": "final_argus_disposition",
       "section": "s20_710_pre_release_audit"
     },
@@ -2371,13 +2366,13 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "DEFERRED_FORGE_OAUTH_401",
+      "disposition": "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
       "reviewer": "vulcan",
       "section": "s20_700_vm_persistent_fuzz_slice",
       "severities": [],
-      "state": "DEFERRED",
+      "state": "OTHER",
       "superseded_by": null
     },
     {
@@ -2950,7 +2945,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "7a08fa7b63d4c83b599ffb9e1167361ad1eb4b2acde1d7bbf3eb2e5d91c0d40f",
+  "obligations_digest": "c025131943c9ab9201cef9603f7eb88565a65e180c663001081b88271610a876",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -3754,7 +3749,7 @@
     "root_backed_query_profile.p0_open_count": 0,
     "s20_360_candidate_validation.p0_open_count": 3,
     "s20_390_atomic_commit.p0_open_count": 4,
-    "s20_700_remaining_surface_audit.p0_open_count": 4,
+    "s20_700_remaining_surface_audit.p0_open_count": 0,
     "semantic_comparison.p0_open_count": 4,
     "session_handle_profile.p0_open_count": 0,
     "sley2_trial_runner.p0_open": 0,
@@ -3765,7 +3760,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "a8d790fe5019dddadec3e9270ec7cc33ae9928ae0390c044ad8d8eeb29a20bda",
+  "register_digest": "d8c974e12febcf1583f92f803a7eb7a25ff77caa308383af908aeb7fe84a4b28",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,
@@ -3776,9 +3771,9 @@
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "DEFERRED": 11,
+    "DEFERRED": 10,
     "HISTORICAL_ROUND": 26,
-    "OTHER": 1,
+    "OTHER": 2,
     "PASS": 87,
     "PENDING": 79
   },
@@ -3945,6 +3940,11 @@
       "disposition": "TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX",
       "field": "merlin_review",
       "section": "mutation_value_profile"
+    },
+    {
+      "disposition": "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING",
+      "field": "vulcan_review",
+      "section": "s20_700_vm_persistent_fuzz_slice"
     }
   ],
   "work_package": "S20-740"

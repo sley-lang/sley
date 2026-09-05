@@ -2207,7 +2207,13 @@
     "root_query_engine_persistent_fuzz_target": true,
     "context_capsule_builder_persistent_fuzz_target": true,
     "smp1_frame_decoder_persistent_fuzz_target": true,
-    "p0_open_count": 4,
+    "p0_open_count": 0,
+    "p0_closed": [
+      "extended_family_lane reused the outer restricted request, so E2/E3/E4 never executed and the determinism plus observation-identity assertions were unreachable; raised by ariadne, nabu, and vulcan as one defect in three reports. The lane builds each fixture's request from its own parameter types under generous limits and asserts the first execution completes; reproduced live (outer request dies with InputCountMismatch, own request executes) and verified by a 1024-run smoke over the 769-seed corpus with all eight families reaching execution",
+      "family-lane seed layout used fixed byte offsets against a data-dependent cursor, collapsing 136 of 144 family seeds onto family 0 or 7 with a 256-run replay over the 769-seed corpus; raised by nabu. Lane decisions sit at fixed header offsets consumed before any variable-length construction, all 144 family seeds select the family they name for every outer fixture (verified by enumeration), and the runner fails unless executed runs cover the corpus",
+      "cross-profile refusal assertion was a bare is_err satisfiable by any input error; raised by nabu and vulcan (ariadne answered the pin question yes). The refusal pins VM_LOWER_OPCODE_UNSUPPORTED for the six single-graph families. Fixing the lane exposed that multi-function E6/E7a programs never reach the opcode check: narrowing to owned inventory is an extended-profile step, so restricted fails the single-graph rule first; documented per family, still a lowering-profile refusal, with the completion assertion keeping malformed fixtures from hiding behind it",
+      "contract section 5 one-lane-per-family was unfalsifiable and the 128 executions unbound; raised by nabu with ariadne's lane-versus-vector duty split. Contract revision 11 binds the 128 to the vectors, states the per-family reachability obligation the checker verifies, records the uninterpreted ContractSource, and splits lane duty (reachability) from vector duty (per-opcode)"
+    ],
     "ariadne_contract_review": "FAIL_1_P0_4_P1_6_P2_2_P3",
     "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3"
   },
