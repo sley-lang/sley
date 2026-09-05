@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `8cfee6d`.
+are green at `87189f8`.
 
 ## Where the work is
 
@@ -321,12 +321,52 @@ Closed, each reproduced before fixing:
   are historical, every 360 claim reads zero. Two re-review transcripts
   recorded. Repair trail: reproducibility-report staleness (re-attest after
   surface changes), dossier test-inventory drift, two clippy pattern lints,
-  and the fixture/evidence cascade in dependency order; smoke passed clean
-  on the first attempt after each commit.
+   and the fixture/evidence cascade in dependency order; smoke passed clean
+   on the first attempt after each commit.
+- **S20-260/270 package** (Ariadne 6 P1 / 5 P2 / 5 P3, Vulcan 2 P1 / 3 P2 /
+  2 P3; Nabu already PASS, P0s already closed): contract revision 12
+  (`0d8553d`, oracle bump `a6868b8`, two live re-reviews, `1f5f5ee`).
+  P1-1: `lowerer_version [2, 0, 0]` separates the E6 callee-table layout in
+  cache identity (all 21 prior keys rotated, old `9ddf697b` retired, the
+  independent oracle pins the bump separately and re-derives all 22 keys).
+  P1-2: section 2 states the real post-construction invariant (result type
+  identity; `check_constant` at the input boundary only; cell handle
+  register-only). P1-3/P3-1/P3-5/Vulcan P3-2: exact E1 rows (hashable, no
+  contained float, bare floats admitted; order row admits `F32`/`F64`) with
+  the operative `NaN == NaN` rationale. P1-4: the fixed 256 ceiling
+  normatively ignores manifest field 5 (no request path delivers it;
+  honoring it needs a new lowering profile). P1-5: the comparison refused
+  the 256th live frame, not the 257th — fixed to `>`, pinned by a
+  256-ok/257-refused boundary test plus the `call-direct-depth-ceiling`
+  vector. P1-6/Vulcan P2-2: the encoding order is frozen and named as such
+  (255/256 inversion pinned), and dedup plus every probe compare canonical
+  key bytes. P1-7: the `-0`-to-`+0` flush is a named section 3 deviation
+  with the `float_div` consequence. P1-8: the full `SLEYBC02` layout
+  (header, entry body, `u64` callee count, ascending bodies) is normative in
+  section 1. P2-1/P3-1: the campaign record carries revision 12, 22
+  vectors, and a Tier 2 handoff. P2-2: ADR-0039 accepted at PASS time
+  (header already read revision 11 with E7a). P2-3: absent-key removal and
+  probe arities in the table. P2-4: `float_neg` one operand named. P2-5:
+  the five-fuel derivation (1 dispatch + 1 frame + 1 op + 2 terminators).
+  P3-2: the manifest wire-spelling mapping stated. P3-3: the E7 rejection
+  cites `CONTRACT_TEST_PROFILE_V1` section 3.4. P3-4 verified
+  already-correct (fuzz comment carries E7a). Vulcan P2-1: `max_value_units`
+  bounds charged liveness, not transient peak. Vulcan P2-3: determinism
+  pinned to `rust-toolchain.toml` on one triple with the required FP
+  environment stated. New `ariadne_review` and `vulcan_review` PASS
+  obligations supersede both FAIL rounds; all three 260/270 rounds are
+  historical, every 260/270 claim reads zero. Two re-review transcripts
+  recorded, both PASS first attempt. Repair trail: the register clobbered
+  once by redirecting the builder's stdout over the file (restored from git,
+  rebuilt with the builder's own write path), `test-inventory:drift` (two
+  new tests), secret-scan drift (oracle edit), and the oracle's own
+  `[1, 0, 0]` pin failing all 22 vectors until bumped; smoke passed clean
+  on the first attempt after each repair.
 
 **No P0 entries remain open.** All 110 Council P0 findings are closed, and
-the S20-780 pilot and S20-360 package closed across all severities (rounds
-superseded, claims zero). The wider P1+ backlog stands at 75 open reviews
+the S20-780 pilot and the S20-360 and S20-260/270 packages closed across
+all severities (rounds
+superseded, claims zero). The wider P1+ backlog stands at 73 open reviews
 in other packages; lower-severity findings there remain tracked in the
 finding register.
 
@@ -350,10 +390,10 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **No open P0 cluster remains, and the 780 pilot and 360 package are the
-   proven closure loop** (fix, live re-review, PASS-record, attest).
-   Candidate next work: the next backlog package per the finding register
-   (75 open reviews), or a new Council round.
+2. **No open P0 cluster remains, and the 780 pilot and the 360 and 260/270
+   packages are the proven closure loop** (fix, live re-review, PASS-record,
+   attest). Candidate next work: the next backlog package per the finding
+   register (73 open reviews), or a new Council round.
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -371,7 +411,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`8cfee6d`. The full `make v1` gate was skipped
+`87189f8`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
