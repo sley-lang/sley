@@ -1957,9 +1957,9 @@
     "native_active_tests": 13,
     "ignored_fixture_generators": 1,
     "accepted_fixture_vectors": 3,
-    "rejected_fixture_vectors": 9,
+    "rejected_fixture_vectors": 10,
     "accepted_fixture_sha256": "38bfbc5e8662631944cb6522863c8b7dae1b9366c75969a5765250407fb5c1f9",
-    "rejected_fixture_sha256": "297670d71960bada785e913fecaf0f0f0424cdc9f0d58f3f56f76f185166e744",
+    "rejected_fixture_sha256": "846e059428dc8696be8a9034928752d5f8c0093e573f7c5f330085280e32a1ea",
     "fault_boundaries": 5,
     "persistent_fuzz_seed_count": 19,
     "persistent_fuzz_runs": 512,
@@ -1980,15 +1980,22 @@
     "operation_carrying_commit_follow_on": "selected-test evidence and full crash recovery remain",
     "new_stable_error_codes": 0,
     "semantic_profiles": {
-      "1": "no operation analysis ran in the transaction (trusted genesis, or an operation-free program)",
-      "2": "the program was validated by the S20-360 full operation analysis"
+      "1": "the transaction judged no semantic operation (trusted genesis installs without validating, or an ordinary commit ran validation over a program with no operation to judge)",
+      "2": "the transaction judged at least one semantic operation under the S20-360 full operation analysis"
     },
     "adr_extended_profile": "docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md",
-    "transaction_model_revision": 2,
+    "transaction_model_revision": 3,
     "ariadne_extended_profile_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
     "nabu_extended_profile_review": "FAIL_2_P0_2_P1_2_P2_2_P3",
     "vulcan_extended_profile_review": "FAIL_0_P0_4_P1_3_P2_2_P3",
-    "p0_open_count": 4
+    "p0_open_count": 0,
+    "p0_open": [],
+    "p0_closed": [
+      "authority boundary still restricted the profile to operation-free programs, contradicting revision 2 and the commit path; raised by ariadne (P0-1) and nabu (P0-1) and as vulcan P1-1. The boundary now admits operation-carrying programs validated by the full analysis and keeps only the empty-selected-test-set restriction (contract revision 3).",
+      "profile 1 restated as 'no operation analysis ran', false for ordinary operation-free commits where phase 7 runs and judges zero operations; raised by ariadne (P0-2). Value 1 now states the transaction judged no semantic operation, with the joint-reading rule, the whole-state derivation, and the profile-2 binding invariant spelled out (contract revision 3, ADR-0045 corrected).",
+      "decoder accepted a trusted genesis asserting semantic profile 2 on both implementations, so the genesis-always-1 rule was a writer convention, not a wire rule; raised by nabu (P0-2) and ariadne (P1-3). Both decoders now condition the triple on kind (genesis only [1,1,1]) and fail anything else as TXN_FIELD_SHAPE, pinned by a new genesis-extended-profile rejection vector and a Rust unit test proving build and import refuse it.",
+      "decoder rule kind-agnostic in the oracle identically (it decoded kind 1 with profile 2); raised by nabu (P0-2). The oracle mirrors the kind-conditioned rule and routes the new provided-genesis-profile corpus vector through decode, with cross-implementation agreement at 3 accepted and 10 rejected vectors."
+    ]
   },
   "s20_500_native_refs_branches": {
     "status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
