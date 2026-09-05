@@ -3739,7 +3739,7 @@
   ],
   "package_open_claims": {
     "clean_room_disposition_register.p0_open_count": 3,
-    "cli.p0_open_count": 4,
+    "cli.p0_open_count": 0,
     "complete_root_index_snapshot.p0_open": 0,
     "complete_root_index_snapshot.p0_open_count": 0,
     "context_capsule_profile.p0_open_count": 0,
@@ -3765,7 +3765,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "f20e2d117ea519bf94982850ac8b44fc0ef996c8d09bcdc1110bba163ca5d004",
+  "register_digest": "a8d790fe5019dddadec3e9270ec7cc33ae9928ae0390c044ad8d8eeb29a20bda",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

@@ -837,7 +837,7 @@
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
     "rule_audit": "scripts/check_cli_rules.py",
@@ -875,7 +875,13 @@
     "binary": "sley",
     "offered_hello": "Server::offered_hello",
     "closeout": "docs/audits/S20_430_THIN_CLI_CLOSEOUT.md",
-    "p0_open_count": 4
+    "p0_open_count": 0,
+    "p0_closed": [
+      "--json ORed FEATURE_JSON_BRIDGE into the offered hello, so a transport flag moved the negotiated profile, the handshake identity, and the session authority, contradicting the owns-no-semantics claim; raised by ariadne. The offer carries no transport feature in either mode: the endpoint offers Server::offered_hello unedited, so the same client hello over the same repository negotiates the same session in both modes and JSON opens succeed; pinned by the mode-independence handshake test and the rule audit's transport-feature ban. Neither literal prescription survived contact with the transcript binding (per-mode advertisement would fork identity by mode and break opens against the digest; always-offer would claim an unexercised JSON capability in byte mode)",
+      "section 6 required byte-identical JSON-mode answers but the test compared only method, request id, bounds, and body length; raised by ariadne. The old comparison's digest rationale described the bit-carrying behavior correctly (the server-hello bit entered the transcript-bound handshake, and the two modes transplanted different sessions), and is now obsolete: the JSON test runs the same session in both modes and asserts byte-identical answers, with only the freshly minted open identities differing",
+      "byte-mode stdout was never flushed and main exits via process::exit, with all tests driving run() over Vec<u8>, so the sley binary and the process boundary had zero evidence; raised by nabu. Every answer now flushes before the next frame is read with a final flush at exit (flush failure is CLI_IO_FAILURE, section 2 obligation), and a subprocess test drives the real binary over pipes proving unfragmented byte delivery and exit-status propagation. Exit-time truncation did not reproduce on this toolchain (572-byte newline-free and 63KB payloads cross intact); the flush stands as the liveness guarantee and defense in depth",
+      "the endpoint mutated Server::offered_hello with FEATURE_JSON_BRIDGE under --json, folding a transport flag into SelectedProfile, handshake_id, and SessionAuthority; raised by vulcan with direction offer-always. Closed by offering-never instead: the negotiated hello is always the server's unedited offer (the endpoint edits no hello anywhere), and always-offer was rejected as a false JSON capability claim in byte mode per nabu; pinned by the same mode-independence test and audit ban"
+    ]
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
