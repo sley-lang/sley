@@ -1,9 +1,12 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 2 (2026-09-03); Council review
+Status: S20-720 contract draft, revision 3 (2026-09-05); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
-revision 1 (section 11). The mechanics are `scripts/build_release_candidate.py`
+revision 1 (section 11). Revision 3 orders the remaps most-general-first,
+describes the manifest's non-release status, requires a clean tree for
+tracked evidence, and enumerates the demo's 20.12 verbs honestly
+(section 12). The mechanics are `scripts/build_release_candidate.py`
 and `bench/release/run_demo.py`; implementation state is tracked in the
 machine summary.
 
@@ -27,7 +30,12 @@ run under `make release-candidate-smoke`.
 1. a clean release build of `sley-cli` (`cargo build --release --locked
    -p sley-cli`) in a fresh target directory under `dist/`, with
    `--remap-path-prefix` mapping the working tree to `/sley2` so no local
-   absolute path enters the binary;
+   absolute path enters the binary. rustc applies the last matching rule,
+   so the flags run most-general-first: the home directory to
+   `/home-remapped`, the cargo registry sources to `/cargo/registry/src`,
+   and the working tree to `/sley2` last. Any other order lets the home
+   rule shadow the tree rule and moves the leak where the scan cannot see
+   it (section 5);
 2. packaging (section 2) into `dist/sley-2.0.0-linux-x86_64.tar.gz`;
 3. unpacking the artifact into a private directory outside the working
    tree and running the conformance subset and the canonical demo there
@@ -63,7 +71,13 @@ directories), gzip with mtime zero and no name. `MANIFEST.json` is
 canonical JSON (S20-610 rules) and names the artifact, the contract
 `sley2.release-candidate-manifest.v1`, the exact commit, `rustc` and
 `cargo` versions, the target triple, and every member's path, size, and
-SHA-256; its own digest is the SHA-256 of its canonical bytes.
+SHA-256; its own digest is the SHA-256 of its canonical bytes. The
+manifest also carries the artifact's non-release status inside that
+digest: `ga_claimed: false`, `publication_authorized: false`, the
+blockers that keep `release-check` fail-closed, and the `working_tree_clean`
+flag of the built tree, so a dirty build can never carry a bare commit and
+the artifact is self-describing once it leaves `dist/`. A manifest that
+omits any of these fields is `PACKAGE_MANIFEST_INVALID`.
 
 ## 3. Conformance subset
 
@@ -95,16 +109,33 @@ its expected report identity, and the head transaction identity. The demo:
 
 The environment holds no `.sley` source, parser, Sley 1.x artifact,
 Tree-sitter grammar, LSP, or projection; the demo reads only the unpacked
-files. Candidate construction, commit, test selection, and merge through
-the demo wait for the public candidate builder (S20-350 is proposal-only)
-and are recorded as the demo's explicit gap.
+files. The demo exercises nine of the forty-one dispatched methods:
+`exchange.import`, `session.open`, `query.root`, `execute`, `report`,
+`branch.create`, `exchange.export`, `gc.dry_run`, and `session.close`.
+Against master goal section 20.12's eight verbs (create, modify, execute,
+test, branch, merge, export, import) that is four covered (execute,
+branch, export, import) and four residual (create, modify, test, merge);
+query, report, session, and GC steps are plumbing, not 20.12 verbs. The
+demo proves source-independence for the verbs it covers, not for every
+operation the protocol dispatches.
+Candidate construction, commit, test selection, and merge through
+the demo wait for the public candidate builder (S20-350 is proposal-only);
+creation waits for a `workspace.create` step from a packaged trusted
+genesis, which is the recorded yes to the campaign's open question 1 and
+lands as a demo extension. Until then create stays in the residual above,
+and all of it is recorded as the demo's explicit gap.
 
 ## 5. Forbidden content
 
 A member containing the source tree's absolute path, any `/home/` path,
-or a bounded secret pattern (private-key headers, cloud and token prefixes)
-is `PACKAGE_CONTENT_FORBIDDEN`. Caches, target directories, and debug
-files are never packaged: the member list is the section 2 list exactly.
+the remap residue `/home-remapped`, the build username, or a bounded
+secret pattern (private-key headers, cloud and token prefixes)
+is `PACKAGE_CONTENT_FORBIDDEN`. The `/home-remapped` needle exists because
+the home remap rewrites a leaked tree path into a shape the tree-path and
+`/home/` needles can never match; the username needle catches
+non-path-shaped leakage the remaps do not reach. Caches, target
+directories, and debug files are never packaged: the member list is the
+section 2 list exactly.
 
 ## 6. Reproducibility
 
@@ -123,8 +154,12 @@ scan result, the reproducibility result with any differing members, the
 working tree cleanliness, and the blockers that keep `release-check`
 fail-closed: root license text approval (operator), standards SBOM and
 provenance (S20-710 full), succession thresholds (S20-640), and the
-Council reviews. `machine-summary.json` `artifact` stays null until an
-operator-approved release candidate exists.
+Council reviews. Tracked evidence requires a clean tree: the smoke passes
+`--require-clean` (opt out only with `--allow-dirty`, which no tracked
+target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
+manifest's `working_tree_clean` flag names what was built.
+`machine-summary.json` `artifact` stays null until an operator-approved
+release candidate exists.
 
 ## 8. Stable failures
 
@@ -181,3 +216,24 @@ provenance, and root license (S20-710 full); independent conformance
 - Reproducibility was established byte for byte on the first clean run
   after the remap fix; a later archive-only difference is recorded, never
   rounded.
+
+## 12. Revision 3 clarifications
+
+- The three remaps run most-general-first (home, registry, tree) because
+  rustc applies the last matching rule: the revision 2 order let the home
+  rule shadow the other two, and the binary carried `/home-remapped` paths
+  the scan's needles could never match. The scan now names the residue and
+  the username, and offline tests pin the order.
+- Cleanliness is no longer recorded-but-optional: tracked evidence
+  requires `--require-clean`, the manifest carries `working_tree_clean`
+  inside its digest, and the revision 2 sentence blessing dirty smokes is
+  superseded.
+- The manifest carries `ga_claimed: false`, `publication_authorized:
+  false`, and the blockers inside its digest, so the artifact states its
+  non-release status by inspection; `LICENSE-PENDING.txt` remains the
+  human-readable statement.
+- Section 4 now enumerates the demo's nine methods and its 20.12 verbs
+  (four covered, four residual) instead of claiming every dispatched
+  operation; open question 1 is answered yes, with the mechanism
+  (`workspace.create` from a packaged trusted genesis) named as the demo
+  extension that moves create out of the residual.

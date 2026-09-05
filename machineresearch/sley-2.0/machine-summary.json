@@ -2397,7 +2397,7 @@
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
     "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
@@ -2435,7 +2435,8 @@
     "candidate_demo": "PASS_12_STEPS",
     "offline_tests": 4,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
-    "p0_open_count": 5
+    "p0_open_count": 0,
+    "p0_closed": 5
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",

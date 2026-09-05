@@ -32,6 +32,21 @@ MANIFEST_CONTRACT = "sley2.release-candidate-manifest.v1"
 EVIDENCE_DIR = ROOT / "evidence/runtime/s20-720-release-candidate"
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 CONFORMANCE_SUBSET = ("conformance/smp1/v1", "conformance/smp1-json-bridge/v1", "conformance/release-demo/v1")
+# Every tracked input the staged artifact derives from: the release binary is
+# built from the Rust workspace, the packaging logic below stages it, and the
+# stage adds the demo runner, the SBOM inventory, and the conformance subset.
+# S20-730 reads this surface for its attestation freshness rule; keep it
+# exact when staging changes.
+ARTIFACT_INPUT_PATHS = (
+    "crates",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "bench/release/run_demo.py",
+    "evidence/security/T52/pre-release-inventory.json",
+    "scripts/build_release_candidate.py",
+    *CONFORMANCE_SUBSET,
+)
 EXECUTABLE_MEMBERS = {"bin/sley", "demo/run_demo.py"}
 SECRET_PATTERNS = (b"-----BEGIN ", b"AKIA", b"ghp_", b"xoxb-", b"xoxp-", b"sk-ant-", b"sk-proj-")
 LICENSE_PENDING_TEXT = (
@@ -105,8 +120,25 @@ def member_paths(stage: Path) -> list[Path]:
     return sorted(path for path in stage.rglob("*") if path.is_file())
 
 
-def build_manifest(stage: Path, *, commit: str, toolchain: dict[str, str], artifact_name: str = ARTIFACT_NAME) -> dict:
-    """The canonical manifest of every staged member except itself."""
+def build_manifest(
+    stage: Path,
+    *,
+    commit: str,
+    toolchain: dict[str, str],
+    working_tree_clean: bool,
+    blockers: list[str],
+    ga_claimed: bool = False,
+    publication_authorized: bool = False,
+    artifact_name: str = ARTIFACT_NAME,
+) -> dict:
+    """The canonical manifest of every staged member except itself.
+
+    The manifest carries its own non-release status inside the digest: the
+    GA and publication flags, the blockers that keep release-check
+    fail-closed, and the cleanliness of the built tree, so the artifact is
+    self-describing once it leaves dist/ and a dirty build can never carry
+    a bare commit.
+    """
 
     files = []
     for path in member_paths(stage):
@@ -116,18 +148,37 @@ def build_manifest(stage: Path, *, commit: str, toolchain: dict[str, str], artif
         files.append({"path": relative, "sha256": sha256_file(path), "size": path.stat().st_size})
     manifest = {
         "artifact": artifact_name,
+        "blockers": list(blockers),
         "commit": commit,
         "contract": MANIFEST_CONTRACT,
         "files": files,
+        "ga_claimed": ga_claimed,
         "member_count": len(files),
+        "publication_authorized": publication_authorized,
         "target": "x86_64-unknown-linux-gnu",
         "toolchain": toolchain,
+        "working_tree_clean": working_tree_clean,
     }
     manifest["manifest_digest"] = sha256_bytes(canonical({key: value for key, value in manifest.items() if key != "manifest_digest"}))
     return manifest
 
 
 def verify_manifest(stage: Path, manifest: dict) -> None:
+    for key in (
+        "artifact",
+        "blockers",
+        "commit",
+        "contract",
+        "files",
+        "ga_claimed",
+        "member_count",
+        "publication_authorized",
+        "target",
+        "toolchain",
+        "working_tree_clean",
+    ):
+        if key not in manifest:
+            raise PackageError(PackageErrorCode.MANIFEST_INVALID, f"missing {key}")
     expected = {entry["path"]: entry for entry in manifest.get("files", [])}
     present = {path.relative_to(stage).as_posix() for path in member_paths(stage)} - {"MANIFEST.json"}
     if set(expected) != present:
@@ -224,6 +275,23 @@ def compare_artifacts(first: bytes, second: bytes) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def remap_flags(root: Path, cargo_home: Path, home: Path) -> list[str]:
+    """The `--remap-path-prefix` flags for a clean build, most general first.
+
+    rustc applies the last matching rule, so the order is load-bearing: the
+    home rule first, then the cargo registry rule, then the working tree
+    rule last, so a tree path keeps `/sley2` instead of collapsing into
+    `/home-remapped`. Reversing this order reintroduces the leak the scan
+    cannot see, because `/home-remapped` contains neither the tree path nor
+    `/home/`.
+    """
+    return [
+        f"--remap-path-prefix={home}=/home-remapped",
+        f"--remap-path-prefix={cargo_home / 'registry' / 'src'}=/cargo/registry/src",
+        f"--remap-path-prefix={root}=/sley2",
+    ]
+
+
 def toolchain_versions() -> dict[str, str]:
     versions = {}
     for tool in ("rustc", "cargo"):
@@ -243,13 +311,7 @@ def clean_build(target: Path, timeout: int) -> Path:
     home = Path.home()
     # The working tree, the cargo registry sources, and the home directory
     # itself are remapped so no local absolute path survives in the binary.
-    env["RUSTFLAGS"] = " ".join(
-        [
-            f"--remap-path-prefix={ROOT}=/sley2",
-            f"--remap-path-prefix={cargo_home / 'registry' / 'src'}=/cargo/registry/src",
-            f"--remap-path-prefix={home}=/home-remapped",
-        ]
-    )
+    env["RUSTFLAGS"] = " ".join(remap_flags(ROOT, cargo_home, home))
     completed = run(["cargo", "build", "--release", "--locked", "-p", "sley-cli"], cwd=ROOT, env=env, timeout=timeout)
     if completed.returncode != 0:
         raise PackageError(PackageErrorCode.BUILD_FAILED, completed.stderr[-500:])
@@ -259,7 +321,15 @@ def clean_build(target: Path, timeout: int) -> Path:
     return binary
 
 
-def stage_artifact(binary: Path, stage: Path, *, commit: str, toolchain: dict[str, str]) -> dict:
+def stage_artifact(
+    binary: Path,
+    stage: Path,
+    *,
+    commit: str,
+    toolchain: dict[str, str],
+    working_tree_clean: bool,
+    blockers: list[str],
+) -> dict:
     if stage.exists():
         shutil.rmtree(stage)
     (stage / "bin").mkdir(parents=True)
@@ -288,7 +358,13 @@ def stage_artifact(binary: Path, stage: Path, *, commit: str, toolchain: dict[st
     }
     (stage / "LICENSES.json").write_bytes(canonical(licenses) + b"\n")
     (stage / "LICENSE-PENDING.txt").write_text(LICENSE_PENDING_TEXT, encoding="utf-8")
-    manifest = build_manifest(stage, commit=commit, toolchain=toolchain)
+    manifest = build_manifest(
+        stage,
+        commit=commit,
+        toolchain=toolchain,
+        working_tree_clean=working_tree_clean,
+        blockers=blockers,
+    )
     (stage / "MANIFEST.json").write_bytes(canonical(manifest) + b"\n")
     return manifest
 
@@ -384,9 +460,23 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
     }
     binary = clean_build(DIST / "target-a", timeout)
     stage_a = DIST / "stage-a"
-    manifest = stage_artifact(binary, stage_a, commit=commit, toolchain=toolchain)
+    manifest = stage_artifact(
+        binary,
+        stage_a,
+        commit=commit,
+        toolchain=toolchain,
+        working_tree_clean=clean,
+        blockers=evidence["blockers"],
+    )
     verify_manifest(stage_a, manifest)
-    findings = scan_forbidden_content(stage_a, (str(ROOT), "/home/"))
+    # The remap residue has its own needle: after the home remap a leaked
+    # tree path reads /home-remapped/..., which contains neither the tree
+    # path nor /home/, so those two needles can never fire on it. The
+    # username catches non-path-shaped leakage (build strings, registry
+    # fragments) the remaps do not reach.
+    findings = scan_forbidden_content(
+        stage_a, (str(ROOT), "/home/", "/home-remapped", Path.home().name)
+    )
     if findings:
         raise PackageError(PackageErrorCode.CONTENT_FORBIDDEN, json.dumps(findings[:5]))
     artifact_path = DIST / ARTIFACT_NAME
@@ -430,7 +520,8 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout-seconds", type=int, default=900)
-    parser.add_argument("--require-clean", action="store_true")
+    parser.add_argument("--require-clean", dest="require_clean", action="store_true", default=True)
+    parser.add_argument("--allow-dirty", dest="require_clean", action="store_false")
     parser.add_argument("--keep", action="store_true", help="keep both target directories and stages")
     parser.add_argument("--evidence-dir", type=Path, default=EVIDENCE_DIR)
     arguments = parser.parse_args(argv)

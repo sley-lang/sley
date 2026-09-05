@@ -1,9 +1,9 @@
 # ADR-0038: release candidate mechanics without a release
 
-Status: proposed; the S20-720 contract is a draft at revision 2 with
-Council review pending; mechanics implemented (2026-09-03) with a
-reproducible artifact, an unpacked demo, and `release-check` still
-fail-closed
+Status: proposed; the S20-720 contract is a draft at revision 3 with
+Council review pending; mechanics implemented (2026-09-03, revised
+2026-09-05) with a reproducible artifact, an unpacked demo, and
+`release-check` still fail-closed
 
 Date: 2026-09-03
 
@@ -35,6 +35,10 @@ soon as a lane returns.
    empty directories with a fixture emitted from the executable test
    genesis; it proves import, query, execute, report, branch, export, and
    clone-equivalent import without source, and names its candidate gap.
+   (2026-09-05: the claim is narrowed to the verbs the demo covers —
+   execute, branch, export, import of 20.12's eight — with create, modify,
+   test, and merge residual; open question 1, covering create via
+   `workspace.create` from a packaged trusted genesis, is answered yes.)
 5. **Inventory reused.** The S20-710 pre-release inventory travels
    verbatim as the SBOM with declared licenses and the root-license
    blocker; nothing is invented.
@@ -48,5 +52,8 @@ soon as a lane returns.
 
 - A release decision needs only the gated approvals; the artifact
   mechanics are already evidenced.
-- The demo doubles as the source-independence proof of master goal
-  section 20.12 for every operation the protocol dispatches today.
+- The demo doubles as the source-independence proof for the master goal
+  section 20.12 verbs it covers (execute, branch, export, import), with
+  create, modify, test, and merge residual; open question 1 (cover create
+  via `workspace.create` from a packaged trusted genesis) is answered yes
+  and lands as a demo extension.

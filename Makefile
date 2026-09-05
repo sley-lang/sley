@@ -187,7 +187,7 @@ evidence-refresh:
 	python3 scripts/generate_supply_chain_evidence.py
 
 release-candidate-smoke:
-	python3 scripts/build_release_candidate.py --timeout-seconds 900
+	python3 scripts/build_release_candidate.py --timeout-seconds 900 --require-clean
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
+import re
 import tarfile
 import tempfile
 import time
@@ -16,15 +17,24 @@ SPEC = importlib.util.spec_from_file_location("build_release_candidate", ROOT / 
 assert SPEC is not None and SPEC.loader is not None
 packaging = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(packaging)
+DEMO_SPEC = importlib.util.spec_from_file_location("run_demo", ROOT / "bench/release/run_demo.py")
+assert DEMO_SPEC is not None and DEMO_SPEC.loader is not None
+demo = importlib.util.module_from_spec(DEMO_SPEC)
+DEMO_SPEC.loader.exec_module(demo)
 
 
-def stage_tree(root: Path, *, secret: bool = False, path_leak: bool = False) -> Path:
+def stage_tree(root: Path, *, secret: bool = False, path_leak: bool = False, remap_leak: bool = False) -> Path:
     stage = root / "stage"
     (stage / "bin").mkdir(parents=True)
     # The planted key prefix is assembled at runtime so the source itself
     # carries no secret-shaped literal for the T54 scan.
     planted = ("AK" + "IA" + "1234567890ABCDEF").encode("ascii") if secret else b""
-    (stage / "bin/sley").write_bytes(b"\x7fELF fake binary " + planted + (str(ROOT).encode() if path_leak else b""))
+    content = b"\x7fELF fake binary " + planted + (str(ROOT).encode() if path_leak else b"")
+    if remap_leak:
+        content += b"\x00/home-remapped/sley2/crates/sley-cli/src/main.rs\x00"
+    else:
+        content += b"\x00/sley2/crates/sley-cli/src/main.rs\x00"
+    (stage / "bin/sley").write_bytes(content)
     (stage / "demo").mkdir()
     (stage / "demo/run_demo.py").write_text("print('demo')\n", encoding="utf-8")
     (stage / "LICENSE-PENDING.txt").write_text("pending\n", encoding="utf-8")
@@ -59,11 +69,23 @@ class PackagingTests(unittest.TestCase):
     def test_manifest_digest_is_canonical_and_detects_changes(self) -> None:
         stage = stage_tree(self.root)
         toolchain = {"cargo": "cargo 1.93.0", "rustc": "rustc 1.93.0"}
-        manifest = packaging.build_manifest(stage, commit="a" * 40, toolchain=toolchain)
+        manifest = packaging.build_manifest(
+            stage,
+            commit="a" * 40,
+            toolchain=toolchain,
+            working_tree_clean=True,
+            blockers=["root_license_text_operator_approval"],
+        )
         self.assertEqual(manifest["contract"], packaging.MANIFEST_CONTRACT)
         self.assertEqual(manifest["member_count"], 3)
         self.assertEqual([entry["path"] for entry in manifest["files"]], ["LICENSE-PENDING.txt", "bin/sley", "demo/run_demo.py"])
-        again = packaging.build_manifest(stage, commit="a" * 40, toolchain=toolchain)
+        again = packaging.build_manifest(
+            stage,
+            commit="a" * 40,
+            toolchain=toolchain,
+            working_tree_clean=True,
+            blockers=["root_license_text_operator_approval"],
+        )
         self.assertEqual(manifest["manifest_digest"], again["manifest_digest"])
         (stage / "MANIFEST.json").write_bytes(packaging.canonical(manifest))
         packaging.verify_manifest(stage, manifest)
@@ -74,6 +96,74 @@ class PackagingTests(unittest.TestCase):
         tampered = dict(manifest, commit="b" * 40)
         with self.assertRaises(packaging.PackageError):
             packaging.verify_manifest(stage_tree(self.root / "other"), tampered)
+
+    def test_manifest_carries_its_non_release_status_inside_the_digest(self) -> None:
+        stage = stage_tree(self.root)
+        toolchain = {"cargo": "cargo 1.93.0", "rustc": "rustc 1.93.0"}
+        manifest = packaging.build_manifest(
+            stage,
+            commit="a" * 40,
+            toolchain=toolchain,
+            working_tree_clean=False,
+            blockers=["root_license_text_operator_approval", "council_reviews"],
+        )
+        self.assertFalse(manifest["ga_claimed"])
+        self.assertFalse(manifest["publication_authorized"])
+        self.assertEqual(
+            manifest["blockers"],
+            ["root_license_text_operator_approval", "council_reviews"],
+        )
+        self.assertFalse(manifest["working_tree_clean"])
+        (stage / "MANIFEST.json").write_bytes(packaging.canonical(manifest))
+        packaging.verify_manifest(stage, manifest)
+        # Flipping the cleanliness flag without re-digesting is detected,
+        # and a manifest that omits the status fields is refused outright.
+        dirty = dict(manifest)
+        dirty["working_tree_clean"] = True
+        with self.assertRaises(packaging.PackageError):
+            packaging.verify_manifest(stage, dirty)
+        stripped = {key: value for key, value in manifest.items() if key != "working_tree_clean"}
+        with self.assertRaises(packaging.PackageError) as error:
+            packaging.verify_manifest(stage, stripped)
+        self.assertEqual(error.exception.code, packaging.PackageErrorCode.MANIFEST_INVALID)
+
+    def test_remap_order_is_most_general_first(self) -> None:
+        flags = packaging.remap_flags(
+            Path("/home/greyforge/sley2"),
+            Path("/home/greyforge/.cargo"),
+            Path("/home/greyforge"),
+        )
+        self.assertEqual(
+            flags,
+            [
+                "--remap-path-prefix=/home/greyforge=/home-remapped",
+                "--remap-path-prefix=/home/greyforge/.cargo/registry/src=/cargo/registry/src",
+                "--remap-path-prefix=/home/greyforge/sley2=/sley2",
+            ],
+        )
+        # rustc applies the last matching rule: the tree rule must come
+        # last or the home rule shadows it back into a leak the scan cannot
+        # see (/home-remapped contains neither the tree path nor /home/).
+        positions = {flag: index for index, flag in enumerate(flags)}
+        self.assertLess(positions[flags[0]], positions[flags[1]])
+        self.assertLess(positions[flags[1]], positions[flags[2]])
+        self.assertIn("/sley2", flags[2])
+
+    def test_scan_sees_the_remap_residue_the_old_needles_missed(self) -> None:
+        needles = (str(ROOT), "/home/", "/home-remapped", "greyforge")
+        leaking = stage_tree(self.root / "leak", remap_leak=True)
+        patterns = {finding["pattern"] for finding in packaging.scan_forbidden_content(leaking, needles)}
+        self.assertIn("/home-remapped", patterns)
+        clean = stage_tree(self.root / "clean")
+        self.assertEqual(packaging.scan_forbidden_content(clean, needles), [])
+
+    def test_demo_limits_match_the_governed_bridge_limits(self) -> None:
+        bridge = (ROOT / "crates/sley-json-bridge/src/lib.rs").read_text(encoding="utf-8")
+        match = re.search(r"const LIMIT_FIELDS: \[&str; \d+\] = \[(.*?)\];", bridge, re.S)
+        self.assertIsNotNone(match)
+        assert match is not None
+        governed = set(re.findall(r'"([a-z_0-9]+)"', match.group(1)))
+        self.assertEqual(set(demo.ZERO_LIMITS), governed)
 
     def test_scan_finds_local_paths_and_secret_patterns(self) -> None:
         clean = stage_tree(self.root / "clean")

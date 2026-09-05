@@ -19,7 +19,11 @@ import tempfile
 import time
 from pathlib import Path
 
-ZERO_LIMITS = {name: 0 for name in ("max_depth", "max_edges", "max_entities", "max_frame_bytes", "max_inflight", "max_response_bytes", "max_work")}
+# The demo zeroes every limit the bridge governs. The names must match
+# LIMIT_FIELDS in crates/sley-json-bridge/src/lib.rs exactly: a governed
+# limit missing here fails bridge shape validation on every demo frame, and
+# bench/release/tests/test_packaging.py pins the two lists together.
+ZERO_LIMITS = {name: 0 for name in ("max_depth", "max_edges", "max_entities", "max_frame_bytes", "max_inflight", "max_response_bytes", "max_work", "max_sessions")}
 ZERO_BOUNDS = {
     "applied_limits": ZERO_LIMITS,
     "continuation": False,

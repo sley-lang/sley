@@ -21,7 +21,9 @@ canonical demo from inside the unpacked artifact with an environment of
 path, and bounded secret patterns, compares the two artifacts byte for
 byte, and writes the evidence with the blockers that keep `release-check`
 fail-closed. The demo is the master goal's source-independence proof for
-every operation the protocol dispatches today: it imports the executable
+the 20.12 verbs it covers (execute, branch, export, import — four of
+eight; create, modify, test, and merge are residual and enumerated in
+contract section 4): it imports the executable
 genesis's exchange, answers the bound summary query byte-identically to
 the fixture, executes the Function and reads the stored report back with
 the fixture's identity, creates a branch and exports, imports the export
@@ -98,3 +100,59 @@ intentionally fail closed.
 ## Independent review
 
 Pending. Sessions and verdicts are recorded here when they land.
+
+## Revision 3 closeout (2026-09-05)
+
+The Council round returned five P0s (Ariadne 2, Nabu 1, Vulcan 2), all
+confirmed live and closed by fix; the round verdicts stand as `FAIL`
+history. No re-review was needed: the fixes change mechanics and reported
+facts without contradicting any recorded disposition.
+
+- Remap order (Vulcan P0-1): `remap_flags()` emits home, registry, tree —
+  most-general-first, because rustc applies the last matching rule. The
+  prior order shadowed the tree and registry rules; the shipped binary
+  carried fourteen `/home-remapped` paths (crate and registry sources) the
+  old needles could never match, confirmed with `strings` on the staged
+  artifact. The scan now also needles `/home-remapped` and the build
+  username, and offline tests pin the order plus planted-leak detection.
+  The positive control the review asked for lives in those tests rather
+  than the gate: a `/sley2`-present assertion would fail a legitimately
+  path-free binary, while the order test plus the residue needle close the
+  exact hole that let the leak through.
+- Cleanliness (Ariadne P0-1, Vulcan P0-2): `--require-clean` is now the
+  default (opt out with `--allow-dirty`, which no tracked target uses),
+  the smoke passes it explicitly, and the manifest carries
+  `working_tree_clean` inside its digest and refuses a manifest without
+  it. The reference dirty-tree artifact the reviews cited is superseded by
+  the clean smoke below.
+- Manifest self-description (Nabu P0): `ga_claimed: false`,
+  `publication_authorized: false`, the blockers, and `working_tree_clean`
+  are manifest fields inside the digest; the summary's candidate fields
+  carry the built commit and its cleanliness beside the digest.
+- Demo claim (Ariadne P0-2): section 4 enumerates the nine demo methods
+  and the 20.12 verbs (four covered, four residual); the ADR and this
+  closeout no longer claim every dispatched operation. Open question 1 is
+  answered yes: covering create via `workspace.create` from a packaged
+  trusted genesis lands as a demo extension, with create residual until
+  then.
+- Demo repair (blocking, new): the S20-330 `max_sessions` limit broke
+  every demo frame at bridge shape validation (the demo's hardcoded limit
+  set fossilized at seven), so the smoke could not produce evidence. The
+  demo now zeroes the governed eight with a unit test pinning its names to
+  the bridge's `LIMIT_FIELDS`.
+
+Validation: Tier 1 (`make quick`, `make lint`) and Tier 2 (`make core`,
+`make conformance`, `make adversarial`, `make fuzz-smoke`) are re-run after
+the smoke below; the per-gate record lands with the evidence commit. The
+full `make v1` gate was skipped as a subsystem handoff. P1 and P2 findings
+from the round stay open and tracked; nothing here claims them.
+
+Smoke record: pending at this commit. The smoke runs on the committed
+tree (it refuses a dirty one), re-attests the candidate, and cures the
+S20-730 staleness gate; the evidence commit records the exact artifact,
+the `strings` counts on the fresh binary, and the gate states. Until then
+`make quick` is red on exactly two expected problems: the release-tests
+failure from the clobbered local evidence record (this session's failed
+smoke overwrote it with a field-dropping `FAIL` record — the P1-2 failure
+mode observed live) and the 730 staleness gate on the superseded
+attestation.
