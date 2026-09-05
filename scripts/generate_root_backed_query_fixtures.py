@@ -69,6 +69,7 @@ def main() -> int:
                 "bindings": json.loads(parts[8]),
                 "contract_root": parts[5],
                 "fingerprints": json.loads(parts[9]),
+                "interpretation_flags": json.loads(parts[10]),
                 "policy_root": parts[7],
                 "root_hex": parts[2],
                 "schema_epoch_hex": parts[3],

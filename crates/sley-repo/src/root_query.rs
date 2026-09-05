@@ -122,6 +122,7 @@ pub fn run_root_query(
         contract_root: record.contract_root,
         test_root: record.test_root,
         policy_root: record.policy_root,
+        interpretation_flags: &record.interpretation_flags,
     };
     let request = build_root_query_request(&input, query, limits, allow_continuation, after)?;
     let response = execute_root_query(&input, &request)?;

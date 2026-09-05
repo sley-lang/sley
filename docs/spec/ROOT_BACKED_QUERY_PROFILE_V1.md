@@ -1,13 +1,16 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 2 (2026-09-05); implemented
+Status: S20-310 full contract draft, revision 3 (2026-09-05); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
-and the package is not complete. Revision 2 adds the section 2 class-kind
-applicability table and the exact section 4 per-class work schedule the
-Council round required; no query semantics, record layout, or charge value
-changed. Implementation state is tracked in the
-machine summary.
+and the package is not complete. Revision 3 binds input binding to the
+committed root: `verify()` recomputes the `StateRoot` digest from the nine
+`STATE_ROOT_V1` fields (adding `interpretation_flags` to the input), so no
+caller-declared answer-bearing fact survives a mismatch. Revision 2 adds
+the section 2 class-kind applicability table and the exact section 4
+per-class work schedule the Council round required; no query semantics,
+record layout, or charge value changed. Implementation state is tracked in
+the machine summary.
 
 This profile completes S20-310. It defines the nineteen root-backed query
 classes the master goal requires, exact bounded semantics for each, lawful
@@ -49,6 +52,7 @@ RootQueryInput {
   schema_epoch: SchemaEpochId
   contract_root, test_root: ObjectId
   policy_root:  PolicyRootId
+  interpretation_flags: [u32]       // the record's flags, raw order
 }
 ```
 
@@ -63,7 +67,23 @@ fails `QUERY_ROOT_MISMATCH` before any class runs:
 3. `entities` are in raw `EntityId` order with no duplicates and their
    identities equal the inventory;
 4. `fingerprints` identities are a subset of the inventory in raw order, and
-   every carried fingerprint belongs to a `TypeDef` or `Function`.
+   every carried fingerprint belongs to a `TypeDef` or `Function`;
+5. the nine `STATE_ROOT_V1` fields the input carries (`workspace_id`,
+   `schema_epoch`, `bindings`, `facts.entry_points`,
+   `facts.dependency_roots`, `contract_root`, `test_root`, `policy_root`,
+   `interpretation_flags`) recompute to `root` exactly as given, with no
+   reordering.
+
+Rule 5 is the whole binding, not a supplement: the shape rules above admit
+any caller that copies an inventory correctly, while the seven
+answer-bearing facts they carry (the bound `ObjectId` values class 2
+answers, the entry points class 10 answers, the dependency roots class 11
+answers, the three roots class 1 answers, and the flags) are committed by
+the root digest and absent from the `RootQueryId` preimage. Only the
+canonical commitment reproduces the digest, so a substituted, reordered, or
+extended fact fails binding rather than entering an answer. The digest
+recompute needs no registry and grants no authorization; the request
+preimage of section 5 is unchanged.
 
 The pure engine lives in `sley-query` and performs no I/O. It does not
 re-judge closure rules C1 through C11: the arm-2 snapshot exists only for a

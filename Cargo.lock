@@ -253,6 +253,7 @@ dependencies = [
  "sley-check",
  "sley-id",
  "sley-ssmc",
+ "sley-state-root",
 ]
 
 [[package]]

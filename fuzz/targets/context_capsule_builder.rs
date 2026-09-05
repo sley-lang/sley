@@ -475,15 +475,31 @@ fn fuzz_one(input: &[u8]) {
     if judge_complete_root(&entities, facts).is_err() {
         return;
     }
-    let root = StateRoot::from_bytes([0x33; 32]);
     let epoch = SchemaEpochId::from_bytes([0x11; 32]);
-    let Ok(snapshot) = build_complete_root_snapshot(epoch, root, &entities, facts) else {
-        return;
-    };
     let bindings: Vec<(EntityId, ObjectId)> = bound
         .iter()
         .map(|entity| (*entity, ObjectId::from_bytes([entity.as_bytes()[0] | 0x80; 32])))
         .collect();
+    // The engine binds every caller-supplied fact to the claimed root, so
+    // the target claims the honestly recomputed digest and keeps reaching
+    // the engine instead of dying at binding on every input.
+    let root = match sley_state_root::recompute_root(&sley_state_root::StateRootRecord {
+        workspace_id: WorkspaceId::from_bytes([0x22; 32]),
+        schema_epoch_id: epoch,
+        entity_bindings: bindings.clone(),
+        entry_points: entry_points.clone(),
+        dependency_roots: dependency_roots.clone(),
+        contract_root: ObjectId::from_bytes([0xC0; 32]),
+        test_root: ObjectId::from_bytes([0xD0; 32]),
+        policy_root: PolicyRootId::from_bytes([0xE0; 32]),
+        interpretation_flags: Vec::new(),
+    }) {
+        Ok(root) => root,
+        Err(_) => return,
+    };
+    let Ok(snapshot) = build_complete_root_snapshot(epoch, root, &entities, facts) else {
+        return;
+    };
     let fingerprints: Vec<(EntityId, SemanticFingerprint)> = entities
         .iter()
         .filter(|entity| {
@@ -511,6 +527,7 @@ fn fuzz_one(input: &[u8]) {
         contract_root: ObjectId::from_bytes([0xC0; 32]),
         test_root: ObjectId::from_bytes([0xD0; 32]),
         policy_root: PolicyRootId::from_bytes([0xE0; 32]),
+        interpretation_flags: &[],
     };
     let Ok(request) = build_root_query_request(&input, query.clone(), limits, allow, after) else {
         return;

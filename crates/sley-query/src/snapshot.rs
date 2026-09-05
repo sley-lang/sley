@@ -1302,7 +1302,10 @@ mod tests {
     }
 
     fn complete_root() -> StateRoot {
-        StateRoot::from_bytes([0x33; 32])
+        // One shared commitment: the query vectors claim this same root,
+        // and the query input binding recomputes it from the fixture's
+        // nine STATE_ROOT_V1 fields.
+        crate::root_query::tests::root()
     }
 
     fn complete_epoch() -> SchemaEpochId {
@@ -1329,7 +1332,7 @@ mod tests {
         assert_eq!(snapshot.record().len(), 5888);
         assert_eq!(
             hex(snapshot.snapshot_id().as_bytes()),
-            "8cd104d09967263e6422b759bd58bff6f881d48ccf5b212856fe832c5c64023d"
+            "8dbed82b3738e89108508787caa3160891ffa7032f0679a7ae3187d1adb1ebf5"
         );
         for _ in 0..128 {
             let again = build_complete_root_snapshot(

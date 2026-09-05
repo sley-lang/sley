@@ -360,6 +360,26 @@ pub fn import_state_root(
     })
 }
 
+/// Recomputes the `StateRoot` digest committed by the nine `STATE_ROOT_V1`
+/// fields, without registry authorization.
+///
+/// Input binding in `sley-query` calls this to tie every caller-supplied
+/// answer-bearing fact (bindings, entry points, dependency roots, the three
+/// roots, and the interpretation flags) to the claimed root: the fields are
+/// encoded exactly as given, so only the canonical commitment reproduces the
+/// digest. Authorization stays with root acceptance; this function grants
+/// none.
+///
+/// # Errors
+///
+/// Returns stable SCB encoding or resource failures when the fields do not
+/// fit the standalone record.
+pub fn recompute_root(record: &StateRootRecord) -> Result<StateRoot, StateRootError> {
+    let payload = encode_payload(record)?;
+    let (_, root) = stored_bytes(record.schema_epoch_id, &payload)?;
+    Ok(root)
+}
+
 fn expected_descriptor() -> ContractDescriptor {
     ContractDescriptor {
         contract_tag: CONTRACT_TAG,

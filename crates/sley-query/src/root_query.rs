@@ -19,6 +19,7 @@ use sley_id::{
     SemanticFingerprint, StateRoot, WorkspaceId,
 };
 use sley_ssmc::EntryExposure;
+use sley_state_root::{StateRootRecord, recompute_root};
 
 use crate::query::{
     LIMITS_PROFILE, MAX_QUERY_RESPONSE_BYTES, MAX_QUERY_WORK, OPTION_NONE, OPTION_SOME, QueryError,
@@ -204,6 +205,7 @@ pub struct RootQueryInput<'a> {
     pub contract_root: ObjectId,
     pub test_root: ObjectId,
     pub policy_root: PolicyRootId,
+    pub interpretation_flags: &'a [u32],
 }
 
 impl RootQueryInput<'_> {
@@ -211,8 +213,13 @@ impl RootQueryInput<'_> {
     ///
     /// # Errors
     ///
-    /// Returns `QUERY_ROOT_MISMATCH` when the snapshot, bodies, bindings, facts,
-    /// or fingerprints disagree.
+    /// Returns `QUERY_ROOT_MISMATCH` when the snapshot, bodies, bindings,
+    /// facts, or fingerprints disagree, and when the nine `STATE_ROOT_V1`
+    /// fields the input carries do not recompute to the claimed root. The
+    /// recompute binds every caller-supplied answer-bearing fact (the bound
+    /// `ObjectId` values, the entry points, the dependency roots, the three
+    /// roots, and the interpretation flags) instead of checking shape
+    /// agreement alone.
     pub fn verify(&self) -> Result<(), RootQueryError> {
         if self.snapshot.completeness() != IndexCompleteness::CompleteRoot
             || self.snapshot.context().schema_epoch != self.schema_epoch
@@ -251,7 +258,25 @@ impl RootQueryInput<'_> {
                 _ => return fail(RootQueryErrorCode::RootMismatch),
             }
         }
-        Ok(())
+        // The digest commits every answer-bearing fact, not just the
+        // shapes above: the fields are encoded exactly as given, so any
+        // reordered, substituted, or extended fact recomputes to another
+        // root. Any encoding failure is a mismatch, never a bypass.
+        let record = StateRootRecord {
+            workspace_id: self.workspace_id,
+            schema_epoch_id: self.schema_epoch,
+            entity_bindings: self.bindings.to_vec(),
+            entry_points: self.facts.entry_points.to_vec(),
+            dependency_roots: self.facts.dependency_roots.to_vec(),
+            contract_root: self.contract_root,
+            test_root: self.test_root,
+            policy_root: self.policy_root,
+            interpretation_flags: self.interpretation_flags.to_vec(),
+        };
+        match recompute_root(&record) {
+            Ok(root) if root == self.root => Ok(()),
+            _ => fail(RootQueryErrorCode::RootMismatch),
+        }
     }
 
     fn index_of(&self, entity: EntityId) -> Option<usize> {
@@ -1689,10 +1714,37 @@ pub(crate) mod tests {
     use super::*;
     use crate::SnapshotContext;
     use crate::complete_root::tests::Fixture;
-    use crate::{CompleteRootFacts, build_complete_root_snapshot, build_index_snapshot};
+    use crate::{build_complete_root_snapshot, build_index_snapshot};
 
+    /// The honestly committed root of the shared fixture: `verify()`
+    /// recomputes the `StateRoot` digest from the nine `STATE_ROOT_V1`
+    /// fields, so the test root is that digest over the exact fields
+    /// `Owned` carries, not a bare constant. Any caller-declared fact
+    /// that drifts from these fields stops verifying.
     pub(crate) fn root() -> StateRoot {
-        StateRoot::from_bytes([0x33; 32])
+        let fixture = Fixture::new();
+        let bindings: Vec<(EntityId, ObjectId)> = fixture
+            .bound_entities
+            .iter()
+            .map(|entity| {
+                (
+                    *entity,
+                    ObjectId::from_bytes([entity.as_bytes()[0] | 0x80; 32]),
+                )
+            })
+            .collect();
+        let record = StateRootRecord {
+            workspace_id: workspace(),
+            schema_epoch_id: epoch(),
+            entity_bindings: bindings,
+            entry_points: fixture.entry_points.clone(),
+            dependency_roots: fixture.dependency_roots.clone(),
+            contract_root: ObjectId::from_bytes([0xC0; 32]),
+            test_root: ObjectId::from_bytes([0xD0; 32]),
+            policy_root: PolicyRootId::from_bytes([0xE0; 32]),
+            interpretation_flags: Vec::new(),
+        };
+        recompute_root(&record).expect("fixture fields recompute to the test root")
     }
 
     pub(crate) fn epoch() -> SchemaEpochId {
@@ -1713,6 +1765,7 @@ pub(crate) mod tests {
         pub(crate) snapshot: IndexSnapshot,
         pub(crate) bindings: Vec<(EntityId, ObjectId)>,
         pub(crate) fingerprints: Vec<(EntityId, SemanticFingerprint)>,
+        pub(crate) interpretation_flags: Vec<u32>,
     }
 
     impl Owned {
@@ -1740,6 +1793,7 @@ pub(crate) mod tests {
                 snapshot,
                 bindings,
                 fingerprints,
+                interpretation_flags: Vec::new(),
             }
         }
     }
@@ -1770,6 +1824,7 @@ pub(crate) mod tests {
                 contract_root: ObjectId::from_bytes([0xC0; 32]),
                 test_root: ObjectId::from_bytes([0xD0; 32]),
                 policy_root: PolicyRootId::from_bytes([0xE0; 32]),
+                interpretation_flags: &self.owned.interpretation_flags,
             }
         }
     }
@@ -2294,22 +2349,33 @@ pub(crate) mod tests {
             run_err(&arm_one, RootQuery::GetRootSummary, limits, false, None),
             RootQueryErrorCode::ProfileUnsupported
         );
-        // A request bound to another input is a snapshot mismatch.
-        let other_entities = borrowed.entities.clone();
-        let other_input = RootQueryInput {
-            snapshot: &other_root,
-            entities: &other_entities,
-            facts: CompleteRootFacts {
-                bound_entities: &owned.fixture.bound_entities,
-                entry_points: &owned.fixture.entry_points,
-                dependency_roots: &owned.fixture.dependency_roots,
-            },
-            root: StateRoot::from_bytes([0x34; 32]),
+        // A request bound to another input is a snapshot mismatch. The
+        // foreign snapshot carries the same claimed root over different
+        // edges (the workspace drops its capability requirement, which
+        // removes exactly the workspace-to-requirement edge), so it
+        // verifies on its own input while its snapshot id differs. A
+        // forged root constant can no longer play this role: it fails
+        // binding outright.
+        let mut tweaked = Fixture::new();
+        tweaked.workspace.capability_requirements = Vec::new();
+        let tweaked_entities = tweaked.entities();
+        let tweaked_snapshot =
+            build_complete_root_snapshot(epoch(), root(), &tweaked_entities, tweaked.facts())
+                .unwrap();
+        assert_ne!(tweaked_snapshot.snapshot_id(), input.snapshot.snapshot_id());
+        let tweaked_input = RootQueryInput {
+            snapshot: &tweaked_snapshot,
+            entities: &tweaked_entities,
             ..input
         };
-        let foreign =
-            build_root_query_request(&other_input, RootQuery::GetRootSummary, limits, false, None)
-                .unwrap();
+        let foreign = build_root_query_request(
+            &tweaked_input,
+            RootQuery::GetRootSummary,
+            limits,
+            false,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             execute_root_query(&input, &foreign).unwrap_err().code(),
             RootQueryErrorCode::SnapshotMismatch
@@ -2327,6 +2393,75 @@ pub(crate) mod tests {
         for pair in RootQueryErrorCode::ALL.windows(2) {
             assert!(pair[0].numeric() < pair[1].numeric());
         }
+    }
+
+    #[test]
+    fn caller_declared_facts_are_bound_to_the_committed_root() {
+        // Nabu P0: seven root-committed answer-bearing facts reach the
+        // engine caller-declared (the bound ObjectIds class 2 answers,
+        // facts.entry_points class 10 answers, facts.dependency_roots
+        // class 11 answers, and the contract/test/policy roots class 1
+        // answers, plus the interpretation flags), and none of them is in
+        // the RootQueryId preimage. verify() must recompute the StateRoot
+        // from the nine STATE_ROOT_V1 fields, so any single tampered fact
+        // is QUERY_ROOT_MISMATCH rather than a committed answer.
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        input.verify().unwrap();
+        // The bound ObjectId answers class 2: same key, another value.
+        let mut tampered_bindings = owned.bindings.clone();
+        tampered_bindings[0].1 = ObjectId::from_bytes([0xEE; 32]);
+        let mut tampered = input;
+        tampered.bindings = &tampered_bindings;
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        // facts.entry_points answers class 10.
+        let mut tampered_entry_points = owned.fixture.entry_points.clone();
+        tampered_entry_points[0] = id(0x06);
+        let mut tampered = input;
+        tampered.facts.entry_points = &tampered_entry_points;
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        // facts.dependency_roots answers class 11.
+        let tampered_roots = vec![StateRoot::from_bytes([0x98; 32])];
+        let mut tampered = input;
+        tampered.facts.dependency_roots = &tampered_roots;
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        // The three roots answer class 1.
+        let mut tampered = input;
+        tampered.contract_root = ObjectId::from_bytes([0xC1; 32]);
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        let mut tampered = input;
+        tampered.test_root = ObjectId::from_bytes([0xD1; 32]);
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        let mut tampered = input;
+        tampered.policy_root = PolicyRootId::from_bytes([0xE1; 32]);
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        // The interpretation flags ride the same commitment.
+        let tampered_flags = vec![1_u32];
+        let mut tampered = input;
+        tampered.interpretation_flags = &tampered_flags;
+        assert_eq!(
+            tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
     }
 
     #[test]
@@ -2519,6 +2654,18 @@ pub(crate) mod tests {
                 index + 1
             );
         }
+        // Nabu's remaining schedule example: class 9 skips the entity
+        // scan for a namespace subject and charges only the chain links
+        // above it. The package root namespace has no parent, so its
+        // traversal is zero; the child namespace follows one link.
+        for (subject, expected) in [(id(0x04), 0_u64), (id(0x05), 1_u64)] {
+            let response = run(&input, RootQuery::ListOwningNamespaces { entity: subject });
+            assert_eq!(
+                response.charged_work() - response.response_bytes(),
+                expected,
+                "class 9 traversal for namespace subject {subject:?}"
+            );
+        }
     }
     fn hex(bytes: &[u8]) -> String {
         use core::fmt::Write as _;
@@ -2678,8 +2825,13 @@ pub(crate) mod tests {
                 )
             })
             .collect();
+        let flags: Vec<String> = owned
+            .interpretation_flags
+            .iter()
+            .map(ToString::to_string)
+            .collect();
         println!(
-            "ROOT_QUERY_CONTEXT|{}|{}|{}|{}|{}|{}|{}|[{}]|[{}]",
+            "ROOT_QUERY_CONTEXT|{}|{}|{}|{}|{}|{}|{}|[{}]|[{}]|[{}]",
             hex(owned.snapshot.snapshot_id().as_bytes()),
             hex(root().as_bytes()),
             hex(epoch().as_bytes()),
@@ -2688,7 +2840,8 @@ pub(crate) mod tests {
             hex(input.test_root.as_bytes()),
             hex(input.policy_root.as_bytes()),
             bindings.join(","),
-            fingerprints.join(",")
+            fingerprints.join(","),
+            flags.join(",")
         );
         let full = QueryLimits::profile_maximum();
         for (index, query) in all_classes().into_iter().enumerate() {
