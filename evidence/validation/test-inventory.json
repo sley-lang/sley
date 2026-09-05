@@ -77,7 +77,7 @@
     },
     {
       "family": "smp1-json-bridge",
-      "rejections": 31,
+      "rejections": 36,
       "vectors": 46
     },
     {
@@ -96,10 +96,10 @@
       "vectors": 21
     }
   ],
-  "conformance_rejections": 172,
+  "conformance_rejections": 177,
   "conformance_vectors": 359,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "84d24d80f3aa095da3f4e84a9b96bdcdbda234e06a375ea8326eba7314893be6",
+  "inventory_digest": "02f4c71c534648db92a95b0bfb3a316a84888d55df3fa73b2599c17324fc8d59",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -198,7 +198,7 @@
     {
       "crate": "sley-json-bridge",
       "ignored": 1,
-      "tests": 9
+      "tests": 12
     },
     {
       "crate": "sley-mutate",
@@ -262,7 +262,7 @@
     }
   ],
   "rust_ignored_emitters": 13,
-  "rust_unit_tests": 1044,
+  "rust_unit_tests": 1047,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }
