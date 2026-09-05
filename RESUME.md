@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `651bcc3`.
+are green at `5cb36ed`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 84 of 110 P0 entries closed
+## Findings: 88 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -139,9 +139,30 @@ Closed, each reproduced before fixing:
   failed `PACKAGE_TREE_DIRTY` on pre-smoke refresh drift; corrected by
   committing dispositions, discarding derived drift, and re-running
   clean.
+- **S20-420** (4 entries): JSON-bridge contract revision 6 (`db631d3`
+  code, `4cee004` dispositions, `5cb36ed` evidence, with `880b81e`
+  conformance-report rebuild, `7ecf875` test-inventory refresh, and
+  `b03f65d` fmt fix in between). Negative zero reads as the integer
+  zero on both spellings (serde parses either as negative zero,
+  verified in the parser source; reader normalizes, oracle agrees);
+  the hello session/request/method/flags ride through the codec's new
+  `validate_header` so violations keep `PROTOCOL_FRAME_INVALID`
+  (the all-zero bounds stay the bridge's own shape rule, and a hello
+  protocol version now reaches codec judgment instead of being
+  dropped); precedence is the declared field order, disambiguated
+  from lexicographic emission; integer widths are declared per field.
+  Three new native tests, matrix 31 to 36 cases, oracle agrees on all
+  36. Round verdicts stand as `FAIL` history. Closeout
+  `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`. Repair trail: first
+  smoke failed the 730 conformance-report drift (cured by committing
+  the deterministic rebuild), a require-clean retry clobbered the
+  candidate evidence with a field-dropping FAIL the 710 builders
+  correctly refused (cured by discarding drift and re-running clean),
+  second smoke failed the dossier test-inventory drift (cured by
+  committing the refresh), fmt-only change re-attested clean.
 
-**26 entries remain open.** Five clusters tied at 4: 390extended, 420,
-430, 510, 700fuzz; then 360full (3), 780 (3).
+**22 entries remain open.** Four clusters tied at 4: 390extended, 430,
+510, 700fuzz; then 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -163,7 +184,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 390extended, 420, 430, 510, or
+2. **Work the next P0 cluster**: 390extended, 430, 510, or
    700fuzz (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -181,7 +202,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`651bcc3`. The full `make v1` gate was skipped
+`5cb36ed`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
