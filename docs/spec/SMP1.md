@@ -97,7 +97,7 @@ ProtocolFrame {
   kind:             u32 (1 request | 2 response | 3 event | 4 hello),
   method:           u32,                    // section 4; 0 for hello
   flags:            u32,                    // bit 0 cancel, bit 1 stream, bit 2 failed (responses only), others reserved
-  bounds:           BoundedContext,         // section 5, zero on requests
+  bounds:           BoundedContext,         // section 5, zero on requests: a request carrying nonzero bounds is PROTOCOL_FRAME_INVALID
   body:             bytes                   // the method's frozen record, opaque here
 }
 ```

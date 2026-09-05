@@ -2510,3 +2510,38 @@ fn extended_profile_requires_the_negotiated_feature_bit() {
         ProtocolErrorCode::PayloadInvalid.numeric()
     );
 }
+
+#[test]
+fn request_carrying_bounds_is_malformed() {
+    // Bounds ride responses only (contract section 1): a request
+    // carrying nonzero bounds fails before anything else runs.
+    let mut harness = Harness::new("smp1-bounds-malformed");
+    let mut frame = request_frame(
+        Some(harness.session),
+        harness.next_request,
+        Method::SessionCapabilities,
+        Vec::new(),
+    );
+    let DecodedFrame::Request(mut decoded) = decode_frame(&frame, MAX_FRAME_BYTES).unwrap().0
+    else {
+        panic!("request frame");
+    };
+    decoded.bounds = crate::BoundedContext {
+        returned_bytes: 1,
+        ..crate::BoundedContext::none()
+    };
+    frame = encode_frame(&decoded).unwrap().bytes;
+    let answer = harness.server.answer(&frame).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(failed), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&failed.body).unwrap().code,
+        ProtocolErrorCode::FrameInvalid.numeric()
+    );
+    harness.next_request += 1;
+    harness.ok(Method::SessionCapabilities, Vec::new());
+}

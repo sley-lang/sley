@@ -539,6 +539,11 @@ impl Server {
         {
             return Err(ProtocolFailure::protocol(error.code()));
         }
+        // Bounds ride responses only (contract section 5): a request
+        // carrying nonzero bounds is malformed.
+        if frame.bounds != BoundedContext::none() {
+            return protocol_failure(ProtocolErrorCode::FrameInvalid);
+        }
         let method = Method::from_tag(frame.method)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
         if method == Method::SessionOpen {
