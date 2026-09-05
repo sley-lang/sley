@@ -1,0 +1,38 @@
+S20-400 SMP1 revision 11 — Vulcan read-only fourth surface re-review
+Date: 2026-09-05
+Pinned repository: /home/greyforge/sley2
+Pinned HEAD: 019f0f82d61e760ed43fd6164fc3519d6308244b
+Reviewed range: 019f0f8~1..019f0f8
+Mode: bounded residual triage; this review log is the sole permitted write. No cargo, make, test execution, deployment, merge, peer access, or locked-canon mutation.
+
+status: PASS
+
+verdict:
+Solid — the third-round lane-reconciliation P1 is closed. Result: PASS (high confidence).
+
+findings:
+P0: none.
+P1: none.
+P2: none.
+P3: none.
+
+Residual disposition:
+- The IMPLEMENTED gate now collects the protocol p1_open/p2_open/p3_open items and requires each failing review lane to have at least one item carrying that lane's explicit prefix, unless a same-lane PASS obligation supersedes it. An unrelated lane's items no longer satisfy the failing lane.
+- SMP1 section 10 now states the same invariant explicitly: one lane's items never satisfy another lane.
+- The current 74 open items are lane-prefixed and reconcile to Ariadne 25, Nabu 28, and Vulcan 21. The derived finding register independently retains all three protocol FAIL obligations as PENDING, with matching reviewer identities and no cross-lane supersession.
+- No new report-grade P0/P1/P2/P3 was identified in the bounded target diff.
+
+validation:
+- git rev-parse HEAD: 019f0f82d61e760ed43fd6164fc3519d6308244b.
+- Pre-write git status --short was clean.
+- Inspected the retained Vulcan third re-review, the exact 019f0f8~1..019f0f8 diff, SMP1 section 10, scripts/check_smp1_contract.py lane gate, the protocol machine-summary lists, and the protocol entries in evidence/review/finding-register.json.
+- Confirmed open-item totals and prefixes: p1=29 (Ariadne 12/Nabu 9/Vulcan 8), p2=31 (9/12/10), p3=14 (4/7/3), totaling 74 (25/28/21).
+- git diff --check 019f0f8~1..019f0f8: clean.
+- Static review only, as requested; no cargo, make, or executable validation was run.
+
+blockers:
+- None.
+
+return_to: orchestrator
+
+S20_400SURFACE_REREVIEW4_JSON={"reviewer":"vulcan","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}

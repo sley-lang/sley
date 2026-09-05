@@ -158,12 +158,12 @@
       "json": "{\"body\":\"070105020101010202430220111111111111111111111111111111111111111111111111111111111111111120121212121212121212121212121212121212121212121212121212121212121203210801038080400202e8070302904e04011005038080400603c0843d070104080110046b250164016501660167016802c80102c90102ca0102cb0102cc0102cd0102ce0102cf0102d00102d10102d20102d30102d40102d50102d60102ac0202ad0202ae0202af0202b00202900302910302920302930302940302f40302f50302f60302f80302d80402db0402dc0405010706430220a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a120a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a207220120e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1\",\"bounds\":{\"applied_limits\":{\"max_depth\":0,\"max_edges\":0,\"max_entities\":0,\"max_frame_bytes\":0,\"max_inflight\":0,\"max_response_bytes\":0,\"max_sessions\":0,\"max_work\":0},\"continuation\":false,\"omitted\":1,\"reached_depth\":0,\"returned_bytes\":0,\"returned_edges\":0,\"returned_entities\":0,\"truncated\":false},\"flags\":{\"cancel\":false,\"failed\":false,\"stream\":false},\"kind\":\"hello\",\"method\":\"\",\"protocol_version\":1,\"request_id\":0,\"session\":null}"
     },
     {
-      "expected_code": "PROTOCOL_VERSION_UNSUPPORTED",
+      "expected_code": "PROTOCOL_DOWNGRADE",
       "id": "negative-zero-accepted",
       "json": "{\"body\":\"534c4559525151312d626f6479\",\"bounds\":{\"applied_limits\":{\"max_depth\":0,\"max_edges\":0,\"max_entities\":0,\"max_frame_bytes\":0,\"max_inflight\":0,\"max_response_bytes\":0,\"max_sessions\":0,\"max_work\":0},\"continuation\":false,\"omitted\":0,\"reached_depth\":0,\"returned_bytes\":0,\"returned_edges\":0,\"returned_entities\":0,\"truncated\":false},\"flags\":{\"cancel\":false,\"failed\":false,\"stream\":false},\"kind\":\"request\",\"method\":\"query.root\",\"protocol_version\":-0,\"request_id\":7,\"session\":\"5151515151515151515151515151515151515151515151515151515151515151\"}"
     },
     {
-      "expected_code": "PROTOCOL_VERSION_UNSUPPORTED",
+      "expected_code": "PROTOCOL_DOWNGRADE",
       "id": "negative-zero-fraction",
       "json": "{\"body\":\"534c4559525151312d626f6479\",\"bounds\":{\"applied_limits\":{\"max_depth\":0,\"max_edges\":0,\"max_entities\":0,\"max_frame_bytes\":0,\"max_inflight\":0,\"max_response_bytes\":0,\"max_sessions\":0,\"max_work\":0},\"continuation\":false,\"omitted\":0,\"reached_depth\":0,\"returned_bytes\":0,\"returned_edges\":0,\"returned_entities\":0,\"truncated\":false},\"flags\":{\"cancel\":false,\"failed\":false,\"stream\":false},\"kind\":\"request\",\"method\":\"query.root\",\"protocol_version\":-0.0,\"request_id\":7,\"session\":\"5151515151515151515151515151515151515151515151515151515151515151\"}"
     },

@@ -1,8 +1,8 @@
 # ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
 
-Status: proposed; the S20-400 contract is a draft at revision 11 with
-Council re-review pending (Ariadne owns the package); implementation is
-S20-410
+Status: accepted; the S20-400 contract is at revision 11 with the
+Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
+and no new findings; implementation is S20-410
 
 Date: 2026-09-03
 
