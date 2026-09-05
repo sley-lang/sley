@@ -3747,7 +3747,8 @@
     "reproducibility_and_independent_conformance.p0_open_count": 0,
     "root_backed_query_profile.p0_open": 0,
     "root_backed_query_profile.p0_open_count": 0,
-    "s20_360_candidate_validation.p0_open_count": 3,
+    "s20_360_candidate_validation.p0_open": 0,
+    "s20_360_candidate_validation.p0_open_count": 0,
     "s20_390_atomic_commit.p0_open": 0,
     "s20_390_atomic_commit.p0_open_count": 0,
     "s20_700_remaining_surface_audit.p0_open_count": 0,
@@ -3762,7 +3763,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "fd887f32aa3b568330a7573b9f272defce80f83a3e01d9259110f32e8caa0c78",
+  "register_digest": "8a71d67caff7e02edb589afcdd54c10b3b451984c57fe78a360dd2e772904df5",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,
