@@ -87,7 +87,7 @@
     },
     {
       "family": "transaction-receipt",
-      "rejections": 9,
+      "rejections": 10,
       "vectors": 3
     },
     {
@@ -96,10 +96,10 @@
       "vectors": 21
     }
   ],
-  "conformance_rejections": 177,
+  "conformance_rejections": 178,
   "conformance_vectors": 359,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "73f2186e1cfdab15d63d41c612c104b6a357a4f7f6b3ebcb1d52d1b002c12fd5",
+  "inventory_digest": "4a23ad5bc2dd2f1bfd85b4e00b61006be7d9c0db7aa490791bf2ab3cd1b65faf",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -253,7 +253,7 @@
     {
       "crate": "sley-txn",
       "ignored": 1,
-      "tests": 203
+      "tests": 204
     },
     {
       "crate": "sley-vm",
@@ -262,7 +262,7 @@
     }
   ],
   "rust_ignored_emitters": 13,
-  "rust_unit_tests": 1049,
+  "rust_unit_tests": 1050,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }
