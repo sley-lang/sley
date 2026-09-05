@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `8722a55`.
+are green at `651bcc3`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 79 of 110 P0 entries closed
+## Findings: 84 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -114,16 +114,30 @@ Closed, each reproduced before fixing:
   artifact, demo 12/12, byte-identical rebuild, 4 `/sley2` / 0
   `/home-remapped` / 0 username strings); the repro report attests the
   commit single-host; `make quick` fully green including the new gates.
+- **S20-710** (5 entries): SBOM/provenance contract revision 3
+  (`7de2d99` code, `ad53ee8` dispositions, `651bcc3` evidence). License
+  normalization plus grammar validation (the verbatim `MIT/Apache-2.0`
+  is now `MIT OR Apache-2.0`; anything unparseable is
+  `SBOM_COMPONENT_INCOMPLETE`), SPDX namespace bound to the candidate
+  artifact as well as the inventory, and fail-closed `--check`
+  (`local_build_ahead` fires only on loaded-and-differing evidence;
+  missing evidence exits 1 with 74000/74004, verified live). The old
+  Tier 1 hermeticity claim is retracted: the drift gates require
+  candidate evidence. Fourteen new hermetic tests (29 in the file); the
+  checker pins namespace, expression validity, and counts (which caught
+  a stale 119 vs 120 relationship count in the summary). Round verdicts
+  stand as `FAIL` history. Closeout
+  `docs/audits/S20_710_STANDARDS_SBOM_CLOSEOUT.md`. A mid-session smoke
+  failed `PACKAGE_TREE_DIRTY` on pre-smoke refresh drift; corrected by
+  committing dispositions, discarding derived drift, and re-running
+  clean.
 
 Two S20-310 P0s are partially addressed on `main` (applicability-table freeze
 `d047eaf`; caller-declared query facts bound to the committed root `95c90df`)
 and need reviewer-confirmation triage against the pinned candidate.
 
-**31 entries remain open.** Largest remaining cluster is 710full (5,
-SBOM/provenance — note this session observed its tests failing on a
-field-dropping smoke `FAIL` record, the P1-2 failure mode live), then
-390extended (4), 420 (4), 430 (4), 510 (4), 700fuzz (4), 360full (3),
-780 (3).
+**26 entries remain open.** Five clusters tied at 4: 390extended, 420,
+430, 510, 700fuzz; then 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -145,7 +159,8 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 710full (5, SBOM/provenance) is largest.
+2. **Work the next P0 cluster**: 390extended, 420, 430, 510, or
+   700fuzz (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
    `reviews/verdicts.json` current. Take reviewer counts from the emitted
@@ -162,7 +177,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`8722a55`. The full `make v1` gate was skipped
+`651bcc3`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
