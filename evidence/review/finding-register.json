@@ -3748,8 +3748,8 @@
     "json_bridge.p0_open_count": 4,
     "merge.p0_open_count": 0,
     "protocol.p0_open_count": 0,
-    "release_candidate_packaging.p0_open_count": 5,
-    "reproducibility_and_independent_conformance.p0_open_count": 5,
+    "release_candidate_packaging.p0_open_count": 0,
+    "reproducibility_and_independent_conformance.p0_open_count": 0,
     "root_backed_query_profile.p0_open": 0,
     "root_backed_query_profile.p0_open_count": 0,
     "s20_360_candidate_validation.p0_open_count": 3,
@@ -3765,7 +3765,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "673b926ea16178ff44cb23203220af488e5e26a23ac85c280422d0e2b977e5ab",
+  "register_digest": "5b3e011cdfc9492ca39773b77ce714a5fc3e8470c2d5437bbeb49d165e3fb54c",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

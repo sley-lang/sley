@@ -61,8 +61,10 @@ summary.
 Offline tests pass (22 reproducibility/conformance tests, including
 carry-forward merge, tamper detection, and depth pins). Tier 1
 (`make quick`, `make lint`) and Tier 2 (`make core`, `make conformance`,
-`make adversarial`, `make fuzz-smoke`) plus the clean
-`release-candidate-smoke` re-attestation run before the evidence commit
-lands; the per-gate record is appended here. The full `make v1` gate was
+`make adversarial`, `make fuzz-smoke`) pass at the evidence commit, and
+the clean `release-candidate-smoke` re-attestation (single host at the
+committed tree, `SINGLE_HOST_REPRODUCIBLE` with the second host still the
+operator-gated lane) leaves the staleness, ancestry, toolchain, digest,
+and depth gates green under `make quick`. The full `make v1` gate was
 skipped because this is a subsystem handoff, not a release boundary.
 `make v2` and `make release-check` remain intentionally fail-closed.

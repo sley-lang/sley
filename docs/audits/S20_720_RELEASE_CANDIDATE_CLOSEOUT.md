@@ -147,12 +147,14 @@ the smoke below; the per-gate record lands with the evidence commit. The
 full `make v1` gate was skipped as a subsystem handoff. P1 and P2 findings
 from the round stay open and tracked; nothing here claims them.
 
-Smoke record: pending at this commit. The smoke runs on the committed
-tree (it refuses a dirty one), re-attests the candidate, and cures the
-S20-730 staleness gate; the evidence commit records the exact artifact,
-the `strings` counts on the fresh binary, and the gate states. Until then
-`make quick` is red on exactly two expected problems: the release-tests
-failure from the clobbered local evidence record (this session's failed
-smoke overwrote it with a field-dropping `FAIL` record — the P1-2 failure
-mode observed live) and the 730 staleness gate on the superseded
-attestation.
+Smoke record: `make release-candidate-smoke` passes clean on the
+committed tree at `e20b9ad` (30.1 seconds): artifact
+`sley-2.0.0-linux-x86_64.tar.gz`, 2,083,924 bytes, SHA-256
+`ec20da7b…3a46`, fourteen members, manifest digest `114a940a…0ae8`
+carrying `working_tree_clean: true` with the GA/publication flags and
+blockers inside the digest; conformance subset PASS; demo PASS on all
+twelve steps; forbidden content findings 0; reproducibility
+`REPRODUCIBLE` with no differing member. `strings` on the staged binary:
+4 `/sley2` references (remap engaged), 0 `/home-remapped`, 0 build
+username. The S20-730 staleness gate on the fresh attestation is green,
+and `make quick` is fully green with it.

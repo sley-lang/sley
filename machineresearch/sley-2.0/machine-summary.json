@@ -2428,15 +2428,23 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "72d2e936a6d122c2015c166ceb0b79860d50a4fde9988b8a282b1047c7a2edd4",
-    "candidate_artifact_size_bytes": 1990615,
+    "candidate_artifact_sha256": "ec20da7ba6611d8ab4fc041d6a373803cf3b28e74b92ea23f9e0ee6136a46b3a",
+    "candidate_artifact_size_bytes": 2083924,
     "candidate_member_count": 14,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
     "offline_tests": 4,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
-    "p0_closed": 5
+    "p0_closed": 5,
+    "candidate_manifest_digest": "114a940a6ec73641b852e9160353df5e5135912a21892344fb33e791bb100ae8",
+    "candidate_commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6",
+    "candidate_working_tree_clean": true,
+    "candidate_toolchain": {
+      "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
+      "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+    },
+    "candidate_evidence_commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -2630,7 +2638,8 @@
     "closeout": "docs/audits/S20_730_REPRODUCIBILITY_CLOSEOUT.md",
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query; codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
-    "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match"
+    "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
+    "attested_commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
