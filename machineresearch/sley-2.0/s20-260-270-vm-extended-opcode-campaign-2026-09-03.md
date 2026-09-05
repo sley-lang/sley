@@ -138,6 +138,20 @@ The slice added the `sley-vm` to `sley-mutate` dependency edge for canonical map
 
 `make v1` was skipped because this is a subsystem handoff, not a release boundary.
 
+## Revision 12 Tier 2 handoff record (2026-09-05, at `a6868b8`)
+
+| Gate | Result | Evidence |
+|---|---|---|
+| `make quick` | exit 0 | Tier 0 green |
+| `make lint` | exit 0 | clippy clean workspace-wide |
+| `make core` | exit 0 | 1047 tests passed, 0 failed |
+| `make conformance` | exit 0 | all oracles PASS, including `check-vm-extended` over 22 accepted + 5 rejected vectors with the independently pinned `[2, 0, 0]` lowerer |
+| `make adversarial` | exit 0 | 615 tests passed |
+| `make fuzz-smoke` | exit 0 | bounded smoke tests passed |
+| `make release-candidate-smoke` | exit 0 | clean at `b92357e`, PASS |
+
+`make v1` was skipped because this is a subsystem handoff, not a release boundary.
+
 ## Program status at revision 12 (2026-09-05)
 
 Every family slice E1 through E6 plus E7a is implemented under contract
