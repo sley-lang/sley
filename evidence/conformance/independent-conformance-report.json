@@ -702,12 +702,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "d37b256bec0bd5dec8fd7c654074d0c845a250ba04a180a41db6c86bdc3b4122"
+          "sha256": "6296ee137fa4bb3b12f1c2cc3c79c2b6bc14d4d0bcdc59d03405b126b32ec280"
         },
         {
-          "bytes": 22063,
+          "bytes": 123903,
           "name": "accepted.json",
-          "sha256": "971bd0ac78ec6a8ac9a5f990eb9c5109c8194fd4746029aae133504538b26def"
+          "sha256": "db040700cfe02d0e1cf239b7d06bcd6c875a7ed1dd1eafff03954aae880e8b61"
         },
         {
           "bytes": 3584,
@@ -717,7 +717,7 @@
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 21
+          "vectors": 22
         },
         "rejected.json": {
           "mutations": 5
@@ -749,7 +749,7 @@
     "problems": [],
     "python_sources": 22
   },
-  "report_digest": "262c22428a9712524dcf756826408fe4ba08dca8348306e437eb7cd4396abc88",
+  "report_digest": "36e0a47326f88c92f6b7499e0c6c8a37ba8f3e9fc73d5ded226ef4f7a5400fee",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }
