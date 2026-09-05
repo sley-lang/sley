@@ -3274,7 +3274,9 @@ fn judgment_acceptance_matches_lowering_acceptance() {
         let judged = judge_function_operations(fixture.input(CacheProfile::EXTENDED_V1));
         let lowered = lower_function(fixture.input(CacheProfile::EXTENDED_V1));
         match (&judged, &lowered) {
-            (Ok(_), Ok(_)) => {}
+            // The graph-validation arm is permitted but unexercised: no
+            // fixture pairs a judgment acceptance with a graph failure.
+            (Ok(_), Ok(_) | Err(LoweringError::Cfg(_))) => {}
             (Err(judged), Err(lowered)) => {
                 assert_eq!(
                     lowering_code_of(judged),
@@ -3293,7 +3295,6 @@ fn judgment_acceptance_matches_lowering_acceptance() {
                 ),
                 "undocumented judgment/lowering divergence: {error:?}"
             ),
-            (Ok(_), Err(LoweringError::Cfg(_))) => {}
             (Err(error), Ok(_)) => {
                 panic!("judgment refused what lowering accepted: {error:?}")
             }
