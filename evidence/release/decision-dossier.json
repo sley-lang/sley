@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "dffab88c4f09f0727b54effbcaff7455a2fca6af92a347fb1afaabb2e7b85208",
+  "dossier_digest": "ce0ca998e87bae6ca298e2d8b86371dccbc4764006ecf3a84b0edfc7a617a4e4",
   "entries": [
     {
       "evidence": [
@@ -35,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "17c6bf8ef56cc3567c9b554040d7806f709410a1"
+      "value": "2798f1bcde8e46c670b3248fc4e91535db25b3ed"
     },
     {
       "evidence": [
@@ -282,7 +282,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest, which the provenance subject repeats",
       "state": "EVIDENCED",
-      "value": "4a12bccd4bbaea3bcc0024958cf918aac50117e5ce23f9648f2acee360020305"
+      "value": "84bb44669eaedaa5ad4f1534671e40f10ae07be27570b86a96f5e25b27cd2277"
     },
     {
       "evidence": [
@@ -291,7 +291,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2086646
+      "value": 2086643
     },
     {
       "evidence": [
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "a9bc15c3b2417f4c0c04ee4bc753feab68354499a4d8e47598f4b2088f56a448",
+  "entries_digest": "dc14f0a356de05e105393b4fe5a4e1c57a958f6f7d49c397c7ad19b9387c95ac",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

@@ -1759,7 +1759,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "4a12bccd4bbaea3bcc0024958cf918aac50117e5ce23f9648f2acee360020305"
+          "content": "84bb44669eaedaa5ad4f1534671e40f10ae07be27570b86a96f5e25b27cd2277"
         }
       ],
       "licenses": [
@@ -1774,7 +1774,7 @@
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "17c6bf8ef56cc3567c9b554040d7806f709410a1"
+        "value": "2798f1bcde8e46c670b3248fc4e91535db25b3ed"
       },
       {
         "name": "sley2:inventory-digest",
@@ -1786,7 +1786,7 @@
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "7879eda8bd79d19aa0961068b21f33c600161b91aeefb0edded646b6678c89af"
+        "value": "6ecd0af5f96e7cd6c0307851b1626b1ab15ceba9cf3df243797186a08589a696"
       },
       {
         "name": "sley2:publication-authorized",
@@ -1807,7 +1807,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:d404a9b0-5d8d-8e96-8f61-4ff84843903f",
+  "serialNumber": "urn:uuid:744e8ded-fca2-8799-8f08-a063c203ce1e",
   "specVersion": "1.6",
   "version": 1
 }
