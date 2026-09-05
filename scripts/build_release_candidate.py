@@ -504,7 +504,14 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
         shutil.rmtree(unpack_root, ignore_errors=True)
     second_binary = clean_build(DIST / "target-b", timeout)
     stage_b = DIST / "stage-b"
-    stage_artifact(second_binary, stage_b, commit=commit, toolchain=toolchain)
+    stage_artifact(
+        second_binary,
+        stage_b,
+        commit=commit,
+        toolchain=toolchain,
+        working_tree_clean=clean,
+        blockers=evidence["blockers"],
+    )
     second = deterministic_tar(stage_b, DIST / f"{ARTIFACT_STEM}.second.tar.gz")
     comparison = compare_artifacts(first, second)
     evidence["reproducibility"] = comparison
