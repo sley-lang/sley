@@ -3786,6 +3786,12 @@
     "json_bridge.p0_open_count": 0,
     "merge.p0_open_count": 0,
     "protocol.p0_open_count": 0,
+    "protocol.p1_open": 29,
+    "protocol.p1_open_count": 29,
+    "protocol.p2_open": 31,
+    "protocol.p2_open_count": 31,
+    "protocol.p3_open": 14,
+    "protocol.p3_open_count": 14,
     "release_candidate_packaging.p0_open_count": 0,
     "reproducibility_and_independent_conformance.p0_open_count": 0,
     "root_backed_query_profile.p0_open": 0,
@@ -3818,7 +3824,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "041ff34f3c35fab3da34e8b063d42e017db7f5f85d1a89706e90847038dfa9e1",
+  "register_digest": "cd58e515e553489cf098e5ac0d4faf85686a0d361de58fcfb1215f5977c89332",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 77,

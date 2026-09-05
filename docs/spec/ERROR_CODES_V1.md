@@ -386,7 +386,27 @@ session closure and request-identity conflict, unsupported methods, payload
 decoding, negotiated limits, cancellation, and the internal invariant. Every
 body keeps its owning contract's code; `SESSION_*` codes belong to S20-330.
 The contract is a draft with Council review pending and reserves, rather than
-freezes, these codes.
+freezes, these codes; the wording flips to frozen when the contract does:
+
+| Numeric | Symbolic |
+|---:|---|
+| 40000 | `PROTOCOL_VERSION_UNSUPPORTED` |
+| 40001 | `PROTOCOL_FRAME_INVALID` |
+| 40002 | `PROTOCOL_FRAME_TOO_LARGE` |
+| 40003 | `PROTOCOL_NO_COMMON_PROFILE` |
+| 40004 | `PROTOCOL_DOWNGRADE` |
+| 40005 | `PROTOCOL_REQUEST_ID_CONFLICT` |
+| 40006 | `PROTOCOL_SESSION_CLOSED` |
+| 40007 | `PROTOCOL_METHOD_UNSUPPORTED` |
+| 40008 | `PROTOCOL_PAYLOAD_INVALID` |
+| 40009 | `PROTOCOL_LIMIT_EXCEEDED` |
+| 40010 | `PROTOCOL_CANCELLED` |
+| 40011 | `PROTOCOL_INTERNAL_INVARIANT` |
+
+The emitted repository symbol `STALE_ROOT` carries numeric 36002 through the
+S20-360 decision mapping (registry name `CANDIDATE_VALIDATION_STALE_ROOT`);
+SMP1 section 6 names the emitted symbol, and the numeric rides the mapping,
+not a second row.
 
 S20-560 reserves numeric codes 56000 through 56002 for the exact
 `REPORT_STORE_*` failures of the execution report store composed by SMP1

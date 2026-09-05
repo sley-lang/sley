@@ -15,13 +15,14 @@ use sley_repo::{CompleteRootRequest, run_root_query};
 use sley_scb1::{encode_record, encode_uvar};
 
 use crate::server::{
-    FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_METHOD_REASON, Server,
+    FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_SEAM_370_DETAIL,
+    RESERVED_SEAM_620_DETAIL, Server,
 };
 use crate::session::{CapsuleBindError, HeadBinding};
 use crate::{
-    BoundedContext, DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method,
-    PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, SessionId, decode_frame,
-    encode_frame, negotiate, negotiate_identity,
+    BoundedContext, DecodedFrame, FEATURE_EXTENDED_EXECUTE, FrameKind, Hello, LimitProfile,
+    MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame,
+    SessionId, decode_frame, encode_frame, negotiate, negotiate_identity,
 };
 
 fn epoch(byte: u8) -> SchemaEpochId {
@@ -50,7 +51,11 @@ fn hello(methods: Vec<u32>, inflight: u32) -> Hello {
 }
 
 fn all_methods() -> Vec<u32> {
-    Method::ALL.iter().map(|method| method.tag()).collect()
+    Method::ALL
+        .iter()
+        .filter(|method| !method.is_reserved())
+        .map(|method| method.tag())
+        .collect()
 }
 
 struct Harness {
@@ -238,12 +243,16 @@ fn owner_retryability_is_explicit_and_word_order_independent() {
         );
     }
     // Anything unlisted stays fail closed, including a merge conflict, which
-    // is a result rather than a condition a retry can clear.
+    // is a result rather than a condition a retry can clear. The limit
+    // list is explicit, never a suffix rule: a future limit symbol stays
+    // fail closed until it is listed.
     for symbol in [
         "MERGE_CONFLICT_DIGEST_MISMATCH",
         "TYPE_DEPTH_LIMIT",
         "CAP_EXPIRED",
         "GC_ROOT_MISSING",
+        "FUTURE_RESOURCE_LIMIT",
+        "FUTURE_REQUIRED_FACT_OMITTED",
     ] {
         assert_eq!(owner_retryability(symbol), Retryability::Never, "{symbol}");
     }
@@ -413,7 +422,7 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     let dependency_missing = harness.fail(Method::GcDryRun, no_pins);
     assert_eq!(dependency_missing.symbol, "GC_DEPENDENCY_MISSING");
     let reserved = harness.fail(Method::Diagnostics, Vec::new());
-    assert_eq!(reserved.details, RESERVED_METHOD_REASON);
+    assert_eq!(reserved.details, RESERVED_SEAM_620_DETAIL);
     // Malformed bodies fail before any engine runs.
     let malformed = harness.fail(Method::RevisionRead, vec![1, 2, 3]);
     assert_eq!(malformed.code, ProtocolErrorCode::PayloadInvalid.numeric());
@@ -1519,7 +1528,8 @@ fn the_offered_hello_names_exactly_the_dispatched_methods() {
         if failed {
             let failure = ProtocolFailure::decode(&frame.body).unwrap();
             assert!(
-                failure.details != RESERVED_METHOD_REASON,
+                failure.details != RESERVED_SEAM_370_DETAIL
+                    && failure.details != RESERVED_SEAM_620_DETAIL,
                 "{method:?} is offered but not dispatched"
             );
         }
@@ -1539,10 +1549,25 @@ fn open_server(
     SessionId,
     TransactionId,
 ) {
+    open_server_with_features(label, bodies, 1)
+}
+
+fn open_server_with_features(
+    label: &str,
+    bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
+    features: u32,
+) -> (
+    sley_repo::test_support::TempDir,
+    Server,
+    SessionId,
+    TransactionId,
+) {
     let (temp, _transactions, genesis_id) = genesis(label, bodies, &[]);
     let repository = temp.child("repo");
-    let client_hello = hello(all_methods(), 4);
-    let server_hello = hello(all_methods(), 8);
+    let mut client_hello = hello(all_methods(), 4);
+    client_hello.features = features;
+    let mut server_hello = hello(all_methods(), 8);
+    server_hello.features = features;
     let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
     let handshake = server.handshake_id();
     let open = server
@@ -1838,8 +1863,11 @@ fn collection_retains_a_non_head_session_bound_root() {
 #[test]
 fn execute_under_the_extended_profile_derives_its_own_report_identity() {
     use sley_ssmc::{ConstData, ConstValue, TypeExpr};
-    let (_temp, mut server, session, _genesis_id) =
-        open_server("smp1-execute-extended", executable_bodies());
+    let (_temp, mut server, session, _genesis_id) = open_server_with_features(
+        "smp1-execute-extended",
+        executable_bodies(),
+        1 | FEATURE_EXTENDED_EXECUTE,
+    );
     let function = sley_repo::test_support::id(30);
     let value = |bit: bool| {
         sley_mutate::encode_const_value(&ConstValue {
@@ -2008,8 +2036,11 @@ fn execute_runs_a_bound_root_function_and_report_answers_the_stored_record() {
 #[test]
 fn execute_selects_the_cache_profile_from_limits_field_six() {
     use sley_ssmc::{ConstData, ConstValue, TypeExpr};
-    let (_temp, mut server, session, _genesis_id) =
-        open_server("smp1-execute-profile", executable_bodies());
+    let (_temp, mut server, session, _genesis_id) = open_server_with_features(
+        "smp1-execute-profile",
+        executable_bodies(),
+        1 | FEATURE_EXTENDED_EXECUTE,
+    );
     let function = sley_repo::test_support::id(30);
     let value = |bit: bool| {
         sley_mutate::encode_const_value(&ConstValue {
@@ -2196,4 +2227,286 @@ fn emit_release_demo_vectors_for_fixture_refresh() {
         hex_of(function.as_bytes())
     );
     println!("RELEASE_DEMO|branch_name_hex|{}", hex_of(b"main"));
+}
+
+#[test]
+fn request_id_zero_never_enters_a_session() {
+    // Identifier 0 is the pre-session sentinel (contract section 3): the
+    // first legal in-session identifier is 1, and a rejection consumes
+    // nothing from the sequence.
+    let mut harness = Harness::new("smp1-id-zero");
+    let answer = harness
+        .server
+        .answer(&request_frame(
+            Some(harness.session),
+            0,
+            Method::SessionCapabilities,
+            Vec::new(),
+        ))
+        .unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::RequestIdConflict.numeric()
+    );
+    harness.ok(Method::SessionCapabilities, Vec::new());
+}
+
+#[test]
+fn hello_listing_a_reserved_tag_is_a_payload_failure() {
+    // Reserved tags are never negotiable (contract section 2): a hello
+    // naming one fails validation rather than intersecting it.
+    let mut harness = Harness::new("smp1-hello-reserved");
+    let reserved_client = hello(vec![100, 305], 4);
+    assert_eq!(
+        Server::new(&harness.repository, &reserved_client, &harness.server_hello)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::PayloadInvalid
+    );
+    // The live session is unaffected.
+    harness.ok(Method::SessionCapabilities, Vec::new());
+}
+
+#[test]
+fn selection_without_session_open_is_no_common_profile() {
+    // The session family is the mandatory floor (contract section 2): an
+    // intersection without `session.open` is no common profile.
+    let client = hello(vec![300, 301], 4);
+    let server = hello(all_methods(), 8);
+    assert_eq!(
+        negotiate(&client, &server).unwrap_err().code(),
+        ProtocolErrorCode::NoCommonProfile
+    );
+}
+
+#[test]
+fn frame_codec_pins_protocol_version_one() {
+    // Only version 1 exists (contract section 2): the codec neither
+    // emits nor admits another version. A frame below a future selection
+    // would be a downgrade attempt and above it an unknown version; that
+    // server rule lives in `SelectedProfile::check_claim` (unit-tested in
+    // `crate::tests`) and the dispatch path applies it.
+    let mut harness = Harness::new("smp1-version-pin");
+    for claimed in [0, PROTOCOL_VERSION + 1] {
+        let frame = ProtocolFrame {
+            protocol_version: claimed,
+            session: Some(harness.session),
+            request_id: harness.next_request,
+            kind: FrameKind::Request,
+            method: Method::SessionCapabilities.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: Vec::new(),
+        };
+        assert_eq!(
+            encode_frame(&frame).unwrap_err().code(),
+            ProtocolErrorCode::VersionUnsupported,
+            "claimed version {claimed}"
+        );
+    }
+    harness.ok(Method::SessionCapabilities, Vec::new());
+}
+
+#[test]
+fn failed_dispatch_costs_one_budget_unit() {
+    // Dispatch costs one unit up front (contract section 7): a request
+    // that reaches an engine and fails still costs work, so only the
+    // bytes ride on success.
+    let harness = Harness::new("smp1-budget-failure");
+    let mut limited_client = hello(all_methods(), 4);
+    limited_client.limits.max_work = 64;
+    let mut budgeted = Server::new(
+        &harness.repository,
+        &limited_client,
+        &hello(all_methods(), 8),
+    )
+    .unwrap();
+    let open = budgeted
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            budgeted.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("open response");
+    };
+    let session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    assert_eq!(budgeted.remaining_budget(session), Some(64));
+    // A malformed body fails before any engine runs but after dispatch.
+    let (failed, _) = call_frame(
+        &mut budgeted,
+        session,
+        1,
+        Method::RevisionRead,
+        vec![1, 2, 3],
+    );
+    assert!(failed);
+    assert_eq!(budgeted.remaining_budget(session), Some(63));
+}
+
+#[test]
+fn oversize_response_fails_before_any_partial_body() {
+    // The negotiated `max_response_bytes` binds the transport outcome
+    // (contract section 5): a body that does not fit fails closed on the
+    // single-frame path, with no partial body.
+    let harness = Harness::new("smp1-response-ceiling");
+    let mut small_client = hello(all_methods(), 4);
+    small_client.limits.max_response_bytes = 40;
+    let mut small =
+        Server::new(&harness.repository, &small_client, &hello(all_methods(), 8)).unwrap();
+    let open = small
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            small.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("open response");
+    };
+    let session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    // The 32-byte session id fits the 40-byte ceiling, but the
+    // capabilities preimage does not.
+    let (failed, capabilities) = call_frame(
+        &mut small,
+        session,
+        1,
+        Method::SessionCapabilities,
+        Vec::new(),
+    );
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&capabilities.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    assert!(capabilities.bounds.returned_bytes <= 40 || capabilities.bounds.returned_bytes == 0);
+}
+
+#[test]
+fn bounded_context_counts_above_negotiated_maximums_fail() {
+    // Every copied count binds the transport outcome (contract section
+    // 5): bytes, entities, edges, and depth each fail closed past their
+    // negotiated maximum, with no partial body.
+    let harness = Harness::new("smp1-count-ceilings");
+    let limits = harness.server.profile_limits_for_test();
+    let ok_bounds = || crate::BoundedContext {
+        applied_limits: limits,
+        ..crate::BoundedContext::none()
+    };
+    let refused = |bounds: crate::BoundedContext| {
+        harness
+            .server
+            .respond_for_test(
+                Some(harness.session),
+                99,
+                Method::RefsList.tag(),
+                Ok((vec![1, 2, 3], bounds)),
+            )
+            .unwrap()
+    };
+    // A fitting body answers normally.
+    let fitting = harness
+        .server
+        .respond_for_test(
+            Some(harness.session),
+            99,
+            Method::RefsList.tag(),
+            Ok((vec![1, 2, 3], ok_bounds())),
+        )
+        .unwrap();
+    assert!(!fitting.failed);
+    for bounds in [
+        crate::BoundedContext {
+            returned_bytes: limits.max_response_bytes + 1,
+            ..ok_bounds()
+        },
+        crate::BoundedContext {
+            returned_entities: limits.max_entities + 1,
+            ..ok_bounds()
+        },
+        crate::BoundedContext {
+            returned_edges: limits.max_edges + 1,
+            ..ok_bounds()
+        },
+        crate::BoundedContext {
+            reached_depth: limits.max_depth + 1,
+            ..ok_bounds()
+        },
+    ] {
+        let answer = refused(bounds);
+        assert!(answer.failed);
+        assert!(answer.events.is_empty());
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+        else {
+            panic!("response frame");
+        };
+        assert_eq!(
+            ProtocolFailure::decode(&frame.body).unwrap().code,
+            ProtocolErrorCode::LimitExceeded.numeric()
+        );
+    }
+}
+
+#[test]
+fn reserved_detail_names_the_seam_and_is_retryable_after_capability() {
+    use crate::Retryability;
+    // A reserved tag names a real seam (contract section 4): the detail
+    // says which, and the failure lifts when the capability appears.
+    let mut harness = Harness::new("smp1-reserved-seam");
+    let diagnostics = harness.fail(Method::Diagnostics, Vec::new());
+    assert_eq!(diagnostics.details, RESERVED_SEAM_620_DETAIL);
+    assert_eq!(diagnostics.retryability, Retryability::AfterCapability);
+    let protected_move = harness.fail(Method::RefMoveProtected, Vec::new());
+    assert_eq!(protected_move.details, RESERVED_SEAM_370_DETAIL);
+    assert_eq!(protected_move.retryability, Retryability::AfterCapability);
+}
+
+#[test]
+fn extended_profile_requires_the_negotiated_feature_bit() {
+    // Profile selector 2 without the intersected `extended_execute`
+    // feature bit is a payload failure (contract appendix C).
+    use sley_ssmc::{ConstData, ConstValue, TypeExpr};
+    let (_temp, mut server, session, _genesis_id) =
+        open_server("smp1-execute-gated", executable_bodies());
+    let function = sley_repo::test_support::id(30);
+    let value = sley_mutate::encode_const_value(&ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(true),
+    })
+    .unwrap();
+    let limits = encode_record(&[
+        (1, encode_uvar(1_000)),
+        (2, encode_uvar(1_000)),
+        (3, encode_uvar(10_000)),
+        (4, encode_uvar(100)),
+        (5, sley_scb1::encode_union(0, &[]).unwrap()),
+        (6, encode_uvar(2)),
+    ])
+    .unwrap();
+    let body = encode_record(&[
+        (1, function.as_bytes().to_vec()),
+        (2, sley_scb1::encode_list(&[value]).unwrap()),
+        (3, limits),
+    ])
+    .unwrap();
+    let (failed, frame) = call_frame(&mut server, session, 2, Method::Execute, body);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
 }

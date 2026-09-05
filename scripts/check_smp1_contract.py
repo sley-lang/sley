@@ -48,28 +48,44 @@ METHOD_TAGS = (
 SPEC_MARKERS = (
     "Retryability is an explicit mapping from the owner's symbol",
     "`AFTER_REQUERY` names exactly `REF_CAS_STALE`,",
+    "`AFTER_LIMIT_CHANGE` names exactly",
+    "`AFTER_CAPABILITY` names exactly",
     "# Sley Machine Protocol v1 (SMP1)",
     "Status: S20-400 contract draft",
     "## 1. Framing",
     "digest domain  = sley2.protocol-frame.v1 -> ProtocolFrameId",
+    "frame = u64be(frame_length) || protocol_envelope",
     "## 2. Handshake",
     "`PROTOCOL_DOWNGRADE` (threat T45)",
+    "the intersection must contain `session.open` (100)",
+    "A method family is the hundred-group of a tag",
     "## 3. Sessions and request identity",
     "`PROTOCOL_REQUEST_ID_CONFLICT` (threat T46)",
+    "identifier 0 never enters a session",
     "## 4. Method families and tags",
+    "A tag added after freeze takes a new",
+    "`SMP1-RESERVED-S20-370`",
+    "`SMP1-RESERVED-S20-620`",
     "## 5. Bounded context",
+    "Zero counts on a failure response or an event frame mean",
     "## 6. Failure envelope",
+    "carries it, and the terminal frame of a failed stream carries it",
+    "`details` are transport-supplied reason bytes",
+    "The envelope's `incident` is none at this revision",
     "## 7. Cancellation and streaming",
+    "dispatch costs one unit up front",
     "## 8. JSON bridge",
     "## 11. Explicit exclusions",
+    "cancellation (`PROTOCOL_CANCELLED`, skipping binding and budget)",
     "## Appendix A. Body records of the dispatched methods (S20-410)",
-    "S20-410-SLICE-C-DEFERRED",
+    "no non-reserved method answers a deferred detail",
     "## Appendix B. Cancellation, streaming, and budget records (S20-440)",
     "stream_chunk = record(1: uvar(index), 2: uvar(total), 3: bytes(chunk))",
     "## Appendix C. Body records of the slice C methods (S20-410 slice C, revision 7; profile selector revision 8)",
     "6: uvar(profile: 1 restricted_v1 | 2 extended_v1))",
     "**The server owns the retention snapshot.**",
     "**Execute is head-bound.**",
+    "needs the negotiated `extended_execute` feature bit",
     "execution_report = record(1: ExecutionReportId[32], 2: bytes(execution report preimage, `SLEYEXR1`))",
     "cancel latency bound is therefore exactly one request execution",
 )
@@ -81,8 +97,27 @@ ADR_MARKERS = (
     "4. **Frozen method table.**",
     "5. **Bounded context on every response.**",
     "6. **Frames are SCB1 envelopes.**",
+    "under a single contract tag 400",
     "7. **Staging.**",
+    "8. **Batch admission with cancellation before execution.**",
+    "9. **Transcript-bound identity.**",
 )
+ERROR_CODE_ROWS = (
+    (40000, "PROTOCOL_VERSION_UNSUPPORTED"),
+    (40001, "PROTOCOL_FRAME_INVALID"),
+    (40002, "PROTOCOL_FRAME_TOO_LARGE"),
+    (40003, "PROTOCOL_NO_COMMON_PROFILE"),
+    (40004, "PROTOCOL_DOWNGRADE"),
+    (40005, "PROTOCOL_REQUEST_ID_CONFLICT"),
+    (40006, "PROTOCOL_SESSION_CLOSED"),
+    (40007, "PROTOCOL_METHOD_UNSUPPORTED"),
+    (40008, "PROTOCOL_PAYLOAD_INVALID"),
+    (40009, "PROTOCOL_LIMIT_EXCEEDED"),
+    (40010, "PROTOCOL_CANCELLED"),
+    (40011, "PROTOCOL_INTERNAL_INVARIANT"),
+)
+RESERVED_TAGS = (305, 503, 601, 602)
+STALE_TOKEN = "S20-410-SLICE-C-DEFERRED"
 WORK_PACKAGE_MARKERS = ("`docs/spec/SMP1.md`", "ADR-0032")
 
 
@@ -103,22 +138,56 @@ def main() -> int:
     for marker in SPEC_MARKERS:
         if marker not in spec:
             problems.append(f"spec-marker:{marker}")
+    if STALE_TOKEN in spec:
+        problems.append(f"spec-stale-token:{STALE_TOKEN}")
     for numeric, symbol in CODES:
         if f"| {numeric} | `{symbol}` |" not in spec:
             problems.append(f"spec-code:{symbol}")
     tags = [int(tag) for tag in re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", spec, flags=re.M)]
     if tags != METHOD_TAGS:
         problems.append(f"spec-method-table:{tags}")
+    # Every non-reserved tag has an appendix body row; reserved tags have
+    # none (their answer is the section 4 constant, pinned below).
+    appendix_tags = sorted(
+        int(tag)
+        for tag in re.findall(r"^\| (\d{3}) `[^`]+` \|", spec, flags=re.M)
+    )
+    live_tags = sorted(tag for tag in METHOD_TAGS if tag not in RESERVED_TAGS)
+    if appendix_tags != live_tags:
+        problems.append(f"spec-appendix-coverage:{appendix_tags}")
+    for tag in RESERVED_TAGS:
+        if tag in appendix_tags:
+            problems.append(f"spec-appendix-reserved:{tag}")
     adr = read(ADR)
     for marker in ADR_MARKERS:
         if marker not in adr:
             problems.append(f"adr-marker:{marker}")
+    if "revision 11" not in adr:
+        problems.append("adr-revision:11")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:
             problems.append(f"work-package-marker:{marker}")
-    if "40000 through 40011" not in read(ERROR_CODES):
+    codes_text = read(ERROR_CODES)
+    if "40000 through 40011" not in codes_text:
         problems.append("error-codes:range-sentence")
+    for numeric, symbol in ERROR_CODE_ROWS:
+        if f"| {numeric} | `{symbol}` |" not in codes_text:
+            problems.append(f"error-codes:row:{symbol}")
+    if "carries numeric 36002" not in codes_text:
+        problems.append("error-codes:stale-root-alias")
+    # The retryability enumeration in section 6 and the server lists agree
+    # symbol for symbol: a list the contract omits fails the gate.
+    server = read(ROOT / "crates/sley-protocol/src/server.rs")
+    for array in ("RETRY_AFTER_REQUERY", "RETRY_AFTER_LIMIT_CHANGE"):
+        listed = re.findall(r'"([A-Z][A-Z0-9_]+)"', server.split(array)[1].split("];")[0])
+        for symbol in listed:
+            if f"`{symbol}`" not in spec:
+                problems.append(f"retryability-map:{array}:{symbol}")
+    if "AfterCapability" not in server:
+        problems.append("retryability-map:reserved-capability")
+    if "FEATURE_EXTENDED_EXECUTE" not in server:
+        problems.append("execute-profile:feature-gate")
 
     summary = json.loads(read(SUMMARY))
     section = summary.get("protocol")
@@ -126,6 +195,10 @@ def main() -> int:
         problems.append("machine-summary:protocol missing")
         section = {}
     status = section.get("status")
+    revision = re.search(r"Status: S20-400 contract draft, revision (\d+)", spec)
+    contract_revision = int(revision.group(1)) if revision else None
+    if contract_revision is None:
+        problems.append("spec-revision:status-line")
     expected = {
         "contract": "docs/spec/SMP1.md",
         "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
@@ -133,6 +206,9 @@ def main() -> int:
         "new_stable_error_codes": len(CODES),
         "frame_domain": "sley2.protocol-frame.v1",
         "handshake_domain": "sley2.protocol-handshake.v1",
+        "contract_revision": contract_revision,
+        "dispatched_methods": [t for t in METHOD_TAGS if t not in RESERVED_TAGS],
+        "frame_contract_tags": [400],
         "contract_complete": status in (FROZEN_STATUS, COMPLETE_STATUS),
     }
     for key, value in expected.items():
@@ -160,7 +236,7 @@ def main() -> int:
     result = {
         "contract": "s20-400-smp1-v1",
         "status": status,
-        "revision": int(revision.group(1)) if revision else None,
+        "revision": contract_revision,
         "method_count": len(METHOD_TAGS),
         "implementation_present": present,
         "new_stable_error_codes": len(CODES),

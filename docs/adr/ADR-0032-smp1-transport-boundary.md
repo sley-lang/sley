@@ -1,7 +1,7 @@
 # ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
 
-Status: proposed; the S20-400 contract is a draft at revision 1 with
-Council review pending (Ariadne owns the package); implementation is
+Status: proposed; the S20-400 contract is a draft at revision 11 with
+Council re-review pending (Ariadne owns the package); implementation is
 S20-410
 
 Date: 2026-09-03
@@ -41,11 +41,23 @@ soon as a lane returns.
    copied from the owning contract; a body that does not fit fails with no
    partial body.
 6. **Frames are SCB1 envelopes.** Length-prefixed standalone SCB1 envelopes
-   with contract tags 400 through 402 and the `sley2.protocol-frame.v1`
+   under a single contract tag 400 and the `sley2.protocol-frame.v1`
    domain, added to the identifier registry by S20-410.
 7. **Staging.** `scripts/check_smp1_contract.py` binds the contract, ADR,
    work-package row, and summary section, and fails closed if a
    `sley-protocol` crate appears before the summary allows S20-410.
+8. **Batch admission with cancellation before execution.** One batch is
+   one explicit frame list; a cancel naming an admitted, not-yet-executed
+   request of the same session answers `PROTOCOL_CANCELLED` without
+   running anything, under single-frame `answer` (acknowledge) and
+   multi-frame `answer_batch` alike. Streaming chunks a fitting body
+   under the negotiated feature; budgets charge one unit at dispatch
+   plus bytes on success.
+9. **Transcript-bound identity.** The selection is the canonical
+   `SelectedProfile` record digested with both hello bodies; each peer
+   re-derives from the hellos as observed, and `session.open` compares
+   against that derivation, so tamper with either hello is
+   `PROTOCOL_DOWNGRADE` at open.
 
 ## Consequences
 

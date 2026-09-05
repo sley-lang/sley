@@ -133,7 +133,7 @@ def main() -> int:
     revision = re.search(r"^Status:.*revision (\d+)", spec, flags=re.M)
     if revision is None or int(revision.group(1)) != CONTRACT_REVISION:
         problems.append("spec-revision")
-    if "revision 10" not in read(SMP1_SPEC):
+    if "revision 11" not in read(SMP1_SPEC):
         problems.append("smp1-revision-pin")
     if "revision 3" not in read(CAPSULE_SPEC):
         problems.append("capsule-revision-pin")

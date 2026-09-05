@@ -54,10 +54,11 @@ use crate::session::{
     CapsuleBindError, HeadBinding, SessionAuthority, SessionError, fresh_server_nonce,
 };
 use crate::{
-    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
-    FLAG_FAILED, FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError,
-    ProtocolErrorCode, ProtocolFailure, ProtocolFrame, RequestRegistry, Retryability,
-    SelectedProfile, SessionId, decode_frame, encode_frame, negotiate_identity, stream_response,
+    BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_EXTENDED_EXECUTE,
+    FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FrameKind, Hello, LimitProfile, Method,
+    PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure, ProtocolFrame,
+    RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame, encode_frame,
+    negotiate_identity, stream_response,
 };
 
 /// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `report` names no
@@ -66,8 +67,19 @@ pub const REPORT_UNKNOWN_DETAIL: &[u8] = b"REPORT-UNKNOWN";
 /// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `execute` names no
 /// Function of the bound root (SMP1 appendix C).
 pub const FUNCTION_UNKNOWN_DETAIL: &[u8] = b"FUNCTION-UNKNOWN";
-/// Reason carried for reserved methods.
-pub const RESERVED_METHOD_REASON: &[u8] = b"SMP1-RESERVED-METHOD";
+/// Reason carried for a reserved method on the S20-370 seam.
+pub const RESERVED_SEAM_370_DETAIL: &[u8] = b"SMP1-RESERVED-S20-370";
+/// Reason carried for a reserved method on the S20-620 seam.
+pub const RESERVED_SEAM_620_DETAIL: &[u8] = b"SMP1-RESERVED-S20-620";
+
+/// The versioned reason for a reserved tag: the seam that owns it
+/// (contract section 4).
+fn reserved_detail(method: Method) -> &'static [u8] {
+    match method {
+        Method::RefMoveProtected => RESERVED_SEAM_370_DETAIL,
+        _ => RESERVED_SEAM_620_DETAIL,
+    }
+}
 
 const ROOT_QUERY_MAGIC: &[u8; 8] = b"SLEYRQQ1";
 const RESTRICTED_QUERY_MAGIC: &[u8; 8] = b"SLEYQRY1";
@@ -101,19 +113,48 @@ const RETRY_AFTER_REQUERY: [&str; 5] = [
     "STALE_ROOT",
 ];
 
-/// The exact symbols a client can retry after changing its declared limits.
-const RETRY_AFTER_LIMIT_CHANGE: [&str; 2] = ["RESOURCE_LIMIT", "REQUIRED_FACT_OMITTED"];
+/// The exact symbols a client can retry after changing its declared limits
+/// (contract section 6). This is an explicit list, never a suffix rule: a
+/// new `*_RESOURCE_LIMIT` or `*_REQUIRED_FACT_OMITTED` symbol answers
+/// `Never` until it is listed here and in the contract, which is the
+/// fail-closed direction.
+const RETRY_AFTER_LIMIT_CHANGE: [&str; 28] = [
+    "BRANCH_RESOURCE_LIMIT",
+    "CANDIDATE_TEST_RESOURCE_LIMIT",
+    "CANDIDATE_VALIDATION_RESOURCE_LIMIT",
+    "CFG_RESOURCE_LIMIT",
+    "COMPARE_RESOURCE_LIMIT",
+    "CONTEXT_CAPSULE_RESOURCE_LIMIT",
+    "CONTRACT_TEST_PLAN_RESOURCE_LIMIT",
+    "EFFECT_RESOURCE_LIMIT",
+    "EXCHANGE_RESOURCE_LIMIT",
+    "FINGERPRINT_RESOURCE_LIMIT",
+    "GC_RESOURCE_LIMIT",
+    "IMPACT_RESOURCE_LIMIT",
+    "INDEX_SNAPSHOT_RESOURCE_LIMIT",
+    "JSON_BRIDGE_RESOURCE_LIMIT",
+    "MERGE_RESOURCE_LIMIT",
+    "PACK_RESOURCE_LIMIT",
+    "POLICY_ROOT_RESOURCE_LIMIT",
+    "QUERY_REQUIRED_FACT_OMITTED",
+    "QUERY_RESOURCE_LIMIT",
+    "REPORT_RESOURCE_LIMIT",
+    "RESTRICTED_CAPSULE_RESOURCE_LIMIT",
+    "SCB_RESOURCE_LIMIT",
+    "SSMC_RESOURCE_LIMIT",
+    "TXN_RESOURCE_LIMIT",
+    "TYPE_RESOURCE_LIMIT",
+    "VM_EXEC_RESOURCE_LIMIT",
+    "VM_LOWER_RESOURCE_LIMIT",
+    "PROTOCOL_LIMIT_EXCEEDED",
+];
 
 /// Maps one owner symbol to the retryability SMP1 section 6 carries.
 pub(crate) fn owner_retryability(symbol: &str) -> Retryability {
     if RETRY_AFTER_REQUERY.contains(&symbol) {
         return Retryability::AfterRequery;
     }
-    if RETRY_AFTER_LIMIT_CHANGE
-        .iter()
-        .any(|suffix| symbol.ends_with(suffix))
-        || symbol == "PROTOCOL_LIMIT_EXCEEDED"
-    {
+    if RETRY_AFTER_LIMIT_CHANGE.contains(&symbol) {
         return Retryability::AfterLimitChange;
     }
     Retryability::Never
@@ -361,6 +402,22 @@ impl Server {
         self.budgets.get(&session).copied()
     }
 
+    #[cfg(test)]
+    pub(crate) fn profile_limits_for_test(&self) -> LimitProfile {
+        self.profile.limits
+    }
+
+    #[cfg(test)]
+    pub(crate) fn respond_for_test(
+        &self,
+        session: Option<SessionId>,
+        request_id: u64,
+        method: u32,
+        outcome: Result<(Vec<u8>, BoundedContext)>,
+    ) -> core::result::Result<Answer, ProtocolError> {
+        self.respond(session, request_id, method, outcome)
+    }
+
     fn respond(
         &self,
         session: Option<SessionId>,
@@ -379,6 +436,44 @@ impl Server {
                 true,
             ),
         };
+        // The negotiated limits bind the transport outcome (contract
+        // section 5): a successful body that does not fit fails with no
+        // partial body, on the single-frame and streaming paths alike.
+        if !failed {
+            let limits = self.profile.limits;
+            let body_len = u64::try_from(body.len())
+                .map_err(|_| ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
+            if body_len > limits.max_response_bytes
+                || bounds.returned_bytes > limits.max_response_bytes
+                || bounds.returned_entities > limits.max_entities
+                || bounds.returned_edges > limits.max_edges
+                || bounds.reached_depth > limits.max_depth
+            {
+                let failure =
+                    ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
+                let refused = ProtocolFrame {
+                    protocol_version: PROTOCOL_VERSION,
+                    session,
+                    request_id,
+                    kind: FrameKind::Response,
+                    method,
+                    flags: FLAG_FAILED,
+                    bounds: BoundedContext {
+                        applied_limits: self.profile.limits,
+                        ..BoundedContext::none()
+                    },
+                    body: failure,
+                };
+                return Ok(Answer {
+                    session,
+                    request_id,
+                    method,
+                    failed: true,
+                    frame: encode_frame(&refused)?,
+                    events: Vec::new(),
+                });
+            }
+        }
         let frame = ProtocolFrame {
             protocol_version: PROTOCOL_VERSION,
             session,
@@ -435,8 +530,14 @@ impl Server {
     }
 
     fn dispatch(&mut self, frame: &ProtocolFrame) -> Result<(Vec<u8>, BoundedContext)> {
-        if frame.protocol_version != self.profile.protocol_version {
-            return protocol_failure(ProtocolErrorCode::VersionUnsupported);
+        // A frame below the selection is a downgrade attempt; a frame
+        // above it names a version the selection does not know (contract
+        // section 2, `SelectedProfile::check_claim`).
+        if let Err(error) = self
+            .profile
+            .check_claim(frame.protocol_version, self.profile.schema_epoch)
+        {
+            return Err(ProtocolFailure::protocol(error.code()));
         }
         let method = Method::from_tag(frame.method)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
@@ -494,6 +595,13 @@ impl Server {
                         .map_err(|error| ProtocolFailure::protocol(error.code()))?;
                     return protocol_failure(ProtocolErrorCode::LimitExceeded);
                 }
+                // Dispatch costs one unit up front, so a request that
+                // reaches an engine and fails still costs work and cannot
+                // repeat forever (contract section 7). A successful
+                // response additionally charges its returned bytes below.
+                if let Some(remaining) = self.budgets.get_mut(&session) {
+                    *remaining = remaining.saturating_sub(1);
+                }
                 self.dispatch_admitted(session, method, frame)
             }
             Err(failure) => Err(failure),
@@ -505,8 +613,9 @@ impl Server {
                 .map_err(|error| ProtocolFailure::protocol(error.code()))?;
         }
         if let Ok((body, _)) = &outcome {
-            // One unit per request plus one per returned byte, never below zero.
-            let charge = to_u64(body.len())?.saturating_add(1);
+            // One unit per returned byte on top of the dispatch unit,
+            // never below zero.
+            let charge = to_u64(body.len())?;
             if let Some(remaining) = self.budgets.get_mut(&session) {
                 *remaining = remaining.saturating_sub(charge);
             }
@@ -521,11 +630,15 @@ impl Server {
         frame: &ProtocolFrame,
     ) -> Result<(Vec<u8>, BoundedContext)> {
         if !self.profile.admits(method) || method.is_reserved() {
-            return Err(unsupported(if method.is_reserved() {
-                RESERVED_METHOD_REASON
-            } else {
-                b"SMP1-METHOD-NOT-NEGOTIATED"
-            }));
+            // A reserved tag names a real seam whose owner has not claimed
+            // it yet (contract section 4): the detail names the seam, and
+            // the failure is retryable after the capability appears.
+            if method.is_reserved() {
+                let mut failure = unsupported(reserved_detail(method));
+                failure.retryability = Retryability::AfterCapability;
+                return Err(failure);
+            }
+            return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
         }
         let body = frame.body.as_slice();
         match method {
@@ -615,7 +728,11 @@ impl Server {
             Method::Diagnostics
             | Method::RefMoveProtected
             | Method::TestsSelected
-            | Method::TestsAffected => Err(unsupported(RESERVED_METHOD_REASON)),
+            | Method::TestsAffected => {
+                let mut failure = unsupported(reserved_detail(method));
+                failure.retryability = Retryability::AfterCapability;
+                Err(failure)
+            }
         }
     }
 
@@ -1884,6 +2001,14 @@ impl Server {
             })
             .collect::<Result<Vec<_>>>()?;
         let (limits, profile) = decode_execution_limits(fields[2])?;
+        // The extended profile is a negotiated capability (contract
+        // appendix C): without the intersected `extended_execute`
+        // feature bit, selecting it is a payload failure.
+        if profile == CacheProfile::EXTENDED_V1
+            && self.profile.features & FEATURE_EXTENDED_EXECUTE == 0
+        {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
         let revision = self.head()?;
         let request = CompleteRootRequest::extract(&revision)
             .map_err(|error| owner(error.code(), error.numeric()))?;

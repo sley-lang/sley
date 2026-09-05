@@ -124,14 +124,14 @@
     {
       "family": "repository",
       "name": "gc.dry_run",
-      "owner": "S20-560",
+      "owner": "S20-560 (GC failures are S20-180)",
       "reserved": false,
       "tag": 212
     },
     {
       "family": "repository",
       "name": "gc.collect",
-      "owner": "S20-560",
+      "owner": "S20-560 (GC failures are S20-180)",
       "reserved": false,
       "tag": 213
     },
@@ -257,7 +257,7 @@
     {
       "family": "runtime",
       "name": "execute",
-      "owner": "S20-380",
+      "owner": "S20-380 (execution report is S20-290)",
       "reserved": false,
       "tag": 600
     },
@@ -285,7 +285,7 @@
     {
       "family": "runtime",
       "name": "report",
-      "owner": "S20-290",
+      "owner": "S20-290 (report store is S20-560)",
       "reserved": false,
       "tag": 604
     }

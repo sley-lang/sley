@@ -37,7 +37,15 @@ pub const FEATURE_CANCEL: u32 = 1;
 pub const FEATURE_STREAM: u32 = 2;
 pub const FEATURE_JSON_BRIDGE: u32 = 4;
 pub const FEATURE_CHECKSUM: u32 = 8;
-const FEATURE_MASK: u32 = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_JSON_BRIDGE | FEATURE_CHECKSUM;
+/// Feature bit 4: the session may select the extended execute profile
+/// (`limits` field 6 value 2, contract appendix C). Without the negotiated
+/// bit, selecting it is `PROTOCOL_PAYLOAD_INVALID`.
+pub const FEATURE_EXTENDED_EXECUTE: u32 = 16;
+const FEATURE_MASK: u32 = FEATURE_CANCEL
+    | FEATURE_STREAM
+    | FEATURE_JSON_BRIDGE
+    | FEATURE_CHECKSUM
+    | FEATURE_EXTENDED_EXECUTE;
 /// Flag bits of a frame.
 pub const FLAG_CANCEL: u32 = 1;
 pub const FLAG_STREAM: u32 = 2;
@@ -635,6 +643,10 @@ impl Hello {
             || self.effects.len() > MAX_HELLO_LIST
             || !strictly_increasing(&self.effects)
             || self.features & !FEATURE_MASK != 0
+            || self
+                .methods
+                .iter()
+                .any(|tag| Method::from_tag(*tag).is_ok_and(Method::is_reserved))
         {
             return fail(ProtocolErrorCode::PayloadInvalid);
         }
@@ -769,6 +781,12 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
         .filter(|method| server.methods.binary_search(method).is_ok())
         .collect();
     if methods.is_empty() {
+        return fail(ProtocolErrorCode::NoCommonProfile);
+    }
+    // The session family is the mandatory floor (contract section 2): a
+    // selection without `session.open` can never bind a session, so it is
+    // no common profile rather than a successful handshake.
+    if !methods.contains(&Method::SessionOpen.tag()) {
         return fail(ProtocolErrorCode::NoCommonProfile);
     }
     let adapters = intersect(&client.adapters, &server.adapters);
@@ -1313,7 +1331,7 @@ pub struct RequestRegistry {
     /// cap forgets the oldest closed name (which then answers
     /// `SESSION_UNKNOWN` at the session layer), so registry memory is
     /// bounded by live sessions plus remembered closes (contract
-    /// section 8).
+    /// section 3).
     close_order: std::collections::VecDeque<SessionId>,
     closed_names: u32,
 }
@@ -1346,6 +1364,10 @@ impl RequestRegistry {
 
     /// Admits a request identifier before execution.
     ///
+    /// Identifier 0 is the pre-session sentinel (hello, `session.open`,
+    /// and frame-level failure answers) and never enters a session: the
+    /// first legal in-session identifier is 1 (contract section 3).
+    ///
     /// # Errors
     ///
     /// Returns `PROTOCOL_SESSION_CLOSED`, `PROTOCOL_REQUEST_ID_CONFLICT`, or
@@ -1358,7 +1380,7 @@ impl RequestRegistry {
         if state.closed {
             return fail(ProtocolErrorCode::SessionClosed);
         }
-        if state.last_request_id.is_some_and(|last| request_id <= last) {
+        if request_id == 0 || state.last_request_id.is_some_and(|last| request_id <= last) {
             return fail(ProtocolErrorCode::RequestIdConflict);
         }
         if state.inflight >= max_inflight {
@@ -1707,7 +1729,10 @@ pub fn stream_response(
         .encode()?;
         let event = ProtocolFrame {
             kind: FrameKind::Event,
-            flags: FLAG_STREAM,
+            // A streamed failed response keeps its failure bit on every
+            // event frame (contract section 6): the bit is part of the
+            // response, not of the chunking.
+            flags: response.flags | FLAG_STREAM,
             bounds: BoundedContext::none(),
             body: record,
             ..response.clone()
@@ -1719,7 +1744,7 @@ pub fn stream_response(
         frames.push(encoded);
     }
     let last = ProtocolFrame {
-        flags: FLAG_STREAM,
+        flags: response.flags | FLAG_STREAM,
         body: Vec::new(),
         ..response.clone()
     };
@@ -1741,11 +1766,15 @@ pub fn reassemble_stream(frames: &[ProtocolFrame]) -> Result<ProtocolFrame> {
     if last.kind != FrameKind::Response || last.flags & FLAG_STREAM == 0 || !last.body.is_empty() {
         return fail(ProtocolErrorCode::FrameInvalid);
     }
+    // The failure bit is part of the streamed response: every event and
+    // the terminal frame carry the same bit (contract section 6).
+    let failed = last.flags & FLAG_FAILED;
     let mut body = Vec::new();
     let mut expected_total = None;
     for (index, event) in events.iter().enumerate() {
         if event.kind != FrameKind::Event
-            || event.flags != FLAG_STREAM
+            || event.flags & FLAG_STREAM == 0
+            || event.flags & FLAG_FAILED != failed
             || event.session != last.session
             || event.request_id != last.request_id
             || event.method != last.method
@@ -1767,7 +1796,7 @@ pub fn reassemble_stream(frames: &[ProtocolFrame]) -> Result<ProtocolFrame> {
         return fail(ProtocolErrorCode::FrameInvalid);
     }
     Ok(ProtocolFrame {
-        flags: 0,
+        flags: last.flags,
         body,
         ..last.clone()
     })
@@ -1800,7 +1829,11 @@ mod tests {
                 max_inflight: 4,
                 max_sessions: 16,
             },
-            methods: Method::ALL.iter().map(|method| method.tag()).collect(),
+            methods: Method::ALL
+                .iter()
+                .filter(|method| !method.is_reserved())
+                .map(|method| method.tag())
+                .collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM | FEATURE_JSON_BRIDGE,
             adapters: vec![[0xA1; 32], [0xA2; 32]],
             effects: vec![[0xE1; 32]],
@@ -2251,6 +2284,56 @@ mod tests {
         for _ in 0..128 {
             assert_eq!(stream_response(&response, ceiling, true).unwrap(), frames);
         }
+    }
+
+    #[test]
+    fn streamed_failure_keeps_the_failed_bit_on_every_frame() {
+        // A streamed failed response keeps its failure bit on every event
+        // frame and the terminal frame (contract section 6); reassembly
+        // requires the bit to agree everywhere.
+        let body = vec![0xCD; 5_000];
+        let failed = ProtocolFrame {
+            kind: FrameKind::Response,
+            flags: FLAG_FAILED,
+            body: body.clone(),
+            bounds: BoundedContext {
+                applied_limits: client_hello().limits,
+                ..BoundedContext::none()
+            },
+            ..request(b"")
+        };
+        let ceiling = 2_048;
+        let frames = stream_response(&failed, ceiling, true).unwrap();
+        assert!(frames.len() >= 4, "{} frames", frames.len());
+        let decoded: Vec<ProtocolFrame> = frames
+            .iter()
+            .map(
+                |frame| match decode_frame(&frame.bytes, ceiling).unwrap().0 {
+                    DecodedFrame::Response(frame) => frame,
+                    DecodedFrame::Request(_) | DecodedFrame::Hello(_) => {
+                        panic!("event or response")
+                    }
+                },
+            )
+            .collect();
+        assert!(
+            decoded
+                .iter()
+                .all(|frame| frame.flags == FLAG_STREAM | FLAG_FAILED)
+        );
+        let terminal = decoded.last().unwrap();
+        assert_eq!(terminal.kind, FrameKind::Response);
+        assert!(terminal.body.is_empty());
+        let reassembled = reassemble_stream(&decoded).unwrap();
+        assert_eq!(reassembled.body, body);
+        assert_eq!(reassembled.flags, FLAG_STREAM | FLAG_FAILED);
+        // A cleared bit anywhere fails reassembly.
+        let mut cleared = decoded.clone();
+        cleared[0].flags = FLAG_STREAM;
+        assert_eq!(
+            reassemble_stream(&cleared).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
     }
 
     fn hex(bytes: &[u8]) -> String {
