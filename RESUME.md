@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `bd9fa8d`.
+are green at `d1e031e`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 104 of 110 P0 entries closed
+## Findings: 107 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -254,10 +254,29 @@ Closed, each reproduced before fixing:
   contract, checker, oracle, summary, and a native test. Corpus bytes
   unchanged (9 pairs, 5 mutations); three native tests added. Round verdicts
   stand as `FAIL` history with P1+ still open. Repair trail: single smoke
-  failure, the dossier test-inventory drift on the three new tests (cured by
-  committing the refresh).
+   failure, the dossier test-inventory drift on the three new tests (cured by
+   committing the refresh).
+- **S20-360full** (3 entries): unreachable-guard correction plus a real
+  refusal matrix (`fa2fcab` code, dispositions in the same commit, `d1e031e`
+  evidence, with a `4cc745f` test-inventory refresh in between). Live repro
+  before fixing: a well-formed `contract_assert` program cleared phases 1
+  through 11 and was refused at phase 12 with
+  `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED`, and a well-formed
+  `effect_request` cleared phase 8 (stopping at the phase 9 capability gate)
+  — both falsifying "refused by the owner of its own phase" and "guard
+  unreachable" in one run each. Fix: section 9 states the per-opcode truth
+  (only 145 refused unconditionally; 144 validated at phase 10, 160/161/162
+  at phase 8) with the guard as the live path, and notes the program-wide
+  phase 7 skip; the malformed matrix test comment states its malformed-only
+  scope; two new tests prove the well-formed paths (144 and 162 refused at
+  phase 12; 160 and 161 pass phase 8) plus a shaped-145 unconditionality
+  case; ADR-0044 decision 4 corrected with its inverted consequence. Corpus
+  untouched (native tests only, no fixture bytes). Round verdicts stand as
+  `FAIL` history with P1+ still open. Repair trail: single smoke failure,
+  the dossier test-inventory drift on the two new tests (cured by committing
+  the refresh).
 
-**6 entries remain open.** 360full (3), 780 (3).
+**3 entries remain open.** 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -279,7 +298,7 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 360full or 780 (tied at 3)
+2. **Work the next P0 cluster**: 780 (3, the last cluster)
    (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
@@ -297,7 +316,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`bd9fa8d`. The full `make v1` gate was skipped
+`d1e031e`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
