@@ -300,7 +300,11 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
         ),
         (
             "hello-with-bounds",
-            text(&with(hello_base.clone(), &["bounds", "omitted"], Value::from(1))),
+            text(&with(
+                hello_base.clone(),
+                &["bounds", "omitted"],
+                Value::from(1),
+            )),
             shape,
         ),
         (
@@ -441,7 +445,11 @@ fn negative_zero_reads_as_the_integer_zero() {
     // version 0 as unsupported rather than the bridge refusing the number.
     let base = request_value().to_string();
     for raw in ["-0", "-0.0"] {
-        let text = base.replacen("\"protocol_version\":1", &format!("\"protocol_version\":{raw}"), 1);
+        let text = base.replacen(
+            "\"protocol_version\":1",
+            &format!("\"protocol_version\":{raw}"),
+            1,
+        );
         assert_eq!(
             frame_from_json(&text).expect_err(raw).symbol(),
             "PROTOCOL_VERSION_UNSUPPORTED",
