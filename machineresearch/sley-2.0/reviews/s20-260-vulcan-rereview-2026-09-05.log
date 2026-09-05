@@ -1,0 +1,34 @@
+S20-260/270 vm_extended_opcode_profile full surface re-review
+Reviewer: Vulcan
+Date: 2026-09-05
+Pinned repository: /home/greyforge/sley2
+Pinned HEAD: b2aff7d
+Mode: read-only triage; this review log is the sole permitted write
+
+Verdict: PASS (confidence: high). Contract revision 12 closes all prior P0/P1/P2/P3 findings, and this bounded re-review found no new report-grade issue.
+
+Prior-finding closure:
+- P0 cell accounting: closed. execute.rs charges the stored operand units for CellNew/CellSet in addition to the result and enforces MAX_EXECUTION_CELLS = 1,048,576 with the cap comparison pinned by the stage checker.
+- P1 lowerer/cache identity: closed. EXTENDED_V1 now pins lowerer_version [2,0,0]; the contract states the bump rule and retirement of pre-freeze [1,0,0] caches; the independent Python oracle separately pins [2,0,0]. The 22 accepted vectors contain no old 9ddf697b key.
+- P1 post-construction invariant: closed. Contract section 2 now states the implemented value_type/register-type identity check, limits check_constant to canonical execution inputs, and identifies LocalCell handles as register-only with no constant form.
+- P2 transient allocation: closed. Contract section 2 explicitly defines max_value_units as charged liveness rather than transient peak allocation.
+- P2 map identity: closed. map_new deduplicates canonical key bytes; map_get/map_contains/map_insert/map_remove all use key_bytes/keyed_entries; contract E4 freezes encoding order and byte identity.
+- P2 float determinism evidence: closed for the claimed scope. Contract E3/section 5 narrows evidence to the rust-toolchain.toml-pinned toolchain on one target triple and states binary32/64, round-to-nearest-ties-to-even, preserved subnormals, no flush-to-zero, and no fast-math as the required environment.
+- P3 campaign record: closed. Record states revision 12, E1-E6 plus E7a, 22 vectors, and the revision-12 Tier 2 handoff.
+- P3 float exclusion rationale: closed. Section 7 now states the operative structural-NaN-equality conflict.
+
+Additional pin checks:
+- Call-depth logic refuses the frame that would make 257 live; the boundary test asserts 256 live succeeds and 257 is ResourceLimit(CallDepth); accepted vectors include call-direct-depth-ceiling.
+- Cell-count comparison is >= MAX_EXECUTION_CELLS and stage-checker-pinned.
+- Contract records exact map operand arities and absent-key removal semantics.
+- git diff --check over 0d8553d^..b2aff7d produced no output.
+
+Validation:
+- Read-only inspection only, as required: prior Vulcan review log; contract/campaign diffs; targeted implementation, test, checker, oracle, fixture, and profile reads; git status/HEAD/diff checks.
+- HEAD verified as b2aff7d.
+- No cargo, make, deploy, service action, external action, or canon mutation.
+- Working tree already contained an unrelated untracked Ariadne re-review log; it was not modified.
+
+S20_260FULL_SURFACE_REREVIEW_JSON={"reviewer":"vulcan","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}
+
+Return to: orchestrator

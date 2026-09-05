@@ -87,7 +87,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 208,
+  "obligation_count": 210,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2924,7 +2924,24 @@
         "P2",
         "P3"
       ],
-      "state": "PENDING",
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "ariadne_review"
+    },
+    {
+      "declares_closed_findings": true,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+      "field": "ariadne_review",
+      "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "section": "vm_extended_opcode_profile",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -2934,6 +2951,23 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "section": "vm_extended_opcode_profile",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": true,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+      "field": "vulcan_review",
+      "package_status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "vulcan",
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -2958,8 +2992,8 @@
         "P2",
         "P3"
       ],
-      "state": "PENDING",
-      "superseded_by": null
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "vulcan_review"
     },
     {
       "declares_closed_findings": false,
@@ -3013,7 +3047,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "a295cbba28c16f61fa4d6403ea42356cf7f284f0de3fde4421f63348d13d7af2",
+  "obligations_digest": "5c04cc5137dba7af792511e9aa3f48edf8dc8cd44dc32bd633d2f95e98fb0672",
   "open_reviews": [
     {
       "disposition": "FAIL_2_P0_7_P1_7_P2_3_P3",
@@ -3732,28 +3766,6 @@
       "field": "independent_security_review",
       "section": "threat_coverage",
       "severities": []
-    },
-    {
-      "disposition": "FAIL_2_P0_6_P1_5_P2_5_P3",
-      "field": "ariadne_contract_review",
-      "section": "vm_extended_opcode_profile",
-      "severities": [
-        "P0",
-        "P1",
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "FAIL_1_P0_2_P1_3_P2_2_P3",
-      "field": "vulcan_surface_review",
-      "section": "vm_extended_opcode_profile",
-      "severities": [
-        "P0",
-        "P1",
-        "P2",
-        "P3"
-      ]
     }
   ],
   "package_open_claims": {
@@ -3799,29 +3811,29 @@
     "succession_accounting.p1_open_count": 0,
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0,
-    "vm_extended_opcode_profile.p1_open": 8,
-    "vm_extended_opcode_profile.p1_open_count": 8,
-    "vm_extended_opcode_profile.p2_open": 8,
-    "vm_extended_opcode_profile.p2_open_count": 8,
-    "vm_extended_opcode_profile.p3_open": 7,
-    "vm_extended_opcode_profile.p3_open_count": 7
+    "vm_extended_opcode_profile.p1_open": 0,
+    "vm_extended_opcode_profile.p1_open_count": 0,
+    "vm_extended_opcode_profile.p2_open": 0,
+    "vm_extended_opcode_profile.p2_open_count": 0,
+    "vm_extended_opcode_profile.p3_open": 0,
+    "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "268483871f9e21515c9f399d44b2a7d9a0dbab6e9526937d9ec93fa0ca2a1628",
+  "register_digest": "041ff34f3c35fab3da34e8b063d42e017db7f5f85d1a89706e90847038dfa9e1",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 75,
-    "P1": 87,
-    "P2": 90,
-    "P3": 79,
+    "P0": 77,
+    "P1": 89,
+    "P2": 92,
+    "P3": 81,
     "P4": 0
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "DEFERRED": 10,
-    "HISTORICAL_ROUND": 30,
+    "HISTORICAL_ROUND": 32,
     "OTHER": 2,
-    "PASS": 91,
-    "PENDING": 75
+    "PASS": 93,
+    "PENDING": 73
   },
   "superseded_rounds": [
     {
@@ -3997,6 +4009,18 @@
       "field": "ariadne_initial_review",
       "section": "vm_execution_profile",
       "superseded_by": "ariadne_final_review"
+    },
+    {
+      "disposition": "FAIL_2_P0_6_P1_5_P2_5_P3",
+      "field": "ariadne_contract_review",
+      "section": "vm_extended_opcode_profile",
+      "superseded_by": "ariadne_review"
+    },
+    {
+      "disposition": "FAIL_1_P0_2_P1_3_P2_2_P3",
+      "field": "vulcan_surface_review",
+      "section": "vm_extended_opcode_profile",
+      "superseded_by": "vulcan_review"
     },
     {
       "disposition": "FAIL_P1_ENCODING_2_P2_LIMIT_ORDER",
