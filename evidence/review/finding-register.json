@@ -3745,7 +3745,7 @@
     "context_capsule_profile.p0_open_count": 0,
     "decision_dossier.p0_open_count": 0,
     "finding_register.p0_open_count": 0,
-    "json_bridge.p0_open_count": 4,
+    "json_bridge.p0_open_count": 0,
     "merge.p0_open_count": 0,
     "protocol.p0_open_count": 0,
     "release_candidate_packaging.p0_open_count": 0,
@@ -3765,7 +3765,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "8001e7664da70a3604350161d0e8589e53beb2cf1cd71f1c59a151faa1d840f4",
+  "register_digest": "f20e2d117ea519bf94982850ac8b44fc0ef996c8d09bcdc1110bba163ca5d004",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,

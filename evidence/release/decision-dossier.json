@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e6317e5e347c2bf020c840f63ecc564fda5432254de10e2550e4a932ecf86f96",
+  "dossier_digest": "09ee0625b028123c4b8d6d95900bdf6a4742ea3b312130eed1bcdf1d0e16433b",
   "entries": [
     {
       "evidence": [
@@ -35,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "ad53ee8dde612234da314d31d1d65db83d41e7a7"
+      "value": "b03f65dfc88b7632e62b394a9e2a520b84abb8b1"
     },
     {
       "evidence": [
@@ -136,7 +136,7 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 172,
+        "conformance_rejections": 177,
         "conformance_vectors": 359,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
@@ -148,7 +148,7 @@
         "property_tests": 0,
         "python_tests": 148,
         "rust_ignored_emitters": 13,
-        "rust_unit_tests": 1044
+        "rust_unit_tests": 1047
       }
     },
     {
@@ -282,7 +282,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest, which the provenance subject repeats",
       "state": "EVIDENCED",
-      "value": "5b0bacf78c28f069e3f28d2dd0081de4820ef5c7e04025c06083e16228450a82"
+      "value": "4d551ef331027026cef87572b15864820cabaa26c4c6877e2a7aeb5c20a1701f"
     },
     {
       "evidence": [
@@ -291,7 +291,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2083924
+      "value": 2084115
     },
     {
       "evidence": [
@@ -453,7 +453,7 @@
       }
     }
   ],
-  "entries_digest": "ba68cd63fc4243538e3474c2f0057b0ddd75917603cffcf4b79b10a59e4b3ea5",
+  "entries_digest": "8f428eaf5c325b33bcccb775e90aeffc639cdf5d899974e78a2ef3f179e6e23c",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
