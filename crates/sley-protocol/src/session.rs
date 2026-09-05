@@ -17,6 +17,7 @@ use std::collections::BTreeMap;
 use sley_id::{
     EntityId, ObjectId, ProtocolHandshakeId, SchemaEpochId, SessionId, StateRoot, WorkspaceId,
 };
+use sley_state_root::AcceptedStateRoot;
 
 /// Renewals a session may perform (contract section 2).
 pub const MAX_SESSION_RENEWALS: u32 = 65_535;
@@ -153,6 +154,13 @@ pub struct SessionAuthority {
     handshake_id: ProtocolHandshakeId,
     issued: u64,
     sessions: BTreeMap<SessionId, SessionRecord>,
+    /// Full root records bound by live sessions. `gc` catalogs exactly
+    /// these alongside the head and branch revisions, so a session bound
+    /// to a root no branch targets stays retained while the session is
+    /// live (contract appendix C, threat T15). Entries no live session
+    /// binds are pruned on renew and close; over-retention is impossible
+    /// by construction, under-retention by the prune rule below.
+    retained: BTreeMap<StateRoot, AcceptedStateRoot>,
 }
 
 impl SessionAuthority {
@@ -162,6 +170,7 @@ impl SessionAuthority {
             handshake_id,
             issued: 0,
             sessions: BTreeMap::new(),
+            retained: BTreeMap::new(),
         }
     }
 
@@ -175,13 +184,41 @@ impl SessionAuthority {
         self.sessions.get(&session)
     }
 
+    /// Every live session with its bound root, in session order. `gc`
+    /// derives one `SessionPin` anchor per entry so one session never
+    /// collects another session's bound root (contract appendix C,
+    /// threat T15).
+    #[must_use]
+    pub fn live_pins(&self) -> Vec<(SessionId, StateRoot)> {
+        self.sessions
+            .values()
+            .map(|record| (record.session_id, record.bound_root))
+            .collect()
+    }
+
+    /// Full root records bound by live sessions, for the `gc` root
+    /// catalog (contract appendix C). A session bound to a root no
+    /// branch targets stays importable while the session is live.
+    #[must_use]
+    pub fn retained_roots(&self) -> Vec<AcceptedStateRoot> {
+        self.retained.values().cloned().collect()
+    }
+
     /// Issues a session bound to the accepted head (contract section 2).
     ///
     /// # Errors
     ///
-    /// Returns `SESSION_BINDING_INVALID` when the ordinal space is exhausted
-    /// or the identity is already issued.
-    pub fn open_session(&mut self, head: &HeadBinding) -> Result<SessionRecord, SessionError> {
+    /// Returns `SESSION_BINDING_INVALID` when the ordinal space is exhausted,
+    /// the identity is already issued, or the retained record is not the
+    /// bound root's own record.
+    pub fn open_session(
+        &mut self,
+        head: &HeadBinding,
+        root_record: &AcceptedStateRoot,
+    ) -> Result<SessionRecord, SessionError> {
+        if root_record.root != head.root {
+            return fail(SessionErrorCode::BindingInvalid);
+        }
         let issue_ordinal = self
             .issued
             .checked_add(1)
@@ -201,6 +238,7 @@ impl SessionAuthority {
         };
         self.issued = issue_ordinal;
         self.sessions.insert(session_id, record);
+        self.retained.insert(head.root, root_record.clone());
         Ok(record)
     }
 
@@ -209,28 +247,39 @@ impl SessionAuthority {
     /// # Errors
     ///
     /// Returns `SESSION_UNKNOWN`, `SESSION_WORKSPACE_MISMATCH`,
-    /// `SESSION_EPOCH_MISMATCH`, or `SESSION_RENEWAL_LIMIT`.
+    /// `SESSION_EPOCH_MISMATCH`, `SESSION_RENEWAL_LIMIT`, or
+    /// `SESSION_BINDING_INVALID` when the retained record is not the new
+    /// bound root's own record.
     pub fn renew_session(
         &mut self,
         session: SessionId,
         head: &HeadBinding,
+        root_record: &AcceptedStateRoot,
     ) -> Result<SessionRecord, SessionError> {
-        let record = self
-            .sessions
-            .get_mut(&session)
-            .ok_or(SessionError(SessionErrorCode::Unknown))?;
-        if record.workspace_id != head.workspace_id {
-            return fail(SessionErrorCode::WorkspaceMismatch);
+        if root_record.root != head.root {
+            return fail(SessionErrorCode::BindingInvalid);
         }
-        if record.schema_epoch != head.schema_epoch {
-            return fail(SessionErrorCode::EpochMismatch);
-        }
-        if record.renewals >= MAX_SESSION_RENEWALS {
-            return fail(SessionErrorCode::RenewalLimit);
-        }
-        record.renewals += 1;
-        record.bound_root = head.root;
-        Ok(*record)
+        let bound = {
+            let record = self
+                .sessions
+                .get_mut(&session)
+                .ok_or(SessionError(SessionErrorCode::Unknown))?;
+            if record.workspace_id != head.workspace_id {
+                return fail(SessionErrorCode::WorkspaceMismatch);
+            }
+            if record.schema_epoch != head.schema_epoch {
+                return fail(SessionErrorCode::EpochMismatch);
+            }
+            if record.renewals >= MAX_SESSION_RENEWALS {
+                return fail(SessionErrorCode::RenewalLimit);
+            }
+            record.renewals += 1;
+            record.bound_root = head.root;
+            *record
+        };
+        self.retained.insert(head.root, root_record.clone());
+        self.prune_retained();
+        Ok(bound)
     }
 
     /// Closes a session.
@@ -242,7 +291,20 @@ impl SessionAuthority {
         self.sessions
             .remove(&session)
             .map(|_| ())
-            .ok_or(SessionError(SessionErrorCode::Unknown))
+            .ok_or(SessionError(SessionErrorCode::Unknown))?;
+        self.prune_retained();
+        Ok(())
+    }
+
+    /// Drops retained roots no live session binds. Sessions only ever add
+    /// bindings, so pruning exactly the unbound keeps retention exact:
+    /// every live session's root is catalogued, nothing else is.
+    fn prune_retained(&mut self) {
+        self.retained.retain(|root, _| {
+            self.sessions
+                .values()
+                .any(|record| record.bound_root == *root)
+        });
     }
 
     /// Checks a request against its session's binding in contract order
@@ -314,12 +376,35 @@ impl SessionAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sley_id::PolicyRootId;
+    use sley_state_root::StateRootRecord;
 
     fn head(workspace: u8, root: u8, epoch: u8) -> HeadBinding {
         HeadBinding {
             workspace_id: WorkspaceId::from_bytes([workspace; 32]),
             root: StateRoot::from_bytes([root; 32]),
             schema_epoch: SchemaEpochId::from_bytes([epoch; 32]),
+        }
+    }
+
+    /// A retained root record for `root`: opaque storage for the
+    /// authority (never inspected here); the server retains real
+    /// importable records.
+    fn retained(root: u8) -> AcceptedStateRoot {
+        AcceptedStateRoot {
+            root: StateRoot::from_bytes([root; 32]),
+            stored_bytes: Vec::new(),
+            record: StateRootRecord {
+                workspace_id: WorkspaceId::from_bytes([1; 32]),
+                schema_epoch_id: SchemaEpochId::from_bytes([0x11; 32]),
+                entity_bindings: Vec::new(),
+                entry_points: Vec::new(),
+                dependency_roots: Vec::new(),
+                contract_root: ObjectId::from_bytes([0xA0; 32]),
+                test_root: ObjectId::from_bytes([0xB0; 32]),
+                policy_root: PolicyRootId::from_bytes([0xC0; 32]),
+                interpretation_flags: Vec::new(),
+            },
         }
     }
 
@@ -331,12 +416,18 @@ mod tests {
     fn issuance_is_deterministic_and_binds_the_head() {
         let mut a = SessionAuthority::new(handshake());
         let mut b = SessionAuthority::new(handshake());
-        let first = a.open_session(&head(1, 0x10, 0x11)).unwrap();
-        let again = b.open_session(&head(1, 0x10, 0x11)).unwrap();
+        let first = a
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
+            .unwrap();
+        let again = b
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
+            .unwrap();
         assert_eq!(first, again);
         assert_eq!(first.issue_ordinal, 1);
         assert_eq!(first.bound_root, StateRoot::from_bytes([0x10; 32]));
-        let second = a.open_session(&head(1, 0x10, 0x11)).unwrap();
+        let second = a
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
+            .unwrap();
         assert_ne!(second.session_id, first.session_id);
         assert_eq!(second.issue_ordinal, 2);
         assert_ne!(
@@ -350,7 +441,7 @@ mod tests {
     fn checks_follow_contract_order_and_handles_die_with_the_root() {
         let mut authority = SessionAuthority::new(handshake());
         let session = authority
-            .open_session(&head(1, 0x10, 0x11))
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
             .unwrap()
             .session_id;
         let bindings = [
@@ -421,7 +512,7 @@ mod tests {
             SessionErrorCode::HandleUnknown
         );
         let renewed = authority
-            .renew_session(session, &head(1, 0x20, 0x11))
+            .renew_session(session, &head(1, 0x20, 0x11), &retained(0x20))
             .unwrap();
         assert_eq!(renewed.renewals, 1);
         assert_eq!(renewed.bound_root, StateRoot::from_bytes([0x20; 32]));
@@ -432,7 +523,7 @@ mod tests {
         );
         assert_eq!(
             authority
-                .renew_session(session, &head(2, 0x20, 0x11))
+                .renew_session(session, &head(2, 0x20, 0x11), &retained(0x20))
                 .unwrap_err()
                 .code(),
             SessionErrorCode::WorkspaceMismatch
@@ -449,20 +540,80 @@ mod tests {
     }
 
     #[test]
+    fn retention_pins_exactly_the_live_sessions_roots() {
+        let mut authority = SessionAuthority::new(handshake());
+        let first = authority
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
+            .unwrap()
+            .session_id;
+        let second = authority
+            .open_session(&head(1, 0x20, 0x11), &retained(0x20))
+            .unwrap()
+            .session_id;
+        let mut pins = authority.live_pins();
+        pins.sort();
+        let mut expected = vec![
+            (first, StateRoot::from_bytes([0x10; 32])),
+            (second, StateRoot::from_bytes([0x20; 32])),
+        ];
+        expected.sort();
+        assert_eq!(pins, expected);
+        assert_eq!(authority.retained_roots().len(), 2);
+        // Renewing the first session onto the second root unbinds 0x10,
+        // so it is pruned: retention is exact, never over- or under-held.
+        authority
+            .renew_session(first, &head(1, 0x20, 0x11), &retained(0x20))
+            .unwrap();
+        assert_eq!(authority.retained_roots().len(), 1);
+        assert_eq!(
+            authority.retained_roots()[0].root,
+            StateRoot::from_bytes([0x20; 32])
+        );
+        // Closing the second session keeps 0x20: the first still binds it.
+        authority.close_session(second).unwrap();
+        assert_eq!(authority.retained_roots().len(), 1);
+        // Closing the last session releases everything.
+        authority.close_session(first).unwrap();
+        assert!(authority.retained_roots().is_empty());
+        assert!(authority.live_pins().is_empty());
+        // A retained record that is not the bound root's own record is
+        // refused at bind time, so retention can never silently cover
+        // the wrong root.
+        assert_eq!(
+            authority
+                .open_session(&head(1, 0x10, 0x11), &retained(0x20))
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::BindingInvalid
+        );
+        let session = authority
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
+            .unwrap()
+            .session_id;
+        assert_eq!(
+            authority
+                .renew_session(session, &head(1, 0x10, 0x11), &retained(0x20))
+                .unwrap_err()
+                .code(),
+            SessionErrorCode::BindingInvalid
+        );
+    }
+
+    #[test]
     fn renewal_limit_is_exact() {
         let mut authority = SessionAuthority::new(handshake());
         let session = authority
-            .open_session(&head(1, 0x10, 0x11))
+            .open_session(&head(1, 0x10, 0x11), &retained(0x10))
             .unwrap()
             .session_id;
         for _ in 0..MAX_SESSION_RENEWALS {
             authority
-                .renew_session(session, &head(1, 0x10, 0x11))
+                .renew_session(session, &head(1, 0x10, 0x11), &retained(0x10))
                 .unwrap();
         }
         assert_eq!(
             authority
-                .renew_session(session, &head(1, 0x10, 0x11))
+                .renew_session(session, &head(1, 0x10, 0x11), &retained(0x10))
                 .unwrap_err()
                 .code(),
             SessionErrorCode::RenewalLimit

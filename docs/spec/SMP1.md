@@ -1,11 +1,14 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 8 (2026-09-03; revision 2 folds the
+Status: S20-400 contract draft, revision 9 (2026-09-05; revision 2 folds the
 hello into frame kind 4 under one contract tag; revision 3 adds appendix A,
 the exact body records of the methods S20-410 dispatches; revision 4 freezes
 the S20-440 cancellation, streaming, and budget rules of section 7 and
 appendix B; revision 5 hands `handle.expand` and session issuance to the
-S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches; revision 8 adds the `execute` cache profile selector, `limits` field 6); Council review
+S20-330 profile; revision 6 marks failure envelopes with response flag bit 2; revision 7 adds appendix C, the body records of the four methods S20-410 slice C dispatches; revision 8 adds the `execute` cache profile selector, `limits` field 6; revision 9 binds
+both hello bodies into the handshake identity with per-peer re-derivation,
+values the envelope epoch, scopes cancel to the answering path, completes
+the zero-code table, and pins every live session in gc); Council review
 pending (Ariadne contract review as the package owner, Nabu architecture
 review, Vulcan surface review). This revision supersedes the M0
 constitutional draft of the same file; the M0 text's commitments (bounded,
@@ -44,10 +47,24 @@ protocol_envelope = SCB1 standalone envelope with
 `payload_length` must equal the envelope's exact stored length and must not
 exceed the negotiated `max_frame_bytes` (never above 67,108,864); the check
 happens before allocation. The envelope digest is verified before any field
-is read. A frame that fails length, magic, tag, epoch, or digest rules is
-`PROTOCOL_FRAME_INVALID` or `PROTOCOL_FRAME_TOO_LARGE`, the connection
+is read. A frame that fails length, magic, tag, or digest rules is
+`PROTOCOL_FRAME_INVALID` (or `PROTOCOL_FRAME_TOO_LARGE` for the ceiling);
+a frame whose envelope epoch is not the protocol epoch below is
+`PROTOCOL_VERSION_UNSUPPORTED`. The connection
 state does not change, and no partial frame is ever acted on. An optional
 checksum profile never changes payload semantics.
+
+The envelope `schema_epoch` is the protocol schema epoch, constant at this
+revision: epoch number 1, the `SchemaEpochRecordV1` built by
+`sley-protocol::protocol_epoch_record` (SCB1 format 1, hash tag 1,
+epoch-1 Unicode and limits, one contract descriptor for tag 400 carrying
+the frame field schema, no extensions, no predecessor), identified by
+`sley-protocol::protocol_epoch_id()`. It is not the negotiated content
+epoch: the envelope epoch versions the framing itself and is the same on
+every frame, while the section 2 selection versions the bodies the frames
+carry and differs per negotiation. A body naming a version or epoch
+outside the selection fails at the method layer; a frame naming an
+envelope epoch outside the protocol fails at the envelope layer.
 
 ```text
 ProtocolFrame {
@@ -89,18 +106,53 @@ The selected profile is derived, never chosen freely:
 - `schema_epoch` is the first epoch of the server's list that the client
   also lists;
 - each limit is the minimum of the two declared limits;
-- `methods`, `features`, `adapters`, and `effects` are the intersections;
-- the selection is encoded as `SelectedProfile` in the server hello and
-  identified by `ProtocolHandshakeId =
-  BLAKE3-256("sley2.protocol-handshake.v1" || selected_profile_preimage)`,
-  which both peers must compute identically.
+- `methods`, `adapters`, and `effects` are the client-ordered
+  intersections, `features` the intersected bits.
+
+The selection is exactly the `SelectedProfile` record, the only canonical
+definition (the S20-420 bridge renders it as JSON and carries the identity
+as opaque data; it defines nothing):
+
+```text
+SelectedProfile {
+  protocol_version: u32,                  // the derived greatest common version
+  schema_epoch:     SchemaEpochId[32],    // the derived content epoch
+  limits:           LimitProfile,         // the pairwise minima
+  methods:          list(u32),            // the intersection, client order
+  features:         u32,                  // the intersection bits
+  adapters:         list(AdapterId[32]),  // the intersection, client order
+  effects:          list(EntityId[32])    // the intersection, client order
+}
+selected_profile_preimage = the canonical SCB1 bytes of that record, in
+  field order 1 through 7
+handshake_transcript = client hello body || server hello body ||
+  selected_profile_preimage, where each hello body is the exact
+  `Hello::encode` bytes of the hello as observed, the client first
+  because it speaks first
+ProtocolHandshakeId =
+  BLAKE3-256("sley2.protocol-handshake.v1" || handshake_transcript)
+```
+
+Both peers re-derive per peer: each runs this section's derivation on the
+hellos as observed (the own hello as sent, the peer hello as received)
+and uses the derived selection and identity. A server never accepts an
+asserted selection for identity: it negotiates from the observed hellos
+and `session.open` compares the presented identity against that
+derivation, failing `PROTOCOL_DOWNGRADE` on any difference. The server
+hello is a `Hello` offer like the client's, not a carrier for the
+selection; `session.capabilities` exposes the server's derived selection,
+and it equals the re-derived one.
 
 If no common version, epoch, or method family exists the server answers
 `PROTOCOL_NO_COMMON_PROFILE` and closes. A client that, after receiving the
 server hello, opens a session naming a version or epoch lower than the
 selected one, or a server hello that names a version lower than the
-greatest common one, is `PROTOCOL_DOWNGRADE` (threat T45). No silent
-downgrade exists: the selected profile is explicit and digested, and every
+greatest common one, is `PROTOCOL_DOWNGRADE` (threat T45). Tampering with
+either hello is the same failure: each side binds its true hello, so any
+tamper makes the two transcripts differ and the two identities differ,
+and the session never opens. No silent
+downgrade exists: the selection is explicit and digested over both
+hellos, and every
 later frame names `protocol_version` and is checked against it.
 
 ## 3. Sessions and request identity
@@ -220,7 +272,10 @@ ProtocolFailure {
 
 Owner codes are never collapsed or renumbered; `INTERNAL_ERROR` is
 fail-closed, non-committable, and non-retryable unless the typed details
-establish `TRANSIENT_HOST`.
+establish `TRANSIENT_HOST`. The five owner classes whose crates expose
+symbols only travel with numeric `0` until their owners expose numerics;
+they are listed with their owning packages at the end of appendix A and
+are the only exception to this section's exact-code rule.
 
 Retryability is an explicit mapping from the owner's symbol, not a pattern
 over its text. `AFTER_REQUERY` names exactly `REF_CAS_STALE`,
@@ -374,7 +429,7 @@ reserved methods answer with `SMP1-RESERVED-METHOD`.
 | 501 `receipt.read` | `TransactionId[32]` | the receipt stored bytes |
 | 502 `checkout` | `TransactionId[32]` | `record(1: StateRoot, 2: list(bytes(object stored bytes)))` |
 | 504 `recovery` | empty | `record(1: removed object stages, 2: removed receipt stages, 3: removed head stages, 4: option(accepted TransactionId), 5: verified ancestry transactions)` |
-| 603 `cancel` | `uvar(request_id)` | empty; the server answers every request before reading the next frame, so the named request has already completed |
+| 603 `cancel` | `uvar(request_id)` | empty; under single-frame `answer` the named request has already completed, so the cancel acknowledges; under `answer_batch` section 7 applies and a not-yet-executed same-session request is answered `PROTOCOL_CANCELLED` |
 
 ```text
 branch_summary   = record(1: name bytes, 2: origin TransactionId,
@@ -389,9 +444,12 @@ The bounded context of a response copies the owning record's counts: a
 truncation flag, and whether a cursor follows; a capsule supplies its
 dictionary sizes and status; list responses count their items; every
 other body counts one item and its bytes. Owner failures keep their symbol
-and numeric code; a pack-owned failure whose numeric registry is not
-exposed by its crate carries numeric `0` at this revision, which S20-560's
-next revision closes.
+and numeric code, except the five classes whose crates expose symbols
+only and therefore carry numeric `0` at this revision: candidate failures
+(S20-350), validation failures (S20-360), state-root and policy-root
+failures (S20-110), and pack failures (S20-560). Each owning package
+exposes the numerics and closes its row; S20-400 tracks the table but
+does not close other packages' codes.
 
 ## Appendix B. Cancellation, streaming, and budget records (S20-440)
 
@@ -451,15 +509,23 @@ execution_report = record(1: ExecutionReportId[32], 2: bytes(execution report pr
 Rules:
 
 - **The server owns the retention snapshot.** A client can only add
-  retention: the request's pins become one `SessionPin` anchor under the
-  session identity. Every other anchor and every root come from the
-  repository itself: one `Ref` anchor per named branch targeting its head
-  root, one `Transaction` anchor for the accepted head, and the accepted
-  state roots of those revisions. A dependency root that is not among them
-  fails closed with the S20-180 `GC_DEPENDENCY_MISSING` code; nothing is
-  deleted. `gc.dry_run` never mutates; `gc.collect` acquires the S20-180
-  exclusive guard for the duration of the request and answers its report
-  verbatim, including a partial-delete failure.
+  retention: the request's pins join one `SessionPin` anchor under the
+  calling session's identity, and every live session contributes one
+  `SessionPin` anchor targeting its bound root, so one session never
+  collects another session's bound root (threat T15). Every other anchor
+  and every root come from the repository itself: one `Ref` anchor per
+  named branch targeting its head root, one `Transaction` anchor for the
+  accepted head, the accepted state roots of those revisions, and the
+  full root records bound by live sessions (retained at open and renew,
+  pruned from retention when no live session binds them). `Tag`, `Lease`,
+  `ProtectedRoot`, and `PackManifest` anchors have no repository source
+  at this revision, so they enter only through request pins: a client
+  that holds such an anchor pins its targets explicitly. A dependency
+  root that is not among them fails closed with the S20-180
+  `GC_DEPENDENCY_MISSING` code; nothing is deleted. `gc.dry_run` never
+  mutates; `gc.collect` acquires the S20-180 exclusive guard for the
+  duration of the request and answers its report verbatim, including a
+  partial-delete failure.
 - **Objects are verified by the production verifier.** Reachability reads
   every object through the S20-560 `RepositoryObjectVerifier`: an object
   is an S20-340 entity object under the conformance schema epoch and

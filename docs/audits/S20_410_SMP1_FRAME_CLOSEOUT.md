@@ -92,7 +92,12 @@ The implementation provides, in `crates/sley-protocol`:
 ## Explicitly open and deferred
 
 - **Council reviews.** Ariadne (owner), Nabu, and Vulcan reviews of
-  S20-400 are queued and land as contract revisions.
+  S20-400 are queued and land as contract revisions. Revision 9
+  (2026-09-05) lands the eight P0s: the transcript-bound handshake with
+  per-peer re-derivation, the valued envelope epoch, the scoped cancel
+  wording, the completed zero-code table, the all-session gc pins, and
+  the freeze-gate fix, with the server, CLI, bridge, fuzz target,
+  fixtures, and oracle following.
 - **Owner gaps that blocked four methods (closed by slice C, 2026-09-03).**
   `gc.dry_run` and `gc.collect` waited for a production S20-560
   `GcObjectVerifier`; `execute` and `report` waited for a public S20-380
@@ -112,8 +117,12 @@ The implementation provides, in `crates/sley-protocol`:
 - A server request/response conformance corpus with an independent oracle
   is not attempted: the responses are the owners' frozen records, each
   already covered by its own corpus and oracle.
-- S20-440 freezes cancellation latency and streaming; the server answers
-  each request before reading the next frame, so `cancel` acknowledges.
+- S20-440 freezes cancellation latency and streaming; the single-frame
+  `Server::answer` entry answers each request before reading the next
+  frame, so a lone `cancel` acknowledges, while cancellation before
+  execution lives in multi-frame `answer_batch` under SMP1 section 7 and
+  appendix B (revision 9 scopes the appendix A row 603 wording, which had
+  stated the single-frame path as the whole server).
 
 ## Validation record
 

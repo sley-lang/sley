@@ -10,7 +10,7 @@ use sley_json_bridge::{METHOD_TABLE_JSON, frame_from_json, frame_to_json, hello_
 use sley_protocol::{
     BoundedContext, DecodedFrame, FEATURE_JSON_BRIDGE, FLAG_CANCEL, FrameKind, Hello,
     MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolFailure, ProtocolFrame, Server,
-    decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate,
+    decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate_identity,
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
 use sley_scb1::encode_uvar;
@@ -94,10 +94,13 @@ struct Direct {
 }
 
 fn direct(path: &PathBuf) -> Direct {
+    direct_with(path, &offered())
+}
+
+fn direct_with(path: &PathBuf, server_hello: &Hello) -> Direct {
     let client = offered();
-    let selected = negotiate(&client, &offered()).unwrap();
-    let handshake = selected.handshake_id().unwrap();
-    let mut server = Server::new(path, selected).unwrap();
+    let (_, handshake) = negotiate_identity(&client, server_hello).unwrap();
+    let mut server = Server::new(path, &client, server_hello).unwrap();
     let open_frame = request(
         None,
         1,
@@ -184,6 +187,13 @@ fn serve_in_byte_mode_answers_exactly_as_a_direct_server() {
 fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
     let (temp, path) = repository("cli-json");
     let direct = direct(&path);
+    let mut offered_json = offered();
+    offered_json.features |= FEATURE_JSON_BRIDGE;
+    // Sessions are per mode: the handshake identity digests both hello
+    // bodies (SMP1 section 2, threat T45), and the server hello carries
+    // the json_bridge feature only in JSON mode, so byte-mode frames
+    // cannot open a JSON session. The answers stay comparable.
+    let json_direct = direct_with(&path, &offered_json.clone());
     let mut byte_input = encode_hello_frame(&offered()).unwrap().bytes;
     for frame in &direct.frames {
         byte_input.extend_from_slice(frame);
@@ -194,12 +204,10 @@ fn serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place() {
     );
     let byte_frames = split_frames(&byte_output);
 
-    let mut offered_json = offered();
-    offered_json.features |= FEATURE_JSON_BRIDGE;
     let mut lines = String::new();
     lines.push_str(&frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap());
     lines.push('\n');
-    for (index, frame) in direct.frames.iter().enumerate() {
+    for (index, frame) in json_direct.frames.iter().enumerate() {
         if index == 2 {
             lines.push_str("{\"nope\":1}\n");
             lines.push_str("not json at all\n");

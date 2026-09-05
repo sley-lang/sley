@@ -640,7 +640,11 @@ fn serve_frames(
             }
         }
     };
-    let selected = match negotiate(&client, &offered) {
+    // The offer is checked here so a negotiation failure is answered as
+    // a protocol rejection frame; the server below re-derives the same
+    // selection and the transcript-bound identity from the observed
+    // hellos (contract section 2), never from this asserted value.
+    let _selected = match negotiate(&client, &offered) {
         Ok(selected) => selected,
         Err(error) => {
             return write_rejection(
@@ -651,7 +655,8 @@ fn serve_frames(
             );
         }
     };
-    let mut server = Server::new(&options.repository, selected).map_err(endpoint_failure)?;
+    let mut server =
+        Server::new(&options.repository, &client, &offered).map_err(endpoint_failure)?;
     report.handshake_id = Some(hex(server.handshake_id().as_bytes()));
     write_frame(
         stdout,

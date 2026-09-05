@@ -17,10 +17,11 @@ use sley_scb1::{encode_record, encode_uvar};
 use crate::server::{
     FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_METHOD_REASON, Server,
 };
+use crate::session::HeadBinding;
 use crate::{
     BoundedContext, DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method,
     PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, SessionId, decode_frame,
-    encode_frame, negotiate,
+    encode_frame, negotiate, negotiate_identity,
 };
 
 fn epoch(byte: u8) -> SchemaEpochId {
@@ -55,6 +56,8 @@ struct Harness {
     _temp: sley_repo::test_support::TempDir,
     repository: std::path::PathBuf,
     genesis: TransactionId,
+    client_hello: Hello,
+    server_hello: Hello,
     server: Server,
     session: SessionId,
     next_request: u64,
@@ -65,8 +68,9 @@ impl Harness {
         let (temp, _transactions, genesis) =
             genesis(label, complete_bodies(), &[complete_dependency_root()]);
         let repository = temp.child("repo");
-        let profile = negotiate(&hello(all_methods(), 4), &hello(all_methods(), 8)).unwrap();
-        let mut server = Server::new(&repository, profile).unwrap();
+        let client_hello = hello(all_methods(), 4);
+        let server_hello = hello(all_methods(), 8);
+        let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
         let handshake = server.handshake_id();
         let open = server
             .answer(&request_frame(
@@ -87,6 +91,8 @@ impl Harness {
             _temp: temp,
             repository,
             genesis,
+            client_hello,
+            server_hello,
             server,
             session,
             next_request: 1,
@@ -225,8 +231,9 @@ fn owner_retryability_is_explicit_and_word_order_independent() {
 fn exchange_export_transports_the_pack_of_a_dependency_free_root() {
     let (temp, _transactions, genesis_id) = genesis("smp1-export", dependency_free_bodies(), &[]);
     let repository = temp.child("repo");
-    let profile = negotiate(&hello(all_methods(), 4), &hello(all_methods(), 8)).unwrap();
-    let mut server = Server::new(&repository, profile).unwrap();
+    let client_hello = hello(all_methods(), 4);
+    let server_hello = hello(all_methods(), 8);
+    let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
     let handshake = server.handshake_id();
     let open = server
         .answer(&request_frame(
@@ -390,7 +397,12 @@ fn session_repository_and_transaction_methods_answer_deterministically() {
     assert_eq!(malformed.code, ProtocolErrorCode::PayloadInvalid.numeric());
 
     // A second server over the same repository answers byte for byte.
-    let mut again = Server::new(&harness.repository, harness.server.profile().clone()).unwrap();
+    let mut again = Server::new(
+        &harness.repository,
+        &harness.client_hello,
+        &harness.server_hello,
+    )
+    .unwrap();
     let open = again
         .answer(&request_frame(
             None,
@@ -612,7 +624,7 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let fresh = sley_repo::test_support::TempDir::new("smp1-create");
     let fresh_root = fresh.child("repo");
     std::fs::create_dir(&fresh_root).unwrap();
-    let mut other = Server::new(&fresh_root, harness.server.profile().clone()).unwrap();
+    let mut other = Server::new(&fresh_root, &harness.client_hello, &harness.server_hello).unwrap();
     // A repository without an accepted head cannot bind a session yet.
     let premature = other
         .answer(&request_frame(
@@ -731,7 +743,8 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     let (source_temp, _source_transactions, source_genesis) =
         genesis("smp1-import-source", dependency_free_bodies(), &[]);
     let source_root = source_temp.child("repo");
-    let mut source = Server::new(&source_root, harness.server.profile().clone()).unwrap();
+    let mut source =
+        Server::new(&source_root, &harness.client_hello, &harness.server_hello).unwrap();
     let source_handshake = source.handshake_id();
     let open = source
         .answer(&request_frame(
@@ -772,7 +785,8 @@ fn mutation_side_methods_dispatch_with_owner_codes_preserved() {
     assert!(!exported.failed);
     let target_temp = sley_repo::test_support::TempDir::new("smp1-import-target");
     let target_root = target_temp.child("repo");
-    let mut target = Server::new(&target_root, harness.server.profile().clone()).unwrap();
+    let mut target =
+        Server::new(&target_root, &harness.client_hello, &harness.server_hello).unwrap();
     let imported = target
         .answer(&request_frame(
             None,
@@ -898,7 +912,7 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     small_server.features = 1 | 2;
     let profile = negotiate(&small_client, &small_server).unwrap();
     assert_eq!(profile.limits.max_frame_bytes, 640);
-    let mut streaming = Server::new(&harness.repository, profile.clone()).unwrap();
+    let mut streaming = Server::new(&harness.repository, &small_client, &small_server).unwrap();
     let open = streaming
         .answer(&request_frame(
             None,
@@ -953,8 +967,7 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     // Without the stream feature the same body fails closed with no partial body.
     let mut no_stream_client = small_client.clone();
     no_stream_client.features = 1;
-    let profile = negotiate(&no_stream_client, &small_server).unwrap();
-    let mut refusing = Server::new(&harness.repository, profile).unwrap();
+    let mut refusing = Server::new(&harness.repository, &no_stream_client, &small_server).unwrap();
     let open = refusing
         .answer(&request_frame(
             None,
@@ -990,8 +1003,8 @@ fn cancellation_streaming_and_budgets_are_bounded_at_the_server() {
     // Budgets: a session whose work budget is exhausted fails closed.
     let mut tiny_client = hello(all_methods(), 4);
     tiny_client.limits.max_work = 64;
-    let profile = negotiate(&tiny_client, &hello(all_methods(), 8)).unwrap();
-    let mut budgeted = Server::new(&harness.repository, profile).unwrap();
+    let tiny_server = hello(all_methods(), 8);
+    let mut budgeted = Server::new(&harness.repository, &tiny_client, &tiny_server).unwrap();
     let open = budgeted
         .answer(&request_frame(
             None,
@@ -1055,7 +1068,12 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_die_with_the_root() {
     let session = harness.session;
     // Deterministic issuance: a second server over the same state issues
     // the same identity, derived under sley2.session.v1.
-    let mut twin = Server::new(&harness.repository, harness.server.profile().clone()).unwrap();
+    let mut twin = Server::new(
+        &harness.repository,
+        &harness.client_hello,
+        &harness.server_hello,
+    )
+    .unwrap();
     let open = twin
         .answer(&request_frame(
             None,
@@ -1217,8 +1235,9 @@ fn open_server(
 ) {
     let (temp, _transactions, genesis_id) = genesis(label, bodies, &[]);
     let repository = temp.child("repo");
-    let profile = negotiate(&hello(all_methods(), 4), &hello(all_methods(), 8)).unwrap();
-    let mut server = Server::new(&repository, profile).unwrap();
+    let client_hello = hello(all_methods(), 4);
+    let server_hello = hello(all_methods(), 8);
+    let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
     let handshake = server.handshake_id();
     let open = server
         .answer(&request_frame(
@@ -1284,6 +1303,33 @@ fn fields_of(body: &[u8], count: u64) -> Vec<Vec<u8>> {
         .collect()
 }
 
+fn list_of(body: &[u8]) -> Vec<Vec<u8>> {
+    // list || (len || bytes)*
+    let mut offset = 0;
+    let read = |offset: &mut usize| -> u64 {
+        let mut value = 0u64;
+        let mut shift = 0;
+        loop {
+            let byte = body[*offset];
+            *offset += 1;
+            value |= u64::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                return value;
+            }
+            shift += 7;
+        }
+    };
+    let count = usize::try_from(read(&mut offset)).unwrap();
+    (0..count)
+        .map(|_| {
+            let length = usize::try_from(read(&mut offset)).unwrap();
+            let field = body[offset..offset + length].to_vec();
+            offset += length;
+            field
+        })
+        .collect()
+}
+
 #[test]
 fn gc_dry_run_and_collect_derive_the_snapshot_from_the_repository() {
     let (_temp, mut server, session, genesis_id) = open_server("smp1-gc", dependency_free_bodies());
@@ -1340,6 +1386,147 @@ fn gc_dry_run_and_collect_derive_the_snapshot_from_the_repository() {
         tx(genesis_id),
     );
     assert!(!failed);
+}
+
+#[test]
+fn tampered_hello_is_rejected_at_session_open() {
+    // Threat T45: the client offers versions 1 and 2, the server offers 1,
+    // so the honest selection is version 1. A stripped client hello (2
+    // removed on the wire) negotiates the same selection but a different
+    // transcript, so the honest identity must fail at open.
+    let (temp, _transactions, _genesis) = genesis("smp1-t45", dependency_free_bodies(), &[]);
+    let repository = temp.child("repo");
+    let mut client = hello(all_methods(), 4);
+    client.protocol_versions = vec![1, 2];
+    let server_hello = hello(all_methods(), 8);
+    let (_, honest_id) = negotiate_identity(&client, &server_hello).unwrap();
+    let mut stripped = client.clone();
+    stripped.protocol_versions = vec![1];
+    let mut server = Server::new(&repository, &stripped, &server_hello).unwrap();
+    assert_eq!(server.profile().protocol_version, 1);
+    assert_ne!(
+        server.handshake_id(),
+        honest_id,
+        "the transcript binds the hellos, not just the selection"
+    );
+    let answer = server
+        .answer(&request_frame(
+            None,
+            1,
+            Method::SessionOpen,
+            honest_id.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("downgrade response");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::Downgrade.numeric()
+    );
+    // The server's own view is self-consistent and opens.
+    let answer = server
+        .answer(&request_frame(
+            None,
+            2,
+            Method::SessionOpen,
+            server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!answer.failed);
+}
+
+#[test]
+fn collection_retains_a_non_head_session_bound_root() {
+    // Threat T15: S1 is renewed onto a real importable root built from
+    // this repository's own objects that is not the head, simulating a
+    // session bound to an old head after the head advanced without
+    // renewal. A dry run from a second session must retain that root
+    // with no deletion candidates; before the all-session pins it was a
+    // silent deletion candidate.
+    use sley_state_root::{StateRootBuilder, conformance_registry as state_registry};
+
+    let (_temp_a, mut server_a, s1, _) = open_server("smp1-gc-stale-a", dependency_free_bodies());
+    let head_record = sley_txn::TransactionRepository::new(server_a.repository())
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .clone()
+        .state_root()
+        .clone();
+    let (old_entity, old_object) = head_record.record.entity_bindings[0];
+    let odd = StateRootBuilder::new(
+        head_record.record.workspace_id,
+        head_record.record.contract_root,
+        head_record.record.test_root,
+        head_record.record.policy_root,
+    )
+    .entity_binding(old_entity, old_object)
+    .build(&state_registry().unwrap())
+    .unwrap();
+    let bound = server_a.authority_mut().record(s1).copied().unwrap();
+    assert_ne!(
+        odd.root, bound.bound_root,
+        "the partial root must diverge from the head for the test to mean anything"
+    );
+    let binding = HeadBinding {
+        workspace_id: bound.workspace_id,
+        root: odd.root,
+        schema_epoch: bound.schema_epoch,
+    };
+    server_a
+        .authority_mut()
+        .renew_session(s1, &binding, &odd)
+        .unwrap();
+    let open = server_a
+        .answer(&request_frame(
+            None,
+            2,
+            Method::SessionOpen,
+            server_a.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
+    let (DecodedFrame::Response(open_frame), _) =
+        decode_frame(&open.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("second session opens");
+    };
+    let s2 = SessionId::from_bytes(open_frame.body.as_slice().try_into().unwrap());
+    let no_pins = encode_record(&[(1, sley_scb1::encode_list(&[]).unwrap())]).unwrap();
+    let (failed, frame) = call_frame(&mut server_a, s2, 1, Method::GcDryRun, no_pins);
+    assert!(!failed, "{:?}", ProtocolFailure::decode(&frame.body));
+    let fields = fields_of(&frame.body, 10);
+    assert!(
+        fields[1]
+            .windows(32)
+            .any(|window| window == odd.root.as_bytes().as_slice()),
+        "the stale session's bound root is retained"
+    );
+    assert_eq!(
+        fields[4],
+        sley_scb1::encode_list(&[]).unwrap(),
+        "nothing is a deletion candidate"
+    );
+    // One SessionPin anchor (kind 7) per live session, under its own id.
+    let mut pins: Vec<(Vec<u8>, Vec<u8>)> = list_of(&fields[0])
+        .iter()
+        .map(|anchor| {
+            let key = fields_of(anchor, 2);
+            (key[0].clone(), key[1].clone())
+        })
+        .filter(|(kind, _)| *kind == encode_uvar(7))
+        .collect();
+    pins.sort();
+    let mut expected = vec![
+        (encode_uvar(7), s1.as_bytes().to_vec()),
+        (encode_uvar(7), s2.as_bytes().to_vec()),
+    ];
+    expected.sort();
+    assert_eq!(pins, expected);
 }
 
 #[test]

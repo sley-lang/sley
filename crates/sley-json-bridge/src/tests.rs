@@ -2,7 +2,7 @@ use serde_json::Value;
 use sley_protocol::{
     BoundedContext, DecodedFrame, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method,
     ProtocolErrorCode, ProtocolFailure, ProtocolFrame, Retryability, StreamChunk, decode_frame,
-    encode_frame, negotiate,
+    encode_frame, negotiate_identity,
 };
 
 use super::*;
@@ -559,8 +559,8 @@ fn hello_selected_failure_and_chunk_round_trip() {
             FEATURE_FIELDS.len()
         );
     }
-    let selected = negotiate(&client, &server).expect("negotiates");
-    let text = selected_to_json(&selected).expect("renders");
+    let (selected, handshake) = negotiate_identity(&client, &server).expect("negotiates");
+    let text = selected_to_json(&selected, &handshake).expect("renders");
     let value: Value = serde_json::from_str(&text).expect("parses");
     assert_eq!(
         value.as_object().expect("object").len(),

@@ -8,9 +8,10 @@ constants, restated here) with its own SCB1 encoders: the `ProtocolFrame`
 and `Hello` records, the standalone envelope under the frozen protocol
 schema epoch identity carried by the fixture, the `ProtocolFrameId` trailer
 under `sley2.protocol-frame.v1`, the derived selected profile, and the
-`ProtocolHandshakeId` under `sley2.protocol-handshake.v1`. It then classifies
-every rejected input with its own bounded decoder. It shares no code with
-the Rust implementation.
+transcript-bound `ProtocolHandshakeId` under `sley2.protocol-handshake.v1`
+(client hello body, server hello body, then selection preimage). It then
+classifies every rejected input with its own bounded decoder. It shares no
+code with the Rust implementation.
 """
 
 from __future__ import annotations
@@ -170,6 +171,7 @@ def negotiate(client: dict, server: dict) -> dict:
     preimage = record(
         [uvar(version), epoch, limits(lim), lst([uvar(m) for m in methods]), uvar(client["features"] & server["features"]), lst(adapters), lst(effects)]
     )
+    transcript = hello(client) + hello(server) + preimage
     return {
         "protocol_version": version,
         "schema_epoch": epoch,
@@ -177,7 +179,8 @@ def negotiate(client: dict, server: dict) -> dict:
         "methods": methods,
         "features": client["features"] & server["features"],
         "preimage": preimage,
-        "handshake_id": blake3.blake3(HANDSHAKE_DOMAIN + preimage).digest(),
+        "transcript": transcript,
+        "handshake_id": blake3.blake3(HANDSHAKE_DOMAIN + transcript).digest(),
     }
 
 
@@ -247,6 +250,8 @@ def main() -> int:
     expected = accepted["selected"]
     if selected["preimage"].hex() != expected["preimage_hex"]:
         problems.append("selected:preimage")
+    if selected["transcript"].hex() != expected["transcript_hex"]:
+        problems.append("selected:transcript")
     if selected["handshake_id"].hex() != expected["handshake_id"]:
         problems.append("selected:handshake_id")
     if selected["protocol_version"] != expected["protocol_version"] or selected["methods"] != expected["methods"]:

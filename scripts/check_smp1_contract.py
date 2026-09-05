@@ -144,9 +144,14 @@ def main() -> int:
     present = []
     if CRATE.exists():
         present.append("crates/sley-protocol")
-    if status in (DRAFT_STATUS, FROZEN_STATUS) and present:
+    # Contract acceptance (section 10) is the freeze: the three reviews
+    # must pass with every report-grade finding closed before the status
+    # may read FROZEN, and an implementation coexisting with a frozen
+    # reviewed document is normal (S20-410 implements under the draft).
+    # Only a draft still awaiting review must have no implementation yet.
+    if status == DRAFT_STATUS and present:
         problems.append(f"implementation-before-stage:{present}")
-    if status == COMPLETE_STATUS:
+    if status in (FROZEN_STATUS, COMPLETE_STATUS):
         for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
             if not str(section.get(key, "")).startswith("PASS"):
                 problems.append(f"completion-without-review:{key}")

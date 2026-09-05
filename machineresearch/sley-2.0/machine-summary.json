@@ -1300,7 +1300,7 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 8,
+    "contract_revision": 9,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -1309,6 +1309,8 @@
     "new_error_code_range": "40000 through 40011",
     "frame_domain": "sley2.protocol-frame.v1",
     "handshake_domain": "sley2.protocol-handshake.v1",
+    "handshake_identity": "TRANSCRIPT_BOUND_CLIENT_HELLO_PLUS_SERVER_HELLO_PLUS_SELECTION_PER_PEER_REDERIVED",
+    "gc_session_pins": "ONE_SESSIONPIN_ANCHOR_PER_LIVE_SESSION_PLUS_CALLER_REQUEST_PINS",
     "frame_contract_tags": [
       400
     ],
@@ -1395,7 +1397,7 @@
     },
     "retryability_mapping": "explicit since 2026-09-03 (SMP1 section 6): AFTER_REQUERY names five symbols exactly, AFTER_LIMIT_CHANGE covers RESOURCE_LIMIT, REQUIRED_FACT_OMITTED, and PROTOCOL_LIMIT_EXCEEDED, and every other symbol is NEVER",
     "retryability_finding": "the suffix rule answered NEVER for SESSION_STALE_HANDLE and STALE_ROOT while answering AFTER_REQUERY for REF_CAS_STALE, so a client gave up on two retryable conditions because of word order",
-    "p0_open_count": 8
+    "p0_open_count": 0
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",

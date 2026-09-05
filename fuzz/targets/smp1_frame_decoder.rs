@@ -20,7 +20,7 @@ use sley_id::{ProtocolFrameId, SchemaEpochId};
 use sley_protocol::{
     BoundedContext, DecodedFrame, FLAG_STREAM, FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES,
     Method, PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFrame, StreamChunk, decode_frame,
-    encode_frame, encode_hello_frame, negotiate, reassemble_stream, stream_response,
+    encode_frame, encode_hello_frame, negotiate_identity, reassemble_stream, stream_response,
 };
 
 const SELECTOR_COUNT: u8 = 4;
@@ -105,11 +105,10 @@ fn check_hello(candidate: &[u8]) {
         Ok(hello) => {
             assert_eq!(hello.encode().expect("re-encode"), candidate, "hello re-encoding drifted");
             let server = server_hello();
-            match negotiate(&hello, &server) {
-                Ok(selected) => {
-                    let id = selected.handshake_id().expect("handshake identity");
+            match negotiate_identity(&hello, &server) {
+                Ok((selected, id)) => {
                     assert_eq!(
-                        negotiate(&hello, &server).expect("repeatable").handshake_id().expect("id"),
+                        negotiate_identity(&hello, &server).expect("repeatable").1,
                         id,
                         "handshake identity drifted"
                     );

@@ -23,7 +23,7 @@ for marker in [
     "decode_frame(candidate, MAX_FRAME_BYTES)",
     "with_rehashed_trailer(payload)",
     "Hello::decode(candidate)",
-    "negotiate(&hello, &server)",
+    "negotiate_identity(&hello, &server)",
     "re-encoding a decoded frame drifted",
     "handshake identity drifted",
     "ProtocolErrorCode::ALL.contains(&error.code())",

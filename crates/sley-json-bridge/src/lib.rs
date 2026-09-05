@@ -13,7 +13,7 @@
 use core::fmt;
 
 use serde_json::{Map, Value};
-use sley_id::SchemaEpochId;
+use sley_id::{ProtocolHandshakeId, SchemaEpochId};
 use sley_protocol::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_CHECKSUM,
     FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FLAG_STREAM, FrameKind, Hello,
@@ -831,13 +831,19 @@ pub fn hello_from_json(text: &str) -> Result<Hello> {
     Ok(hello)
 }
 
-/// Renders a selected profile, including its derived handshake identity.
+/// Renders a selected profile with its transcript-bound handshake identity.
+///
+/// The identity is opaque render data, never a trust root: JSON is
+/// non-canonical, so identity always comes from the wire transcript
+/// (contract section 2), never from this text.
 ///
 /// # Errors
 ///
 /// Returns the codec's failure or a bridge naming failure.
-pub fn selected_to_json(selected: &SelectedProfile) -> Result<String> {
-    let handshake = selected.handshake_id()?;
+pub fn selected_to_json(
+    selected: &SelectedProfile,
+    handshake: &ProtocolHandshakeId,
+) -> Result<String> {
     let mut map = Map::new();
     insert(
         &mut map,

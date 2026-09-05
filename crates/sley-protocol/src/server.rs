@@ -55,7 +55,7 @@ use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_STREAM, FLAG_CANCEL,
     FLAG_FAILED, FrameKind, Hello, LimitProfile, Method, PROTOCOL_VERSION, ProtocolError,
     ProtocolErrorCode, ProtocolFailure, ProtocolFrame, RequestRegistry, Retryability,
-    SelectedProfile, SessionId, decode_frame, encode_frame, stream_response,
+    SelectedProfile, SessionId, decode_frame, encode_frame, negotiate_identity, stream_response,
 };
 
 /// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `report` names no
@@ -163,16 +163,23 @@ pub struct Answer {
 }
 
 impl Server {
-    /// Creates a server over a repository under a negotiated profile.
+    /// Creates a server over a repository, re-deriving the negotiated profile
+    /// and the transcript-bound handshake identity from the hellos as
+    /// observed (contract section 2, threat T45). An asserted selection is
+    /// never accepted: identity always comes from per-peer re-derivation,
+    /// so any tamper of either hello makes `session.open` fail
+    /// `PROTOCOL_DOWNGRADE`.
     ///
     /// # Errors
     ///
-    /// Returns `PROTOCOL_INTERNAL_INVARIANT` when the profile cannot be digested.
+    /// Returns the negotiation failure, or `PROTOCOL_INTERNAL_INVARIANT`
+    /// when the transcript cannot be digested.
     pub fn new(
         repository: impl Into<PathBuf>,
-        profile: SelectedProfile,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> core::result::Result<Self, ProtocolError> {
-        let handshake_id = profile.handshake_id()?;
+        let (profile, handshake_id) = negotiate_identity(client_hello, server_hello)?;
         Ok(Self {
             repository: repository.into(),
             profile,
@@ -227,6 +234,14 @@ impl Server {
     #[must_use]
     pub const fn handshake_id(&self) -> ProtocolHandshakeId {
         self.handshake_id
+    }
+
+    /// Crate-internal access to the session authority for the retention
+    /// tests: production code reaches the authority only through the
+    /// session methods above, never directly.
+    #[cfg(test)]
+    pub(crate) fn authority_mut(&mut self) -> &mut SessionAuthority {
+        &mut self.authority
     }
 
     /// Answers one complete request frame with one response frame.
@@ -492,10 +507,10 @@ impl Server {
         match method {
             Method::SessionOpen => protocol_failure(ProtocolErrorCode::InternalInvariant),
             Method::SessionRenew => {
-                let (_, binding) = self.head_binding()?;
+                let (head, binding) = self.head_binding()?;
                 let record = self
                     .authority
-                    .renew_session(session, &binding)
+                    .renew_session(session, &binding, head.state_root())
                     .map_err(session_failure)?;
                 self.plain(record.session_id.as_bytes().to_vec())
             }
@@ -625,10 +640,10 @@ impl Server {
         if claimed != *self.handshake_id.as_bytes() {
             return protocol_failure(ProtocolErrorCode::Downgrade);
         }
-        let (_, binding) = self.head_binding()?;
+        let (head, binding) = self.head_binding()?;
         let record = self
             .authority
-            .open_session(&binding)
+            .open_session(&binding, head.state_root())
             .map_err(session_failure)?;
         let session = record.session_id;
         self.registry
@@ -1670,8 +1685,9 @@ const MAX_GC_PINS: usize = 4_096;
 
 impl Server {
     /// `gc.dry_run` (212) and `gc.collect` (213): the server derives the
-    /// retention snapshot from its refs and accepted head; the request may
-    /// only add session pins.
+    /// retention snapshot from its refs, its accepted head, and every live
+    /// session's bound root; the request may only add session pins
+    /// (contract appendix C).
     fn gc(
         &self,
         body: &[u8],
@@ -1711,11 +1727,36 @@ impl Server {
                 .entry(root)
                 .or_insert_with(|| revision.state_root().clone());
         }
+        // Catalog every live session's bound root alongside the head and
+        // branch revisions: a session bound to a root no branch targets
+        // stays importable while the session is live, and the engine
+        // retains exactly the catalogued closure (threat T15).
+        for retained in self.authority.retained_roots() {
+            roots.entry(retained.root).or_insert(retained);
+        }
+        // One SessionPin anchor per live session: a session's bound root
+        // stays retained while the session is live, so one session never
+        // collects another session's bound root (threat T15). Targets are
+        // deduplicated within one anchor because the snapshot fails
+        // duplicate targets closed.
+        let mut pin_targets: BTreeMap<SessionId, Vec<RetentionTarget>> = BTreeMap::new();
+        for (live, root) in self.authority.live_pins() {
+            pin_targets.insert(live, vec![RetentionTarget::StateRoot(root)]);
+        }
         if !pins.is_empty() {
+            pin_targets.entry(session).or_default().extend(pins);
+        }
+        for (owner, targets) in pin_targets {
+            let mut unique: Vec<RetentionTarget> = Vec::with_capacity(targets.len());
+            for target in targets {
+                if !unique.contains(&target) {
+                    unique.push(target);
+                }
+            }
             anchors.push(RetentionAnchor::new(
                 RetentionKind::SessionPin,
-                *session.as_bytes(),
-                pins,
+                *owner.as_bytes(),
+                unique,
             ));
         }
         let snapshot = RetentionSnapshot::new(anchors, roots.into_values().collect())

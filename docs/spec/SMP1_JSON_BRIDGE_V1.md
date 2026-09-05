@@ -78,8 +78,7 @@ SelectedProfile {
   "limits": LimitProfile, "methods": [string],
   "features": { ... as Hello ... }, "adapters": [hex[64]], "effects": [hex[64]],
   "handshake_id": hex[64]
-}
-Failure {
+}Failure {
   "code": integer, "symbol": string, "phase": integer,
   "retryability": "never" | "after_requery" | "after_capability"
                   | "after_limit_change" | "transient_host",
@@ -87,6 +86,12 @@ Failure {
 }
 StreamChunk { "index": integer, "total": integer, "bytes": hex }
 ```
+
+The `handshake_id` renders the transcript-bound identity of SMP1 section
+2 (both hello bodies plus the selection preimage) as opaque data. The
+bridge defines nothing about the handshake: identity always comes from
+the wire transcript, never from this text, and there is no
+`selected_from_json` reader by contract.
 
 `method` names are the frozen names of the SMP1 method table (`session.open`
 through `report`); the generated table `conformance/smp1-json-bridge/v1/methods.json`

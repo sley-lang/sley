@@ -60,6 +60,7 @@ def main() -> int:
                 "preimage_hex": parts[3],
                 "protocol_version": int(parts[1]),
                 "schema_epoch_hex": parts[2],
+                "transcript_hex": parts[7],
             }
         elif line.startswith("SMP1_FRAME|"):
             frames.append({"frame_bytes": len(parts[2]) // 2, "frame_hex": parts[2], "frame_id": parts[3], "id": parts[1]})

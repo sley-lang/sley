@@ -684,7 +684,51 @@ impl Hello {
     }
 }
 
+/// The exact bytes the handshake identity digests: the client hello body,
+/// then the server hello body, then the selection preimage (contract
+/// section 2). The client speaks first, so it comes first.
+#[must_use]
+pub fn handshake_transcript(
+    client_hello_body: &[u8],
+    server_hello_body: &[u8],
+    selection_preimage: &[u8],
+) -> Vec<u8> {
+    let mut transcript = Vec::with_capacity(
+        client_hello_body.len() + server_hello_body.len() + selection_preimage.len(),
+    );
+    transcript.extend_from_slice(client_hello_body);
+    transcript.extend_from_slice(server_hello_body);
+    transcript.extend_from_slice(selection_preimage);
+    transcript
+}
+
+/// Derives the selection and binds the observed hello transcript.
+///
+/// Both peers must call this on the hellos as observed (the own hello as
+/// sent, the peer hello as received) and use the returned selection and
+/// identity; an asserted selection is never trustworthy for identity.
+/// The identity binds both hello bodies, so any tamper of either hello
+/// changes at least one peer's transcript and the two identities differ
+/// (contract section 2, threat T45).
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common version, epoch, or
+/// method exists, the hellos fail validation, or the transcript cannot be
+/// digested.
+pub fn negotiate_identity(
+    client: &Hello,
+    server: &Hello,
+) -> Result<(SelectedProfile, ProtocolHandshakeId)> {
+    let profile = negotiate(client, server)?;
+    let identity = profile.handshake_id_bound(&client.encode()?, &server.encode()?)?;
+    Ok((profile, identity))
+}
+
 /// Derives the selected profile from two hellos (contract section 2).
+///
+/// Prefer [`negotiate_identity`]: identity must bind the observed hello
+/// transcript, never the selection alone.
 ///
 /// # Errors
 ///
@@ -736,7 +780,10 @@ fn intersect(left: &[[u8; 32]], right: &[[u8; 32]]) -> Vec<[u8; 32]> {
 }
 
 impl SelectedProfile {
-    /// Canonical preimage of the selection.
+    /// Canonical preimage of the selection (contract section 2): the SCB1
+    /// record of the seven derived fields (1 `protocol_version`, 2
+    /// `schema_epoch`, 3 `limits`, 4 `methods`, 5 `features`, 6 `adapters`,
+    /// 7 `effects`).
     ///
     /// # Errors
     ///
@@ -753,13 +800,30 @@ impl SelectedProfile {
         ]))
     }
 
-    /// The `ProtocolHandshakeId` both peers must compute identically.
+    /// The transcript-bound `ProtocolHandshakeId` both peers must compute
+    /// identically (contract section 2):
+    /// `BLAKE3-256("sley2.protocol-handshake.v1" || client hello body ||
+    /// server hello body || selected_profile_preimage)`, the client first
+    /// because it speaks first. Each body is the exact `Hello::encode`
+    /// bytes of the hello as observed, so a tampered hello changes at
+    /// least one peer's transcript and `session.open` fails
+    /// `PROTOCOL_DOWNGRADE` (threat T45). The selection-only digest is
+    /// gone: it attested the server's asserted selection only.
     ///
     /// # Errors
     ///
     /// Returns `PROTOCOL_INTERNAL_INVARIANT` on an encoding defect.
-    pub fn handshake_id(&self) -> Result<ProtocolHandshakeId> {
-        Ok(ProtocolHandshakeId::derive(&self.preimage()?))
+    pub fn handshake_id_bound(
+        &self,
+        client_hello_body: &[u8],
+        server_hello_body: &[u8],
+    ) -> Result<ProtocolHandshakeId> {
+        let preimage = self.preimage()?;
+        Ok(ProtocolHandshakeId::derive(handshake_transcript(
+            client_hello_body,
+            server_hello_body,
+            &preimage,
+        )))
     }
 
     /// Detects a downgrade: a claimed version or epoch below the selection.
@@ -1820,12 +1884,25 @@ mod tests {
         assert_eq!(selected.features, FEATURE_CANCEL);
         assert_eq!(selected.adapters, vec![[0xA2; 32]]);
         assert!(selected.effects.is_empty());
-        let id = selected.handshake_id().unwrap();
-        // Both peers derive the same selection and identity.
+        let id = negotiate_identity(&client, &server).unwrap().1;
+        // Both peers derive the same selection and transcript-bound identity.
+        assert_eq!(negotiate_identity(&client, &server).unwrap().1, id);
         assert_eq!(
-            negotiate(&client, &server).unwrap().handshake_id().unwrap(),
+            selected
+                .handshake_id_bound(&client.encode().unwrap(), &server.encode().unwrap())
+                .unwrap(),
             id
         );
+        // Threat T45: a client hello stripped of version 2 on the wire
+        // negotiates the same selection (version 1 either way) but a
+        // different transcript, so the server's identity differs from the
+        // honest client's and `session.open` fails closed. A
+        // selection-only digest would call these identical.
+        let mut stripped = client.clone();
+        stripped.protocol_versions = vec![1];
+        let (stripped_selected, stripped_id) = negotiate_identity(&stripped, &server).unwrap();
+        assert_eq!(stripped_selected, selected);
+        assert_ne!(stripped_id, id);
         assert!(selected.admits(Method::QueryRoot));
         assert!(!selected.admits(Method::Commit));
         // Hello frames round trip.
@@ -2116,6 +2193,8 @@ mod tests {
         let client = client_hello();
         let server = server_hello();
         let selected = negotiate(&client, &server).unwrap();
+        let (bound_selected, bound_id) = negotiate_identity(&client, &server).unwrap();
+        assert_eq!(bound_selected, selected);
         let client_frame = encode_hello_frame(&client).unwrap();
         let server_frame = encode_hello_frame(&server).unwrap();
         println!(
@@ -2129,18 +2208,23 @@ mod tests {
             hex(server_frame.frame_id.as_bytes())
         );
         println!(
-            "SMP1_SELECTED|{}|{}|{}|{}|{}|{}",
+            "SMP1_SELECTED|{}|{}|{}|{}|{}|{}|{}",
             selected.protocol_version,
             hex(selected.schema_epoch.as_bytes()),
             hex(&selected.preimage().unwrap()),
-            hex(selected.handshake_id().unwrap().as_bytes()),
+            hex(bound_id.as_bytes()),
             selected.features,
             selected
                 .methods
                 .iter()
                 .map(u32::to_string)
                 .collect::<Vec<_>>()
-                .join(",")
+                .join(","),
+            hex(&handshake_transcript(
+                &client.encode().unwrap(),
+                &server.encode().unwrap(),
+                &selected.preimage().unwrap()
+            )),
         );
         let req = request(b"SLEYRQQ1-body");
         let encoded = encode_frame(&req).unwrap();
