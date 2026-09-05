@@ -3733,7 +3733,8 @@
     }
   ],
   "package_open_claims": {
-    "clean_room_disposition_register.p0_open_count": 3,
+    "clean_room_disposition_register.p0_open": 0,
+    "clean_room_disposition_register.p0_open_count": 0,
     "cli.p0_open_count": 0,
     "complete_root_index_snapshot.p0_open": 0,
     "complete_root_index_snapshot.p0_open_count": 0,
@@ -3763,7 +3764,7 @@
     "vm_extended_opcode_profile.p0_open": 0,
     "vm_extended_opcode_profile.p0_open_count": 0
   },
-  "register_digest": "8a71d67caff7e02edb589afcdd54c10b3b451984c57fe78a360dd2e772904df5",
+  "register_digest": "83cd7038a25d164a54b8a88aa1737cf2e54e0c2d17dc541504d5dfcb5dd26772",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 71,
