@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `87189f8`.
+are green at `7041a07`.
 
 ## Where the work is
 
@@ -362,11 +362,51 @@ Closed, each reproduced before fixing:
   new tests), secret-scan drift (oracle edit), and the oracle's own
   `[1, 0, 0]` pin failing all 22 vectors until bumped; smoke passed clean
   on the first attempt after each repair.
+- **S20-400 package** (Ariadne 12 P1 / 9 P2 / 4 P3, Nabu 9 P1 / 12 P2 /
+  7 P3, Vulcan 8 P1 / 10 P2 / 3 P3; all P0s already closed at revision
+  9): contract revision 11 (`ec90b35`, `f589779`, `fc8aa95`, `e65e3b9`,
+  residual rounds `776983f`, `019f0f8`, `a4f9fb9`, `3d911f4`,
+  `9b138a9`, `84bfa9c`, `7041a07`). Retryability fully enumerated (28
+  `AFTER_LIMIT_CHANGE` symbols byte-identical in contract and server
+  with checker-compared exact sets, `AFTER_CAPABILITY` for
+  reserved-method `UNSUPPORTED`, `STALE_ROOT` named as the emitted
+  symbol at 36002); response ceilings enforced on both paths
+  (`max_response_bytes/entities/edges/depth`, no partial body);
+  dispatch costs one unit up front plus bytes on success (renew never
+  resets); identifier floor (0 sentinel, start at 1, open and genesis
+  paths carry 0 unconsumed, exhaustion closes, session-less failures
+  answered with 0 never echoed); negotiation floor (`session.open`
+  mandatory, family as hundred-group, reserved rejected from hellos,
+  epoch equality with stated server preference); version split at
+  decode (below is `DOWNGRADE`, above is `VERSION_UNSUPPORTED`,
+  `check_claim` agreeing); failed streams keep bit 2 everywhere with
+  agreement-required reassembly; per-seam reserved reasons with
+  `AFTER_CAPABILITY`; extended execute behind feature bit 4;
+  transport-supplied details from a stated five-member set with
+  envelope incident none; appendix A in tag order with S20-330 rows
+  provisional; S20-440 frozen once in section 7; twelve 40000-40011
+  registry rows; ADR-0032 accepted; the checker pins appendix coverage,
+  summary/ADR/registry agreement, exact retryability, dead-token
+  absence, the anchored revision, and the lane-reconciled
+  register-first invariant at `IMPLEMENTED`. New `ariadne_review`,
+  `nabu_review`, and `vulcan_review` PASS obligations supersede all
+  three FAIL rounds; every 400 claim reads zero. Ten re-review
+  transcripts recorded (Ariadne PASS round 3, Nabu PASS round 3, Vulcan
+  PASS round 4, each round's residuals closed in the next commit).
+  Repair trail: the SMP1 fixtures, bridge table, bridge vectors, and
+  oracle method lists re-emitted (reserved tags leave the client
+  hello); the S20-330 revision pin moved 10 to 11; the bridge vector
+  checker compares live rows; the CLI, bridge, and release-demo suites
+  follow the new wire rules (session-less identifier 0 broke the
+  candidate demo's `exchange.import`, fixed in the demo driver);
+  conformance-report, provenance, and secret-scan drift cured by
+  committing the deterministic rebuilds in order; two clean smokes,
+  the second re-attesting at the evidence commit.
 
 **No P0 entries remain open.** All 110 Council P0 findings are closed, and
-the S20-780 pilot and the S20-360 and S20-260/270 packages closed across
-all severities (rounds
-superseded, claims zero). The wider P1+ backlog stands at 73 open reviews
+the S20-780 pilot and the S20-360, S20-260/270, and S20-400 packages
+closed across all severities (rounds
+superseded, claims zero). The wider P1+ backlog stands at 70 open reviews
 in other packages; lower-severity findings there remain tracked in the
 finding register.
 
@@ -390,11 +430,10 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **No open P0 cluster remains, and the 780 pilot and the 360 and 260/270
-   packages are the proven closure loop** (fix, live re-review, PASS-record,
-   attest). Candidate next work: the next backlog package per the finding
-   register (73 open reviews), or a new Council round.
-   (4 each, tied largest).
+2. **No open P0 cluster remains, and the 780 pilot and the 360, 260/270,
+   and 400 packages are the proven closure loop** (fix, live re-review,
+   PASS-record, attest). Candidate next work: the next backlog package
+   per the finding register (70 open reviews), or a new Council round.
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
    `reviews/verdicts.json` current. Take reviewer counts from the emitted
@@ -411,7 +450,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`87189f8`. The full `make v1` gate was skipped
+`7041a07`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
