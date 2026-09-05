@@ -4,7 +4,7 @@ The Council review round is **complete (69/69) plus two reconciliation
 re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
 Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
 `adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `cecb84c`.
+are green at `d30452f`.
 
 ## Where the work is
 
@@ -47,7 +47,7 @@ counting it**. The final `740-vulcan-surface` verdict (4 P0) landed after the
 `4aa867b` retain commit and is now retained here.
 
 
-## Findings: 92 of 110 P0 entries closed
+## Findings: 96 of 110 P0 entries closed
 
 Closed, each reproduced before fixing:
 
@@ -184,12 +184,37 @@ Closed, each reproduced before fixing:
   rev6, the audit's transport-feature ban, and new contract-checker
   markers for sections 2, 6, and 8. Round verdicts stand as `FAIL`
   history. Closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`. Repair
-  trail: first smoke failed the dossier test-inventory drift on the two
-  new CLI tests (cured by committing the refresh), clippy
-  format-collect on the new test helper fixed and re-attested clean.
+   trail: first smoke failed the dossier test-inventory drift on the two
+   new CLI tests (cured by committing the refresh), clippy
+   format-collect on the new test helper fixed and re-attested clean.
+- **S20-700fuzz** (4 entries): family-lane harness fix, no production-code
+  change (`81cc40b` code, `d2753dd` dispositions, `d30452f` evidence).
+  The lane built each fixture's request from the outer restricted fixture,
+  so E2/E3/E4 died in input validation and determinism compared two
+  identical input errors; it now builds from each fixture's own parameter
+  types under generous limits and asserts the first execution completes
+  (reproduced live: outer request dies `InputCountMismatch`, own request
+  executes; 1024-run smoke over the 769-seed corpus, all eight families
+  reach execution). Seeds named families they did not select; lane
+  decisions sit at fixed header offsets now (all 144 family seeds
+  verified by enumeration) and the runner fails unless executed runs
+  cover the corpus. The refusal pins `VM_LOWER_OPCODE_UNSUPPORTED` for
+  the six single-graph families; fixing the lane exposed that
+  multi-function E6/E7a programs never reach the opcode check (narrowing
+  is extended-only, so restricted fails the single-graph rule first),
+  documented per family. Contract revision 11 binds the 128 executions
+  to the vectors, states the reachability obligation, records the
+  uninterpreted `ContractSource`, splits lane/vector duty. Round verdicts
+  stand as `FAIL` history. Fix record in
+  `docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md`. Repair trail: the
+  first fixed-lane smoke crashed on the new pinned refusal (E6/E7a take
+  the inventory path, cured by the per-family expectation, not by
+  weakening the pin); the executed-count parser missed twice (libFuzzer
+  prints `Done N runs`, not the stat line, and rejects `-print_stats`),
+  cured and verified at executed 1024 of 769.
 
-**18 entries remain open.** Three clusters tied at 4: 390extended,
-510, 700fuzz; then 360full (3), 780 (3).
+**14 entries remain open.** Two clusters tied at 4: 390extended, 510;
+then 360full (3), 780 (3).
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -211,8 +236,8 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **Work the next P0 cluster**: 390extended, 510, or
-   700fuzz (4 each, tied largest).
+2. **Work the next P0 cluster**: 390extended or 510
+   (4 each, tied largest).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
    `reviews/verdicts.json` current. Take reviewer counts from the emitted
@@ -229,7 +254,7 @@ decision.
 
 `make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
 `fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`cecb84c`. The full `make v1` gate was skipped
+`d30452f`. The full `make v1` gate was skipped
 because the 740 revision is a subsystem handoff, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
