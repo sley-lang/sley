@@ -304,7 +304,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 10,
+    "contract_revision": 11,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -1821,7 +1821,7 @@
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
     "validated_execution_input_hashes_asserted": true,
     "observation_id_rederived": true,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -1832,7 +1832,8 @@
       "E3 deterministic float add",
       "E4 ordered map construction with duplicate-key failure values",
       "E5 per-execution cell write and read",
-      "E6 direct call to a zero-parameter callee"
+      "E6 direct call with argument copy and nested callee",
+      "E7a contract assertion over a Bool predicate"
     ]
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {

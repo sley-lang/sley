@@ -47,3 +47,45 @@ python3 scripts/check_vm_persistent_fuzz_slice.py
 make vm-persistent-fuzz-smoke
 python3 scripts/run_vm_persistent_fuzz.py --manual
 ```
+
+## September 2026 fix record: the extended-family lanes reach execution
+
+The September 4 Council round (three reviewers, four P0 entries, two distinct
+defects) found the extended-family lane proved lowering judgment only. The lane reused the outer restricted request, so the E2/E3/E4
+fixtures died in input validation before any extended opcode ran; the
+determinism assertion compared two identical input errors and the observation
+assertion never fired. The seed bytes named families they did not select for
+any outer fixture but the Unit one, and the 256-run smoke replayed the
+769-seed prefix without reaching most family seeds.
+
+The fix, all in the harness plus contract text, no production-code change:
+
+- `extended_family_lane` takes the cursor and builds each fixture's request
+  from its own parameter types under generous limits, asserting the first
+  execution completes (success or value failure). Canonical `F32`/`F64`
+  constructors apply the contract E3 rule (one quiet NaN, no negative zero).
+- The restricted refusal pins `VM_LOWER_OPCODE_UNSUPPORTED` for the
+  single-graph families. Fixing the lane exposed that the multi-function E6
+  and E7a programs never reach the opcode check: narrowing to owned inventory
+  is an extended-profile step, so under restricted the shared flat inventory
+  fails the single-graph rule first. That refusal is still the lowering
+  profile, never an input error, and the completion assertion above keeps a
+  malformed fixture from hiding behind either refusal.
+- Lane decisions moved to fixed header offsets consumed before any
+  variable-length construction; all 144 family seeds select the family they
+  name for every outer fixture (verified by enumeration).
+- The E6 fixture threads a Bool argument through a nested callee pair,
+  exercising argument copy and the multi-entry callee table.
+- The runner requires `--runs` to cover the corpus (default 1024 over 769
+  seeds) and records the executed run count from the `Done N runs` line,
+  failing when it does not cover the corpus.
+- Contract revision 11 binds the 128 repeated executions to the vectors,
+  states the per-family reachability obligation with checker verification,
+  records that the VM ignores `ContractSource`, and splits lane duty
+  (per-family reachability) from vector duty (per-opcode).
+
+Deferred with reasons: E6 recursion and the 256-frame ceiling fixture,
+per-opcode vectors for `function_ref` and the map accessors, the
+per-signature-rule rejection matrix, the `Cursor` distribution rework, the
+fuzz input cap raise, and encoder/decoder disjointness assertions. The E6
+separate-inventory question stays with Nabu.

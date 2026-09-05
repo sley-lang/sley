@@ -24,8 +24,8 @@ CLANG = "clang-18"
 RUST_TOOLCHAIN = "nightly-2026-02-27"
 LIBFUZZER = Path("/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a")
 MAX_INPUT_LEN = 4096
-SMOKE_RUNS = 256
-SMOKE_TIMEOUT_SECONDS = 60
+SMOKE_RUNS = 1024
+SMOKE_TIMEOUT_SECONDS = 120
 FIXTURE_COUNT = 9
 # Extended-profile fixtures, one per landed opcode family beyond E1.
 EXTENDED_FIXTURE_COUNT = 8
@@ -44,9 +44,15 @@ def main() -> int:
     RUNTIME.mkdir(parents=True, exist_ok=True)
     reset_directory(ARTIFACTS)
     corpus_count = generate_seed_corpus()
+    # A run shorter than the corpus replays its prefix instead of smoking it:
+    # libFuzzer works through the seed files first, so family lanes past the
+    # cutoff would never execute yet still report PASS.
+    if not args.manual and args.runs < corpus_count:
+        parser.error(f"--runs ({args.runs}) must cover the corpus ({corpus_count})")
     evidence: dict[str, object] = {
         "contract": "s20-700-vm-canonical-inputs-persistent-libfuzzer-slice-v1",
-        "scope": "RESTRICTED_TYPED_S20_270_VM_INPUT_BOUNDARY_ONLY",
+        "scope": "VM_INPUT_EXTENDED_FAMILY_S20_700_BOUNDARY",
+        "runs_requested": args.runs,
         "full_s20_700_complete": False,
         "full_s20_270_complete": False,
         "raw_bytecode_decoder_claimed": False,
@@ -112,9 +118,24 @@ def main() -> int:
     evidence["commands"].append(fuzz)
     evidence["libfuzzer_output_tail"] = (fuzz["stderr"] + fuzz["stdout"])[-4000:]
     evidence["duration_seconds"] = round(time.monotonic() - started, 3)
-    evidence["result"] = "PASS" if fuzz["returncode"] == 0 else "FAIL"
+    evidence["executed_runs"] = parse_executed_units(str(fuzz["stderr"]))
+    if fuzz["returncode"] == 0 and evidence["executed_runs"] >= corpus_count:
+        evidence["result"] = "PASS"
+    else:
+        evidence["result"] = "FAIL"
+        evidence["problems"] = [
+            f"executed {evidence['executed_runs']} of {corpus_count} corpus seeds"
+        ]
     write_evidence(evidence)
     return 0 if evidence["result"] == "PASS" else 1
+
+
+def parse_executed_units(stderr: str) -> int:
+    """Units libFuzzer reports executing, or -1 when the line is absent."""
+    import re
+
+    matches = re.findall(r"Done (\d+) runs", stderr)
+    return int(matches[-1]) if matches else -1
 
 
 def fuzzer_command(*, runs: int | None) -> list[str]:
@@ -135,21 +156,23 @@ def generate_seed_corpus() -> int:
         length = 2 + (value % 31)
         seeds.append(bytes((value + (offset * 37)) % 256 for offset in range(length)))
 
-    # The second byte selects the canonical-input lane. Repeating the limit
-    # selector after it keeps that selector stable regardless of how many bytes
-    # a fixture's canonical value consumes.
+    # The two prefix bytes are the fixture and the family gate (0 fires); the
+    # repeated limit selector fills the remaining header, so each seed pins a
+    # different lane combination and limit profile by construction.
     for fixture in range(FIXTURE_COUNT):
         for limit_selector in range(6):
             seeds.append(bytes([fixture, 0]) + bytes([limit_selector]) * 64)
             seeds.append(bytes([fixture, 1]) + bytes([limit_selector]) * 64)
 
-    # The extended-family lane runs when the byte after the cross-profile
-    # selector is a multiple of three, and the byte after it picks the family
-    # fixture; the trailing filler keeps the canonical values well formed.
+    # Lane decisions sit at fixed offsets consumed before any variable-length
+    # value construction, so every seed byte selects the lane it names no
+    # matter how many bytes the outer fixture's canonical value consumes:
+    # [fixture, family_gate, family, extended_toggle, map_toggle,
+    #  canonical_flag, limit_selector] + filler.
     for fixture in range(FIXTURE_COUNT):
         for family in range(EXTENDED_FIXTURE_COUNT):
-            seeds.append(bytes([fixture, 0, 0, 0, 0, family]) + bytes([0]) * 64)
-            seeds.append(bytes([fixture, 1, 0, 0, 0, family]) + bytes([0xFF]) * 64)
+            seeds.append(bytes([fixture, 0, family, 1, 0, 0, 0]) + bytes([0]) * 64)
+            seeds.append(bytes([fixture, 0, family, 0, 1, 1, 3]) + bytes([0xFF]) * 64)
 
     seeds.extend(
         [

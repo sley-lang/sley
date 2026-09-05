@@ -66,3 +66,21 @@ Tier 1 `make quick` passed at each commit. Tier 2 at `9acf87d`: `make core`
 exit 0 (14 s), `make conformance` exit 0 (11 s), `make adversarial` exit 0
 (8 s), `make fuzz-smoke` exit 0, `make vm-persistent-fuzz-smoke` exit 0. The
 final smoke at `2d1b805` ran 752 executions with 751 seeds and no finding.
+
+## Addendum (2026-09-05): the family lanes reach execution
+
+The September 4 Council round found the lanes proved lowering judgment only:
+the lane reused the outer restricted request, so E2/E3/E4 died in input
+validation before any extended opcode ran, and the seed bytes named families
+they did not select. The tree now carries eight fixtures (E7a
+`ContractAssert` joined after this campaign) over 769 seeds, and the smoke
+executes 1024 runs. Lane decisions sit at fixed header offsets consumed before
+any variable-length value construction; the lane builds each fixture's request
+from its own parameter types under generous limits and asserts the first
+execution completes; the restricted refusal pins `VM_LOWER_OPCODE_UNSUPPORTED`
+for the single-graph families, while the multi-function E6/E7a programs are
+refused earlier by the single-graph inventory rule (still a lowering-profile
+refusal, never an input error). The E6 fixture threads an argument through a
+nested callee pair. The runner fails when the executed run count does not
+cover the corpus. Open questions 1 (pin the code: yes) and 3 (E7a landed, the
+premise is stale) are answered; question 2 stays with Nabu.

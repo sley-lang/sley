@@ -37,11 +37,19 @@ for marker in [
     "Opcode::MapNew",
     "Opcode::CallDirect",
     "extended-family execution judgment was not deterministic",
-    "the restricted profile accepted an extended family opcode",
+    "the restricted profile did not refuse the family program",
     "extended observation identity drifted",
     "Opcode::IntAddChecked",
     "Opcode::FloatAdd",
     "Opcode::CellNew",
+    "a family fixture under its own canonical inputs failed to execute",
+    "the restricted refusal was not the opcode judgment",
+    "code.code(),",
+    "LowerErrorCode::OpcodeUnsupported",
+    "Fixed-position lane header",
+    "extended_family_lane(family_selector, &mut cursor)",
+    "canonical_f32_bits",
+    "canonical_f64_bits",
     "MAX_FUZZ_INPUT_BYTES: usize = 4096",
     "MAX_RAW_INPUTS: usize = 4",
     "MAX_COLLECTION_ITEMS: usize = 4",
@@ -69,7 +77,10 @@ runner = RUNNER.read_text(encoding="utf-8")
 for marker in [
     "libclang_rt.fuzzer-x86_64.a",
     "nightly-2026-02-27",
-    '"RESTRICTED_TYPED_S20_270_VM_INPUT_BOUNDARY_ONLY"',
+    '"VM_INPUT_EXTENDED_FAMILY_S20_700_BOUNDARY"',
+    "must cover the corpus",
+    "Done (\\d+) runs",
+    "range(EXTENDED_FIXTURE_COUNT)",
     '"full_s20_270_complete": False',
     '"raw_bytecode_decoder_claimed": False',
     '"raw_bytecode_execution_entrypoint_claimed": False',
@@ -114,8 +125,19 @@ expected = {
 for key, value in expected.items():
     if slice_status.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
-if slice_status.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
+if slice_status.get("vulcan_review") != "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING":
     problems.append("machine-summary-vulcan-review-drift")
+expected_lanes = [
+    "E1 constant reference under the extended profile",
+    "E2 checked integer add and divide",
+    "E3 deterministic float add",
+    "E4 ordered map construction with duplicate-key failure values",
+    "E5 per-execution cell write and read",
+    "E6 direct call with argument copy and nested callee",
+    "E7a contract assertion over a Bool predicate",
+]
+if slice_status.get("extended_family_lanes") != expected_lanes:
+    problems.append("machine-summary-lanes-drift")
 if '"VM canonical inputs"' in summary_text:
     problems.append("machine-summary-stale-vm-deferred-surface")
 
@@ -142,7 +164,7 @@ print(
         {
             "contract": "s20-700-vm-canonical-inputs-persistent-libfuzzer-slice-v1",
             "result": "PASS",
-            "scope": "RESTRICTED_TYPED_S20_270_VM_INPUT_BOUNDARY_ONLY",
+            "scope": "VM_INPUT_EXTENDED_FAMILY_S20_700_BOUNDARY",
             "full_s20_700_complete": False,
         },
         indent=2,

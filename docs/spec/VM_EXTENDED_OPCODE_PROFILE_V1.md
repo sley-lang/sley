@@ -1,13 +1,15 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 10 (2026-09-04);
+Status: S20-260/S20-270 full-profile contract draft, revision 11 (2026-09-05);
 Council review pending (Ariadne contract review, Nabu architecture review,
 Vulcan surface review). Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
 the judgment-only entry external owners use (section 3.1). Revision 9 lands
 slice E7a, `contract_assert` execution, which the S20-760 revision 2
-determination showed needs no schema epoch. Implementation lands in family
-slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
+determination showed needs no schema epoch. Revision 11 makes the family fuzz
+lanes reach execution (section 5): per-fixture requests, a completion
+assertion, a pinned refusal code, and position-stable seed selection.
+Implementation lands in family slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
 stays excluded until its owners exist.
 
 ## Boundary
@@ -181,6 +183,9 @@ passed:
 - the operands equal the predicate's parameter types in exact order, and the
   binding count equals the parameter count, else
   `VM_LOWER_SIGNATURE_MISMATCH`;
+- the binding `source` is uninterpreted under `EXTENDED_V1`: predicate
+  arguments come from operand order alone, so the S20-240 binding declarations
+  and the VM operand order are not two agreeing authorities;
 - the single declared result is exactly
   `Result<Unit, BuiltinFailure(ContractViolation)>`.
 
@@ -248,9 +253,19 @@ field is absent.
 Per slice: fixed vectors under `conformance/vm-extended/v1/` (function
 graphs, inputs, expected termination, and observation identity) emitted
 from the crate and drift-gated in `make quick`; a rejection matrix for each
-signature rule; 128 repeated executions producing equal outcomes; the
-`vm_canonical_inputs` persistent slice extended with one lane per landed
-family; and the restricted vectors unchanged. For the profile: Tier 1 plus
+signature rule; 128 repeated vector executions producing equal outcomes (the
+count belongs to the vectors: the fuzz lane asserts determinism twice per
+draw instead); the `vm_canonical_inputs` persistent slice extended with one
+lane per landed family; and the restricted vectors unchanged. Each family lane
+must reach a completed termination, success or the family's value failure, on
+the pinned corpus: the lane builds its request from the fixture's own
+parameter types under generous limits and asserts the first execution
+completes, while the restricted-profile refusal pins
+`VM_LOWER_OPCODE_UNSUPPORTED` for the single-graph families. A lane that stops
+reaching execution fails loudly instead of comparing two input errors, and the
+runner requires the executed run count to cover the corpus. Lanes carry
+per-family reachability; vectors plus the rejection matrix carry per-opcode
+duty. For the profile: Tier 1 plus
 Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews with every
 report-grade finding closed.
 
@@ -261,7 +276,7 @@ arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.
 
-## 7. Revision 2 clarifications (slice E1)
+## 7. Revisions 2 through 7 clarifications (slices E1 through E6)
 
 - E1 equality excludes any type containing `F32` or `F64` (S20-210 counts
   floats as hashable); E3 defines float equality and order under IEEE.

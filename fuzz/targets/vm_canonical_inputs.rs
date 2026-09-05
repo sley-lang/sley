@@ -11,8 +11,8 @@ use sley_ssmc::{
     ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
 };
 use sley_vm::{
-    CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, derive_observation_id,
-    execute_function, validated_execution_input_hashes,
+    CacheProfile, ExecutionError, ExecutionLimits, ExecutionRequest, LowerErrorCode, LoweringError,
+    LoweringInput, derive_observation_id, execute_function, validated_execution_input_hashes,
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4096;
@@ -41,6 +41,15 @@ fn fuzz_one(input: &[u8]) {
 
     let mut cursor = Cursor::new(input);
     let fixture = vm_fixture(cursor.byte() % FIXTURE_COUNT);
+    // Fixed-position lane header: every lane decision is consumed before any
+    // variable-length value construction, so a seed byte selects the lane it
+    // names regardless of how many bytes the outer fixture's canonical value
+    // consumes. A header read after the inputs would shift by the fixture's
+    // arity and collapse most families onto the filler default.
+    let family_gate = cursor.byte();
+    let family_selector = cursor.byte() % EXTENDED_FIXTURE_COUNT;
+    let extended_lane = cursor.byte() % 2 == 1;
+    let map_order_lane_flag = cursor.byte().is_multiple_of(2);
     let canonical_inputs = cursor.byte().is_multiple_of(4);
     let inputs = if canonical_inputs {
         fixture
@@ -61,7 +70,6 @@ fn fuzz_one(input: &[u8]) {
     // The extended profile lane (E1): the same Boolean fixtures lower and
     // execute under `EXTENDED_V1`, and every termination must equal the
     // restricted profile's while the cache keys differ.
-    let extended_lane = cursor.byte() % 2 == 1;
     let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
     let lowering = fixture.lowering_input(&types, CacheProfile::RESTRICTED_V1);
     if extended_lane {
@@ -88,17 +96,18 @@ fn fuzz_one(input: &[u8]) {
         }
     }
 
-    // The extended family lane (E2 through E6): fixtures whose opcodes exist
-    // only under `EXTENDED_V1` execute deterministically there, retain their
-    // observation identity, and are refused by the restricted profile.
-    if cursor.byte().is_multiple_of(3) {
-        extended_family_lane(cursor.byte() % EXTENDED_FIXTURE_COUNT, &request);
+    // The extended family lane (E2 through E6 plus E1 under the extended
+    // profile and E7a): fixtures whose opcodes exist only under `EXTENDED_V1`
+    // execute deterministically there, retain their observation identity, and
+    // are refused by the restricted profile.
+    if family_gate.is_multiple_of(3) {
+        extended_family_lane(family_selector, &mut cursor);
     }
 
     // The map-order lane (E4): a supplied ordered map must arrive in the
     // order of its keys' canonical bytes, because `equal` and `value_hash`
     // read that order structurally.
-    if cursor.byte().is_multiple_of(2) {
+    if map_order_lane_flag {
         map_order_lane(&mut cursor);
     }
 
@@ -280,10 +289,23 @@ fn canonical_map(map_type: &TypeExpr, cursor: &mut Cursor<'_>) -> Option<ConstVa
     })
 }
 
-fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
+fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
     let fixture = extended_fixture(selector);
     let types = TypeEnvironment::new(fixture.definitions.clone())
         .expect("the extended fixture type environment is valid");
+    // The lane builds the request from the fixture's own parameter types, not
+    // from the outer restricted request: a restricted-shaped input dies in
+    // validation before any extended opcode runs, which would leave the lane
+    // comparing two identical input errors and calling it determinism.
+    let request = ExecutionRequest {
+        inputs: fixture
+            .fixture
+            .expected_input_types
+            .iter()
+            .map(|value_type| canonical_value(value_type, cursor))
+            .collect(),
+        limits: generous_limits(),
+    };
     let extended = fixture.fixture.lowering_input_with(
         &types,
         CacheProfile::EXTENDED_V1,
@@ -297,8 +319,17 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         first, second,
         "extended-family execution judgment was not deterministic"
     );
+    // A family lane that never reaches execution is a lowering-judgment lane
+    // wearing a determinism assertion: the first draw must complete under
+    // generous limits, whether to a success or to the family's value failure.
+    assert!(
+        first.is_ok(),
+        "a family fixture under its own canonical inputs failed to execute"
+    );
 
-    // Every extended family opcode is outside the restricted profile.
+    // Every extended family program is outside the restricted profile, and the
+    // refusal must be the lowering profile's: a bare error would stay green
+    // if a malformed fixture failed input validation instead.
     let restricted = fixture.fixture.lowering_input_with(
         &types,
         CacheProfile::RESTRICTED_V1,
@@ -306,12 +337,29 @@ fn extended_family_lane(selector: u8, request: &ExecutionRequest) {
         &fixture.functions,
         &fixture.contracts,
     );
-    assert!(
-        execute_function(restricted, request.clone()).is_err(),
-        "the restricted profile accepted an extended family opcode"
-    );
+    let refusal = execute_function(restricted, request.clone());
+    match refusal {
+        Err(ExecutionError::Lowering(LoweringError::Lower(code))) => assert_eq!(
+            code.code(),
+            LowerErrorCode::OpcodeUnsupported,
+            "the restricted refusal was not the opcode judgment"
+        ),
+        // The multi-function programs (E6 nested callees, E7a predicate) never
+        // reach the opcode check: narrowing to owned inventory is an
+        // extended-profile step, so under restricted the shared flat inventory
+        // fails the single-graph rule first. The refusal is still the lowering
+        // profile, never an input error, and the `is_ok` assertion above keeps
+        // a malformed fixture from hiding behind it.
+        Err(ExecutionError::Lowering(_)) => assert!(
+            matches!(selector, 6 | 7),
+            "unexpected non-opcode lowering refusal for family {selector}"
+        ),
+        ok_or_input => panic!(
+            "the restricted profile did not refuse the family program with a lowering error: {ok_or_input:?}"
+        ),
+    }
 
-    if let (Ok(hashes), Ok(outcome)) = (validated_execution_input_hashes(extended, request), first)
+    if let (Ok(hashes), Ok(outcome)) = (validated_execution_input_hashes(extended, &request), first)
     {
         assert_eq!(
             derive_observation_id(
@@ -511,13 +559,20 @@ fn constant_fixture(selector: u8) -> ExtendedFixture {
     }
 }
 
-/// E6: one `call_direct` to a zero-parameter callee that returns a constant.
+/// E6: one `call_direct` to a callee taking the entry's Bool, so the call
+/// boundary copies an argument; the callee itself calls a second
+/// zero-parameter callee, so the multi-entry callee table and per-function
+/// narrowing run past the single-callee case.
 fn call_fixture(selector: u8) -> ExtendedFixture {
     let base = 300 + u32::from(selector) * 10;
     let callee = id(base + 20);
     let callee_block = id(base + 21);
-    let callee_operation = id(base + 22);
-    let constant = id(base + 23);
+    let call_inner = id(base + 22);
+    let callee_parameter = id(base + 23);
+    let inner = id(base + 24);
+    let inner_block = id(base + 25);
+    let inner_operation = id(base + 26);
+    let constant = id(base + 27);
     let mut fixture = operation_fixture(
         base,
         Opcode::CallDirect,
@@ -525,26 +580,58 @@ fn call_fixture(selector: u8) -> ExtendedFixture {
             function: callee,
             type_arguments: Vec::new(),
         }),
-        Vec::new(),
+        vec![TypeExpr::Bool],
         TypeExpr::Bool,
     );
-    let callee_graph = function_body(callee, Vec::new(), TypeExpr::Bool, callee_block);
+    let callee_graph = function_body(callee, vec![callee_parameter], TypeExpr::Bool, callee_block);
+    fixture.parameters.push(function_parameter(
+        callee_parameter,
+        callee,
+        0,
+        TypeExpr::Bool,
+    ));
     fixture.blocks.push(Block {
         entity_id: callee_block,
         function: callee,
         parameters: Vec::new(),
-        operations: vec![callee_operation],
+        operations: vec![call_inner],
         terminator: Terminator::Return(ReturnTerminator {
             value: ValueRef::OperationResult(OperationResultRef {
-                operation: callee_operation,
+                operation: call_inner,
                 result_index: 0,
             }),
         }),
         reachability: Reachability::Required,
     });
     fixture.operations.push(Operation {
-        entity_id: callee_operation,
+        entity_id: call_inner,
         block: callee_block,
+        ordinal: 0,
+        opcode: Opcode::CallDirect,
+        operands: Vec::new(),
+        result_types: vec![TypeExpr::Bool],
+        immediate: Immediate::Function(sley_ssmc::FunctionRefValue {
+            function: inner,
+            type_arguments: Vec::new(),
+        }),
+    });
+    let inner_graph = function_body(inner, Vec::new(), TypeExpr::Bool, inner_block);
+    fixture.blocks.push(Block {
+        entity_id: inner_block,
+        function: inner,
+        parameters: Vec::new(),
+        operations: vec![inner_operation],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: inner_operation,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    });
+    fixture.operations.push(Operation {
+        entity_id: inner_operation,
+        block: inner_block,
         ordinal: 0,
         opcode: Opcode::ConstantRef,
         operands: Vec::new(),
@@ -561,7 +648,7 @@ fn call_fixture(selector: u8) -> ExtendedFixture {
             },
         }],
         definitions: Vec::new(),
-        functions: vec![callee_graph],
+        functions: vec![callee_graph, inner_graph],
         contracts: Vec::new(),
     }
 }
@@ -895,6 +982,11 @@ fn canonical_value(value_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue
         TypeExpr::Text => ConstData::Text(payload_text(cursor)),
         TypeExpr::UInt(width) => ConstData::UInt(in_width_uint(*width, cursor)),
         TypeExpr::SInt(width) => ConstData::SInt(in_width_sint(*width, cursor)),
+        // Canonical floats admit one quiet NaN and no negative zero
+        // (contract E3), so the constructor applies the same rule the VM
+        // applies to results; anything else is stored exactly.
+        TypeExpr::F32 => ConstData::F32Bits(canonical_f32_bits(cursor.u32())),
+        TypeExpr::F64 => ConstData::F64Bits(canonical_f64_bits(cursor.u64())),
         TypeExpr::Option(inner) => {
             if cursor.byte().is_multiple_of(2) {
                 ConstData::Option(None)
@@ -940,6 +1032,34 @@ fn in_width_sint(width: IntegerWidth, cursor: &mut Cursor<'_>) -> i128 {
     }
     let span = 1_i128 << (bits - 1);
     raw.rem_euclid(span << 1) - span
+}
+
+/// The canonical quiet NaN bit patterns (contract E3).
+const CANONICAL_NAN_F32: u32 = 0x7fc0_0000;
+const CANONICAL_NAN_F64: u64 = 0x7ff8_0000_0000_0000;
+
+/// A canonical 32-bit float input from raw bits.
+fn canonical_f32_bits(raw: u32) -> u32 {
+    let value = f32::from_bits(raw);
+    if value.is_nan() {
+        CANONICAL_NAN_F32
+    } else if value == 0.0 {
+        0
+    } else {
+        raw
+    }
+}
+
+/// A canonical 64-bit float input from raw bits.
+fn canonical_f64_bits(raw: u64) -> u64 {
+    let value = f64::from_bits(raw);
+    if value.is_nan() {
+        CANONICAL_NAN_F64
+    } else if value == 0.0 {
+        0
+    } else {
+        raw
+    }
 }
 
 fn raw_value(cursor: &mut Cursor<'_>) -> ConstValue {
