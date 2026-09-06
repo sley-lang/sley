@@ -1,0 +1,17 @@
+status: FAIL
+
+findings:
+- **HIGH / blocking:** Exercise 1 does not establish the byte-processing capability required by §10.2(1) SCB codec or §10.2(4) image assembly. `bytes-less-than` only compares complete `Bytes` values. The profile/audit identifies no byte length/index/slice/build operation or explicit host bridge by which Sley can inspect and produce variable byte sequences. Assuming such a bridge before the host boundary/profile defines it would be invented. E1 should not be `PASS-exists` without an executable codec-relevant byte workload or a routed missing-capability disposition.
+- **INFO:** Opcode 145 is `test_observe`, not test planning. §10.2(2) requires deterministic planning/selection as compiler-domain data processing, not test execution or observation. Excluding opcode 145 does not break that requirement.
+- **INFO:** The absence of a straight-line unwrap operation is not itself a closure gap. `VariantSwitch` supports `Option`/`Result` with `CasePayload`, providing CFG-level deconstruction.
+- **INFO:** Multi-key drain, nested loops, and block-parameter threading are unexercised combinations of documented map, backedge, and phi mechanisms—not distinct missing capabilities. Their evidence depth may be increased later without new semantics.
+
+validation:
+- Read-only cross-check of the slice-2 audit, exercises, loop mapping, gap routing, boundary proposal, REWEAVE §§7.2/10.2, `VM_EXTENDED_OPCODE_PROFILE_V1.md`, `CFG_VALIDATION_V1.md`, and `CONTRACT_TEST_PROFILE_V1.md`.
+- No runtime validation requested or performed.
+
+blockers:
+- RW-040 close needs codec-relevant byte access/construction evidence through an existing permitted path, or a truthful missing-capability classification and routing. Then Ariadne re-review is required.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).

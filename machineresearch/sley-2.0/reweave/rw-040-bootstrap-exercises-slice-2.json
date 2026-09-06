@@ -1,0 +1,154 @@
+{
+ "audit": "RW-040 slice 2 (2026-09-06); REWEAVE 7.2 exercise list, full update",
+ "categories": "existing-demonstrated | missing-test-supplied | unsupported-required | semantic-defect | resource-limitation",
+ "evidence_base": "scripts/check_vm_extended_opcode_profile.py PASS 2026-09-06 (revision 12, slices E1-E6+E7a landed) over conformance/vm-extended/v1/accepted.json (26 vectors, bytecode_sha256 + observation identity each); family semantics docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md; control-flow legality docs/spec/CFG_VALIDATION_V1.md",
+ "exercises": [
+  {
+   "actual": "true (validated-value hash db8444a3, identical to the SInt true control)",
+   "category": "split: ordering missing-test-supplied; access unsupported-required",
+   "command": "cargo test -p sley-vm emit_vm_extended_vectors_for_fixture_refresh -- --ignored; python3 scripts/generate_vm_extended_fixtures.py; python3 scripts/check_vm_extended_opcode_profile.py",
+   "disposition": "PARTIAL-documented",
+   "evidence": "bytes-less-than (opcode 98 LessThan over Bytes, b\"abc\"<b\"abd\", 1 instruction, bytecode_sha256 7d4df4cb); text-less-than (opcode 98 over Text, 1 instruction, bytecode_sha256 23993beb)",
+   "expected": "true (Bytes/Text by byte then length, spec section E1; implementation ordered() + compare_data() pre-existed)",
+   "gap": "G-10",
+   "id": 1,
+   "inputs": "Bytes/Text constants; limits max_instructions 1000, max_fuel 10000",
+   "name": "byte processing",
+   "open_part": "FAIL-missing-capability: no opcode in landed slices E1-E6+E7a takes apart or builds Bytes (no length/index/slice/build). Exact gap evidence: E1 opcode table (1,16,17,32-35,96-101,128-131) has no Bytes accessor; only whole-value Bytes operations exist (order 98-101, equality 96-97, value_hash 192). Codec decode (10.2 item 1) and image assembly (10.2 item 4) need byte access/construction. See gap G-10.",
+   "ordering_part": "PASS-exists: bytes-less-than + text-less-than (opcode 98, observation true, hash db8444a3) bind the E1 order-predicate path.",
+   "routes_to": "RW-050 (primary: section 18 admission + profile freeze) with RW-030 bridge-inventory input",
+   "vectors": [
+    "bytes-less-than",
+    "text-less-than"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "int-add-overflow (64, overflow code 1), int-div-signed-min (67, code 1), int-shl-signed (70); results exact in width, no wrap (spec E2). Unchanged from slice 1; checker rerun PASS over 26 vectors.",
+   "id": 2,
+   "name": "exact-width integer work",
+   "vectors": [
+    "int-add-overflow",
+    "int-div-signed-min",
+    "int-shl-signed"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "vector-set-out-of-range (35 -> Err(Index,1)); call-direct-depth-ceiling (112, 256 live frames, ResourceKind::CallDepth). Unchanged from slice 1.",
+   "id": 3,
+   "name": "bounds checks",
+   "vectors": [
+    "vector-set-out-of-range",
+    "call-direct-depth-ceiling"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "vector-set-out-of-range (vector_new/len/get/set, opcodes 32-35); map-new-sorted (36, OrderedMap, DuplicateKey code 1 specified). Unchanged from slice 1.",
+   "id": 4,
+   "name": "sequences/maps",
+   "vectors": [
+    "vector-set-out-of-range",
+    "map-new-sorted"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "tuple-project (17 tuple_get), constant-ref (1), record-get-field (19 record_get), variant-get-none (21 variant_get -> None). Unchanged from slice 1.",
+   "id": 5,
+   "name": "records/variants",
+   "vectors": [
+    "tuple-project",
+    "constant-ref",
+    "record-get-field",
+    "variant-get-none"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "call-direct-second, call-direct-nested (112 call_direct, explicit call stack, 1 fuel + 1 instruction per call). Unchanged from slice 1.",
+   "id": 6,
+   "name": "calls",
+   "vectors": [
+    "call-direct-second",
+    "call-direct-nested"
+   ]
+  },
+  {
+   "actual": "Success(empty map), 8 instructions, backedge taken exactly once then CondBranch exit; recursion bound unchanged (256 live frames incl. entry)",
+   "category": "existing-demonstrated",
+   "command": "same production path as exercise 1 (emitter executes via lower_function + execute_function under CacheProfile::EXTENDED_V1)",
+   "disposition": "PASS-exists",
+   "evidence": "cond-drain-loop (4-block SLEYBC02 function, bytecode_sha256 3e080650, subject CellGet 177; E4 MapContains/MapRemove + E5 CellNew/CellGet/CellSet, Branch backedge + CondBranch exit) and call-direct-depth-ceiling (bounded recursion). Full form/bound analysis in rw-040-loop-form-mapping.md.",
+   "expected": "drain {7:\"small\"} to {}; termination Success (CFG backedges legal per CFG_VALIDATION_V1.md; fuel bounds iterations per execute.rs charge_action)",
+   "id": 7,
+   "inputs": "OrderedMap{u64:Text} {7:\"small\"}, key 7; limits max_instructions 1000, max_fuel 10000",
+   "name": "loops or supported recursion",
+   "vectors": [
+    "cond-drain-loop",
+    "call-direct-depth-ceiling"
+   ]
+  },
+  {
+   "actual": "Success(Some(20)), 2 instructions (build + indexed read)",
+   "category": "missing-test-supplied",
+   "disposition": "PASS-exists",
+   "evidence": "vector-traverse (VectorNew 3x u64 then VectorGet index 1, subject opcode 34, bytecode_sha256 3ad294b8) plus map-new-sorted deterministic ordering (lexicographic canonical key bytes, E4). Recorded limitation: straight-line chains stop at Option/Result (no unwrap op in EXTENDED_V1); CFG-level deconstruction via CondBranch/VariantSwitch is the designed form, exercised by cond-drain-loop (MapContains branch) and execute.rs VariantSwitch paths.",
+   "expected": "Some(20) for elements (10,20,30) index 1",
+   "id": 8,
+   "inputs": "u64 10, 20, 30, index 1; same limits",
+   "name": "deterministic traversal",
+   "vectors": [
+    "vector-traverse",
+    "map-new-sorted"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "result-err (131), int-add-overflow/div (Arithmetic codes 1/2), vector-set-out-of-range (Index code 1), contract-assert-violated (144: violation is a value, never a trap). Unchanged from slice 1.",
+   "id": 9,
+   "name": "typed failure",
+   "vectors": [
+    "result-err",
+    "int-add-overflow",
+    "int-div-signed-min",
+    "vector-set-out-of-range",
+    "contract-assert-violated"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "value-hash-text (192 value_hash -> exactly 32 Bytes, hash_validated_value under schema epoch). Unchanged from slice 1.",
+   "id": 10,
+   "name": "canonical hashing preimages",
+   "vectors": [
+    "value-hash-text"
+   ]
+  },
+  {
+   "category": "existing-demonstrated",
+   "disposition": "PASS-exists",
+   "evidence": "1 fuel + 1 instruction per call (E6); cells bounded 1,048,576 with value-unit double-charge (E5); max_cells 1048576, max_input_value_units 67108864, deterministic_cancel_at_fuel (machine-summary vm_execution_profile); depth-ceiling vector as bounded-execution workload. Unchanged from slice 1.",
+   "id": 11,
+   "name": "resource accounting",
+   "vectors": [
+    "call-direct-depth-ceiling"
+   ]
+  }
+ ],
+ "result_note": "Ten exercises PASS-exists; exercise 1 PARTIAL-documented (ordering demonstrated, byte access/construction routed as gap G-10). No semantic defect demonstrated in audit scope. Recorded resource/execution limitations: 256-live-frame call ceiling; fuel-bounded iteration; no straight-line Option/Result unwrap (CFG form instead). Counts are workload states, not a completion percentage.",
+ "vector_digests_slice2_new": {
+  "bytes-less-than": "7d4df4cbe7162940f637f4338c7bdb19888ff65e39df12d5c5af4fb3cec8f913",
+  "cond-drain-loop": "3e08065019e85227e698df129d87cf9ffca512afd8ae4b7cf0f452a6d75da423",
+  "text-less-than": "23993bebb5e1715a69ac64ac0be7f186779f026c63cefcab3abdfec3f566e617",
+  "vector-traverse": "3ad294b84ab884ff82616d5ac2d77a26f3c23072401a9e983765582b2ab1e910"
+ }
+}

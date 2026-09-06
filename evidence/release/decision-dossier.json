@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "8e84d8e98c908f60c01358592da418c1dae0487bffc930dff949e71d5e3669d8",
+  "dossier_digest": "4e396882ad9925d78033c8a20b2843f144e88e2c87e0bdc72bc4e5f1bbe90ffd",
   "entries": [
     {
       "evidence": [
@@ -93,7 +93,7 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 19,
+        "independently_checked_families": 20,
         "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
@@ -109,7 +109,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 22,
+        "python_sources": 23,
         "rust_dependency_check": "PASS"
       }
     },
@@ -137,7 +137,7 @@
       "state": "EVIDENCED",
       "value": {
         "conformance_rejections": 178,
-        "conformance_vectors": 360,
+        "conformance_vectors": 364,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
           "manifest_harness_deps": [],
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "c68ed0432f4db3f4009561519751a5fd3592ee4178da71994db5b870dbcb79ee",
+  "entries_digest": "bb18e555fc2a5e0c99822fcbd35170745381cdcf6b2e89d46e26e761ec3a750a",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

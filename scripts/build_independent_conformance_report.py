@@ -49,6 +49,7 @@ ORACLE_RUNNER = "uv run --project oracle/scb1 --frozen"
 # (contract section 3) or to a native-only note. Adding a family without a
 # mapping is CONFORMANCE_ORACLE_DRIFT.
 COVERAGE: dict[str, str | None] = {
+    "bootstrap-capability": "python3 scripts/check_bootstrap_capability.py",
     "candidate-result": f"{ORACLE_RUNNER} sley2-scb1-oracle check-candidate-result",
     "complete-entity-impact": "python3 scripts/check_complete_entity_impact_vector.py",
     "complete-root-index-snapshot": f"{ORACLE_RUNNER} python scripts/check_complete_root_index_snapshot_vector.py",
@@ -81,6 +82,7 @@ COVERAGE: dict[str, str | None] = {
 # failure precedence. Every other checker reconstructs encodings, identities,
 # or digest trees and compares them against the recorded fixtures.
 DEPTH: dict[str, str] = {
+    "bootstrap-capability": "codec_and_identity",
     "candidate-result": "codec_and_identity",
     "complete-entity-impact": "semantic",
     "complete-root-index-snapshot": "codec_and_identity",

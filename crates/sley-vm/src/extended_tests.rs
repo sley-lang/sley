@@ -7,13 +7,14 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    ContractBinding, ContractDefinition, ContractKind, ContractSource, FieldConst, FunctionGraph,
-    FunctionRefValue, FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst,
-    MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
-    Reachability, RecordConst, RecordField, ResourceLimits, ResultConst, ReturnTerminator,
-    Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst,
-    VariantImmediate, Visibility, fingerprint::hash_validated_value,
+    Block, BranchTerminator, BuiltinFailureKind, BuiltinFailureValue, CondBranchTerminator,
+    ConstData, ConstValue, ConstantDefinition, ContractBinding, ContractDefinition, ContractKind,
+    ContractSource, FieldConst, FunctionGraph, FunctionRefValue, FunctionType,
+    GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode,
+    Operation, OperationResultRef, Parameter, ParameterRole, Reachability, RecordConst,
+    RecordField, ResourceLimits, ResultConst, ReturnTerminator, TargetEdge, Terminator,
+    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst, VariantImmediate,
+    Visibility, fingerprint::hash_validated_value,
 };
 
 use crate::{
@@ -55,6 +56,13 @@ fn text(value: &str) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Text,
         data: ConstData::Text(value.to_string()),
+    }
+}
+
+fn bytes(value: &[u8]) -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::Bytes,
+        data: ConstData::Bytes(value.to_vec()),
     }
 }
 
@@ -2863,6 +2871,183 @@ fn e4_map_order_is_the_encoding_order_not_numeric_key_order() {
     );
 }
 
+/// A four-block backedge loop over `CacheProfile::EXTENDED_V1`: the entry
+/// cell-threads the input map, the loop block tests one key, the body block
+/// removes it and branches back, the done block returns the drained map.
+/// RW-040 slice 2 added it as the loop-form workload: no new semantics,
+/// only existing E4 map plus E5 cell operations with `CondBranch`/`Branch`
+/// backedge control flow (CFG backedges are legal per
+/// `docs/spec/CFG_VALIDATION_V1.md`; fuel bounds the iterations).
+fn drain_loop_fixture() -> Fixture {
+    let function = id(0xE0);
+    let p_map = id(0xE1);
+    let p_key = id(0xE2);
+    let b_entry = id(0xE3);
+    let b_loop = id(0xE4);
+    let b_body = id(0xE5);
+    let b_done = id(0xE6);
+    let o_new = id(0xE7);
+    let o_get = id(0xE8);
+    let o_contains = id(0xE9);
+    let o_remove = id(0xEA);
+    let o_set = id(0xEB);
+    let o_final = id(0xEC);
+    let cell_t = TypeExpr::LocalCell(Box::new(map_type()));
+    let result_ref = |operation: EntityId| {
+        ValueRef::OperationResult(OperationResultRef {
+            operation,
+            result_index: 0,
+        })
+    };
+    let edge = |target: EntityId| TargetEdge {
+        target,
+        arguments: Vec::new(),
+    };
+    #[allow(clippy::too_many_arguments)]
+    fn operation(
+        entity_id: EntityId,
+        block: EntityId,
+        ordinal: u32,
+        opcode: Opcode,
+        operands: Vec<ValueRef>,
+        result: TypeExpr,
+    ) -> Operation {
+        Operation {
+            entity_id,
+            block,
+            ordinal,
+            opcode,
+            operands,
+            result_types: vec![result],
+            immediate: Immediate::None,
+        }
+    }
+    Fixture {
+        types: TypeEnvironment::new(Vec::new()).expect("empty environment"),
+        function: FunctionGraph {
+            entity_id: function,
+            type_parameters: Vec::new(),
+            parameters: vec![p_map, p_key],
+            result_type: map_type(),
+            effects: Vec::new(),
+            entry_block: b_entry,
+            blocks: vec![b_entry, b_loop, b_body, b_done],
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        parameters: vec![
+            Parameter {
+                entity_id: p_map,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 0,
+                value_type: map_type(),
+            },
+            Parameter {
+                entity_id: p_key,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 1,
+                value_type: u64_type(),
+            },
+        ],
+        blocks: vec![
+            Block {
+                entity_id: b_entry,
+                function,
+                parameters: Vec::new(),
+                operations: vec![o_new],
+                terminator: Terminator::Branch(BranchTerminator { edge: edge(b_loop) }),
+                reachability: Reachability::Required,
+            },
+            Block {
+                entity_id: b_loop,
+                function,
+                parameters: Vec::new(),
+                operations: vec![o_get, o_contains],
+                terminator: Terminator::CondBranch(CondBranchTerminator {
+                    condition: result_ref(o_contains),
+                    if_true: edge(b_body),
+                    if_false: edge(b_done),
+                }),
+                reachability: Reachability::Required,
+            },
+            Block {
+                entity_id: b_body,
+                function,
+                parameters: Vec::new(),
+                operations: vec![o_remove, o_set],
+                terminator: Terminator::Branch(BranchTerminator { edge: edge(b_loop) }),
+                reachability: Reachability::Required,
+            },
+            Block {
+                entity_id: b_done,
+                function,
+                parameters: Vec::new(),
+                operations: vec![o_final],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: result_ref(o_final),
+                }),
+                reachability: Reachability::Required,
+            },
+        ],
+        operations: vec![
+            operation(
+                o_new,
+                b_entry,
+                0,
+                Opcode::CellNew,
+                vec![ValueRef::Parameter(p_map)],
+                cell_t,
+            ),
+            operation(
+                o_get,
+                b_loop,
+                0,
+                Opcode::CellGet,
+                vec![result_ref(o_new)],
+                map_type(),
+            ),
+            operation(
+                o_contains,
+                b_loop,
+                1,
+                Opcode::MapContains,
+                vec![result_ref(o_get), ValueRef::Parameter(p_key)],
+                TypeExpr::Bool,
+            ),
+            operation(
+                o_remove,
+                b_body,
+                0,
+                Opcode::MapRemove,
+                vec![result_ref(o_get), ValueRef::Parameter(p_key)],
+                map_type(),
+            ),
+            operation(
+                o_set,
+                b_body,
+                1,
+                Opcode::CellSet,
+                vec![result_ref(o_new), result_ref(o_remove)],
+                TypeExpr::Unit,
+            ),
+            operation(
+                o_final,
+                b_done,
+                0,
+                Opcode::CellGet,
+                vec![result_ref(o_new)],
+                map_type(),
+            ),
+        ],
+        constants: Vec::new(),
+        globals: Vec::new(),
+        functions: Vec::new(),
+        contracts: Vec::new(),
+    }
+}
+
 /// Prints the E1 vectors for `scripts/generate_vm_extended_fixtures.py`.
 #[test]
 #[ignore = "fixture refresh emitter"]
@@ -3146,6 +3331,71 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             "call-direct-depth-ceiling",
             depth_chain_fixture(255),
             vec![uint(9)],
+        ),
+        // RW-040 slice 2: the missing byte-processing workloads. Order
+        // predicates over Bytes/Text use the existing E1 comparator path
+        // (lexicographic byte order); these vectors supply the evidence the
+        // audit found missing, with no semantic change.
+        (
+            "bytes-less-than",
+            Fixture::new(
+                &[TypeExpr::Bytes, TypeExpr::Bytes],
+                &[step(
+                    Opcode::LessThan,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::None,
+                    TypeExpr::Bool,
+                )],
+                Vec::new(),
+            ),
+            vec![bytes(b"abc"), bytes(b"abd")],
+        ),
+        (
+            "text-less-than",
+            Fixture::new(
+                &[TypeExpr::Text, TypeExpr::Text],
+                &[step(
+                    Opcode::LessThan,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::None,
+                    TypeExpr::Bool,
+                )],
+                Vec::new(),
+            ),
+            vec![text("abc"), text("abd")],
+        ),
+        // RW-040 slice 2: the traversal workload. Construct a vector, then
+        // navigate into it: two container steps (build + indexed read) in one
+        // straight-line function, observed as `Some(element)`.
+        (
+            "vector-traverse",
+            Fixture::new(
+                &[u64_type(), u64_type(), u64_type(), u64_type()],
+                &[
+                    step(
+                        Opcode::VectorNew,
+                        vec![Arg::P(0), Arg::P(1), Arg::P(2)],
+                        Immediate::None,
+                        TypeExpr::Vector(Box::new(u64_type())),
+                    ),
+                    step(
+                        Opcode::VectorGet,
+                        vec![Arg::R(0), Arg::P(3)],
+                        Immediate::None,
+                        TypeExpr::Option(Box::new(u64_type())),
+                    ),
+                ],
+                Vec::new(),
+            ),
+            vec![uint(10), uint(20), uint(30), uint(1)],
+        ),
+        // RW-040 slice 2: the loop-form workload. A cell-threaded drain loop
+        // over a one-entry map: the backedge is taken once, then `CondBranch`
+        // exits with the empty map. Existing E4/E5 operations only.
+        (
+            "cond-drain-loop",
+            drain_loop_fixture(),
+            vec![map_of(vec![(7, "small")]), uint(7)],
         ),
     ];
     for (label, fixture, inputs) in vectors {

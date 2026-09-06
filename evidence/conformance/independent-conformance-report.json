@@ -2,6 +2,7 @@
   "contract": "sley2.independent-conformance-report.v1",
   "coverage_depths": {
     "codec_and_identity": [
+      "conformance/bootstrap-capability/v1",
       "conformance/candidate-result/v1",
       "conformance/complete-root-index-snapshot/v1",
       "conformance/context-capsule/v1",
@@ -25,8 +26,89 @@
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 19,
+  "fixture_directories": 20,
   "fixtures": [
+    {
+      "claim": null,
+      "contract": null,
+      "coverage": {
+        "command": "python3 scripts/check_bootstrap_capability.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/bootstrap-capability/v1",
+      "files": [
+        {
+          "bytes": 761,
+          "name": "SHA256SUMS",
+          "sha256": "14217cfefd7f29c11a8654fb30188425ef6b9ba8c50249752c9e3dcb1608930a"
+        },
+        {
+          "bytes": 352,
+          "name": "exercises-bad-binding.json",
+          "sha256": "3164d879bba69f8cbeb13f41890876b2e7412b6df771de034fcc5e200b66e74f"
+        },
+        {
+          "bytes": 599,
+          "name": "exercises-partial-routed.json",
+          "sha256": "3bcb1b3e1b00c0905c71ad7a68d843e10c0df1669fd6c8b58e6734c56848ed00"
+        },
+        {
+          "bytes": 243,
+          "name": "gaps-unowned.json",
+          "sha256": "bed97229d0750e285d39545b072686a170e171e56289c202f7b29143abc4baa8"
+        },
+        {
+          "bytes": 652,
+          "name": "manifest-h-digest-without-charter.json",
+          "sha256": "9882d9f51628501b56f77c29c6994c97ef4132cd71dd3a0465f6d9cdaa354f0b"
+        },
+        {
+          "bytes": 530,
+          "name": "manifest-incomplete.json",
+          "sha256": "09cfb05985e645991f94fcf0ef198fdf26e8f47689116ed469731877ceef9932"
+        },
+        {
+          "bytes": 591,
+          "name": "manifest-invented-hash.json",
+          "sha256": "34353c101a4c5a8a40bc056902b80ca99a1f89c4c86f9f8c969daf08b0a8590e"
+        },
+        {
+          "bytes": 812,
+          "name": "manifest-stages-without-source.json",
+          "sha256": "e1b743cfa7336ec48e8d52eafaf7265624fbb157e00d299b66f99443c563b673"
+        },
+        {
+          "bytes": 2290,
+          "name": "readiness-logic-positive.json",
+          "sha256": "a593b5afb41385f3e51471fcf6812db47c02d9d7659c44c1a1a296f99446b723"
+        }
+      ],
+      "shape": {
+        "exercises-bad-binding.json": {
+          "exercises": 1
+        },
+        "exercises-partial-routed.json": {
+          "exercises": 1,
+          "vectors_present": 1
+        },
+        "gaps-unowned.json": {
+          "gaps": 1
+        },
+        "manifest-h-digest-without-charter.json": {},
+        "manifest-incomplete.json": {},
+        "manifest-invented-hash.json": {},
+        "manifest-stages-without-source.json": {},
+        "readiness-logic-positive.json": {
+          "exercises": 1,
+          "gaps": 1,
+          "vectors_present": 1
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
     {
       "claim": null,
       "contract": "s20-360-candidate-result-v1",
@@ -702,12 +784,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "6296ee137fa4bb3b12f1c2cc3c79c2b6bc14d4d0bcdc59d03405b126b32ec280"
+          "sha256": "3ad136b9add2dd697ea24b8df2ac85c2082c91192576a7c63ba914e8f49dce0e"
         },
         {
-          "bytes": 123903,
+          "bytes": 128227,
           "name": "accepted.json",
-          "sha256": "db040700cfe02d0e1cf239b7d06bcd6c875a7ed1dd1eafff03954aae880e8b61"
+          "sha256": "1228966ede9aeac53f0befaf56dc080dc4cecb6a18deb1025cc49ce7402f39d3"
         },
         {
           "bytes": 3584,
@@ -717,7 +799,7 @@
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 22
+          "vectors": 26
         },
         "rejected.json": {
           "mutations": 5
@@ -727,7 +809,7 @@
       "sums_file": true
     }
   ],
-  "independently_checked": 19,
+  "independently_checked": 20,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -747,9 +829,9 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 22
+    "python_sources": 23
   },
-  "report_digest": "db379edda22b13bea2668eee0318bcfe24cfdc30138c4bebd80c76d5d52c8914",
+  "report_digest": "60555c53be519340e58f4e02f4f3b59f57e99569b0f0ee846bbb386f2eeb27ff",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

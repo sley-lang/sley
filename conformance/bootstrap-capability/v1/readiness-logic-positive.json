@@ -1,0 +1,94 @@
+{
+ "chartered_override": true,
+ "exercises": [
+  {
+   "disposition": "PASS-exists",
+   "id": 1,
+   "name": "synthetic",
+   "vectors": [
+    "synthetic-vector"
+   ]
+  }
+ ],
+ "expect": {
+  "readiness": "READY"
+ },
+ "gaps": [
+  {
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "synthetic routed gap",
+   "evidence": "synthetic",
+   "id": "G-S1",
+   "owner": "synthetic-owner"
+  }
+ ],
+ "manifest": {
+  "stages": {
+   "C0": {
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "C1": {
+    "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "C2": {
+    "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "C3": {
+    "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "H": {
+    "facts": {
+     "os": "linux"
+    },
+    "manifest_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+   },
+   "P": {
+    "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "S": {
+    "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   }
+  }
+ },
+ "note": "synthetic corpus case proving the readiness path is not rigged to NOT_READY: fully bound stages with provenance, all exercises bound, no open blockers, charter override true. This exercises the computation ONLY; it is not evidence and never leaves this corpus file.",
+ "synthetic": true,
+ "vectors_present": [
+  "synthetic-vector"
+ ]
+}

@@ -1,0 +1,112 @@
+{
+ "audit": "RW-040 slice 2 (2026-09-06); three-way routing of every M2-exit gap",
+ "classes": "BOOTSTRAP_BLOCKER (blocks the 10.2 bootstrap-support dependency closure) | FULL_MG_OBLIGATION (later final-product requirement, owner keeps it) | EVIDENCE_GATE (implementation present or specified; review/authority/evidence pending) | NON_GOAL (by-design absence; toolchain must not depend on it)",
+ "gaps": [
+  {
+   "bootstrap_blocks": false,
+   "classification": "EVIDENCE_GATE",
+   "disposition": "VERIFIED-present implementation, review gap. Production checker rerun slice 2: PASS, revision 12, slices E1-E6+E7a landed, now over 26 vectors (4 added: bytes-less-than, text-less-than, vector-traverse, cond-drain-loop).",
+   "evidence": "check_vm_extended_opcode_profile.py PASS 2026-09-06 (26 vectors); conformance/vm-extended/v1/accepted.json; machine-summary.json vm_extended_opcode_profile.status",
+   "gap": "EXTENDED_V1 implemented, Council reviews pending",
+   "id": "G-1",
+   "owner": "Council review lanes (external condition, cf. R-4)",
+   "rw050_note": "RW-050 may proceed on the implementation; it must stage its own review needs, not assume these reviews."
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "By-design exclusion for bootstrap scope. E7 tests/effects/adapters/capabilities (145 test_observe, 160-162) stay native-or-absent per REWEAVE 10.3 remainder. Test planning (10.2 item 2) is deterministic plan construction/selection as compiler-domain data processing with E1/E4 ops, not test execution or observation; excluding opcode 145 does not break it (Ariadne round 1 INFO, accepted). No failing workload: exclusion is specified, not a defect.",
+   "evidence": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md section E7; SLEY_2X_REWEAVE_MASTER_SPEC_V1.md#10.2/#10.3",
+   "gap": "E7 beyond E7a excluded (tests, effects, adapters, capabilities)",
+   "id": "G-2",
+   "owner": "RW-160 (remaining full MG semantic coverage)",
+   "rw050_note": "BOOTSTRAP_PROFILE_1 must not depend on E7 test/effect ops; profile freeze records the exclusion."
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "Superseded for bootstrap scope: EXTENDED_V1 (SLEYBC02) lands E1-E6+E7a over the restricted O0 profile (SLEYBC01). The 52-opcode restricted gap is not a bootstrap gap. Full GA gap strings retained verbatim in machine-summary (vm_lowering_profile.full_ga_gap, vm_execution_profile.full_ga_gap).",
+   "evidence": "machine-summary.json vm_lowering_profile/vm_execution_profile; VM_EXTENDED_OPCODE_PROFILE_V1.md revision 12",
+   "gap": "Restricted-epoch-1 52 unsupported opcodes",
+   "id": "G-3",
+   "owner": "RW-160 for full GA; no bootstrap owner needed",
+   "rw050_note": "none"
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "Open gap, exact blocking state: machine-summary.json local_completion_frontier.s20_390_full_recovery_complete = false (restricted atomic commit complete; full recovery not). No workload executes full recovery. Repository machinery outside the compiler closure is explicit native remainder per REWEAVE 10.3; the RW-060 lifecycle demo depends on restricted atomic commit (present), not full recovery.",
+   "evidence": "machine-summary.json local_completion_frontier (s20_390_restricted_atomic_commit_complete true, s20_390_full_recovery_complete false)",
+   "gap": "S20-390 full recovery incomplete",
+   "id": "G-4",
+   "owner": "RW-200 (repository/protocol integration)",
+   "review_note": "Nabu round 1 PASS with LOW note (accepted): RW-200 must integrate/revalidate the retained recovery foundation, not reimplement it -- machine-summary records s20_530_implementation_complete true alongside package-local s20_390_full_recovery_complete false.",
+   "rw050_note": "none; RW-060 entry state records the restricted-commit dependence."
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "EVIDENCE_GATE",
+   "disposition": "Declared skip, not a finding: 0 trials executed; harness ready; model access + spend unauthorized. Per proposal focused-tests rule and REWEAVE 22.4: BLOCKED_EVIDENCE. Succession comparison belongs to RW-250/RW-260; nothing in the bootstrap closure depends on it.",
+   "evidence": "machine-summary.json succession (real_benchmark_run_authorized false)",
+   "gap": "Succession trials unexecuted",
+   "id": "G-5",
+   "owner": "operator authority (future spend/benchmark campaign)",
+   "rw050_note": "none"
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "EVIDENCE_GATE",
+   "disposition": "Review gap, not implementation gap: full-profile drafts (S20-300/310/320/400-series/520 etc.) implemented under draft contracts with Council reviews pending. No code change in this slice.",
+   "evidence": "docs/WORK_PACKAGES.md full-profile rows; machine-summary.json open_reviews",
+   "gap": "Full-profile drafts Council-review-pending",
+   "id": "G-6",
+   "owner": "Council review lanes",
+   "rw050_note": "none"
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "Open gap: machine-summary.json local_completion_frontier.s20_250_impact_semantics_frozen = false. Fingerprint/impact-dependent tooling (comparison/merge views) is not in the 10.2 compiler closure, so nothing the bootstrap depends on is deferred.",
+   "evidence": "machine-summary.json local_completion_frontier",
+   "gap": "S20-250 impact semantics unfrozen",
+   "id": "G-7",
+   "owner": "RW-160",
+   "rw050_note": "none"
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "NON_GOAL",
+   "disposition": "Recorded non-goals: live_cancellation_implemented false, persistent_report_entities_implemented false, raw_bytecode_execution_api false (machine-summary vm_execution_profile). Fail-closed absences, not defects.",
+   "evidence": "machine-summary.json vm_execution_profile",
+   "gap": "Live cancellation / persistent report entities / raw bytecode API absent",
+   "id": "G-8",
+   "owner": "none (by design)",
+   "rw050_note": "Sley toolchain must not depend on them; profile freeze records the constraint."
+  },
+  {
+   "bootstrap_blocks": false,
+   "classification": "BOOTSTRAP_BLOCKER",
+   "closed_how": "All three workloads landed in slice 2 through the existing emitter + production execution path; production checker PASS over 26 vectors. No semantic change.",
+   "disposition": "CLOSED in slice 2 (was: owned by RW-040 slice 2).",
+   "evidence": "conformance/vm-extended/v1/accepted.json (bytes-less-than 7d4df4cb, text-less-than 23993beb, vector-traverse 3ad294b8, cond-drain-loop 3e080650); rw-040-bootstrap-exercises-slice-2.json; rw-040-loop-form-mapping.md",
+   "gap": "Three exercise workloads missing (byte processing, loops, traversal)",
+   "id": "G-9",
+   "owner": "RW-040 slice 2 (closed)",
+   "rw050_note": "consumed as profile-freeze input"
+  },
+  {
+   "acceptance": "Executable byte-level SCB decode/encode round-trip workload in the frozen profile, or a section-18 admission record with contract review PASS, before BOOTSTRAP_READY. BOOTSTRAP_PROFILE_1 must not depend on byte access until one path lands.",
+   "bootstrap_blocks": true,
+   "classification": "BOOTSTRAP_BLOCKER",
+   "disposition": "OPEN missing capability (Ariadne round 1 HIGH finding, accepted). No opcode in landed slices E1-E6+E7a takes apart or builds Bytes: E1 table (1,16,17,32-35,96-101,128-131) offers only whole-value Bytes operations (order, equality, value_hash). 10.2 items 1 (SCB decode with strict rejection and bounded traversal) and 4 (derived image assembly) require byte access/construction. Not a semantic defect: nothing implemented is wrong; the capability is absent.",
+   "evidence": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md section E1 opcode table; crates/sley-vm/src/extended.rs (Bytes appears only in compare_data/order, equality, value_hash execution arms); machineresearch/sley-2.0/reviews/reweave-rw040-ariadne-2026-09-06.log (round 1 HIGH)",
+   "gap": "Byte access/construction for codec decode and image assembly missing from landed profile",
+   "id": "G-10",
+   "owner": "RW-050 (primary) with RW-030 bridge-inventory input",
+   "rw050_note": "Profile freeze input: resolve accessor-vs-bridge, freeze the chosen form, add byte-level workloads + negative corpus. An audit may document this; BOOTSTRAP_READY may not.",
+   "section_18_admission_path": "Concretely required computations: (1) SCB decode -- read length-prefixed/tagged byte sequences with strict rejection (10.2 item 1); (2) image assembly -- emit byte sequences for the derived execution image (10.2 item 4). Alternatives with existing semantics: (i) whole-value Bytes threading -- insufficient, cannot inspect input; (ii) native bridge op -- byte access as inventoried native primitive under 10.3 (primitive value operations / confined byte I/O), requires RW-030 host-boundary.json inventory; (iii) new Sley-level byte ops in the bootstrap profile -- requires full section 18 admission (safety/encoding/type/effect implications, dependency impact) plus independent contract review. RW-050 resolves accessor-vs-bridge at profile freeze; assuming the bridge before RW-030/RW-050 define it would be invented."
+  }
+ ],
+ "routing_note": "One gap blocks the actual 10.2 bootstrap-support dependency closure (G-10, byte access/construction; routed to RW-050 with RW-030 input). No semantic/VM repair is routed to RW-050: the audit demonstrates zero defects, so RW-050 receives evidence + profile constraints + the G-10 section-18 admission, not defect reproducers. Every final-product obligation keeps its owner (RW-160/RW-200/Council lanes/operator). BOOTSTRAP_READY is not claimed: exercise 1 partly open, S/P/C0-C3 unbound, RW-030 unchartered (see staged checker).",
+ "slice1_supersession": "rw-040-m2-gap-list.json (slice 1) retained as history; this file is the current routing."
+}

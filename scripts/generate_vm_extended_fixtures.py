@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/vm-extended/v1"
-EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling"]
+EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop"]
 
 
 def main() -> int:

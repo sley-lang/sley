@@ -1,6 +1,11 @@
 {
   "conformance_families": [
     {
+      "family": "bootstrap-capability",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
       "family": "candidate-result",
       "rejections": 4,
       "vectors": 16
@@ -93,13 +98,13 @@
     {
       "family": "vm-extended",
       "rejections": 5,
-      "vectors": 22
+      "vectors": 26
     }
   ],
   "conformance_rejections": 178,
-  "conformance_vectors": 360,
+  "conformance_vectors": 364,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "4eb38e54e6de2cc92bedcc744b788bbdc07fc0c61ac6cd2d651f775e6d3f8932",
+  "inventory_digest": "3e889d9535679e1e2a7c6771573796dcf239fd9672beab1b75e13eb545754777",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
