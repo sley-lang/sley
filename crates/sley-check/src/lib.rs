@@ -1067,9 +1067,12 @@ fn check_collection_len(length: usize) -> Result<()> {
 fn check_builtin_failure(kind: BuiltinFailureKind, code: u16) -> Result<()> {
     let valid = match kind {
         BuiltinFailureKind::Arithmetic => (1..=3).contains(&code),
-        BuiltinFailureKind::Index
-        | BuiltinFailureKind::DuplicateKey
-        | BuiltinFailureKind::ContractViolation => code == 1,
+        // Index code 1 is index-out-of-range (the `VectorSet` precedent);
+        // code 2 is collection-capacity refusal (RW-050 slice E8 bridge,
+        // owner amendment A1). Kinds stay epoch-closed; codes are per-kind
+        // values, so admitting code 2 narrows nothing already valid.
+        BuiltinFailureKind::Index => (1..=2).contains(&code),
+        BuiltinFailureKind::DuplicateKey | BuiltinFailureKind::ContractViolation => code == 1,
         BuiltinFailureKind::Capability => (1..=4).contains(&code),
     };
     if valid {
@@ -1662,6 +1665,38 @@ mod tests {
         });
         assert_eq!(
             environment.check_constant(&invalid).unwrap_err().code(),
+            TypeErrorCode::BuiltinFailureInvalid
+        );
+    }
+
+    #[test]
+    fn index_failure_code_2_is_capacity_refusal() {
+        // RW-050 slice E8 (owner amendment A1): collection-capacity
+        // refusal is `Index` code 2, distinct from index-out-of-range
+        // code 1. Both are valid constants; code 3 stays invalid.
+        let environment = TypeEnvironment::new(Vec::new()).unwrap();
+        for code in [1, 2] {
+            environment
+                .check_constant(&ConstValue {
+                    value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+                    data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                        kind: BuiltinFailureKind::Index,
+                        code,
+                    }),
+                })
+                .unwrap();
+        }
+        assert_eq!(
+            environment
+                .check_constant(&ConstValue {
+                    value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+                    data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                        kind: BuiltinFailureKind::Index,
+                        code: 3,
+                    }),
+                })
+                .unwrap_err()
+                .code(),
             TypeErrorCode::BuiltinFailureInvalid
         );
     }

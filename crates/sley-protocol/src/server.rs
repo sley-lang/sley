@@ -2057,6 +2057,9 @@ impl Server {
             globals: &entities.globals,
             functions: &entities.functions,
             contracts: &entities.contracts,
+            // The SMP1 execute path carries no adapter inventory: bridge
+            // entries stay unreachable here until an owner wires one.
+            adapters: &[],
         };
         let execution_request = ExecutionRequest { inputs, limits };
         let execution = execute_function(input(), execution_request.clone());

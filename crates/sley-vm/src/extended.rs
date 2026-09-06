@@ -7,8 +7,8 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId};
 use sley_ssmc::{
-    BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue, ConstantDefinition,
-    ContractDefinition, ContractKind, FieldConst, FunctionGraph, FunctionType,
+    AdapterImport, BuiltinFailureKind, BuiltinFailureValue, ConstData, ConstValue,
+    ConstantDefinition, ContractDefinition, ContractKind, FieldConst, FunctionGraph, FunctionType,
     GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, NamedType, Opcode, Operation,
     Parameter, RecordConst, RecordField, ResultConst, TypeDefForm, TypeExpr, VariantCase,
     VariantConst, fingerprint::hash_validated_value,
@@ -80,6 +80,8 @@ pub struct LoweringContext<'a> {
     pub parameters: &'a [Parameter],
     /// Complete Contract inventory (slice E7a `contract_assert`).
     pub contracts: &'a [ContractDefinition],
+    /// Complete `AdapterImport` inventory (slice E8 bridge entries).
+    pub adapters: &'a [AdapterImport],
     /// The function whose operations are being judged (slice E7a).
     pub function: EntityId,
 }
@@ -94,6 +96,9 @@ pub struct ExecutionContext<'a> {
     pub globals: &'a [GlobalValueDefinition],
     /// Exact schema epoch (`value_hash`).
     pub schema_epoch: SchemaEpochId,
+    /// Complete `AdapterImport` inventory (slice E8 bridge entries resolve
+    /// their `Entity` immediate here, as in judgment).
+    pub adapters: &'a [AdapterImport],
     /// Per-execution cell contents; a cell handle is the index into this list.
     pub cells: &'a mut Vec<ConstValue>,
 }
@@ -125,6 +130,351 @@ pub fn check_result_type(result_type: &TypeExpr) -> Result<(), LowerError> {
         fail(LowerErrorCode::SignatureMismatch)
     } else {
         Ok(())
+    }
+}
+
+/// Slice E8 host bridge (contract section E8): the frozen import-entry
+/// capacity all bridge byte strings and octet vectors share.
+pub(crate) const BRIDGE_MAX_ITEMS: usize = 1_048_576;
+
+/// Slice E8: the bridge-capacity failure code under `BuiltinFailure(Index)`,
+/// distinct from the index-out-of-range code 1 the `VectorSet` precedent
+/// pins. The RW-030 admission record's "typed Limit failure" is realized as
+/// this code: the `BuiltinFailureKind` set is epoch-closed while codes are
+/// per-kind values, and capacity refusal belongs to the collection-bounds
+/// family the `Index` kind already owns.
+pub(crate) const BRIDGE_CAPACITY_CODE: u16 = 2;
+
+/// Slice E8: fuel charged per converted or pushed element through
+/// `charge_action`, on top of the existing per-instruction charge.
+pub(crate) const BRIDGE_ELEMENT_FUEL: u64 = 1;
+
+/// One landed slice-E8 bridge entry over `adapter_invoke` (contract E8).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BridgeEntry {
+    /// `host-bytes-to-u8vector`.
+    BytesToVector,
+    /// `host-u8vector-to-bytes`.
+    VectorToBytes,
+    /// `vector-push`.
+    VectorPush,
+}
+
+/// The frozen `Entity` identity of one bridge entry: twelve ASCII bytes
+/// `SLY1/BRIDGE/`, the four-byte entry code, zero padding to 32 bytes.
+///
+/// These are REWEAVE host-ABI import identities (the RW-070 freeze records
+/// them), not reference-adapter identities: bridge entries are pure value
+/// functions over caller-owned values, so no `AdapterCall` effect, no
+/// fixture state, and no reference-registry kind applies to them. What they
+/// share with every frozen `adapter_invoke` use is the invocation shape —
+/// two operands (`scope`, `request`) and an `Entity` immediate naming an
+/// import with declared request/response/failure types — which the judgment
+/// below enforces exactly.
+pub(crate) fn bridge_entry_id(code: [u8; 4]) -> EntityId {
+    let mut bytes = [0_u8; 32];
+    bytes[..12].copy_from_slice(b"SLY1/BRIDGE/");
+    bytes[12..16].copy_from_slice(&code);
+    EntityId::from_bytes(bytes)
+}
+
+/// The frozen external adapter identity bytes of one bridge entry.
+fn bridge_adapter_id(code: [u8; 4]) -> [u8; 32] {
+    *bridge_entry_id(code).as_bytes()
+}
+
+/// Builds the frozen `AdapterImport` value for one bridge entry: a genuine
+/// epoch-1 import row (identity, adapter identity, ABI version 1, exact
+/// request/response types, `Index` failure type, empty effect list).
+/// Entries are pure value functions, so the effect list is correctly empty:
+/// there is no host-state authority for an `AdapterCall` effect to confine
+/// (owner amendment A1, S20-230 §1.5: registered pure deterministic host
+/// primitives; no `AdapterCall` is manufactured).
+///
+/// Test-only constructor: production inventories arrive in S20-230
+/// requests; only fixtures build the frozen rows directly.
+#[cfg(test)]
+pub(crate) fn bridge_import(
+    entry: BridgeEntry,
+    request: TypeExpr,
+    response: TypeExpr,
+) -> AdapterImport {
+    let code = match entry {
+        BridgeEntry::BytesToVector => *b"B2V1",
+        BridgeEntry::VectorToBytes => *b"V2B1",
+        BridgeEntry::VectorPush => *b"PSH1",
+    };
+    AdapterImport {
+        entity_id: bridge_entry_id(code),
+        adapter_id: bridge_adapter_id(code),
+        abi_version: 1,
+        request_type: request,
+        response_type: response,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    }
+}
+
+/// The three frozen bridge imports for test and fixture inventories: the
+/// two conversions with their exact rows, and the push row with its
+/// representative `UInt(8)` instantiation (judgment derives push types
+/// per use from the operands; the row pins identity and purity).
+#[cfg(test)]
+pub(crate) fn bridge_test_imports() -> [AdapterImport; 3] {
+    [
+        bridge_import(
+            BridgeEntry::BytesToVector,
+            TypeExpr::Bytes,
+            TypeExpr::Vector(Box::new(u8_type())),
+        ),
+        bridge_import(
+            BridgeEntry::VectorToBytes,
+            TypeExpr::Vector(Box::new(u8_type())),
+            TypeExpr::Bytes,
+        ),
+        bridge_import(
+            BridgeEntry::VectorPush,
+            u8_type(),
+            TypeExpr::Vector(Box::new(u8_type())),
+        ),
+    ]
+}
+
+/// One resolved bridge call: which entry the carried import names after
+/// every frozen field pins it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BridgeKind {
+    BytesToVector,
+    VectorToBytes,
+    VectorPush,
+}
+
+/// Resolves an `adapter_invoke` immediate against the supplied import
+/// inventory to its landed bridge entry, if it names one. Resolution is
+/// genuine: the immediate must name a carried `AdapterImport`, and every
+/// frozen field of that row must equal the frozen bridge values — identity,
+/// adapter identity, ABI version 1, `Index` failure type, and empty effect
+/// list. For the conversions the carried request/response types must equal
+/// the frozen rows. For push the carried row must satisfy the relationship
+/// pin itself (response exactly `Vector` of the request type); per-use
+/// operand binding against the row happens at judgment, so a conforming
+/// row serves only its own element type. Anything else is not a landed
+/// import and stays `VM_LOWER_OPCODE_UNSUPPORTED`.
+fn resolve_bridge_entry<'a>(
+    adapters: &'a [AdapterImport],
+    id: &EntityId,
+) -> Option<(BridgeKind, &'a AdapterImport)> {
+    let carried = adapters.iter().find(|import| import.entity_id == *id)?;
+    let entry = if carried.entity_id == bridge_entry_id(*b"B2V1") {
+        BridgeEntry::BytesToVector
+    } else if carried.entity_id == bridge_entry_id(*b"V2B1") {
+        BridgeEntry::VectorToBytes
+    } else if carried.entity_id == bridge_entry_id(*b"PSH1") {
+        BridgeEntry::VectorPush
+    } else {
+        return None;
+    };
+    let code = match entry {
+        BridgeEntry::BytesToVector => *b"B2V1",
+        BridgeEntry::VectorToBytes => *b"V2B1",
+        BridgeEntry::VectorPush => *b"PSH1",
+    };
+    if carried.adapter_id != bridge_adapter_id(code)
+        || carried.abi_version != 1
+        || carried.failure_type != TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+        || !carried.effects.is_empty()
+    {
+        return None;
+    }
+    match entry {
+        BridgeEntry::VectorPush => {
+            if carried.response_type == TypeExpr::Vector(Box::new(carried.request_type.clone())) {
+                Some((BridgeKind::VectorPush, carried))
+            } else {
+                None
+            }
+        }
+        conversion => {
+            let (request, response) = match conversion {
+                BridgeEntry::BytesToVector => (TypeExpr::Bytes, u8vec_type()),
+                BridgeEntry::VectorToBytes => (u8vec_type(), TypeExpr::Bytes),
+                BridgeEntry::VectorPush => return None,
+            };
+            if carried.request_type == request && carried.response_type == response {
+                Some((
+                    if conversion == BridgeEntry::BytesToVector {
+                        BridgeKind::BytesToVector
+                    } else {
+                        BridgeKind::VectorToBytes
+                    },
+                    carried,
+                ))
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn u8_type() -> TypeExpr {
+    TypeExpr::UInt(IntegerWidth::from_bits(8))
+}
+
+fn u8vec_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(u8_type()))
+}
+
+fn bridge_index_error() -> TypeExpr {
+    TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+}
+
+/// Per-element fuel a bridge entry charges: the request length for the two
+/// conversions, one for a push. `None` outside the landed entries.
+#[must_use]
+pub fn bridge_fuel_surcharge(
+    adapters: &[AdapterImport],
+    immediate: &Immediate,
+    operands: &[ConstValue],
+) -> Option<u64> {
+    let Immediate::Entity(entry) = immediate else {
+        return None;
+    };
+    match resolve_bridge_entry(adapters, entry)?.0 {
+        BridgeKind::BytesToVector => match operands {
+            [_, request] => match &request.data {
+                ConstData::Bytes(bytes) => u64::try_from(bytes.len()).ok(),
+                _ => None,
+            },
+            _ => None,
+        },
+        BridgeKind::VectorToBytes => match operands {
+            [_, request] => match &request.data {
+                ConstData::Sequence(items) => u64::try_from(items.len()).ok(),
+                _ => None,
+            },
+            _ => None,
+        },
+        BridgeKind::VectorPush => match operands {
+            [_, _] => Some(1),
+            _ => None,
+        },
+    }
+}
+
+/// Runs one landed bridge entry. Total by construction: representation
+/// conversion only, capacity refusal as an `Index` code-2 value, element
+/// shapes rechecked (a mismatch is an internal fault, never a mistyped
+/// value), and no tag parsing, schema dispatch, canonical-form judgment,
+/// image assembly, or verdict anywhere (contract section E8).
+///
+/// Value-type binding (Ariadne Phase-2 HIGH-1 repair): the carried row is
+/// revalidated here, not just at judgment, so the public execution helper
+/// cannot serve a registered identity with off-row operand or result
+/// types. Operand value types must equal the row (scope `Unit` for the
+/// conversions, the row response for push; request always the row
+/// request), and the result must equal `Result<row response, row
+/// failure>`. Anything else is an internal fault.
+fn bridge_execute(
+    entry: BridgeKind,
+    carried: &AdapterImport,
+    operands: &[ConstValue],
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
+    let TypeExpr::Result { ok, error } = result_type else {
+        return Err(ExtendedFault);
+    };
+    if **ok != carried.response_type || **error != carried.failure_type {
+        return Err(ExtendedFault);
+    }
+    let ok_value = |data: ConstData| ConstValue {
+        value_type: ok.as_ref().clone(),
+        data,
+    };
+    let done = |data: ConstData| ConstValue {
+        value_type: result_type.clone(),
+        data: ConstData::Result(ResultConst::Ok(Box::new(ok_value(data)))),
+    };
+    let capacity = || ConstValue {
+        value_type: result_type.clone(),
+        data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+            value_type: error.as_ref().clone(),
+            data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                kind: BuiltinFailureKind::Index,
+                code: BRIDGE_CAPACITY_CODE,
+            }),
+        }))),
+    };
+    match entry {
+        BridgeKind::BytesToVector => {
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Bytes(bytes) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            if bytes.len() > BRIDGE_MAX_ITEMS {
+                return Ok(capacity());
+            }
+            Ok(done(ConstData::Sequence(
+                bytes
+                    .iter()
+                    .map(|byte| ConstValue {
+                        value_type: u8_type(),
+                        data: ConstData::UInt(u128::from(*byte)),
+                    })
+                    .collect(),
+            )))
+        }
+        BridgeKind::VectorToBytes => {
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Sequence(items) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            if items.len() > BRIDGE_MAX_ITEMS {
+                return Ok(capacity());
+            }
+            let mut bytes = Vec::with_capacity(items.len());
+            for item in items {
+                let ConstData::UInt(byte) = item.data else {
+                    return Err(ExtendedFault);
+                };
+                bytes.push(u8::try_from(byte).map_err(|_| ExtendedFault)?);
+            }
+            Ok(done(ConstData::Bytes(bytes)))
+        }
+        BridgeKind::VectorPush => {
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != carried.response_type
+                || request.value_type != carried.request_type
+            {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Sequence(items) = &scope.data else {
+                return Err(ExtendedFault);
+            };
+            if items.len() >= BRIDGE_MAX_ITEMS {
+                return Ok(capacity());
+            }
+            let mut grown = items.clone();
+            grown.push(request.clone());
+            Ok(done(ConstData::Sequence(grown)))
+        }
     }
 }
 
@@ -800,6 +1150,54 @@ pub fn judge_extended_operation(
                 return fail(LowerErrorCode::SignatureMismatch);
             }
             declared.clone()
+        }
+        Opcode::AdapterInvoke => {
+            // Slice E8. Only the three frozen bridge entries land, resolved
+            // as genuine `AdapterImport` values from the supplied import
+            // inventory: the immediate must name a carried import, and every
+            // frozen field of that row must equal the frozen bridge values.
+            // Every other adapter stays VM_LOWER_OPCODE_UNSUPPORTED however
+            // well formed its operands are (contract section E8).
+            let Immediate::Entity(entry) = immediate else {
+                return fail(LowerErrorCode::ImmediateMismatch);
+            };
+            let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
+                return fail(LowerErrorCode::OpcodeUnsupported);
+            };
+            let [scope, request] = operands else {
+                return fail(LowerErrorCode::SignatureMismatch);
+            };
+            let response_type = match entry {
+                BridgeKind::VectorPush => {
+                    // Push-row binding (Ariadne HIGH-2 repair, matching
+                    // S20-230 §1.5): per-use operand types must equal the
+                    // carried row — scope is the row response, request is
+                    // the row request — and the row already satisfies
+                    // response == Vector<request> via resolve. Generic over
+                    // `E` by monomorphization only, byte-unaware by
+                    // construction.
+                    if **scope != carried.response_type || **request != carried.request_type {
+                        return fail(LowerErrorCode::SignatureMismatch);
+                    }
+                    carried.response_type.clone()
+                }
+                BridgeKind::BytesToVector => {
+                    if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
+                        return fail(LowerErrorCode::SignatureMismatch);
+                    }
+                    TypeExpr::Vector(Box::new(u8_type()))
+                }
+                BridgeKind::VectorToBytes => {
+                    if **scope != TypeExpr::Unit || **request != u8vec_type() {
+                        return fail(LowerErrorCode::SignatureMismatch);
+                    }
+                    TypeExpr::Bytes
+                }
+            };
+            TypeExpr::Result {
+                ok: Box::new(response_type),
+                error: Box::new(bridge_index_error()),
+            }
         }
         _ => return fail(LowerErrorCode::OpcodeUnsupported),
     };
@@ -1526,6 +1924,22 @@ pub fn execute_extended_instruction(
         (Opcode::ResultErr, [payload]) => typed(ConstData::Result(ResultConst::Err(Box::new(
             payload.clone(),
         )))),
+        (Opcode::AdapterInvoke, operands) => {
+            // Slice E8. Judgment admits only the three frozen bridge
+            // entries resolved from the supplied inventory, so anything
+            // else here is an internal fault. Execution re-resolves from
+            // the same inventory rather than trusting the judgment — the
+            // public helper cannot bypass registration: without the exact
+            // frozen row (identity, ABI, schemas, relationship, purity)
+            // this faults.
+            let Immediate::Entity(entry) = immediate else {
+                return Err(ExtendedFault);
+            };
+            let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
+                return Err(ExtendedFault);
+            };
+            bridge_execute(entry, carried, operands, result_type)?
+        }
         _ => return Err(ExtendedFault),
     })
 }

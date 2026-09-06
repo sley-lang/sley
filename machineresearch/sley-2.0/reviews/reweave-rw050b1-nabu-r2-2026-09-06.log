@@ -1,0 +1,23 @@
+status:
+PASS — high confidence. The bounded Nabu landing blocker is closed.
+
+findings:
+1. All five Phase-2 architecture findings remain substantively valid. Reconciliation provenance is unchanged; execution bypass closure and push-row agreement are strengthened. Evidence ordering/reconciliation anchors remain at `Makefile:162-189` and `scripts/check_supply_chain_audit.py:209-221`.
+2. Execution now re-resolves and carries the exact `AdapterImport`, validates the push relationship, binds operands/results to that row, and faults on mismatch (`crates/sley-vm/src/extended.rs:263-317,377-478,1164-1182,1935-1941`). This adds defense in depth without changing the architecture, registry boundary, effect model, or schema conclusion.
+3. The `Index` code-2 widening is architecturally sound and minimally scoped. S20-210 delegates code validity to the declared kind (`docs/spec/TYPE_SYSTEM_V1.md:124-135`); only `Index` expands from code 1 to codes 1–2, while all other kind tables remain unchanged (`crates/sley-check/src/lib.rs:1067-1082`). Tests admit 1–2 and reject 3 (`:1673-1701`).
+4. The widening is necessarily kind-global rather than bridge-local: canonical `BuiltinFailure(Index,2)` values must survive checking and report projection. The E8 refusal now exercises that boundary (`crates/sley-vm/src/extended_tests.rs:4680-4686`).
+5. Push remains monomorphized and row-closed consistently across S20-230, VM judgment, execution, and profile prose (`docs/spec/EFFECT_SYSTEM_V1.md:105-137,226-239`; `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md:321-339`).
+6. Scope qualification: the prior “zero untracked files” observation is no longer literal because three review transcripts are untracked. This is review bookkeeping, not architectural expansion; no new gate framework was introduced.
+
+validation:
+- Read-only inspection of worktree delta against the prior staged snapshot.
+- `git diff --check` — PASS.
+- Current E8 inventory remains eight named VM tests; no tests executed because the handoff permits read-only actions.
+
+blockers:
+None from this bounded architecture re-review.
+
+return_to:
+REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). Architecture lane fully closed (PASS, PASS, delta-PASS). Combined with Ariadne (FAIL, PASS on repair, delta-PASS), every owner-required review is green. Proceeding to final validation, slice record, and landing commit.

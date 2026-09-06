@@ -1,6 +1,6 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 12 (2026-09-05);
+Status: S20-260/S20-270 full-profile contract draft, revision 13 (2026-09-06);
 Council review pending (Ariadne contract review, Vulcan surface review; Nabu
 architecture review PASS). Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
@@ -17,8 +17,11 @@ the named negative-zero deviation with its consequence, the pinned float
 environment, the encoding-order decision with byte key identity, the absent-key
 and operand-arity gaps, the failure-name mapping, and the five-fuel
 derivation in section 3; the preimage field name in section 4; and the
-same-toolchain evidence scope in section 5. Implementation lands in family slices E1 through E6 plus E7a, tracked in the machine summary; the rest of E7
-stays excluded until its owners exist.
+same-toolchain evidence scope in section 5. Revision 13 lands slice E8, the
+host bridge imports admitted by the REWEAVE RW-030 charter (section E8):
+three versioned `adapter_invoke` entries over the already-frozen opcode 161,
+which the same S20-760 determination class shows needs no schema epoch. The
+rest of E7 stays excluded until its owners exist.
 
 ## Boundary
 
@@ -264,12 +267,134 @@ validation has passed.
 
 ### E7 tests, effects, adapters, capabilities (145, 160 to 162)
 
-Excluded from this revision: they answer `VM_LOWER_OPCODE_UNSUPPORTED`
-until S20-240 full, S20-280 full, and S20-380 full own their runtime.
+Excluded from this revision, except the three slice-E8 bridge entries over
+op 161 named in section E8: every other use answers
+`VM_LOWER_OPCODE_UNSUPPORTED` until S20-240 full, S20-280 full, and S20-380
+full own their runtime.
 `test_observe` additionally needs a schema epoch, because epoch 1 rejects it
 outright rather than leaving its semantics open (`CONTRACT_TEST_PROFILE_V1.md`
 section 3.4 carries the rejection; op 145 is in the epoch-1 table, so the
 manifest alone does not).
+
+### E8 host bridge imports (161)
+
+Slice E8 implements the byte-access/construction remedy admitted by the
+REWEAVE RW-030 charter (`host-boundary.json` `bridge_g10`,
+`machineresearch/sley-2.0/reweave/rw-030-g10-admission.md`): a bounded
+lossless representation bridge plus one minimal bounded generic growth
+operation, carried as three versioned host-import entries over the
+already-frozen `adapter_invoke` opcode (tag 161), in its frozen invocation
+shape: two operands (`scope`, `request`) and an `Entity` immediate naming
+an import with declared request/response/failure types. No new opcode, no
+new failure kind, no `SLEYBC02` layout change (161 with an `Entity`
+immediate already encodes), so `lowerer_version` stays `[2, 0, 0]` and no
+schema epoch is required: the opcode is already in the frozen epoch-1
+table and this profile carries its own `lowering_profile` identity, the
+same determination class as slice E7a (`EPOCH_MIGRATION_POLICY_V1.md`
+section 6). `adapter_abi_entries` stays 0: the entries are profile-pinned
+and take no adapter configuration.
+
+Entry identities are `Entity` immediates with twelve ASCII bytes
+`SLY1/BRIDGE/`, a four-byte entry code, and zero padding to 32 bytes.
+These are REWEAVE host-ABI import identities (the RW-070 freeze records
+them), not reference-adapter identities: bridge entries are pure value
+functions over caller-owned values, so no `AdapterCall` effect, no fixture
+state, and no reference-registry kind applies to them. Each entry is a
+genuine epoch-1 `AdapterImport` value — identity, adapter identity, ABI
+version 1, exact request/response types, `Index` failure type, empty effect
+list — and resolution is genuine: the immediate must name a carried import
+of the lowering/execution inventory, and every frozen field of that row
+must equal the frozen bridge values. A frozen identity alone, with no
+carried row, stays `VM_LOWER_OPCODE_UNSUPPORTED`; so does a carried row
+with a foreign adapter identity, ABI version, failure type, effect list,
+or (for the conversions) request/response types. Scope mirrors the
+reference-adapter convention (the state acted upon; `Unit` where there is
+none); epoch-1 stores scope on the effect, which pure imports do not have,
+so the profile freezes each entry's scope type here instead:
+
+| Entry | Code | Scope | Request | Response | Declared failure |
+|---|---|---|---|---|---|
+| `host-bytes-to-u8vector` | `B2V1` | `Unit` | `Bytes` | `Vector<UInt(8)>` | `BuiltinFailure(Index)` |
+| `host-u8vector-to-bytes` | `V2B1` | `Unit` | `Vector<UInt(8)>` | `Bytes` | `BuiltinFailure(Index)` |
+| `vector-push` | `PSH1` | `Vector<T>` | `T`, any `T` | `Vector<T>` | `BuiltinFailure(Index)` |
+
+Judgment (lowering and the section 3.1 entry alike): the immediate must be
+`Entity` naming a carried import that resolves to exactly one frozen
+entry, else `VM_LOWER_OPCODE_UNSUPPORTED` (an unapproved adapter stays an
+unsupported operation however well formed its operands are, so the rest of
+E7 remains closed by default; resolution precedes arity, so a mistyped
+unapproved call is still unsupported, not mismatched); the two operand
+types must equal the entry's scope and request types exactly — in
+particular `V2B1` accepts only `Vector<UInt(8)>`, never any other width —
+and the single declared result must equal `Result<response,
+BuiltinFailure(Index)>` exactly, else `VM_LOWER_SIGNATURE_MISMATCH`.
+Push instantiates generically by monomorphization: each concrete element
+type `E` declares its own closed row with request `E` and response
+`Vector<E>` (the row pins identity, purity, and the relationship, not just
+identity and purity); per-use operand types must equal the carried row —
+scope exactly the row response, request exactly the row request — and
+execution revalidates the same binding against the row, which is what keeps
+the rule byte-unaware and unbypassable through the public execution
+helper. The top-of-judgment cell rule applies unchanged: no
+entry takes a type containing `LocalCell`.
+
+Execution is total and program-unaware. `B2V1` maps each request byte to
+one `UInt(8)` element in order; `V2B1` maps each `UInt(8)` request element
+back to its byte (an element value above 255 is an internal invariant
+violation, never a silent wrap); `PSH1` appends one cloned request element
+to the scope vector. The unit scopes carry no data and are rechecked, not
+trusted. No entry parses tags, dispatches on schema, enforces canonical
+form, assembles images, judges trust, or returns verdicts: over program
+bytes the output is a `u8` vector, and the negative corpus pins exactly
+that. Every strict-rejection decision stays in Sley code over these
+vectors.
+
+Capacity: no bridge byte string or octet vector exceeds `BRIDGE_MAX_ITEMS`
+= 1,048,576 bytes/elements (2^20, symmetric with the `MAX_EXECUTION_CELLS`
+cap). An input or result past the cap is `Err(BuiltinFailure(Index, 2))`,
+the bridge-capacity code, distinct from the index-out-of-range code 1 the
+`VectorSet` precedent pins. Single values past 1 MiB cannot cross in one
+call; that is a profile bound, and raising it needs a profile revision with
+contract review, not a quiet implementation change. The RW-030 admission
+record's "typed Limit failure" is realized as this `Index` code 2: the
+`BuiltinFailureKind` set is epoch-closed (manifest kinds 1–5), while codes
+are per-kind values, and capacity refusal belongs to the collection-bounds
+family the `Index` kind already owns.
+
+Fuel: the existing per-instruction and per-terminator charges cover
+dispatch, and bridge fuel is charged up front, before the arm allocates or
+converts: every request element of a conversion and the single pushed
+element charges one fuel through `charge_action`
+(`BRIDGE_ELEMENT_FUEL` = 1), so a starved budget terminates without the
+work being performed (the E6 call-fuel precedent). The call-site value-unit
+charge covers the result as for every operation. The exact cap and
+per-element charge frozen here are the RW-050 profile-freeze values the
+admission record requires; the RW-070 host-ABI freeze records the entry
+identities, schemas, and denial tests.
+
+Threat posture: T25 (adapter impersonation) cannot arise — the immediate
+must name a carried import whose every frozen field equals the frozen
+bridge values, never caller-selected adapter resolution, and anything
+else is refused at judgment; T26 (adapter response injection) cannot
+arise — scope/request/response schemas are pinned at judgment, execution
+re-resolves from the same inventory and rechecks data shapes, and a
+mismatch is an internal fault, never a mistyped value.
+
+Permission note (owner amendment A1, S20-230 §1.5 — supersedes the slice-1
+profile-local note): pure, effectless imports are permitted exactly these
+three frozen rows, with generic instantiation for push. This is not a
+general adapter permission: S20-230 §1.4 requires one `AdapterCall` effect
+because zero effects on a host-state import could hide authority — a pure
+value function has no host-state authority to hide, so the rationale does
+not attach, and the S20-230 validator now judges the frozen pure-row shapes
+at declaration plus scope/operand/result binding at invocation (the E7a
+effect-free predicate precedent). Effectful adapters keep their owners
+(S20-240 full, S20-280 full, S20-380 full); the profile's refusal of
+effectful Functions is untouched, so bridge callers stay effect-free and no
+`AdapterCall` judgment is delegated anywhere. Positive registration (exact
+bridge identity/version) is enforced at lowering from the supplied import
+inventory: unregistered zero-effect imports fail closed here even where
+their static form is valid.
 
 ### 3.1 Judgment without lowering
 
@@ -356,7 +481,7 @@ report-grade finding closed.
 
 ## 6. Explicit exclusions
 
-This contract does not claim: E7 beyond slice E7a; generic specialization or type
+This contract does not claim: E7 beyond slices E7a and E8; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.

@@ -9,8 +9,9 @@ use sley_check::{
 };
 use sley_id::{BytecodeCacheKey, EntityId};
 use sley_ssmc::{
-    Block, CaseKey, ConstantDefinition, ContractDefinition, FunctionGraph, GlobalValueDefinition,
-    Immediate, Opcode, Operation, Parameter, SwitchArgument, Terminator, TypeExpr, ValueRef,
+    AdapterImport, Block, CaseKey, ConstantDefinition, ContractDefinition, FunctionGraph,
+    GlobalValueDefinition, Immediate, Opcode, Operation, Parameter, SwitchArgument, Terminator,
+    TypeExpr, ValueRef,
 };
 
 use crate::{CacheProfile, LowerError, LowerErrorCode, derive_cache_key};
@@ -196,6 +197,9 @@ pub struct LoweringInput<'a> {
     pub functions: &'a [FunctionGraph],
     /// Complete Contract inventory (extended profile `contract_assert`).
     pub contracts: &'a [ContractDefinition],
+    /// Complete `AdapterImport` inventory (slice E8 bridge entries resolve
+    /// their `Entity` immediate here; anything else stays unsupported).
+    pub adapters: &'a [AdapterImport],
 }
 
 /// Integrated earlier or lowering failure.
@@ -257,11 +261,11 @@ pub fn judge_function_operations(
     if !root.profile.is_extended() {
         return lower_fail(LowerErrorCode::ProfileUnsupported);
     }
-    let owned = owned_inventory(root, root.function);
-    let input = owned.narrow(root);
-    let mut work = preflight_resources(input)?;
-    let maps = Maps::build(input, &mut work)?;
-    judge_extended(input, root, &maps, &mut work)?;
+    let owned = owned_inventory(&root, root.function);
+    let input = owned.narrow(&root);
+    let mut work = preflight_resources(&input)?;
+    let maps = Maps::build(&input, &mut work)?;
+    judge_extended(&input, &root, &maps, &mut work)?;
     // Same position as `lower_function`, so the frozen S20-260 failure order
     // is unchanged and judgment accepts exactly what lowering accepts (the
     // S20-360 contract section 3.1 invariant): a judged Function with no
@@ -287,8 +291,8 @@ pub fn lower_function(root: LoweringInput<'_>) -> Result<LoweredFunction, Loweri
     let owned = root
         .profile
         .is_extended()
-        .then(|| owned_inventory(root, root.function));
-    let input = owned.as_ref().map_or(root, |owned| owned.narrow(root));
+        .then(|| owned_inventory(&root, root.function));
+    let input = owned.as_ref().map_or(root, |owned| owned.narrow(&root));
     validate_function_graph(
         input.types,
         input.function,
@@ -308,12 +312,12 @@ pub fn lower_function(root: LoweringInput<'_>) -> Result<LoweredFunction, Loweri
     {
         return lower_fail(LowerErrorCode::ProfileUnsupported);
     }
-    let mut work = preflight_resources(input)?;
-    let maps = Maps::build(input, &mut work)?;
+    let mut work = preflight_resources(&input)?;
+    let maps = Maps::build(&input, &mut work)?;
     if input.profile.is_extended() {
-        judge_extended(input, root, &maps, &mut work)?;
+        judge_extended(&input, &root, &maps, &mut work)?;
     } else {
-        validate_operations(input, &maps, &mut work)?;
+        validate_operations(&input, &maps, &mut work)?;
     }
     // After the judgment, so the frozen S20-260 failure order is unchanged.
     crate::extended::require_canonical_referenced_constants(
@@ -321,9 +325,9 @@ pub fn lower_function(root: LoweringInput<'_>) -> Result<LoweredFunction, Loweri
         input.constants,
         input.globals,
     )?;
-    let bytecode = emit_function(input, &maps, &mut work)?;
+    let bytecode = emit_function(&input, &maps, &mut work)?;
     let callees = if input.profile.is_extended() {
-        lower_callees(root, &bytecode, &mut work)?
+        lower_callees(&root, &bytecode, &mut work)?
     } else {
         Vec::new()
     };
@@ -346,7 +350,7 @@ struct OwnedInventory {
 
 /// Narrows root-wide inventories to one Function (extended profile): S20-220
 /// validation requires the exact inventory of the Function it checks.
-fn owned_inventory(input: LoweringInput<'_>, graph: &FunctionGraph) -> OwnedInventory {
+fn owned_inventory(input: &LoweringInput<'_>, graph: &FunctionGraph) -> OwnedInventory {
     let blocks: Vec<Block> = input
         .blocks
         .iter()
@@ -375,12 +379,12 @@ fn owned_inventory(input: LoweringInput<'_>, graph: &FunctionGraph) -> OwnedInve
 }
 
 impl OwnedInventory {
-    fn narrow<'a>(&'a self, input: LoweringInput<'a>) -> LoweringInput<'a> {
+    fn narrow<'a>(&'a self, input: &LoweringInput<'a>) -> LoweringInput<'a> {
         LoweringInput {
             parameters: &self.parameters,
             blocks: &self.blocks,
             operations: &self.operations,
-            ..input
+            ..*input
         }
     }
 }
@@ -415,7 +419,7 @@ fn called_functions(
 /// Lowers the transitive `call_direct` closure of the entry (contract E6)
 /// under the entry's profile and work budget, ascending by function id.
 fn lower_callees(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     entry: &BytecodeFunction,
     work: &mut u64,
 ) -> Result<Vec<BytecodeFunction>, LoweringError> {
@@ -433,9 +437,9 @@ fn lower_callees(
             return lower_fail(LowerErrorCode::ImmediateMismatch);
         };
         let owned = owned_inventory(input, graph);
-        let callee_input = owned.narrow(LoweringInput {
+        let callee_input = owned.narrow(&LoweringInput {
             function: graph,
-            ..input
+            ..*input
         });
         validate_function_graph(
             callee_input.types,
@@ -450,16 +454,16 @@ fn lower_callees(
         {
             return lower_fail(LowerErrorCode::ProfileUnsupported);
         }
-        let maps = Maps::build(callee_input, work)?;
-        judge_extended(callee_input, input, &maps, work)?;
-        let bytecode = emit_function(callee_input, &maps, work)?;
+        let maps = Maps::build(&callee_input, work)?;
+        judge_extended(&callee_input, input, &maps, work)?;
+        let bytecode = emit_function(&callee_input, &maps, work)?;
         pending.extend(called_functions(&bytecode, input.contracts));
         done.insert(function, bytecode);
     }
     Ok(done.into_values().collect())
 }
 
-fn preflight_resources(input: LoweringInput<'_>) -> Result<u64, LoweringError> {
+fn preflight_resources(input: &LoweringInput<'_>) -> Result<u64, LoweringError> {
     if input.blocks.len() > MAX_LOWERED_BLOCKS || input.operations.len() > MAX_INSTRUCTIONS {
         return lower_fail(LowerErrorCode::ResourceLimit);
     }
@@ -499,7 +503,7 @@ struct Maps<'a> {
 }
 
 impl<'a> Maps<'a> {
-    fn build(input: LoweringInput<'a>, work: &mut u64) -> Result<Self, LoweringError> {
+    fn build(input: &LoweringInput<'a>, work: &mut u64) -> Result<Self, LoweringError> {
         let parameter_inventory: BTreeMap<_, _> = input
             .parameters
             .iter()
@@ -622,7 +626,7 @@ fn allocate_register(
 }
 
 fn validate_operations(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     maps: &Maps<'_>,
     work: &mut u64,
 ) -> Result<(), LoweringError> {
@@ -658,8 +662,8 @@ fn validate_operations(
 /// Judges every operation under the extended profile (contract section 3):
 /// the derived result type must equal the declared one exactly.
 fn judge_extended(
-    input: LoweringInput<'_>,
-    root: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
+    root: &LoweringInput<'_>,
     maps: &Maps<'_>,
     work: &mut u64,
 ) -> Result<(), LoweringError> {
@@ -671,6 +675,7 @@ fn judge_extended(
         functions: root.functions,
         parameters: root.parameters,
         contracts: root.contracts,
+        adapters: root.adapters,
         function: input.function.entity_id,
     };
     for block_id in &input.function.blocks {
@@ -696,7 +701,7 @@ fn judge_extended(
 }
 
 fn emit_function(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     maps: &Maps<'_>,
     work: &mut u64,
 ) -> Result<BytecodeFunction, LoweringError> {
@@ -1145,6 +1150,7 @@ mod tests {
                 globals: &[],
                 functions: &[],
                 contracts: &[],
+                adapters: &[],
             }
         }
     }
@@ -1502,7 +1508,7 @@ mod tests {
         let mut fixture = bool_fixture(Opcode::BoolAnd);
         fixture.operations[0].result_types =
             vec![TypeExpr::Bool; MAX_INSTRUCTION_VALUES.saturating_add(1)];
-        let LoweringError::Lower(error) = preflight_resources(fixture.input()).unwrap_err() else {
+        let LoweringError::Lower(error) = preflight_resources(&fixture.input()).unwrap_err() else {
             panic!("resource error");
         };
         assert_eq!(error.code(), LowerErrorCode::ResourceLimit);

@@ -401,7 +401,7 @@ pub fn build_execution_report(
             )
         }
         Err(error) => (
-            optional_input_evidence(input, request),
+            optional_input_evidence(&input, request),
             ExecutionReportResult::Rejected(project_failure(error)),
         ),
     };
@@ -723,11 +723,11 @@ fn validated_hashes(
 }
 
 fn optional_input_evidence(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     request: &ExecutionRequest,
 ) -> ExecutionInputEvidence {
     let submitted_count = u64::try_from(request.inputs.len()).unwrap_or(u64::MAX);
-    match validated_execution_input_hashes(input, request) {
+    match validated_execution_input_hashes(*input, request) {
         Ok(hashes) => ExecutionInputEvidence::Validated(hashes),
         Err(_) => ExecutionInputEvidence::UnavailableBeforeValidation { submitted_count },
     }
@@ -1118,6 +1118,7 @@ mod tests {
                 globals: &[],
                 functions: &[],
                 contracts: &[],
+                adapters: &[],
             }
         }
     }

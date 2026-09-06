@@ -12,5 +12,8 @@ sley-mutate = { path = "../sley-mutate" }
 sley-id = { path = "../sley-id" }
 sley-ssmc = { path = "../sley-ssmc" }
 
+[dev-dependencies]
+sley-scb1 = { path = "../sley-scb1" }
+
 [lints]
 workspace = true

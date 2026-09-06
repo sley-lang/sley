@@ -304,14 +304,14 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 12,
+    "contract_revision": 13,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
     "bytecode_magic": "SLEYBC02",
     "restricted_profile_unchanged": true,
     "new_stable_error_codes": 0,
-    "e7_excluded": "PARTIAL_E7A_LANDED",
+    "e7_excluded": "PARTIAL_E7A_E8_LANDED",
     "e7_opcodes": [
       145,
       160,
@@ -422,6 +422,15 @@
         "fixture": "conformance/vm-extended/v1/accepted.json",
         "vectors": 2,
         "tests": 2
+      },
+      "E8": {
+        "status": "IMPLEMENTED",
+        "opcodes": [
+          161
+        ],
+        "fixture": "conformance/vm-extended/v1/accepted.json",
+        "vectors": 3,
+        "tests": 8
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
@@ -484,7 +493,8 @@
       "Re-review PASS (p3): Ariadne P3-5: E1 order row omits floats from the admitted set while ordered() admits F32/F64",
       "Re-review PASS (p3): Vulcan P3-1: campaign record states revision 7 and E7 excluded while E7a landed; add the E7a row and Tier 2 gates",
       "Re-review PASS (p3): Vulcan P3-2: E1 float-exclusion rationale cites S20-210 hashability instead of the operative NaN==NaN reason"
-    ]
+    ],
+    "e8_epoch_determination": "profile section E8: PROFILE, no epoch required (no new opcodes; 161 already in the frozen epoch-1 table; no new failure kinds; RW-030 section-18 admission as amended by owner amendment A1, S20-230 section 1.5 pure deterministic primitives)"
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -2636,13 +2646,13 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
-    "cargo_lock_sha256": "3caa1eb080ed8879fd5692f018522a5872513067b7e3f62152feeea02b43e79d",
+    "cargo_lock_sha256": "887d14608d68adc16307dd958d4c9549c9e996be761699a6f9b57db24b989e8e",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 18,
     "cargo_registry_packages": 22,
     "python_workspace_packages": 1,
     "python_registry_packages": 2,
-    "dependency_relationships": 119,
+    "dependency_relationships": 121,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 499,
@@ -2927,7 +2937,7 @@
     "statement_type": "https://in-toto.io/Statement/v1",
     "predicate_type": "https://slsa.dev/provenance/v1",
     "components": 43,
-    "dependency_relationships": 120,
+    "dependency_relationships": 121,
     "license_disposition_blocked_components": 19,
     "signed": false,
     "transparency_log": false,

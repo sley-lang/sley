@@ -63,7 +63,7 @@
     },
     {
       "criterion": "Every non-canonical fixture is rejected",
-      "evidence": "19 of 19 fixture families independently checked, rejection corpora included",
+      "evidence": "20 of 20 fixture families independently checked, rejection corpora included",
       "group": "26.2 canonical format",
       "state": "EVIDENCED"
     },
@@ -339,7 +339,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "7c8598693b901c4636597e13afac982c1c8ec2bae56245a6e76af7778fe28f22",
+  "report_digest": "594e78d9a17eb56a5dd7db4354b8e061ec900dd9b056b0d6da9511c5baab6eae",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

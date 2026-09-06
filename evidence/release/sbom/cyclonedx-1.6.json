@@ -1705,6 +1705,7 @@
         "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
       ],
       "ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
@@ -1778,7 +1779,7 @@
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "fe9b3186352550bc2a52d56eded4a51147cfb265ecf2a844a88e3fc6fdcaef39"
+        "value": "0e3674c7f45099d3747399ef3305fde6352ef85d7259e0bbcac3e396e299bed8"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -1807,7 +1808,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:7dcbd84a-4747-8047-86e4-fccae38a7159",
+  "serialNumber": "urn:uuid:2ad207a5-3b2c-8d97-8d27-a0d560ea7dcd",
   "specVersion": "1.6",
   "version": 1
 }

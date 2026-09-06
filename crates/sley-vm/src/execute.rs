@@ -335,7 +335,7 @@ pub fn validated_execution_input_hashes(
     input: LoweringInput<'_>,
     request: &ExecutionRequest,
 ) -> Result<Vec<ValueHash>, ExecutionError> {
-    Ok(validate_inputs(input, request)?.hashes)
+    Ok(validate_inputs(&input, request)?.hashes)
 }
 
 /// Returns the S20-270 saturating semantic value units for one constant.
@@ -367,7 +367,7 @@ pub fn execute_function(
     request: ExecutionRequest,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     let lowered = lower_function(input)?;
-    let validated_inputs = validate_inputs(input, &request)?;
+    let validated_inputs = validate_inputs(&input, &request)?;
     let initial_live_total = initial_value_units(
         &lowered.bytecode.register_types,
         &lowered.bytes,
@@ -387,7 +387,7 @@ pub fn execute_function(
 
     if runtime.peak_value_units > limits.max_value_units {
         return finish(
-            input,
+            &input,
             limits,
             lowered.cache_key,
             &validated_inputs.hashes,
@@ -406,7 +406,7 @@ pub fn execute_function(
             .and_then(|value| usize::try_from(*value).ok())
         else {
             return observed_invariant(
-                input,
+                &input,
                 limits,
                 lowered.cache_key,
                 &validated_inputs.hashes,
@@ -415,7 +415,7 @@ pub fn execute_function(
         };
         if write_register(&mut runtime, register, RuntimeValue::new(value)).is_err() {
             return observed_invariant(
-                input,
+                &input,
                 limits,
                 lowered.cache_key,
                 &validated_inputs.hashes,
@@ -430,14 +430,14 @@ pub fn execute_function(
         &lowered.bytecode.blocks,
         &lowered.bytecode.result_type,
         &lowered.bytecode.register_types,
-        input,
+        &input,
         Some(&lowered),
     ) {
         Ok(termination) => termination,
         Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
     };
     finish_runtime(
-        input,
+        &input,
         limits,
         lowered.cache_key,
         &validated_inputs.hashes,
@@ -452,7 +452,7 @@ fn run(
     blocks: &[crate::BytecodeBlock],
     result_type: &TypeExpr,
     register_types: &[TypeExpr],
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     lowered: Option<&LoweredFunction>,
 ) -> RuntimeResult<ExecutionTermination> {
     let mut stack: Vec<Suspended<'_>> = Vec::new();
@@ -873,7 +873,7 @@ fn execute_extended(
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
     register_types: &[TypeExpr],
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let opcode = sley_ssmc::Opcode::from_tag(instruction.opcode).ok_or(RuntimeFault)?;
     let mut operands = Vec::with_capacity(instruction.operands.len());
@@ -885,12 +885,31 @@ fn execute_extended(
     };
     let register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
     let result_type = register_types.get(register).ok_or(RuntimeFault)?;
+    // Slice E8: bridge fuel is charged up front, before the arm allocates
+    // or converts, so a starved budget terminates without the work being
+    // performed (the E6 call-fuel precedent). Capacity refusal still
+    // answers Err(Index, 2) under adequate budgets.
+    if instruction.opcode == sley_ssmc::Opcode::AdapterInvoke.tag()
+        && let Some(elements) = crate::extended::bridge_fuel_surcharge(
+            input.adapters,
+            &instruction.immediate,
+            &operands,
+        )
+    {
+        let fuel = elements.saturating_mul(crate::extended::BRIDGE_ELEMENT_FUEL);
+        for _ in 0..fuel {
+            if let Some(termination) = charge_action(runtime, limits, None) {
+                return Ok(Some(termination));
+            }
+        }
+    }
     let value = {
         let mut context = crate::extended::ExecutionContext {
             types: input.types,
             constants: input.constants,
             globals: input.globals,
             schema_epoch: input.schema_epoch,
+            adapters: input.adapters,
             cells: &mut runtime.cells,
         };
         crate::extended::execute_extended_instruction(
@@ -939,7 +958,7 @@ fn execute_extended(
 }
 
 fn validate_inputs(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     request: &ExecutionRequest,
 ) -> Result<ValidatedInputs, ExecutionError> {
     if request.inputs.len() != input.function.parameters.len() {
@@ -1246,7 +1265,7 @@ fn write_register(
 }
 
 fn observed_invariant(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1263,7 +1282,7 @@ fn observed_invariant(
 }
 
 fn finish_runtime(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1284,7 +1303,7 @@ fn finish_runtime(
 
 #[allow(clippy::too_many_arguments)]
 fn finish(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1294,7 +1313,7 @@ fn finish(
     peak_value_units: u64,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     let observation_id = derive_observation_id(
-        input,
+        *input,
         limits,
         cache_key,
         input_hashes,
@@ -1337,7 +1356,7 @@ pub fn derive_observation_id(
     peak_value_units: u64,
 ) -> Result<ObservationId, ExecutionError> {
     Ok(ObservationId::derive(observation_preimage(
-        input,
+        &input,
         limits,
         cache_key,
         input_hashes,
@@ -1350,7 +1369,7 @@ pub fn derive_observation_id(
 
 #[allow(clippy::too_many_arguments)]
 fn observation_preimage(
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1414,7 +1433,7 @@ fn observation_preimage(
 
 fn encode_termination(
     preimage: &mut Vec<u8>,
-    input: LoweringInput<'_>,
+    input: &LoweringInput<'_>,
     termination: &ExecutionTermination,
 ) -> Result<(), ExecutionError> {
     match termination {
@@ -1651,6 +1670,7 @@ mod tests {
                 globals: &[],
                 functions: &[],
                 contracts: &[],
+                adapters: &[],
             }
         }
     }
@@ -2191,10 +2211,10 @@ mod tests {
             limits: limits(),
         };
         let lowered = lower_function(fixture.input()).unwrap();
-        let validated_inputs = validate_inputs(fixture.input(), &request).unwrap();
+        let validated_inputs = validate_inputs(&fixture.input(), &request).unwrap();
         let outcome = execute_function(fixture.input(), request.clone()).unwrap();
         let preimage = observation_preimage(
-            fixture.input(),
+            &fixture.input(),
             request.limits,
             lowered.cache_key,
             &validated_inputs.hashes,
@@ -2365,7 +2385,7 @@ mod tests {
                 &blocks,
                 &TypeExpr::Bool,
                 &[TypeExpr::Bool],
-                fixture.input(),
+                &fixture.input(),
                 None,
             )
             .is_err()

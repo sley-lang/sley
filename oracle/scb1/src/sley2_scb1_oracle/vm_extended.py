@@ -79,9 +79,10 @@ IMMEDIATE_TAGS = {
 TERMINATOR_TAGS = {1: "Return", 2: "Branch", 3: "CondBranch", 4: "Switch", 5: "Trap"}
 
 
-# The opcodes the landed profile families may lower: E1 through E6 and slice
-# E7a. An artifact naming any other opcode is refused, so a lowerer that
-# quietly admitted an excluded E7 opcode would fail here independently.
+# The opcodes the landed profile families may lower: E1 through E6, slice
+# E7a, and slice E8. An artifact naming any other opcode is refused, so a
+# lowerer that quietly admitted an excluded E7 opcode would fail here
+# independently.
 PROFILE_OPCODES = frozenset(
     # The three restricted-profile Booleans, which the extended profile keeps.
     [102, 103, 104]
@@ -92,6 +93,7 @@ PROFILE_OPCODES = frozenset(
     + [176, 177, 178, 192, 193, 194]
     + [112]
     + [144]
+    + [161]
 )
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/vm-extended/v1"
-EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop"]
+EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop", "bridge-bytes-to-vector", "bridge-vector-push", "bridge-vector-to-bytes"]
 
 
 def main() -> int:
@@ -72,7 +72,7 @@ def main() -> int:
         "mutations": mutations,
     }
     accepted = {
-        "claim": "s20-260-270-vm-extended-e1-e6-and-e7a-conformance",
+        "claim": "s20-260-270-vm-extended-e1-e6-e7a-and-e8-conformance",
         "contract": "sley2-vm-extended-opcode-profile-v1",
         "cache_profile": "EXTENDED_V1",
         "bytecode_magic": "SLEYBC02",

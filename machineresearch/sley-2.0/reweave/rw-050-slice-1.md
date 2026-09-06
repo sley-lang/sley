@@ -1,12 +1,12 @@
 # RW-050 slice 1 — G-10 bridge implementation (2026-09-06)
 
-> STATUS: NEGATIVE RESULT. The prototype was fully implemented and green
-> but contract review FAILED at owner level (§7 rounds 1–3). Nothing below
-> the record/transcripts landed on `main` (reverted to `c6e4269`); the
-> prototype is parked on branch `rw050-slice1-prototype` (do not merge
-> without the §8 owner decision + fresh reviews). §§1–5 describe the
-> parked prototype, preserved so the decision and any re-landing start
-> from evidence, not memory.
+> STATUS: POSITIVE on re-landing (§9). The slice first closed as a
+> NEGATIVE RESULT (prototype fully implemented but review FAILED at
+> owner level, §§7–8 preserved below as permanent evidence). Under the
+> granted owner amendment (i) the work was reconciled (not merged),
+> repaired, re-reviewed to all-green, and landed. §§1–5 describe the
+> LANDED implementation (reconciled from the parked prototype branch
+> `rw050-slice1-prototype`, which remains untouched history).
 
 Package: RW-050 complete bootstrap-support semantic/VM profile (depends on
 RW-030 COMPLETE `c6e4269`, RW-040 COMPLETE `f625350`). This slice implements
@@ -54,7 +54,11 @@ generic over `E` (the carried push row pins identity and purity while
 types derive per use from the operands). The identities are REWEAVE
 host-ABI import identities (`SLY1/BRIDGE/` + code, RW-070 freeze records
 them), not reference-adapter identities — stated in contract, not
-smuggled. Permission note (profile-local, reviewed): pure effectless
+smuggled. [Superseded permission basis: the profile-local permission
+note below was replaced at re-landing by owner amendment A1 (S20-230
+§1.5); the push relationship pin below is now enforced at all layers
+(see §9). Preserved as investigation history.] Permission note
+(profile-local, reviewed): pure effectless
 imports are permitted exactly these three frozen rows (S20-230 §1.4's
 zero-effects rationale does not attach to authority-free value functions;
 E7a predicate precedent); effectful adapters keep their owners and the
@@ -151,8 +155,7 @@ out, lengths equal, no verdict shape), 128× repeat determinism.
   (supply-chain regen dead last; SBOM/provenance/dossier rebound
   after each content change).
 
-## 5. Validation on the prototype tree (superseded by revert; preserved
-as the re-landing baseline)
+## 5. Validation on the landed tree (reconciled; see §9)
 
 - `cargo test -p sley-vm` 45/0 (1 ignored emitter, by design);
   `cargo test --workspace --locked` 39 binaries ok, 0 failures.
@@ -239,21 +242,14 @@ Rounds:
   instead. Nabu round-1 FAIL stands as issued, dispositioned here, not
   silently closed.
 
-## Closeout — RW-050 slice 1 status: NEGATIVE RESULT (no landing)
+## Closeout — RW-050 slice 1 status: POSITIVE on re-landing (§9)
 
-The slice is complete as an investigation and closed as a landing: the
-admitted bridge was implemented end to end (3 vectors + 6 tests +
-18-case matrix green; E8 rev 13; Tier 1 green except the one carried
-repro failure), but contract review FAILED at owner level — effectless
-imports contradict the S20-230 owner validator, and no in-tree repair
-exists (verified: the conforming alternative needs S20-230-full
-effectful lowering, R4 scope). Per the no-self-certification rule, the
-disputed surface is NOT landed: prototype parked on branch
-`rw050-slice1-prototype` (do not merge without owner decision + fresh
-reviews), `main` reverted to `c6e4269` plus this record and the five
-transcripts. G-10 stays OPEN as the sole bootstrap-blocker; RW-050
-awaits the §8 owner decision. Tier-1 carryover returns to the RW-030
-baselines exactly (repro staleness + secret-scan drift, both carried).
+(Original negative-result closeout, preserved:) The slice was complete
+as an investigation and closed as a landing: the admitted bridge was
+implemented end to end, but contract review FAILED at owner level —
+effectless imports contradicted the S20-230 owner validator, and no
+in-tree repair existed. The disputed surface was NOT landed: prototype
+parked, `main` reverted plus record and transcripts.
 
 Verdicts: Ariadne FAIL (binding, owner-level); Nabu FAIL (MEDIUM,
 dispositioned via revert + lane findings).
@@ -309,3 +305,63 @@ Findings for lanes (no action taken on main):
   the parked branch) + mirror-advance discipline on lock changes.
 - S20-230 lane: §1.4/§3.3 assume all imports touch host state; pure
   value imports have no lawful form. Options (i)/(ii) above.
+
+## 9. Re-landing under owner amendment (i) — slice POSITIVE (2026-09-06)
+
+The operator / S20-230 owner granted option (i) narrowly (decision on
+§8). The negative result above stands as permanent evidence; this
+section turns the slice positive on NEW reviewed implementation
+evidence only.
+
+Method: reconciliation, not merge. The 13 source/tooling paths were
+checked out from `rw050-slice1-prototype` (zero path overlap with the
+amendment commit `fd94402`), then adapted; evidence was regenerated via
+owned builders in closing order, never copied; vectors regenerate
+byte-identical (29). The prototype branch is untouched history.
+
+Amendment basis: S20-230 §1.5 (owner amendment A1, G-10-tied) + §3.3
+pure arm + §§4/6/7/8 conformance; admission §7 (A1); checker pins.
+Accepted: Ariadne FAIL/HIGH→PASS on repair (row-level declaration
+enforcement), Nabu FAIL/MEDIUM→PASS on repair (order wording), commits
+in `fd94402`.
+
+Re-landing repairs beyond the prototype:
+- Push-row binding (Ariadne HIGH-2) at three layers: S20-230
+  declaration relationship + invocation binding (amendment); lowering
+  resolve relationship + judgment operands-equal-row; execution
+  revalidation of operand/result value types against the carried row
+  (Ariadne Phase-2 HIGH-1 repair — the public helper cannot serve a
+  registered identity with off-row types).
+- `Index` code 2 validity end to end (Ariadne Phase-2 HIGH-2 repair):
+  `check_builtin_failure` admits Index 1..=2 (kinds epoch-closed,
+  codes per-kind; S20-210 delegates validity to kind; only widens);
+  unit test (1+2 valid, 3 invalid) + capacity-value `check_constant`
+  assertion.
+- Profile E8 text: permission re-based on A1, push paragraph to row
+  binding (revision 13 still unlanded, no bump).
+- Phase-2 negatives: relationship-violating row, operands-outside-row,
+  foreign ABI, foreign failure type, fourth bridge code (lowering);
+  direct public-helper calls over empty/unknown/wrong-ABI/effectful/
+  relationship-violating inventories fault, off-row operand/result
+  types fault, frozen rows execute.
+
+Reviews (transcripts in `reviews/`, all preserved, none
+self-certified): `reweave-rw050a1-ariadne-*.log` (FAIL→r2 PASS),
+`reweave-rw050a1-nabu-*.log` (FAIL→r2 PASS), `reweave-rw050b1-nabu`
+(PASS), `reweave-rw050b1-ariadne` (FAIL 2 HIGHs→r2 PASS),
+`reweave-rw050b1-nabu-r2` (delta PASS). Landing requires all green:
+satisfied.
+
+Validation on the landed tree: `cargo test --workspace --locked`
+1076/0; clippy `-D warnings` clean; `cargo fmt --check` clean; `make
+conformance` exit 0 (oracle 29/29, staged checker, all families);
+`make quick` exactly ONE failure — the carried reproducibility-report
+staleness (release-lane owned; secret-scan drift resolved by regen,
+standalone T52/T54 PASS). G-10 CLOSED as the bootstrap blocker
+(admitted bridge landed under A1); BOOTSTRAP_READY still barred by P
+(unfrozen) and remaining RW-050 work, unchanged.
+
+Follow-ups (unchanged from §6): slice 2 (E8 fuzz lane + seed counts,
+BOOTSTRAP_PROFILE_1 whole-freeze record with permitted-import
+entries); RW-070 (entry ABI/import freeze + compiler-service denial
+tests); RW-090 (codec parity).

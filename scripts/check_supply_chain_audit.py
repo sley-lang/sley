@@ -178,13 +178,13 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "inventory_contract": "s20-710-pre-release-inventory-v1",
         "secret_scan_contract": "s20-710-secret-scan-v1",
         "history_anchor_commit": EXPECTED_ANCHOR,
-        "cargo_lock_sha256": "3caa1eb080ed8879fd5692f018522a5872513067b7e3f62152feeea02b43e79d",
+        "cargo_lock_sha256": "887d14608d68adc16307dd958d4c9549c9e996be761699a6f9b57db24b989e8e",
         "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
         "cargo_workspace_packages": 18,
         "cargo_registry_packages": 22,
         "python_workspace_packages": 1,
         "python_registry_packages": 2,
-        "dependency_relationships": 119,
+        "dependency_relationships": 121,
         "t52_local_lock_inventory": "PASS",
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 499,
@@ -206,6 +206,21 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
             fail(f"S20-710 machine summary mismatch: {field}")
 
 
+def check_summary_reconciles_inventory(summary: dict[str, Any], inventory: dict[str, Any]) -> None:
+    """The machine-summary mirror must agree with the T52 inventory it
+    cites. Pinned constants alone once passed over a stale mirror (the
+    summary carried an older lock hash and edge count than T52), so the
+    reconciliation is explicit rather than assumed (RW-050 slice 1)."""
+    profile = summary.get("s20_710_pre_release_audit", {})
+    if profile.get("cargo_lock_sha256") != inventory.get("cargo_lock_sha256"):
+        fail("machine summary lock hash does not match the T52 inventory")
+    relationships = inventory.get("relationships")
+    if not isinstance(relationships, list) or profile.get("dependency_relationships") != len(
+        relationships
+    ):
+        fail("machine summary relationship count does not match the T52 inventory")
+
+
 def check_no_host_paths(*documents: dict[str, Any]) -> None:
     for document in documents:
         for value in strings(document):
@@ -222,6 +237,7 @@ def main() -> int:
         check_inventory(inventory)
         check_secret_scan(scan)
         check_machine_summary(summary)
+        check_summary_reconciles_inventory(summary, inventory)
         check_no_host_paths(inventory, scan)
     except AssertionError as error:
         print(json.dumps({"result": "FAIL", "reason": str(error)}, sort_keys=True))

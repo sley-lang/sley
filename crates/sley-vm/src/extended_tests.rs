@@ -7,14 +7,14 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, BranchTerminator, BuiltinFailureKind, BuiltinFailureValue, CondBranchTerminator,
-    ConstData, ConstValue, ConstantDefinition, ContractBinding, ContractDefinition, ContractKind,
-    ContractSource, FieldConst, FunctionGraph, FunctionRefValue, FunctionType,
-    GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, MemberId, NamedType, Opcode,
-    Operation, OperationResultRef, Parameter, ParameterRole, Reachability, RecordConst,
-    RecordField, ResourceLimits, ResultConst, ReturnTerminator, TargetEdge, Terminator,
-    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst, VariantImmediate,
-    Visibility, fingerprint::hash_validated_value,
+    AdapterImport, Block, BranchTerminator, BuiltinFailureKind, BuiltinFailureValue,
+    CondBranchTerminator, ConstData, ConstValue, ConstantDefinition, ContractBinding,
+    ContractDefinition, ContractKind, ContractSource, FieldConst, FunctionGraph, FunctionRefValue,
+    FunctionType, GlobalValueDefinition, Immediate, IntegerWidth, MapEntryConst, MemberId,
+    NamedType, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
+    RecordConst, RecordField, ResourceLimits, ResultConst, ReturnTerminator, TargetEdge,
+    Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst,
+    VariantImmediate, Visibility, fingerprint::hash_validated_value,
 };
 
 use crate::{
@@ -102,6 +102,7 @@ struct Fixture {
     globals: Vec<GlobalValueDefinition>,
     functions: Vec<FunctionGraph>,
     contracts: Vec<ContractDefinition>,
+    adapters: Vec<AdapterImport>,
 }
 
 impl Fixture {
@@ -202,6 +203,7 @@ impl Fixture {
             globals: Vec::new(),
             functions: Vec::new(),
             contracts: Vec::new(),
+            adapters: Vec::new(),
         }
     }
 
@@ -217,6 +219,11 @@ impl Fixture {
 
     fn with_contracts(mut self, contracts: Vec<ContractDefinition>) -> Self {
         self.contracts = contracts;
+        self
+    }
+
+    fn with_adapters(mut self, adapters: Vec<AdapterImport>) -> Self {
+        self.adapters = adapters;
         self
     }
 
@@ -255,6 +262,7 @@ impl Fixture {
             globals: &self.globals,
             functions: &self.functions,
             contracts: &self.contracts,
+            adapters: &self.adapters,
         }
     }
 }
@@ -299,6 +307,61 @@ fn vector_of(items: Vec<ConstValue>, element: TypeExpr) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Vector(Box::new(element)),
         data: ConstData::Sequence(items),
+    }
+}
+
+fn u8_type() -> TypeExpr {
+    TypeExpr::UInt(IntegerWidth::from_bits(8))
+}
+
+fn unit() -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::Unit,
+        data: ConstData::Unit,
+    }
+}
+
+fn octet(value: u8) -> ConstValue {
+    ConstValue {
+        value_type: u8_type(),
+        data: ConstData::UInt(u128::from(value)),
+    }
+}
+
+/// One frozen slice-E8 bridge entry identity (`SLY1/BRIDGE/` + code).
+fn bridge_id(code: [u8; 4]) -> EntityId {
+    crate::extended::bridge_entry_id(code)
+}
+
+fn bridge_result(ok: TypeExpr) -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(ok),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+    }
+}
+
+/// Wraps `data` (already of type `ok`) in the bridge `Ok` value.
+fn bridge_ok(ok: TypeExpr, data: ConstData) -> ConstValue {
+    ConstValue {
+        value_type: bridge_result(ok.clone()),
+        data: ConstData::Result(ResultConst::Ok(Box::new(ConstValue {
+            value_type: ok,
+            data,
+        }))),
+    }
+}
+
+/// The bridge-capacity refusal both conversions and the push share.
+fn bridge_capacity_err(ok: TypeExpr) -> ConstValue {
+    ConstValue {
+        value_type: bridge_result(ok),
+        data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+            value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                kind: BuiltinFailureKind::Index,
+                code: crate::extended::BRIDGE_CAPACITY_CODE,
+            }),
+        }))),
     }
 }
 
@@ -2806,6 +2869,7 @@ fn depth_chain_fixture(links: u16) -> Fixture {
         globals: Vec::new(),
         functions,
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -2879,6 +2943,26 @@ fn e4_map_order_is_the_encoding_order_not_numeric_key_order() {
 /// backedge control flow (CFG backedges are legal per
 /// `docs/spec/CFG_VALIDATION_V1.md`; fuel bounds the iterations).
 fn drain_loop_fixture() -> Fixture {
+    // Nested helper first: items after statements trip items_after_statements.
+    #[allow(clippy::too_many_arguments)]
+    fn operation(
+        entity_id: EntityId,
+        block: EntityId,
+        ordinal: u32,
+        opcode: Opcode,
+        operands: Vec<ValueRef>,
+        result: TypeExpr,
+    ) -> Operation {
+        Operation {
+            entity_id,
+            block,
+            ordinal,
+            opcode,
+            operands,
+            result_types: vec![result],
+            immediate: Immediate::None,
+        }
+    }
     let function = id(0xE0);
     let p_map = id(0xE1);
     let p_key = id(0xE2);
@@ -2903,25 +2987,6 @@ fn drain_loop_fixture() -> Fixture {
         target,
         arguments: Vec::new(),
     };
-    #[allow(clippy::too_many_arguments)]
-    fn operation(
-        entity_id: EntityId,
-        block: EntityId,
-        ordinal: u32,
-        opcode: Opcode,
-        operands: Vec<ValueRef>,
-        result: TypeExpr,
-    ) -> Operation {
-        Operation {
-            entity_id,
-            block,
-            ordinal,
-            opcode,
-            operands,
-            result_types: vec![result],
-            immediate: Immediate::None,
-        }
-    }
     Fixture {
         types: TypeEnvironment::new(Vec::new()).expect("empty environment"),
         function: FunctionGraph {
@@ -3045,6 +3110,7 @@ fn drain_loop_fixture() -> Fixture {
         globals: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -3396,6 +3462,67 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             "cond-drain-loop",
             drain_loop_fixture(),
             vec![map_of(vec![(7, "small")]), uint(7)],
+        ),
+        // RW-050 slice 1: the G-10 bridge workloads (slice E8, op 161).
+        // Every entry takes the frozen invocation shape: a scope operand
+        // and a request operand. `bridge-bytes-to-vector` carries
+        // SCB1-encoded bytes across as a u8 vector: the decode-read path.
+        // `bridge-vector-push` grows a vector by one at runtime (length
+        // decided by execution, not lowering arity): the construction
+        // primitive. `bridge-vector-to-bytes` carries a u8 vector back to
+        // bytes: the emission path. Each subject is a bridge entry;
+        // chaining across executions is covered by unit tests because no
+        // unwrap op exists by design.
+        (
+            "bridge-bytes-to-vector",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(TypeExpr::Vector(Box::new(u8_type()))),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(bridge_test_imports()),
+            vec![
+                unit(),
+                bytes(&sley_scb1::encode_bytes(&[9u8; 24]).expect("scb1 encodes")),
+            ],
+        ),
+        (
+            "bridge-vector-push",
+            Fixture::new(
+                &[TypeExpr::Vector(Box::new(u8_type())), u8_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(TypeExpr::Vector(Box::new(u8_type()))),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(bridge_test_imports()),
+            vec![vector_of(vec![octet(7), octet(8)], u8_type()), octet(9)],
+        ),
+        (
+            "bridge-vector-to-bytes",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Vector(Box::new(u8_type()))],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"V2B1")),
+                    bridge_result(TypeExpr::Bytes),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(bridge_test_imports()),
+            vec![
+                unit(),
+                vector_of(vec![octet(7), octet(8), octet(9)], u8_type()),
+            ],
         ),
     ];
     for (label, fixture, inputs) in vectors {
@@ -3877,4 +4004,806 @@ fn e5_each_cell_charges_its_contents_so_the_budget_bounds_the_table() {
         ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits),
         "eight cells fit in a budget sized for two"
     );
+}
+
+/// Slice E8 host bridge imports (RW-050 slice 1, the G-10 remedy).
+///
+/// Representation conversion only: bytes cross to octet vectors and back,
+/// and the admitted generic push grows a vector by one at runtime. Judgment
+/// pins the three frozen entries with exact schemas; capacity refusal is a
+/// typed `Err(Index, 2)` value; every converted or pushed element charges
+/// one fuel. Chaining composes across executions (there is no unwrap op by
+/// design), and program bytes cross as vectors only, never as verdicts.
+fn bridge_fixture(entry: [u8; 4], parameters: &[TypeExpr], operands: Vec<Arg>) -> Fixture {
+    let ok = match &entry {
+        b"B2V1" => TypeExpr::Vector(Box::new(u8_type())),
+        b"V2B1" => TypeExpr::Bytes,
+        b"PSH1" => parameters[0].clone(),
+        _ => panic!("unknown bridge entry in test"),
+    };
+    Fixture::new(
+        parameters,
+        &[step(
+            Opcode::AdapterInvoke,
+            operands,
+            Immediate::Entity(bridge_id(entry)),
+            bridge_result(ok),
+        )],
+        Vec::new(),
+    )
+    .with_adapters(bridge_test_imports())
+}
+
+/// The three frozen bridge imports every bridge fixture carries: the
+/// conversions with exact rows and the representative push row.
+fn bridge_test_imports() -> Vec<AdapterImport> {
+    crate::extended::bridge_test_imports().to_vec()
+}
+
+/// A carried but foreign import: well-formed epoch-1 shape, not landed.
+fn foreign_import() -> AdapterImport {
+    AdapterImport {
+        entity_id: id(77),
+        adapter_id: [77u8; 32],
+        abi_version: 1,
+        request_type: TypeExpr::Bytes,
+        response_type: TypeExpr::Vector(Box::new(u8_type())),
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    }
+}
+
+/// One bridge matrix case: a fixture over parameter types and steps that
+/// carries the three frozen imports.
+fn bridge_case(parameter_types: &[TypeExpr], steps: &[Step]) -> Fixture {
+    Fixture::new(parameter_types, steps, Vec::new()).with_adapters(bridge_test_imports())
+}
+
+#[test]
+fn e8_bridge_converts_bytes_vectors_and_pushes() {
+    let to_vec = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    let to_bytes = bridge_fixture(
+        *b"V2B1",
+        &[TypeExpr::Unit, TypeExpr::Vector(Box::new(u8_type()))],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    let push = bridge_fixture(
+        *b"PSH1",
+        &[TypeExpr::Vector(Box::new(u8_type())), u8_type()],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    for fixture in [&to_vec, &to_bytes, &push] {
+        judge_function_operations(fixture.input(CacheProfile::EXTENDED_V1))
+            .expect("judgment accepts the landed entries");
+        lower_function(fixture.input(CacheProfile::EXTENDED_V1)).expect("lowers");
+    }
+    // Bytes cross in order, one UInt(8) element per byte.
+    let crossed = success(&to_vec, vec![unit(), bytes(&[1, 7, 255])]);
+    assert_eq!(
+        crossed,
+        bridge_ok(
+            TypeExpr::Vector(Box::new(u8_type())),
+            ConstData::Sequence(vec![octet(1), octet(7), octet(255)]),
+        )
+    );
+    // Vectors cross back exactly.
+    let back = success(
+        &to_bytes,
+        vec![
+            unit(),
+            vector_of(vec![octet(7), octet(8), octet(9)], u8_type()),
+        ],
+    );
+    assert_eq!(
+        back,
+        bridge_ok(TypeExpr::Bytes, ConstData::Bytes(vec![7, 8, 9])),
+    );
+    // Push appends one clone; the old vector is unchanged (persistent).
+    let grown = success(
+        &push,
+        vec![vector_of(vec![octet(7), octet(8)], u8_type()), octet(9)],
+    );
+    assert_eq!(
+        grown,
+        bridge_ok(
+            TypeExpr::Vector(Box::new(u8_type())),
+            ConstData::Sequence(vec![octet(7), octet(8), octet(9)]),
+        )
+    );
+    // Repeat determinism over the bridge: 128 runs, one outcome.
+    for _ in 0..128 {
+        assert_eq!(success(&to_vec, vec![unit(), bytes(&[1, 7, 255])]), crossed);
+    }
+}
+
+/// The E8 rejection matrix: resolution is genuine (the immediate must name
+/// a carried import whose every frozen field pins it), unapproved adapters
+/// stay unsupported however well formed, and every mistyped entry fails its
+/// exact rule.
+#[test]
+fn e8_bridge_refuses_unapproved_adapters_and_mistyped_operands() {
+    let u8vec = || TypeExpr::Vector(Box::new(u8_type()));
+    let frozen_b2v = bridge_test_imports()[0].clone();
+    let mut effectful = frozen_b2v.clone();
+    effectful.effects.push(id(9));
+    let mut wrong_id = frozen_b2v.clone();
+    wrong_id.adapter_id = [9u8; 32];
+    let mut wrong_request = frozen_b2v.clone();
+    wrong_request.request_type = u64_type();
+    let cases: Vec<(&str, Fixture, LowerErrorCode)> = vec![
+        (
+            "carried but foreign import stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(id(77)),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![foreign_import()]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "unapproved adapter with one operand still resolves first",
+            Fixture::new(
+                &[TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0)],
+                    Immediate::Entity(id(77)),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            ),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "frozen identity without a carried import stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            ),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "carried row with a non-empty effect list stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![effectful]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "carried row with a foreign adapter identity stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![wrong_id]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "carried row with a foreign request type stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![wrong_request]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "bridge entry without entity immediate",
+            bridge_case(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::None,
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::ImmediateMismatch,
+        ),
+        (
+            "bytes-to-vector over a non-unit scope",
+            bridge_case(
+                &[TypeExpr::Bytes, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "bytes-to-vector over a non-bytes request",
+            bridge_case(
+                &[TypeExpr::Unit, u64_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "bytes-to-vector with one operand",
+            bridge_case(
+                &[TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "bytes-to-vector with three operands",
+            bridge_case(
+                &[TypeExpr::Unit, TypeExpr::Bytes, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1), Arg::P(2)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "bytes-to-vector with a non-vector declared result",
+            bridge_case(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    TypeExpr::Bool,
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "vector-to-bytes over a non-u8 request vector",
+            bridge_case(
+                &[TypeExpr::Unit, TypeExpr::Vector(Box::new(u64_type()))],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"V2B1")),
+                    bridge_result(TypeExpr::Bytes),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "vector-to-bytes over a bytes request",
+            bridge_case(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"V2B1")),
+                    bridge_result(TypeExpr::Bytes),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "push with a mistyped request element",
+            bridge_case(
+                &[u8vec(), u64_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "push with a non-vector scope",
+            bridge_case(
+                &[u8_type(), u8_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "push with one operand",
+            bridge_case(
+                &[u8vec()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(u8vec()),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "push with a foreign declared element type",
+            bridge_case(
+                &[u8vec(), u8_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(TypeExpr::Vector(Box::new(u64_type()))),
+                )],
+            ),
+            LowerErrorCode::SignatureMismatch,
+        ),
+    ];
+    for (label, fixture, expected) in cases {
+        assert_eq!(lowering_code(&fixture), expected, "{label}");
+    }
+    // The restricted profile still refuses the bridge opcode itself.
+    let entry = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    assert!(matches!(
+        lower_function(entry.input(CacheProfile::RESTRICTED_V1)).unwrap_err(),
+        LoweringError::Lower(error) if error.code() == LowerErrorCode::OpcodeUnsupported
+    ));
+}
+
+/// Phase-2 registration negatives (Nabu gate): the push-row relationship
+/// pin and the closed three-entry registry hold at lowering. A
+/// relationship-violating push row, operands outside the carried row, a
+/// foreign ABI version or failure type, and a fourth bridge code all refuse
+/// — identity/version/relationship registration cannot be bypassed on the
+/// way to execution.
+#[test]
+fn e8_bridge_row_binding_and_registry_closure_hold_at_lowering() {
+    let u8vec = || TypeExpr::Vector(Box::new(u8_type()));
+    let frozen_push = bridge_test_imports()[2].clone();
+    let mut bad_relationship = frozen_push.clone();
+    bad_relationship.response_type = TypeExpr::Vector(Box::new(TypeExpr::Bool));
+    let mut wrong_abi = bridge_test_imports()[0].clone();
+    wrong_abi.abi_version = 2;
+    let mut wrong_failure = bridge_test_imports()[0].clone();
+    wrong_failure.failure_type = TypeExpr::Unit;
+    let mut fourth_code = bridge_test_imports()[0].clone();
+    fourth_code.entity_id = bridge_id(*b"X9Z9");
+    fourth_code.adapter_id = *bridge_id(*b"X9Z9").as_bytes();
+    let cases: Vec<(&str, Fixture, LowerErrorCode)> = vec![
+        (
+            "push row violating response==Vector<request> stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Vector(Box::new(TypeExpr::Bool)), u8_type()],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(TypeExpr::Vector(Box::new(TypeExpr::Bool))),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![bad_relationship]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "push operands outside the carried row stay unsupported",
+            Fixture::new(
+                &[TypeExpr::Vector(Box::new(TypeExpr::Bool)), TypeExpr::Bool],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"PSH1")),
+                    bridge_result(TypeExpr::Vector(Box::new(TypeExpr::Bool))),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(bridge_test_imports()),
+            LowerErrorCode::SignatureMismatch,
+        ),
+        (
+            "carried row with a foreign ABI version stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![wrong_abi]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "carried row with a foreign failure type stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"B2V1")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![wrong_failure]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+        (
+            "a fourth bridge code stays unsupported",
+            Fixture::new(
+                &[TypeExpr::Unit, TypeExpr::Bytes],
+                &[step(
+                    Opcode::AdapterInvoke,
+                    vec![Arg::P(0), Arg::P(1)],
+                    Immediate::Entity(bridge_id(*b"X9Z9")),
+                    bridge_result(u8vec()),
+                )],
+                Vec::new(),
+            )
+            .with_adapters(vec![fourth_code]),
+            LowerErrorCode::OpcodeUnsupported,
+        ),
+    ];
+    for (label, fixture, expected) in cases {
+        assert_eq!(lowering_code(&fixture), expected, "{label}");
+    }
+}
+
+/// Phase-2 bypass proof (Nabu gate): the public
+/// `execute_extended_instruction` helper re-resolves registration from the
+/// supplied inventory, so missing, unknown, wrong-version, effect-carrying,
+/// and relationship-violating rows fault instead of executing. Only the
+/// exact frozen rows run.
+#[test]
+fn e8_bridge_public_execution_cannot_bypass_registration() {
+    use crate::extended::{ExecutionContext, execute_extended_instruction};
+    let u8vec = || TypeExpr::Vector(Box::new(u8_type()));
+    let host = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    let result = bridge_result(u8vec());
+    let immediate = Immediate::Entity(bridge_id(*b"B2V1"));
+    let operands = vec![unit(), bytes(&[1, 2])];
+    let run = |adapters: &[AdapterImport]| {
+        let mut cells = Vec::new();
+        let mut context = ExecutionContext {
+            types: &host.types,
+            constants: &host.constants,
+            globals: &host.globals,
+            schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+            adapters,
+            cells: &mut cells,
+        };
+        execute_extended_instruction(
+            &mut context,
+            Opcode::AdapterInvoke,
+            &immediate,
+            &operands,
+            &result,
+        )
+    };
+    // Empty inventory: nothing resolves.
+    assert!(run(&[]).is_err());
+    // Unknown identity with a conforming shape: form is not registration.
+    assert!(run(&[foreign_import()]).is_err());
+    // Frozen identity, foreign ABI version.
+    let mut wrong_abi = bridge_test_imports()[0].clone();
+    wrong_abi.abi_version = 2;
+    assert!(run(&[wrong_abi]).is_err());
+    // Frozen identity carrying an effect: never the pure class.
+    let mut effectful = bridge_test_imports()[0].clone();
+    effectful.effects.push(id(9));
+    assert!(run(&[effectful]).is_err());
+    // Positive control: the exact frozen rows execute.
+    assert_eq!(
+        run(&bridge_test_imports()).expect("frozen rows execute"),
+        bridge_ok(u8vec(), ConstData::Sequence(vec![octet(1), octet(2)])),
+    );
+    // Registered identity with off-row operand types faults: execution
+    // revalidates the carried row's binding, not just its identity.
+    let mistyped_operands = vec![vector_of(vec![octet(1)], TypeExpr::Bool), octet(2)];
+    let frozen = bridge_test_imports();
+    let mut cells = Vec::new();
+    let mut context = ExecutionContext {
+        types: &host.types,
+        constants: &host.constants,
+        globals: &host.globals,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        adapters: &frozen,
+        cells: &mut cells,
+    };
+    assert!(
+        execute_extended_instruction(
+            &mut context,
+            Opcode::AdapterInvoke,
+            &Immediate::Entity(bridge_id(*b"PSH1")),
+            &mistyped_operands,
+            &bridge_result(u8vec()),
+        )
+        .is_err()
+    );
+    // Registered identity with an off-row result type faults.
+    let push_operands = vec![vector_of(vec![octet(1)], u8_type()), octet(2)];
+    let mut cells = Vec::new();
+    let mut context = ExecutionContext {
+        types: &host.types,
+        constants: &host.constants,
+        globals: &host.globals,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        adapters: &frozen,
+        cells: &mut cells,
+    };
+    assert!(
+        execute_extended_instruction(
+            &mut context,
+            Opcode::AdapterInvoke,
+            &Immediate::Entity(bridge_id(*b"PSH1")),
+            &push_operands,
+            &bridge_result(TypeExpr::Vector(Box::new(TypeExpr::Bool))),
+        )
+        .is_err()
+    );
+    // On-row push operands execute through the public helper.
+    let mut cells = Vec::new();
+    let mut context = ExecutionContext {
+        types: &host.types,
+        constants: &host.constants,
+        globals: &host.globals,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        adapters: &frozen,
+        cells: &mut cells,
+    };
+    assert_eq!(
+        execute_extended_instruction(
+            &mut context,
+            Opcode::AdapterInvoke,
+            &Immediate::Entity(bridge_id(*b"PSH1")),
+            &push_operands,
+            &bridge_result(u8vec()),
+        )
+        .expect("on-row push executes"),
+        bridge_ok(u8vec(), ConstData::Sequence(vec![octet(1), octet(2)])),
+    );
+    // Push relationship violation faults at execution too.
+    let mut bad_push = bridge_test_imports()[2].clone();
+    bad_push.response_type = TypeExpr::Vector(Box::new(TypeExpr::Bool));
+    let push_result = bridge_result(TypeExpr::Vector(Box::new(TypeExpr::Bool)));
+    let push_operands = vec![vector_of(vec![octet(1)], TypeExpr::Bool), octet(2)];
+    let mut cells = Vec::new();
+    let mut context = ExecutionContext {
+        types: &host.types,
+        constants: &host.constants,
+        globals: &host.globals,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        adapters: &[bad_push],
+        cells: &mut cells,
+    };
+    assert!(
+        execute_extended_instruction(
+            &mut context,
+            Opcode::AdapterInvoke,
+            &Immediate::Entity(bridge_id(*b"PSH1")),
+            &push_operands,
+            &push_result,
+        )
+        .is_err()
+    );
+}
+
+/// Capacity refusal is a typed value, never a trap: past 2^20 items the
+/// conversion answers `Err(Index, 2)`.
+#[test]
+fn e8_bridge_capacity_refusal_is_a_typed_index_value() {
+    let to_vec = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    // The refusal path moves a megabyte past the cap, so both runs take a
+    // budget sized past every accounting line, not the small test budget.
+    let roomy = ExecutionLimits {
+        max_instructions: 10_000,
+        max_fuel: 10_000_000,
+        max_value_units: 100_000_000,
+        max_output_units: 100_000_000,
+        cancel_at_fuel: None,
+    };
+    let oversized = vec![7_u8; crate::extended::BRIDGE_MAX_ITEMS + 1];
+    let outcome = execute_function(
+        to_vec.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![unit(), bytes(&oversized)],
+            limits: roomy,
+        },
+    )
+    .expect("executes");
+    let ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!(
+            "over-capacity must answer, not terminate: {:?}",
+            outcome.termination
+        );
+    };
+    assert_eq!(
+        value,
+        &bridge_capacity_err(TypeExpr::Vector(Box::new(u8_type()))),
+        "the refusal carries Index code 2 under the declared result type"
+    );
+    // The refusal is a valid canonical constant end to end (Ariadne
+    // Phase-2 HIGH-2 repair): `Index` code 2 passes type judgment, so
+    // report projection can hash it like any other result value.
+    to_vec
+        .types
+        .check_constant(value)
+        .expect("Index code 2 is a valid constant");
+    // At exactly the cap the conversion still succeeds.
+    let capped = execute_function(
+        to_vec.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![
+                unit(),
+                bytes(&vec![7_u8; crate::extended::BRIDGE_MAX_ITEMS]),
+            ],
+            limits: roomy,
+        },
+    )
+    .expect("executes");
+    let ExecutionTermination::Success(capped) = &capped.termination else {
+        panic!("at-cap conversion succeeds: {:?}", capped.termination);
+    };
+    let ConstData::Result(result) = &capped.data else {
+        panic!("a result value is expected");
+    };
+    assert!(matches!(result, ResultConst::Ok(_)));
+}
+
+/// Every converted or pushed element charges one fuel through the existing
+/// action mechanism: 100 bytes cost exactly 1 dispatch fuel plus 100
+/// element fuel, and a starved budget terminates on fuel.
+#[test]
+fn e8_bridge_charges_fuel_per_element() {
+    let to_vec = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    let payload = vec![3_u8; 100];
+    let outcome = execute_function(
+        to_vec.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![unit(), bytes(&payload)],
+            limits: limits(),
+        },
+    )
+    .expect("executes");
+    let ExecutionTermination::Success(_) = &outcome.termination else {
+        panic!("small conversion succeeds: {:?}", outcome.termination);
+    };
+    assert_eq!(
+        outcome.fuel_used, 102,
+        "one instruction fuel plus one fuel per converted byte plus one return-terminator fuel"
+    );
+    let starved = execute_function(
+        to_vec.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![unit(), bytes(&payload)],
+            limits: ExecutionLimits {
+                max_fuel: 10,
+                ..limits()
+            },
+        },
+    )
+    .expect("executes");
+    assert_eq!(
+        starved.termination,
+        ExecutionTermination::ResourceLimit(ResourceKind::Fuel),
+        "a budget smaller than the element count terminates on fuel"
+    );
+}
+
+/// Variable-length construction composes across executions: push once, feed
+/// the answered vector back, push again. Length is decided at runtime.
+#[test]
+fn e8_bridge_accumulates_across_executions() {
+    let u8vec = TypeExpr::Vector(Box::new(u8_type()));
+    let grow = Fixture::new(
+        &[u8vec.clone(), u8_type()],
+        &[step(
+            Opcode::AdapterInvoke,
+            vec![Arg::P(0), Arg::P(1)],
+            Immediate::Entity(bridge_id(*b"PSH1")),
+            bridge_result(u8vec.clone()),
+        )],
+        Vec::new(),
+    )
+    .with_adapters(bridge_test_imports());
+    let first = success(&grow, vec![vector_of(Vec::new(), u8_type()), octet(7)]);
+    let ConstData::Result(ResultConst::Ok(one)) = &first.data else {
+        panic!("first push answers Ok");
+    };
+    let second = success(&grow, vec![one.as_ref().clone(), octet(8)]);
+    assert_eq!(
+        second,
+        bridge_ok(u8vec, ConstData::Sequence(vec![octet(7), octet(8)]),)
+    );
+}
+
+/// Program bytes cross as vectors only: SCB1-encoded content answered by
+/// the bridge is a `u8` vector under the declared result type, never a
+/// verdict of any kind.
+#[test]
+fn e8_bridge_program_bytes_cross_as_vectors_only() {
+    let to_vec = bridge_fixture(
+        *b"B2V1",
+        &[TypeExpr::Unit, TypeExpr::Bytes],
+        vec![Arg::P(0), Arg::P(1)],
+    );
+    let program = sley_scb1::encode_bytes(b"program").expect("scb1 encodes");
+    let crossed = success(&to_vec, vec![unit(), bytes(&program)]);
+    assert_eq!(
+        crossed.value_type,
+        bridge_result(TypeExpr::Vector(Box::new(u8_type())))
+    );
+    let ConstData::Result(result) = &crossed.data else {
+        panic!("a result value is expected");
+    };
+    let ResultConst::Ok(vector) = result else {
+        panic!("program bytes convert");
+    };
+    let ConstData::Sequence(items) = &vector.data else {
+        panic!("the payload is a vector");
+    };
+    assert_eq!(items.len(), program.len(), "lossless: one element per byte");
+    for (item, byte) in items.iter().zip(program.iter()) {
+        assert_eq!(item.value_type, u8_type());
+        assert_eq!(item.data, ConstData::UInt(u128::from(*byte)));
+    }
 }

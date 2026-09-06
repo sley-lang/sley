@@ -24,7 +24,7 @@ DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
 IMPLEMENTED_STATUS = "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING"
 COMPLETE_STATUS = "S20_260_270_EXTENDED_COMPLETE"
-SLICES = ("E1", "E2", "E3", "E4", "E5", "E6", "E7a")
+SLICES = ("E1", "E2", "E3", "E4", "E5", "E6", "E7a", "E8")
 SLICE_STATUSES = ("PENDING", "IN_PROGRESS", "IMPLEMENTED")
 SLICE_OPCODES = {
     "E1": [1, 16, 17, 32, 33, 34, 35, 96, 97, 98, 99, 100, 101, 128, 129, 130, 131],
@@ -34,6 +34,7 @@ SLICE_OPCODES = {
     "E5": [176, 177, 178, 192, 193, 194],
     "E6": [112],
     "E7a": [144],
+    "E8": [161],
 }
 SPEC_MARKERS = (
     "# VM Extended Opcode Profile v1",
@@ -50,6 +51,11 @@ SPEC_MARKERS = (
     "### E6 direct calls (112)",
     "### E7a contract assertions (144)",
     "### E7 tests, effects, adapters, capabilities (145, 160 to 162)",
+    "### E8 host bridge imports (161)",
+    "SLY1/BRIDGE/",
+    "BRIDGE_MAX_ITEMS",
+    "BRIDGE_ELEMENT_FUEL",
+    "`Err(BuiltinFailure(Index, 2))`",
     "### 3.1 Judgment without lowering",
     "Normative acceptance invariant: judgment accepts exactly the Functions",
     "The judgment ignores `LoweringInput.state_root`",
@@ -134,8 +140,9 @@ def main() -> int:
         "bytecode_magic": "SLEYBC02",
         "restricted_profile_unchanged": True,
         "new_stable_error_codes": 0,
-        # Slice E7a landed contract assertions; the rest of E7 stays excluded.
-        "e7_excluded": "PARTIAL_E7A_LANDED",
+        # Slices E7a and E8 landed contract assertions and the host bridge;
+        # the rest of E7 stays excluded.
+        "e7_excluded": "PARTIAL_E7A_E8_LANDED",
         "e7_opcodes": [145, 160, 161, 162],
         "implementation_complete": status == COMPLETE_STATUS,
     }

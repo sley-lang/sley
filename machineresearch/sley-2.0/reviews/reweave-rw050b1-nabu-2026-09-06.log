@@ -1,0 +1,25 @@
+status:
+PASS — high confidence. RW-050 Phase-2 architecture gate is closed.
+
+findings:
+1. Reconciliation integrity holds: `fd94402` is not a merge; prototype and A1 commits have zero path overlap. Thirteen source/tooling paths were reconciled—10 remain byte-identical to `b1ab86a`, while `extended.rs`, `extended_tests.rs`, and the E8 specification contain explicit A1/Phase-2 adaptations. The five prior review/record paths remain unchanged from `50f17c9`.
+2. Public-helper bypass is closed: execution re-resolves the exact carried registration and rejects identity, ABI, failure-type, effect, schema, or push-relationship drift (`crates/sley-vm/src/extended.rs:252-317,1904-1918`). Empty, unknown, wrong-ABI, effectful, relationship-violating, and fourth-code negatives are pinned at `extended_tests.rs:4398-4574`.
+3. Evidence closure is sound: builder dependency order and final supply-chain regeneration are explicit (`Makefile:162-189`). T52-to-summary reconciliation is enforced (`scripts/check_supply_chain_audit.py:210-221`); both carry lock hash `887d…e8e` and 121 relationships (`machine-summary.json:2649-2655`). E8 records 8 tests and the A1 epoch determination (`machine-summary.json:426-433,497`).
+4. No new gate framework or scope expansion: zero untracked files; changes are confined to existing VM, policy/protocol wiring, oracle, generators, checker, specification, and builder-owned evidence.
+5. S20-230 and VM lowering agree on push: both require closed monomorphized rows where response/scope is exactly `Vector<request>` (`sley-check/src/effects.rs:584-595,611-635`; `sley-vm/src/extended.rs:1147-1159`).
+
+validation:
+- `cargo test -p sley-vm e8_bridge --locked` — 8/8 PASS.
+- Two focused `sley-check` pure-row tests — 2/2 PASS.
+- VM fixture regeneration check — PASS, 29 vectors, no drift.
+- Effect-system and VM-profile checkers — PASS.
+- Supply-chain checker — T52/T54 PASS; overall global release remains DEFERRED for unrelated root-license approval.
+- `git diff --check fd94402` — PASS.
+
+blockers:
+None for RW-050 re-landing.
+
+return_to:
+REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). Architecture PASS accepted; it stands for the reconciled tree, with one caveat recorded: the companion Ariadne review returned FAIL with two new HIGHs (execution binding, Index code 2; transcript `reweave-rw050b1-ariadne-2026-09-06.log`), now repaired in-tree. If the Ariadne delta re-review demands structural change beyond the bounded repairs, Nabu re-review will be requested; otherwise his PASS carries.

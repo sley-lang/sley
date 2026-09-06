@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:fe9b3186352550bc2a52d56eded4a51147cfb265ecf2a844a88e3fc6fdcaef39:f5c48a3aa015ba008bf5ea966a111b2f3f88f27dfdb9e23fb3e24df060195405",
+  "documentNamespace": "urn:sley2:spdx:0e3674c7f45099d3747399ef3305fde6352ef85d7259e0bbcac3e396e299bed8:f5c48a3aa015ba008bf5ea966a111b2f3f88f27dfdb9e23fb3e24df060195405",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "The Sley 2 workspace packages declare a proprietary license reference. The exact root license text, copyright holder, term, and notice language await an operator decision (S20-710), so no license text is asserted here.",
@@ -1505,6 +1505,11 @@
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
       "relationshipType": "DEPENDS_ON",
       "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
     },

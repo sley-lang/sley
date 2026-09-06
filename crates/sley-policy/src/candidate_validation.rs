@@ -843,6 +843,9 @@ pub fn validate_candidate_bytes(
             globals: &program.globals,
             functions: &program.functions,
             contracts: &program.contracts,
+            // S20-230 requests carry their real AdapterImport sets; the
+            // judgment admits only the frozen bridge entries from them.
+            adapters: &program.adapters,
         }) {
             Ok(judgment) => judgment,
             Err(error) => return renderer.finish_failure(operation_failure(&error)),
