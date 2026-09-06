@@ -403,7 +403,13 @@ def decode_hello(body: bytes) -> dict:
 
 
 def encode_frame(frame: dict, epoch: bytes) -> bytes:
-    if frame["protocol_version"] != 1:
+    # The version split of SMP1 revision 11 (section 2): a claim below the
+    # selected version is a downgrade attempt, a claim above it names a
+    # version the selection does not know. The re-emitted rejected vectors
+    # carry the split; the checker's own encoder must agree with it.
+    if frame["protocol_version"] < 1:
+        raise smp1.Failure("PROTOCOL_DOWNGRADE")
+    if frame["protocol_version"] > 1:
         raise smp1.Failure("PROTOCOL_VERSION_UNSUPPORTED")
     if frame["flags"] & 4 and frame["kind"] not in (2, 3):
         raise smp1.Failure("PROTOCOL_FRAME_INVALID")
