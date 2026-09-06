@@ -141,5 +141,14 @@ Re-review round 1 (2026-09-05, pinned at `bf715f9`): Ariadne FAIL with
 one new P1 (budget before root in section 3 against the server's
 root-then-budget order), Nabu FAIL with one P2 (symbol and numeric
 checked independently), Vulcan FAIL with one P3 (four-way wording);
-every prior item closed in all three lanes. The three residuals are
-closed in the commit that records this round; round 2 is pending.
+every prior item closed in all three lanes. The three residuals were
+closed at `bec4468`.
+
+Re-review round 2 (2026-09-05, pinned at `bec4468`): Ariadne PASS, Nabu
+PASS, Vulcan PASS, each with the round 1 residual closed and no new
+finding. Every report-grade finding of the 2026-09-04 round is closed;
+the six transcripts are recorded in the machine summary
+(`rereview_transcripts`). The contract freeze and package completion
+status remain a separate gate: the summary keeps
+`S20_330_IMPLEMENTED_REVIEW_PENDING` with the three PASS obligations
+superseding the FAIL rounds, matching the S20-400 closure.

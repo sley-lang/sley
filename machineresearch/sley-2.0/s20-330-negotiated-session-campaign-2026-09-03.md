@@ -3,7 +3,8 @@
 Status: contract draft revision 3 written and implemented 2026-09-05;
 2026-09-04 Nabu, Ariadne, and Vulcan reviews landed six P0s and 42 P1,
 P2, and P3 items; revision 2 closed the P0s and the freeze-blocking P1s,
-revision 3 answers every remaining item; Council re-reviews pending.
+revision 3 answers every remaining item; Council re-reviews PASS in
+round 2 (2026-09-05) after one residual each in round 1.
 
 ## Frontier at start
 
@@ -163,6 +164,14 @@ residual (logs `s20-330-{ariadne,nabu,vulcan}-rereview-2026-09-05.log`):
 - Vulcan FAIL, one P3: the classification is five-way in the body and
   checker but "four" in the ADR and the revision history. Answer: both
   say five.
+
+## Re-review round 2 (2026-09-05, pinned at `bec4468`)
+
+Ariadne PASS, Nabu PASS, Vulcan PASS (logs
+`s20-330-{ariadne,nabu,vulcan}-rereview-2-2026-09-05.log`): each round 1
+residual closed, no new finding in the bounded diff. New
+`ariadne_review`, `nabu_review`, and `vulcan_review` PASS obligations
+supersede the three FAIL rounds; every 330 open claim reads zero.
 
 ## Tier 2 handoff gate (2026-09-03, at `a0c9a70`)
 

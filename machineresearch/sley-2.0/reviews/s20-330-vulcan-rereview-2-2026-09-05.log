@@ -1,0 +1,31 @@
+S20-330 VULCAN SURFACE RE-REVIEW 2 — 2026-09-05
+
+Repository: /home/greyforge/sley2
+Pinned HEAD: bec446886d18441b35cfa48bcadb6f3a96ad6f9b
+Residual commit reviewed: bec4468~1..bec4468
+Mode: bounded read-only triage; this log is the sole permitted write. No cargo, make, checker execution, deployment, merge, provider action, or peer access.
+
+VERDICT
+PASS. The first Vulcan re-review's sole P3 is closed, the Ariadne precedence residual and Nabu exact-pair residual are coherently closed in the same bounded diff, and no new P0/P1/P2/P3 finding was found.
+
+RESIDUAL CLOSEOUT
+- Vulcan P3 CLOSED: ADR-0033 decision 3 enumerates exactly five lists (docs/adr/ADR-0033-negotiated-session-boundary.md:52-63), decision 7 says five method lists (lines 79-89), and the profile revision history now calls the classification five-way (docs/spec/SESSION_HANDLE_PROFILE_V1.md:350-368). A targeted search found no stale four-list/four-way wording in the profile, ADR, or checker.
+- Ariadne P1 CLOSED: profile section 3 orders bound-root check 5 before budget check 6 and states every binding check precedes budget (docs/spec/SESSION_HANDLE_PROFILE_V1.md:131-152), matching dispatch's session_check-before-budget order (crates/sley-protocol/src/server.rs:609-615). binding_failures_precede_budget_exhaustion now asserts SESSION_ROOT_ADVANCED for an exhausted stale head-bound session before asserting the valid-binding budget failure (crates/sley-protocol/src/server_tests.rs:1448-1477); T15 records the assertion and test (evidence/security/T15/matrix.json:2-20).
+- Nabu P2 CLOSED: the checker parses SessionErrorCode variant-to-symbol and variant-to-numeric arms, joins them by variant, and compares the resulting exact pairs against CODES; swapped numerics no longer survive independent-presence checks (scripts/check_session_handle_profile.py:389-409). The current eight implementation pairs are exact (crates/sley-protocol/src/session.rs:55-79).
+
+BOUNDED DIFF REVIEW
+- Inspected all 14 paths changed by bec4468 and the complete substantive diffs for the profile, ADR, checker, precedence test, threat recorder/matrices, closeout/campaign, secret-scan refresh, and first-round review logs.
+- The documentation, implementation order, regression assertion, checker mapping, and recorded matrix claim agree. No report-grade regression was identified.
+
+VALIDATION
+- git status --short --branch: no working-tree changes before this permitted log write; branch divergence only.
+- git rev-parse HEAD: bec446886d18441b35cfa48bcadb6f3a96ad6f9b.
+- git diff --check bec4468~1..bec4468: clean.
+- Targeted git diff/show/rg/nl/file inspection only, as ordered. No executable validation was run.
+
+BLOCKERS
+None.
+
+S20_330_SURFACE_REREVIEW2_JSON={"reviewer":"vulcan","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[],"notes":"The first Vulcan P3 is closed at bec4468; the same bounded diff coherently closes the precedence and exact code-pair residuals, with no new report-grade finding."}
+
+return_to: orchestrator

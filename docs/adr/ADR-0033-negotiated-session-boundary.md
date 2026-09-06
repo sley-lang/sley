@@ -1,7 +1,8 @@
 # ADR-0033: Negotiated session, binding checks, and positional handles
 
-Status: proposed; the S20-330 contract is a draft at revision 3 with
-Council re-reviews pending; implemented under the draft
+Status: accepted; the S20-330 contract is at revision 3 with the
+Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
+and no new findings; implemented under the contract
 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`)
 
 Date: 2026-09-03; revision 2 decision record 2026-09-05; revision 3
