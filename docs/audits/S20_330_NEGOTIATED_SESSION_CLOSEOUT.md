@@ -1,8 +1,8 @@
 # S20-330 Negotiated Session and Handle Closeout
 
-Status: **implemented under the draft Negotiated Session and Handle Profile v1 contract (revision 2); Council re-reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Negotiated Session and Handle Profile v1 contract (revision 3); Council re-reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
-Date: 2026-09-03; revision 2 implemented 2026-09-05
+Date: 2026-09-03; revision 2 implemented 2026-09-05; revision 3 2026-09-05
 
 Validation tier: **Tier 1 plus protocol-focused Tier 2 handoff**
 
@@ -26,8 +26,9 @@ the session identity and refuses foreign provenance; live sessions are
 capped at the negotiated `max_sessions` and remembered closes at the
 same cap, so no session state grows without bound. The contract is
 `docs/spec/SESSION_HANDLE_PROFILE_V1.md` with ADR-0033. It is a draft:
-the 2026-09-04 Nabu, Ariadne, and Vulcan reviews landed six P0s and the
-freeze-blocking P1s, revision 2 closes them, and the re-reviews that
+the 2026-09-04 Nabu, Ariadne, and Vulcan reviews landed six P0s and 42
+P1, P2, and P3 items; revision 2 closed the P0s and the freeze-blocking
+P1s, revision 3 answers every remaining item, and the re-reviews that
 freeze it and complete the package are pending and must pass before the
 status above changes.
 
@@ -94,8 +95,17 @@ The implementation provides:
 - Handles resolved across renewal because only the bound root was
   compared; the expected root travels in the request now.
 - The contract floated over SMP1 revision 8 and capsule revision 2
-  while both moved; revision 2 pins SMP1 revision 10 and capsule
-  revision 3, and the stage checker enforces the pins.
+  while both moved; revision 2 pinned SMP1 revision 10 and capsule
+  revision 3, and SMP1 then moved to 11 under it. Revision 3 pins SMP1
+  revision 11 and the stage checker reads both authorities' own status
+  lines, so the pin fails the moment either moves.
+- The revision 2 head-bound enumeration named four methods under wrong
+  tags and called the non-mutating `candidate.*` methods mutating.
+  Revision 3 classifies every frozen tag into one list and the checker
+  compares the lists against the server dispatch table and the SMP1
+  method table.
+- `renewals` is a `u16`, the range it always had; the checker binds
+  the capsule module and the threat-matrix test names it never read.
 
 ## Explicitly open and deferred
 

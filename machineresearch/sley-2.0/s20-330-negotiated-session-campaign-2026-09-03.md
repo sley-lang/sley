@@ -1,8 +1,9 @@
 # S20-330 Negotiated Session Campaign (2026-09-03)
 
-Status: contract draft revision 2 written and implemented 2026-09-05;
-2026-09-04 Nabu, Ariadne, and Vulcan reviews landed six P0s and the
-freeze-blocking P1s; Council re-reviews queued.
+Status: contract draft revision 3 written and implemented 2026-09-05;
+2026-09-04 Nabu, Ariadne, and Vulcan reviews landed six P0s and 42 P1,
+P2, and P3 items; revision 2 closed the P0s and the freeze-blocking P1s,
+revision 3 answers every remaining item; Council re-reviews pending.
 
 ## Frontier at start
 
@@ -95,6 +96,52 @@ Implementation commit: `a0c9a70`.
   normative; the stage checker binds server and registry markers,
   revision pins, and per-code numerics, and fails closed on drift.
 
+## Revision 3 (2026-09-05): the residual P1, P2, and P3 items
+
+Every one of the 18 P1, 13 P2, and 11 P3 items of the round was checked
+against `main` before this revision. Most were already closed by
+revision 2; the residuals, and the answers:
+
+- The SMP1 pin had drifted again (Ariadne P3-4, Nabu P2-5, Vulcan
+  P3-1 in their revision-8 form): revision 2 pinned SMP1 revision 10
+  and SMP1 moved to 11 under it. The contract, ADR, and checker pin
+  revision 11, and the checker now reads SMP1's own status line (and
+  the capsule profile's) instead of matching a substring anywhere.
+- `renewals` was a u16 range declared in a u32 field (Ariadne P3-3):
+  the record field and `MAX_SESSION_RENEWALS` are `u16`; the limit is
+  the field's full range, and `renewal_limit_is_exact` still walks it.
+- The head-bound enumeration named four methods under wrong tags
+  (`exchange.export` 207 for 210, `refs.recover` 209 for 214,
+  `recovery` 603 for 504, `gc.dry_run` 601 for 212) and called the
+  non-mutating `candidate.*` methods mutating (Ariadne P1-2, Nabu P1-2,
+  Vulcan P2-1 asked for a rule a reader can apply). Section 3 now
+  classifies every frozen tag into exactly one list (head-bound,
+  handle expansion, caller-named, mutating, session and transport),
+  and the checker parses the lists, the server's `head_bound` table,
+  the `Method::tag` table, the reserved set, and the SMP1 method table,
+  failing on any drift; drift injection in five shapes was verified to
+  fail before commit. `checkout` names a `TransactionId` and stays
+  caller-named (Vulcan P2-1 verified against the server).
+- The stage checker never read `context_capsule.rs` (Nabu P1-7): it
+  now binds the capsule module, the server's `bind_context_capsule`
+  call, and the session authority's binding function, and requires
+  every threat-matrix test name to exist in the sources (Vulcan P1-4).
+- Cursor handles, request-count expiry, and implicit rebinding are
+  explicit section 8 exclusions (Ariadne P2-4); the duplicate-identity
+  refusal is stated unreachable by construction and retained as
+  defense in depth (Nabu P3-2).
+- The completion gate accepts a same-lane re-review PASS (Ariadne
+  P2-3, Nabu P1-6), and at `IMPLEMENTED_REVIEW_PENDING` every FAIL
+  round must be itemized in lane-prefixed open lists or superseded by
+  that lane's PASS: the 42 items are itemized in the machine summary.
+
+Verified already closed by revision 2 (no change): Ariadne P1-1,
+P1-3 through P1-7, P2-1, P2-2, P2-5, P3-1, P3-2; Nabu P1-1, P1-3
+through P1-5, P2-1 through P2-4, P3-1, P3-3, P3-4; Vulcan P1-1 through
+P1-3, P2-2, P2-3, P3-2, P3-3. The item numbers are the machine
+summary's `p1_open`, `p2_open`, and `p3_open` positions, taken from each
+reviewer's emitted JSON in order.
+
 ## Tier 2 handoff gate (2026-09-03, at `a0c9a70`)
 
 | Gate | Result |
@@ -113,3 +160,4 @@ boundary. Council reviews remain pending; the package is not complete.
 - contract draft revision 1: `c018cc8` (guard fix `3f598b4`).
 - contract draft revision 2: the S20-330 revision 2 commit on `main`
   (see `git log --oneline`, closeout revision 2 for the file set).
+- contract draft revision 3: the commit that adds this section.

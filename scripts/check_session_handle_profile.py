@@ -16,7 +16,9 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 SESSION_MODULE = ROOT / "crates/sley-protocol/src/session.rs"
 SERVER_MODULE = ROOT / "crates/sley-protocol/src/server.rs"
+SERVER_TESTS = ROOT / "crates/sley-protocol/src/server_tests.rs"
 REGISTRY_MODULE = ROOT / "crates/sley-protocol/src/lib.rs"
+CAPSULE_MODULE = ROOT / "crates/sley-query/src/context_capsule.rs"
 ID_CRATE = ROOT / "crates/sley-id/src/lib.rs"
 SMP1_SPEC = ROOT / "docs/spec/SMP1.md"
 CAPSULE_SPEC = ROOT / "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md"
@@ -36,9 +38,16 @@ IMPLEMENTATION_STATUSES = (
     COMPLETE_STATUS,
 )
 
-CONTRACT_REVISION = 2
-SMP1_REVISION = 10
+CONTRACT_REVISION = 3
+# The composed authorities' current revisions. Each is cross-checked
+# against that document's own status line, so the pin fails the moment
+# the authority moves instead of matching a stale substring elsewhere.
+SMP1_REVISION = 11
 CAPSULE_REVISION = 3
+SMP1_PIN = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
+CAPSULE_PIN = (
+    f"`docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md` at revision {CAPSULE_REVISION}"
+)
 
 CODES = (
     (33000, "SESSION_UNKNOWN"),
@@ -50,11 +59,23 @@ CODES = (
     (33006, "SESSION_RENEWAL_LIMIT"),
     (33007, "SESSION_BINDING_INVALID"),
 )
+# Contract section 3 classifies every frozen method tag into exactly one
+# list; the anchors are the list headings.
+HEAD_BOUND_ANCHOR = "Head-bound methods (checked for the bound root, item 6):"
+CLASS_ANCHORS = (
+    HEAD_BOUND_ANCHOR,
+    "Handle expansion (checked for the bound root by its own comparison,",
+    "Caller-named methods (answer over state the request names, never the",
+    "Mutating methods (advance the head instead of answering over it):",
+    "Session and transport methods (answer over the session, never the",
+)
+SESSION_OPEN_TAG = 100
 SPEC_MARKERS = (
     "# Negotiated Session and Handle Profile v1",
     "`sley2.session.v1 -> SessionId`",
     "ServerNonce[32] || ProtocolHandshakeId[32]",
     "## 2. Session record and issuance",
+    "renewals:      u16",
     "## 3. Request checks",
     "The head-bound set is closed.",
     "## 4. Handles",
@@ -63,10 +84,12 @@ SPEC_MARKERS = (
     "`SessionBinding = Negotiated(2) || SessionId[32]`",
     "## 8. Explicit exclusions",
     "at most `max_sessions` remembered",
-    "revision 10",
-    "revision 3",
+    "handles naming query cursors",
+    "## 9. Revision history",
     "threat T56",
-)
+    SMP1_PIN,
+    CAPSULE_PIN,
+) + CLASS_ANCHORS
 ADR_MARKERS = (
     "# ADR-0033: Negotiated session, binding checks, and positional handles",
     "1. **A session binds a handshake to one workspace, root, and epoch,",
@@ -80,10 +103,13 @@ ADR_MARKERS = (
 WORK_PACKAGE_MARKERS = ("`docs/spec/SESSION_HANDLE_PROFILE_V1.md`", "ADR-0033")
 SESSION_MARKERS = (
     "pub struct SessionRecord",
+    "pub renewals: u16,",
+    "pub const MAX_SESSION_RENEWALS: u16",
     "pub fn open_session",
     "pub fn renew_session",
     "pub fn check_session",
     "pub fn expand_handle",
+    "pub fn bind_context_capsule",
     "pub fn fresh_server_nonce",
     "server_nonce",
     "expected_root: StateRoot",
@@ -95,11 +121,7 @@ SERVER_MARKERS = (
     "fixed32(body)? != *session.as_bytes()",
     "close(session, self.profile.limits.max_sessions)",
     "expected_root",
-    "Method::RefsList",
-    "Method::RefsResolve",
-    "Method::ExchangeExport",
-    "Method::GcDryRun",
-    "Method::Report",
+    ".bind_context_capsule(session, &outcome.request, &outcome.response)",
 )
 REGISTRY_MARKERS = (
     "pub fn is_closed",
@@ -107,16 +129,129 @@ REGISTRY_MARKERS = (
     "MAX_LIMIT_SESSIONS",
     "max_sessions",
 )
+CAPSULE_MARKERS = ("pub fn build_context_capsule_session", "Negotiated")
 ID_MARKERS = ('b"sley2.session.v1"', "digest_type!(SessionId, Domain::Session);")
+# Implemented under a draft means tracked, never silently pending: a FAIL
+# round is itemized in same-lane register-first open lists, or superseded
+# by the same lane's re-review PASS obligation (S20-740 register rule).
+LANE_PASS_FIELD = {
+    "ariadne_contract_review": "ariadne_review",
+    "nabu_architecture_review": "nabu_review",
+    "vulcan_surface_review": "vulcan_review",
+}
+LANE_PREFIX = {
+    "ariadne_contract_review": "Ariadne ",
+    "nabu_architecture_review": "Nabu ",
+    "vulcan_surface_review": "Vulcan ",
+}
+OPEN_LISTS = ("p1_open", "p2_open", "p3_open")
 
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def rust_block(text: str, opener: str) -> str:
+    """The body of the first Rust item starting with `opener`."""
+    start = text.find(opener)
+    if start < 0:
+        return ""
+    end = text.find("\n    }", start)
+    return text[start:end] if end > start else text[start:]
+
+
+def spec_paragraph(spec: str, anchor: str) -> str:
+    start = spec.find(anchor)
+    if start < 0:
+        return ""
+    end = spec.find("\n\n", start)
+    return spec[start:end] if end > start else spec[start:]
+
+
+def check_method_classification(
+    spec: str, server: str, registry: str, smp1: str, problems: list[str]
+) -> dict[str, list[int]]:
+    """Section 3 lists against the server dispatch table and SMP1 table."""
+    tag_of = {
+        name: int(tag)
+        for name, tag in re.findall(
+            r"Self::(\w+) => (\d+),",
+            rust_block(registry, "pub const fn tag(self) -> u32 {"),
+        )
+    }
+    reserved = {
+        tag_of[name]
+        for name in re.findall(
+            r"Self::(\w+)",
+            rust_block(registry, "pub const fn is_reserved(self) -> bool {"),
+        )
+        if name in tag_of
+    }
+    server_head_bound = {
+        tag_of[name]
+        for name in re.findall(
+            r"Method::(\w+)",
+            rust_block(server, "const fn head_bound(method: Method) -> bool {"),
+        )
+        if name in tag_of
+    }
+    smp1_rows = dict(re.findall(r"^\| (\d{3}) \| `([a-z_.]+)` \|", smp1, flags=re.M))
+    lists: dict[str, list[int]] = {}
+    for anchor in CLASS_ANCHORS:
+        paragraph = spec_paragraph(spec, anchor)
+        pairs = re.findall(r"`([a-z_.]+)`\s+\((\d+)", paragraph)
+        if not pairs:
+            problems.append(f"classification:empty:{anchor[:20]}")
+        tags: list[int] = []
+        for name, tag in pairs:
+            numeric = int(tag)
+            tags.append(numeric)
+            if smp1_rows.get(tag) != name:
+                problems.append(f"classification:smp1-name:{name}:{tag}")
+        lists[anchor.split(" ", 1)[0].lower()] = tags
+    head_bound = set(lists.get("head-bound", []))
+    if not tag_of or not server_head_bound:
+        problems.append("classification:server-table-unreadable")
+    elif head_bound != server_head_bound:
+        problems.append(
+            "classification:head-bound-drift:"
+            f"contract-only={sorted(head_bound - server_head_bound)}:"
+            f"server-only={sorted(server_head_bound - head_bound)}"
+        )
+    classified = [tag for tags in lists.values() for tag in tags]
+    if len(classified) != len(set(classified)):
+        problems.append("classification:duplicate-tag")
+    sentence = re.search(r"reserved tags\s+\((\d+), (\d+), (\d+), (\d+)\)", spec)
+    stated_reserved = {int(tag) for tag in sentence.groups()} if sentence else set()
+    if stated_reserved != reserved:
+        problems.append(
+            f"classification:reserved:{sorted(stated_reserved)}!={sorted(reserved)}"
+        )
+    covered = set(classified) | {SESSION_OPEN_TAG} | reserved
+    if tag_of and covered != set(tag_of.values()):
+        problems.append(
+            "classification:partition:"
+            f"unclassified={sorted(set(tag_of.values()) - covered)}:"
+            f"unknown={sorted(covered - set(tag_of.values()))}"
+        )
+    return lists
+
+
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES, ID_CRATE, SMP1_SPEC, CAPSULE_SPEC):
+    for path in (
+        SPEC,
+        ADR,
+        WORK_PACKAGES,
+        SUMMARY,
+        ERROR_CODES,
+        ID_CRATE,
+        SMP1_SPEC,
+        CAPSULE_SPEC,
+        SERVER_MODULE,
+        REGISTRY_MODULE,
+        CAPSULE_MODULE,
+    ):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -133,9 +268,19 @@ def main() -> int:
     revision = re.search(r"^Status:.*revision (\d+)", spec, flags=re.M)
     if revision is None or int(revision.group(1)) != CONTRACT_REVISION:
         problems.append("spec-revision")
-    if "revision 11" not in read(SMP1_SPEC):
+    smp1 = read(SMP1_SPEC)
+    smp1_revision = re.search(
+        r"^Status: S20-400 contract draft, revision (\d+)", smp1, flags=re.M
+    )
+    if smp1_revision is None or int(smp1_revision.group(1)) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
-    if "revision 3" not in read(CAPSULE_SPEC):
+    capsule_spec = read(CAPSULE_SPEC)
+    capsule_revision = re.search(
+        r"^Status: S20-320 full contract draft, revision (\d+)",
+        capsule_spec,
+        flags=re.M,
+    )
+    if capsule_revision is None or int(capsule_revision.group(1)) != CAPSULE_REVISION:
         problems.append("capsule-revision-pin")
     adr = read(ADR)
     for marker in ADR_MARKERS:
@@ -143,18 +288,31 @@ def main() -> int:
             problems.append(f"adr-marker:{marker}")
     if f"revision {CONTRACT_REVISION}" not in adr:
         problems.append("adr-revision")
+    if f"SMP1 revision {SMP1_REVISION}" not in re.sub(r"\s+", " ", adr):
+        problems.append("adr-smp1-pin")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:
             problems.append(f"work-package-marker:{marker}")
+    if (
+        f"contract draft revision {CONTRACT_REVISION} ("
+        not in packages.split("| S20-330 |")[-1].split("\n")[0]
+    ):
+        problems.append("work-package-revision")
     codes = read(ERROR_CODES)
     if "33000 through 33007" not in codes:
         problems.append("error-codes:range-sentence")
-    if "reserves, rather than freezes, these codes" in codes.split("33000 through 33007")[1].split("S20-350")[0]:
-        problems.append("error-codes:not-frozen")
+    else:
+        paragraph = codes.split("33000 through 33007")[1].split("S20-350")[0]
+        if "reserves, rather than freezes, these codes" in paragraph:
+            problems.append("error-codes:not-frozen")
+        if f"contract draft revision {CONTRACT_REVISION}" not in paragraph:
+            problems.append("error-codes:revision")
     for numeric, symbol in CODES:
         if f"| {numeric} | `{symbol}` |" not in codes:
             problems.append(f"error-codes:row:{symbol}")
+    module = read(SESSION_MODULE) if SESSION_MODULE.exists() else ""
+    server_tests = read(SERVER_TESTS) if SERVER_TESTS.exists() else ""
     for threat in THREAT_MATRICES:
         matrix_path = EVIDENCE / threat / "matrix.json"
         if not matrix_path.is_file():
@@ -167,6 +325,11 @@ def main() -> int:
             continue
         if matrix.get("result") != "PASS" or not matrix.get("tests"):
             problems.append(f"threat-evidence:fail:{threat}")
+        # A matrix names tests that exist: a renamed or deleted test would
+        # otherwise leave the evidence pointing at nothing.
+        for test in matrix.get("tests", []):
+            if f"fn {test}(" not in module and f"fn {test}(" not in server_tests:
+                problems.append(f"threat-evidence:test-missing:{threat}:{test}")
 
     summary = json.loads(read(SUMMARY))
     section = summary.get("session_handle_profile")
@@ -188,6 +351,13 @@ def main() -> int:
             problems.append(f"machine-summary:{key}")
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
+    for list_key in OPEN_LISTS:
+        if list_key in section or f"{list_key}_count" in section:
+            items = section.get(list_key, [])
+            if not isinstance(items, list) or section.get(f"{list_key}_count") != len(
+                items
+            ):
+                problems.append(f"machine-summary:{list_key}_count")
 
     present = []
     if SESSION_MODULE.exists():
@@ -200,18 +370,22 @@ def main() -> int:
     if status == DRAFT_STATUS and present:
         problems.append(f"implementation-before-stage:{present}")
     if status in (FROZEN_STATUS,) + IMPLEMENTATION_STATUSES:
-        module = read(SESSION_MODULE) if SESSION_MODULE.exists() else ""
         for marker in SESSION_MARKERS:
             if marker not in module:
                 problems.append(f"session-marker:{marker}")
-        server = read(SERVER_MODULE) if SERVER_MODULE.exists() else ""
+        server = read(SERVER_MODULE)
         for marker in SERVER_MARKERS:
             if marker not in server:
                 problems.append(f"server-marker:{marker}")
-        registry = read(REGISTRY_MODULE) if REGISTRY_MODULE.exists() else ""
+        registry = read(REGISTRY_MODULE)
         for marker in REGISTRY_MARKERS:
             if marker not in registry:
                 problems.append(f"registry-marker:{marker}")
+        capsule = read(CAPSULE_MODULE)
+        for marker in CAPSULE_MARKERS:
+            if marker not in capsule:
+                problems.append(f"capsule-marker:{marker}")
+        check_method_classification(spec, server, registry, smp1, problems)
         for symbol in [symbol for _, symbol in CODES]:
             if symbol not in module:
                 problems.append(f"module-code:{symbol}")
@@ -221,15 +395,33 @@ def main() -> int:
         for marker in ID_MARKERS:
             if marker not in identifiers:
                 problems.append(f"id-marker:{marker}")
-        if status == COMPLETE_STATUS:
-            for key in ("nabu_architecture_review", "ariadne_contract_review", "vulcan_surface_review"):
-                if not str(section.get(key, "")).startswith("PASS"):
+        if status in (FROZEN_STATUS, COMPLETE_STATUS):
+            for key, pass_key in LANE_PASS_FIELD.items():
+                lane_pass = str(section.get(key, "")).startswith("PASS") or str(
+                    section.get(pass_key, "")
+                ).startswith("PASS")
+                if not lane_pass:
                     problems.append(f"completion-without-review:{key}")
+        if status == REVIEW_PENDING_STATUS:
+            for key, pass_key in LANE_PASS_FIELD.items():
+                if not str(section.get(key, "")).startswith("FAIL"):
+                    continue
+                lane_items = [
+                    item
+                    for list_key in OPEN_LISTS
+                    for item in section.get(list_key, [])
+                    if str(item).startswith(LANE_PREFIX[key])
+                ]
+                superseded = str(section.get(pass_key, "")).startswith("PASS")
+                if not lane_items and not superseded:
+                    problems.append(f"review-without-lane-items:{key}")
 
     result = {
         "contract": "s20-330-session-handle-profile-v1",
         "status": status,
         "revision": int(revision.group(1)) if revision else None,
+        "smp1_revision": SMP1_REVISION,
+        "capsule_revision": CAPSULE_REVISION,
         "implementation_present": present,
         "new_stable_error_codes": len(CODES),
         "problems": problems,

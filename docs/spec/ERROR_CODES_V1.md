@@ -247,7 +247,7 @@ a draft with Council review pending and reserves, rather than freezes, these
 codes.
 
 S20-330 freezes numeric codes 33000 through 33007 for the exact `SESSION_*`
-failures of `SESSION_HANDLE_PROFILE_V1.md` (contract draft revision 2,
+failures of `SESSION_HANDLE_PROFILE_V1.md` (contract draft revision 3,
 implemented under the draft with Council re-reviews pending). They travel
 in the SMP1 failure envelope:
 

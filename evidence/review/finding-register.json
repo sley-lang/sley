@@ -3828,6 +3828,12 @@
     "semantic_comparison.p0_open": 0,
     "semantic_comparison.p0_open_count": 0,
     "session_handle_profile.p0_open_count": 0,
+    "session_handle_profile.p1_open": 18,
+    "session_handle_profile.p1_open_count": 18,
+    "session_handle_profile.p2_open": 13,
+    "session_handle_profile.p2_open_count": 13,
+    "session_handle_profile.p3_open": 11,
+    "session_handle_profile.p3_open_count": 11,
     "sley2_trial_runner.p0_open": 0,
     "sley2_trial_runner.p0_open_count": 0,
     "standards_sbom_and_provenance.p0_open_count": 0,
@@ -3842,7 +3848,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "264f7884f46ae6ea946789d2ff8640a339b98380d6fbac1b6bfdd4f1b3e3086c",
+  "register_digest": "0a4428010f6ed88010a9bff7f33750b8d3ee532bf891a31433fbaa21f263f0ab",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 80,

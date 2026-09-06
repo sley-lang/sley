@@ -1,19 +1,20 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 2 (2026-09-05); implemented under
+Status: S20-330 contract draft, revision 3 (2026-09-05); implemented under
 this draft with Council re-reviews pending (Nabu architecture review,
 Ariadne contract review, Vulcan surface review), so the contract is not
-frozen and the package is not complete. Revision 2 closes the six P0s and
-the freeze-blocking P1s of the 2026-09-04 review round. Implementation
-state is tracked in the machine summary.
+frozen and the package is not complete. Revision 2 closed the six P0s and
+the freeze-blocking P1s of the 2026-09-04 review round; revision 3 answers
+every remaining P1, P2, and P3 item of that round (section 9).
+Implementation state is tracked in the machine summary.
 
 This profile defines the negotiated session authority that SMP1 (S20-400,
-revision 10) and the master context capsule (S20-320 full, revision 3)
+revision 11) and the master context capsule (S20-320 full, revision 3)
 reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
 and the `SESSION_*` codes. It composes, and never alters:
 
-- `docs/spec/SMP1.md` at revision 10: the handshake, `session.open`
+- `docs/spec/SMP1.md` at revision 11: the handshake, `session.open`
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;
@@ -77,7 +78,7 @@ SessionRecord {
   bound_root:    StateRoot,        // the accepted head at open or last renew
   schema_epoch:  SchemaEpochId,
   issue_ordinal: u64,
-  renewals:      u32               // at most 65,535
+  renewals:      u16               // at most 65,535, the field's full range
 }
 ```
 
@@ -93,7 +94,10 @@ Open is refused with `SESSION_BINDING_INVALID` when the live session
 count already reaches the negotiated `max_sessions` (section 8), when the
 issue ordinal space is exhausted, or as a defensive refusal when the
 derived identity is already issued or the retained record is not the
-bound root's own record.
+bound root's own record. The duplicate-identity refusal is unreachable
+by construction, because the strictly increasing ordinal is in the
+preimage; it is retained as a defense-in-depth invariant, not as a
+reachable failure, and no evidence claims it.
 
 `session.renew` (101) carries the `SessionId` in both the frame's session
 field and the request body; a body that does not name the frame's
@@ -144,25 +148,50 @@ these checks in this order; the first failure answers:
 
 The head-bound set is closed. A method is head-bound exactly when it
 answers over current repository state without naming the state it
-answers over:
+answers over. Every SMP1 method tag is classified below under its
+frozen tag (SMP1 section 4), so head-boundness is read from the lists
+and never derived for a new method; the stage checker compares the
+lists against the server's dispatch table and the SMP1 method table
+and fails closed on any difference.
 
-`workspace.open` (201), `query.root` (300), `query.continue` (301),
-`capsule` (302), `query.restricted` (303), `handle.expand` (304, which
-performs the same root comparison itself and reports
-`SESSION_STALE_HANDLE` instead of `SESSION_ROOT_ADVANCED`), `execute`
-(600), `refs.list` (202), `refs.resolve` (203), `refs.recover` (209),
-`recovery` (603), `exchange.export` (207), `gc.dry_run` (601), and
+Head-bound methods (checked for the bound root, item 6):
+`workspace.open` (201), `refs.list` (202), `refs.resolve` (203),
+`exchange.export` (210), `gc.dry_run` (212), `refs.recover` (214),
+`query.root` (300), `query.continue` (301), `capsule` (302),
+`query.restricted` (303), `recovery` (504), `execute` (600), and
 `report` (604).
 
-Methods naming an explicit `TransactionId` (`revision.read`,
-`checkout`), receipt, candidate bytes, or merge inputs answer over
-caller-named state and are not head-bound. Methods that mutate
-(`branch.create`, `branch.advance`, `commit`, `merge.commit`,
-`candidate.*`, `workspace.create`, `exchange.import`, `gc.collect`)
-advance the head instead of answering over it: they are checked for
-workspace and epoch only, and leave the session bound to the previous
-root until an explicit renewal, which is the explicit signal that
-earlier handles and capsules describe an older root.
+Handle expansion (checked for the bound root by its own comparison,
+section 4, reporting `SESSION_STALE_HANDLE` instead of
+`SESSION_ROOT_ADVANCED`): `handle.expand` (304).
+
+Caller-named methods (answer over state the request names, never the
+head): `revision.read` (204), `compare` (207), `merge.judge` (208),
+`candidate.create` (400), `candidate.append` (401),
+`candidate.validate` (402, which names its base `TransactionId`),
+`candidate.inspect` (403), `candidate.discard` (404), `receipt.read`
+(501), and `checkout` (502). The `candidate.*` methods never mutate:
+candidates are caller-held bytes and the server holds no candidate
+state.
+
+Mutating methods (advance the head instead of answering over it):
+`workspace.create` (200), `branch.create` (205), `branch.advance`
+(206), `merge.commit` (209), `exchange.import` (211), `gc.collect`
+(213), and `commit` (500).
+
+Session and transport methods (answer over the session, never the
+repository): `session.renew` (101), `session.close` (102),
+`session.capabilities` (103), `session.budgets` (104), and `cancel`
+(603).
+
+`session.open` (100) precedes every check (section 2). Every method
+outside the head-bound set passes checks 1 through 5 and skips check
+6. A mutating method leaves the session bound to the previous root
+until an explicit renewal, which is the explicit signal that earlier
+handles and capsules describe an older root. The four reserved tags
+(305, 503, 601, 602) pass checks 1 through 5 and are then refused with
+`PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4); a reserved tag joins a
+list above only when its owner claims it.
 
 ## 4. Handles
 
@@ -282,13 +311,16 @@ Implementation acceptance requires at least:
 
 This contract does not claim: session expiry by wall-clock time (the
 server reads no clock; renewal counts and budgets bound a session's
-work, and `max_sessions` bounds the live count); peer ownership of a
-session name (a live name is usable by any caller that learns it; peer
-isolation is a transport obligation on the S20-420/430 boundary,
-threat T56); multi-repository or cross-workspace sessions;
-authentication or transport security; the JSON bridge and CLI
-representations (S20-420, S20-430); runtime, benchmark, packaging,
-release, or GA.
+work, and `max_sessions` bounds the live count); session expiry by
+request count (the S20-440 budget already bounds a session's work);
+handles naming query cursors (a cursor is continuation state and
+belongs in `query.continue`'s `after`, section 4); implicit rebinding
+after a mutation (section 2); peer ownership of a session name (a live
+name is usable by any caller that learns it; peer isolation is a
+transport obligation on the S20-420/430 boundary, threat T56);
+multi-repository or cross-workspace sessions; authentication or
+transport security; the JSON bridge and CLI representations (S20-420,
+S20-430); runtime, benchmark, packaging, release, or GA.
 
 Reclamation is exact and bounded without a clock. The registry holds
 exactly the live sessions plus at most `max_sessions` remembered
@@ -297,3 +329,27 @@ name, which then answers `SESSION_UNKNOWN`. The authority holds exactly
 the live sessions. No session state grows without bound for the process
 lifetime: live sessions are capped at open, remembered closes are
 capped at close.
+
+## 9. Revision history
+
+- Revision 1 (2026-09-03): draft written while every Council lane was
+  unavailable; implemented under the draft.
+- Revision 2 (2026-09-05): the six P0s and the freeze-blocking P1s of
+  the 2026-09-04 round: per-instance server nonce, true dispatch
+  precedence, sessionless genesis only, expected-root handles, the
+  closed head-bound set, negotiated `max_sessions` with the
+  remembered-close cap, enumerated `SESSION_BINDING_INVALID`, frozen
+  code rows, and the SMP1 and capsule revision pins.
+- Revision 3 (2026-09-05): the remaining P1, P2, and P3 items of the
+  round: the SMP1 pin follows SMP1 to revision 11; `renewals` is a
+  `u16`, the range it always had; the four-way method classification
+  carries every frozen tag (the revision 2 enumeration named four
+  head-bound methods under the wrong tags, and called the non-mutating
+  `candidate.*` methods mutating), and the stage checker compares it
+  against the server dispatch table and the SMP1 table; the
+  duplicate-identity refusal is stated unreachable; cursor handles,
+  request-count expiry, and implicit rebinding are explicit exclusions;
+  the stage checker reads the capsule module, the server's capsule
+  binding call, and the threat-matrix test names, and applies the
+  register-first lane rule to the FAIL rounds until a same-lane
+  re-review PASS supersedes them.

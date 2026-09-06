@@ -1,10 +1,11 @@
 # ADR-0033: Negotiated session, binding checks, and positional handles
 
-Status: proposed; the S20-330 contract is a draft at revision 2 with
+Status: proposed; the S20-330 contract is a draft at revision 3 with
 Council re-reviews pending; implemented under the draft
 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`)
 
-Date: 2026-09-03; revision 2 decision record 2026-09-05
+Date: 2026-09-03; revision 2 decision record 2026-09-05; revision 3
+decision record 2026-09-05
 
 ## Context
 
@@ -52,7 +53,12 @@ answer, submitted for re-review.
    Frame validity, remembered close, live existence, request-identity
    admission, workspace, epoch, budget, then the bound root for the
    closed head-bound set. `SESSION_UNKNOWN` is reachable on the wire;
-   the budget never masks a binding failure.
+   the budget never masks a binding failure. Revision 3 classifies
+   every frozen method tag into exactly one of four lists (head-bound,
+   caller-named, mutating, session and transport) so head-boundness is
+   read, never derived; the revision 2 enumeration had named four
+   head-bound methods under the wrong tags and called the non-mutating
+   `candidate.*` methods mutating.
 4. **Handles are positions under an expected root, not bare numerals.**
    `handle.expand` carries `uvar(handle) || StateRoot[32]`; the server
    refuses any expected root but the session's bound root and any bound
@@ -70,16 +76,23 @@ answer, submitted for re-review.
    authority-cannot-bind bucket.
 7. **Staging.** `scripts/check_session_handle_profile.py` binds the
    contract, ADR, work-package row, summary section, ERROR_CODES rows,
-   and the server implementation markers, cross-checks the SMP1
-   revision 10 and capsule revision 3 pins, and fails closed on drift.
+   the server and registry implementation markers, the capsule module
+   and the server's capsule binding call, cross-checks the SMP1
+   revision 11 and capsule revision 3 pins against those documents'
+   own status lines, compares the four method lists against the
+   server dispatch table and the SMP1 method table, requires every
+   threat-matrix test name to exist in the sources, applies the
+   register-first lane rule to every FAIL round until a same-lane
+   re-review PASS supersedes it, and fails closed on drift.
 
 ## Consequences
 
 - S20-420 and S20-430 transport and display a real session identity;
   the bridge renders the eighth limit field, and peer isolation is
   their transport obligation (threat T56).
-- SMP1 revision 10 records the eighth limit field and the expected-root
-  `handle.expand` request the S20-330 revision 2 freeze owns; no other
-  SMP1 body changes.
+- SMP1 revision 10 recorded the eighth limit field and the
+  expected-root `handle.expand` request the S20-330 revision 2 freeze
+  owns; no other SMP1 body changes. This profile pins SMP1 revision 11,
+  the current revision, and the stage checker fails when SMP1 moves.
 - The T15, T47, and T56 matrices are exact server tests with recorded
   evidence artifacts, not narrative gates.

@@ -23,8 +23,9 @@ use sley_query::{
 };
 use sley_state_root::AcceptedStateRoot;
 
-/// Renewals a session may perform (contract section 2).
-pub const MAX_SESSION_RENEWALS: u32 = 65_535;
+/// Renewals a session may perform (contract section 2): the full range
+/// of the `u16` field.
+pub const MAX_SESSION_RENEWALS: u16 = u16::MAX;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SessionErrorCode {
@@ -149,7 +150,7 @@ pub struct SessionRecord {
     pub bound_root: StateRoot,
     pub schema_epoch: SchemaEpochId,
     pub issue_ordinal: u64,
-    pub renewals: u32,
+    pub renewals: u16,
 }
 
 /// The expanded fact of a handle (contract section 4).
@@ -372,10 +373,12 @@ impl SessionAuthority {
             if record.schema_epoch != head.schema_epoch {
                 return fail(SessionErrorCode::EpochMismatch);
             }
-            if record.renewals >= MAX_SESSION_RENEWALS {
-                return fail(SessionErrorCode::RenewalLimit);
-            }
-            record.renewals += 1;
+            // The limit is the field's full range: the increment past
+            // `MAX_SESSION_RENEWALS` is exactly the overflow.
+            record.renewals = record
+                .renewals
+                .checked_add(1)
+                .ok_or(SessionError(SessionErrorCode::RenewalLimit))?;
             record.bound_root = head.root;
             *record
         };
