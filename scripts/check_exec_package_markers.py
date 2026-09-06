@@ -18,6 +18,8 @@ HASH_RS = ROOT / "crates/sley-vm/src/raw_hash.rs"
 EXECUTE_RS = ROOT / "crates/sley-vm/src/execute.rs"
 CHECK_RS = ROOT / "crates/sley-check/src/lib.rs"
 BOOTSTRAP_RS = ROOT / "crates/sley-vm/src/bootstrap.rs"
+AUTHORITY_RS = ROOT / "crates/sley-vm/src/admission_authority.rs"
+LIB_RS = ROOT / "crates/sley-vm/src/lib.rs"
 
 problems: list[str] = []
 
@@ -84,6 +86,27 @@ if exec_rs.count("if output.len() > EXEC_PACKAGE_MAX_DEPENDENCY_BYTES") < 4:
     problems.append("exec-rs-missing:incremental-dependency-ceiling")
 if "MAX_TYPE_DEPTH" not in exec_rs:
     problems.append("exec-rs-missing:type-nesting-bound")
+
+# Staged v2 admission authority: the one production location permitted to
+# call the gate plus the reference lowerer on the admission path (exact
+# Sley-driver model; the package/execution/host-ABI/bridge modules stay
+# free of those calls per the anti-shortcut pins below).
+authority_rs = AUTHORITY_RS.read_text(encoding="utf-8")
+for marker in [
+    "pub fn admit_v2_package(",
+    "judge_bootstrap_profile(",
+    "lower_function(",
+    "admit_package_v2(",
+    "approve_package_v2(",
+    "AUTHORITY_REFERENCE_MISMATCH",
+    "AUTHORITY_GATE_REFUSED",
+    "pub enum AuthorityError",
+]:
+    if marker not in authority_rs:
+        problems.append(f"authority-rs-missing:{marker}")
+lib_rs = LIB_RS.read_text(encoding="utf-8")
+if "pub mod admission_authority;" not in lib_rs:
+    problems.append("lib-module-missing:admission_authority")
 
 # Anti-shortcut absence: the package/raw-hash sources must not call native
 # semantic digest or compiler services (behavioral probes pin this in Rust

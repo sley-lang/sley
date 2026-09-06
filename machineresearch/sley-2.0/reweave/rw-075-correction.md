@@ -190,9 +190,11 @@ No widening performed; no violation found.
   RW-080.
 
 Current verdicts: Nabu round-7: FAIL (two BLOCKERs, preserved); Nabu
-final: PENDING (round-8 requested); premium delta: PENDING; aggregate
-R2: NOT_READY (implementation complete, reviews pending — honest, not a
-defect in the repair).
+round-8: FAIL (R7-B2 hardening + executed-assembly BLOCKERs, preserved
+in `reviews/reweave-rw075-nabu-r8-2026-09-06.log`); Nabu final: PENDING
+(round-9 requested); premium delta: PENDING; aggregate R2: NOT_READY
+(implementation complete, reviews pending — honest, not a defect in the
+repair).
 
 ## 8. Round-7 repairs (this delta, reviewable in round 8)
 
@@ -224,3 +226,26 @@ defect in the repair).
   bootstrap ops and the host only hashes; data-plane digest matches the
   reference. Full `Result`-threading across fallible bridge calls stays
   with RW-110 (documented in-fixture).
+
+## 9. Round-8 repairs (this delta, reviewable in round 9)
+
+- R8-B1 (production authority, exclusive minting): promoted the staged
+  authority from a test helper to the production module
+  `sley_vm::admission_authority` (`admit_v2_package`: presented-bytes
+  check, gate judgment, reference re-lowering, exact byte comparison,
+  claims check, digest, mint, approval cross-check; `AuthorityError`
+  vocabulary; unit pins). All honest v2 minting in reviewed paths routes
+  through it (the integration helper now delegates to it); direct
+  `admit_package_v2` calls outside it are test negatives or non-evidence
+  staging, never R2 authority evidence (documented in-module). Marker
+  pins added (`check_exec_package_markers.py`); the package/execution/
+  raw-hash/host-ABI/bridge modules stay free of gate/lowerer calls.
+- R8-B2 (executed assembly): replaced the gate-only four-step claim with
+  `raw_sley_built_preimage_end_to_end` as a well-typed, lowered, executed
+  Sley path: `V2B1` converts a caller octet vector to bytes, `VariantSwitch`
+  unwraps each `Ok` payload (`Err` legs wrap and return), `RHW1` hashes
+  the Sley-assembled bytes, digest returns `Ok` and matches the reference;
+  one flipped octet changes the identity. Gate admits two bridge uses;
+  lowering and execution run through the successor registry.
+- R7-B1 typo: `SLEYCHNK1` frame is `17 + 32*N` bytes (9-byte domain +
+  two `u32` words + digests), corrected in `BOOTSTRAP_PROFILE_2.md`.

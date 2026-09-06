@@ -5,6 +5,7 @@ use core::fmt;
 
 use sley_id::{BytecodeCacheKey, EntityId, SchemaEpochId, StateRoot};
 
+pub mod admission_authority;
 pub mod bootstrap;
 #[cfg(test)]
 mod bootstrap_closure;
@@ -19,6 +20,7 @@ pub mod host_abi;
 mod lower;
 pub mod raw_hash;
 
+pub use admission_authority::{AuthorityError, admit_v2_package};
 pub use exec_package::{
     AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
     BOOTSTRAP_PROFILE_2_DIGEST, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,

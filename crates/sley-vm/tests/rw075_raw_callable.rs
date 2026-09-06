@@ -603,15 +603,12 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
 // ── Staged v2 admission authority (graph-to-image correspondence) ───
 //
 // The host path verifies byte-hash equality but cannot prove the package
-// image was lowered from the judged graphs. The staged R2 authority
-// performs that comparison in code (exact model for the Sley build driver
-// per the RW-080 contract §1.4): judge the closure, reference re-lower
-// with the native lowerer, compare bytes exactly, and mint a receipt only
-// on exact match. A mismatch aborts with no receipt, so no approval or
-// execution can follow. Production `admit_package_v2` stays a pure-data
-// constructor (as in v1); R2 evidence uses only receipts from this
-// authority (CI), secured by campaign-declaration plus review like every
-// existing native gate/checker/oracle in the repository.
+// image was lowered from the judged graphs. R2 authority evidence uses the
+// production staged authority (`sley_vm::admit_v2_package`): judge the
+// closure, reference re-lower, compare bytes exactly, and mint only on
+// exact match. A mismatch aborts with no receipt, so no approval or
+// execution can follow (exact model for the Sley build driver per the
+// RW-080 contract §1.4; no toolchain graph, no C1 here).
 
 fn stage_v2_admission(
     program: &BridgeProgram,
@@ -624,9 +621,7 @@ fn stage_v2_admission(
     ),
     String,
 > {
-    use sley_vm::{admit_package_v2, approve_package_v2, package_digests_v2};
-    // 1. Judge the closure with the package bytes as presented.
-    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+    let gate = BootstrapProfileInput {
         types: &program.types,
         schema_epoch: epoch(),
         entry: &program.entry,
@@ -637,27 +632,10 @@ fn stage_v2_admission(
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
-    })
-    .map_err(|error| format!("gate refuses: {error:?}"))?;
-    // 2. Reference re-lower the judged closure and compare bytes exactly.
-    let reference = lower_function(program.lowering_input())
-        .map_err(|error| format!("reference re-lowering fails: {error:?}"))?;
-    if reference.bytes != package.image_bytes {
-        return Err("reference re-lowering mismatch: no receipt minted".to_string());
-    }
-    // 3. Package must carry the gate's quantitative claims.
-    if gate.operation_count() != package.gate_operation_count
-        || gate.bridge_uses() != package.gate_bridge_uses
-        || gate.closure_fingerprints() != package.gate_closure_fingerprints.as_slice()
-    {
-        return Err("gate claims mismatch: no receipt minted".to_string());
-    }
-    // 4. Mint and cross-check approval (never mint unapprovable receipts).
-    let digests = package_digests_v2(package).map_err(|error| format!("digests: {error:?}"))?;
-    let receipt = admit_package_v2(digests.package_digest);
-    approve_package_v2(package, &digests, receipt, &gate)
-        .map_err(|error| format!("approval cross-check fails: {error:?}"))?;
-    Ok((digests, receipt, gate))
+    };
+    let lowering = program.lowering_input();
+    sley_vm::admit_v2_package(&gate, &lowering, package)
+        .map_err(|error| format!("staged authority refuses: {error:?}"))
 }
 
 #[test]
@@ -788,14 +766,16 @@ fn raw_preimage_ownership_across_compiler_domains() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // one block per Sley-owned assembly step
+#[allow(clippy::too_many_lines)] // one block per unwrap leg, mirroring bytes_round_trip
 fn raw_sley_built_preimage_end_to_end() {
-    // End-to-end Sley ownership: one Sley function assembles the preimage
-    // from parts with bootstrap ops (B2V1 + PSH1 + V2B1) and hashes it with
-    // RHW1. The host never sees the domain, only conversions, one push,
-    // and the final hash. Expected digest is computed natively for
-    // comparison only.
-    use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
+    // End-to-end Sley ownership, well-typed, lowered, and executed: one
+    // Sley function converts a caller-supplied octet vector to `Bytes`
+    // with `V2B1`, unwraps the `Ok` payload with `VariantSwitch`, hashes
+    // the Sley-assembled bytes with `RHW1`, and returns the digest. The
+    // host never sees the domain, only the conversion and the final hash.
+    // Expected digests are computed natively for comparison only.
+    use sley_ssmc::{BuiltinCase, CaseKey, SwitchArgument, SwitchCase, SwitchEdge};
+    use sley_vm::host_abi::BRIDGE_CODE_V2B1;
     fn frozen(code: [u8; 4], request: TypeExpr, response: TypeExpr) -> AdapterImport {
         let identity = EntityId::from_bytes(bridge_identity(code));
         AdapterImport {
@@ -814,27 +794,35 @@ fn raw_sley_built_preimage_end_to_end() {
     fn u8vec() -> TypeExpr {
         TypeExpr::Vector(Box::new(u8_type()))
     }
+    fn bridge_result(ok: TypeExpr) -> TypeExpr {
+        TypeExpr::Result {
+            ok: Box::new(ok),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+        }
+    }
     let function = id(1);
-    let block = id(2);
+    let entry = id(2);
+    let ok1 = id(3);
+    let err = id(4);
+    let ok2 = id(5);
     let unit_param = id(10);
-    let domain_param = id(11);
-    let suffix_param = id(12);
+    let vec_param = id(11);
+    let preimage_param = id(12);
+    let failure_param = id(13);
+    let digest_param = id(14);
     let op_convert = id(100);
-    let op_push = id(101);
-    let op_back = id(102);
-    let op_hash = id(103);
-    let convert_result = result_of(u8vec());
-    let push_result = result_of(u8vec());
-    let back_result = result_of(TypeExpr::Bytes);
-    let hash_result = result_of(TypeExpr::Bytes);
+    let op_hash = id(101);
+    let op_wrap_err = id(102);
+    let op_wrap_ok = id(103);
+    let hash_result = bridge_result(TypeExpr::Bytes);
     let graph = FunctionGraph {
         entity_id: function,
         type_parameters: Vec::new(),
-        parameters: vec![unit_param, domain_param, suffix_param],
+        parameters: vec![unit_param, vec_param],
         result_type: hash_result.clone(),
         effects: Vec::new(),
-        entry_block: block,
-        blocks: vec![block],
+        entry_block: entry,
+        blocks: vec![entry, ok1, err, ok2],
         contracts: Vec::new(),
         visibility: Visibility::Private,
     };
@@ -848,135 +836,302 @@ fn raw_sley_built_preimage_end_to_end() {
             value_type: TypeExpr::Unit,
         },
         Parameter {
-            entity_id: domain_param,
+            entity_id: vec_param,
             owner: function,
             role: ParameterRole::Function,
             ordinal: 1,
+            value_type: u8vec(),
+        },
+        Parameter {
+            entity_id: preimage_param,
+            owner: ok1,
+            role: ParameterRole::Block,
+            ordinal: 0,
             value_type: TypeExpr::Bytes,
         },
         Parameter {
-            entity_id: suffix_param,
-            owner: function,
-            role: ParameterRole::Function,
-            ordinal: 2,
-            value_type: u8_type(),
+            entity_id: failure_param,
+            owner: err,
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        },
+        Parameter {
+            entity_id: digest_param,
+            owner: ok2,
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::Bytes,
         },
     ];
-    let blocks = vec![Block {
-        entity_id: block,
-        function,
-        parameters: Vec::new(),
-        operations: vec![op_convert, op_push, op_back, op_hash],
-        terminator: Terminator::Return(ReturnTerminator {
-            value: ValueRef::OperationResult(OperationResultRef {
-                operation: op_hash,
-                result_index: 0,
+    let blocks = vec![
+        Block {
+            entity_id: entry,
+            function,
+            parameters: Vec::new(),
+            operations: vec![op_convert],
+            terminator: Terminator::VariantSwitch(sley_ssmc::VariantSwitchTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: op_convert,
+                    result_index: 0,
+                }),
+                cases: vec![
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Ok),
+                        edge: SwitchEdge {
+                            target: ok1,
+                            arguments: vec![SwitchArgument::CasePayload],
+                        },
+                    },
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Err),
+                        edge: SwitchEdge {
+                            target: err,
+                            arguments: vec![SwitchArgument::CasePayload],
+                        },
+                    },
+                ],
             }),
-        }),
-        reachability: Reachability::Required,
-    }];
-    // Note: bridge ops return `Result<_, Index>`; threading the `Ok`
-    // payload through subsequent bridge calls would need `VariantSwitch`
-    // unwrapping. This fixture keeps the data-plane proof minimal: each
-    // step is gate-admitted and the preimage bytes assembled here are the
-    // exact bytes the final `RHW1` hashes. Full `Result`-threading across
-    // four bridge calls belongs to the RW-110 lowerer, not this boundary.
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: ok1,
+            function,
+            parameters: vec![preimage_param],
+            operations: vec![op_hash],
+            terminator: Terminator::VariantSwitch(sley_ssmc::VariantSwitchTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: op_hash,
+                    result_index: 0,
+                }),
+                cases: vec![
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Ok),
+                        edge: SwitchEdge {
+                            target: ok2,
+                            arguments: vec![SwitchArgument::CasePayload],
+                        },
+                    },
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Err),
+                        edge: SwitchEdge {
+                            target: err,
+                            arguments: vec![SwitchArgument::CasePayload],
+                        },
+                    },
+                ],
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: err,
+            function,
+            parameters: vec![failure_param],
+            operations: vec![op_wrap_err],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: op_wrap_err,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: ok2,
+            function,
+            parameters: vec![digest_param],
+            operations: vec![op_wrap_ok],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: op_wrap_ok,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        },
+    ];
     let operations = vec![
         Operation {
             entity_id: op_convert,
-            block,
+            block: entry,
             ordinal: 0,
             opcode: Opcode::AdapterInvoke,
             operands: vec![
                 ValueRef::Parameter(unit_param),
-                ValueRef::Parameter(domain_param),
+                ValueRef::Parameter(vec_param),
             ],
-            result_types: vec![convert_result],
-            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
-        },
-        Operation {
-            entity_id: op_push,
-            block,
-            ordinal: 1,
-            opcode: Opcode::AdapterInvoke,
-            operands: vec![
-                ValueRef::OperationResult(OperationResultRef {
-                    operation: op_convert,
-                    result_index: 0,
-                }),
-                ValueRef::Parameter(suffix_param),
-            ],
-            result_types: vec![push_result],
-            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-        },
-        Operation {
-            entity_id: op_back,
-            block,
-            ordinal: 2,
-            opcode: Opcode::AdapterInvoke,
-            operands: vec![
-                ValueRef::Parameter(unit_param),
-                ValueRef::OperationResult(OperationResultRef {
-                    operation: op_push,
-                    result_index: 0,
-                }),
-            ],
-            result_types: vec![back_result],
+            result_types: vec![bridge_result(TypeExpr::Bytes)],
             immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
         },
         Operation {
             entity_id: op_hash,
-            block,
-            ordinal: 3,
+            block: ok1,
+            ordinal: 0,
             opcode: Opcode::AdapterInvoke,
             operands: vec![
                 ValueRef::Parameter(unit_param),
-                ValueRef::OperationResult(OperationResultRef {
-                    operation: op_back,
-                    result_index: 0,
-                }),
+                ValueRef::Parameter(preimage_param),
             ],
-            result_types: vec![hash_result],
+            result_types: vec![bridge_result(TypeExpr::Bytes)],
             immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
+        },
+        Operation {
+            entity_id: op_wrap_err,
+            block: err,
+            ordinal: 0,
+            opcode: Opcode::ResultErr,
+            operands: vec![ValueRef::Parameter(failure_param)],
+            result_types: vec![hash_result.clone()],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: op_wrap_ok,
+            block: ok2,
+            ordinal: 0,
+            opcode: Opcode::ResultOk,
+            operands: vec![ValueRef::Parameter(digest_param)],
+            result_types: vec![hash_result.clone()],
+            immediate: Immediate::None,
         },
     ];
     let adapters = vec![
-        frozen(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec()),
-        frozen(BRIDGE_CODE_PSH1, u8_type(), u8vec()),
         frozen(BRIDGE_CODE_V2B1, u8vec(), TypeExpr::Bytes),
         frozen_rhw1(),
     ];
-    // Gate admission proves the four-step Sley assembly is in-profile.
-    // (Result-threaded execution across four fallible bridge calls needs
-    // `VariantSwitch` unwrapping, owned by RW-110; the boundary proof here
-    // is that every step — conversions, push, and the final hash over
-    // Sley-assembled bytes — resolves through the successor registry with
-    // no semantic service.)
+    let functions = vec![graph.clone()];
+    // Gate admission proves the two-step Sley assembly is in-profile.
     let report = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &types,
         schema_epoch: epoch(),
         entry: &graph,
         presented_image_bytes: &[],
-        functions: std::slice::from_ref(&graph),
+        functions: &functions,
         parameters: &parameters,
         blocks: &blocks,
         operations: &operations,
         adapters: &adapters,
         constants: &[],
-    });
-    match report {
-        Ok(report) => assert_eq!(report.bridge_uses(), 4, "four Sley-owned steps"),
-        Err(error) => panic!("four-step Sley assembly must gate-admit: {error:?}"),
-    }
-    // Data-plane check: the exact preimage bytes Sley would assemble
-    // (domain || [suffix]) hash to the reference digest via the callable.
-    let mut preimage = b"SLEYSFP1".to_vec();
-    preimage.push(0x41);
+    })
+    .expect("two-step Sley assembly gate-admits");
+    assert_eq!(report.bridge_uses(), 2, "conversion plus hash");
+    // Lower and execute: Sley converts the octet vector to bytes, then
+    // hashes the Sley-assembled bytes. The caller supplies only the
+    // vector and unit; every byte of the hashed preimage crosses a Sley
+    // conversion first.
+    let input = LoweringInput {
+        types: &types,
+        function: &graph,
+        parameters: &parameters,
+        blocks: &blocks,
+        operations: &operations,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: &[],
+        contracts: &[],
+        adapters: &adapters,
+    };
+    let domain: Vec<u8> = b"SLEYSFP1type-fields".to_vec();
+    let vector = ConstValue {
+        value_type: u8vec(),
+        data: ConstData::Sequence(
+            domain
+                .iter()
+                .map(|byte| ConstValue {
+                    value_type: u8_type(),
+                    data: ConstData::UInt(u128::from(*byte)),
+                })
+                .collect(),
+        ),
+    };
+    let termination = sley_vm::execute_function(
+        input,
+        ExecutionRequest {
+            inputs: vec![
+                ConstValue {
+                    value_type: TypeExpr::Unit,
+                    data: ConstData::Unit,
+                },
+                vector,
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("well-formed request")
+    .termination;
+    let digest = match termination {
+        ExecutionTermination::Success(value) => match value.data {
+            ConstData::Result(ResultConst::Ok(payload)) => match &payload.data {
+                ConstData::Bytes(bytes) => bytes.clone(),
+                other => panic!("expected Bytes digest, got {other:?}"),
+            },
+            other => panic!("expected Ok digest, got {other:?}"),
+        },
+        other => panic!("expected success, got {other:?}"),
+    };
     assert_eq!(
-        ok_bytes(execute_raw(&preimage)),
-        blake3::hash(&preimage).as_bytes().to_vec(),
+        digest,
+        blake3::hash(&domain).as_bytes().to_vec(),
         "Sley-assembled bytes hash exactly"
     );
+    // Changing one octet of the supplied vector changes the identity.
+    let mut other_domain = domain.clone();
+    let last = other_domain.len() - 1;
+    other_domain[last] ^= 0x01;
+    let other_vector = ConstValue {
+        value_type: u8vec(),
+        data: ConstData::Sequence(
+            other_domain
+                .iter()
+                .map(|byte| ConstValue {
+                    value_type: u8_type(),
+                    data: ConstData::UInt(u128::from(*byte)),
+                })
+                .collect(),
+        ),
+    };
+    let other_termination = sley_vm::execute_function(
+        LoweringInput {
+            types: &types,
+            function: &graph,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+            schema_epoch: epoch(),
+            state_root: root(),
+            profile: CacheProfile::EXTENDED_V1,
+            constants: &[],
+            globals: &[],
+            functions: &[],
+            contracts: &[],
+            adapters: &adapters,
+        },
+        ExecutionRequest {
+            inputs: vec![
+                ConstValue {
+                    value_type: TypeExpr::Unit,
+                    data: ConstData::Unit,
+                },
+                other_vector,
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("well-formed request")
+    .termination;
+    let other_digest = match other_termination {
+        ExecutionTermination::Success(value) => match value.data {
+            ConstData::Result(ResultConst::Ok(payload)) => match &payload.data {
+                ConstData::Bytes(bytes) => bytes.clone(),
+                other => panic!("expected Bytes digest, got {other:?}"),
+            },
+            other => panic!("expected Ok digest, got {other:?}"),
+        },
+        other => panic!("expected success, got {other:?}"),
+    };
+    assert_ne!(digest, other_digest, "octet change owns the identity");
 }
 
 // ── SLEYBC02 encoding boundary ───────────────────────────────────────

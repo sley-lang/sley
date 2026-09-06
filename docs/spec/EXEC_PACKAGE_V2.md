@@ -12,7 +12,10 @@ Current R2 candidate. `EXEC_PACKAGE_V1` v1 preserved byte-identical as history.
 - Rust surface: `sley_vm::exec_package` (`package_digests_v2`,
   `admit_package_v2`, `approve_package_v2`, `verify_package_binding_v2`,
   `BOOTSTRAP_PROFILE_2_DIGEST`, `EXEC_PACKAGE_V2_*`) plus
-  `sley_vm::execute_approved_package_v2`.
+  `sley_vm::execute_approved_package_v2` plus the staged authority
+  `sley_vm::admission_authority::admit_v2_package` (judge, reference
+  re-lower, compare exactly, mint only on match; the one production
+  location permitted to call gate plus lowerer on the admission path).
 - Supersedes: `EXEC_PACKAGE_V1` v1
   (`9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4`,
   `conformance/exec-package/v1/exec-package.json`,

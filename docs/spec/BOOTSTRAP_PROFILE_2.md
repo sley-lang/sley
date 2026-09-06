@@ -90,7 +90,7 @@ single call. Split `P` into `N = ceil(len/1_048_576)` chunks (`1 MiB`
 except the last, `N >= 2`); compute chunk digests `d_i = RAW(chunk_i)`
 via `RHW1`; build the final preimage `F = b"SLEYCHNK1" || u32(1) ||
 u32(N) || d_0 || ... || d_{N-1}` as ordinary `Bytes` with bootstrap ops;
-digest = `RAW(F)` via `RHW1`. `F` is at most `16 + 32*N` bytes (for the
+digest = `RAW(F)` via `RHW1`. `F` is at most `17 + 32*N` bytes (for the
 largest frozen preimage, 67 MiB fingerprints, `N <= 64`, `F <= 2064`
 bytes), so one final call suffices; recursion applies only beyond
 32 GiB, outside all frozen ceilings. Sley owns chunking, order, count,
