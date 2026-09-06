@@ -17,6 +17,7 @@ CHECKER = ROOT / "crates/sley-check/src/effects.rs"
 SPEC_MARKERS = (
     "Status: S20-230 normative specification.",
     "exactly one `EffectDef`",
+    "Registered pure deterministic host primitives",
     "least fixed point",
     "recursive call-only SCC cannot self-justify",
     "that earlier exact `GRAPH_INVENTORY_MISMATCH`",
@@ -34,9 +35,11 @@ CHECKER_MARKERS = (
     "pub fn validate_effect_program",
     "fn compute_closures",
     "fn compare_const_values",
+    "fn validate_pure_invoke_shape",
     "recursive_cycle_cannot_self_justify_unused_effect",
     "noncanonical_function_effect_set_preserves_cfg_inventory_failure",
     "seeded_unresolved_call_smoke_never_accepts_or_panics",
+    "pure_bridge_shapes_validate_without_closure_contribution",
 )
 USIZE_LIMITS = {
     "MAX_EFFECT_FUNCTIONS": "4_096",

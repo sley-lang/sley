@@ -167,3 +167,53 @@ new admission record, not a quiet profile edit.
 - RW-090: Sley codec byte/error parity against `sley-scb1`.
 - BOOTSTRAP_PROFILE_1 must not depend on byte access until the RW-050
   slice lands (G-10 acceptance unchanged).
+
+## 7. Amendment A1 — owner-compatible pure-primitive carrier (2026-09-06)
+
+Authority: operator / S20-230-owner decision on `rw-050-slice-1.md` §8,
+approving option (i) with the narrower boundary stated there. This section
+amends the record per §5 (amendment, not a quiet edit); §§1–6 stand as the
+original selection and its rationale.
+
+Why the original carrier was incompatible: §§2–3 selected
+`adapter_invoke` entries with empty effect sets, but the landed S20-230
+validator (§§1.4/3.3) failed every zero-effect row closed with
+`ADAPTER_EFFECT_CARDINALITY`, and effectful rows were uncallable without
+S20-230-full effectful lowering (verified in code; Ariadne round 3,
+preserved in `reviews/reweave-rw050-ariadne-r3-2026-09-06.log`; RW-050
+slice 1 closed as a negative result). The admission had selected imports
+without checking owner-contract compatibility — a gap in this record, not
+just in the implementation.
+
+Amended carrier: the three admitted operations ride `adapter_invoke` as
+registered PURE_DETERMINISTIC host primitives under S20-230 §1.5 (owner
+amendment A1, G-10-tied), not as bare effectless imports:
+
+- conversions: frozen shapes `P-BYTES-FROM` / `P-BYTES-TO` (scope `Unit`,
+  `Index` failure pin);
+- push: frozen shape `P-PUSH` (scope exactly the response type, response
+  exactly `Vector` of the request type — the Ariadne HIGH-2 relationship
+  pin, now contract; genericity by monomorphization, each concrete use a
+  closed row);
+- registration: exact identities `SLY1/BRIDGE/` + `B2V1` / `V2B1` /
+  `PSH1`, ABI version 1, recorded as permitted-import entries at the
+  RW-050 profile freeze and the RW-070 import manifest. This record names
+  the registration content; the freezes own it. `host-boundary.json` is
+  untouched (byte-stable by design; digest-cited).
+- layering: S20-230 judges pure form (shape); positive registration
+  (identity/version) is enforced at the lowering/profile/manifest gates,
+  which fail closed on missing, unknown, or unregistered zero-effect
+  imports. No `AdapterCall` is manufactured; full effectful lowering stays
+  out of scope.
+
+Unchanged: §4 anti-shortcut constraints bind RW-050/RW-070 exactly as
+written (plus the owner's SH2 semantic-authority list, which §4 already
+covers and S20-230 §1.5 now restates); alternatives analysis (§2) stands;
+no new capability beyond the three reviewed operations; any further
+primitive needs a new owner amendment.
+
+Procedure from here (owner-stated): negative coverage for the closed pure
+class, independent semantic/boundary review of the amendment, then
+reconciled re-landing of the parked RW-050 prototype with the push pin,
+then focused validation. Slice 1 turns positive only on new reviewed
+implementation evidence; its negative result stands.

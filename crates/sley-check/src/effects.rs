@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use sley_id::EntityId;
 use sley_ssmc::{
     AdapterImport, Block, BuiltinFailureKind, CapabilityRequirement, ConstData, ConstValue,
-    EffectDefinition, EffectKind, FunctionGraph, Immediate, Opcode, Operation, Parameter,
-    ResultConst, Terminator, TypeExpr, ValueRef,
+    EffectDefinition, EffectKind, FunctionGraph, Immediate, IntegerWidth, Opcode, Operation,
+    Parameter, ResultConst, Terminator, TypeExpr, ValueRef,
 };
 
 use crate::{
@@ -538,16 +538,102 @@ fn validate_declared_effect_sets(index: &ProgramIndex<'_>) -> EffectResult<()> {
 fn validate_adapters(types: &TypeEnvironment, index: &ProgramIndex<'_>) -> EffectResult<()> {
     for adapter in index.adapters.values() {
         ensure_sorted_unique(&adapter.effects)?;
-        if adapter.effects.len() != 1 {
+        // Owner amendment A1 (S20-230 §1.5, G-10-tied): an empty effect set
+        // is a pure-primitive candidate. Its schemas still face closed-type
+        // judgment here (free type parameters fail before any shape rule);
+        // the frozen pure-row shapes are enforced at declaration below, the
+        // scope/operand/result binding at invocation (§3.3), and positive
+        // registration at the lowering/profile gates downstream.
+        if adapter.effects.len() > 1 {
             return effect_fail(EffectErrorCode::AdapterEffectCardinality);
         }
-        let effect = lookup(&index.effects, adapter.effects[0], &index.all_ids)?;
-        if effect.effect_kind != EffectKind::AdapterCall {
-            return effect_fail(EffectErrorCode::AdapterEffectKind);
+        if adapter.effects.len() == 1 {
+            let effect = lookup(&index.effects, adapter.effects[0], &index.all_ids)?;
+            if effect.effect_kind != EffectKind::AdapterCall {
+                return effect_fail(EffectErrorCode::AdapterEffectKind);
+            }
         }
         types.check_closed_type(&adapter.request_type)?;
         types.check_closed_type(&adapter.response_type)?;
         types.check_closed_type(&adapter.failure_type)?;
+        // Owner amendment A1 (S20-230 §§1.5/7 step 4): every zero-effect row
+        // faces the frozen pure-row-shape check at declaration, invoked or
+        // not. An unused malformed row fails here; invocation-time
+        // scope/operand/result binding (§3.3) is still enforced separately.
+        if adapter.effects.is_empty() && !pure_row_shape_ok(adapter) {
+            return effect_fail(EffectErrorCode::AdapterInvokeType);
+        }
+    }
+    Ok(())
+}
+
+/// The `UInt(8)` octet element type the pure byte shapes pin.
+fn octet_type() -> TypeExpr {
+    TypeExpr::UInt(IntegerWidth::from_bits(8))
+}
+
+/// The failure type every pure shape pins: `BuiltinFailure(Index)`.
+fn pure_index_error() -> TypeExpr {
+    TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+}
+
+/// Judges one declared zero-effect row (§§1.5/7 step 4) against the frozen
+/// pure-row shapes: the request/response/failure triple alone, since no
+/// operands exist at declaration. Scope/operand/result binding is enforced
+/// separately at invocation.
+fn pure_row_shape_ok(adapter: &AdapterImport) -> bool {
+    if adapter.failure_type != pure_index_error() {
+        return false;
+    }
+    let octet_vector = TypeExpr::Vector(Box::new(octet_type()));
+    let conversions = (adapter.request_type == TypeExpr::Bytes
+        && adapter.response_type == octet_vector)
+        || (adapter.request_type == octet_vector && adapter.response_type == TypeExpr::Bytes);
+    // `P-PUSH` relationship pin at declaration: response exactly `Vector`
+    // of the request type.
+    let push = adapter.response_type == TypeExpr::Vector(Box::new(adapter.request_type.clone()));
+    conversions || push
+}
+
+/// Judges one pure invocation (§§1.5/3.3) against the three frozen shapes.
+/// Scope, request, response, and failure types must match exactly; a pure
+/// invocation contributes no local effect, so this returns nothing to
+/// insert into the closure on success.
+fn validate_pure_invoke_shape(
+    adapter: &AdapterImport,
+    scope_type: &TypeExpr,
+    request_type: &TypeExpr,
+    result_type: &TypeExpr,
+) -> EffectResult<()> {
+    if adapter.failure_type != pure_index_error() {
+        return effect_fail(EffectErrorCode::AdapterInvokeType);
+    }
+    // The declared row must equal the invoked operand types exactly; the
+    // row itself must equal one frozen shape. Both equalities are required:
+    // the first stops a conforming invocation from borrowing an unrelated
+    // row, the second stops a conforming row from serving a foreign shape.
+    if adapter.request_type != *request_type {
+        return effect_fail(EffectErrorCode::AdapterInvokeType);
+    }
+    let octet_vector = TypeExpr::Vector(Box::new(octet_type()));
+    let conversions = *scope_type == TypeExpr::Unit
+        && ((*request_type == TypeExpr::Bytes && adapter.response_type == octet_vector)
+            || (*request_type == octet_vector && adapter.response_type == TypeExpr::Bytes));
+    // `P-PUSH`: scope exactly the response type, response exactly `Vector`
+    // of the request type — the relationship pin. Genericity by
+    // monomorphization: every concrete element type satisfies this
+    // structurally with its own closed row.
+    let push = *scope_type == TypeExpr::Vector(Box::new(request_type.clone()))
+        && adapter.response_type == *scope_type;
+    if !conversions && !push {
+        return effect_fail(EffectErrorCode::AdapterInvokeType);
+    }
+    let expected_result = TypeExpr::Result {
+        ok: Box::new(adapter.response_type.clone()),
+        error: Box::new(adapter.failure_type.clone()),
+    };
+    if *result_type != expected_result {
+        return effect_fail(EffectErrorCode::AdapterInvokeType);
     }
     Ok(())
 }
@@ -766,10 +852,24 @@ fn validate_adapter_invoke(
         return effect_fail(EffectErrorCode::AdapterInvokeType);
     };
     let adapter = lookup(&index.adapters, adapter_id, &index.all_ids)?;
-    if operation.operands.len() != 2
-        || operation.result_types.len() != 1
-        || adapter.effects.len() != 1
-    {
+    if operation.operands.len() != 2 || operation.result_types.len() != 1 {
+        return effect_fail(EffectErrorCode::AdapterInvokeType);
+    }
+    // Owner amendment A1 (S20-230 §§1.5/3.3): an empty effect set takes the
+    // pure arm — frozen shape judgment, no closure contribution. A set with
+    // more than one effect cannot reach here past step-4 cardinality, but
+    // stays a type failure by defense in depth.
+    if adapter.effects.is_empty() {
+        let scope_type = resolve_value_type(operation.operands[0], parameters, operations)?;
+        let request_type = resolve_value_type(operation.operands[1], parameters, operations)?;
+        return validate_pure_invoke_shape(
+            adapter,
+            scope_type,
+            request_type,
+            &operation.result_types[0],
+        );
+    }
+    if adapter.effects.len() != 1 {
         return effect_fail(EffectErrorCode::AdapterInvokeType);
     }
     let effect = lookup(&index.effects, adapter.effects[0], &index.all_ids)?;
@@ -1271,6 +1371,79 @@ mod tests {
         fixture
     }
 
+    fn octet_vector() -> TypeExpr {
+        TypeExpr::Vector(Box::new(TypeExpr::UInt(IntegerWidth::from_bits(8))))
+    }
+
+    fn index_error() -> TypeExpr {
+        TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+    }
+
+    /// Builds a function invoking a zero-effect (pure-candidate) import
+    /// with the given scope/request/response schema. The function declares
+    /// no effects; the adapter row carries none. The adapter identity is
+    /// deliberately unregistered (`[7; 32]`, not a bridge identity):
+    /// S20-230 judges form only, so conforming shapes pass here while the
+    /// lowering/registration gates downstream refuse unknown identities.
+    fn pure_fixture(scope_type: TypeExpr, request: TypeExpr, response: TypeExpr) -> Fixture {
+        let operation_id = id(5);
+        let function = OwnedFunction {
+            function: FunctionGraph {
+                entity_id: id(1),
+                type_parameters: Vec::new(),
+                parameters: vec![id(2), id(3)],
+                result_type: scope_type.clone(),
+                effects: Vec::new(),
+                entry_block: id(4),
+                blocks: vec![id(4)],
+                contracts: Vec::new(),
+                visibility: Visibility::Private,
+            },
+            parameters: vec![
+                parameter(2, 1, 0, scope_type),
+                parameter(3, 1, 1, request.clone()),
+            ],
+            blocks: vec![Block {
+                entity_id: id(4),
+                function: id(1),
+                parameters: Vec::new(),
+                operations: vec![operation_id],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: ValueRef::Parameter(id(2)),
+                }),
+                reachability: Reachability::Required,
+            }],
+            operations: vec![Operation {
+                entity_id: operation_id,
+                block: id(4),
+                ordinal: 0,
+                opcode: Opcode::AdapterInvoke,
+                operands: vec![ValueRef::Parameter(id(2)), ValueRef::Parameter(id(3))],
+                result_types: vec![TypeExpr::Result {
+                    ok: Box::new(response.clone()),
+                    error: Box::new(index_error()),
+                }],
+                immediate: Immediate::Entity(id(21)),
+            }],
+        };
+        Fixture {
+            types: TypeEnvironment::new(Vec::new()).unwrap(),
+            functions: vec![function],
+            effects: Vec::new(),
+            requirements: Vec::new(),
+            adapters: vec![AdapterImport {
+                entity_id: id(21),
+                adapter_id: [7; 32],
+                abi_version: 1,
+                request_type: request,
+                response_type: response,
+                failure_type: index_error(),
+                effects: Vec::new(),
+            }],
+            contracts: Vec::new(),
+        }
+    }
+
     fn capability_fixture() -> Fixture {
         let requirement_id = id(21);
         let token = TypeExpr::CapabilityToken(requirement_id);
@@ -1618,8 +1791,12 @@ mod tests {
 
     #[test]
     fn adapter_cardinality_kind_and_invoke_type_fail_exactly() {
+        // Owner amendment A1 (§1.5): an empty effect set is a
+        // pure-primitive candidate, so cardinality now fires only above
+        // one effect. The old empty-set Unit/Unit row is shape-violating
+        // and fails at declaration instead (see pure tests below).
         let mut cardinality = adapter_fixture();
-        cardinality.adapters[0].effects.clear();
+        cardinality.adapters[0].effects.push(id(22));
         assert_eq!(
             effect_code(cardinality.validate()),
             EffectErrorCode::AdapterEffectCardinality
@@ -1638,6 +1815,280 @@ mod tests {
             effect_code(invoke.validate()),
             EffectErrorCode::AdapterInvokeType
         );
+    }
+
+    #[test]
+    fn pure_bridge_shapes_validate_without_closure_contribution() {
+        // `P-BYTES-FROM`: scope Unit, Bytes -> Vector<UInt(8)>.
+        let from = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        assert!(from.validate().unwrap().functions[0].effects.is_empty());
+        // `P-BYTES-TO`: scope Unit, Vector<UInt(8)> -> Bytes.
+        let to = pure_fixture(TypeExpr::Unit, octet_vector(), TypeExpr::Bytes);
+        assert!(to.validate().unwrap().functions[0].effects.is_empty());
+        // `P-PUSH` monomorphized over UInt(8): scope == response ==
+        // Vector<request>.
+        let push_u8 = pure_fixture(
+            octet_vector(),
+            TypeExpr::UInt(IntegerWidth::from_bits(8)),
+            octet_vector(),
+        );
+        assert!(push_u8.validate().unwrap().functions[0].effects.is_empty());
+        // `P-PUSH` monomorphized over Bool: genericity by monomorphization,
+        // each concrete use its own closed row.
+        let push_bool = pure_fixture(
+            TypeExpr::Vector(Box::new(TypeExpr::Bool)),
+            TypeExpr::Bool,
+            TypeExpr::Vector(Box::new(TypeExpr::Bool)),
+        );
+        assert!(
+            push_bool.validate().unwrap().functions[0]
+                .effects
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn pure_shape_violations_fail_adapter_invoke_type() {
+        // Conversion with a non-Unit scope operand.
+        let scope = pure_fixture(TypeExpr::Bytes, TypeExpr::Bytes, octet_vector());
+        assert_eq!(
+            effect_code(scope.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // `P-BYTES-FROM` row fed a Unit request.
+        let request = pure_fixture(TypeExpr::Unit, TypeExpr::Unit, octet_vector());
+        assert_eq!(
+            effect_code(request.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Declared result contradicts the row response.
+        let mut response = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        response.functions[0].operations[0].result_types[0] = TypeExpr::Result {
+            ok: Box::new(TypeExpr::Bytes),
+            error: Box::new(index_error()),
+        };
+        assert_eq!(
+            effect_code(response.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // `P-BYTES-TO` row fed a Bytes request.
+        let flipped = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, TypeExpr::Bytes);
+        assert_eq!(
+            effect_code(flipped.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Push with a Unit scope: the scope must be the acted-upon vector.
+        let push_scope = pure_fixture(
+            TypeExpr::Unit,
+            TypeExpr::UInt(IntegerWidth::from_bits(8)),
+            octet_vector(),
+        );
+        assert_eq!(
+            effect_code(push_scope.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Push with a scope/request mismatch (Bool element into a u8 row).
+        let mut push_request = pure_fixture(
+            octet_vector(),
+            TypeExpr::UInt(IntegerWidth::from_bits(8)),
+            octet_vector(),
+        );
+        push_request.functions[0].parameters[1].value_type = TypeExpr::Bool;
+        assert_eq!(
+            effect_code(push_request.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Push with response != Vector<request>: the relationship pin.
+        let push_response = pure_fixture(
+            octet_vector(),
+            TypeExpr::UInt(IntegerWidth::from_bits(8)),
+            TypeExpr::Vector(Box::new(TypeExpr::Bool)),
+        );
+        assert_eq!(
+            effect_code(push_response.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Pure row with a non-Index failure type.
+        let mut failure = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        failure.adapters[0].failure_type = TypeExpr::Unit;
+        failure.functions[0].operations[0].result_types[0] = TypeExpr::Result {
+            ok: Box::new(octet_vector()),
+            error: Box::new(TypeExpr::Unit),
+        };
+        assert_eq!(
+            effect_code(failure.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Fake native identity service: Bytes -> Bytes is no pure shape.
+        let fake_identity = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, TypeExpr::Bytes);
+        assert_eq!(
+            effect_code(fake_identity.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+        // Fake native verdict service: Bytes -> Bool is no pure shape.
+        let fake_verdict = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, TypeExpr::Bool);
+        assert_eq!(
+            effect_code(fake_verdict.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+    }
+
+    #[test]
+    fn unused_zero_effect_rows_face_declaration_shape_judgment() {
+        // Ariadne A1 HIGH: the frozen-row-shape check runs at declaration
+        // for every zero-effect row, invoked or not. An unused malformed
+        // row (here Bytes -> Bytes) fails; an unused conforming row passes
+        // as inert form (still uncallable without registration downstream).
+        let mut malformed = empty_fixture();
+        malformed.adapters.push(AdapterImport {
+            entity_id: id(21),
+            adapter_id: [7; 32],
+            abi_version: 1,
+            request_type: TypeExpr::Bytes,
+            response_type: TypeExpr::Bytes,
+            failure_type: index_error(),
+            effects: Vec::new(),
+        });
+        assert_eq!(
+            effect_code(malformed.validate()),
+            EffectErrorCode::AdapterInvokeType
+        );
+
+        let mut inert = empty_fixture();
+        inert.adapters.push(AdapterImport {
+            entity_id: id(21),
+            adapter_id: [7; 32],
+            abi_version: 1,
+            request_type: TypeExpr::Bytes,
+            response_type: octet_vector(),
+            failure_type: index_error(),
+            effects: Vec::new(),
+        });
+        assert!(inert.validate().is_ok());
+    }
+
+    #[test]
+    fn unregistered_shape_conforming_form_passes_static_judgment_only() {
+        // The pure fixtures above already use the unregistered identity
+        // `[7; 32]` and pass: S20-230 judges form, never registration.
+        // Positive registration (exact bridge identity/version) is enforced
+        // at the lowering/profile gates, which fail closed on unknown
+        // identities — covered by the lowering pipeline negatives, not here.
+        let form = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        assert_ne!(form.adapters[0].adapter_id, [0; 32]);
+        assert!(form.validate().unwrap().functions[0].effects.is_empty());
+    }
+
+    #[test]
+    fn effect_carrying_row_never_takes_pure_treatment() {
+        // Control: the effectful adapter path still demands its closure.
+        // Clearing the declaration must fail closure comparison — the row
+        // contributes an effect, exactly what pure rows never do.
+        let mut undeclared = adapter_fixture();
+        undeclared.functions[0].function.effects.clear();
+        assert_eq!(
+            effect_code(undeclared.validate()),
+            EffectErrorCode::ClosureMismatch
+        );
+    }
+
+    #[test]
+    fn pure_invoke_mixes_with_effectful_closure() {
+        // One function, one effectful request plus one pure conversion:
+        // the closure is exactly the declared effect, the pure invocation
+        // adding nothing.
+        let effect_id = id(20);
+        let mut function = OwnedFunction {
+            function: FunctionGraph {
+                entity_id: id(1),
+                type_parameters: Vec::new(),
+                parameters: vec![id(2), id(3), id(4)],
+                result_type: TypeExpr::Unit,
+                effects: vec![effect_id],
+                entry_block: id(5),
+                blocks: vec![id(5)],
+                contracts: Vec::new(),
+                visibility: Visibility::Private,
+            },
+            parameters: vec![
+                parameter(2, 1, 0, TypeExpr::Unit),
+                parameter(3, 1, 1, TypeExpr::Bytes),
+                parameter(4, 1, 2, TypeExpr::Unit),
+            ],
+            blocks: vec![Block {
+                entity_id: id(5),
+                function: id(1),
+                parameters: Vec::new(),
+                operations: vec![id(6), id(7)],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: ValueRef::Parameter(id(2)),
+                }),
+                reachability: Reachability::Required,
+            }],
+            operations: vec![
+                Operation {
+                    entity_id: id(6),
+                    block: id(5),
+                    ordinal: 0,
+                    opcode: Opcode::EffectRequest,
+                    operands: vec![ValueRef::Parameter(id(2)), ValueRef::Parameter(id(4))],
+                    result_types: vec![TypeExpr::Result {
+                        ok: Box::new(TypeExpr::Unit),
+                        error: Box::new(TypeExpr::Unit),
+                    }],
+                    immediate: Immediate::Entity(effect_id),
+                },
+                Operation {
+                    entity_id: id(7),
+                    block: id(5),
+                    ordinal: 1,
+                    opcode: Opcode::AdapterInvoke,
+                    operands: vec![ValueRef::Parameter(id(2)), ValueRef::Parameter(id(3))],
+                    result_types: vec![TypeExpr::Result {
+                        ok: Box::new(octet_vector()),
+                        error: Box::new(index_error()),
+                    }],
+                    immediate: Immediate::Entity(id(21)),
+                },
+            ],
+        };
+        function.blocks[0].operations = vec![id(6), id(7)];
+        let fixture = Fixture {
+            types: TypeEnvironment::new(Vec::new()).unwrap(),
+            functions: vec![function],
+            effects: vec![effect(20, EffectKind::StdoutWrite)],
+            requirements: Vec::new(),
+            adapters: vec![AdapterImport {
+                entity_id: id(21),
+                adapter_id: [7; 32],
+                abi_version: 1,
+                request_type: TypeExpr::Bytes,
+                response_type: octet_vector(),
+                failure_type: index_error(),
+                effects: Vec::new(),
+            }],
+            contracts: Vec::new(),
+        };
+        let report = fixture.validate().unwrap();
+        assert_eq!(report.functions[0].effects, vec![effect_id]);
+    }
+
+    #[test]
+    fn pure_candidate_with_open_schema_fails_before_shape() {
+        // Genericity by monomorphization only: the function stays closed
+        // while the row carries a free type parameter, so step-4 closed-type
+        // judgment fails with TYPE_PARAMETER_OUT_OF_SCOPE before any shape
+        // rule applies. (A function with open parameter types already fails
+        // at step-2 graph judgment with the same code.)
+        let mut open = pure_fixture(TypeExpr::Unit, TypeExpr::Bytes, octet_vector());
+        open.adapters[0].request_type = TypeExpr::TypeParameter(0);
+        open.adapters[0].response_type = TypeExpr::Vector(Box::new(TypeExpr::TypeParameter(0)));
+        match open.validate().unwrap_err() {
+            EffectValidationError::Type(error) => {
+                assert_eq!(error.code(), TypeErrorCode::ParameterOutOfScope);
+            }
+            error => panic!("unexpected error: {error}"),
+        }
     }
 
     #[test]

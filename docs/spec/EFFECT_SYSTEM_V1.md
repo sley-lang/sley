@@ -66,16 +66,97 @@ An `AdapterImport` contains its `EntityId`, stable 32-byte adapter identity,
 ABI version, exact closed request/response/failure types, and a raw-ID sorted
 effect set. S20-230 does not interpret the adapter identity or ABI version.
 
-Epoch 1 requires the effect set to contain exactly one `EffectDef`, and that
-definition's kind must be `AdapterCall`. The adapter scope type is that
-definition's `scope_type`.
+An import carrying effects requires the effect set to contain
+exactly one `EffectDef`, and that definition's kind must be `AdapterCall`.
+The adapter scope type is that definition's `scope_type`.
 
 This cardinality rule resolves an otherwise unsafe schema ambiguity: the
 frozen `adapter_invoke` opcode has one scope operand, while `AdapterImport`
-stores a set without per-effect scope bindings. Zero effects could hide
-authority and multiple effects could not be scoped unambiguously. A future
-schema epoch may add explicit per-effect scope bindings; epoch 1 does not infer
-or merge them.
+stores a set without per-effect scope bindings. An effect set that does not
+contain exactly one `EffectDef` is unsafe in general: multiple effects could
+not be scoped unambiguously, and an empty set could hide authority. Section
+1.5 admits exactly one narrow exception — registered pure deterministic host
+primitives with frozen value-mechanic shapes — and every other empty-set use
+fails at invocation (§3.3) or at the positive-registration gate downstream.
+A future schema epoch may add explicit per-effect scope bindings; epoch 1
+does not infer or merge them.
+
+### 1.5 Registered pure deterministic host primitives (owner amendment A1)
+
+Authority: operator / S20-230-owner decision 2026-09-06, RW-050 §8 option
+(i), narrowly tied to G-10 bootstrap byte transport and construction. This
+section does not authorize arbitrary effectless imports, a general FFI,
+native compiler services, or any weakening of the effect system. It does not
+authorize full S20-230 effectful lowering; that remains its separately owned
+full-Machine-Genesis obligation. Extension to any further primitive needs a
+new owner amendment, not an analogy to this one.
+
+Background: the RW-030 G-10 admission selected `adapter_invoke` entries with
+empty effect sets, which the §1.4 rule above failed closed with
+`ADAPTER_EFFECT_CARDINALITY` (verified: Ariadne round 3, RW-050 slice 1
+negative result, preserved). The zero-effects rationale — an empty set could
+hide authority — attaches to imports that could carry authority. A pure value
+function over caller-owned values carries none: no scope to bind, no host
+state to touch, no capability to confine. This section distinguishes that
+case by frozen shape, keeping fail-closed behavior for everything outside
+the three shapes below. No `AdapterCall` effect is manufactured to satisfy
+the old rule: pure primitives are not mislabeled as external effects.
+
+An `AdapterImport` with an empty effect set is a pure-primitive candidate.
+S20-230 judges the candidate's form at two points. At declaration (step 4)
+the request/response/failure triple must equal one frozen row shape —
+`P-BYTES-FROM` / `P-BYTES-TO` triples, or the `P-PUSH` relationship
+(response exactly `Vector` of the request type) — with failure exactly
+`BuiltinFailure(Index)`; any other triple fails with
+`ADAPTER_INVOKE_TYPE`, invoked or not. At invocation (step 6) the
+scope/operand/result binding must match §3.3. The candidate becomes
+callable only through positive registration: its exact identity and version
+must be registered in the approved host-boundary/import profile (RW-050
+permitted-import entries, RW-070 import manifest). A missing, unknown, or
+unregistered zero-effect import fails closed at the registration gate
+(lowering refuses the immediate); S20-230 acceptance of its form never
+executes it.
+
+The closed pure shapes (frozen; the only G-10-admitted value mechanics):
+
+- `P-BYTES-FROM`: request `Bytes`, response `Vector<UInt(8)>`. Invocation
+  scope operand: `Unit`.
+- `P-BYTES-TO`: request `Vector<UInt(8)>`, response `Bytes`. Invocation
+  scope operand: `Unit`.
+- `P-PUSH`: request `E`, response `Vector<E>`, for any closed `E`
+  (genericity by monomorphization: each concrete use declares its own
+  closed row; rows with free type parameters fail closed type judgment).
+  Invocation scope operand: `Vector<E>`, exactly equal to the response
+  type. The response is always exactly `Vector` of the request type; no
+  other request/response relationship is pure.
+
+`UInt(8)` is `UInt` with 8-bit width. In every pure shape the failure type
+is exactly `BuiltinFailure(Index)` (capacity refusal lives in the
+collection-bounds family; kinds are epoch-closed). The invocation scope
+operand binds no authority: `Unit` for the conversions (stateless), the
+acted-upon vector itself for push.
+
+A zero-effect row satisfying the owner's validity conditions only through
+these shapes: exact registered identity and version; frozen typed input and
+output schemas; deterministic behavior on identical canonical inputs; no
+filesystem, network, clock, randomness, environment, mutable-host-state,
+secret, capability, policy, process, or other external effect; no ability
+to call or select arbitrary native functions; bounded allocation, input
+size, output size, recursion, and work; fuel/resource charge before
+externally observable resource consumption per the accepted accounting
+contract; typed deterministic failures; fixture/conformance-tested
+semantics. Registration, bounds, charges, and tests live in the owning
+profile/lane artifacts (RW-050 freeze, RW-070 manifest, conformance
+vectors); S20-230 owns the shape rule stated here.
+
+Semantic authority boundary: pure primitives provide primitive value
+mechanics only. They must not perform or delegate program/schema-aware SCB
+validation or canonical judgment, SSMC formation or validation, reference
+or identity judgment, type or CFG checking, effect or contract judgment,
+mandatory test selection, Witness integrity/discharge judgment, semantic
+lowering, compiler-image assembly, candidate validation, or policy
+judgment. Those responsibilities remain Sley-owned under REWEAVE SH2; a
+primitive doing so invalidates SH2, not just its use.
 
 ## 2. Validation request boundary
 
@@ -130,8 +211,10 @@ The referenced effect is a local direct effect of the enclosing function.
 
 ### 3.3 `adapter_invoke`
 
+An effectful `adapter_invoke` names an import carrying effects:
+
 - the immediate is exactly `Entity(adapter)` and resolves to one
-  `AdapterImport`;
+  `AdapterImport` with exactly one effect;
 - there are exactly two operands and one result;
 - operand 0 has exactly the sole `AdapterCall` effect's scope type;
 - operand 1 has exactly the adapter request type;
@@ -139,6 +222,25 @@ The referenced effect is a local direct effect of the enclosing function.
   `Result<adapter.response_type,adapter.failure_type>`.
 
 The adapter's sole effect is a local direct effect of the enclosing function.
+
+A pure `adapter_invoke` names a pure-primitive candidate (§1.5) whose
+declared triple already satisfies one frozen row shape:
+
+- the immediate is exactly `Entity(adapter)` and resolves to one
+  `AdapterImport` with an empty effect set;
+- there are exactly two operands and one result;
+- the adapter failure type is exactly `BuiltinFailure(Index)`;
+- operand, scope, request, and response types match exactly one frozen
+  pure shape: `P-BYTES-FROM` (scope `Unit`, request `Bytes`, response
+  `Vector<UInt(8)>`), `P-BYTES-TO` (scope `Unit`, request
+  `Vector<UInt(8)>`, response `Bytes`), or `P-PUSH` (scope exactly the
+  response type, response exactly `Vector` of the request type);
+- the result type is exactly
+  `Result<adapter.response_type,adapter.failure_type>`.
+
+A pure invocation contributes no local effect to the enclosing function.
+Every other empty-effect invocation fails with `ADAPTER_INVOKE_TYPE`.
+
 No adapter is invoked during static judgment.
 
 ### 3.4 `capability_narrow`
@@ -164,7 +266,11 @@ is otherwise executable.
 ## 4. Exact least effect closure
 
 For each function, `local_effects` is the raw-ID set referenced by its valid
-`effect_request` and `adapter_invoke` operations.
+`effect_request` and effectful `adapter_invoke` operations. A pure
+`adapter_invoke` (§3.3) contributes no local effect, so `Function.effects`
+needs no declaration for it; declaring an effect for a pure invocation is
+compared exactly like any other declaration (an unjustified declaration
+fails closure comparison).
 
 The computed closure is the least fixed point:
 
@@ -246,19 +352,28 @@ Earlier `SSMC_*`, `TYPE_*`, and `GRAPH_*`/`CFG_*` failures retain their phase
 and exact code. In particular, an ill-formed EffectDef type, nonpersistable
 EffectDef scope type, ill-formed AdapterImport type, ill-formed
 CapabilityRequirement scope constant, or earlier constant-shape/range failure
-returns the exact S20-210 `TYPE_*` result. After a constant passes S20-210,
+returns the exact S20-210 `TYPE_*` result. A pure-primitive candidate row
+with a non-closed schema (including free type parameters) fails here, before
+any shape rule applies. After a constant passes S20-210,
 an exact declared-type mismatch uses `CAPABILITY_SCOPE_CONST_TYPE`, and an
 ordering/duplicate failure uses `CAPABILITY_SCOPE_CONST_CANONICAL`. S20-230
 does not collapse earlier errors into an effect error.
+
+Pure-shape violations — at declaration (row triple) or at invocation
+(scope/operand/result binding) — use `ADAPTER_INVOKE_TYPE`; an effect set
+with more than one effect uses `ADAPTER_EFFECT_CARDINALITY`; a single
+non-`AdapterCall` effect uses `ADAPTER_EFFECT_KIND`. The shared code keeps
+first-failure deterministic: a row violating both points fails at step 4.
 
 ## 7. Deterministic validation order
 
 1. closed request counts, global identities, and raw-ID input order;
 2. S20-210/S20-220 judgment for every function in function-ID order;
 3. effect-definition type and scope-persistability judgment;
-4. adapter set/cardinality/kind and type judgment;
+4. adapter set/cardinality/kind/pure-row-shape and type judgment;
 5. capability-requirement set, constant, and contract-boundary judgment;
-6. relevant operation shape/type judgment and call-edge construction;
+6. relevant operation shape/type judgment (including pure invocation
+   scope/operand/result binding) and call-edge construction;
 7. bounded least-fixed-point closure construction;
 8. exact function declaration comparison in function-ID order.
 
@@ -270,9 +385,17 @@ earlier failure.
 - positive fixtures cover direct request, adapter invoke, capability narrow,
   direct calls, empty effects, transitive calls, recursion, and mutual
   recursion;
+- positive pure fixtures cover the three §1.5 shapes, including push
+  monomorphizations over distinct element types, with empty function effect
+  declarations and mixed effectful-plus-pure functions;
 - negative fixtures cover every stable code, wrong entity kinds, operation
   shape/type mismatches, extra/missing declarations, ambiguous adapters,
   malformed scope constants, unresolved contracts, and hostile limits;
+- negative pure fixtures cover every pure-shape violation (scope, request,
+  response, and failure-type mismatches), effect-carrying rows presented
+  for pure treatment, and multi-effect sets;
+- pipeline negatives prove unregistered zero-effect imports fail closed at
+  the lowering/registration gate even where their static form is valid;
 - a recursive call-only SCC cannot self-justify an unused declared effect;
 - function/input insertion-order perturbation produces the same judgment;
 - a seeded hostile-call/closure smoke corpus terminates without panic;

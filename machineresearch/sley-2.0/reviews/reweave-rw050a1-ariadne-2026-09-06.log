@@ -1,0 +1,27 @@
+status: FAIL
+
+findings:
+- **HIGH — frozen-form rule is not enforced for unused imports.** The specification admits only the three frozen pure shapes and assigns pure-shape judgment to adapter-validation step 4 (`docs/spec/EFFECT_SYSTEM_V1.md:101-125,359-368`). Instead, `validate_adapters` accepts every closed zero-effect row (`crates/sley-check/src/effects.rs:538-559`); shape judgment occurs only when an import is invoked (`:832-845`). Thus an unused `Bytes -> Bool`, wrong-failure, or other arbitrary effectless row passes S20-230. This broadens static acceptance beyond the owner’s narrow decision, although it grants no callable native authority.
+- **INFO — SH2 remains Sley-owned.** The semantic-authority exclusions are explicit and comprehensive (`docs/spec/EFFECT_SYSTEM_V1.md:146-153`; `rw-030-g10-admission.md:131-143,209-213`).
+- **INFO — form/registration layering is sound and currently fail-closed.** S20-230 intentionally ignores identity/version; present lowering refuses unsupported opcodes (`crates/sley-vm/src/lower.rs:633-636`; `extended.rs:804`). Re-landing must preserve positive identity/version/profile registration before execution.
+- **INFO — round-3 HIGH 2 is repaired.** P-PUSH enforces `scope == response == Vector<request>` (`effects.rs:596-603`) with a negative relationship test (`:1875-1884`).
+- **INFO — monomorphization is coherent.** Adapter schemas undergo closed-type judgment (`effects.rs:555-557`), and open rows preserve `TYPE_PARAMETER_OUT_OF_SCOPE` (`:2017-2025`).
+- **INFO — old rules remain intact.** `>1` effects retains `ADAPTER_EFFECT_CARDINALITY`; a single non-`AdapterCall` retains `ADAPTER_EFFECT_KIND` (`effects.rs:546-553,1766-1791`). No effect is manufactured, and only the pure invocation arm omits closure insertion (`:836-861`); least-fixed-point construction is otherwise unchanged.
+- **INFO — enforcement homes:** identity/version and import-to-shape binding belong to RW-050/RW-070 registration; bounds, charging, deterministic failures, purity, SH2 exclusions, and conformance belong to the profile/runtime/test lanes (`EFFECT_SYSTEM_V1.md:133-153`). The missing enforcement is the row-level frozen-form check assigned to S20-230 itself.
+
+validation:
+- Compared exactly four dirty files against `main@50f17c9`; no additional paths changed.
+- `git diff --check` passed.
+- `python3 scripts/check_effect_system.py` passed, but its marker checks do not detect the HIGH above.
+- Cargo tests were not run because this handoff grants read-only actions and compilation would write build artifacts.
+- No prototype/runtime review performed.
+
+blockers:
+- Enforce request/response/failure classification for every zero-effect row in `validate_adapters`; retain invocation-time scope/operand/result checks.
+- Add a negative fixture proving an unused malformed zero-effect import fails.
+- Review transcript was not written to the requested path because the handoff permits reads only.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority) for the bounded repair, then Ariadne re-review before prototype re-landing.
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). HIGH accepted: row-level shape enforcement belongs at declaration per the spec's own step-4 assignment. Bounded repair: `pure_row_shape_ok` triple check in `validate_adapters` (declaration, `ADAPTER_INVOKE_TYPE` on violation), invocation scope/operand/result checks retained; unused-malformed negative plus unused-conforming positive fixtures added; §7 order wording reconciled (step 4 pure-row-shape, step 6 pure-invocation binding) per the Nabu MEDIUM. Re-review requested before any re-landing; no prototype code touched.
