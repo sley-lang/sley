@@ -20,14 +20,14 @@ pub mod host_abi;
 mod lower;
 pub mod raw_hash;
 
-pub use admission_authority::{AuthorityError, admit_v2_package};
+pub use admission_authority::{AuthorityError, V2Closure, admit_v2_package};
 pub use exec_package::{
     AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
     BOOTSTRAP_PROFILE_2_DIGEST, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,
     EXEC_PACKAGE_V2_CONTRACT, EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION,
     EXEC_PACKAGE_VERSION, ExecutionPackage, PackageDigests, PackageError, admit_package,
-    admit_package_v2, approve_package, approve_package_v2, hydrate_layouts, package_digests,
-    package_digests_v2, verify_package_binding, verify_package_binding_v2,
+    approve_package, approve_package_v2, hydrate_layouts, package_digests, package_digests_v2,
+    verify_package_binding, verify_package_binding_v2,
 };
 pub use execute::{
     ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,

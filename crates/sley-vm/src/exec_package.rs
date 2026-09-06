@@ -912,9 +912,12 @@ pub fn admit_package(package_digest: [u8; 32]) -> AdmissionReceipt {
 ///
 /// Same authority discipline as v1, binding the successor profile digest
 /// and host ABI version 2. V1 receipts keep their digests; v2 receipts
-/// (including any `RHW1` closure) bind v2.
+/// (including any `RHW1` closure) bind v2. Exclusive minter: the staged
+/// authority (`crate::admission_authority::admit_v2_package`); this
+/// constructor is `pub(crate)` so reviewed integration paths cannot mint
+/// outside it (direct calls exist only in crate unit tests as negatives).
 #[must_use]
-pub fn admit_package_v2(package_digest: [u8; 32]) -> AdmissionReceipt {
+pub(crate) fn admit_package_v2(package_digest: [u8; 32]) -> AdmissionReceipt {
     AdmissionReceipt {
         package_digest,
         profile_digest: BOOTSTRAP_PROFILE_2_DIGEST,

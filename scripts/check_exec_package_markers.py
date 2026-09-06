@@ -38,7 +38,7 @@ for pin, value in [
     ("EXEC_PACKAGE_MAX_DEPENDENCY_BYTES", "8_388_608"),
     ("&BootstrapProfileReport", "&BootstrapProfileReport"),
     ("pub fn package_digests_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
-    ("pub fn admit_package_v2(", "HOST_ABI_V2_VERSION"),
+    ("pub(crate) fn admit_package_v2(", "HOST_ABI_V2_VERSION"),
     ("pub fn approve_package_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
     ("pub fn verify_package_binding_v2(", "package_digests_v2"),
 ]:
@@ -90,10 +90,13 @@ if "MAX_TYPE_DEPTH" not in exec_rs:
 # Staged v2 admission authority: the one production location permitted to
 # call the gate plus the reference lowerer on the admission path (exact
 # Sley-driver model; the package/execution/host-ABI/bridge modules stay
-# free of those calls per the anti-shortcut pins below).
+# free of those calls per the anti-shortcut pins below). The raw v2
+# constructor is crate-private with no public re-export, so reviewed
+# integration paths mint exclusively through the authority.
 authority_rs = AUTHORITY_RS.read_text(encoding="utf-8")
 for marker in [
     "pub fn admit_v2_package(",
+    "pub struct V2Closure",
     "judge_bootstrap_profile(",
     "lower_function(",
     "admit_package_v2(",
@@ -107,6 +110,8 @@ for marker in [
 lib_rs = LIB_RS.read_text(encoding="utf-8")
 if "pub mod admission_authority;" not in lib_rs:
     problems.append("lib-module-missing:admission_authority")
+if "admit_package_v2" in lib_rs:
+    problems.append("lib-reexport-forbidden:admit_package_v2")
 
 # Anti-shortcut absence: the package/raw-hash sources must not call native
 # semantic digest or compiler services (behavioral probes pin this in Rust

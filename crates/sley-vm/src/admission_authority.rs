@@ -2,28 +2,40 @@
 //!
 //! The host execution path verifies byte-hash equality but cannot prove a
 //! package image was lowered from the judged graphs. This staged authority
-//! performs that comparison in code: judge the closure, reference re-lower
-//! with the native lowerer, compare bytes exactly, verify the package
-//! carries the gate's claims, and mint a v2 receipt only on exact match.
-//! A mismatch aborts with no receipt, so no approval or execution can
-//! follow. This is the exact procedure the Sley build driver replicates
-//! per the RW-080 contract §1.4; no toolchain graph, no C1, and no RW-080
-//! construction live here.
+//! is the exclusive v2 minter in reviewed paths: it takes one canonical
+//! closure bundle, derives the gate input and the reference-lowering input
+//! from that same bundle internally (so two callers cannot supply graph A
+//! for the gate and graph B for the lowering), judges, re-lowers,
+//! compares bytes exactly, verifies the package carries the gate's claims,
+//! and mints a v2 receipt only on exact match. A mismatch aborts with no
+//! receipt, so no approval or execution can follow. This is the exact
+//! procedure the Sley build driver replicates per the RW-080 contract
+//! §1.4; no toolchain graph, no C1, and no RW-080 construction live here.
 //!
-//! Authority discipline, not cryptography, secures staging: production
-//! `admit_package_v2` stays a pure-data constructor (as in v1, where every
-//! native gate/checker/oracle is secured by campaign-declaration plus
-//! review). R2 authority evidence consists of receipts returned by
-//! [`admit_v2_package`] (identified by the comparison the authority
-//! performed); direct constructor calls outside it are test negatives or
-//! non-evidence staging, never R2 authority evidence.
+//! Exclusivity is enforced in code: the raw v2 constructor
+//! (`exec_package::admit_package_v2`) is `pub(crate)`, and its public
+//! re-export was removed, so reviewed integration paths cannot mint v2
+//! receipts except through [`admit_v2_package`]. Authority discipline, not
+//! cryptography, secures staging (as in v1, where every native
+//! gate/checker/oracle is secured by campaign-declaration plus review).
+//! R2 authority evidence consists of receipts returned by
+//! [`admit_v2_package`]; direct constructor calls exist only in crate
+//! unit tests as explicitly marked negatives, never as R2 evidence.
 //!
 //! This module is the one production location permitted to call the gate
-//! and the reference lowerer on the admission path. The package,
+//! plus the reference lowerer on the admission path. The package,
 //! execution, raw-hash, host-ABI, and bridge modules remain free of those
 //! calls (pinned by `scripts/check_exec_package_markers.py` and
 //! `scripts/check_host_abi_markers.py`).
 
+use sley_check::TypeEnvironment;
+use sley_id::{EntityId, SchemaEpochId, StateRoot};
+use sley_ssmc::{
+    AdapterImport, Block, ConstantDefinition, ContractDefinition, FunctionGraph,
+    GlobalValueDefinition, Operation, Parameter,
+};
+
+use crate::CacheProfile;
 use crate::bootstrap::{BootstrapProfileInput, BootstrapProfileReport, judge_bootstrap_profile};
 use crate::exec_package::{
     AdmissionReceipt, ExecutionPackage, PackageDigests, PackageError, admit_package_v2,
@@ -31,11 +43,44 @@ use crate::exec_package::{
 };
 use crate::lower::{LoweringInput, lower_function};
 
+/// One canonical closure bundle feeding both authority legs.
+///
+/// The authority derives the gate input and the reference-lowering input
+/// from this single bundle internally, so a caller cannot judge graph A
+/// while re-lowering graph B. The presented image is always the candidate
+/// package's own bytes (no separate presented parameter to diverge).
+pub struct V2Closure<'a> {
+    /// Selected type environment.
+    pub types: &'a TypeEnvironment,
+    /// Exact schema epoch.
+    pub schema_epoch: SchemaEpochId,
+    /// Exact state root.
+    pub state_root: StateRoot,
+    /// Entry function id (resolved in `functions`).
+    pub entry: EntityId,
+    /// Complete function inventory.
+    pub functions: &'a [FunctionGraph],
+    /// Complete parameter inventory.
+    pub parameters: &'a [Parameter],
+    /// Complete block inventory.
+    pub blocks: &'a [Block],
+    /// Complete operation inventory.
+    pub operations: &'a [Operation],
+    /// Complete import inventory.
+    pub adapters: &'a [AdapterImport],
+    /// Complete constant inventory.
+    pub constants: &'a [ConstantDefinition],
+    /// Complete global inventory (lowering only).
+    pub globals: &'a [GlobalValueDefinition],
+    /// Complete contract inventory (lowering only).
+    pub contracts: &'a [ContractDefinition],
+}
+
 /// Staged authority failure (no receipt minted on any variant).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AuthorityError {
-    /// The presented image bytes do not equal the candidate package bytes.
-    PresentedMismatch,
+    /// The entry resolves to no supplied function.
+    UnknownEntry,
     /// The gate refused the closure (no report exists for refused closures).
     GateRefused,
     /// Reference re-lowering failed or its bytes differ from the package.
@@ -51,7 +96,7 @@ pub enum AuthorityError {
 impl core::fmt::Display for AuthorityError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let code = match self {
-            Self::PresentedMismatch => "AUTHORITY_PRESENTED_MISMATCH",
+            Self::UnknownEntry => "AUTHORITY_UNKNOWN_ENTRY",
             Self::GateRefused => "AUTHORITY_GATE_REFUSED",
             Self::ReferenceMismatch => "AUTHORITY_REFERENCE_MISMATCH",
             Self::ClaimsMismatch => "AUTHORITY_CLAIMS_MISMATCH",
@@ -64,22 +109,54 @@ impl core::fmt::Display for AuthorityError {
 
 impl std::error::Error for AuthorityError {}
 
-/// Judge, reference re-lower, compare exactly, and mint a v2 receipt.
+/// Judge one closure, reference re-lower it, compare exactly, and mint.
+///
+/// Both legs derive from `closure` internally; `package` supplies only the
+/// candidate bytes plus the claimed gate counts/fingerprints (verified,
+/// never trusted).
 ///
 /// # Errors
 ///
 /// [`AuthorityError`] on the first failed leg; no receipt is minted on any
 /// failure.
 pub fn admit_v2_package(
-    gate: &BootstrapProfileInput<'_>,
-    lowering: &LoweringInput<'_>,
+    closure: &V2Closure<'_>,
     package: &ExecutionPackage,
 ) -> Result<(PackageDigests, AdmissionReceipt, BootstrapProfileReport), AuthorityError> {
-    if gate.presented_image_bytes != package.image_bytes.as_slice() {
-        return Err(AuthorityError::PresentedMismatch);
-    }
-    let report = judge_bootstrap_profile(gate).map_err(|_| AuthorityError::GateRefused)?;
-    let reference = lower_function(*lowering).map_err(|_| AuthorityError::ReferenceMismatch)?;
+    let entry = closure
+        .functions
+        .iter()
+        .find(|graph| graph.entity_id == closure.entry)
+        .ok_or(AuthorityError::UnknownEntry)?;
+    let report = judge_bootstrap_profile(&BootstrapProfileInput {
+        types: closure.types,
+        schema_epoch: closure.schema_epoch,
+        entry,
+        presented_image_bytes: &package.image_bytes,
+        functions: closure.functions,
+        parameters: closure.parameters,
+        blocks: closure.blocks,
+        operations: closure.operations,
+        adapters: closure.adapters,
+        constants: closure.constants,
+    })
+    .map_err(|_| AuthorityError::GateRefused)?;
+    let reference = lower_function(LoweringInput {
+        types: closure.types,
+        function: entry,
+        parameters: closure.parameters,
+        blocks: closure.blocks,
+        operations: closure.operations,
+        schema_epoch: closure.schema_epoch,
+        state_root: closure.state_root,
+        profile: CacheProfile::EXTENDED_V1,
+        constants: closure.constants,
+        globals: closure.globals,
+        functions: closure.functions,
+        contracts: closure.contracts,
+        adapters: closure.adapters,
+    })
+    .map_err(|_| AuthorityError::ReferenceMismatch)?;
     if reference.bytes != package.image_bytes {
         return Err(AuthorityError::ReferenceMismatch);
     }
@@ -103,8 +180,8 @@ mod tests {
     #[test]
     fn authority_error_codes_are_stable() {
         assert_eq!(
-            AuthorityError::PresentedMismatch.to_string(),
-            "AUTHORITY_PRESENTED_MISMATCH"
+            AuthorityError::UnknownEntry.to_string(),
+            "AUTHORITY_UNKNOWN_ENTRY"
         );
         assert_eq!(
             AuthorityError::GateRefused.to_string(),

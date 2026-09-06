@@ -123,12 +123,13 @@ V1 files preserved; live successor revalidated:
 - `check_exec_package_v1.py` PASS + `check_exec_package_v2.py` PASS +
   `check_exec_package_markers.py` PASS (now pins v2);
 - `cargo test -p sley-vm`: all suites green including new
-  `rw075_raw_callable` (12 tests: callability, vectors, boundaries,
+  `rw075_raw_callable` (13 tests: callability, vectors, boundaries,
   tamper, fuel/pre-charge, unknown/wrong-version negatives, v2 package
   binding + v1/v2 mismatch negatives, staged authority
-  graphs-to-image binding + tamper refusal, large-preimage composition,
-  11-domain preimage ownership + order negative, Sley-built end-to-end
-  assembly, SLEYBC02 boundary);
+  graphs-to-image binding + tamper refusal, graph-A/B substitution
+  refusal, large-preimage composition, 11-domain preimage ownership +
+  order negative, Sley-built four-step executed assembly, SLEYBC02
+  boundary);
 - v1 20 closure vectors replay unchanged under the successor gate
   (superset; same `accepted.json` bytes in v2);
 - RW-060 lifecycle preserved as history; its 15 driver tests remain green
@@ -190,9 +191,11 @@ No widening performed; no violation found.
   RW-080.
 
 Current verdicts: Nabu round-7: FAIL (two BLOCKERs, preserved); Nabu
-round-8: FAIL (R7-B2 hardening + executed-assembly BLOCKERs, preserved
-in `reviews/reweave-rw075-nabu-r8-2026-09-06.log`); Nabu final: PENDING
-(round-9 requested); premium delta: PENDING; aggregate R2: NOT_READY
+round-8: FAIL (R7-B2 hardening + executed-assembly BLOCKERs, preserved);
+Nabu round-9: FAIL (authority-divergence + exclusivity + assembly
+BLOCKERs, preserved in
+`reviews/reweave-rw075-nabu-r9-2026-09-06.log`); Nabu final: PENDING
+(round-10 requested); premium delta: PENDING; aggregate R2: NOT_READY
 (implementation complete, reviews pending — honest, not a defect in the
 repair).
 
@@ -231,21 +234,26 @@ repair).
 
 - R8-B1 (production authority, exclusive minting): promoted the staged
   authority from a test helper to the production module
-  `sley_vm::admission_authority` (`admit_v2_package`: presented-bytes
-  check, gate judgment, reference re-lowering, exact byte comparison,
-  claims check, digest, mint, approval cross-check; `AuthorityError`
-  vocabulary; unit pins). All honest v2 minting in reviewed paths routes
-  through it (the integration helper now delegates to it); direct
-  `admit_package_v2` calls outside it are test negatives or non-evidence
-  staging, never R2 authority evidence (documented in-module). Marker
+  `sley_vm::admission_authority` (`admit_v2_package` over one canonical
+  `V2Closure` bundle from which gate and lowering inputs derive
+  internally, so graph-A/gate versus graph-B/lowering cannot diverge;
+  `AuthorityError` vocabulary including `UnknownEntry`; unit pins). The
+  raw v2 constructor is `pub(crate)` with its public re-export removed,
+  so reviewed integration paths mint exclusively through the authority;
+  direct constructor calls exist only in crate unit tests as explicitly
+  marked negatives. Graph-A(RHW1)/image-B(B2V1) adversarial regression
+  (`raw_authority_refuses_graph_a_gate_with_graph_b_image`) plus the
+  single-byte tamper refusal prove no receipt on substitution. Marker
   pins added (`check_exec_package_markers.py`); the package/execution/
   raw-hash/host-ABI/bridge modules stay free of gate/lowerer calls.
-- R8-B2 (executed assembly): replaced the gate-only four-step claim with
-  `raw_sley_built_preimage_end_to_end` as a well-typed, lowered, executed
-  Sley path: `V2B1` converts a caller octet vector to bytes, `VariantSwitch`
-  unwraps each `Ok` payload (`Err` legs wrap and return), `RHW1` hashes
-  the Sley-assembled bytes, digest returns `Ok` and matches the reference;
-  one flipped octet changes the identity. Gate admits two bridge uses;
-  lowering and execution run through the successor registry.
+- R8-B2 (executed assembly): `raw_sley_built_preimage_end_to_end` is a
+  well-typed, lowered, executed four-step Sley path over separate domain
+  (`Bytes`) and field (`UInt(8)`) inputs: `B2V1` converts, `VariantSwitch`
+  unwraps, `PSH1` joins the field, `VariantSwitch` unwraps, `V2B1`
+  converts back, `VariantSwitch` unwraps, `RHW1` hashes the Sley-assembled
+  bytes and returns the digest directly (`Err` legs wrap and return).
+  Gate admits four bridge uses; lowering and execution run through the
+  successor registry; the digest matches the reference over the joined
+  bytes and either input owns the identity.
 - R7-B1 typo: `SLEYCHNK1` frame is `17 + 32*N` bytes (9-byte domain +
   two `u32` words + digests), corrected in `BOOTSTRAP_PROFILE_2.md`.
