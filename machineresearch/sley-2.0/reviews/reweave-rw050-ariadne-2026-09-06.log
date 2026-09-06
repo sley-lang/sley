@@ -1,0 +1,19 @@
+status: FAIL
+
+findings:
+- **HIGH:** The op-161 carrier is not epoch-compatible. Frozen `adapter_invoke` requires exactly two operands—scope and request—and an immediate resolving to an `AdapterImport`. B2V1/V2B1 use one operand and hardcoded identities without import resolution. Manifest `operands=2` is fixed, not generic; comparison to `call_direct operands=N` is invalid. This also bypasses the RW-070 import/ABI freeze.
+- **MEDIUM:** Per-element fuel is charged only after `bridge_execute` has completed allocation/conversion/cloning. A fuel-starved call therefore performs the full work before termination, so fuel does not soundly bound bridge work. Tests pin totals and outcomes but not pre-work/interleaved charging.
+- **INFO:** Otherwise, E8 schemas, UInt(8)-only V2B, generic byte-unaware push, 2^20 cap, Index code 2, anti-shortcut vector-content test, unchanged lowerer version/layout, and frozen kinds/opcode tables match the stated slice contract.
+
+validation:
+- Read RW-050 §§1–4, profile revision 13 E8, RW-030 admission, `host-boundary.json bridge_g10`, frozen SSMC manifest/contracts, implementation surcharge/execution paths, six E8 tests, three emitter vectors, and frozen opcode/failure-kind evidence.
+- Confirmed HEAD `c6e4269eef78`; relevant RW-050 tree is dirty. No runtime validation performed, as requested.
+
+blockers:
+- Select a carrier conforming to frozen epoch-1 semantics, or obtain the required schema/epoch change; op 161 cannot redefine fixed arity or bypass `AdapterImport`.
+- Charge bridge work before or during conversion/push so fuel bounds actual work.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+repair_note (implementation workflow, post-verdict): both findings accepted on the evidence. HIGH: the frozen reference-adapter contract fixes scope/request roles and derived import identities — the `call_direct` analogy is withdrawn. Repaired as frozen invocation shape ([scope, request] + Entity) with AdapterImport-structured frozen entries (identity/ABI-1/scope/request/response/failure, empty effects for pure entries); push instantiates generically. MEDIUM: surcharge moved before arm execution (E6 up-front precedent); refusal paths allocate nothing. Contract section E8 rewritten; vectors/tests/matrix/regens follow.
