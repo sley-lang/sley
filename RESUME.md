@@ -1,10 +1,13 @@
-# Resume state, 2026-09-05 (night, second push)
+# Resume state, 2026-09-05 (night, third push: S20-330 closed, checkpoint)
 
 The Council review round is **complete (69/69) plus two reconciliation
-re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean and
-Tier 1 (`make quick`, `make lint`) plus Tier 2 (`core`, `conformance`,
-`adversarial`, `fuzz-smoke`) plus the clean `release-candidate-smoke`
-are green at `7041a07`.
+re-reviews (71 verdicts: 68 FAIL, 3 PASS)**. The repository is clean at
+`1e71820`. Tier 1 (`make lint`; `make quick` except the by-design S20-730
+staleness that re-attests at smoke) and Tier 2 (`core`, `conformance`,
+`adversarial`, `fuzz-smoke`) are green at the S20-330 commits; **the
+clean `release-candidate-smoke` has NOT been run since `7041a07`**: the
+operator stopped development at this checkpoint, so the smoke attest of
+the S20-330 closure is the first action on resume (see below).
 
 ## Where the work is
 
@@ -403,12 +406,39 @@ Closed, each reproduced before fixing:
   committing the deterministic rebuilds in order; two clean smokes,
   the second re-attesting at the evidence commit.
 
+- **S20-330 package** (Ariadne 7 P1 / 5 P2 / 4 P3, Nabu 7 P1 / 5 P2 /
+  4 P3, Vulcan 4 P1 / 3 P2 / 3 P3; P0s already closed at revision 2):
+  contract revision 3 (`34ea7f0`), residual round (`bec4468`), PASS
+  record (`1e71820`). Every item was checked against `main` first; most
+  were already closed by revision 2. Revision 3: the SMP1 pin follows
+  SMP1 to 11 with the checker reading SMP1's and the capsule profile's
+  own status lines; `renewals` is a `u16` with a checked increment; every
+  frozen method tag is classified into one of five lists (the revision 2
+  enumeration carried four wrong tags and called `candidate.*` mutating)
+  and the checker compares the lists against the server `head_bound`
+  table, `Method::tag`, the reserved set, and the SMP1 table (five drift
+  shapes injected and caught); the checker binds the capsule module, the
+  server's `bind_context_capsule` call, threat-matrix test existence,
+  the exact symbol-numeric pair of every `SESSION_*` variant, and the
+  register-first lane rule. Round 1 re-reviews: one residual each
+  (Ariadne P1: the contract ordered budget before bound root while the
+  server checks root first; fixed in the contract, pinned by the
+  precedence test and T15 matrix; Nabu P2: exact code pairs; Vulcan P3:
+  five-way wording). Round 2: three PASS. Six transcripts recorded.
+  Repair trail: a `cmd | tail` pipeline masked a clippy failure once
+  (absurd `>= u16::MAX` comparison, fixed with `checked_add`); `make
+  conformance` was failing on clean `main` since `9b138a9` because the
+  bridge vector checker's encoder lacked the SMP1 revision 11 version
+  split (fixed in `d26b686`; the smoke never runs `conformance`, which
+  is how it hid); T54 secret-scan drift cured by the deterministic
+  rebuild each commit; the stale S20-400 row (revision 10) in
+  `docs/WORK_PACKAGES.md` corrected (`f29360e`).
+
 **No P0 entries remain open.** All 110 Council P0 findings are closed, and
-the S20-780 pilot and the S20-360, S20-260/270, and S20-400 packages
-closed across all severities (rounds
-superseded, claims zero). The wider P1+ backlog stands at 70 open reviews
-in other packages; lower-severity findings there remain tracked in the
-finding register.
+the S20-780 pilot and the S20-360, S20-260/270, S20-400, and S20-330
+packages closed across all severities (rounds superseded, claims zero).
+The wider P1+ backlog stands at 67 open reviews in other packages;
+lower-severity findings there remain tracked in the finding register.
 
 Two patterns account for most of what has been closed, and are worth carrying
 into the rest:
@@ -430,10 +460,25 @@ into the rest:
    `/home/greyforge/cache/worktrees/sley2-review-2026-09-05` (at `9c7d4ba`)
    can be removed with `git worktree remove` once no session needs it.
 
-2. **No open P0 cluster remains, and the 780 pilot and the 360, 260/270,
-   and 400 packages are the proven closure loop** (fix, live re-review,
+2. **First action on resume: attest the S20-330 closure.** Run
+   `make release-candidate-smoke` on the clean tree at `1e71820`, commit
+   the evidence (`evidence: re-attest the candidate clean after S20-330
+   closure`), and refresh this file. Expect the usual drift repairs
+   (conformance-report, provenance, secret-scan) cured by committing the
+   deterministic rebuilds in order. `make conformance` now passes on
+   `main` again (`d26b686`); keep running it, the smoke does not.
+
+3. **No open P0 cluster remains, and the 780 pilot and the 360, 260/270,
+   400, and 330 packages are the proven closure loop** (fix, live
+   re-review via `forge handoff --timeout 2400 --thinking high <role>`,
    PASS-record, attest). Candidate next work: the next backlog package
-   per the finding register (70 open reviews), or a new Council round.
+   per the finding register (67 open reviews; by open P1 count:
+   sley2_trial_runner 620, succession_accounting 630, cli 430,
+   release_candidate_packaging 720, json_bridge 420,
+   root_backed_query_profile 310), or a new Council round. Leftover
+   noticed, not touched: `docs/spec/SLEY_CLI_V1.md` still pins SMP1
+   revision 10 (S20-430's contract; carry it in that package's next
+   revision).
    Triage each landing verdict into the S20-740 finding register by recording the disposition in
    `machineresearch/sley-2.0/machine-summary.json` and rebuilding, and keep
    `reviews/verdicts.json` current. Take reviewer counts from the emitted
@@ -448,10 +493,14 @@ decision.
 
 ## Validation at this commit
 
-`make quick`, `make lint`, Tier 2 (`core`, `conformance`, `adversarial`,
-`fuzz-smoke`), and the clean `release-candidate-smoke` all pass at
-`7041a07`. The full `make v1` gate was skipped
-because the 740 revision is a subsystem handoff, not a release boundary;
+At the S20-330 commits: `make lint`, `make core`, `make adversarial`,
+`make fuzz-smoke` at the revision 3 tree; `make conformance` at
+`34ea7f0` (after `d26b686`); `make quick` green except the S20-730
+staleness that re-attests at smoke (every check after it run by hand and
+green); `cargo test -p sley-protocol` 44/44 and clippy clean at
+`bec4468`. The clean `release-candidate-smoke` last passed at `7041a07`
+and is pending for this closure. The full `make v1` gate was skipped
+because these revisions are subsystem handoffs, not a release boundary;
 `make v2` and `make release-check` remain intentionally fail closed. One
 combined Tier 2 invocation at an earlier checkpoint exited 2 once and did
 not reproduce across later runs, individually or combined.
