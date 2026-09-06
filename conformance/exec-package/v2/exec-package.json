@@ -1,0 +1,142 @@
+{
+  "admission": {
+    "authority": "staged admission (gate report plus package-digest binding); the host mints no receipt at execution time",
+    "gate_report": "the authority's sealed BootstrapProfileReport for the closure (constructible only by judge_bootstrap_profile; fields immutable outside the gate): entry-first function must equal the package entry, the admitted import set must equal the package import-identity set, operation/bridge counts must equal the digested gate_operation_count/gate_bridge_uses, closure fingerprints must equal the digested gate_closure_fingerprints, and the committed admitted_image_digest must equal the package image digest re-derived by approval and execution; all verified without running the gate; graphs-to-image correspondence is the admission authority's reference re-lowering comparison (RW-080 contract), not host work; no report exists for gate-refused (out-of-bootstrap) closures",
+    "receipt_fields": [
+      "package_digest",
+      "profile_digest",
+      "host_abi_version"
+    ],
+    "receipt_for_another_package": "refuses with PACKAGE_RECEIPT_MISMATCH",
+    "stale_package": "refuses: recomputed package digest differs from the receipt binding"
+  },
+  "approved_binding": {
+    "fields": [
+      "package_digest",
+      "image_digest",
+      "constants_digest",
+      "layouts_digest",
+      "imports_digest",
+      "dependency_digest",
+      "cache_key",
+      "imports (exact rows)",
+      "entry",
+      "schema_epoch",
+      "state_root",
+      "profile",
+      "profile_digest",
+      "vm_version",
+      "host_abi_version",
+      "admitted_limits",
+      "receipt"
+    ],
+    "limits_rule": "the execution request limits must equal admitted_limits exactly; out-of-profile budgets refuse with PACKAGE_BINDING_MISMATCH",
+    "observation_domain": "SLEYPOBS1 (distinct from legacy SLEYOBS1; package observations can never equal legacy observations)",
+    "observation_plus": [
+      "package_digest",
+      "image_digest",
+      "constants_digest",
+      "layouts_digest",
+      "imports_digest",
+      "dependency_digest",
+      "profile_digest",
+      "host_abi_version"
+    ],
+    "successor_of": "ApprovedImage (which bound only digest plus cache key plus import IDs); ApprovedImage is preserved as superseded history and remains functional for the legacy path"
+  },
+  "bounds": {
+    "constants_section_max_bytes": 8388608,
+    "dependency_note": "sections are sub-budgets inside the total envelope ceiling, not additions to it",
+    "dependency_section_max_bytes": 8388608,
+    "envelope_total": "sum of image plus all section bytes is at most package_max_bytes; enforced in package_digests independently of per-section ceilings",
+    "imports_section_max_bytes": 1048576,
+    "layouts_section_max_bytes": 8388608,
+    "max_constants": 1000000,
+    "max_contracts": 1000000,
+    "max_definitions": 1000000,
+    "max_globals": 1000000,
+    "max_imports": 1000000,
+    "package_max_bytes": 67108864
+  },
+  "contract": "sley2-exec-package-2",
+  "envelope": {
+    "image_ceiling": "IMAGE_MAX_BYTES (67_108_864, unchanged SLEYBC02 bound)",
+    "magic": "SLEYPKG1",
+    "package_digest_preimage": "SLEYPKG1 || u32(2) || profile_digest(v2) || host_abi_version(2) || vm_version || image_digest || constants_digest || layouts_digest || imports_digest || dependency_digest || entry || epoch || root (SHA-256)",
+    "sections": [
+      "image_bytes (SLEYBC02, unchanged format)",
+      "constants (entity_id || canonical ConstValue encoding, length-prefixed)",
+      "layouts (structural TypeDefinition encoding, length-prefixed)",
+      "imports (exact AdapterImport rows, length-prefixed)",
+      "dependency (entry, epoch, root, profile, VM/lowerer versions, admitted limits, globals, contracts)"
+    ],
+    "version": "u32 big-endian, must equal 2 (successor; v1 envelope version 1 preserved as history)"
+  },
+  "frozen_references": {
+    "bootstrap_profile_contract": "sley2-bootstrap-profile-2",
+    "bootstrap_profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+    "bootstrap_profile_record": "conformance/bootstrap-profile/v2/profile.json",
+    "host_abi_contract": "sley2-host-abi-2",
+    "host_abi_identity": "HOST_ABI_V2",
+    "host_abi_record": "conformance/host-abi/v2/host-abi.json",
+    "host_abi_version": 2,
+    "image_format": "SLEYBC02 version 1 (unchanged; the envelope wraps it, never redefines it)",
+    "vm_version": [
+      1,
+      0,
+      0
+    ]
+  },
+  "hydration": {
+    "allows": [
+      "byte and framing decode",
+      "digest verification",
+      "bounds checking before allocation",
+      "allocation",
+      "structural layout hydration (duplicate-identity and count bounds only)",
+      "exact-equality binding checks"
+    ],
+    "constructor": "TypeEnvironment::hydrate_verified_definitions (duplicate plus count bound only; never TypeEnvironment::new on this path)",
+    "forbids": [
+      "definition-shape semantic judgment",
+      "Sley reference resolution",
+      "definition-cycle discovery",
+      "map-key and hashability determination",
+      "record-schema reconstruction",
+      "typechecking",
+      "repair or inference of missing layout data"
+    ]
+  },
+  "identity": "EXEC_PACKAGE_V2",
+  "negative_corpus": [
+    "forged layout",
+    "missing layout",
+    "mismatched constants",
+    "wrong field layout",
+    "wrong dependency closure",
+    "mismatched root and inventory",
+    "malformed structural metadata",
+    "correct image plus wrong constants",
+    "correct image plus wrong layouts",
+    "correct image plus wrong import row",
+    "correct image plus wrong profile",
+    "correct image plus wrong admission receipt",
+    "receipt for another package",
+    "forged root identity",
+    "stale package",
+    "cache key with mismatched closure",
+    "observation from another image or package",
+    "broader-profile operation in a bootstrap package"
+  ],
+  "profile": "EXTENDED_V1 (the package path requires exactly EXTENDED_V1; BOOTSTRAP_PROFILE_1 is bound by digest, never broadened)",
+  "rw075": "corrective subpackage depending on RW-070; blocking prerequisite for RW-080; not a feature campaign",
+  "supersedes": {
+    "contract": "sley2-exec-package-1",
+    "digest": "9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4",
+    "identity": "EXEC_PACKAGE_V1",
+    "record": "conformance/exec-package/v1/exec-package.json",
+    "relation": "same envelope layout/bounds; version field 2, profile_digest v2, host_abi_version 2; v1 preserved byte-identical as history",
+    "version": 1
+  },
+  "version": 2
+}

@@ -158,6 +158,12 @@ pub(crate) enum BridgeEntry {
     VectorToBytes,
     /// `vector-push`.
     VectorPush,
+    /// `raw-blake3-256` (RW-075 correction, AR-02 successor only).
+    ///
+    /// Sley supplies the complete domain-separated preimage as `Bytes`;
+    /// the host hashes those bytes and adds nothing. Not in the frozen
+    /// v1 record; admitted in the v2 successor.
+    RawHash,
 }
 
 /// The frozen `Entity` identity of one bridge entry: twelve ASCII bytes
@@ -203,6 +209,7 @@ pub(crate) fn bridge_import(
         BridgeEntry::BytesToVector => *b"B2V1",
         BridgeEntry::VectorToBytes => *b"V2B1",
         BridgeEntry::VectorPush => *b"PSH1",
+        BridgeEntry::RawHash => *b"RHW1",
     };
     AdapterImport {
         entity_id: bridge_entry_id(code),
@@ -219,6 +226,8 @@ pub(crate) fn bridge_import(
 /// two conversions with their exact rows, and the push row with its
 /// representative `UInt(8)` instantiation (judgment derives push types
 /// per use from the operands; the row pins identity and purity).
+/// Preserved for v1 history; successor tests use
+/// [`bridge_test_imports_v2`] (adds the raw-hash row).
 #[cfg(test)]
 pub(crate) fn bridge_test_imports() -> [AdapterImport; 3] {
     [
@@ -240,17 +249,36 @@ pub(crate) fn bridge_test_imports() -> [AdapterImport; 3] {
     ]
 }
 
+/// Successor test imports (RW-075 correction): v1 three plus the admitted
+/// raw-hash row `(Unit, Bytes) -> Bytes` with `Index` failure.
+/// Currently exercised through integration fixtures that build their own
+/// rows; retained as the canonical v2 row constructor for future unit
+/// lanes.
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) fn bridge_test_imports_v2() -> [AdapterImport; 4] {
+    let mut base = bridge_test_imports().to_vec();
+    base.push(bridge_import(
+        BridgeEntry::RawHash,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+    ));
+    base.try_into().expect("four successor rows")
+}
+
 /// One resolved bridge call: which entry the carried import names after
 /// every frozen field pins it.
 ///
-/// Crate-visible for the `BOOTSTRAP_PROFILE_1` gate, which admits imports
-/// through the same resolution (plus bootstrap-type membership on the
-/// resolved row's schemas).
+/// Crate-visible for the bootstrap gates, which admit imports through the
+/// same resolution (plus bootstrap-type membership on the resolved row's
+/// schemas). The v1 gate history admitted three entries; the v2 successor
+/// admits four including `RawHash` through this same authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BridgeKind {
     BytesToVector,
     VectorToBytes,
     VectorPush,
+    RawHash,
 }
 
 /// Resolves an `adapter_invoke` immediate against the supplied import
@@ -258,14 +286,18 @@ pub(crate) enum BridgeKind {
 /// genuine: the immediate must name a carried `AdapterImport`, and every
 /// frozen field of that row must equal the frozen bridge values — identity,
 /// adapter identity, ABI version 1, `Index` failure type, and empty effect
-/// list. For the conversions the carried request/response types must equal
-/// the frozen rows. For push the carried row must satisfy the relationship
-/// pin itself (response exactly `Vector` of the request type); per-use
-/// operand binding against the row happens at judgment, so a conforming
-/// row serves only its own element type. Anything else is not a landed
-/// import and stays `VM_LOWER_OPCODE_UNSUPPORTED`.
+/// list. For the conversions and raw hash the carried request/response
+/// types must equal the frozen rows. For push the carried row must satisfy
+/// the relationship pin itself (response exactly `Vector` of the request
+/// type); per-use operand binding against the row happens at judgment, so
+/// a conforming row serves only its own element type. Anything else is not
+/// a landed import and stays `VM_LOWER_OPCODE_UNSUPPORTED`.
 ///
-/// Shared with the `BOOTSTRAP_PROFILE_1` gate (`crate::bootstrap`): one
+/// The raw-hash row is `(Unit, Bytes) -> Bytes` with `Index` failure:
+/// Sley supplies the complete preimage as `Bytes`, the host returns the
+/// exact 32-byte digest as `Bytes`. Over-bound inputs refuse as a typed
+/// `Err(Index, 2)` value (never truncation); unknown identities/versions
+/// deny here. Shared with both bootstrap gates (`crate::bootstrap`): one
 /// resolution authority serves lowering judgment, execution, surcharge,
 /// and profile admission, so the permitted-import registry cannot drift
 /// between them.
@@ -280,6 +312,8 @@ pub(crate) fn resolve_bridge_entry<'a>(
         BridgeEntry::VectorToBytes
     } else if carried.entity_id == bridge_entry_id(*b"PSH1") {
         BridgeEntry::VectorPush
+    } else if carried.entity_id == bridge_entry_id(*b"RHW1") {
+        BridgeEntry::RawHash
     } else {
         return None;
     };
@@ -287,6 +321,7 @@ pub(crate) fn resolve_bridge_entry<'a>(
         BridgeEntry::BytesToVector => *b"B2V1",
         BridgeEntry::VectorToBytes => *b"V2B1",
         BridgeEntry::VectorPush => *b"PSH1",
+        BridgeEntry::RawHash => *b"RHW1",
     };
     if carried.adapter_id != bridge_adapter_id(code)
         || carried.abi_version != 1
@@ -311,14 +346,17 @@ pub(crate) fn resolve_bridge_entry<'a>(
             let (request, response) = match conversion {
                 BridgeEntry::BytesToVector => (TypeExpr::Bytes, u8vec_type()),
                 BridgeEntry::VectorToBytes => (u8vec_type(), TypeExpr::Bytes),
+                BridgeEntry::RawHash => (TypeExpr::Bytes, TypeExpr::Bytes),
                 BridgeEntry::VectorPush => return None,
             };
             if carried.request_type == request && carried.response_type == response {
                 Some((
                     if conversion == BridgeEntry::BytesToVector {
                         BridgeKind::BytesToVector
-                    } else {
+                    } else if conversion == BridgeEntry::VectorToBytes {
                         BridgeKind::VectorToBytes
+                    } else {
+                        BridgeKind::RawHash
                     },
                     carried,
                 ))
@@ -383,8 +421,11 @@ fn bridge_index_error() -> TypeExpr {
     TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
 }
 
-/// Per-element fuel a bridge entry charges: the request length for the two
-/// conversions, one for a push. `None` outside the landed entries.
+/// Per-entry fuel a bridge entry charges through `charge_action`, on top of
+/// the existing per-instruction charge: the request length for the two
+/// conversions, one for a push, and `1 + ceil(len/1024)` for raw hashing
+/// (the frozen `raw_hash_fuel` schedule, symmetric with the 1 MiB bridge
+/// ceiling). `None` outside the landed entries.
 #[must_use]
 pub fn bridge_fuel_surcharge(
     adapters: &[AdapterImport],
@@ -417,6 +458,13 @@ pub fn bridge_fuel_surcharge(
             },
             _ => None,
         },
+        BridgeKind::RawHash => match operands {
+            [_, request] => match &request.data {
+                ConstData::Bytes(bytes) => Some(crate::raw_hash::raw_hash_fuel(bytes.len())),
+                _ => None,
+            },
+            _ => None,
+        },
         BridgeKind::VectorPush => match operands {
             [_, _] => Some(1),
             _ => None,
@@ -425,18 +473,20 @@ pub fn bridge_fuel_surcharge(
 }
 
 /// Runs one landed bridge entry. Total by construction: representation
-/// conversion only, capacity refusal as an `Index` code-2 value, element
-/// shapes rechecked (a mismatch is an internal fault, never a mistyped
-/// value), and no tag parsing, schema dispatch, canonical-form judgment,
-/// image assembly, or verdict anywhere (contract section E8).
+/// conversion, vector growth, or narrow raw hashing only, capacity refusal
+/// as an `Index` code-2 value, element shapes rechecked (a mismatch is an
+/// internal fault, never a mistyped value), and no tag parsing, schema
+/// dispatch, canonical-form judgment, image assembly, or verdict anywhere
+/// (contract section E8 plus the RW-075 successor raw-hash row).
 ///
 /// Value-type binding (Ariadne Phase-2 HIGH-1 repair): the carried row is
 /// revalidated here, not just at judgment, so the public execution helper
 /// cannot serve a registered identity with off-row operand or result
 /// types. Operand value types must equal the row (scope `Unit` for the
-/// conversions, the row response for push; request always the row
-/// request), and the result must equal `Result<row response, row
+/// conversions and raw hash, the row response for push; request always the
+/// row request), and the result must equal `Result<row response, row
 /// failure>`. Anything else is an internal fault.
+#[allow(clippy::too_many_lines)] // one arm per landed entry (successor adds the fourth)
 fn bridge_execute(
     entry: BridgeKind,
     carried: &AdapterImport,
@@ -537,6 +587,30 @@ fn bridge_execute(
             let mut grown = items.clone();
             grown.push(request.clone());
             Ok(done(ConstData::Sequence(grown)))
+        }
+        BridgeKind::RawHash => {
+            // RW-075 correction (AR-02 successor): narrow raw BLAKE3-256
+            // over Sley-constructed bytes. The host adds no domain, no
+            // prefix, no canonicalization, and no judgment: it hashes the
+            // supplied bytes and returns the exact 32-byte digest. Over-bound
+            // inputs refuse as a typed capacity value (never truncation).
+            let [scope, request] = operands else {
+                return Err(ExtendedFault);
+            };
+            if scope.value_type != TypeExpr::Unit || request.value_type != carried.request_type {
+                return Err(ExtendedFault);
+            }
+            let ConstData::Unit = scope.data else {
+                return Err(ExtendedFault);
+            };
+            let ConstData::Bytes(bytes) = &request.data else {
+                return Err(ExtendedFault);
+            };
+            if bytes.len() > crate::raw_hash::RAW_HASH_MAX_BYTES {
+                return Ok(capacity());
+            }
+            let digest = crate::raw_hash::raw_blake3_256(bytes).map_err(|_| ExtendedFault)?;
+            Ok(done(ConstData::Bytes(digest.to_vec())))
         }
     }
 }
@@ -1215,7 +1289,7 @@ pub fn judge_extended_operation(
             declared.clone()
         }
         Opcode::AdapterInvoke => {
-            // Slice E8. Only the three frozen bridge entries land, resolved
+            // Slice E8 plus the RW-075 successor raw-hash entry, resolved
             // as genuine `AdapterImport` values from the supplied import
             // inventory: the immediate must name a carried import, and every
             // frozen field of that row must equal the frozen bridge values.
@@ -1271,6 +1345,17 @@ pub fn judge_extended_operation(
                     }
                     BridgeKind::VectorToBytes => {
                         if **scope != TypeExpr::Unit || **request != u8vec_type() {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        TypeExpr::Bytes
+                    }
+                    BridgeKind::RawHash => {
+                        // RW-075 correction: `(Unit, Bytes) -> Bytes`
+                        // returning the exact 32-byte digest. The type
+                        // carries no length; execution enforces 32 bytes
+                        // on success and a typed capacity refusal past
+                        // 1 MiB.
+                        if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
                             return fail(LowerErrorCode::SignatureMismatch);
                         }
                         TypeExpr::Bytes
@@ -2008,14 +2093,14 @@ pub fn execute_extended_instruction(
             payload.clone(),
         )))),
         (Opcode::AdapterInvoke, operands) => {
-            // Slice E8. Judgment admits only the three frozen bridge
-            // entries resolved from the supplied inventory, so anything
-            // else here is an internal fault. Execution re-resolves from
-            // the same inventory rather than trusting the judgment — the
-            // public helper cannot bypass registration: without the exact
-            // frozen row (identity, ABI, schemas, relationship, purity)
-            // this faults. Push uses resolve by identity plus per-use
-            // schemas, so monomorphized rows never shadow each other.
+            // Slice E8 plus the RW-075 successor raw-hash entry, resolved
+            // from the supplied inventory, so anything else here is an
+            // internal fault. Execution re-resolves from the same inventory
+            // rather than trusting the judgment — the public helper cannot
+            // bypass registration: without the exact frozen row (identity,
+            // ABI, schemas, relationship, purity) this faults. Push uses
+            // resolve by identity plus per-use schemas, so monomorphized
+            // rows never shadow each other.
             let Immediate::Entity(entry) = immediate else {
                 return Err(ExtendedFault);
             };

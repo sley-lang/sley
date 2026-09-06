@@ -20,17 +20,20 @@ mod lower;
 pub mod raw_hash;
 
 pub use exec_package::{
-    AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST, EXEC_PACKAGE_CONTRACT,
-    EXEC_PACKAGE_IDENTITY, EXEC_PACKAGE_VERSION, ExecutionPackage, PackageDigests, PackageError,
-    admit_package, approve_package, hydrate_layouts, package_digests, verify_package_binding,
+    AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
+    BOOTSTRAP_PROFILE_2_DIGEST, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,
+    EXEC_PACKAGE_V2_CONTRACT, EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION,
+    EXEC_PACKAGE_VERSION, ExecutionPackage, PackageDigests, PackageError, admit_package,
+    admit_package_v2, approve_package, approve_package_v2, hydrate_layouts, package_digests,
+    package_digests_v2, verify_package_binding, verify_package_binding_v2,
 };
 pub use execute::{
     ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,
     ExecutionRequest, ExecutionStatusCode, ExecutionTermination, LoadedExecutionError,
     LoadedExecutionInput, MAX_EXECUTION_CELLS, MAX_EXECUTION_INPUT_VALUE_UNITS,
     MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, PackageExecutionError, ResourceKind,
-    derive_observation_id, execute_approved_package, execute_function, execute_loaded_image,
-    execution_value_units, validated_execution_input_hashes,
+    derive_observation_id, execute_approved_package, execute_approved_package_v2, execute_function,
+    execute_loaded_image, execution_value_units, validated_execution_input_hashes,
 };
 pub use lower::{
     BlockSlot, BytecodeBlock, BytecodeFunction, BytecodeSwitchArgument, BytecodeSwitchCase,

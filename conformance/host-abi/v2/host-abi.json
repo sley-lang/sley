@@ -1,0 +1,274 @@
+{
+  "abi": {
+    "abi_version_encoding": "u32, must equal 1; 0 and >= 2 refuse with VM_LOWER_OPCODE_UNSUPPORTED",
+    "adapter_identity_rule": "carried adapter_id must byte-equal the import identity; foreign identities refuse with VM_LOWER_OPCODE_UNSUPPORTED",
+    "argument_order": [
+      "scope",
+      "request"
+    ],
+    "default": "deny: every adapter_invoke must resolve through the shared genuine resolution to a landed bridge entry; unregistered, tampered, versioned-wrong, or effectful rows refuse with VM_LOWER_OPCODE_UNSUPPORTED at lowering judgment, execution, surcharge, and gate admission alike",
+    "effect_rule": "carried effect list must be empty; effectful rows refuse with VM_LOWER_OPCODE_UNSUPPORTED and never reach AdapterCall judgment",
+    "failure_encoding": "declared result must equal exactly Result<response, BuiltinFailure(Index)>; any other result refuses with VM_LOWER_SIGNATURE_MISMATCH",
+    "failure_representation": "typed value ConstData::Result::Err(BuiltinFailure(Index, code)): code 2 is bridge-capacity refusal (over BRIDGE_MAX_ITEMS); capacity refusal is a value, never a trap or termination",
+    "identity_encoding": "Entity immediate of 32 bytes: 12 ASCII bytes SLY1/BRIDGE/, 4-byte entry code, 16 zero bytes; any other identity refuses with VM_LOWER_OPCODE_UNSUPPORTED",
+    "invocation_shape": "frozen adapter_invoke: opcode tag 161, exactly 2 operands (scope, request), exactly 1 result, Entity immediate naming a carried AdapterImport",
+    "opcode_tag": 161,
+    "operation_encoding": "SSMC opcode tags as frozen (adapter_invoke = 161); no second opcode language exists at this boundary",
+    "request_encoding": "operand value types must equal the carried row scope/request types exactly; B2V1 takes only Bytes, V2B1 only Vector<UInt(8)>, push only its own row element type; mismatch refuses with VM_LOWER_SIGNATURE_MISMATCH and revalidates at execution as an internal fault, never a mistyped value",
+    "resource_accounting": "existing per-instruction and per-terminator dispatch charges cover dispatch; bridge fuel is charged up front before allocation/conversion through charge_action at BRIDGE_ELEMENT_FUEL = 1 per request element (conversions) or 1 per push; a starved budget terminates without performing the work; call-site value-unit charge covers the result as for every operation",
+    "size_ceiling": "BRIDGE_MAX_ITEMS = 1048576 bytes/elements; single values past 1 MiB cannot cross in one call; raising the cap needs a profile revision with contract review"
+  },
+  "bindings": {
+    "bootstrap_profile_contract": "sley2-bootstrap-profile-2",
+    "bootstrap_profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+    "bootstrap_profile_record": "conformance/bootstrap-profile/v2/profile.json",
+    "cache_key_binds_only": "the twelve preimage fields; derived before emission, independently of image bytes and adapter rows (EXTENDED_V1 fixes adapter_abi_entries to 0)",
+    "cache_key_preimage_fields": [
+      "domain SLEYBCK1 + u32 1",
+      "schema_epoch 32B",
+      "SSMC1_FIELD_SCHEMA_HASH 32B",
+      "SSMC1_DECODER_LIMITS_HASH 32B",
+      "state_root 32B",
+      "entry_function EntityId 32B",
+      "profile.vm_version 3x u32",
+      "lowering_profile u32",
+      "lowerer_version 3x u32",
+      "entry_type_arguments u64",
+      "adapter_abi_entries u64",
+      "execution_abi_flags u64"
+    ],
+    "cache_profile": "EXTENDED_V1",
+    "gate_report": "BootstrapProfileReport { functions (entry first), imports (admitted identities in inventory order, exactly the invoked set), operation_count, bridge_uses }",
+    "host_boundary_contract": "sley2.host-boundary.v1",
+    "host_boundary_digest": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a",
+    "lowerer_version": [
+      2,
+      0,
+      0
+    ],
+    "lowering_profile": 2,
+    "not_in_cache_key": [
+      "image digest (SHA-256 of the derived bytes; loader validates structure, caller compares identity against re-lowered output)",
+      "bootstrap profile digest (binds through gate admission reports, manifest stage P, and doc/record/checker wiring)",
+      "execution limits (bind the observation preimage via derive_observation_id)",
+      "import-manifest digest (binds through judgment: lowering resolves invoked immediates with exact field equality, the gate admits exactly the referenced rows; the inventory is canonical program state, not a cache-key field)"
+    ],
+    "residual_trust": "identical on both paths: the caller holds the true manifest and the true canonical inventories; the native layer enforces exact-equality bindings at every step so substitution refuses deterministically. Toolchain genuineness (vs a seed-service wrapper) is established by the C1/C2/C3 fixed-point and self-change evidence (RW-130/RW-140), which this boundary makes testable.",
+    "schema_epoch_hex": "0808080808080808080808080808080808080808080808080808080808080808",
+    "state_root_hex": "0909090909090909090909090909090909090909090909090909090909090909",
+    "vm_version": [
+      1,
+      0,
+      0
+    ]
+  },
+  "cancellation": {
+    "behavior": "cancel_at_fuel is an optional deterministic fuel mark in ExecutionLimits; reaching it terminates with the typed Cancelled termination carrying no value",
+    "claim": "no live OS cancellation, signal handling, thread preemption, or process containment exists in-tree; cooperative deterministic cancellation only",
+    "profile_evidence": "reference budgets carry cancel_at_fuel null; the freeze pins one Cancelled fixture (cancel_at_fuel 0)"
+  },
+  "contract": "sley2-host-abi-2",
+  "extension_rule": "extension of the frozen import set requires a new S20-230 owner amendment plus profile/manifest review; analogy to the three rows never admits a fourth",
+  "fixture_index": {
+    "conformance_fixture": "crates/sley-vm/tests/rw070_host_abi_freeze.rs (public surface only)",
+    "conformance_tests": 37,
+    "gate_tests": "crates/sley-vm/src/bootstrap.rs (registry, row/result, unknown/tampered/effectful denials)",
+    "lane_tests": "crates/sley-vm/src/bridge_adversarial.rs plus fuzz/targets/vm_canonical_inputs.rs E8 lanes",
+    "real_world_fixture": "RW-060 source-free lifecycle (crates/sley-repo/tests/rw060_source_free_lifecycle.rs) plus the 20 BOOTSTRAP_PROFILE_1 closure vectors"
+  },
+  "identity": "HOST_ABI_V2",
+  "image": {
+    "approved_binding": "sley_vm::ApprovedImage { digest, cache_key, imports }: execute_loaded_image verifies all three against bytes and request (IMAGE_DIGEST_MISMATCH, IMAGE_BINDING_MISMATCH) before running the shared runner. Limits are caller policy and bind the observation post hoc, not the approval.",
+    "assembly_owner": "Sley image-builder program (RW-110); the native host never synthesizes compiler output from high-level semantic objects",
+    "byte_layout": "magic 8B SLEYBC02, u32 BE format version 1, entry body, u64 BE callee count, each callee body in ascending function-id order (entry never repeats; self-calls resolve to the entry body); each body carries identity, registers, result type, blocks, instructions with immediates, terminators, reachability",
+    "cache_key_binding": "the cache key binds exactly its twelve preimage fields (epoch, schema hashes, root, entry, versions, counts, flags); it does not contain the image digest, the profile digest, limits, or an import-manifest digest. Image identity is the SHA-256 of the exact derived bytes. Gate admission plus observation identity bind program, image, imports, and limits end to end: equal bytes under different epoch/root/entry are different cache and observation identities.",
+    "canonical_vs_derived": "canonical Sley program state lives in the repository (typed SSMC values, content-addressed objects); the image is derived executable state (lowered bytes plus cache key); the image never substitutes for the canonical program",
+    "corruption_behavior": "any flipped byte changes the image digest (SHA-256 in conformance) and the bytes no longer equal the lowering output; the load gate rejects by identity mismatch; repair, normalization, and silent fallback are forbidden",
+    "decoder_scope": "structural only: the loader carries widths, counts, opcodes, and versions without judging any of them; opcode admissibility, type agreement, reference integrity, and resource ceilings stay with lowering judgment and the profile gate, which re-derive them from canonical program state rather than trusting the image",
+    "derived_from": "sley_vm::lower::lower_function under CacheProfile::EXTENDED_V1; bytes are emitted by encode_function, never hand-assembled",
+    "digest_library": "sha2 (pure Rust) pinned as the RW-070 supply-chain selection for image identity only; the digest equals conformance bytecode_sha256",
+    "digest_rule": "image identity is the SHA-256 hex of the exact derived bytes (bytecode_sha256 in conformance); re-lowering reproduces byte-identical output",
+    "end_to_end_association": "manifest expected digest -> loader digest match -> caller inventories under epoch/root -> re-derived cache key -> observation (limits, inputs, termination); the gate report names the admitted import identities in inventory order",
+    "entry_point": "EntityId of the lowered entry function; callee table order is ascending function-id; a different entry is a different image",
+    "entry_version": [
+      2,
+      0,
+      0
+    ],
+    "format_version": 1,
+    "host_may": "load and execute an already-valid derived image whose digest, profile, epoch, root, entry, import manifest, and limits bind exactly; structural memory-safety rejection only (sley_vm::host_abi::check_image_prefix)",
+    "host_must_not": [
+      "compile SSMC into the image on behalf of the later toolchain",
+      "type-check the program as a hidden service",
+      "perform CFG/effect/contract/Witness semantic judgment",
+      "synthesize compiler output from high-level semantic objects",
+      "repair malformed images",
+      "silently fall back to the Rust seed compiler"
+    ],
+    "loaded_execution": "sley_vm::execute_loaded_image: load, verify digest equals the manifest-approved expected identity (IMAGE_DIGEST_MISMATCH otherwise), re-derive the cache key from caller epoch/root/decoded entry/profile, validate inputs with the exact S20-270 checks against decoded register types, run the single shared runner; no lowering, no SSMC reads, no semantic re-derivation",
+    "loader": "sley_vm::host_abi::load_image: structural prefix, full body parse (entry, callee count, each callee), end-of-input; carries widths, counts, opcodes, versions without judging them; returns LoadedImage { digest (SHA-256 of the parsed bytes), entry, callees }",
+    "loader_rule": "validation before execution through sley_vm::host_abi::load_image: structural prefix (magic, version, length floor/ceiling) then full body parse (entry, callee count, each callee) then end-of-input; malformed images refuse with the typed IMAGE_* vocabulary, never with semantic codes",
+    "magic": "SLEYBC02",
+    "magic_hex": "534c455942433032",
+    "max_bytes": 67108864,
+    "min_bytes": 12,
+    "oversize_behavior": "more than IMAGE_MAX_BYTES refuses with IMAGE_OVERSIZED",
+    "resource_binding": "lowering work, instruction, fuel, value-unit, output-unit, cell, and call-depth ceilings bind execution as frozen; a resource termination under the frozen reference budgets is a profile violation for closure vectors",
+    "trailing_data_behavior": "extra trailing bytes change the digest and refuse by identity mismatch; no trailing-data tolerance exists",
+    "truncation_behavior": "fewer than 12 bytes refuses with IMAGE_TRUNCATED; any shorter-than-emitted byte string refuses by identity mismatch",
+    "validation_vocabulary": [
+      "IMAGE_UNKNOWN_MAGIC",
+      "IMAGE_UNSUPPORTED_VERSION",
+      "IMAGE_TRUNCATED",
+      "IMAGE_OVERSIZED",
+      "IMAGE_TRAILING_DATA",
+      "IMAGE_MALFORMED",
+      "IMAGE_DIGEST_MISMATCH",
+      "IMAGE_BINDING_MISMATCH"
+    ],
+    "version_encoding": "u32 big-endian value 1 immediately after the magic"
+  },
+  "imports": {
+    "default": "deny (see abi.default)",
+    "owner": "S20-230 section 1.5 (owner amendment A1); positive registration enforced at lowering, execution, surcharge, and gate admission through one shared resolution authority (resolve_bridge_entry)",
+    "rows": [
+      {
+        "authority": "S20-230 section 1.5 pure shape P-BYTES-FROM; RW-030 G-10 admission; RW-050 freeze",
+        "code": "B2V1",
+        "determinism": "byte i of the request becomes element i of the response in order; identical canonical inputs give identical outputs; no clock, randomness, environment, or host state is read",
+        "entry": "host-bytes-to-u8vector",
+        "failure": "BuiltinFailure(Index); capacity refusal code 2",
+        "fuel": "1 per request byte through charge_action, charged up front",
+        "identity_hex": "534c59312f4252494447452f4232563100000000000000000000000000000000",
+        "portability": "intrinsically portable: pure function over caller-owned values; no syscall, filesystem, network, clock, or pointer-width dependence",
+        "request": "Bytes",
+        "resource": "refuses over BRIDGE_MAX_ITEMS with Err(Index, 2); never truncates",
+        "response": "Vector<UInt(8)>",
+        "scope": "Unit",
+        "side_effects": "none",
+        "test": "rw070_b2v1_exact_invocation_succeeds plus adversarial/declaration lanes"
+      },
+      {
+        "authority": "S20-230 section 1.5 pure shape P-BYTES-TO; RW-030 G-10 admission; RW-050 freeze",
+        "code": "V2B1",
+        "determinism": "element i of the request becomes byte i of the response in order; element values above 255 are an internal invariant fault, never a silent wrap",
+        "entry": "host-u8vector-to-bytes",
+        "failure": "BuiltinFailure(Index); capacity refusal code 2",
+        "fuel": "1 per request element through charge_action, charged up front",
+        "identity_hex": "534c59312f4252494447452f5632423100000000000000000000000000000000",
+        "portability": "intrinsically portable: pure function over caller-owned values",
+        "request": "Vector<UInt(8)> (exact 8-bit width only; any other width refuses with VM_LOWER_SIGNATURE_MISMATCH)",
+        "resource": "refuses over BRIDGE_MAX_ITEMS with Err(Index, 2); never truncates",
+        "response": "Bytes",
+        "scope": "Unit",
+        "side_effects": "none",
+        "test": "rw070_v2b1_exact_invocation_succeeds plus rw070_v2b1_rejects_non_u8_width"
+      },
+      {
+        "authority": "S20-230 section 1.5 pure shape P-PUSH with the Ariadne relationship pin (response exactly Vector of request); RW-030 G-10 admission; RW-050 freeze",
+        "code": "PSH1",
+        "determinism": "response is the scope vector plus one cloned request element appended; generic over T and byte-unaware in typing, failure, and fuel rules",
+        "entry": "vector-push",
+        "failure": "BuiltinFailure(Index); capacity refusal code 2",
+        "fuel": "1 per push through charge_action, charged up front",
+        "genericity": "by monomorphization: each concrete element type declares its own closed row (landed: UInt(8) representative, Unit trail); rows with free type parameters fail closed",
+        "identity_hex": "534c59312f4252494447452f5053483100000000000000000000000000000000",
+        "multi_row_rule": "one push row per closed inventory (gate-enforced; import identities are globally distinct per S20-230 section 2). Lowering, execution, and surcharge select by identity plus exact per-use schemas, so the EXTENDED_V1 layer serves any conforming row without shadowing; the bootstrap gate admits at most one. A closure needing two element types needs a new admission, not a second row.",
+        "portability": "intrinsically portable: pure function over caller-owned values",
+        "request": "T (any bootstrap type; per-row concrete)",
+        "resource": "refuses at BRIDGE_MAX_ITEMS with Err(Index, 2); never truncates",
+        "response": "Vector<T>, exactly Vector of the request type",
+        "scope": "Vector<T>, exactly equal to the response type",
+        "side_effects": "none",
+        "test": "rw070_push_u8_exact_invocation_succeeds plus composed round-trip"
+      },
+      {
+        "authority": "RW-075 correction (AR-02 successor): narrow raw BLAKE3-256 over Sley-built preimages; SH2 primitive-crypto permission, not general FFI",
+        "code": "RHW1",
+        "determinism": "BLAKE3-256 over exactly the supplied preimage bytes in order; host adds no domain, prefix, canonicalization, or judgment; identical inputs give identical 32-byte digests; no clock, randomness, environment, or host state is read",
+        "entry": "raw-blake3-256",
+        "failure": "BuiltinFailure(Index); capacity refusal code 2 past 1_048_576 bytes (typed value, never trap/truncation)",
+        "fuel": "1 plus ceil(len divided by 1024) through charge_action, charged up front (raw_hash_fuel)",
+        "identity_hex": "534c59312f4252494447452f5248573100000000000000000000000000000000",
+        "portability": "intrinsically portable: pure function over caller-owned values; audited blake3 =1.8.2 crate already pinned by sley-id; no Sley-side reimplementation",
+        "request": "Bytes (exact Sley-constructed preimage, 0..=1_048_576 bytes)",
+        "resource": "refuses over 1_048_576 bytes with Err(Index, 2); never truncates; larger preimages chunk via repeated calls under the Sley driver",
+        "response": "Bytes (exact 32-byte digest on success)",
+        "scope": "Unit",
+        "side_effects": "none",
+        "test": "rw075_raw_callable fixtures (vectors, boundaries, tamper, fuel, negatives)"
+      }
+    ]
+  },
+  "portability": {
+    "current_platform": "Linux x86-64 under rust-toolchain.toml 1.93.0 minimal; no multi-platform qualification is claimed",
+    "host_specific": [
+      "absolute store paths (pack bytes carry none; RW-060)",
+      "build-directory identities",
+      "process ids in staging paths (tests only, never in image bytes)",
+      "temp-dir selection (tests only)"
+    ],
+    "intrinsically_portable": [
+      "import identities, schemas, and denial rules",
+      "operation tags and value representation (canonical ConstValue, big-endian integers)",
+      "image magic, version, layout order, digest rule",
+      "capacity and fuel constants",
+      "failure symbols and refusal precedence",
+      "cache-key preimage field order and encodings"
+    ],
+    "not_encoded_by_abi": [
+      "absolute paths",
+      "usernames",
+      "filesystem layout",
+      "Rust type names",
+      "compiler-private symbol names",
+      "host pointer width and endianness accidents",
+      "build-directory identities"
+    ]
+  },
+  "prohibited": [
+    "general FFI / broad C ABI",
+    "native compiler services (compile, validate, typecheck, lower, assemble_ssmc, decode_and_validate_schema, discharge_witness, construct_compiler_image) reachable from the toolchain closure",
+    "arbitrary symbol lookup, dynamic library loading, or arbitrary FFI",
+    "hidden filesystem paths invoking Cargo, rustc, or the seed compiler",
+    "environment switches broadening the import registry",
+    "debug/test features silently altering the production ABI",
+    "source DSLs, parsers, LSP/REPL/formatter work on the 2.0 GA path"
+  ],
+  "seed_absence": {
+    "claim": "RW-070 does NOT prove seed absence; it makes the R3/R4 proof possible",
+    "future_condition": "when C1/C2/C3 exist, the R3/R4 environment removes Cargo, rustc, the Rust seed compiler executable, the Rust development tree, native compiler-service endpoints, and test-only compilation helpers; the remaining native host/runtime must still execute a valid Sley-built compiler image using only this frozen ABI",
+    "removable": [
+      "cargo and rustc toolchains",
+      "the Rust seed compiler executable",
+      "the Rust development tree",
+      "native compiler-service endpoints",
+      "test-only compilation helpers"
+    ],
+    "retained": [
+      "bounded execution of derived images under this ABI",
+      "the three frozen pure primitives under this ABI",
+      "structural image validation",
+      "fuel, cell, call-depth, and value-unit accounting"
+    ]
+  },
+  "semantic_authority_boundary": "pure primitives provide primitive value mechanics only; SCB validation and canonical judgment, SSMC formation and validation, reference and identity judgment, type and CFG checking, effect and contract judgment, mandatory test selection, Witness integrity and discharge judgment, semantic lowering, compiler-image assembly, candidate validation, and policy judgment remain Sley-owned under REWEAVE SH2; a primitive doing so invalidates SH2",
+  "supersedes": {
+    "contract": "sley2-host-abi-1",
+    "digest": "e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2",
+    "identity": "HOST_ABI_V1",
+    "record": "conformance/host-abi/v1/host-abi.json",
+    "relation": "strict superset: adds exactly RHW1 (Unit, Bytes) -> Result<Bytes32, Index>; no other import/opcode/type/effect broadening; default-deny retained",
+    "version": 1
+  },
+  "unsupported_behavior": "any opcode, terminator use, type form, import, effect, contract, or type parameter outside BOOTSTRAP_PROFILE_1 refuses before execution with the shared lowering vocabulary; fallback to a broader runtime profile never occurs silently",
+  "value_encoding": {
+    "binds": "canonical ConstValue representation by identity to SSMC1/S20-350 (no second value language at this boundary)",
+    "bytes_rule": "Bytes cross whole; octet range is enforced by the UInt(8) element type, the converter enforces only the length cap",
+    "canonical_forms": "execution inputs face check_constant plus canonical-form refusal at the boundary; constructed values carry exactly their register type or VM_EXEC_INTERNAL_INVARIANT fires",
+    "cell_rule": "LocalCell values exist only inside one execution; no bridge entry takes a type containing LocalCell",
+    "map_rule": "maps arrive in lexicographic canonical-byte order; the VM refuses unsorted maps, it does not sort them",
+    "unit_rule": "Unit scopes carry no data and are rechecked, not trusted"
+  },
+  "version": 2
+}

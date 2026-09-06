@@ -32,14 +32,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 PROFILE_JSON = ROOT / "conformance/bootstrap-profile/v1/profile.json"
+PROFILE_V2_JSON = ROOT / "conformance/bootstrap-profile/v2/profile.json"
 HOST_ABI_JSON = ROOT / "conformance/host-abi/v1/host-abi.json"
+HOST_ABI_V2_JSON = ROOT / "conformance/host-abi/v2/host-abi.json"
 EXEC_JSON = ROOT / "conformance/exec-package/v1/exec-package.json"
+EXEC_V2_JSON = ROOT / "conformance/exec-package/v2/exec-package.json"
 HASH_JSON = ROOT / "conformance/raw-hash/v1/raw-hash.json"
 BOUNDARY = ROOT / "host-boundary.json"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 RW060 = ROOT / "machineresearch/sley-2.0/reweave/rw-060.md"
 RW070 = ROOT / "machineresearch/sley-2.0/reweave/rw-070.md"
 RW075 = ROOT / "machineresearch/sley-2.0/reweave/rw-075.md"
+RW075_CORRECTION = ROOT / "machineresearch/sley-2.0/reweave/rw-075-correction.md"
 FAIL_RECORD = ROOT / "machineresearch/sley-2.0/reweave/rw-075-premium-fail.md"
 REVIEWS = ROOT / "machineresearch/sley-2.0/reviews"
 
@@ -49,6 +53,14 @@ FROZEN = {
     "host_abi": "e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2",
     "exec_package": "9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4",
     "raw_hash": "785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72",
+}
+
+# Successor (RW-075 correction, current R2 candidate). V1 above stays as
+# preserved history; READY requires the successor below.
+FROZEN_V2 = {
+    "profile": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+    "host_abi": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
+    "exec_package": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
 }
 
 RW060_IDS = {
@@ -99,7 +111,7 @@ rw060_ok = (
 )
 check("RW060_lifecycle", rw060_ok, rw060.get("status", "missing"))
 
-# RW-070 + RW-075 successor closure.
+# RW-070 + RW-075 successor closure (v1 preserved, v2 current).
 try:
     abi_ok = sha(HOST_ABI_JSON) == FROZEN["host_abi"]
 except FileNotFoundError:
@@ -115,8 +127,24 @@ try:
 except FileNotFoundError:
     hash_ok = False
 check("RW075_raw_hash_admitted", hash_ok, FROZEN["raw_hash"][:12])
-closure_ok = RW070.exists() and RW075.exists()
-check("RW070_RW075_records", closure_ok, "rw-070.md+rw-075.md")
+closure_ok = RW070.exists() and RW075.exists() and RW075_CORRECTION.exists()
+check("RW070_RW075_records", closure_ok, "rw-070.md+rw-075.md+correction")
+# Successor bindings (current R2 candidate).
+try:
+    profile_v2_ok = sha(PROFILE_V2_JSON) == FROZEN_V2["profile"]
+except FileNotFoundError:
+    profile_v2_ok = False
+check("R2_profile_v2", profile_v2_ok, FROZEN_V2["profile"][:12])
+try:
+    abi_v2_ok = sha(HOST_ABI_V2_JSON) == FROZEN_V2["host_abi"]
+except FileNotFoundError:
+    abi_v2_ok = False
+check("R2_host_abi_v2", abi_v2_ok, FROZEN_V2["host_abi"][:12])
+try:
+    exec_v2_ok = sha(EXEC_V2_JSON) == FROZEN_V2["exec_package"]
+except FileNotFoundError:
+    exec_v2_ok = False
+check("R2_exec_package_v2", exec_v2_ok, FROZEN_V2["exec_package"][:12])
 
 
 def run_checker(script: str) -> bool:
@@ -133,10 +161,16 @@ def run_checker(script: str) -> bool:
 
 
 check("checker_host_abi_v1", run_checker("check_host_abi_v1.py"))
+check("checker_host_abi_v2", run_checker("check_host_abi_v2.py"))
 check("checker_exec_package_v1", run_checker("check_exec_package_v1.py"))
+check("checker_exec_package_v2", run_checker("check_exec_package_v2.py"))
 check(
     "checker_exec_package_markers",
     run_checker("check_exec_package_markers.py"),
+)
+check(
+    "checker_bootstrap_profile_2",
+    run_checker("check_bootstrap_profile_2.py"),
 )
 
 # Independent review state (required: no BLOCKER, review PASS).

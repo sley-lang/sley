@@ -35,6 +35,12 @@ for marker in [
     "pub const BRIDGE_CODE_B2V1",
     "pub const BRIDGE_CODE_V2B1",
     "pub const BRIDGE_CODE_PSH1",
+    "pub const BRIDGE_CODE_RHW1",
+    "pub const HOST_ABI_V2_IDENTITY",
+    '"HOST_ABI_V2"',
+    "pub const HOST_ABI_V2_CONTRACT",
+    '"sley2-host-abi-2"',
+    "pub const HOST_ABI_V2_VERSION",
     "pub const HOST_ABI_BRIDGE_MAX_ITEMS",
     "pub const HOST_ABI_BRIDGE_ELEMENT_FUEL",
     "pub const HOST_ABI_BRIDGE_CAPACITY_CODE",
@@ -82,7 +88,7 @@ for name, value in value_pins:
         problems.append(f"module-value-mismatch:{name}")
 if 'pub const IMAGE_MAGIC_SLEYBC02' not in module or 'b"SLEYBC02"' not in module:
     problems.append("module-magic-mismatch")
-for code in ("B2V1", "V2B1", "PSH1"):
+for code in ("B2V1", "V2B1", "PSH1", "RHW1"):
     if f'*b"{code}"' not in module:
         problems.append(f"module-code-missing:{code}")
 

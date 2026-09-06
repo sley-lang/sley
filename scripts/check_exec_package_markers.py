@@ -28,9 +28,17 @@ for pin, value in [
     ("EXEC_PACKAGE_VERSION", ": u32 = 1"),
     ("EXEC_PACKAGE_MAGIC", 'b"SLEYPKG1"'),
     ("BOOTSTRAP_PROFILE_1_DIGEST", "0x4f, 0x26, 0x91, 0x50"),
+    ("BOOTSTRAP_PROFILE_2_DIGEST", "0xfb, 0x2d, 0x8c, 0xc8"),
+    ("EXEC_PACKAGE_V2_IDENTITY", '"EXEC_PACKAGE_V2"'),
+    ("EXEC_PACKAGE_V2_CONTRACT", '"sley2-exec-package-2"'),
+    ("EXEC_PACKAGE_V2_VERSION", ": u32 = 2"),
     ("EXEC_PACKAGE_MAX_BYTES", "67_108_864"),
     ("EXEC_PACKAGE_MAX_DEPENDENCY_BYTES", "8_388_608"),
     ("&BootstrapProfileReport", "&BootstrapProfileReport"),
+    ("pub fn package_digests_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
+    ("pub fn admit_package_v2(", "HOST_ABI_V2_VERSION"),
+    ("pub fn approve_package_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
+    ("pub fn verify_package_binding_v2(", "package_digests_v2"),
 ]:
     if pin not in exec_rs or value not in exec_rs:
         problems.append(f"exec-rs-pin-missing:{pin}")

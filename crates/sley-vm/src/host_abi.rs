@@ -36,6 +36,19 @@ pub const HOST_ABI_CONTRACT: &str = "sley2-host-abi-1";
 /// Frozen host ABI version.
 pub const HOST_ABI_VERSION: u32 = 1;
 
+/// Successor host ABI identity (RW-075 correction, AR-02).
+///
+/// `HOST_ABI_V1` (version 1, three imports) is preserved byte-identical as
+/// history. `HOST_ABI_V2` (version 2, four imports including `RHW1`) is the
+/// current R2 candidate. Live execution resolves all four through the one
+/// shared authority; the v1 record/gate history remains replayable because
+/// v2 is a strict superset (no v1 vector uses `RHW1`).
+pub const HOST_ABI_V2_IDENTITY: &str = "HOST_ABI_V2";
+/// Successor host ABI contract.
+pub const HOST_ABI_V2_CONTRACT: &str = "sley2-host-abi-2";
+/// Successor host ABI version.
+pub const HOST_ABI_V2_VERSION: u32 = 2;
+
 /// Frozen import-identity prefix: twelve ASCII bytes `SLY1/BRIDGE/`.
 pub const BRIDGE_IDENTITY_PREFIX: &[u8; 12] = b"SLY1/BRIDGE/";
 /// Frozen entry code: `host-bytes-to-u8vector`.
@@ -44,6 +57,12 @@ pub const BRIDGE_CODE_B2V1: [u8; 4] = *b"B2V1";
 pub const BRIDGE_CODE_V2B1: [u8; 4] = *b"V2B1";
 /// Frozen entry code: `vector-push`.
 pub const BRIDGE_CODE_PSH1: [u8; 4] = *b"PSH1";
+/// Successor entry code: `raw-blake3-256` (RW-075 correction, AR-02).
+///
+/// Pure bytes-to-digest primitive over Sley-constructed preimages only.
+/// Admitted in `HOST_ABI_V2` / `BOOTSTRAP_PROFILE_2`; absent from the
+/// frozen `HOST_ABI_V1` record (preserved byte-identical as history).
+pub const BRIDGE_CODE_RHW1: [u8; 4] = *b"RHW1";
 /// Frozen adapter ABI version carried by every admitted row.
 pub const BRIDGE_ABI_VERSION: u32 = 1;
 

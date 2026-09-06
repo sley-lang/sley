@@ -106,12 +106,31 @@ pub const EXEC_PACKAGE_MAX_CONSTANTS: usize = 1_000_000;
 /// Maximum imports carried in one package (allocation bound only).
 pub const EXEC_PACKAGE_MAX_IMPORTS: usize = 1_000_000;
 
-/// Frozen `BOOTSTRAP_PROFILE_1` digest bound by every package (contract
-/// `sley2-bootstrap-profile-1`; the profile itself is NOT broadened here).
+/// Frozen `BOOTSTRAP_PROFILE_1` digest bound by every v1 package (contract
+/// `sley2-bootstrap-profile-1`; preserved byte-identical as history).
 pub const BOOTSTRAP_PROFILE_1_DIGEST: [u8; 32] = [
     0x4f, 0x26, 0x91, 0x50, 0x4b, 0x5c, 0x75, 0x6e, 0xa1, 0xf5, 0xef, 0x01, 0xe6, 0xe9, 0x98, 0xcc,
     0x4c, 0xd6, 0x28, 0xd4, 0xb5, 0x24, 0xb0, 0x38, 0xb1, 0x0d, 0x58, 0x3b, 0xfe, 0xfd, 0x63, 0x30,
 ];
+
+/// Successor `BOOTSTRAP_PROFILE_2` digest (RW-075 correction, AR-02).
+///
+/// `BOOTSTRAP_PROFILE_1` (`4f269150...efd630`) is retained as history.
+/// `BOOTSTRAP_PROFILE_2` (`fb2d8cc8...847459`) is the current R2 candidate:
+/// strict superset adding exactly `RHW1` (`Unit, Bytes` ->
+/// `Result<Bytes32, Index>`); no opcode/type/effect/capability broadening.
+pub const BOOTSTRAP_PROFILE_2_DIGEST: [u8; 32] = [
+    0xfb, 0x2d, 0x8c, 0xc8, 0x7e, 0xe7, 0xde, 0x68, 0xcd, 0xe8, 0x19, 0x7a, 0x77, 0x00, 0x3a, 0x41,
+    0x7a, 0x00, 0x62, 0xac, 0xb6, 0xed, 0x08, 0x7d, 0x85, 0xf8, 0x99, 0xda, 0x1a, 0x84, 0x74, 0x59,
+];
+
+/// Successor execution-package identity (RW-075 correction).
+pub const EXEC_PACKAGE_V2_IDENTITY: &str = "EXEC_PACKAGE_V2";
+/// Successor execution-package contract.
+pub const EXEC_PACKAGE_V2_CONTRACT: &str = "sley2-exec-package-2";
+/// Successor execution-package version (envelope `u32` 2; v1 envelope 1
+/// preserved as history).
+pub const EXEC_PACKAGE_V2_VERSION: u32 = 2;
 
 /// Execution-package structural failure vocabulary.
 ///
@@ -751,6 +770,8 @@ pub fn encode_dependency_section(package: &ExecutionPackage) -> Result<Vec<u8>, 
 /// image_digest || constants_digest || layouts_digest || imports_digest ||
 /// dependency_digest || entry || epoch || root`.
 ///
+/// Preserved for v1 history; successor packages use [`package_digests_v2`].
+///
 /// # Errors
 ///
 /// Returns `Oversized` when the image, a section, or the complete envelope
@@ -806,6 +827,66 @@ pub fn package_digests(package: &ExecutionPackage) -> Result<PackageDigests, Pac
     })
 }
 
+/// Successor package digests (RW-075 correction, AR-02).
+///
+/// Same envelope layout/bounds as v1; preimage uses `u32(2)`,
+/// `BOOTSTRAP_PROFILE_2_DIGEST`, and `HOST_ABI_V2_VERSION`. V1 packages
+/// keep their digests; v2 packages (including any `RHW1` import) bind the
+/// successor profile/ABI. No other broadening.
+///
+/// # Errors
+///
+/// Same ceilings as v1.
+pub fn package_digests_v2(package: &ExecutionPackage) -> Result<PackageDigests, PackageError> {
+    if package.image_bytes.len() > IMAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let image_digest = image_digest(&package.image_bytes);
+    let constants_bytes = encode_constants_section(&package.constants)?;
+    let constants_digest = section_digest(&constants_bytes);
+    let layouts_bytes = encode_layouts_section(&package.type_definitions)?;
+    let layouts_digest = section_digest(&layouts_bytes);
+    let imports_bytes = encode_imports_section(&package.imports)?;
+    let imports_digest = section_digest(&imports_bytes);
+    let dependency_bytes = encode_dependency_section(package)?;
+    let dependency_digest = section_digest(&dependency_bytes);
+    let envelope_len = package
+        .image_bytes
+        .len()
+        .saturating_add(constants_bytes.len())
+        .saturating_add(layouts_bytes.len())
+        .saturating_add(imports_bytes.len())
+        .saturating_add(dependency_bytes.len());
+    if envelope_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut preimage = Vec::new();
+    preimage.extend_from_slice(EXEC_PACKAGE_MAGIC);
+    push_u32(&mut preimage, EXEC_PACKAGE_V2_VERSION);
+    preimage.extend_from_slice(&BOOTSTRAP_PROFILE_2_DIGEST);
+    push_u32(&mut preimage, crate::host_abi::HOST_ABI_V2_VERSION);
+    for part in package.profile.vm_version {
+        push_u32(&mut preimage, part);
+    }
+    preimage.extend_from_slice(&image_digest);
+    preimage.extend_from_slice(&constants_digest);
+    preimage.extend_from_slice(&layouts_digest);
+    preimage.extend_from_slice(&imports_digest);
+    preimage.extend_from_slice(&dependency_digest);
+    preimage.extend_from_slice(package.entry.as_bytes());
+    preimage.extend_from_slice(package.schema_epoch.as_bytes());
+    preimage.extend_from_slice(package.state_root.as_bytes());
+    let package_digest = section_digest(&preimage);
+    Ok(PackageDigests {
+        image_digest,
+        constants_digest,
+        layouts_digest,
+        imports_digest,
+        dependency_digest,
+        package_digest,
+    })
+}
+
 /// Builds the admission receipt for one exact package digest.
 ///
 /// Authority discipline: this function MUST only be called by the staged
@@ -816,12 +897,28 @@ pub fn package_digests(package: &ExecutionPackage) -> Result<PackageDigests, Pac
 /// entry/import consistency against the package, so a receipt minted
 /// without (or against) a gate judgment cannot produce an approval. The
 /// host never mints a receipt at execution time; it only compares one.
+///
+/// Preserved for v1 history; successor packages use [`admit_package_v2`].
 #[must_use]
 pub fn admit_package(package_digest: [u8; 32]) -> AdmissionReceipt {
     AdmissionReceipt {
         package_digest,
         profile_digest: BOOTSTRAP_PROFILE_1_DIGEST,
         host_abi_version: crate::host_abi::HOST_ABI_VERSION,
+    }
+}
+
+/// Successor admission receipt (RW-075 correction).
+///
+/// Same authority discipline as v1, binding the successor profile digest
+/// and host ABI version 2. V1 receipts keep their digests; v2 receipts
+/// (including any `RHW1` closure) bind v2.
+#[must_use]
+pub fn admit_package_v2(package_digest: [u8; 32]) -> AdmissionReceipt {
+    AdmissionReceipt {
+        package_digest,
+        profile_digest: BOOTSTRAP_PROFILE_2_DIGEST,
+        host_abi_version: crate::host_abi::HOST_ABI_V2_VERSION,
     }
 }
 
@@ -924,6 +1021,85 @@ pub fn approve_package(
     })
 }
 
+/// Successor package approval (RW-075 correction).
+///
+/// Identical binding discipline to v1, binding the successor profile
+/// digest and host ABI version 2. The gate-report consistency checks
+/// (entry-first, import-set equality, operation/bridge counts, closure
+/// fingerprints, admitted image digest) are unchanged: a v2 report for a
+/// `RHW1` closure approves only its exact package.
+///
+/// # Errors
+///
+/// Same vocabulary as v1.
+pub fn approve_package_v2(
+    package: &ExecutionPackage,
+    digests: &PackageDigests,
+    receipt: AdmissionReceipt,
+    gate: &BootstrapProfileReport,
+) -> Result<ApprovedExecutionPackage, PackageError> {
+    if receipt.package_digest != digests.package_digest {
+        return Err(PackageError::ReceiptMismatch);
+    }
+    if gate.functions().first() != Some(&package.entry) {
+        return Err(PackageError::BindingMismatch);
+    }
+    let mut gate_imports = gate.imports().to_vec();
+    gate_imports.sort();
+    let mut package_imports: Vec<EntityId> =
+        package.imports.iter().map(|row| row.entity_id).collect();
+    package_imports.sort();
+    if gate_imports != package_imports {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.operation_count() != package.gate_operation_count
+        || gate.bridge_uses() != package.gate_bridge_uses
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.closure_fingerprints() != package.gate_closure_fingerprints.as_slice() {
+        return Err(PackageError::BindingMismatch);
+    }
+    if gate.admitted_image_digest() != &crate::host_abi::image_digest(&package.image_bytes) {
+        return Err(PackageError::BindingMismatch);
+    }
+    if receipt.profile_digest != BOOTSTRAP_PROFILE_2_DIGEST {
+        return Err(PackageError::BindingMismatch);
+    }
+    if receipt.host_abi_version != crate::host_abi::HOST_ABI_V2_VERSION {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.profile != CacheProfile::EXTENDED_V1 {
+        return Err(PackageError::BindingMismatch);
+    }
+    let cache_key = crate::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        package.entry,
+        package.profile,
+    )
+    .map_err(|_| PackageError::BindingMismatch)?;
+    Ok(ApprovedExecutionPackage {
+        package_digest: digests.package_digest,
+        image_digest: digests.image_digest,
+        constants_digest: digests.constants_digest,
+        layouts_digest: digests.layouts_digest,
+        imports_digest: digests.imports_digest,
+        dependency_digest: digests.dependency_digest,
+        cache_key,
+        imports: package.imports.clone(),
+        entry: package.entry,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        profile_digest: BOOTSTRAP_PROFILE_2_DIGEST,
+        vm_version: package.profile.vm_version,
+        host_abi_version: crate::host_abi::HOST_ABI_V2_VERSION,
+        admitted_limits: package.admitted_limits,
+        receipt,
+    })
+}
+
 /// Hydrates the runtime type/layout closure structurally (no semantic
 /// judgment).
 ///
@@ -996,6 +1172,72 @@ pub fn verify_package_binding(
     }
     if expected.profile_digest != BOOTSTRAP_PROFILE_1_DIGEST
         || expected.host_abi_version != crate::host_abi::HOST_ABI_VERSION
+        || expected.vm_version != package.profile.vm_version
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.imports != expected.imports {
+        return Err(PackageError::BindingMismatch);
+    }
+    let cache_key = crate::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        package.entry,
+        package.profile,
+    )
+    .map_err(|_| PackageError::BindingMismatch)?;
+    if cache_key != expected.cache_key {
+        return Err(PackageError::BindingMismatch);
+    }
+    Ok(())
+}
+
+/// Successor package verification (RW-075 correction).
+///
+/// Same checks as v1, recomputing with [`package_digests_v2`] and binding
+/// the successor profile digest / host ABI version 2. V1 bindings keep
+/// their function; v2 bindings (including `RHW1` rows) verify here.
+///
+/// # Errors
+///
+/// Same vocabulary as v1.
+pub fn verify_package_binding_v2(
+    package: &ExecutionPackage,
+    digests: &PackageDigests,
+    expected: &ApprovedExecutionPackage,
+) -> Result<(), PackageError> {
+    if digests.package_digest != expected.package_digest
+        || digests.package_digest != expected.receipt.package_digest
+    {
+        return Err(PackageError::ReceiptMismatch);
+    }
+    if digests.image_digest != expected.image_digest {
+        return Err(PackageError::BindingMismatch);
+    }
+    if image_digest(&package.image_bytes) != expected.image_digest {
+        return Err(PackageError::BindingMismatch);
+    }
+    if digests.constants_digest != expected.constants_digest
+        || digests.layouts_digest != expected.layouts_digest
+        || digests.imports_digest != expected.imports_digest
+        || digests.dependency_digest != expected.dependency_digest
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let recomputed = package_digests_v2(package)?;
+    if recomputed != *digests {
+        return Err(PackageError::BindingMismatch);
+    }
+    if package.entry != expected.entry
+        || package.schema_epoch != expected.schema_epoch
+        || package.state_root != expected.state_root
+        || package.profile != expected.profile
+        || package.admitted_limits != expected.admitted_limits
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    if expected.profile_digest != BOOTSTRAP_PROFILE_2_DIGEST
+        || expected.host_abi_version != crate::host_abi::HOST_ABI_V2_VERSION
         || expected.vm_version != package.profile.vm_version
     {
         return Err(PackageError::BindingMismatch);

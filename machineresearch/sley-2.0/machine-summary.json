@@ -3400,5 +3400,54 @@
     "round1": "ariadne FAIL (3xP1) + nabu FAIL (1xP1+2xP2); transcripts preserved",
     "ariadne_review": "FAIL_3xP1_THEN_PASS_3x3_DELTA",
     "nabu_review": "FAIL_THEN_PASS_P1_P2s_AND_P22_ARC_CLOSED"
+  },
+  "bootstrap_profile_2": {
+    "status": "BOOTSTRAP_PROFILE_2_FROZEN",
+    "contract": "sley2-bootstrap-profile-2",
+    "version": 2,
+    "digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+    "doc": "docs/spec/BOOTSTRAP_PROFILE_2.md",
+    "record": "conformance/bootstrap-profile/v2/profile.json",
+    "checker": "scripts/check_bootstrap_profile_2.py",
+    "permitted_opcodes": 42,
+    "closure_vectors": 20,
+    "closure_fixture": "conformance/bootstrap-profile/v2/accepted.json",
+    "gate": "sley_vm::bootstrap::judge_bootstrap_profile",
+    "supersedes": "BOOTSTRAP_PROFILE_1 4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630"
+  },
+  "host_abi_2": {
+    "status": "HOST_ABI_V2_FROZEN",
+    "contract": "sley2-host-abi-2",
+    "version": 2,
+    "digest": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
+    "doc": "docs/spec/HOST_ABI_V2.md",
+    "record": "conformance/host-abi/v2/host-abi.json",
+    "checker": "scripts/check_host_abi_v2.py",
+    "permitted_imports": 4,
+    "conformance_fixture": "crates/sley-vm/tests/rw075_raw_callable.rs",
+    "module": "sley_vm::host_abi",
+    "supersedes": "HOST_ABI_V1 e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2"
+  },
+  "exec_package_2": {
+    "status": "EXEC_PACKAGE_V2_FROZEN",
+    "contract": "sley2-exec-package-2",
+    "version": 2,
+    "digest": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
+    "doc": "docs/spec/EXEC_PACKAGE_V2.md",
+    "record": "conformance/exec-package/v2/exec-package.json",
+    "checker": "scripts/check_exec_package_v2.py",
+    "supersedes": "EXEC_PACKAGE_V1 9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4"
+  },
+  "rw075_correction": {
+    "status": "RW075_CORRECTION_IMPLEMENTED",
+    "record": "machineresearch/sley-2.0/reweave/rw-075-correction.md",
+    "closes": "AR-02 (callable RAW_BLAKE3_V1 via successor)",
+    "successor_profile": "BOOTSTRAP_PROFILE_2 fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+    "successor_abi": "HOST_ABI_V2 bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
+    "successor_package": "EXEC_PACKAGE_V2 f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
+    "raw_primitive": "RAW_BLAKE3_V1 785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72 (unchanged, now reachable)",
+    "nabu_round7": "REQUESTED",
+    "premium_delta": "REQUESTED",
+    "rw080": "BLOCKED"
   }
 }

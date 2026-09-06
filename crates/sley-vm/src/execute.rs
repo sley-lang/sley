@@ -691,6 +691,83 @@ pub fn execute_approved_package(
     .map_err(PackageExecutionError::Execution)
 }
 
+/// Successor package execution (RW-075 correction, AR-02).
+///
+/// Identical verification/execution discipline to [`execute_approved_package`],
+/// binding the successor package digests (`u32(2)`, v2 profile digest, host
+/// ABI version 2) via [`crate::package_digests_v2`] and
+/// [`crate::verify_package_binding_v2`]. V1 packages keep their function;
+/// v2 packages (including any `RHW1` closure) execute here. Observations
+/// remain `SLEYPOBS1`-bound to the complete package identity, so v1 and v2
+/// packages never share authority evidence.
+///
+/// # Errors
+///
+/// Same vocabulary as [`execute_approved_package`].
+pub fn execute_approved_package_v2(
+    package: &crate::exec_package::ExecutionPackage,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, PackageExecutionError> {
+    use crate::exec_package::{hydrate_layouts, package_digests_v2, verify_package_binding_v2};
+    let digests = package_digests_v2(package).map_err(PackageExecutionError::Package)?;
+    verify_package_binding_v2(package, &digests, expected)
+        .map_err(PackageExecutionError::Package)?;
+    if request.limits != expected.admitted_limits {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let loaded = load_image(&package.image_bytes).map_err(PackageExecutionError::Image)?;
+    if loaded.digest != expected.image_digest {
+        return Err(PackageExecutionError::Image(ImageError::DigestMismatch));
+    }
+    let types = hydrate_layouts(package.type_definitions.clone())
+        .map_err(PackageExecutionError::Package)?;
+    let source = ExecutionSource {
+        types: &types,
+        constants: &package.constants,
+        globals: &package.globals,
+        contracts: &package.contracts,
+        adapters: &package.imports,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        function: loaded.entry.function,
+    };
+    let cache_key = crate::derive_cache_key(
+        source.schema_epoch,
+        source.state_root,
+        source.function,
+        source.profile,
+    )
+    .map_err(|error| PackageExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+    if cache_key != expected.cache_key {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let validated_inputs =
+        validate_package_inputs_structural(&loaded.entry, &request, source.schema_epoch)
+            .map_err(PackageExecutionError::Execution)?;
+    let lowered = LoweredFunction {
+        bytecode: loaded.entry.clone(),
+        bytes: package.image_bytes.clone(),
+        cache_key,
+        lowering_work: 0,
+        callees: loaded.callees.clone(),
+    };
+    execute_core_package(
+        &source,
+        &lowered,
+        &validated_inputs,
+        request,
+        expected,
+        &digests,
+    )
+    .map_err(PackageExecutionError::Execution)
+}
+
 /// Validates package-path inputs structurally (no semantic judgment).
 ///
 /// Checks, per input: count agreement; structural type equality
