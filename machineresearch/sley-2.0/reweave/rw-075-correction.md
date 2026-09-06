@@ -193,9 +193,10 @@ No widening performed; no violation found.
 Current verdicts: Nabu round-7: FAIL (two BLOCKERs, preserved); Nabu
 round-8: FAIL (R7-B2 hardening + executed-assembly BLOCKERs, preserved);
 Nabu round-9: FAIL (authority-divergence + exclusivity + assembly
-BLOCKERs, preserved in
-`reviews/reweave-rw075-nabu-r9-2026-09-06.log`); Nabu final: PENDING
-(round-10 requested); premium delta: PENDING; aggregate R2: NOT_READY
+BLOCKERs, preserved); Nabu round-10: FAIL (receipt-forgeability +
+executed-tamper BLOCKERs, preserved in
+`reviews/reweave-rw075-nabu-r10-2026-09-06.log`); Nabu final: PENDING
+(round-11 requested); premium delta: PENDING; aggregate R2: NOT_READY
 (implementation complete, reviews pending — honest, not a defect in the
 repair).
 
@@ -257,3 +258,20 @@ repair).
   bytes and either input owns the identity.
 - R7-B1 typo: `SLEYCHNK1` frame is `17 + 32*N` bytes (9-byte domain +
   two `u32` words + digests), corrected in `BOOTSTRAP_PROFILE_2.md`.
+
+## 10. Round-10 repairs (this delta, reviewable in round 11)
+
+- R10-B1 (receipt unforgeability): `AdmissionReceipt` is sealed
+  (`#[non_exhaustive]` plus private fields) with `package_digest` /
+  `profile_digest` / `host_abi_version` const accessors, so no downstream
+  struct literal or mutation can forge one (v1 call sites unchanged in
+  behavior: `admit_package` still mints v1 receipts through the same
+  constructor shape, now sealed). The raw v2 constructor stays
+  `pub(crate)` with no public re-export, and the marker now pins the seal
+  plus a production-source exclusivity scan (only `exec_package.rs` and
+  `admission_authority.rs` may name the minter). Residual in-crate
+  test-negative construction is explicitly marked non-evidence in-module.
+- R10-B2 (executed tamper): both altered cases now execute altered inputs
+  through Sley (`run_assembly(b"SLEYSFP1", 0x42)` and
+  `run_assembly(b"SLEYSFP2", 0x41)`), each matching its own reference and
+  differing from the honest digest.

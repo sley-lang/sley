@@ -266,17 +266,49 @@ pub struct PackageDigests {
 /// The admission receipt for one exact package (separately accepted
 /// authority; never the Rust semantic checker rerun at execution time).
 ///
+/// Sealed two ways (like `BootstrapProfileReport`): `#[non_exhaustive]`
+/// prevents downstream struct-literal construction, and private fields
+/// prevent downstream mutation or forgery of a genuine receipt. Reads go
+/// through the `package_digest`, `profile_digest`, and `host_abi_version`
+/// accessors. V1 receipts come from [`admit_package`] (historical staged
+/// authority); v2 receipts come exclusively from the staged authority
+/// (`crate::admission_authority::admit_v2_package`, via the crate-private
+/// [`admit_package_v2`] constructor).
+///
 /// Produced by the staged admission authority (gate report + package digest
 /// binding) and verified byte-for-byte before anything runs. The host never
 /// decides which package is approved: it compares digests.
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AdmissionReceipt {
     /// The exact package digest this receipt approves.
-    pub package_digest: [u8; 32],
-    /// The `BOOTSTRAP_PROFILE_1` digest the admission was judged under.
-    pub profile_digest: [u8; 32],
-    /// The host ABI version the admission was judged under (1).
-    pub host_abi_version: u32,
+    package_digest: [u8; 32],
+    /// The bootstrap profile digest the admission was judged under
+    /// (v1 digest for v1 receipts, successor digest for v2 receipts).
+    profile_digest: [u8; 32],
+    /// The host ABI version the admission was judged under
+    /// (1 for v1 receipts, 2 for v2 receipts).
+    host_abi_version: u32,
+}
+
+impl AdmissionReceipt {
+    /// The exact package digest this receipt approves.
+    #[must_use]
+    pub const fn package_digest(&self) -> &[u8; 32] {
+        &self.package_digest
+    }
+
+    /// The bootstrap profile digest the admission was judged under.
+    #[must_use]
+    pub const fn profile_digest(&self) -> &[u8; 32] {
+        &self.profile_digest
+    }
+
+    /// The host ABI version the admission was judged under.
+    #[must_use]
+    pub const fn host_abi_version(&self) -> u32 {
+        self.host_abi_version
+    }
 }
 
 /// The complete approved execution-package binding (AR-03 successor to the

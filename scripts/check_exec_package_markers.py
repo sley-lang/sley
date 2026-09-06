@@ -113,6 +113,31 @@ if "pub mod admission_authority;" not in lib_rs:
 if "admit_package_v2" in lib_rs:
     problems.append("lib-reexport-forbidden:admit_package_v2")
 
+# Receipt forgery closure: `AdmissionReceipt` is sealed (`non_exhaustive`
+# plus private fields) with controlled accessors, so no downstream struct
+# literal or mutation can forge one. The raw v2 constructor is
+# crate-private; reviewed production paths mint exclusively through the
+# staged authority (textual exclusivity pin below).
+if "#[non_exhaustive]" not in exec_rs or "pub struct AdmissionReceipt" not in exec_rs:
+    problems.append("exec-rs-missing:sealed-receipt")
+for marker in [
+    "pub const fn package_digest(",
+    "pub const fn profile_digest(",
+    "pub const fn host_abi_version(",
+    "pub(crate) fn admit_package_v2(",
+]:
+    if marker not in exec_rs:
+        problems.append(f"exec-rs-missing:{marker}")
+SRC = ROOT / "crates/sley-vm/src"
+for path in sorted(SRC.glob("*.rs")):
+    if path.name in ("exec_package.rs", "admission_authority.rs"):
+        continue
+    production = path.read_text(encoding="utf-8").split("#[cfg(test)]")[0]
+    if "admit_package_v2(" in production:
+        problems.append(f"minter-exclusivity:{path.name}")
+    if "AdmissionReceipt {" in production:
+        problems.append(f"receipt-literal:{path.name}")
+
 # Anti-shortcut absence: the package/raw-hash sources must not call native
 # semantic digest or compiler services (behavioral probes pin this in Rust
 # too; this marker makes it a `make quick` gate).

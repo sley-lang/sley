@@ -580,8 +580,8 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
     let (digests, receipt, gate) =
         sley_vm::admit_v2_package(&closure, &package).expect("authority admits honest");
     assert_eq!(
-        receipt.profile_digest,
-        sley_vm::BOOTSTRAP_PROFILE_2_DIGEST,
+        receipt.profile_digest(),
+        &sley_vm::BOOTSTRAP_PROFILE_2_DIGEST,
         "v2 receipt binds the successor profile"
     );
     let approved = approve_package_v2(&package, &digests, receipt, &gate).expect("v2 approves");
@@ -1251,28 +1251,34 @@ fn raw_sley_built_preimage_end_to_end() {
     };
     // Sley joins the separate domain and field inputs, converts, and
     // hashes: the digest equals the reference over the joined bytes.
+    // Both altered cases execute altered inputs through Sley (not mere
+    // reference-hash comparisons): either input owns the identity.
     let mut joined = b"SLEYSFP1".to_vec();
     joined.push(0x41);
+    let honest = run_assembly(b"SLEYSFP1", 0x41);
     assert_eq!(
-        run_assembly(b"SLEYSFP1", 0x41),
+        honest,
         blake3::hash(&joined).as_bytes().to_vec(),
         "Sley-assembled domain plus field hashes exactly"
     );
-    // Either input owns the identity.
+    let altered_field = run_assembly(b"SLEYSFP1", 0x42);
     let mut other_field = b"SLEYSFP1".to_vec();
     other_field.push(0x42);
-    assert_ne!(
-        run_assembly(b"SLEYSFP1", 0x41),
+    assert_eq!(
+        altered_field,
         blake3::hash(&other_field).as_bytes().to_vec(),
-        "field change owns the identity"
+        "executed altered field matches its reference"
     );
+    assert_ne!(honest, altered_field, "field change owns the identity");
+    let altered_domain = run_assembly(b"SLEYSFP2", 0x41);
     let mut other_domain = b"SLEYSFP2".to_vec();
     other_domain.push(0x41);
-    assert_ne!(
-        run_assembly(b"SLEYSFP1", 0x41),
+    assert_eq!(
+        altered_domain,
         blake3::hash(&other_domain).as_bytes().to_vec(),
-        "domain change owns the identity"
+        "executed altered domain matches its reference"
     );
+    assert_ne!(honest, altered_domain, "domain change owns the identity");
 }
 // ── SLEYBC02 encoding boundary ───────────────────────────────────────
 
