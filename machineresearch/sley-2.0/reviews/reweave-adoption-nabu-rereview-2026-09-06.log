@@ -1,0 +1,23 @@
+Council architecture-lane re-review, round 2 (2026-09-06): Nabu PASS.
+Scope: closure of the two round 1 FAIL findings only; the rest of the round 1
+review stands as read. Only scripts/build_anti_goal_conformance.py
+(evaluate_campaign_declarations) changed since round 1.
+
+Result returned by the lane:
+
+status: PASS
+
+findings:
+- Prior High closed: `boundary.read_bytes()` is guarded by `except OSError`, producing `VIOLATED` rather than an exception (`scripts/build_anti_goal_conformance.py:114-117`).
+- Prior Medium closed: `gate` must be a string containing non-whitespace characters; booleans, numbers, objects, arrays, null, and whitespace fail closed (`scripts/build_anti_goal_conformance.py:129-131`).
+- No remaining findings in the bounded re-review.
+
+validation:
+- Exact source inspection only, as requested.
+- Confidence: high.
+
+blockers: none
+
+return_to: originating OpenCode implementation session
+
+Recording note: read-only handoff; the lane changed no files.

@@ -1,0 +1,32 @@
+Council security-surface-lane review, round 1 (2026-09-06): Vulcan FAIL.
+Scope: REWEAVE scope-adoption governance patch (ADOPT-REWEAVE-2026-09-06),
+uncommitted diff on sley2 main@9b7054c.
+
+Result returned by the lane:
+
+status: FAIL
+
+findings:
+- **MEDIUM — `scripts/build_anti_goal_conformance.py:127`:** `if not item.get("gate")` accepts any truthy JSON value. A declaration using `"gate": true`, `1`, or an arbitrary object passes and is reported as naming a staged SH2 gate despite naming none. Require a non-empty string and, if mechanically defined, validate it against the authorized gate set.
+
+validation:
+- Static read-only inspection confirmed:
+  - Six-crate denylist remains intact at `scripts/build_anti_goal_conformance.py:34`.
+  - Native denial and campaign declaration must both hold at `scripts/build_anti_goal_conformance.py:163-169`.
+  - Registry and boundary paths are fixed; registry parse failures fail closed.
+  - `VIOLATED` exits nonzero at `scripts/build_anti_goal_conformance.py:277-279`.
+  - `REVIEW_ONLY` remains explicitly non-pass at `scripts/build_anti_goal_conformance.py:259-263`.
+- No probes or `git diff` executed because the handoff allowed read actions only.
+
+blockers:
+- None; verdict decided.
+
+return_to: originating OpenCode implementation session
+
+Recording note: read-only handoff; the lane changed no files. The finding was
+corrected exactly (strict non-blank string gate) and closed in Vulcan round 2
+(reweave-adoption-vulcan-rereview-2026-09-06.log). The "validate against the
+authorized gate set" half stays human-review-owned: staged SH2 gates are
+chartered by RW-030, which is not started, so no mechanical gate set exists
+yet; the checker enforces a named (non-blank string) gate and review owns
+authorization.

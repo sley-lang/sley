@@ -27,7 +27,7 @@ acceptance evidence is mechanical and writes
 | arbitrary shell | opcode/adapter inventory and runtime denial | no process opcode or unrestricted adapter |
 | mandatory Greyforge dependency | Cargo graph and clean-room release | core builds/tests offline without ZJX/Siglum/Forge products |
 | Git-defined semantics | repository conformance | identical packs/roots outside Git; no Git metadata in hashes |
-| native/JIT/AOT/marketplace/self-hosting before GA | workspace/package denylist | absent from GA dependency graph |
+| native/JIT/AOT/marketplace/self-hosting outside an authorized campaign | workspace/package denylist + campaign-declaration record | absent from GA dependency graph unless declared in the authorized campaign boundary record (host-boundary.json) and gated by staged SH2 proofs |
 | network-dependent core tests | network-isolated gate | core/conformance pass with network disabled |
 | unsafe code hidden in kernel | workspace lints and source scan | `unsafe_code=forbid`; any exception isolated by ADR/review |
 | untyped or ambient effects | checker and adapter negative corpus | all effect/capability requirements structurally visible |

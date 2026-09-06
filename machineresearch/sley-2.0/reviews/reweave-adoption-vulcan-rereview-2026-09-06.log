@@ -1,0 +1,22 @@
+Council security-surface-lane re-review, round 2 (2026-09-06): Vulcan PASS.
+Scope: closure of the round 1 FAIL finding only; the rest of the round 1
+review stands as read. Only scripts/build_anti_goal_conformance.py changed
+since round 1.
+
+Result returned by the lane:
+
+status: PASS
+
+findings:
+- Prior Medium finding is closed.
+- `/home/greyforge/sley2/scripts/build_anti_goal_conformance.py:130-132` now requires `gate` to be a non-empty, non-whitespace string. Booleans, numbers, objects, arrays, whitespace, and null fail closed.
+
+validation:
+- Targeted static re-review of the corrected gate condition.
+- No runtime probes performed under read-only scope.
+
+blockers: none
+
+return_to: originating OpenCode implementation session
+
+Recording note: read-only handoff; the lane changed no files.

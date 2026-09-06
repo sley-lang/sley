@@ -35,6 +35,12 @@ FORBIDDEN_DEPENDENCIES = {
     "network": ("reqwest", "hyper", "tokio", "async-std", "ureq", "curl", "rustls", "socket2"),
     "greyforge_product": ("zjx", "siglum", "forge", "openclaw"),
 }
+# The authorized campaign boundary record that declared SH2 work items must
+# cite (REWEAVE-1.0 scope adoption, ADR-0049). The record itself is chartered
+# by RW-030; until it exists, no SH2 work item can be authorized.
+BOUNDARY_RECORD = "host-boundary.json"
+SH2_WORK_ITEMS = Path("evidence") / "reweave" / "sh2-work-items.json"
+SH2_WORK_ITEMS_CONTRACT = "sley2.reweave-sh2-work-items.v1"
 
 
 def canonical(value: object) -> str:
@@ -76,6 +82,59 @@ def git(*arguments: str) -> str:
     ).stdout.strip()
 
 
+def evaluate_campaign_declarations(root: Path) -> tuple[bool, str]:
+    """Review-gated campaign-declaration check for SH2 work items.
+
+    Declared SH2 work items live in the registry at
+    `evidence/reweave/sh2-work-items.json`; every item must cite the
+    authorized campaign boundary record (`host-boundary.json`) by exact
+    path and SHA-256 digest and must name its staged SH2 gate. This check
+    verifies citation presence and correctness only; semantic authorization
+    of the work stays with human review. An absent registry means no SH2
+    work is declared, which holds vacuously. The six-crate native-codegen
+    denylist evaluated alongside this check still fails unconditionally.
+    """
+    registry = root / SH2_WORK_ITEMS
+    if not registry.exists():
+        return True, "no declared SH2 work items"
+    try:
+        declarations = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return False, f"declared SH2 work items unreadable: {error}"
+    if not isinstance(declarations, dict) or declarations.get("contract") != SH2_WORK_ITEMS_CONTRACT:
+        return False, "declared SH2 work items carry the wrong contract"
+    items = declarations.get("items")
+    if not isinstance(items, list):
+        return False, "declared SH2 work items carry no item list"
+    boundary = root / BOUNDARY_RECORD
+    if items and not boundary.is_file():
+        return False, (
+            f"{len(items)} declared SH2 work items but no authorized {BOUNDARY_RECORD}"
+        )
+    try:
+        boundary_bytes = boundary.read_bytes() if items else None
+    except OSError as error:
+        return False, f"authorized {BOUNDARY_RECORD} unreadable: {error}"
+    digest = hashlib.sha256(boundary_bytes).hexdigest() if boundary_bytes is not None else None
+    for item in items:
+        if not isinstance(item, dict):
+            return False, "a declared SH2 work item is not an object"
+        cited = item.get("boundary_record")
+        cited = cited if isinstance(cited, dict) else {}
+        if cited.get("path") != BOUNDARY_RECORD or cited.get("sha256") != digest:
+            return False, (
+                f"SH2 work item {item.get('id', '?')} does not cite "
+                f"the authorized {BOUNDARY_RECORD} digest"
+            )
+        gate = item.get("gate")
+        if not isinstance(gate, str) or not gate.strip():
+            return False, f"SH2 work item {item.get('id', '?')} names no staged SH2 gate"
+    return True, (
+        f"{len(items)} declared SH2 work items cite the authorized "
+        "boundary record and a staged gate"
+    )
+
+
 def evaluate() -> dict[str, dict]:
     """One verdict per mechanically checkable anti-goal."""
     locked = locked_dependencies()
@@ -107,10 +166,11 @@ def evaluate() -> dict[str, dict]:
     )
 
     native = sorted(locked & set(FORBIDDEN_DEPENDENCIES["native_codegen"]))
+    campaign_ok, campaign_detail = evaluate_campaign_declarations(ROOT)
     record(
-        "native/JIT/AOT/marketplace/self-hosting before GA",
-        not native,
-        f"codegen or runtime crates in the lock: {native or 'none'}",
+        "native/JIT/AOT/marketplace/self-hosting outside an authorized campaign",
+        not native and campaign_ok,
+        f"codegen or runtime crates in the lock: {native or 'none'}; {campaign_detail}",
     )
 
     network = sorted(locked & set(FORBIDDEN_DEPENDENCIES["network"]))
