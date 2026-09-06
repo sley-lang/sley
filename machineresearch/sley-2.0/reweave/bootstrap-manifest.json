@@ -1,0 +1,46 @@
+{
+ "note": "RW-040 slice 1 skeleton (2026-09-06). Stage meanings per REWEAVE 13.1. Missing values are null; no hash is invented. H carries measured host facts with sources; its manifest digest stays null until RW-030 pins the host record.",
+ "stages": {
+  "C0": {
+   "meaning": "preserved Rust bootstrap compiler (executable image)",
+   "running_bootstrap_source": "sley2@3fc2275 (adoption commit; source line, not the C0 image)",
+   "status": "no preserved image snapshotted yet (RW-080+ recovery-closure scope)",
+   "value": null
+  },
+  "C1": {
+   "meaning": "C0.build(S, P)",
+   "status": "does not exist",
+   "value": null
+  },
+  "C2": {
+   "meaning": "H.run(C1, BuildRequest(S, P))",
+   "status": "does not exist",
+   "value": null
+  },
+  "C3": {
+   "meaning": "H.run(C2, BuildRequest(S, P))",
+   "status": "does not exist",
+   "value": null
+  },
+  "H": {
+   "facts": {
+    "os": "linux",
+    "rust_toolchain": "1.93.0 minimal + clippy + rustfmt (rust-toolchain.toml)",
+    "target": "default host target; no override in rust-toolchain.toml or cargo config (E3 determinism pinned to toolchain+triple per VM_EXTENDED_OPCODE_PROFILE_V1.md)"
+   },
+   "manifest_digest": null,
+   "meaning": "pinned native execution host with no callable native Sley compiler/checker/lowerer service in the proof environment",
+   "status": "facts measured, manifest not pinned (RW-030)"
+  },
+  "P": {
+   "meaning": "pinned build/lowering profile, schema epoch, host ABI, limits, permitted dependencies",
+   "status": "not frozen (BOOTSTRAP_PROFILE_1 is RW-050; this audit informs it)",
+   "value": null
+  },
+  "S": {
+   "meaning": "immutable canonical root and complete dependency closure of the Sley toolchain program",
+   "status": "does not exist (SH0: no Sley toolchain program)",
+   "value": null
+  }
+ }
+}
