@@ -1,0 +1,28 @@
+RW-075 architecture/boundary delta re-review, round 7 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/greyforge/sley2`).
+Commit reviewed: 9574f8a (RW-075 correction: genuinely callable RAW_BLAKE3
+via successor profile/ABI).
+
+status: complete
+
+VERDICT: FAIL.
+
+findings:
+- VERDICT: FAIL
+- **BLOCKER AR-02 — the 1 MiB primitive does not cover larger canonical BLAKE3 preimages.** `RHW1` is stateless, one-shot BLAKE3 and refuses inputs above 1,048,576 bytes. The specifications claim larger preimages can be handled through repeated calls, but independently hashing chunks cannot reproduce BLAKE3 over the original concatenated preimage. Either prove every required compiler-owned BLAKE3 preimage is bounded to 1 MiB, or provide a reviewed exact streaming/composition contract.
+- **BLOCKER full image/package commitment — graph-to-image correspondence remains unenforced.** `judge_bootstrap_profile` judges supplied graphs but merely hashes caller-supplied `presented_image_bytes`. `approve_package_v2` verifies that hash without proving those bytes were lowered from the judged graphs. Because the package path performs structural loading and runs under `EXTENDED_V1` without semantic re-judgment, an admitted graph can be paired with different executable bytes. Deferring the comparison to a future RW-080 driver leaves the current RW-075 admission boundary bypassable.
+- The preimage-ownership test uses representative label strings rather than canonical production encoders/vectors; it therefore proves only that RHW1 hashes supplied bytes unchanged, not that each listed compiler domain constructs its exact canonical preimage.
+
+validation:
+- Read-only static review of the correction record, premium findings, v2 profile/ABI/package specifications and conformance records, `extended.rs`, `host_abi.rs`, `exec_package.rs`, `execute.rs`, `bootstrap.rs`, and `rw075_raw_callable.rs`.
+- No tests executed because the handoff allowed only reads.
+- The supplied round-6 review path was not present, but the preserved round-6 finding and claimed repair were available in `rw-075.md`.
+
+blockers:
+- RW-075 correction gate remains blocked by the two findings above; premium delta re-review and RW-080 should not advance.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 7. Preserved unedited; repairs below
+are a separate delta verified in round 8.

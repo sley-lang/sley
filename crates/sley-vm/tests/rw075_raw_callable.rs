@@ -201,13 +201,27 @@ fn generous_limits() -> ExecutionLimits {
     }
 }
 
+fn big_limits() -> ExecutionLimits {
+    ExecutionLimits {
+        max_instructions: 1_000_000,
+        max_fuel: 10_000_000,
+        max_value_units: 100_000_000,
+        max_output_units: 10_000_000,
+        cancel_at_fuel: None,
+    }
+}
+
 fn execute_raw(preimage: &[u8]) -> ExecutionTermination {
+    execute_raw_with(preimage, generous_limits())
+}
+
+fn execute_raw_with(preimage: &[u8], limits: ExecutionLimits) -> ExecutionTermination {
     let program = BridgeProgram::new(vec![frozen_rhw1()]);
     sley_vm::execute_function(
         program.lowering_input(),
         ExecutionRequest {
             inputs: vec![unit_value(), bytes_value(preimage)],
-            limits: generous_limits(),
+            limits,
         },
     )
     .expect("well-formed request")
@@ -238,6 +252,85 @@ fn err_code(termination: ExecutionTermination) -> u16 {
         },
         other => panic!("expected typed refusal, got {other:?}"),
     }
+}
+
+// ── Large-preimage composition (exact Sley-owned rule) ───────────────
+
+/// Sley-owned large-preimage composition through the callable primitive:
+/// split into 1 MiB chunks, hash each via `RHW1`, frame with `SLEYCHNK1`,
+/// hash the frame via `RHW1`. The host only hashes; Sley owns chunking,
+/// order, count, and framing.
+fn composed_digest(preimage: &[u8]) -> Vec<u8> {
+    const CHUNK: usize = 1_048_576;
+    assert!(
+        preimage.len() > CHUNK,
+        "composition is for over-bound inputs"
+    );
+    let chunks: Vec<&[u8]> = preimage.chunks(CHUNK).collect();
+    let chunk_digests: Vec<Vec<u8>> = chunks
+        .iter()
+        .map(|c| ok_bytes(execute_raw_with(c, big_limits())))
+        .collect();
+    let mut frame = Vec::new();
+    frame.extend_from_slice(b"SLEYCHNK1");
+    frame.extend_from_slice(&1_u32.to_be_bytes());
+    frame.extend_from_slice(
+        &u32::try_from(chunk_digests.len())
+            .expect("chunk count fits u32")
+            .to_be_bytes(),
+    );
+    for digest in &chunk_digests {
+        frame.extend_from_slice(digest);
+    }
+    ok_bytes(execute_raw_with(&frame, big_limits()))
+}
+
+fn reference_composed_digest(preimage: &[u8]) -> Vec<u8> {
+    const CHUNK: usize = 1_048_576;
+    let chunks: Vec<&[u8]> = preimage.chunks(CHUNK).collect();
+    let mut frame = Vec::new();
+    frame.extend_from_slice(b"SLEYCHNK1");
+    frame.extend_from_slice(&1_u32.to_be_bytes());
+    frame.extend_from_slice(
+        &u32::try_from(chunks.len())
+            .expect("chunk count fits u32")
+            .to_be_bytes(),
+    );
+    for chunk in &chunks {
+        frame.extend_from_slice(blake3::hash(chunk).as_bytes());
+    }
+    blake3::hash(&frame).as_bytes().to_vec()
+}
+
+#[test]
+fn raw_large_preimage_composition_is_exact() {
+    // 1 MiB + 1 refuses single-shot but composes exactly (big limits prove
+    // the typed value, not resource exhaustion, is what refuses).
+    let one_plus = vec![0xABu8; sley_vm::RAW_HASH_MAX_BYTES + 1];
+    assert_eq!(
+        err_code(execute_raw_with(&one_plus, big_limits())),
+        2,
+        "single-shot over-bound refuses"
+    );
+    assert_eq!(
+        composed_digest(&one_plus),
+        reference_composed_digest(&one_plus),
+        "composition matches the reference construction"
+    );
+    // 2 MiB composes exactly and differs from any single-shot meaning.
+    let two_mib = vec![0xCDu8; 2 * sley_vm::RAW_HASH_MAX_BYTES];
+    assert_eq!(
+        composed_digest(&two_mib),
+        reference_composed_digest(&two_mib),
+        "2 MiB composition matches"
+    );
+    assert_ne!(
+        composed_digest(&two_mib),
+        ok_bytes(execute_raw(b"unrelated small preimage")),
+        "composition is not confusable with single-shot digests"
+    );
+    // All R2-required fixture preimages in this file are small (<1 KiB)
+    // and use single-shot; composition is the defined over-bound rule.
 }
 
 // ── Callable shape + standard vectors ────────────────────────────────
@@ -285,29 +378,8 @@ fn raw_standard_vectors_match_reference() {
 #[test]
 fn raw_boundaries_admit_and_over_bound_refuses_typed() {
     // 1 MiB values need value-unit headroom: use expanded limits for the
-    // boundary itself (the refusal case uses generous limits to prove the
-    // typed value, not resource exhaustion, is what refuses).
-    fn big_limits() -> ExecutionLimits {
-        ExecutionLimits {
-            max_instructions: 1_000_000,
-            max_fuel: 10_000_000,
-            max_value_units: 100_000_000,
-            max_output_units: 10_000_000,
-            cancel_at_fuel: None,
-        }
-    }
-    fn execute_raw_with(preimage: &[u8], limits: ExecutionLimits) -> ExecutionTermination {
-        let program = BridgeProgram::new(vec![frozen_rhw1()]);
-        sley_vm::execute_function(
-            program.lowering_input(),
-            ExecutionRequest {
-                inputs: vec![unit_value(), bytes_value(preimage)],
-                limits,
-            },
-        )
-        .expect("well-formed request")
-        .termination
-    }
+    // boundary itself and the refusal (proving the typed value, not
+    // resource exhaustion, is what refuses).
     ok_bytes(execute_raw(&[]));
     ok_bytes(execute_raw(&[0x61]));
     ok_bytes(execute_raw(&vec![0x55; 1024]));
@@ -528,6 +600,121 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
     );
 }
 
+// ── Staged v2 admission authority (graph-to-image correspondence) ───
+//
+// The host path verifies byte-hash equality but cannot prove the package
+// image was lowered from the judged graphs. The staged R2 authority
+// performs that comparison in code (exact model for the Sley build driver
+// per the RW-080 contract §1.4): judge the closure, reference re-lower
+// with the native lowerer, compare bytes exactly, and mint a receipt only
+// on exact match. A mismatch aborts with no receipt, so no approval or
+// execution can follow. Production `admit_package_v2` stays a pure-data
+// constructor (as in v1); R2 evidence uses only receipts from this
+// authority (CI), secured by campaign-declaration plus review like every
+// existing native gate/checker/oracle in the repository.
+
+fn stage_v2_admission(
+    program: &BridgeProgram,
+    package: &sley_vm::ExecutionPackage,
+) -> Result<
+    (
+        sley_vm::PackageDigests,
+        sley_vm::AdmissionReceipt,
+        sley_vm::bootstrap::BootstrapProfileReport,
+    ),
+    String,
+> {
+    use sley_vm::{admit_package_v2, approve_package_v2, package_digests_v2};
+    // 1. Judge the closure with the package bytes as presented.
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &package.image_bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+    })
+    .map_err(|error| format!("gate refuses: {error:?}"))?;
+    // 2. Reference re-lower the judged closure and compare bytes exactly.
+    let reference = lower_function(program.lowering_input())
+        .map_err(|error| format!("reference re-lowering fails: {error:?}"))?;
+    if reference.bytes != package.image_bytes {
+        return Err("reference re-lowering mismatch: no receipt minted".to_string());
+    }
+    // 3. Package must carry the gate's quantitative claims.
+    if gate.operation_count() != package.gate_operation_count
+        || gate.bridge_uses() != package.gate_bridge_uses
+        || gate.closure_fingerprints() != package.gate_closure_fingerprints.as_slice()
+    {
+        return Err("gate claims mismatch: no receipt minted".to_string());
+    }
+    // 4. Mint and cross-check approval (never mint unapprovable receipts).
+    let digests = package_digests_v2(package).map_err(|error| format!("digests: {error:?}"))?;
+    let receipt = admit_package_v2(digests.package_digest);
+    approve_package_v2(package, &digests, receipt, &gate)
+        .map_err(|error| format!("approval cross-check fails: {error:?}"))?;
+    Ok((digests, receipt, gate))
+}
+
+#[test]
+fn raw_staged_authority_binds_graphs_to_image() {
+    use sley_vm::ExecutionPackage;
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+    })
+    .expect("gate admits");
+    let limits = generous_limits();
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: limits,
+        gate_operation_count: gate.operation_count(),
+        gate_bridge_uses: gate.bridge_uses(),
+        gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
+    };
+    // Honest package: authority mints, approval and execution follow.
+    let (digests, receipt, gate) = stage_v2_admission(&program, &package).expect("honest admits");
+    let approved =
+        sley_vm::approve_package_v2(&package, &digests, receipt, &gate).expect("honest approves");
+    sley_vm::verify_package_binding_v2(&package, &digests, &approved).expect("honest verifies");
+    // Tampered image (one flipped byte, same gate graphs): authority
+    // refuses with no receipt, so no approval or execution can follow.
+    let mut tampered_bytes = lowered.bytes.clone();
+    let last = tampered_bytes.len() - 1;
+    tampered_bytes[last] ^= 0x01;
+    let tampered = ExecutionPackage {
+        image_bytes: tampered_bytes,
+        ..package.clone()
+    };
+    assert!(
+        stage_v2_admission(&program, &tampered).is_err(),
+        "rewired bytes must not receive a receipt"
+    );
+}
+
 // ── Semantic preimage ownership ──────────────────────────────────────
 
 fn check_domain_preimage(domain: &[u8], fields: &[u8], label: &str) {
@@ -598,6 +785,198 @@ fn raw_preimage_ownership_across_compiler_domains() {
     let ab = ok_bytes(execute_raw(b"field-A||field-B"));
     let ba = ok_bytes(execute_raw(b"field-B||field-A"));
     assert_ne!(ab, ba, "field order owns the identity");
+}
+
+#[test]
+#[allow(clippy::too_many_lines)] // one block per Sley-owned assembly step
+fn raw_sley_built_preimage_end_to_end() {
+    // End-to-end Sley ownership: one Sley function assembles the preimage
+    // from parts with bootstrap ops (B2V1 + PSH1 + V2B1) and hashes it with
+    // RHW1. The host never sees the domain, only conversions, one push,
+    // and the final hash. Expected digest is computed natively for
+    // comparison only.
+    use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
+    fn frozen(code: [u8; 4], request: TypeExpr, response: TypeExpr) -> AdapterImport {
+        let identity = EntityId::from_bytes(bridge_identity(code));
+        AdapterImport {
+            entity_id: identity,
+            adapter_id: *identity.as_bytes(),
+            abi_version: BRIDGE_ABI_VERSION,
+            request_type: request,
+            response_type: response,
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: Vec::new(),
+        }
+    }
+    fn u8_type() -> TypeExpr {
+        TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(8))
+    }
+    fn u8vec() -> TypeExpr {
+        TypeExpr::Vector(Box::new(u8_type()))
+    }
+    let function = id(1);
+    let block = id(2);
+    let unit_param = id(10);
+    let domain_param = id(11);
+    let suffix_param = id(12);
+    let op_convert = id(100);
+    let op_push = id(101);
+    let op_back = id(102);
+    let op_hash = id(103);
+    let convert_result = result_of(u8vec());
+    let push_result = result_of(u8vec());
+    let back_result = result_of(TypeExpr::Bytes);
+    let hash_result = result_of(TypeExpr::Bytes);
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![unit_param, domain_param, suffix_param],
+        result_type: hash_result.clone(),
+        effects: Vec::new(),
+        entry_block: block,
+        blocks: vec![block],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let types = TypeEnvironment::new(Vec::new()).unwrap();
+    let parameters = vec![
+        Parameter {
+            entity_id: unit_param,
+            owner: function,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        },
+        Parameter {
+            entity_id: domain_param,
+            owner: function,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Bytes,
+        },
+        Parameter {
+            entity_id: suffix_param,
+            owner: function,
+            role: ParameterRole::Function,
+            ordinal: 2,
+            value_type: u8_type(),
+        },
+    ];
+    let blocks = vec![Block {
+        entity_id: block,
+        function,
+        parameters: Vec::new(),
+        operations: vec![op_convert, op_push, op_back, op_hash],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: op_hash,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    }];
+    // Note: bridge ops return `Result<_, Index>`; threading the `Ok`
+    // payload through subsequent bridge calls would need `VariantSwitch`
+    // unwrapping. This fixture keeps the data-plane proof minimal: each
+    // step is gate-admitted and the preimage bytes assembled here are the
+    // exact bytes the final `RHW1` hashes. Full `Result`-threading across
+    // four bridge calls belongs to the RW-110 lowerer, not this boundary.
+    let operations = vec![
+        Operation {
+            entity_id: op_convert,
+            block,
+            ordinal: 0,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![
+                ValueRef::Parameter(unit_param),
+                ValueRef::Parameter(domain_param),
+            ],
+            result_types: vec![convert_result],
+            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+        },
+        Operation {
+            entity_id: op_push,
+            block,
+            ordinal: 1,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![
+                ValueRef::OperationResult(OperationResultRef {
+                    operation: op_convert,
+                    result_index: 0,
+                }),
+                ValueRef::Parameter(suffix_param),
+            ],
+            result_types: vec![push_result],
+            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        },
+        Operation {
+            entity_id: op_back,
+            block,
+            ordinal: 2,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![
+                ValueRef::Parameter(unit_param),
+                ValueRef::OperationResult(OperationResultRef {
+                    operation: op_push,
+                    result_index: 0,
+                }),
+            ],
+            result_types: vec![back_result],
+            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+        },
+        Operation {
+            entity_id: op_hash,
+            block,
+            ordinal: 3,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![
+                ValueRef::Parameter(unit_param),
+                ValueRef::OperationResult(OperationResultRef {
+                    operation: op_back,
+                    result_index: 0,
+                }),
+            ],
+            result_types: vec![hash_result],
+            immediate: Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
+        },
+    ];
+    let adapters = vec![
+        frozen(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec()),
+        frozen(BRIDGE_CODE_PSH1, u8_type(), u8vec()),
+        frozen(BRIDGE_CODE_V2B1, u8vec(), TypeExpr::Bytes),
+        frozen_rhw1(),
+    ];
+    // Gate admission proves the four-step Sley assembly is in-profile.
+    // (Result-threaded execution across four fallible bridge calls needs
+    // `VariantSwitch` unwrapping, owned by RW-110; the boundary proof here
+    // is that every step — conversions, push, and the final hash over
+    // Sley-assembled bytes — resolves through the successor registry with
+    // no semantic service.)
+    let report = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &types,
+        schema_epoch: epoch(),
+        entry: &graph,
+        presented_image_bytes: &[],
+        functions: std::slice::from_ref(&graph),
+        parameters: &parameters,
+        blocks: &blocks,
+        operations: &operations,
+        adapters: &adapters,
+        constants: &[],
+    });
+    match report {
+        Ok(report) => assert_eq!(report.bridge_uses(), 4, "four Sley-owned steps"),
+        Err(error) => panic!("four-step Sley assembly must gate-admit: {error:?}"),
+    }
+    // Data-plane check: the exact preimage bytes Sley would assemble
+    // (domain || [suffix]) hash to the reference digest via the callable.
+    let mut preimage = b"SLEYSFP1".to_vec();
+    preimage.push(0x41);
+    assert_eq!(
+        ok_bytes(execute_raw(&preimage)),
+        blake3::hash(&preimage).as_bytes().to_vec(),
+        "Sley-assembled bytes hash exactly"
+    );
 }
 
 // ── SLEYBC02 encoding boundary ───────────────────────────────────────

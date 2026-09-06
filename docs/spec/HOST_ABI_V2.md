@@ -58,11 +58,14 @@ capacity code 2, monomorphization, single-push-row rule, shared
   identity `SLY1/BRIDGE/RHW1` zero-padded
   (`534c59312f4252494447452f5248573100000000000000000000000000000000`),
   equal adapter identity, `abi_version` 1, empty effect list, `Index`
-  failure type. Request `Bytes` (0..=1_048_576, the frozen 1 MiB bridge
-  ceiling); response `Bytes` (32 bytes on success); failure
+  failure type. Request `Bytes` (0..=1_048_576 per call, the frozen 1 MiB
+  bridge ceiling); response `Bytes` (32 bytes on success); failure
   `BuiltinFailure(Index)` code 2 for over-bound (typed value, never trap
   or truncation); fuel `1 + ceil(len/1024)` via `charge_action` up front;
   determinism byte-exact (audited `blake3 =1.8.2`); host adds no domain.
+  Large-preimage composition is Sley-owned per `BOOTSTRAP_PROFILE_2.md`
+  (`SLEYCHNK1` framing, chunk digests via `RHW1`, final hash via `RHW1`);
+  the primitive stays stateless one-shot.
 
 Unknown identity/version/row, wrong schema/profile/epoch, and unlisted
 native functions all refuse with the frozen vocabularies

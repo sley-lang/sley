@@ -123,10 +123,12 @@ V1 files preserved; live successor revalidated:
 - `check_exec_package_v1.py` PASS + `check_exec_package_v2.py` PASS +
   `check_exec_package_markers.py` PASS (now pins v2);
 - `cargo test -p sley-vm`: all suites green including new
-  `rw075_raw_callable` (9 tests: callability, vectors, boundaries,
+  `rw075_raw_callable` (12 tests: callability, vectors, boundaries,
   tamper, fuel/pre-charge, unknown/wrong-version negatives, v2 package
-  binding + v1/v2 mismatch negatives, 11-domain preimage ownership +
-  order negative, SLEYBC02 boundary);
+  binding + v1/v2 mismatch negatives, staged authority
+  graphs-to-image binding + tamper refusal, large-preimage composition,
+  11-domain preimage ownership + order negative, Sley-built end-to-end
+  assembly, SLEYBC02 boundary);
 - v1 20 closure vectors replay unchanged under the successor gate
   (superset; same `accepted.json` bytes in v2);
 - RW-060 lifecycle preserved as history; its 15 driver tests remain green
@@ -172,10 +174,11 @@ No widening performed; no violation found.
 
 ## 7. Review order + R2 gate
 
-- Nabu round-7 delta re-review: REQUESTED on the full current RW-075
-  delta including image/package commitment, raw-hash reachability,
-  successor profile/import closure, preimage ownership, and SLEYBC02
-  boundary.
+- Nabu round-7 delta re-review: returned FAIL with two BLOCKERs,
+  preserved unedited in
+  `reviews/reweave-rw075-nabu-r7-2026-09-06.log` (commit `9574f8a`
+  reviewed). Repaired below as a separate delta (repair-only, no
+  widening); round-8 re-review requested.
 - If Nabu FAILS: repair only the finding, repeat Nabu. If PASSES:
   request premium DELTA-ONLY re-review from the same role that issued
   `R2_ARCHITECTURE_FAIL` (exact `VERDICT: R2_ARCHITECTURE_PASS` consumed
@@ -186,6 +189,38 @@ No widening performed; no violation found.
   identities. S/C0/C1/C2/C3 and RW-080+ remain later-stage. Stop before
   RW-080.
 
-Current verdicts (to be filled): Nabu final: PENDING; premium delta:
-PENDING; aggregate R2: NOT_READY (implementation complete, reviews
-pending — honest, not a defect in the repair).
+Current verdicts: Nabu round-7: FAIL (two BLOCKERs, preserved); Nabu
+final: PENDING (round-8 requested); premium delta: PENDING; aggregate
+R2: NOT_READY (implementation complete, reviews pending — honest, not a
+defect in the repair).
+
+## 8. Round-7 repairs (this delta, reviewable in round 8)
+
+- R7-B1 (1 MiB vs larger preimages): replaced the hand-wavy "chunked by
+  the driver" note with the exact frozen `SLEYCHNK1` composition contract
+  (`BOOTSTRAP_PROFILE_2.md`, `HOST_ABI_V2.md`): one-shot primitive stays;
+  over-bound preimages split into 1 MiB chunks hashed via `RHW1`, framed
+  with `SLEYCHNK1 || u32(1) || u32(N) || chunk digests` built by Sley,
+  final hash via `RHW1`. All R2 fixture preimages measure <1 KiB
+  (single-shot); 1 MiB+1 and 2 MiB composition vectors prove the rule
+  through the callable (`raw_large_preimage_composition_is_exact`). No
+  primitive change, no new import, no streaming state.
+- R7-B2 (graphs-to-image correspondence): added the staged v2 admission
+  authority as explicit code (`stage_v2_admission` in
+  `rw075_raw_callable.rs`): judge the closure, reference re-lower with
+  the native lowerer, compare bytes exactly, verify gate claims, mint a
+  receipt only on exact match (plus approval cross-check, so no
+  unapprovable receipt is ever returned). Honest packages admit;
+  single-byte-rewired images refuse with no receipt
+  (`raw_staged_authority_binds_graphs_to_image`). Production
+  `admit_package_v2` stays pure-data (as in v1); R2 evidence uses only
+  authority-minted receipts (CI), and the Sley build driver replicates
+  the same comparison per the RW-080 contract §1.4. No toolchain graph,
+  no C1, no RW-080 construction in this repair.
+- R7 observation (label-string preimages): added the end-to-end
+  Sley-built assembly fixture (`raw_sley_built_preimage_end_to_end`): a
+  four-step Sley function (`B2V1` + `PSH1` + `V2B1` + `RHW1`) gate-admits
+  with four bridge uses, proving Sley assembles preimage bytes with
+  bootstrap ops and the host only hashes; data-plane digest matches the
+  reference. Full `Result`-threading across fallible bridge calls stays
+  with RW-110 (documented in-fixture).

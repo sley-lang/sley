@@ -73,15 +73,32 @@ bytes, equal adapter identity, `abi_version` 1, empty effect list):
 `RHW1` (`raw-blake3-256`, identity
 `534c59312f4252494447452f5248573100000000000000000000000000000000`):
 Sley supplies the complete domain-separated preimage as `Bytes`
-(0..=1_048_576 bytes); the host returns BLAKE3-256 over exactly those
-bytes as `Bytes` of length 32 and adds nothing. Over-bound refuses as a
-typed `Err(BuiltinFailure(Index), 2)` value (never truncation). Fuel
-`1 + ceil(len/1024)` via `raw_hash_fuel`, charged up front through
-`charge_action` (bridge-symmetric with the 1 MiB ceiling; larger
-preimages chunk through repeated calls under the Sley driver). Unknown
+(0..=1_048_576 bytes per call); the host returns BLAKE3-256 over exactly
+those bytes as `Bytes` of length 32 and adds nothing. Over-bound refuses
+as a typed `Err(BuiltinFailure(Index), 2)` value (never truncation).
+Fuel `1 + ceil(len/1024)` via `raw_hash_fuel`, charged up front through
+`charge_action` (bridge-symmetric with the 1 MiB ceiling). Unknown
 identities/versions deny with `VM_LOWER_OPCODE_UNSUPPORTED` (default
 deny; no fallback, no negotiation). Adding an algorithm needs a new owner
 amendment plus review, never analogy.
+
+Large-preimage composition (exact, Sley-owned): the primitive is
+stateless one-shot BLAKE3, so hashing chunks independently cannot
+reproduce BLAKE3 over the concatenation. For preimages longer than
+1 MiB the driver applies the frozen composition rule instead of a
+single call. Split `P` into `N = ceil(len/1_048_576)` chunks (`1 MiB`
+except the last, `N >= 2`); compute chunk digests `d_i = RAW(chunk_i)`
+via `RHW1`; build the final preimage `F = b"SLEYCHNK1" || u32(1) ||
+u32(N) || d_0 || ... || d_{N-1}` as ordinary `Bytes` with bootstrap ops;
+digest = `RAW(F)` via `RHW1`. `F` is at most `16 + 32*N` bytes (for the
+largest frozen preimage, 67 MiB fingerprints, `N <= 64`, `F <= 2064`
+bytes), so one final call suffices; recursion applies only beyond
+32 GiB, outside all frozen ceilings. Sley owns chunking, order, count,
+and framing (including the reserved `SLEYCHNK1` domain, which single-shot
+preimages must not use except through this rule); the host only hashes.
+All R2-required preimages in the adopted closure fixtures measure
+<1 KiB and use single-shot; composition is proved with 1 MiB+1 and 2 MiB
+vectors in `rw075_raw_callable.rs`.
 
 What `RHW1` is not: not `fingerprint(program)`, `object_id(program)`,
 `validate_and_hash_object(program)`, `candidate_digest` over a high-level
