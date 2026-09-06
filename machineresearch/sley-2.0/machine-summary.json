@@ -3446,8 +3446,13 @@
     "successor_abi": "HOST_ABI_V2 bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
     "successor_package": "EXEC_PACKAGE_V2 f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
     "raw_primitive": "RAW_BLAKE3_V1 785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72 (unchanged, now reachable)",
-    "nabu_round7": "REQUESTED",
-    "premium_delta": "REQUESTED",
-    "rw080": "BLOCKED"
+    "nabu_round7": "FAIL (preserved)",
+    "premium_delta": "REQUESTED (delta-only, same role as R2_ARCHITECTURE_FAIL)",
+    "rw080": "BLOCKED",
+    "nabu_round8": "FAIL (preserved)",
+    "nabu_round9": "FAIL (preserved)",
+    "nabu_round10": "FAIL (preserved)",
+    "nabu_round11": "PASS_FINAL",
+    "nabu_final": "PASS"
   }
 }

@@ -194,11 +194,12 @@ Current verdicts: Nabu round-7: FAIL (two BLOCKERs, preserved); Nabu
 round-8: FAIL (R7-B2 hardening + executed-assembly BLOCKERs, preserved);
 Nabu round-9: FAIL (authority-divergence + exclusivity + assembly
 BLOCKERs, preserved); Nabu round-10: FAIL (receipt-forgeability +
-executed-tamper BLOCKERs, preserved in
-`reviews/reweave-rw075-nabu-r10-2026-09-06.log`); Nabu final: PENDING
-(round-11 requested); premium delta: PENDING; aggregate R2: NOT_READY
-(implementation complete, reviews pending — honest, not a defect in the
-repair).
+executed-tamper BLOCKERs, preserved); Nabu round-11: PASS (final, no
+blockers, preserved in
+`reviews/reweave-rw075-nabu-r11-2026-09-06.log`); premium delta:
+REQUESTED (delta-only, same role that issued `R2_ARCHITECTURE_FAIL`);
+aggregate R2: NOT_READY (Nabu complete, premium pending — honest, not a
+defect in the repair).
 
 ## 8. Round-7 repairs (this delta, reviewable in round 8)
 

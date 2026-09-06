@@ -1,0 +1,29 @@
+RW-075 architecture/boundary delta re-review, round 11 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/greyforge/sley2`).
+Commit reviewed: 3a72c91 (RW-075 correction round-10 repairs).
+
+status: complete
+
+VERDICT: PASS. Confidence: high.
+
+findings:
+- R10-B1 closed: `AdmissionReceipt` is non-exhaustive with private fields and read-only accessors; the v2 minter remains crate-private/unexported, with production-source exclusivity enforced by the marker check.
+- R10-B2 closed: both altered field and domain inputs execute through `run_assembly`, match their own references, and differ from the honest digest.
+- Delta is repair-only; no architecture widening found.
+
+validation:
+- HEAD confirmed: `3a72c91e46abfd51787fabfcd457ef3d728fc41f`.
+- Worktree clean; `git diff --check` passed.
+- Full round-10→round-11 delta inspected: six expected repair/evidence files only.
+- `scripts/check_exec_package_markers.py`: `EXEC_PACKAGE_MARKERS: PASS`.
+- Cargo tests were not run under the read-only constraint.
+
+blockers:
+- none
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane PASS round 11 (final). Preserved unedited.
+Premium DELTA-ONLY re-review may proceed; RW-080 stays BLOCKED until the
+premium verdict plus the aggregate R2 gate read READY.
