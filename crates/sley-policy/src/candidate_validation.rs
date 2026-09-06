@@ -833,7 +833,12 @@ pub fn validate_candidate_bytes(
         let judgment = match judge_function_operations(LoweringInput {
             types: &types,
             function: &unit.function,
-            parameters: &unit.parameters,
+            // RW060-F1: signature resolution (notably `CallDirect` callee
+            // parameters) reads the supplied parameter inventory, so the
+            // judgment context stays program-wide exactly like lowering's
+            // root input. Per-unit maps still narrow emission scope
+            // inside `judge_function_operations`; only resolution widens.
+            parameters: &program.parameters,
             blocks: &unit.blocks,
             operations: &unit.operations,
             schema_epoch: candidate.record.schema_epoch_id,

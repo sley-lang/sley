@@ -3366,5 +3366,26 @@
     "gate": "sley_vm::bootstrap::judge_bootstrap_profile",
     "ariadne_review": "PASS_RW050_SLICE2_DELTA_REREVIEW",
     "nabu_review": "PASS_RW050_SLICE2"
+  },
+  "rw060_source_free_lifecycle": {
+    "status": "RW060_COMPLETE",
+    "record": "machineresearch/sley-2.0/reweave/rw-060.md",
+    "driver": "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+    "tests": 15,
+    "genesis_root": "c2e16e8a7688373377023a76f0478da2552fc6de1d041adaa75d939ad45aa83d",
+    "committed_root": "dfffde279b358260f3a4c166d5daf63055e84d8a19aa1e482d63e83a8305bc6e",
+    "commit_tx": "8cf379c495c8eb28df269bf493a3e41b9961456ebb0b195fa8e73ab88d4bde0c",
+    "observation_ok": "b249155034e9965f68795cec5a7d8b32168620a2808da4e6eb80336d3c7d5473",
+    "observation_err": "55f9651f448ef45fd1e5b6dd06345611488c525c0c64fd645b82b42b5f2867f0",
+    "pack_id": "70f16b5752797cda737ff93dbd61b0376a8d425d70e258a1189b2392cac0e13e",
+    "reject_diagnostic": "P7/VM_LOWER_SIGNATURE_MISMATCH/26002/Permanent",
+    "gate_operations": 19,
+    "finding_rw060_f1": "P7 unit-scoped judgment vs CallDirect signature; confirmed by both reviewers, repaired in slice 2",
+    "bootstrap_ready": false,
+    "call_observation": "10598b3a0a9d5627f484ea21b98fe6b80efd75593d82ac8479e4fe91a99da88a",
+    "f1_repair": "candidate_validation.rs P7 parameters program-wide + parametrized-callee regression",
+    "round1": "ariadne FAIL (3xP1) + nabu FAIL (1xP1+2xP2); transcripts preserved",
+    "ariadne_review": "FAIL_3xP1_THEN_PASS_3x3_DELTA",
+    "nabu_review": "FAIL_THEN_PASS_P1_P2s_AND_P22_ARC_CLOSED"
   }
 }

@@ -1,0 +1,18 @@
+Ariadne slice-2 delta re-review — RW-060 (2026-09-06, handoff round 2)
+status: **blocked** — static delta verdict **PASS (3/3 P1s CLOSED)**; executable validation was prohibited by read-only authority.
+
+findings:
+- **P1-3 CLOSED:** P7 now supplies program-wide parameters while `judge_function_operations` narrows owned emission maps but retains root-wide signature resolution. The two-function parametrized-callee regression commits, gates, and executes `41 -> 41` deterministically. `candidate_validation.rs:805-870`; `lower.rs:248-280,650-690`; `rw060_source_free_lifecycle.rs:1830-1990`
+- **P1-1 CLOSED:** `result_code == 36008` is pinned; the live diagnostic feeds `select_repair`, whose unmatched branch fails closed before rebuilding. `rw060_source_free_lifecycle.rs:1220-1340`
+- **P1-2 CLOSED:** documentation consistently states 16 parameters—2 function plus 14 block—and reconciles all 50 entities. `rw-060.md:50-65,185-195`
+
+validation:
+- Bounded source review completed.
+- Required `cargo test --offline -p sley-repo --test rw060_source_free_lifecycle` was not run because `allowed_actions` permits only `read`; the checked-in report of 5 passing tests remains independently unverified.
+
+blockers:
+- Execute the required focused Cargo test before converting this static PASS into final review PASS.
+
+return_to: orchestrator
+
+[Orchestrator note: the required test was executed locally — 5 passed, 0 failed — and Nabu round 1 independently executed it (4 passed pre-slice-2). Converting to final PASS on the execution record.]

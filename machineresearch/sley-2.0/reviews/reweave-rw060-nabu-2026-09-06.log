@@ -1,0 +1,22 @@
+Nabu independent architecture/boundary review — RW-060 (2026-09-06, handoff round 1)
+status: FAIL — high confidence
+
+findings:
+1. **P1 — RW060-F1 confirmed; fix before RW-060 closure.** P7 supplies only `unit.parameters` (`crates/sley-policy/src/candidate_validation.rs:833-845`), while `CallDirect` resolves the callee’s parameter IDs from the supplied parameter inventory (`crates/sley-vm/src/extended.rs:500-523,1071-1087`). This rejects valid parameterized callees and violates judgment/lowering agreement. Concur with changing the P7 input to `parameters: &program.parameters` plus a two-function commit regression. This is an internal semantic-context repair, **not** a host-ABI change; it does not alter the RW-070 ABI freeze. The existing single-function lifecycle evidence remains valid, but review closure should wait for the repair.
+2. **P2 — path-leakage assertion tests the wrong path.** The test searches pack bytes for the clean destination path created after export (`crates/sley-repo/tests/rw060_source_free_lifecycle.rs:1500-1540`), making that assertion effectively vacuous. Search for the exporting repository/store path instead. The production exporter itself only serializes epochs, roots, IDs, and object bytes, so no actual leak was found (`crates/sley-repo/src/lib.rs:341-402`).
+3. **P2 — dependency regression scan is incomplete Cargo parsing.** `dependency_names` recognizes only literal `[dependencies]` entries and misses target-specific/renamed forms (`crates/sley-repo/tests/rw060_source_free_lifecycle.rs:1553-1571,1612-1641`). Independent Cargo metadata traversal found none of the four textual crates reachable from any of the nine lifecycle roots, so the current-tree source-free claim holds; harden the durable regression with metadata or TOML-aware traversal.
+4. **INFO — gate correction is phase-sound.** The checker explicitly remains an audit-scope BOOTSTRAP_READY proxy (`scripts/check_bootstrap_capability.py:1-31`), with only P readiness-bound and S/C0-C3 informational (`scripts/check_bootstrap_capability.py:55-60,199-235`). The two new cases prove later evidence is neither required nor substitutive. RW-080+, product release, and RW-070 obligations remain distinct; release is still BLOCKED (`machineresearch/sley-2.0/machine-summary.json:3018-3035`).
+5. **INFO — COMMIT/PACK boundaries otherwise pass.** Validation precedes persistence (`crates/sley-txn/src/repository.rs:1864-1915`); replay is `StaleRoot` and in-memory receipt verification binds genesis (`rw060_source_free_lifecycle.rs:1285-1315`). Pack preflight precedes promotion (`crates/sley-repo/src/lib.rs:405-422`), with exact-root reconstruction and idempotent re-import tested (`rw060_source_free_lifecycle.rs:1484-1533`).
+6. **INFO — BOOTSTRAP_READY FALSE / RW-070 unreached is correct.** RW-060 review/closure and RW-070 freeze remain required (`machineresearch/sley-2.0/reweave/rw-060.md:151-157`); `host-boundary.json:2-5` explicitly leaves ABI authority to RW-070.
+
+validation:
+- `scripts/check_bootstrap_capability.py`: PASS, R2 proxy READY, 11 corpus cases, zero problems.
+- `cargo test -p sley-repo --test rw060_source_free_lifecycle --locked -- --nocapture`: 4 passed.
+- Independent Cargo metadata production-closure traversal: zero blocked textual crates reachable from all nine lifecycle roots.
+- No files modified.
+
+blockers:
+- Repair RW060-F1 and add the parameterized-callee commit regression before closing RW-060.
+- Recommended evidence hardening: correct the source-path leakage assertion and replace the ad-hoc dependency parser.
+
+return_to: orchestrator

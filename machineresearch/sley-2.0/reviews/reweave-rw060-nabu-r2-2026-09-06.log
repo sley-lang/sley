@@ -1,0 +1,16 @@
+Nabu slice-2 delta re-review — RW-060 (2026-09-06, handoff round 2)
+status: FAIL — high confidence
+
+findings:
+- **P1 CLOSED.** P7 now supplies `parameters: &program.parameters` while blocks/operations remain unit-scoped, preserving narrowed emission and matching lowering’s resolution context (`candidate_validation.rs:833-854`). The regression commits a two-function parametrized call and executes `usecall(41) -> 41` deterministically (`rw060_source_free_lifecycle.rs:1829-1945`). This is internal semantic context, not host ABI.
+- **P2-1 CLOSED.** Pack bytes are checked against the exporting repository path and clean destination path (`rw060_source_free_lifecycle.rs:1620-1631`).
+- **P2-2 OPEN.** `dependency_names` recognizes only `[dependencies.name]` table headers (`rw060_source_free_lifecycle.rs:1674-1685`). It misses `[dev-dependencies.name]` and target-specific dependency tables. Worse, `[dependencies.alias]` followed by `package = "sley-cli"` records only `alias`; the subsequent package line is silently skipped because that header is not an accepted dependency section (`:1652-1657,1684-1689`). Therefore table-form renames can evade the textual-edge assertion, contradicting the claimed TOML-aware/fail-closed coverage.
+
+validation:
+- Bounded static review of the round-1 transcript, both changed files, and RW-060 §8.
+- Tests were not executed because this handoff grants read-only actions. The document reports 5 targeted tests and 1102 workspace tests passing, but that evidence was not independently reproduced.
+
+blockers:
+- Extend dependency parsing to cover dev and target-specific dependency table headers and inspect `package` fields within table-form dependencies; add focused parser regressions for those forms.
+
+return_to: orchestrator

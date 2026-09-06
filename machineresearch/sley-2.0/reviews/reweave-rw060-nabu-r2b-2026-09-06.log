@@ -1,0 +1,24 @@
+Nabu narrow parser confirmation — RW-060 (2026-09-06, handoff round 2b)
+status: P2-2 still OPEN — high confidence
+
+findings:
+- Exact valid TOML evasion:
+  ```toml
+  [dependencies.safe_alias] # renamed dependency
+  package = "sley-cli"
+  ```
+- `dependency_names` only treats lines ending in `]` as headers. The trailing comment leaves the parser `Outside`, so both alias and real package name are silently skipped.
+- The fail-closed regression only covers malformed content inside an already recognized dependency section; it does not cover valid header syntax variants.
+
+validation:
+- Static read of `rw060_source_free_lifecycle.rs` and the round-2 transcript.
+- Tests not executed because this handoff permits read actions only.
+
+blockers:
+- Strip TOML comments safely before header classification, preferably replacing this textual parser with TOML parsing.
+- Add a regression for table headers with trailing comments.
+- `cargo test --offline -p sley-repo --test rw060_source_free_lifecycle dependency_scan` remains unverified here.
+
+return_to: orchestrator
+
+[Orchestrator note: no TOML crate exists in the offline tree, so the textual parser was hardened instead: quote-aware strip_comment (basic strings with escapes + literal strings, preserving git URL fragments) applied before header classification, plus trailing-comment regressions. Re-verified locally: 7 passed.]

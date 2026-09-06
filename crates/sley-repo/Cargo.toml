@@ -23,7 +23,9 @@ sley-txn = { path = "../sley-txn" }
 test-support = []
 
 [dev-dependencies]
+sley-check = { path = "../sley-check" }
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
+sley-vm = { path = "../sley-vm" }
 
 [lints]
 workspace = true

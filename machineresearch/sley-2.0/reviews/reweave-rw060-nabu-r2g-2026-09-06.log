@@ -1,0 +1,20 @@
+Nabu quoted-key confirmation — RW-060 (2026-09-06, handoff round 2g, final)
+status: blocked
+
+findings:
+- **P2-2: CLOSED by static review** — high confidence.
+- `decode_toml_key` correctly normalizes bare, basic-quoted, literal-quoted, and escaped keys before dispatch.
+- Unknown or malformed keys fail closed.
+- `lockfile_scan_decodes_quoted_keys` confirms quoted `name` and `dependencies` preserve forbidden-edge reachability.
+- No scoped key-decoding evasion found.
+
+validation:
+- Reviewed `crates/sley-repo/tests/rw060_source_free_lifecycle.rs`.
+- Required Cargo test was not run because this handoff permits read actions only.
+
+blockers:
+- Final test-qualified closure requires: `cargo test --offline -p sley-repo --test rw060_source_free_lifecycle` → expected `15 passed`.
+
+return_to: orchestrator
+
+[Orchestrator note: required test executed locally — 15 passed, 0 failed — converting to final PASS. Full P2-2 arc: r2 (table renames) -> r2b (trailing comments) -> r2c (quoted keys/escapes) -> r2d (transitive traversal) -> r2e (string encodings) -> r2f (field order) -> r2g (quoted keys/lockfile) -> CLOSED. Every round found a real gap; all repaired with regressions. The end state (Cargo-decoded lockfile BFS + fail-closed strict TOML-subset parsers) is stronger than the round-1 manifest scan by construction.]
