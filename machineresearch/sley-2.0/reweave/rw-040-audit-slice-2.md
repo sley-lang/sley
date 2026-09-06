@@ -46,11 +46,14 @@ Loop forms/bounds: `rw-040-loop-form-mapping.md` (backedge loop and
 bounded recursion both suffice; RW-050 need freeze only one; profile
 limits to carry: 256-frame ceiling, fuel budgets, 1,048,576-cell cap, no
 E7/unwrap dependence).
-Gaps: `rw-040-m2-gap-list-slice-2.json` (G-9 CLOSED; G-1/G-5/G-6 evidence
-gates; G-2/G-3/G-4/G-7 full-MG obligations with owners RW-160/RW-200/
-Council/operator; G-8 non-goal with profile constraint). No gap blocks
-the 10.2 bootstrap closure; no repair routed to RW-050 (zero defects
-demonstrated); every final-product obligation keeps its owner.
+Gaps: `rw-040-m2-gap-list-slice-2.json` (G-9 CLOSED; G-10 OPEN as the sole
+bootstrap-closure blocker — byte access/construction, RW-050 primary with
+RW-030 bridge input, §18 admission barring BOOTSTRAP_READY; G-1/G-5/G-6
+evidence gates; G-2/G-3/G-4/G-7 full-MG obligations with owners
+RW-160/RW-200/Council/operator; G-8 non-goal with profile constraint). No
+semantic/VM repair routed to RW-050 (zero defects demonstrated); every
+final-product obligation keeps its owner. Nabu delta INFO recorded: if the
+G-10 bridge alternative wins, RW-070 later freezes its ABI/import details.
 Findings: `rw-040-findings-slice-2.json` (empty, findings.json field
 shape; limitations recorded in exercise/mapping docs, not as findings).
 
@@ -120,13 +123,31 @@ Rounds:
 - Nabu round 1 (2026-09-06, `reviews/reweave-rw040-nabu-2026-09-06.log`):
   PASS (high confidence), no blockers; one LOW note folded into G-4
   (RW-200 must integrate/revalidate the retained recovery foundation).
-  Delta review requested for the new G-10 routing + G-2/G-4 refinements.
+- Nabu round 2 delta (2026-09-06,
+  `reviews/reweave-rw040-nabu-r2-2026-09-06.log`): PASS (high confidence).
+  G-10 correctly classified BOOTSTRAP_BLOCKER routed RW-050 (+RW-030
+  bridge input); G-2/G-4 refinements preserve round-1 PASS; nothing
+  bootstrap-genuine deferred. INFO recorded: bridge selection later needs
+  RW-070 ABI/import freeze (folded into the Gaps paragraph above).
+- Ariadne round 2 (2026-09-06,
+  `reviews/reweave-rw040-ariadne-r2-2026-09-06.log`): FAIL on one MEDIUM —
+  this summary still claimed no §10.2 blocker (stale G-1..G-9 enumeration
+  contradicting G-10). Exercise split, G-10 admission route, and
+  exercises 2–11 all PASS/INFO. Repair: Gaps paragraph + RW-050 inputs
+  corrected to name G-10 the sole open bootstrap-closure blocker.
+  Round 3 confirmation requested.
+- Ariadne round 3 (2026-09-06,
+  `reviews/reweave-rw040-ariadne-r3-2026-09-06.log`): PASS, supersedes
+  round-2 FAIL. Stale-claim repair confirmed; no new findings. RW-040 may
+  close from Ariadne's scope.
 
-## RW-050 inputs (evidence, not repair)
+## RW-050 inputs (evidence + one admission, not repair)
 
 11-exercise evidence + loop mapping + constraints (no E7 test/effect ops,
 no unwrap-op dependence, recursion/backedge as canonical iteration
-candidate, 256-frame/fuel/cell bounds). No reproducer (no defect).
+candidate, 256-frame/fuel/cell bounds) + gap G-10 (§18 admission:
+accessor-vs-bridge for byte access/construction). No defect reproducer
+(no defect demonstrated).
 
 ## RW-030 note
 
@@ -137,3 +158,34 @@ boundary/constitution review since adoption. Its R1 acceptance as a
 proposal does not complete its control/charter obligations. RW-050
 remains blocked until RW-030 and RW-040 both close. Next executable
 slice after RW-040 close: RW-030 slice 1 (see closeout).
+
+## Closeout — RW-040 COMPLETE (2026-09-06)
+
+Acceptance against the accepted proposal:
+1. Gaps: G-1..G-10 each carry a concrete executed workload, a
+   VERIFIED-present disposition with evidence identity, an exact open
+   state with owner, or a declared BLOCKED_EVIDENCE skip —
+   `rw-040-m2-gap-list-slice-2.json`.
+2. Exercises: ten PASS-exists with workloads, one PARTIAL-documented
+   (ordering demonstrated, access routed as G-10) —
+   `rw-040-bootstrap-exercises-slice-2.json` + `rw-040-loop-form-mapping.md`.
+3. Full-vs-restricted per workstream with owners — slice-1 record sharpened
+   by the slice-2 three-way routing (RW-050 vs RW-160 vs RW-200 vs
+   Council/operator/non-goal).
+4. `bootstrap-manifest.json` skeleton holds S/P/H/C0 identities with C1–C3
+   null; the staged checker enforces the honesty invariants each run.
+5. Tier 1 + affected Tier 2: green except two `make quick` gates proven
+   pre-existing by pristine-`b23c263` reruns (reproducibility-attestation
+   staleness, supply-chain secret-scan drift; both owned outside this
+   audit and untouched). Affected Tier 2 green: sley-vm 39/0, workspace
+   all-ok, clippy/fmt clean, `make conformance` exit 0. Findings in
+   findings.json field shape (`rw-040-findings-slice-2.json`, empty: zero
+   defects demonstrated).
+
+Reviews: Ariadne PASS round 3 (supersedes round-2 FAIL; round-1 FAIL
+historic, repaired in-tree). Nabu PASS round 1 + PASS round-2 delta.
+Failed rounds preserved in `reviews/`; no self-certification.
+
+RW-040 minimum gate (exact failing workloads and dispositions): MET.
+Status: COMPLETE. G-10 stays open as RW-050/RW-030 forward work; that is
+a dependency, not an audit remainder.
