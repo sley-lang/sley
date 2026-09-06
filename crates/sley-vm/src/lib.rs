@@ -5,6 +5,11 @@ use core::fmt;
 
 use sley_id::{BytecodeCacheKey, EntityId, SchemaEpochId, StateRoot};
 
+pub mod bootstrap;
+#[cfg(test)]
+mod bootstrap_closure;
+#[cfg(test)]
+mod bridge_adversarial;
 mod execute;
 pub mod extended;
 #[cfg(test)]

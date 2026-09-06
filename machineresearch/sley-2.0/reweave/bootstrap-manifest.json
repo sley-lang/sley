@@ -36,8 +36,17 @@
    },
   "P": {
    "meaning": "pinned build/lowering profile, schema epoch, host ABI, limits, permitted dependencies",
-   "status": "not frozen (BOOTSTRAP_PROFILE_1 is RW-050; this audit informs it)",
-   "value": null
+   "status": "frozen (BOOTSTRAP_PROFILE_1 v1, RW-050 slice 2)",
+   "value": "BOOTSTRAP_PROFILE_1",
+   "digest": "4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630",
+   "provenance": {
+    "artifact": "conformance/bootstrap-profile/v1/profile.json",
+    "checker": "scripts/check_bootstrap_profile_1.py",
+    "closure_vectors": "conformance/bootstrap-profile/v1/accepted.json",
+    "contract_doc": "docs/spec/BOOTSTRAP_PROFILE_1.md",
+    "digest_method": "raw-byte SHA-256 of profile.json",
+    "frozen_by": "RW-050 slice 2 (2026-09-06)"
+   }
   },
   "S": {
    "meaning": "immutable canonical root and complete dependency closure of the Sley toolchain program",

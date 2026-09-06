@@ -1,0 +1,57 @@
+status: PASS (with 1 recommended in-slice fix and 3 recorded non-blocking notes)
+
+## findings
+
+### (a) Gate-as-static-subset architecture — PASS
+- Membership-only judgment: `crates/sley-vm/src/bootstrap.rs:60-63` is a flat sorted tag table (42 entries, `161` deliberately absent); `bootstrap.rs:406-416` routes `AdapterInvoke` to `admit_bridge_use` and everything else to `binary_search`. No semantics recomputed.
+- Single-authority rule is declared and honored: `bootstrap.rs:29-34` names what stays with S20-210/S20-220/lowering/execution; refusals reuse `LowerErrorCode` (`bootstrap.rs:99-101`), so no new refusal vocabulary is minted.
+- No execution-path change: `bootstrap.rs:36-40`. Verified structurally — `judge_bootstrap_profile` is referenced only at its definition and from `bootstrap_closure.rs:34,2307,2322,2388` (the closure test/emitter lane). Zero call sites in lowering or execution.
+- Full-coverage rule: `bootstrap.rs:224-226` refuses when `reached.len() != functions.len()`. Pre-order rule: `bootstrap.rs:279-280` pushes before descending into callees.
+- Cycle refusal is correct as written: `visited` is inserted post-order only (`bootstrap.rs:322-323`), so it can never contain a stack member. Self- and mutual-recursion pinned (`bootstrap.rs:786`, `bootstrap.rs:1019`).
+
+### (b) One-resolution-authority — PASS
+`resolve_bridge_entry` is `pub(crate)` at `crates/sley-vm/src/extended.rs:272` with exactly four consumers, matching the claim: surcharge `extended.rs:351` (`bridge_fuel_surcharge`), lowering judgment `extended.rs:1173` (`judge_extended_operation`), execution `extended.rs:1947` (`execute_extended_instruction`), gate `bootstrap.rs:344`. Frozen-field equality (adapter identity, `abi_version == 1`, `Index` failure type, empty effects) is enforced inside the resolver at `extended.rs:291-297`, so purity/registry drift cannot be routed around by any consumer. The registry is a closed three-way branch (`extended.rs:277-285`) — no extensibility surface.
+
+### (c) Freeze/checker/manifest wiring — PASS (one expected operational failure)
+- Digest chain recomputed live and consistent: `sha256(profile.json) = 4f2691…f630` matches `BOOTSTRAP_PROFILE_1.md:5`, `check_bootstrap_profile_1.py:44`, manifest stage P `bootstrap-manifest.json:38`, and `SHA256SUMS`. `sha256(accepted.json) = 878f3009…35ad` matches `profile.closure_vectors.accepted_json_sha256` and `SHA256SUMS`.
+- SUMS binds **both** files, by deliberate design: `generate_bootstrap_profile_fixtures.py:71-77` folds the hand-maintained `profile.json` bytes in beside the emitted vectors so the frozen set drifts as one unit. Checker re-verifies both (`check_bootstrap_profile_1.py:67-70`).
+- Staged P evidence: `bootstrap-manifest.json:37-50` carries value, digest, and a provenance dict (artifact/checker/vectors/doc/digest_method/frozen_by); checker pins all three (`:72-79`).
+- Conformance registration: `build_independent_conformance_report.py:53` (COVERAGE) and `:87` (DEPTH `codec_and_identity`), with the checker asserting both markers (`check_bootstrap_profile_1.py:93-98`).
+- Oracle-independence split is sound. `FORBIDDEN_MARKERS` includes `"crates/"` (`build_independent_conformance_report.py:36`), and the scan (`:284-308`) reads only COVERAGE-referenced `scripts/check_*.py`. `check_bootstrap_profile_1.py` touches no `crates/` path; `check_bootstrap_gate_markers.py`, which does read `crates/`, is deliberately unregistered and documents the split (`check_bootstrap_gate_markers.py:3-9`) — same pattern as `check_vm_extended_opcode_profile.py`.
+- Gate admission precedes emission: asserted in the emitter itself (`bootstrap_closure.rs:2385-2388`) and separately at `:2305-2322`.
+
+Expected operational note: `python3 scripts/check_bootstrap_profile_1.py` currently **exits 1** with the single problem `review-missing:reweave-rw050b2-nabu-2026-09-06.log` (`check_bootstrap_profile_1.py:123-128`). Every other assertion passes. That is the self-referential slot for this review; `make quick` fails until that transcript lands. This handoff was read-only — I wrote nothing. `check_bootstrap_gate_markers.py` exits 0 PASS.
+
+### (d) RW-070 preserved, no scope expansion — PASS
+Non-expansion stated in three independent places: `profile.json` `boundaries.rw070_abi_image_freeze`, `BOOTSTRAP_PROFILE_1.md:28-30`, and the gate module docs. The freeze binds current import identities/schemas for closure evidence only and freezes no external host ABI. No RW-070 artifact is touched; no opcode added; no registry extensibility introduced. Prior RW-030 routing (`reviews/reweave-rw030-nabu-r2-2026-09-06.log:4`) is unchanged.
+
+### (e) Architectural concerns
+
+**C0 — MEDIUM, recommended before close (cheap).** No mechanical check binds the frozen record's `permitted_opcodes` to the Rust `PERMITTED_BOOTSTRAP_OPCODES`. `check_bootstrap_profile_1.py:52-55` pins only length 42 and `161`-absence (it cannot read `crates/` without breaking independence); `check_bootstrap_gate_markers.py:28-43` greps the identifier name, not the table contents; the in-crate test `bootstrap.rs:673-697` pins length, sortedness, and 16 of 42 tags by spot-check. A same-length, still-sorted substitution in an unpinned slot (e.g. `104` → `105-111`, `178` → `179-191`) would pass every existing gate. I recomputed the two sets today: **identical, 42 entries, sorted** — so this is future-drift risk, not present incorrectness. Correct home for the fix is `check_bootstrap_gate_markers.py`, which is already the non-independent companion allowed to read `crates/`: parse the const and compare it to `profile.json`. ~10 lines, breaks no independence rule.
+
+**C1 — LOW, in the Ariadne-repaired area.** `bootstrap.rs:244-245` states "the completed check must come after the visiting check, or a cycle reads as done", but the code checks `visited` at `:254` **before** `visiting` at `:257`. The code is correct; the comment names the wrong invariant. The real invariant is that `visited` is post-order-only, so `visited ∩ visiting = ∅` and either order is safe. Since this is the exact line repaired for the self-recursion bug (`rw-050-slice-2.md:141-144`), the wrong comment invites a future reader to "fix" the order, or worse to restore pre-order insertion into `visited` — reintroducing the original bug. Suggested restatement: "`visited` is inserted post-order only, so it never holds a stack member; never insert pre-order."
+
+**C2 — LOW, latent, delegated.** Duplicate `entity_id` rows in `input.functions` resolve two different ways inside one module: the closure walk uses the `BTreeMap` from `.collect()` (`bootstrap.rs:196-200`), last-wins, judging effects/contracts/type_parameters on the last row; `judge_reached_function` re-resolves with `.iter().find()` (`bootstrap.rs:429-433`), first-wins, judging boundary types on the first row. The full-coverage check (`:224`) compares against the deduped map length, so a duplicate row does not trip it. Uniqueness belongs to S20-210 under the single-authority rule, so this is unreachable through the sanctioned pipeline — but two lookup strategies for one key inside one gate is a latent split-judgment. Fix: resolve once through the map and pass `&FunctionGraph` down.
+
+**C3 — INFO.** `BootstrapProfileInput::constants` (`bootstrap.rs:85`) is never read by the gate — no `input.constants` use outside the test harness. Constant type membership is in fact covered indirectly and soundly, via declared operation result types (`:420-426`). But a public field documented as "the complete constant inventory (`constant_ref` names enter here)" advertises a judgment that does not occur. Either drop the field or add the one-line sweep; this matters more once external toolchain programs route through the gate.
+
+**C4 — INFO.** The gate has no production caller today; its only exercise is the closure emitter/test lane. Consistent with its own module doc ("future toolchain admissions route through it") and appropriate for a freeze slice — recorded so "production gate" is not read as "gate on a live path."
+
+Sufficiency and closure-evidence claims (20 vectors, gate-admitted pre-emission, measured maxima 34 instructions / 124 fuel under the frozen reference budgets) are internally consistent across `profile.json`, `accepted.json`, the doc, and `rw-050-slice-2.md`. The V2B1-over-cap unreachability argument is correctly recorded as defense-in-depth rather than tested through an impossible input (`BOOTSTRAP_PROFILE_1.md:104`).
+
+## validation
+- `git status --short` / `git log --oneline -5` on `/home/greyforge/sley2` — branch `main`, HEAD `b59ecd7`, dirty slice-2 tree as described in the handoff.
+- `sha256sum conformance/bootstrap-profile/v1/{profile,accepted}.json`, cross-compared against doc, checker constant, manifest stage P, and `SHA256SUMS`.
+- `python3 scripts/check_bootstrap_profile_1.py` → exit 1, sole failure `review-missing:reweave-rw050b2-nabu-2026-09-06.log`.
+- `python3 scripts/check_bootstrap_gate_markers.py` → exit 0, PASS.
+- Recomputed `profile.json.permitted_opcodes` against the Rust const: exact set match, 42, sorted.
+- Targeted reads: `bootstrap.rs` 1-200 / 200-470 / 670-700, `BOOTSTRAP_PROFILE_1.md`, both checkers, the fixture generator, `bootstrap-manifest.json`, `profile.json` head, `build_independent_conformance_report.py` 40-100 / 284-315, `extended.rs:272-302`, `rw-050-slice-2.md:130-165`; call-site greps for `resolve_bridge_entry` and `judge_bootstrap_profile`.
+- No mutations. No files written. No cargo build/test run (not required for the boundary questions asked; closure execution evidence taken as recorded, not re-executed).
+
+## blockers
+None blocking landing. `make quick` will not go green until `reweave-rw050b2-nabu-2026-09-06.log` exists — that is this transcript's slot, and writing it is the workflow's action, not mine under this read-only handoff. C0 is recommended in-slice because it is ~10 lines in an existing non-independent checker and closes a real freeze-integrity gap.
+
+## return_to
+REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added; received via the claude-cli lane after the default-lane quota exhausted). Verdict: PASS with no landing blockers. All four notes addressed in-tree before landing: C0 opcode-set cross-check added to check_bootstrap_gate_markers.py (exact set comparison profile.json vs Rust const); C1 comment restated to the post-order invariant; C2 single-resolution refactor (walk's map entry passed down; the secondary .iter().find() removed); C3 constants sweep implemented (boundary-strict membership over carried constants) plus a negative test; C4 recorded as designed (no action). Gate suite now 11 tests green (10 + constants), clippy -D warnings and fmt clean. This transcript file is the checker's missing slot: writing it flips the freeze gate green.

@@ -32,7 +32,7 @@ for marker in [
     "cross-profile termination drifted",
     "assert_eq!(hashes.len(), request.inputs.len())",
     "FIXTURE_COUNT: u8 = 9",
-    "EXTENDED_FIXTURE_COUNT: u8 = 8",
+    "EXTENDED_FIXTURE_COUNT: u8 = 9",
     "Opcode::ContractAssert",
     "Opcode::MapNew",
     "Opcode::CallDirect",
@@ -57,6 +57,14 @@ for marker in [
     "Opcode::BoolNot",
     "Opcode::BoolAnd",
     "Opcode::BoolOr",
+    "Opcode::AdapterInvoke",
+    "bridge_sublane(&mut cursor)",
+    "frozen_bridge_rows()",
+    "bridge lane execution was not deterministic",
+    "bridge lane lowering refusal drifted",
+    "bridge lane judgment refusal drifted",
+    "one fuel short of measured must terminate on fuel",
+    "SLY1/BRIDGE/",
 ]:
     if marker not in target:
         problems.append(f"target-missing:{marker}")
@@ -115,12 +123,12 @@ expected = {
     "fixture_count": 9,
     "identity_fixture_count": 6,
     "boolean_opcode_fixture_count": 3,
-    "extended_family_fixture_count": 8,
+    "extended_family_fixture_count": 9,
     "max_input_bytes": 4096,
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 769,
+    "generated_seed_count": 788,
 }
 for key, value in expected.items():
     if slice_status.get(key) != value:
@@ -135,6 +143,7 @@ expected_lanes = [
     "E5 per-execution cell write and read",
     "E6 direct call with argument copy and nested callee",
     "E7a contract assertion over a Bool predicate",
+    "E8 bridge adapter_invoke over frozen rows with tamper/budget sublane",
 ]
 if slice_status.get("extended_family_lanes") != expected_lanes:
     problems.append("machine-summary-lanes-drift")

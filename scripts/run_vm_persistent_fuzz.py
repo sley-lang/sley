@@ -27,8 +27,10 @@ MAX_INPUT_LEN = 4096
 SMOKE_RUNS = 1024
 SMOKE_TIMEOUT_SECONDS = 120
 FIXTURE_COUNT = 9
-# Extended-profile fixtures, one per landed opcode family beyond E1.
-EXTENDED_FIXTURE_COUNT = 8
+# Extended-profile fixtures, one per landed opcode family beyond E1
+# (E8 bridge names family selector 8; its tamper/budget subl lane consumes
+# cursor bytes after the shared family lane, leaving header offsets stable).
+EXTENDED_FIXTURE_COUNT = 9
 
 
 def main() -> int:
@@ -181,6 +183,10 @@ def generate_seed_corpus() -> int:
             bytes(range(64)),
             bytes(reversed(range(64))),
             bytes([0xFF]) * 64,
+            # Minimized lane regression (RW-050 slice 2): a no-op tamper
+            # class once let a frozen V2B1 row through as "tampered". The
+            # fixed lane asserts every tampered row differs from frozen.
+            bytes([0x20, 0x45, 0x6B]),
         ]
     )
     reset_directory(CORPUS)

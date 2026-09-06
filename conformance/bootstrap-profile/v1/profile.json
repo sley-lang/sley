@@ -1,0 +1,280 @@
+{
+ "adapter_default_deny": "every adapter_invoke must resolve through the shared genuine resolution to a landed bridge entry; unregistered, tampered, versioned-wrong, or effectful rows refuse with VM_LOWER_OPCODE_UNSUPPORTED at lowering judgment, execution, surcharge, and gate admission alike",
+ "boundaries": {
+  "final_ga": "complete eventual Machine Genesis/WITNESS release surface; a strict superset owned by later packages (RW-160); this profile implies nothing about it",
+  "rw070_abi_image_freeze": "later artifact/import/runtime boundary qualification; this profile binds current import identities and schemas for closure evidence only and freezes no external host ABI",
+  "this_profile": "exact semantic/execution subset sufficient to build the Sley toolchain (REWEAVE 10.2 closure)"
+ },
+ "budgets": {
+  "measured_max_fuel_used": 124,
+  "measured_max_instruction_count": 34,
+  "reference": {
+   "cancel_at_fuel": null,
+   "max_fuel": 10000000,
+   "max_instructions": 100000,
+   "max_output_units": 10000000,
+   "max_value_units": 100000000
+  },
+  "rule": "every closure vector completes successfully within the reference budgets; a resource-limit termination under these budgets is a profile violation, not a passing vector"
+ },
+ "cache_key_inputs": [
+  "domain SLEYBCK1 + u32 1",
+  "schema_epoch 32B",
+  "SSMC1_FIELD_SCHEMA_HASH 32B",
+  "SSMC1_DECODER_LIMITS_HASH 32B",
+  "state_root 32B",
+  "entry_function EntityId 32B",
+  "profile.vm_version 3x u32",
+  "lowering_profile u32",
+  "lowerer_version 3x u32",
+  "entry_type_arguments u64",
+  "adapter_abi_entries u64",
+  "execution_abi_flags u64"
+ ],
+ "call_rules": {
+  "acyclic_only": true,
+  "inventory_coverage": "every inventory function must be reached from the entry (no unjudged dead code rides an admission; callers narrow inventories first, as lowering does)",
+  "max_live_frames_vm_enforced": 256,
+  "no_type_arguments": true,
+  "rationale": "multi-function structure is required (10.2 items 2, 4, 5); recursion is not independently necessary (every bounded recursion rewrites iteratively; deeper-than-256 structures require iteration); the 256-frame ceiling stays as VM-enforced defense in depth"
+ },
+ "ceilings": {
+  "BRIDGE_MAX_ITEMS": 1048576,
+  "MAX_CALL_DEPTH_FRAMES": 256,
+  "MAX_CONSTANT_ELEMENTS": 1000000,
+  "MAX_CONSTANT_PAYLOAD_BYTES": 16777216,
+  "MAX_EXECUTION_CELLS": 1048576,
+  "MAX_EXECUTION_INPUTS": 262144,
+  "MAX_EXECUTION_INPUT_VALUE_UNITS": 67108864,
+  "MAX_LOWERED_BLOCKS": 4096,
+  "MAX_LOWERING_WORK": 100000000,
+  "MAX_OBSERVATION_PREIMAGE_BYTES": 67108864,
+  "MAX_REGISTERS": 1000000,
+  "MAX_TUPLE_ARITY": 64,
+  "note": "code-pinned values; the S20-210 constant ceiling (1,000,000 elements) binds direct vector inputs below the bridge cap (2^20): V2B1-at-cap and PSH1-at-max are reachable only through single-execution chains, and V2B1-over-cap is unreachable by construction (recorded, defense in depth)"
+ },
+ "closure_vectors": {
+  "accepted_json_sha256": "878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad",
+  "count": 20,
+  "ids": [
+   "bytes-round-trip",
+   "vector-push-loop-n5",
+   "vector-push-loop-n0",
+   "map-symbol-table-hit",
+   "map-symbol-table-miss",
+   "set-as-map-absent-after-remove",
+   "record-variant-walk",
+   "multi-function-pass-ok",
+   "multi-function-pass-overflow",
+   "checked-length-traverse-hit",
+   "checked-length-traverse-miss",
+   "value-hash-chain",
+   "variant-switch-exhaustive-some-ok-equal",
+   "variant-switch-exhaustive-some-ok-unequal",
+   "variant-switch-exhaustive-none",
+   "variant-switch-exhaustive-err",
+   "graph-worklist-dfs-chain",
+   "graph-worklist-dfs-cycle",
+   "image-assemble-emit-n3",
+   "image-assemble-emit-n0"
+  ]
+ },
+ "contract": "sley2-bootstrap-profile-1",
+ "effect_policy": {
+  "adaptercall_delegated_nowhere": true,
+  "functions_declare_no_effects": true,
+  "no_effectful_functions_admitted": true
+ },
+ "excluded_opcodes": {
+  "144_contract_assert": "not required; CondBranch+Trap substitutes for internal assertions and Result+branch for error accumulation; keeps E7 uniformly out",
+  "145_160_162_e7": "full MG obligation (G-2/RW-160); test execution, effect requests, capability narrowing",
+  "193_global_get": "not required; constant_ref covers embedded constants",
+  "194_function_ref": "not required; direct calls cover known-callee dispatch; no dynamic dispatch in the closure",
+  "80_to_85_floats": "not required; the closure is integer/byte/map-indexed; exclusion keeps host float-environment dependence out of the bootstrap determinism claim"
+ },
+ "failure_registry": {
+  "1_Arithmetic": [
+   1,
+   2,
+   3
+  ],
+  "2_Index": [
+   1,
+   2
+  ],
+  "3_DuplicateKey": [
+   1
+  ],
+  "4_ContractViolation": [
+   1
+  ],
+  "5_Capability": [
+   1,
+   2,
+   3,
+   4
+  ]
+ },
+ "gate": {
+  "admission_report": "functions in pre-order (entry first), operation count, bridge-use count; only reached functions are judged",
+  "entry": "judge_bootstrap_profile",
+  "module": "sley_vm::bootstrap",
+  "refusal_vocabulary": "LowerErrorCode (shared with lowering; no new codes)",
+  "single_authority_rule": "membership only (opcode set, type forms, acyclicity, empty effects/contracts/type-parameters, import registry); reference integrity, operand agreement, CFG validity, canonical forms, and resource accounting stay with S20-210/S20-220/lowering/execution",
+  "static_admission": "not an execution path; EXTENDED_V1 lowering/execution unchanged; no execution entry calls the gate"
+ },
+ "identity": "BOOTSTRAP_PROFILE_1",
+ "iteration": {
+  "canonical": "cfg-backedge-loop-form-A with block-parameter or cell state (RW-040 loop-form mapping; cond-drain-loop cell evidence retained)",
+  "recursion": "excluded from the subset; recursive call cycles refuse with VM_LOWER_PROFILE_UNSUPPORTED"
+ },
+ "permitted_imports": {
+  "default": "deny (see adapter_default_deny)",
+  "rows": [
+   {
+    "code": "B2V1",
+    "entry": "host-bytes-to-u8vector",
+    "failure": "BuiltinFailure(Index)",
+    "request": "Bytes",
+    "response": "Vector<UInt(8)>",
+    "scope": "Unit"
+   },
+   {
+    "code": "V2B1",
+    "entry": "host-u8vector-to-bytes",
+    "failure": "BuiltinFailure(Index)",
+    "request": "Vector<UInt(8)>",
+    "response": "Bytes",
+    "scope": "Unit"
+   },
+   {
+    "code": "PSH1",
+    "entry": "vector-push",
+    "failure": "BuiltinFailure(Index)",
+    "request": "T (any bootstrap type)",
+    "response": "Vector<T>",
+    "scope": "Vector<T>"
+   }
+  ],
+  "rows_note": "each entry is a genuine epoch-1 AdapterImport (identity SLY1/BRIDGE/<code> zero-padded to 32 bytes, adapter identity equal, abi_version 1, empty effect list); push instantiates by monomorphization (landed: UInt(8) representative, Unit trail); unknown identities remain denied and do not imply an extensible registry"
+ },
+ "permitted_opcodes": [
+  1,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  64,
+  65,
+  66,
+  67,
+  68,
+  69,
+  70,
+  71,
+  96,
+  97,
+  98,
+  99,
+  100,
+  101,
+  102,
+  103,
+  104,
+  112,
+  128,
+  129,
+  130,
+  131,
+  176,
+  177,
+  178,
+  192
+ ],
+ "permitted_opcodes_note": "E1 data + base booleans, E2 checked integers, E4 records/variants/maps, E5 cells + value_hash, E6 direct calls; opcode 161 admitted only through genuine bridge resolution, never by tag",
+ "schema_epoch_hex": "0808080808080808080808080808080808080808080808080808080808080808",
+ "state_root_hex": "0909090909090909090909090909090909090909090909090909090909090909",
+ "terminators": {
+  "codes": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "forms": [
+   "Return",
+   "Branch",
+   "CondBranch",
+   "VariantSwitch",
+   "Trap"
+  ],
+  "trap_codes": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "trap_names": [
+   "Unreachable",
+   "ResourceExhausted",
+   "AdapterContractViolation",
+   "InternalInvariant"
+  ]
+ },
+ "types": {
+  "cells": "execution-local only (LocalCell in operation results and block parameters for in-execution state threading; never in function parameters, function results, or constants)",
+  "excluded": [
+   "F32",
+   "F64",
+   "AdapterHandle",
+   "CapabilityToken",
+   "FunctionRef",
+   "TypeParameter"
+  ],
+  "permitted": [
+   "Unit",
+   "Bool",
+   "SInt(w)",
+   "UInt(w)",
+   "Bytes",
+   "Text",
+   "Tuple",
+   "Named",
+   "Vector",
+   "OrderedMap",
+   "Option",
+   "Result",
+   "BuiltinFailure",
+   "LocalCell (non-boundary only)"
+  ]
+ },
+ "unsupported_fail_closed": "any opcode, terminator use, type form, import, effect, contract, or type parameter outside this record refuses before execution with the shared lowering vocabulary; fallback to a broader runtime profile never occurs silently",
+ "version": 1,
+ "vm": {
+  "bytecode_magic": "SLEYBC02",
+  "cache_profile": "EXTENDED_V1",
+  "lowerer_version": [
+   2,
+   0,
+   0
+  ],
+  "lowering_profile": 2,
+  "vm_version": [
+   1,
+   0,
+   0
+  ]
+ }
+}

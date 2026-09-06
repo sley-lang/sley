@@ -87,7 +87,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 216,
+  "obligation_count": 218,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -147,6 +147,30 @@
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_RW050_SLICE2",
+      "field": "ariadne_review",
+      "package_status": "BOOTSTRAP_PROFILE_1_FROZEN",
+      "reviewer": "ariadne",
+      "section": "bootstrap_profile_1",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_RW050_SLICE2",
+      "field": "nabu_review",
+      "package_status": "BOOTSTRAP_PROFILE_1_FROZEN",
+      "reviewer": "nabu",
+      "section": "bootstrap_profile_1",
+      "severities": [],
+      "state": "PENDING",
       "superseded_by": null
     },
     {
@@ -3149,8 +3173,20 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "1f54061337febd7e536f2b92bfefc8ee4caf586f08112c989bf171114b33657e",
+  "obligations_digest": "c22712aad2e61eab48c0713542efbb191679f92cecf8dcb1d3bc924a926f77c6",
   "open_reviews": [
+    {
+      "disposition": "PENDING_RW050_SLICE2",
+      "field": "ariadne_review",
+      "section": "bootstrap_profile_1",
+      "severities": []
+    },
+    {
+      "disposition": "PENDING_RW050_SLICE2",
+      "field": "nabu_review",
+      "section": "bootstrap_profile_1",
+      "severities": []
+    },
     {
       "disposition": "FAIL_2_P0_7_P1_7_P2_3_P3",
       "field": "ariadne_contract_review",
@@ -3866,7 +3902,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "9a210efec29d9ec1006403172b0efe2dd319d257633e782729e5c1f094918f3e",
+  "register_digest": "10504a6d07ad2f2bd4d488b000a42609c117298c901cb245b8f2368667fd40b4",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 83,
@@ -3881,7 +3917,7 @@
     "HISTORICAL_ROUND": 38,
     "OTHER": 2,
     "PASS": 99,
-    "PENDING": 67
+    "PENDING": 69
   },
   "superseded_rounds": [
     {

@@ -6,13 +6,14 @@ use core::slice;
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, BuiltinFailureKind, ConstData, ConstValue, ConstantDefinition, Immediate, IntegerWidth,
-    Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability, ResultConst,
-    ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    AdapterImport, Block, BuiltinFailureKind, ConstData, ConstValue, ConstantDefinition, Immediate,
+    IntegerWidth, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
+    ResultConst, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
 };
 use sley_vm::{
-    CacheProfile, ExecutionError, ExecutionLimits, ExecutionRequest, LowerErrorCode, LoweringError,
-    LoweringInput, derive_observation_id, execute_function, validated_execution_input_hashes,
+    CacheProfile, ExecutionError, ExecutionLimits, ExecutionRequest, ExecutionTermination,
+    LowerErrorCode, LoweringError, LoweringInput, ResourceKind, derive_observation_id,
+    execute_function, judge_function_operations, lower_function, validated_execution_input_hashes,
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4096;
@@ -21,7 +22,7 @@ const MAX_COLLECTION_ITEMS: usize = 4;
 const MAX_PAYLOAD_BYTES: usize = 32;
 const FIXTURE_COUNT: u8 = 9;
 /// Extended-profile fixtures, one per landed opcode family beyond E1.
-const EXTENDED_FIXTURE_COUNT: u8 = 8;
+const EXTENDED_FIXTURE_COUNT: u8 = 9;
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -97,11 +98,16 @@ fn fuzz_one(input: &[u8]) {
     }
 
     // The extended family lane (E2 through E6 plus E1 under the extended
-    // profile and E7a): fixtures whose opcodes exist only under `EXTENDED_V1`
-    // execute deterministically there, retain their observation identity, and
-    // are refused by the restricted profile.
+    // profile, E7a, and E8): fixtures whose opcodes exist only under
+    // `EXTENDED_V1` execute deterministically there, retain their observation
+    // identity, and are refused by the restricted profile.
     if family_gate.is_multiple_of(3) {
         extended_family_lane(family_selector, &mut cursor);
+        // The bridge adversarial subl lane tampers rows, shapes, and
+        // budgets around the frozen path the shared lane just covered.
+        if family_selector == 8 {
+            bridge_sublane(&mut cursor);
+        }
     }
 
     // The map-order lane (E4): a supplied ordered map must arrive in the
@@ -290,7 +296,7 @@ fn canonical_map(map_type: &TypeExpr, cursor: &mut Cursor<'_>) -> Option<ConstVa
 }
 
 fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
-    let fixture = extended_fixture(selector);
+    let fixture = extended_fixture(selector, cursor.byte());
     let types = TypeEnvironment::new(fixture.definitions.clone())
         .expect("the extended fixture type environment is valid");
     // The lane builds the request from the fixture's own parameter types, not
@@ -312,6 +318,7 @@ fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
         &fixture.constants,
         &fixture.functions,
         &fixture.contracts,
+        &fixture.adapters,
     );
     let first = execute_function(extended, request.clone());
     let second = execute_function(extended, request.clone());
@@ -336,6 +343,7 @@ fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
         &fixture.constants,
         &fixture.functions,
         &fixture.contracts,
+        &fixture.adapters,
     );
     let refusal = execute_function(restricted, request.clone());
     match refusal {
@@ -389,9 +397,12 @@ struct ExtendedFixture {
     /// blocks, and operations live in the fixture's own inventories, which the
     /// lowerer narrows per function.
     functions: Vec<sley_ssmc::FunctionGraph>,
+    /// Adapter inventory for the bridge family (slice E8): the carried
+    /// import rows the `adapter_invoke` immediates resolve against.
+    adapters: Vec<AdapterImport>,
 }
 
-fn extended_fixture(selector: u8) -> ExtendedFixture {
+fn extended_fixture(selector: u8, entry_index: u8) -> ExtendedFixture {
     match selector {
         // E2: a checked signed addition over two 32-bit integers.
         0 => arithmetic_fixture(0, Opcode::IntAddChecked, IntegerWidth::from_bits(32)),
@@ -409,6 +420,9 @@ fn extended_fixture(selector: u8) -> ExtendedFixture {
         6 => call_fixture(6),
         // E7a: one contract assertion over a Bool predicate.
         7 => contract_fixture(7),
+        // E8: one bridge `adapter_invoke` over the frozen rows; the entry
+        // varies per draw so every conversion and push reaches the lane.
+        8 => bridge_fixture(entry_index),
         _ => unreachable!(),
     }
 }
@@ -431,6 +445,7 @@ fn arithmetic_fixture(selector: u8, opcode: Opcode, width: IntegerWidth) -> Exte
         definitions: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -447,6 +462,7 @@ fn float_fixture(selector: u8, opcode: Opcode) -> ExtendedFixture {
         definitions: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -505,6 +521,7 @@ fn cell_fixture(selector: u8) -> ExtendedFixture {
         definitions: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -531,6 +548,7 @@ fn map_fixture(selector: u8) -> ExtendedFixture {
         definitions: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -556,6 +574,7 @@ fn constant_fixture(selector: u8) -> ExtendedFixture {
         definitions: Vec::new(),
         functions: Vec::new(),
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -650,6 +669,7 @@ fn call_fixture(selector: u8) -> ExtendedFixture {
         definitions: Vec::new(),
         functions: vec![callee_graph, inner_graph],
         contracts: Vec::new(),
+        adapters: Vec::new(),
     }
 }
 
@@ -729,9 +749,395 @@ fn contract_fixture(selector: u8) -> ExtendedFixture {
             }],
             resource_limits: None,
         }],
+        adapters: Vec::new(),
     }
 }
 
+/// E8: one `adapter_invoke` over the frozen bridge rows. The entry index
+/// varies per draw (unlike the family selector, which always names the
+/// bridge lane); the carried inventory always holds the three frozen rows,
+/// so the shared family lane asserts the frozen path (determinism,
+/// completion, restricted refusal, observation identity) and
+/// `bridge_sublane` below adversarially tampers rows, shapes, and budgets.
+fn bridge_fixture(entry_index: u8) -> ExtendedFixture {
+    let base = 380_u32;
+    let entry = match entry_index % 3 {
+        0 => *b"B2V1",
+        1 => *b"V2B1",
+        _ => *b"PSH1",
+    };
+    let (scope_type, request_type, response_type) = match entry {
+        e if e == *b"B2V1" => (TypeExpr::Unit, TypeExpr::Bytes, u8vec_type()),
+        e if e == *b"V2B1" => (TypeExpr::Unit, u8vec_type(), TypeExpr::Bytes),
+        _ => (u8vec_type(), u8_type(), u8vec_type()),
+    };
+    let fixture = operation_fixture(
+        base,
+        Opcode::AdapterInvoke,
+        Immediate::Entity(bridge_id(entry)),
+        vec![scope_type, request_type],
+        TypeExpr::Result {
+            ok: Box::new(response_type),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+        },
+    );
+    ExtendedFixture {
+        fixture,
+        constants: Vec::new(),
+        definitions: Vec::new(),
+        functions: Vec::new(),
+        contracts: Vec::new(),
+        adapters: frozen_bridge_rows(),
+    }
+}
+
+/// The frozen `Entity` identity of one bridge entry: twelve ASCII bytes
+/// `SLY1/BRIDGE/`, the four-byte entry code, zero padding to 32 bytes.
+/// Input construction only: the production authority is
+/// `sley_vm::extended::bridge_entry_id`, and the drift checker pins the
+/// prefix, the codes, and the padding width.
+fn bridge_id(code: [u8; 4]) -> EntityId {
+    let mut bytes = [0_u8; 32];
+    bytes[..12].copy_from_slice(b"SLY1/BRIDGE/");
+    bytes[12..16].copy_from_slice(&code);
+    EntityId::from_bytes(bytes)
+}
+
+fn u8_type() -> TypeExpr {
+    TypeExpr::UInt(IntegerWidth::from_bits(8))
+}
+
+fn u8vec_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(u8_type()))
+}
+
+/// The three frozen bridge rows: genuine epoch-1 import values (identity,
+/// adapter identity, ABI version 1, exact schemas, `Index` failure type,
+/// empty effect list). Tampered copies are built per draw in the subl lane.
+fn frozen_bridge_rows() -> Vec<AdapterImport> {
+    [
+        (*b"B2V1", TypeExpr::Bytes, u8vec_type()),
+        (*b"V2B1", u8vec_type(), TypeExpr::Bytes),
+        (*b"PSH1", u8_type(), u8vec_type()),
+    ]
+    .map(|(code, request, response)| AdapterImport {
+        entity_id: bridge_id(code),
+        adapter_id: *bridge_id(code).as_bytes(),
+        abi_version: 1,
+        request_type: request,
+        response_type: response,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    })
+    .to_vec()
+}
+
+/// E8 adversarial subl lane: tampered rows, tampered shapes, and fuel
+/// budgets around the measured charge, all judged by production code.
+/// Runs when the family selector names the bridge; the frozen path already
+/// passed through the shared lane above.
+fn bridge_sublane(cursor: &mut Cursor<'_>) {
+    let entry = match cursor.byte() % 4 {
+        0 => *b"B2V1",
+        1 => *b"V2B1",
+        2 => *b"PSH1",
+        _ => *b"XXXX",
+    };
+    let tamper = cursor.byte() % 12;
+    let shape = cursor.byte() % 8;
+    let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
+    let frozen = frozen_bridge_rows();
+    let mut row = match entry {
+        e if e == *b"B2V1" => frozen[0].clone(),
+        e if e == *b"V2B1" => frozen[1].clone(),
+        e if e == *b"PSH1" => frozen[2].clone(),
+        _ => AdapterImport {
+            entity_id: bridge_id(*b"XXXX"),
+            adapter_id: *bridge_id(*b"XXXX").as_bytes(),
+            abi_version: 1,
+            request_type: TypeExpr::Bytes,
+            response_type: u8vec_type(),
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: Vec::new(),
+        },
+    };
+    // Single-field row tampering: every mutant must refuse unsupported at
+    // resolution, before shape is even considered.
+    match tamper {
+        0 => {}
+        1 => row.adapter_id = [9_u8; 32],
+        2 => row.abi_version = 2,
+        3 => {
+            row.failure_type = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        }
+        4 => row.effects.push(id(cursor.u32())),
+        5 => {
+            let request = row.request_type.clone();
+            row.request_type = row.response_type.clone();
+            row.response_type = request;
+        }
+        6 => {
+            row.request_type =
+                TypeExpr::Vector(Box::new(TypeExpr::UInt(IntegerWidth::from_bits(16))));
+        }
+        7 => {
+            row.request_type = u8_type();
+            row.response_type = TypeExpr::Vector(Box::new(TypeExpr::Bool));
+        }
+        8 => row.abi_version = 0,
+        9 => {
+            row.failure_type = TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability);
+        }
+        10 => row.request_type = TypeExpr::Text,
+        // Response-family confusion, entry-aware: the replacement must
+        // always differ from the frozen response (a no-op tamper once let
+        // a frozen V2B1 row through as "tampered" — regression seed
+        // `20 45 6b` pins the class).
+        _ => {
+            row.response_type = if row.response_type == TypeExpr::Bytes {
+                u8vec_type()
+            } else {
+                TypeExpr::Bytes
+            };
+        }
+    }
+    let tampered = tamper != 0 || entry == *b"XXXX";
+    // A tampered draw must actually differ from every frozen row: a no-op
+    // mutant would assert a refusal the production code must not produce.
+    if tampered && entry != *b"XXXX" {
+        assert!(
+            !frozen_bridge_rows().contains(&row),
+            "a tamper class left the row frozen"
+        );
+    }
+    let (scope_type, request_type) = match entry {
+        e if e == *b"PSH1" => (row.response_type.clone(), row.request_type.clone()),
+        _ => (TypeExpr::Unit, row.request_type.clone()),
+    };
+    let (scope_type, request_type) = match shape {
+        // Swapped operands, wrong scope, wrong request.
+        1 => (request_type, scope_type),
+        2 => (TypeExpr::Bool, request_type),
+        3 => (scope_type, TypeExpr::Bool),
+        _ => (scope_type, request_type),
+    };
+    let result_type = TypeExpr::Result {
+        ok: Box::new(if shape == 4 {
+            TypeExpr::Bool
+        } else {
+            row.response_type.clone()
+        }),
+        error: Box::new(if shape == 5 {
+            TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)
+        } else {
+            row.failure_type.clone()
+        }),
+    };
+    let immediate = match shape {
+        6 => Immediate::Index(0),
+        7 => Immediate::Entity(id(77)),
+        _ => Immediate::Entity(row.entity_id),
+    };
+    let base = 700_u32;
+    let function = id(base);
+    let block = id(base + 1);
+    let operation = id(base + 2);
+    let scope_param = id(base + 3);
+    let request_param = id(base + 4);
+    let function_graph = sley_ssmc::FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![scope_param, request_param],
+        result_type: result_type.clone(),
+        effects: Vec::new(),
+        entry_block: block,
+        blocks: vec![block],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        function_parameter(scope_param, function, 0, scope_type.clone()),
+        function_parameter(request_param, function, 1, request_type.clone()),
+    ];
+    let operations = vec![Operation {
+        entity_id: operation,
+        block,
+        ordinal: 0,
+        opcode: Opcode::AdapterInvoke,
+        operands: vec![
+            ValueRef::Parameter(scope_param),
+            ValueRef::Parameter(request_param),
+        ],
+        result_types: vec![result_type],
+        immediate,
+    }];
+    let blocks = vec![Block {
+        entity_id: block,
+        function,
+        parameters: Vec::new(),
+        operations: vec![operation],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    }];
+    let adapters = [row];
+    let input = LoweringInput {
+        types: &types,
+        function: &function_graph,
+        parameters: &parameters,
+        blocks: &blocks,
+        operations: &operations,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        state_root: StateRoot::from_bytes([9; 32]),
+        profile: CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: &[],
+        contracts: &[],
+        adapters: &adapters,
+    };
+    let lowering = lower_function(input);
+    let judged = judge_function_operations(input);
+    // The expected refusal follows the production order: the non-Entity
+    // immediate refuses first, then resolution (any tamper or the unlanded
+    // identity), then signature.
+    let expected = if shape == 6 {
+        Some(LowerErrorCode::ImmediateMismatch)
+    } else if tampered {
+        Some(LowerErrorCode::OpcodeUnsupported)
+    } else if shape == 7 {
+        Some(LowerErrorCode::OpcodeUnsupported)
+    } else if shape != 0 {
+        Some(LowerErrorCode::SignatureMismatch)
+    } else {
+        None
+    };
+    match expected {
+        Some(code) => {
+            let lowering_code = match lowering.expect_err("tampered lane draw must not lower") {
+                LoweringError::Lower(error) => error.code(),
+                LoweringError::Cfg(failure) => panic!("no CFG failure in lane programs: {failure}"),
+            };
+            assert_eq!(lowering_code, code, "bridge lane lowering refusal drifted");
+            let judged_code = match judged.expect_err("tampered lane draw must not judge") {
+                LoweringError::Lower(error) => error.code(),
+                LoweringError::Cfg(failure) => panic!("no CFG failure in lane programs: {failure}"),
+            };
+            assert_eq!(judged_code, code, "bridge lane judgment refusal drifted");
+        }
+        None => {
+            lowering.expect("frozen lane draw must lower");
+            judged.expect("frozen lane draw must judge");
+            // Small frozen inputs under generous limits: determinism plus
+            // fuel exactness around the measured charge.
+            let request = ExecutionRequest {
+                inputs: vec![
+                    bridge_scope_input(&scope_type, cursor),
+                    bridge_request_input(&request_type, cursor),
+                ],
+                limits: generous_limits(),
+            };
+            let measured =
+                execute_function(input, request.clone()).expect("frozen lane draw executes");
+            let rerun =
+                execute_function(input, request.clone()).expect("frozen lane draw re-executes");
+            assert_eq!(
+                measured, rerun,
+                "bridge lane execution was not deterministic"
+            );
+            assert!(
+                matches!(measured.termination, ExecutionTermination::Success(_)),
+                "small frozen lane draw must succeed"
+            );
+            let fuel = measured.fuel_used;
+            let exact = execute_function(
+                input,
+                ExecutionRequest {
+                    inputs: request.inputs.clone(),
+                    limits: ExecutionLimits {
+                        max_fuel: fuel,
+                        ..generous_limits()
+                    },
+                },
+            )
+            .expect("exact-charge lane draw executes");
+            assert_eq!(
+                exact.termination, measured.termination,
+                "exact fuel charge changed the lane termination"
+            );
+            let short = execute_function(
+                input,
+                ExecutionRequest {
+                    inputs: request.inputs,
+                    limits: ExecutionLimits {
+                        max_fuel: fuel.saturating_sub(1),
+                        ..generous_limits()
+                    },
+                },
+            )
+            .expect("short-charge lane draw executes");
+            assert_eq!(
+                short.termination,
+                ExecutionTermination::ResourceLimit(ResourceKind::Fuel),
+                "one fuel short of measured must terminate on fuel"
+            );
+        }
+    }
+}
+
+/// Small scope values for the frozen lane draws.
+fn bridge_scope_input(scope_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue {
+    match scope_type {
+        TypeExpr::Unit => ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        },
+        TypeExpr::Vector(inner) => ConstValue {
+            value_type: scope_type.clone(),
+            data: ConstData::Sequence(
+                (0..cursor.bounded(3))
+                    .map(|_| ConstValue {
+                        value_type: inner.as_ref().clone(),
+                        data: ConstData::UInt(u128::from(cursor.byte() % 251)),
+                    })
+                    .collect(),
+            ),
+        },
+        _ => ConstValue {
+            value_type: scope_type.clone(),
+            data: ConstData::Bool(true),
+        },
+    }
+}
+
+/// Small request values for the frozen lane draws.
+fn bridge_request_input(request_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue {
+    match request_type {
+        TypeExpr::Bytes => ConstValue {
+            value_type: TypeExpr::Bytes,
+            data: ConstData::Bytes((0..cursor.bounded(8)).map(|_| cursor.byte()).collect()),
+        },
+        TypeExpr::Vector(inner) => ConstValue {
+            value_type: request_type.clone(),
+            data: ConstData::Sequence(
+                (0..cursor.bounded(4))
+                    .map(|_| ConstValue {
+                        value_type: inner.as_ref().clone(),
+                        data: ConstData::UInt(u128::from(cursor.byte() % 251)),
+                    })
+                    .collect(),
+            ),
+        },
+        _ => ConstValue {
+            value_type: request_type.clone(),
+            data: ConstData::UInt(u128::from(cursor.byte())),
+        },
+    }
+}
 /// One function whose single block runs one operation over its parameters.
 fn operation_fixture(
     base: u32,
@@ -819,6 +1225,7 @@ impl VmFixture {
             globals: &[],
             functions: &[],
             contracts: &[],
+            adapters: &[],
         }
     }
 
@@ -829,11 +1236,13 @@ impl VmFixture {
         constants: &'a [ConstantDefinition],
         functions: &'a [sley_ssmc::FunctionGraph],
         contracts: &'a [sley_ssmc::ContractDefinition],
+        adapters: &'a [AdapterImport],
     ) -> LoweringInput<'a> {
         LoweringInput {
             constants,
             functions,
             contracts,
+            adapters,
             ..self.lowering_input(types, profile)
         }
     }
@@ -1001,6 +1410,13 @@ fn canonical_value(value_type: &TypeExpr, cursor: &mut Cursor<'_>) -> ConstValue
                 ConstData::Result(ResultConst::Err(Box::new(canonical_value(error, cursor))))
             }
         }
+        // Canonical small vectors: only the bridge fixtures (slice E8) use
+        // vector parameter types, so this arm serves that lane alone.
+        TypeExpr::Vector(inner) => ConstData::Sequence(
+            (0..cursor.bounded(MAX_COLLECTION_ITEMS))
+                .map(|_| canonical_value(inner, cursor))
+                .collect(),
+        ),
         _ => unreachable!("fixed VM fixtures use only supported canonical input types"),
     };
     ConstValue {

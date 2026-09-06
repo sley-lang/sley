@@ -2227,3 +2227,597 @@ mod tests {
         assert_eq!(compare_const_values(&none, &some), Ordering::Less);
     }
 }
+
+/// Repository-native bounded adversarial lane for pure-primitive declaration
+/// judgment (RW-050 slice 2, §1 — the S20-230 side of the E8 lane).
+///
+/// Exhaustive single-field mutants of the three frozen pure shapes plus the
+/// effect-set dimension run through the production entry
+/// `validate_effect_program`, each both unused (declaration only) and used
+/// (invoked by an `adapter_invoke` op). The lane asserts the exact verdict
+/// per mutant from a literal expectation table: unused malformed rows fail
+/// exactly like used ones (the Ariadne A1 repair), form-conforming rows
+/// pass statically while staying unregistered downstream, and
+/// effect-carrying rows can never serve a pure invocation. Any panic is the
+/// finding; verdicts come only from production judgment.
+#[cfg(test)]
+mod pure_declaration_adversarial {
+    use super::*;
+    use sley_ssmc::{ParameterRole, Reachability, ReturnTerminator, Visibility};
+
+    fn id(value: u32) -> EntityId {
+        let mut bytes = [0_u8; 32];
+        bytes[28..].copy_from_slice(&value.to_be_bytes());
+        EntityId::from_bytes(bytes)
+    }
+
+    fn octet_vector() -> TypeExpr {
+        TypeExpr::Vector(Box::new(TypeExpr::UInt(IntegerWidth::from_bits(8))))
+    }
+
+    fn index_error() -> TypeExpr {
+        TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+    }
+
+    fn parameter(entity: u32, ordinal: u32, value_type: TypeExpr) -> Parameter {
+        Parameter {
+            entity_id: id(entity),
+            owner: id(1),
+            role: ParameterRole::Function,
+            ordinal,
+            value_type,
+        }
+    }
+
+    fn std_effect(entity: u32, kind: EffectKind) -> EffectDefinition {
+        EffectDefinition {
+            entity_id: id(entity),
+            effect_kind: kind,
+            scope_type: TypeExpr::Unit,
+            request_type: TypeExpr::Unit,
+            response_type: TypeExpr::Unit,
+            failure_type: TypeExpr::Unit,
+            visibility: Visibility::Private,
+        }
+    }
+
+    /// One lane row: schemas plus the carried effect set.
+    #[derive(Clone)]
+    struct Row {
+        request: TypeExpr,
+        response: TypeExpr,
+        failure: TypeExpr,
+        effects: Vec<EntityId>,
+    }
+
+    /// The three frozen pure shapes (unregistered adapter identity: S20-230
+    /// judges form only; registration is the downstream gates' job).
+    fn frozen_shape(shape: usize) -> Row {
+        match shape {
+            0 => Row {
+                request: TypeExpr::Bytes,
+                response: octet_vector(),
+                failure: index_error(),
+                effects: Vec::new(),
+            },
+            1 => Row {
+                request: octet_vector(),
+                response: TypeExpr::Bytes,
+                failure: index_error(),
+                effects: Vec::new(),
+            },
+            _ => Row {
+                request: TypeExpr::UInt(IntegerWidth::from_bits(8)),
+                response: octet_vector(),
+                failure: index_error(),
+                effects: Vec::new(),
+            },
+        }
+    }
+
+    fn import(row: &Row) -> AdapterImport {
+        AdapterImport {
+            entity_id: id(21),
+            adapter_id: [7; 32],
+            abi_version: 1,
+            request_type: row.request.clone(),
+            response_type: row.response.clone(),
+            failure_type: row.failure.clone(),
+            effects: row.effects.clone(),
+        }
+    }
+
+    /// A unit invoking the row with scope/request params of the row's
+    /// schemas and an `Entity` immediate naming it. Scope follows the
+    /// entry family: conversions pin `Unit`, push pins the row response
+    /// (the per-use relationship the VM gates re-derive).
+    fn invoking_unit(row: &Row) -> (FunctionGraph, Vec<Parameter>, Vec<Block>, Vec<Operation>) {
+        let octet_vector = TypeExpr::Vector(Box::new(TypeExpr::UInt(IntegerWidth::from_bits(8))));
+        let is_b2v = row.request == TypeExpr::Bytes && row.response == octet_vector;
+        let is_v2b = row.request == octet_vector && row.response == TypeExpr::Bytes;
+        let scope = if is_b2v || is_v2b {
+            TypeExpr::Unit
+        } else {
+            row.response.clone()
+        };
+        let function = FunctionGraph {
+            entity_id: id(1),
+            type_parameters: Vec::new(),
+            parameters: vec![id(2), id(3)],
+            result_type: scope.clone(),
+            effects: Vec::new(),
+            entry_block: id(4),
+            blocks: vec![id(4)],
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        };
+        let parameters = vec![parameter(2, 0, scope), parameter(3, 1, row.request.clone())];
+        let operation = Operation {
+            entity_id: id(5),
+            block: id(4),
+            ordinal: 0,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![ValueRef::Parameter(id(2)), ValueRef::Parameter(id(3))],
+            result_types: vec![TypeExpr::Result {
+                ok: Box::new(row.response.clone()),
+                error: Box::new(row.failure.clone()),
+            }],
+            immediate: Immediate::Entity(id(21)),
+        };
+        let blocks = vec![Block {
+            entity_id: id(4),
+            function: id(1),
+            parameters: Vec::new(),
+            operations: vec![id(5)],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(id(2)),
+            }),
+            reachability: Reachability::Required,
+        }];
+        (function, parameters, blocks, vec![operation])
+    }
+
+    /// A unit that never references the row: declaration judgment alone.
+    fn inert_unit() -> (FunctionGraph, Vec<Parameter>, Vec<Block>, Vec<Operation>) {
+        let function = FunctionGraph {
+            entity_id: id(1),
+            type_parameters: Vec::new(),
+            parameters: vec![id(2)],
+            result_type: TypeExpr::Unit,
+            effects: Vec::new(),
+            entry_block: id(4),
+            blocks: vec![id(4)],
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        };
+        let parameters = vec![parameter(2, 0, TypeExpr::Unit)];
+        let blocks = vec![Block {
+            entity_id: id(4),
+            function: id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(id(2)),
+            }),
+            reachability: Reachability::Required,
+        }];
+        (function, parameters, blocks, Vec::new())
+    }
+
+    /// The lane verdict vocabulary: production either accepts, fails with
+    /// an exact effect code, or fails with an exact type code.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    enum Verdict {
+        Ok,
+        Effect(EffectErrorCode),
+        Type(TypeErrorCode),
+    }
+
+    use crate::TypeErrorCode;
+
+    fn validate(
+        row: &Row,
+        used: bool,
+        extra_effects: &[EffectDefinition],
+    ) -> EffectResult<EffectReport> {
+        let (function, parameters, blocks, operations) = if used {
+            invoking_unit(row)
+        } else {
+            inert_unit()
+        };
+        let unit = FunctionUnit {
+            function: &function,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+        };
+        // The borrow checker needs the owned program alive across the call;
+        // keep every inventory in this scope (units borrows them).
+        validate_effect_program(
+            &TypeEnvironment::new(Vec::new()).unwrap(),
+            std::slice::from_ref(&unit),
+            extra_effects,
+            &[],
+            std::slice::from_ref(&import(row)),
+            &[],
+        )
+    }
+
+    fn verdict(row: &Row, used: bool, extra_effects: &[EffectDefinition]) -> Verdict {
+        match validate(row, used, extra_effects) {
+            Ok(_) => Verdict::Ok,
+            Err(EffectValidationError::Effect(error)) => Verdict::Effect(error.code()),
+            // Step-2 graph judgment wraps S20-210 type failures as CFG
+            // errors while step-4 declaration reports them directly; both
+            // carry the identical code, which is what the parity claim
+            // compares (the free-type-parameter case exercises both stages).
+            Err(EffectValidationError::Type(error)) => Verdict::Type(error.code()),
+            Err(EffectValidationError::Cfg(crate::cfg::CfgValidationError::Type(error))) => {
+                Verdict::Type(error.code())
+            }
+            Err(error) => panic!("unexpected earlier error: {error}"),
+        }
+    }
+
+    /// Single-field schema mutants of the frozen shapes with their exact
+    /// declaration verdicts. (Failure-type `Unit` and friends are covered
+    /// by the existing `pure_shape_violations` matrix; the lane covers the
+    /// family/relationship/closure dimensions plus used/unused parity.)
+    fn schema_mutants() -> Vec<(Row, Verdict)> {
+        let arithmetic = TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic);
+        let capability = TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability);
+        let boolean = TypeExpr::Bool;
+        vec![
+            // Wrong failure-code family: arithmetic.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: arithmetic.clone(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Wrong failure-code family: capability.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: capability,
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Conversion schemas swapped.
+            (
+                Row {
+                    request: octet_vector(),
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // 16-bit confusion: well-formed, unlanded.
+            (
+                Row {
+                    request: TypeExpr::Vector(Box::new(TypeExpr::UInt(IntegerWidth::from_bits(
+                        16,
+                    )))),
+                    response: TypeExpr::Bytes,
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Bytes/Text confusion.
+            (
+                Row {
+                    request: TypeExpr::Text,
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Push relationship pin broken.
+            (
+                Row {
+                    request: TypeExpr::UInt(IntegerWidth::from_bits(8)),
+                    response: TypeExpr::Vector(Box::new(boolean.clone())),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Bytes -> Bytes: no pure shape.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: TypeExpr::Bytes,
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Effect(EffectErrorCode::AdapterInvokeType),
+            ),
+            // Free type parameter: closed-type judgment fires before shape.
+            (
+                Row {
+                    request: TypeExpr::TypeParameter(0),
+                    response: TypeExpr::Vector(Box::new(TypeExpr::TypeParameter(0))),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Type(TypeErrorCode::ParameterOutOfScope),
+            ),
+            // Nested relationship-holding push row: response is Vector of
+            // the request, so the declaration form holds (still unregistered
+            // downstream — form only, per the layering rule).
+            (
+                Row {
+                    request: octet_vector(),
+                    response: TypeExpr::Vector(Box::new(octet_vector())),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Ok,
+            ),
+            // Push monomorphized over Bool: each concrete use its own row.
+            (
+                Row {
+                    request: boolean,
+                    response: TypeExpr::Vector(Box::new(TypeExpr::Bool)),
+                    failure: index_error(),
+                    effects: Vec::new(),
+                },
+                Verdict::Ok,
+            ),
+        ]
+    }
+
+    /// Effect-set mutants with their exact declaration verdicts. The extra
+    /// definitions supply the referenced effects where noted.
+    fn effect_mutants() -> Vec<(Row, Vec<EffectDefinition>, Verdict)> {
+        vec![
+            // Unknown effect identity: no row shape is even considered.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: vec![id(99)],
+                },
+                Vec::new(),
+                Verdict::Effect(EffectErrorCode::UnresolvedEntity),
+            ),
+            // Known but non-AdapterCall effect: the kind rule fires.
+            (
+                Row {
+                    request: TypeExpr::Unit,
+                    response: TypeExpr::Unit,
+                    failure: TypeExpr::Unit,
+                    effects: vec![id(20)],
+                },
+                vec![std_effect(20, EffectKind::StdoutWrite)],
+                Verdict::Effect(EffectErrorCode::AdapterEffectKind),
+            ),
+            // Two effects: cardinality fires before any lookup. Effect
+            // identities stay disjoint from the adapter identity (one
+            // global entity namespace).
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: vec![id(20), id(22)],
+                },
+                vec![
+                    std_effect(20, EffectKind::AdapterCall),
+                    std_effect(22, EffectKind::StdoutWrite),
+                ],
+                Verdict::Effect(EffectErrorCode::AdapterEffectCardinality),
+            ),
+            // Duplicate effect: the sorted-unique rule fires first.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: vec![id(20), id(20)],
+                },
+                vec![std_effect(20, EffectKind::AdapterCall)],
+                Verdict::Effect(EffectErrorCode::SetNotCanonical),
+            ),
+            // Unsorted effects: the sorted-unique rule fires first.
+            (
+                Row {
+                    request: TypeExpr::Bytes,
+                    response: octet_vector(),
+                    failure: index_error(),
+                    effects: vec![id(22), id(20)],
+                },
+                vec![
+                    std_effect(20, EffectKind::AdapterCall),
+                    std_effect(22, EffectKind::StdoutWrite),
+                ],
+                Verdict::Effect(EffectErrorCode::SetNotCanonical),
+            ),
+            // Valid effectful row: the effectful arm accepts the
+            // declaration (it can never serve a pure invocation — the
+            // masquerade test below pins the invocation side).
+            (
+                Row {
+                    request: TypeExpr::Unit,
+                    response: TypeExpr::Unit,
+                    failure: TypeExpr::Unit,
+                    effects: vec![id(20)],
+                },
+                vec![std_effect(20, EffectKind::AdapterCall)],
+                Verdict::Ok,
+            ),
+        ]
+    }
+
+    /// Every mutant faces declaration both unused and used: an unused
+    /// malformed row fails exactly like a used one.
+    #[test]
+    fn declaration_mutants_fail_identically_used_and_unused() {
+        for shape in 0..3 {
+            let row = frozen_shape(shape);
+            assert_eq!(
+                verdict(&row, false, &[]),
+                Verdict::Ok,
+                "frozen shape {shape} unused"
+            );
+            // Frozen rows contribute no closure: pure invocations add
+            // nothing (the A1 core property, re-pinned per shape).
+            let (function, parameters, blocks, operations) = invoking_unit(&row);
+            let unit = FunctionUnit {
+                function: &function,
+                parameters: &parameters,
+                blocks: &blocks,
+                operations: &operations,
+            };
+            let report = validate_effect_program(
+                &TypeEnvironment::new(Vec::new()).unwrap(),
+                std::slice::from_ref(&unit),
+                &[],
+                &[],
+                std::slice::from_ref(&import(&row)),
+                &[],
+            )
+            .unwrap();
+            assert!(
+                report.functions[0].effects.is_empty(),
+                "frozen shape {shape} contributes no closure"
+            );
+        }
+        for (index, (row, expected)) in schema_mutants().into_iter().enumerate() {
+            let unused = verdict(&row, false, &[]);
+            assert_eq!(unused, expected, "schema mutant {index} unused");
+            let used = verdict(&row, true, &[]);
+            assert_eq!(used, expected, "schema mutant {index} used");
+            assert_eq!(unused, used, "schema mutant {index} used/unused parity");
+        }
+        for (index, (row, effects, expected)) in effect_mutants().into_iter().enumerate() {
+            let unused = verdict(&row, false, &effects);
+            assert_eq!(unused, expected, "effect mutant {index} unused");
+            // Effectful-arm rows that pass declaration take the effectful
+            // invocation path when used, which is a different verdict class
+            // by design (see the masquerade test); every failing
+            // declaration fails identically used.
+            if expected != Verdict::Ok {
+                let used = verdict(&row, true, &effects);
+                assert_eq!(used, expected, "effect mutant {index} used");
+                assert_eq!(unused, used, "effect mutant {index} used/unused parity");
+            }
+        }
+    }
+
+    /// An effect-carrying row with pure schemas passes declaration through
+    /// the effectful arm but confers no hidden authority:
+    /// - a caller that does not declare the effect fails closure comparison
+    ///   (pure callers cannot touch it — the anti-smuggling property);
+    /// - a caller that declares it validates with exactly that effect in
+    ///   its closure (authority explicit, never smuggled).
+    #[test]
+    fn effect_carrying_row_never_serves_pure_invocation() {
+        let row = Row {
+            request: TypeExpr::Bytes,
+            response: octet_vector(),
+            failure: index_error(),
+            effects: vec![id(20)],
+        };
+        let effects = vec![std_effect(20, EffectKind::AdapterCall)];
+        // Declaration alone accepts: the row is a well-formed effectful row.
+        assert_eq!(
+            verdict(
+                &Row {
+                    request: row.request.clone(),
+                    response: row.response.clone(),
+                    failure: row.failure.clone(),
+                    effects: row.effects.clone(),
+                },
+                false,
+                &effects
+            ),
+            Verdict::Ok
+        );
+        // Invoked without declaring the effect, closure comparison fails:
+        // the invocation contributes an effect the function does not own.
+        let (function, parameters, blocks, operations) = invoking_unit(&row);
+        let unit = FunctionUnit {
+            function: &function,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+        };
+        let undeclared = validate_effect_program(
+            &TypeEnvironment::new(Vec::new()).unwrap(),
+            std::slice::from_ref(&unit),
+            &effects,
+            &[],
+            std::slice::from_ref(&import(&row)),
+            &[],
+        );
+        match undeclared.unwrap_err() {
+            EffectValidationError::Effect(error) => assert_eq!(
+                error.code(),
+                EffectErrorCode::ClosureMismatch,
+                "undeclared effect contribution fails closure comparison"
+            ),
+            error => panic!("unexpected error: {error}"),
+        }
+        // Invoked with the effect declared, the call validates with exactly
+        // that effect in the closure: authority explicit.
+        let (mut function, parameters, blocks, operations) = invoking_unit(&row);
+        function.effects = vec![id(20)];
+        let unit = FunctionUnit {
+            function: &function,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+        };
+        let report = validate_effect_program(
+            &TypeEnvironment::new(Vec::new()).unwrap(),
+            std::slice::from_ref(&unit),
+            &effects,
+            &[],
+            std::slice::from_ref(&import(&row)),
+            &[],
+        )
+        .expect("declared effectful invocation validates");
+        assert_eq!(report.functions[0].effects, vec![id(20)]);
+    }
+
+    /// Duplicate adapter identities fail at index build, before any shape
+    /// rule: two rows cannot share one identity.
+    #[test]
+    fn duplicate_adapter_identities_fail_at_index_build() {
+        let row = frozen_shape(0);
+        let (function, parameters, blocks, operations) = inert_unit();
+        let unit = FunctionUnit {
+            function: &function,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+        };
+        let imports = [import(&row), import(&row)];
+        let result = validate_effect_program(
+            &TypeEnvironment::new(Vec::new()).unwrap(),
+            std::slice::from_ref(&unit),
+            &[],
+            &[],
+            &imports,
+            &[],
+        );
+        match result.unwrap_err() {
+            EffectValidationError::Effect(error) => assert_eq!(
+                error.code(),
+                EffectErrorCode::SetNotCanonical,
+                "duplicate adapter identities are not canonical"
+            ),
+            error => panic!("unexpected error: {error}"),
+        }
+    }
+}

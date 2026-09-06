@@ -50,6 +50,7 @@ ORACLE_RUNNER = "uv run --project oracle/scb1 --frozen"
 # mapping is CONFORMANCE_ORACLE_DRIFT.
 COVERAGE: dict[str, str | None] = {
     "bootstrap-capability": "python3 scripts/check_bootstrap_capability.py",
+    "bootstrap-profile": "python3 scripts/check_bootstrap_profile_1.py",
     "candidate-result": f"{ORACLE_RUNNER} sley2-scb1-oracle check-candidate-result",
     "complete-entity-impact": "python3 scripts/check_complete_entity_impact_vector.py",
     "complete-root-index-snapshot": f"{ORACLE_RUNNER} python scripts/check_complete_root_index_snapshot_vector.py",
@@ -83,6 +84,7 @@ COVERAGE: dict[str, str | None] = {
 # or digest trees and compares them against the recorded fixtures.
 DEPTH: dict[str, str] = {
     "bootstrap-capability": "codec_and_identity",
+    "bootstrap-profile": "codec_and_identity",
     "candidate-result": "codec_and_identity",
     "complete-entity-impact": "semantic",
     "complete-root-index-snapshot": "codec_and_identity",

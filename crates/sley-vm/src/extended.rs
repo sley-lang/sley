@@ -242,8 +242,12 @@ pub(crate) fn bridge_test_imports() -> [AdapterImport; 3] {
 
 /// One resolved bridge call: which entry the carried import names after
 /// every frozen field pins it.
+///
+/// Crate-visible for the `BOOTSTRAP_PROFILE_1` gate, which admits imports
+/// through the same resolution (plus bootstrap-type membership on the
+/// resolved row's schemas).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BridgeKind {
+pub(crate) enum BridgeKind {
     BytesToVector,
     VectorToBytes,
     VectorPush,
@@ -260,7 +264,12 @@ enum BridgeKind {
 /// operand binding against the row happens at judgment, so a conforming
 /// row serves only its own element type. Anything else is not a landed
 /// import and stays `VM_LOWER_OPCODE_UNSUPPORTED`.
-fn resolve_bridge_entry<'a>(
+///
+/// Shared with the `BOOTSTRAP_PROFILE_1` gate (`crate::bootstrap`): one
+/// resolution authority serves lowering judgment, execution, surcharge,
+/// and profile admission, so the permitted-import registry cannot drift
+/// between them.
+pub(crate) fn resolve_bridge_entry<'a>(
     adapters: &'a [AdapterImport],
     id: &EntityId,
 ) -> Option<(BridgeKind, &'a AdapterImport)> {

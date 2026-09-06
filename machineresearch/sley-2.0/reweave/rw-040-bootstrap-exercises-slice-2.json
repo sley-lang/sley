@@ -7,20 +7,24 @@
    "actual": "true (validated-value hash db8444a3, identical to the SInt true control)",
    "category": "split: ordering missing-test-supplied; access unsupported-required",
    "command": "cargo test -p sley-vm emit_vm_extended_vectors_for_fixture_refresh -- --ignored; python3 scripts/generate_vm_extended_fixtures.py; python3 scripts/check_vm_extended_opcode_profile.py",
-   "disposition": "PARTIAL-documented",
-   "evidence": "bytes-less-than (opcode 98 LessThan over Bytes, b\"abc\"<b\"abd\", 1 instruction, bytecode_sha256 7d4df4cb); text-less-than (opcode 98 over Text, 1 instruction, bytecode_sha256 23993beb)",
+   "disposition": "PASS-exists",
+   "evidence": "bytes-less-than (opcode 98 LessThan over Bytes, b\"abc\"<b\"abd\", 1 instruction, bytecode_sha256 7d4df4cb); text-less-than (opcode 98 over Text, 1 instruction, bytecode_sha256 23993beb) ACCESS PART CLOSED in RW-050: bridge workloads landed under owner amendment A1 (slice 1, b59ecd7; 29 vm-extended vectors incl. the 3 bridge vectors above) plus 20 composed closure vectors (bootstrap-profile/v1/accepted.json: bytes-round-trip, image-assemble-emit-n3/n0, vector-push-loop) and the BOOTSTRAP_PROFILE_1 freeze (slice 2).",
    "expected": "true (Bytes/Text by byte then length, spec section E1; implementation ordered() + compare_data() pre-existed)",
    "gap": "G-10",
    "id": 1,
    "inputs": "Bytes/Text constants; limits max_instructions 1000, max_fuel 10000",
    "name": "byte processing",
-   "open_part": "FAIL-missing-capability: no opcode in landed slices E1-E6+E7a takes apart or builds Bytes (no length/index/slice/build). Exact gap evidence: E1 opcode table (1,16,17,32-35,96-101,128-131) has no Bytes accessor; only whole-value Bytes operations exist (order 98-101, equality 96-97, value_hash 192). Codec decode (10.2 item 1) and image assembly (10.2 item 4) need byte access/construction. See gap G-10.",
+    "open_part": "CLOSED in RW-050 (was FAIL-missing-capability): byte access/construction admitted as three pure primitives (P-BYTES-FROM/P-BYTES-TO/P-PUSH) over frozen adapter_invoke entries; no new opcode. History: the missing capability held because no opcode in landed slices E1-E6+E7a took apart or built Bytes (full prior text in git history).",
    "ordering_part": "PASS-exists: bytes-less-than + text-less-than (opcode 98, observation true, hash db8444a3) bind the E1 order-predicate path.",
    "routes_to": "RW-050 (primary: section 18 admission + profile freeze) with RW-030 bridge-inventory input",
    "vectors": [
     "bytes-less-than",
-    "text-less-than"
-   ]
+    "text-less-than",
+    "bridge-bytes-to-vector",
+    "bridge-vector-push",
+    "bridge-vector-to-bytes"
+   ],
+   "closed_by": "RW-050 slice 1 (bridge landing b59ecd7) + slice 2 (closure vectors + BOOTSTRAP_PROFILE_1 freeze)"
   },
   {
    "category": "existing-demonstrated",
