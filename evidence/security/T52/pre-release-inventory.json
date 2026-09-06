@@ -2,7 +2,7 @@
   "blockers": [
     "workspace-license-text:missing-operator-approved-root-license"
   ],
-  "cargo_lock_sha256": "887d14608d68adc16307dd958d4c9549c9e996be761699a6f9b57db24b989e8e",
+  "cargo_lock_sha256": "ed404440ca4bdf8e9de36fbeb676ed50283d44053dbaf4c8a4cbfca0e2b12fc1",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
   "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
@@ -48,6 +48,19 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/block-buffer@0.12.1",
+      "checksum_sha256": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "block-buffer",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.12.1",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/cc@1.4.4",
       "checksum_sha256": "0ad534f4357a5264cce5019c989cf66a4f0dc4e0d1b1d15f8aacec0ff7360273",
       "ecosystem": "cargo",
@@ -87,6 +100,45 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/cpufeatures@0.3.1",
+      "checksum_sha256": "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "cpufeatures",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.3.1",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/crypto-common@0.2.2",
+      "checksum_sha256": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "crypto-common",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.2.2",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/digest@0.11.3",
+      "checksum_sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "digest",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.11.3",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/find-msvc-tools@0.1.11",
       "checksum_sha256": "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890",
       "ecosystem": "cargo",
@@ -100,6 +152,19 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/hybrid-array@0.4.14",
+      "checksum_sha256": "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "hybrid-array",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.14",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/itoa@1.0.18",
       "checksum_sha256": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
       "ecosystem": "cargo",
@@ -110,6 +175,19 @@
       "name": "itoa",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "1.0.18",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/libc@0.2.189",
+      "checksum_sha256": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "libc",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.2.189",
       "workspace": false
     },
     {
@@ -214,6 +292,19 @@
       "name": "serde_json",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "1.0.145",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/sha2@0.11.0",
+      "checksum_sha256": "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "sha2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.11.0",
       "workspace": false
     },
     {
@@ -503,6 +594,19 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/typenum@1.20.1",
+      "checksum_sha256": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "typenum",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.20.1",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/unicode-ident@1.0.24",
       "checksum_sha256": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75",
       "ecosystem": "cargo",
@@ -659,12 +763,36 @@
       "to": "pkg:cargo/constant_time_eq@0.3.1"
     },
     {
+      "from": "pkg:cargo/block-buffer@0.12.1",
+      "to": "pkg:cargo/hybrid-array@0.4.14"
+    },
+    {
       "from": "pkg:cargo/cc@1.4.4",
       "to": "pkg:cargo/find-msvc-tools@0.1.11"
     },
     {
       "from": "pkg:cargo/cc@1.4.4",
       "to": "pkg:cargo/shlex@2.0.1"
+    },
+    {
+      "from": "pkg:cargo/cpufeatures@0.3.1",
+      "to": "pkg:cargo/libc@0.2.189"
+    },
+    {
+      "from": "pkg:cargo/crypto-common@0.2.2",
+      "to": "pkg:cargo/hybrid-array@0.4.14"
+    },
+    {
+      "from": "pkg:cargo/digest@0.11.3",
+      "to": "pkg:cargo/block-buffer@0.12.1"
+    },
+    {
+      "from": "pkg:cargo/digest@0.11.3",
+      "to": "pkg:cargo/crypto-common@0.2.2"
+    },
+    {
+      "from": "pkg:cargo/hybrid-array@0.4.14",
+      "to": "pkg:cargo/typenum@1.20.1"
     },
     {
       "from": "pkg:cargo/proc-macro2@1.0.107",
@@ -717,6 +845,18 @@
     {
       "from": "pkg:cargo/serde_json@1.0.145",
       "to": "pkg:cargo/serde_core@1.0.228"
+    },
+    {
+      "from": "pkg:cargo/sha2@0.11.0",
+      "to": "pkg:cargo/cfg-if@1.0.4"
+    },
+    {
+      "from": "pkg:cargo/sha2@0.11.0",
+      "to": "pkg:cargo/cpufeatures@0.3.1"
+    },
+    {
+      "from": "pkg:cargo/sha2@0.11.0",
+      "to": "pkg:cargo/digest@0.11.3"
     },
     {
       "from": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
@@ -948,6 +1088,10 @@
     },
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true"
     },
     {
@@ -985,6 +1129,10 @@
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
     },
     {
       "from": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
@@ -1073,6 +1221,10 @@
     {
       "from": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sha2@0.11.0"
     },
     {
       "from": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",

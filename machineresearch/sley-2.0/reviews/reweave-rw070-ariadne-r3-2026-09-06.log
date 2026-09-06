@@ -1,0 +1,45 @@
+RW-070 delta re-review — round 3 (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded delta).
+Inputs: round-2 repairs (ApprovedImage binding, single-row inventory).
+
+VERDICT: FAIL.
+
+P2 — frozen contract/source mismatch. The record and spec claim gate
+admission uses the shared resolver
+(`conformance/host-abi/v1/host-abi.json:9,133`;
+`docs/spec/HOST_ABI_V1.md:85-86`), but the gate independently duplicates
+registry validation in `bootstrap_row_ok`
+(`crates/sley-vm/src/bootstrap.rs:267,394-430`). Stale source comments
+repeat the false shared-authority claim
+(`crates/sley-vm/src/extended.rs:243-270`). Either route gate validation
+through the shared resolver or revise and re-digest the frozen artifacts
+to accurately specify separate validation.
+
+ApprovedImage binding confirmed. Digest, re-derived cache key, and import
+identities are checked before execution
+(`crates/sley-vm/src/execute.rs:529-569`), with refusal coverage at
+`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1437-1495`. Sound under the
+explicitly stated residual trust in canonical caller inventories.
+
+Single-row design confirmed. Duplicate identities refuse and admitted
+imports are reported (`crates/sley-vm/src/bootstrap.rs:253-270`; tests
+`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1170-1200`,
+`crates/sley-vm/src/bootstrap.rs:1447-1472`). `EXTENDED_V1` retains
+schema-qualified per-use selection outside bootstrap admission
+(`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1132-1166`).
+
+Validation performed by reviewer: `cargo test -p sley-vm --lib` PASS (69/2
+ignored); `cargo test -p sley-vm --test rw070_host_abi_freeze` PASS (37);
+both host-ABI checkers PASS; digest `e6de00b8…04ecc2`;
+`git diff --check` PASS; eight-code `IMAGE_*` vocabulary confirmed at
+`crates/sley-vm/src/host_abi.rs:95-124`. Bounded delta validation only; V1
+skipped per bounded triage scope.
+
+Blockers: reconcile the claimed single shared resolution authority with
+the implemented independent gate validator, then regenerate/re-pin the
+frozen record if its text changes.
+
+Disposition: ACCEPTED as a failed round. Owner repair: gate row
+validation routed through the shared `resolve_bridge_entry` plus the
+membership rule (no record/doc change: the frozen claims are true again).
+Preserved unedited as the failed round.

@@ -17,7 +17,7 @@ SUMMARY_PATH = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 EXPECTED_BLOCKERS = ["workspace-license-text:missing-operator-approved-root-license"]
 EXPECTED_ANCHOR = "51863f7b93271bd7a73f9b7b3b02eeca93447d9a"
 EXPECTED_COUNTS = {
-    ("cargo", False): 22,
+    ("cargo", False): 30,
     ("cargo", True): 18,
     ("pypi", False): 2,
     ("pypi", True): 1,
@@ -178,13 +178,13 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "inventory_contract": "s20-710-pre-release-inventory-v1",
         "secret_scan_contract": "s20-710-secret-scan-v1",
         "history_anchor_commit": EXPECTED_ANCHOR,
-        "cargo_lock_sha256": "887d14608d68adc16307dd958d4c9549c9e996be761699a6f9b57db24b989e8e",
+        "cargo_lock_sha256": "ed404440ca4bdf8e9de36fbeb676ed50283d44053dbaf4c8a4cbfca0e2b12fc1",
         "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
         "cargo_workspace_packages": 18,
-        "cargo_registry_packages": 22,
+        "cargo_registry_packages": 30,
         "python_workspace_packages": 1,
         "python_registry_packages": 2,
-        "dependency_relationships": 121,
+        "dependency_relationships": 133,
         "t52_local_lock_inventory": "PASS",
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 499,

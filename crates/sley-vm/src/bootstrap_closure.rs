@@ -32,11 +32,26 @@ use sley_ssmc::{
 };
 
 use crate::bootstrap::{BootstrapProfileInput, judge_bootstrap_profile};
-use crate::extended::bridge_test_imports;
+use crate::extended::{bridge_entry_id, bridge_test_imports};
 use crate::{
     CacheProfile, ExecutionLimits, ExecutionOutcome, ExecutionRequest, ExecutionTermination,
     LoweringInput, execute_function, lower_function,
 };
+
+/// The invoked subset of the frozen test imports. Gate admission covers
+/// exactly the reached imports, so workloads carry no unreferenced rows
+/// (RW-070 closure repair); lowering and execution resolve only invoked
+/// rows, so emitted bytes and observations are unchanged.
+fn bridge_subset(codes: &[[u8; 4]]) -> Vec<sley_ssmc::AdapterImport> {
+    bridge_test_imports()
+        .into_iter()
+        .filter(|row| {
+            codes
+                .iter()
+                .any(|code| row.entity_id == bridge_entry_id(*code))
+        })
+        .collect()
+}
 
 /// Frozen reference budgets every closure vector runs under. The freeze
 /// records these values plus the measured per-vector costs proving fit;
@@ -476,7 +491,7 @@ fn bytes_round_trip() -> Workload {
                 Immediate::None,
             ),
         ],
-        adapters: bridge_test_imports().to_vec(),
+        adapters: bridge_subset(&[*b"B2V1", *b"V2B1"]),
         constants: Vec::new(),
     };
     Workload {
@@ -621,7 +636,7 @@ fn vector_push_loop() -> Workload {
                 Immediate::Entity(crate::extended::bridge_entry_id(*b"PSH1")),
             ),
         ],
-        adapters: bridge_test_imports().to_vec(),
+        adapters: bridge_subset(&[*b"PSH1"]),
         constants: Vec::new(),
     };
     Workload {
@@ -2186,7 +2201,7 @@ fn image_assemble_emit() -> Workload {
                 Immediate::None,
             ),
         ],
-        adapters: bridge_test_imports().to_vec(),
+        adapters: bridge_subset(&[*b"PSH1", *b"V2B1"]),
         constants: Vec::new(),
     };
     let octets = |bytes: &[u8]| ConstValue {

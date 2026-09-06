@@ -1,0 +1,43 @@
+RW-070 round-4 delta review (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded delta).
+
+VERDICT: FAIL.
+
+P2 — shared-authority mismatch remains for PSH1. Bootstrap validates every
+row through `resolve_bridge_entry`
+(`crates/sley-vm/src/bootstrap.rs:406-418`), including push. Push
+lowering/execution/surcharge instead use the independently implemented
+`resolve_push_row`/`is_push_row` validation
+(`crates/sley-vm/src/extended.rs:328-363,399,1236,2021`). This contradicts
+the frozen claim that push gate admission uses `resolve_push_row`
+(`docs/spec/HOST_ABI_V1.md:84-86`) and the record's
+single-`resolve_bridge_entry` authority claim
+(`conformance/host-abi/v1/host-abi.json:133`). Route push row validation
+through one common validator or revise and re-digest the frozen artifacts.
+
+ApprovedImage binding confirmed. Digest, re-derived cache key, and import
+identities are checked before execution
+(`crates/sley-vm/src/execute.rs:529-569`), with refusal coverage at
+`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1437-1495`. Sound under the
+explicitly stated residual trust in canonical caller inventories.
+
+Single-row design confirmed. Duplicate identities refuse and admitted
+imports are reported (`crates/sley-vm/src/bootstrap.rs:253-270`; tests
+`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1170-1200`,
+`crates/sley-vm/src/bootstrap.rs:1447-1472`). `EXTENDED_V1` retains
+schema-qualified per-use selection outside bootstrap admission
+(`crates/sley-vm/tests/rw070_host_abi_freeze.rs:1132-1166`).
+
+Validation performed by reviewer (read-only commands as granted):
+`cargo test -p sley-vm --lib` PASS (69/2 ignored);
+`cargo test -p sley-vm --test rw070_host_abi_freeze` PASS (37); both
+host-ABI checkers PASS; digest `e6de00b8…04ecc2`; `git diff --check` PASS.
+Bounded delta review; V1 not run.
+
+Blockers: P2 above blocks RW-070 acceptance.
+
+Disposition: ACCEPTED as a failed round. Owner repair: the resolver's push
+arm delegates to the one shared `is_push_row` predicate, and the doc
+sentence now states the actual shared structure (no record change: the
+record's authority claims hold as written). Preserved unedited as the
+failed round.

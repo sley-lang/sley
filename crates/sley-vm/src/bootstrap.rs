@@ -13,10 +13,14 @@
 //! - every reached operation's opcode is a frozen bootstrap opcode
 //!   (`PERMITTED_BOOTSTRAP_OPCODES`); excluded families refuse with
 //!   `OpcodeUnsupported`;
-//! - every `adapter_invoke` resolves through the one shared resolution
-//!   authority (`super::extended::resolve_bridge_entry`) to a landed bridge
-//!   entry — unknown, tampered, or effectful rows refuse with
-//!   `OpcodeUnsupported`, exactly as lowering judges them;
+//! - every `adapter_invoke` names a carried import — unknown identities
+//!   refuse with `OpcodeUnsupported`, exactly as lowering judges them;
+//! - every carried `AdapterImport` is referenced by a reached
+//!   `adapter_invoke`, carries a globally distinct identity, and is itself
+//!   a bootstrap-schema row (frozen fields plus conversion schemas or the
+//!   push relationship pin over bootstrap types) — unreferenced,
+//!   duplicated, or non-bootstrap rows refuse with `OpcodeUnsupported`, so
+//!   no unused import rides an admission (RW-070 closure repair);
 //! - every reached function declares no effects, no contracts, and no type
 //!   parameters (bootstrap functions are pure closed value functions);
 //! - the call graph is acyclic: recursive cycles refuse with
@@ -90,6 +94,9 @@ pub struct BootstrapProfileInput<'a> {
 pub struct BootstrapProfileReport {
     /// Reached functions in traversal order, entry first.
     pub functions: Vec<sley_id::EntityId>,
+    /// Admitted import identities in inventory order: exactly the invoked
+    /// set, so the report names which imports the admission covers.
+    pub imports: Vec<sley_id::EntityId>,
     /// Count of judged operations across the closure.
     pub operation_count: u32,
     /// Count of `adapter_invoke` operations admitted through the bridge.
@@ -224,6 +231,45 @@ pub fn judge_bootstrap_profile(
     if reached.len() != functions.len() {
         return gate_fail(LowerErrorCode::ProfileUnsupported);
     }
+    // The admission covers exactly the reached imports: every carried
+    // `AdapterImport` must be referenced by a reached `adapter_invoke`
+    // operation and must itself be a bootstrap-schema row, and no two rows
+    // share one identity. An unused row — registered or not, shape-valid
+    // or not — cannot ride an admission, and neither can a duplicated
+    // identity (RW-070 closure repair: the positive import manifest is
+    // closed at the inventory level, mirroring the function rule above).
+    // Per-use operand binding stays with lowering judgment, which selects
+    // among monomorphized push rows by exact schemas.
+    let mut referenced = BTreeSet::new();
+    for operation in input.operations.iter().filter(|operation| {
+        operation.opcode == Opcode::AdapterInvoke
+            && input.blocks.iter().any(|block| {
+                block.entity_id == operation.block && reached.contains(&block.function)
+            })
+    }) {
+        if let Immediate::Entity(entry) = &operation.immediate {
+            referenced.insert(*entry);
+        }
+    }
+    // Import identities are globally distinct (S20-230 §2): two rows sharing
+    // one identity make the registry ambiguous, so a duplicated identity
+    // refuses even when each row alone is valid. In particular a closed
+    // inventory carries at most one push row; a closure needing two element
+    // types needs a new admission, not a second row (RW-070 freeze rule).
+    let mut seen = BTreeSet::new();
+    let mut imports = Vec::new();
+    for import in input.adapters {
+        if !seen.insert(import.entity_id) {
+            return gate_fail(LowerErrorCode::OpcodeUnsupported);
+        }
+        if !referenced.contains(&import.entity_id) {
+            return gate_fail(LowerErrorCode::OpcodeUnsupported);
+        }
+        if !bootstrap_row_ok(input.types, input.adapters, import) {
+            return gate_fail(LowerErrorCode::OpcodeUnsupported);
+        }
+        imports.push(import.entity_id);
+    }
     // Constant inventory membership: every carried constant's value type
     // faces boundary-strict membership, referenced or not — the admitted
     // inventory is exactly what the closure declares. (Constants have no
@@ -255,6 +301,7 @@ pub fn judge_bootstrap_profile(
         functions: reached,
         operation_count,
         bridge_uses,
+        imports,
     })
 }
 
@@ -345,14 +392,37 @@ fn walk_function(
     Ok(())
 }
 
-/// Admits one `adapter_invoke` operation through genuine bridge
-/// resolution against the supplied inventory. Opcode 161 is admitted only
-/// this way — never by tag membership — using the one shared authority,
-/// so the registry cannot drift from lowering. The resolved row's schemas
-/// must themselves be bootstrap types: the relationship pin accepts any
-/// structurally related pair (float or handle instantiations included),
-/// which lowering admits under `EXTENDED_V1` but the bootstrap subset
-/// excludes. Such rows are not permitted imports.
+/// Whether one carried import row is a bootstrap-schema bridge row, judged
+/// through the one shared resolution authority plus the gate's membership
+/// rule: the row must resolve as a landed bridge entry (frozen identity
+/// fields, conversion schemas or the push relationship pin — the same
+/// checks lowering, execution, and surcharge apply), and its request and
+/// response types must themselves be bootstrap types. The relationship pin
+/// accepts any structurally related pair at lowering under `EXTENDED_V1`,
+/// so the bootstrap membership check here is what keeps float or handle
+/// instantiations out of the subset. Callers enforce reference and
+/// distinctness separately; with distinct identities the resolved row is
+/// always the carried row itself.
+fn bootstrap_row_ok(
+    types: &TypeEnvironment,
+    adapters: &[AdapterImport],
+    carried: &AdapterImport,
+) -> bool {
+    let Some((_, resolved)) = resolve_bridge_entry(adapters, &carried.entity_id) else {
+        return false;
+    };
+    if resolved.entity_id != carried.entity_id {
+        return false;
+    }
+    bootstrap_type_ok(types, &resolved.request_type, true, &mut BTreeSet::new())
+        && bootstrap_type_ok(types, &resolved.response_type, true, &mut BTreeSet::new())
+}
+
+/// Admits one `adapter_invoke` operation: its immediate must name a carried
+/// import. Opcode 161 is admitted only this way — never by tag membership.
+/// Every carried row already faces full registry validation in
+/// `judge_bootstrap_profile`, so naming a carried row is the whole per-use
+/// check; per-use operand binding stays with lowering judgment.
 fn admit_bridge_use(
     input: &BootstrapProfileInput<'_>,
     operation: &Operation,
@@ -362,27 +432,16 @@ fn admit_bridge_use(
             LowerErrorCode::ImmediateMismatch,
         )));
     };
-    let Some((_, carried)) = resolve_bridge_entry(input.adapters, entry) else {
-        return Err(LoweringError::Lower(LowerError::new(
-            LowerErrorCode::OpcodeUnsupported,
-        )));
-    };
-    if !bootstrap_type_ok(
-        input.types,
-        &carried.request_type,
-        true,
-        &mut BTreeSet::new(),
-    ) || !bootstrap_type_ok(
-        input.types,
-        &carried.response_type,
-        true,
-        &mut BTreeSet::new(),
-    ) {
-        return Err(LoweringError::Lower(LowerError::new(
-            LowerErrorCode::OpcodeUnsupported,
-        )));
+    if input
+        .adapters
+        .iter()
+        .any(|import| import.entity_id == *entry)
+    {
+        return Ok(());
     }
-    Ok(())
+    Err(LoweringError::Lower(LowerError::new(
+        LowerErrorCode::OpcodeUnsupported,
+    )))
 }
 
 /// Judges one reached function's operations and boundary types. Returns
@@ -680,7 +739,7 @@ mod tests {
                 )),
             },
         );
-        bridge.adapters = bridge_test_imports().to_vec();
+        bridge.adapters = vec![bridge_test_imports()[0].clone()];
         let report = judge_bootstrap_profile(&bridge.input()).expect("E8 bridge admits");
         assert_eq!(report.bridge_uses, 1);
     }
@@ -1281,7 +1340,7 @@ mod tests {
                 )),
             },
         );
-        mistyped.adapters = bridge_test_imports().to_vec();
+        mistyped.adapters = vec![bridge_test_imports()[0].clone()];
         assert_eq!(
             gate_code(&mistyped),
             LowerErrorCode::SignatureMismatch,
@@ -1303,7 +1362,7 @@ mod tests {
                 )),
             },
         );
-        frozen.adapters = bridge_test_imports().to_vec();
+        frozen.adapters = vec![bridge_test_imports()[1].clone()];
         judge_bootstrap_profile(&frozen.input()).expect("frozen rows admit");
         // Unknown identity, tampered ABI, and effectful rows refuse with
         // the opcode code — the same genuine resolution lowering uses.
@@ -1319,18 +1378,85 @@ mod tests {
                 )),
             },
         );
-        unknown.adapters = bridge_test_imports().to_vec();
+        unknown.adapters = Vec::new();
         assert_eq!(
             gate_code(&unknown),
             LowerErrorCode::OpcodeUnsupported,
             "unknown identities must refuse"
         );
         let mut tampered = frozen;
-        tampered.adapters[1].abi_version = 2;
+        tampered.adapters[0].abi_version = 2;
         assert_eq!(
             gate_code(&tampered),
             LowerErrorCode::OpcodeUnsupported,
             "tampered rows must refuse"
+        );
+    }
+
+    /// Unreferenced import rows cannot ride an admission, however
+    /// shape-valid and registered they are (RW-070 closure repair: the
+    /// positive manifest is closed at the inventory level, mirroring the
+    /// unreached-function rule).
+    #[test]
+    fn bootstrap_gate_refuses_unreferenced_import_rows() {
+        let mut program = single_op(
+            Opcode::AdapterInvoke,
+            Immediate::Entity(bridge_entry_id(*b"B2V1")),
+            TypeExpr::Unit,
+            TypeExpr::Bytes,
+            TypeExpr::Result {
+                ok: Box::new(TypeExpr::Vector(Box::new(u8_type()))),
+                error: Box::new(TypeExpr::BuiltinFailure(
+                    sley_ssmc::BuiltinFailureKind::Index,
+                )),
+            },
+        );
+        // The invoked row alone admits.
+        program.adapters = vec![bridge_test_imports()[0].clone()];
+        judge_bootstrap_profile(&program.input()).expect("exact inventory admits");
+        // A registered but uninvoked row refuses.
+        program.adapters = bridge_test_imports().to_vec();
+        assert_eq!(
+            gate_code(&program),
+            LowerErrorCode::OpcodeUnsupported,
+            "unreferenced rows must refuse"
+        );
+        // An effectful uninvoked row refuses the same way.
+        let mut effectful = bridge_test_imports()[2].clone();
+        effectful.effects = vec![id(20)];
+        program.adapters = vec![bridge_test_imports()[0].clone(), effectful];
+        assert_eq!(
+            gate_code(&program),
+            LowerErrorCode::OpcodeUnsupported,
+            "unreferenced effectful rows must refuse"
+        );
+    }
+
+    /// Two rows sharing one identity refuse even when each row alone is
+    /// valid: import identities are globally distinct (S20-230 §2), so a
+    /// closed inventory carries at most one push row.
+    #[test]
+    fn bootstrap_gate_refuses_duplicated_import_identities() {
+        let mut program = single_op(
+            Opcode::AdapterInvoke,
+            Immediate::Entity(bridge_entry_id(*b"B2V1")),
+            TypeExpr::Unit,
+            TypeExpr::Bytes,
+            TypeExpr::Result {
+                ok: Box::new(TypeExpr::Vector(Box::new(u8_type()))),
+                error: Box::new(TypeExpr::BuiltinFailure(
+                    sley_ssmc::BuiltinFailureKind::Index,
+                )),
+            },
+        );
+        program.adapters = vec![
+            bridge_test_imports()[0].clone(),
+            bridge_test_imports()[0].clone(),
+        ];
+        assert_eq!(
+            gate_code(&program),
+            LowerErrorCode::OpcodeUnsupported,
+            "duplicated identities must refuse"
         );
     }
 }

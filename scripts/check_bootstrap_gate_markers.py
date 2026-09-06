@@ -29,8 +29,9 @@ gate = GATE.read_text(encoding="utf-8")
 for marker in [
     "pub fn judge_bootstrap_profile",
     "PERMITTED_BOOTSTRAP_OPCODES",
-    "resolve_bridge_entry",
+    "bootstrap_row_ok",
     "admit_bridge_use",
+    "referenced",
     "A call-graph cycle: recursion is excluded",
     "single-authority rule",
     "not an execution path",

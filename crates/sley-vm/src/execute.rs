@@ -3,17 +3,20 @@
 use core::fmt;
 use std::sync::Arc;
 
-use sley_check::TypeError;
+use sley_check::{TypeEnvironment, TypeError};
 use sley_id::{BytecodeCacheKey, EntityId, ObservationId, SchemaEpochId, StateRoot, ValueHash};
 use sley_ssmc::{
-    BuiltinCase, CaseKey, ConstData, ConstValue, ResultConst, TypeExpr,
+    AdapterImport, BuiltinCase, CaseKey, ConstData, ConstValue, ConstantDefinition,
+    ContractDefinition, GlobalValueDefinition, ResultConst, TypeExpr,
     fingerprint::{FingerprintError, FingerprintErrorCode, hash_validated_value},
 };
 
 use crate::{
     BytecodeSwitchArgument, BytecodeSwitchEdge, BytecodeTargetEdge, BytecodeTerminator,
     CacheProfile, LoweredFunction, LoweringError, LoweringInput, Register,
-    SSMC1_DECODER_LIMITS_HASH, SSMC1_FIELD_SCHEMA_HASH, lower::lower_function,
+    SSMC1_DECODER_LIMITS_HASH, SSMC1_FIELD_SCHEMA_HASH,
+    host_abi::{ImageError, load_image},
+    lower::lower_function,
 };
 
 /// Maximum canonical S20-270 observation preimage bytes.
@@ -51,6 +54,132 @@ pub struct ExecutionLimits {
     pub max_output_units: u64,
     /// Optional deterministic cancellation fuel point.
     pub cancel_at_fuel: Option<u64>,
+}
+
+/// One loaded-image execution request: everything execution needs except
+/// the SSMC program inventories, which the image bytes already encode.
+///
+/// The decoded image carries code, types, registers, and immediates; the
+/// caller supplies the execution-relevant inventories (constants, globals,
+/// contracts, adapters) plus the epoch, root, and profile they are addressed
+/// under. SSMC graphs, parameters, blocks, and operations are never read on
+/// this path: there is nothing to lower.
+#[derive(Clone, Copy, Debug)]
+pub struct LoadedExecutionInput<'a> {
+    /// Selected type environment.
+    pub types: &'a TypeEnvironment,
+    /// Complete Constant inventory (`constant_ref` resolves here).
+    pub constants: &'a [ConstantDefinition],
+    /// Complete `GlobalValue` inventory (`global_get` resolves here).
+    pub globals: &'a [GlobalValueDefinition],
+    /// Complete Contract inventory (`contract_assert` resolves here).
+    pub contracts: &'a [ContractDefinition],
+    /// Complete `AdapterImport` inventory (bridge entries resolve here).
+    pub adapters: &'a [AdapterImport],
+    /// Exact schema epoch.
+    pub schema_epoch: SchemaEpochId,
+    /// Exact state root.
+    pub state_root: StateRoot,
+    /// Requested cache/lowering profile.
+    pub profile: CacheProfile,
+}
+
+/// The manifest-approved binding for one derived image: every checkable
+/// identity `execute_loaded_image` verifies before running anything.
+///
+/// The manifest itself stays off-crate (the build driver holds it); this
+/// struct is the exact shape the driver passes in, so any substitution of
+/// bytes, epoch, root, entry, profile, or imports against the approved
+/// binding refuses deterministically instead of executing by convention.
+/// Limits are deliberately absent: budgets are the caller's per-execution
+/// policy, and the observation binds the actual limits used.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApprovedImage {
+    /// Manifest-approved image identity (SHA-256 over the exact bytes).
+    pub digest: [u8; 32],
+    /// Manifest-approved cache identity (epoch, root, entry, profile).
+    pub cache_key: BytecodeCacheKey,
+    /// Manifest-approved import set: exact admitted import identities.
+    pub imports: Vec<EntityId>,
+}
+
+/// One loaded-image execution failure: the exact preserved inner failure,
+/// never a new code. Structural and identity refusals keep the `IMAGE_*`
+/// vocabulary; every later failure keeps the code the lowering path would
+/// report for the same condition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LoadedExecutionError {
+    /// Structural image refusal or manifest-identity mismatch.
+    Image(ImageError),
+    /// Input, cache-key, or fingerprint failure after a valid load.
+    Execution(ExecutionError),
+}
+
+impl fmt::Display for LoadedExecutionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Image(error) => error.fmt(formatter),
+            Self::Execution(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for LoadedExecutionError {}
+
+/// Everything execution reads, however the bytecode arrived: by lowering
+/// from canonical program state or by loading derived image bytes.
+#[derive(Clone, Copy, Debug)]
+struct ExecutionSource<'a> {
+    /// Selected type environment.
+    types: &'a TypeEnvironment,
+    /// Complete Constant inventory.
+    constants: &'a [ConstantDefinition],
+    /// Complete `GlobalValue` inventory.
+    globals: &'a [GlobalValueDefinition],
+    /// Complete Contract inventory.
+    contracts: &'a [ContractDefinition],
+    /// Complete `AdapterImport` inventory.
+    adapters: &'a [AdapterImport],
+    /// Exact schema epoch.
+    schema_epoch: SchemaEpochId,
+    /// Exact state root.
+    state_root: StateRoot,
+    /// Requested cache/lowering profile.
+    profile: CacheProfile,
+    /// Entry function identity (decoded or lowered alike).
+    function: EntityId,
+}
+
+impl<'a> ExecutionSource<'a> {
+    /// Builds the source from a lowering request.
+    fn lowering(input: &LoweringInput<'a>) -> Self {
+        Self {
+            types: input.types,
+            constants: input.constants,
+            globals: input.globals,
+            contracts: input.contracts,
+            adapters: input.adapters,
+            schema_epoch: input.schema_epoch,
+            state_root: input.state_root,
+            profile: input.profile,
+            function: input.function.entity_id,
+        }
+    }
+
+    /// Builds the source from a loaded-image request.
+    fn loaded(input: &LoadedExecutionInput<'a>, function: EntityId) -> Self {
+        Self {
+            types: input.types,
+            constants: input.constants,
+            globals: input.globals,
+            contracts: input.contracts,
+            adapters: input.adapters,
+            schema_epoch: input.schema_epoch,
+            state_root: input.state_root,
+            profile: input.profile,
+            function,
+        }
+    }
 }
 
 /// Closed S20-270 runtime resource kind.
@@ -367,7 +496,90 @@ pub fn execute_function(
     request: ExecutionRequest,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     let lowered = lower_function(input)?;
+    let source = ExecutionSource::lowering(&input);
     let validated_inputs = validate_inputs(&input, &request)?;
+    execute_core(&source, &lowered, &validated_inputs, request)
+}
+
+/// Executes supplied derived-image bytes through the validation-before-
+/// execution boundary: structural load, manifest-identity verification,
+/// approved-binding verification, then the same runner `execute_function`
+/// uses.
+///
+/// The expected binding is the manifest-approved identity for exactly this
+/// image: digest, cache key, and import set are each verified against the
+/// supplied bytes and request before anything runs. Bytes that are
+/// structurally valid but unexpected refuse with
+/// [`ImageError::DigestMismatch`]; a verified digest with a mismatched
+/// cache identity or import set refuses with
+/// [`ImageError::BindingMismatch`]. The loader never decides which image
+/// is approved. Inventories arrive from the caller as canonical program
+/// state under the supplied epoch and root — the same trust
+/// `execute_function` places in its lowering input — and the cache key is
+/// re-derived from the caller epoch, root, decoded entry, and profile, so
+/// a mismatched epoch, root, or profile refuses instead of executing under
+/// another identity. Input validation applies the exact S20-270 checks with
+/// types sourced from the decoded registers.
+///
+/// # Errors
+///
+/// Returns the structural refusal, the binding mismatch, or the exact
+/// preserved failure the lowering path would report for the same condition.
+#[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
+pub fn execute_loaded_image(
+    input: LoadedExecutionInput<'_>,
+    expected: &ApprovedImage,
+    bytes: &[u8],
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, LoadedExecutionError> {
+    let loaded = load_image(bytes).map_err(LoadedExecutionError::Image)?;
+    if loaded.digest != expected.digest {
+        return Err(LoadedExecutionError::Image(ImageError::DigestMismatch));
+    }
+    let source = ExecutionSource::loaded(&input, loaded.entry.function);
+    let cache_key = crate::derive_cache_key(
+        source.schema_epoch,
+        source.state_root,
+        source.function,
+        source.profile,
+    )
+    .map_err(|error| LoadedExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+    if cache_key != expected.cache_key {
+        return Err(LoadedExecutionError::Image(ImageError::BindingMismatch));
+    }
+    let mut supplied: Vec<EntityId> = input.adapters.iter().map(|row| row.entity_id).collect();
+    supplied.sort();
+    let mut approved = expected.imports.clone();
+    approved.sort();
+    if supplied != approved {
+        return Err(LoadedExecutionError::Image(ImageError::BindingMismatch));
+    }
+    let validated_inputs = validate_loaded_inputs(&source, &loaded.entry, &request)
+        .map_err(LoadedExecutionError::Execution)?;
+    // The load-boundary copy: the runner borrows one lowered model, so the
+    // decoded structure travels in the same shape lowering emits. No
+    // lowering work ran on this path, so the work counter stays zero.
+    let lowered = LoweredFunction {
+        bytecode: loaded.entry.clone(),
+        bytes: bytes.to_vec(),
+        cache_key,
+        lowering_work: 0,
+        callees: loaded.callees.clone(),
+    };
+    execute_core(&source, &lowered, &validated_inputs, request)
+        .map_err(LoadedExecutionError::Execution)
+}
+
+/// Runs validated inputs against one bytecode model: the single runner both
+/// execution paths share. Lowering and loading differ only in how the model
+/// and its validation arrive here.
+#[allow(clippy::too_many_lines)]
+fn execute_core(
+    source: &ExecutionSource<'_>,
+    lowered: &LoweredFunction,
+    validated_inputs: &ValidatedInputs,
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, ExecutionError> {
     let initial_live_total = initial_value_units(
         &lowered.bytecode.register_types,
         &lowered.bytes,
@@ -387,7 +599,7 @@ pub fn execute_function(
 
     if runtime.peak_value_units > limits.max_value_units {
         return finish(
-            &input,
+            source,
             limits,
             lowered.cache_key,
             &validated_inputs.hashes,
@@ -406,7 +618,7 @@ pub fn execute_function(
             .and_then(|value| usize::try_from(*value).ok())
         else {
             return observed_invariant(
-                &input,
+                source,
                 limits,
                 lowered.cache_key,
                 &validated_inputs.hashes,
@@ -415,7 +627,7 @@ pub fn execute_function(
         };
         if write_register(&mut runtime, register, RuntimeValue::new(value)).is_err() {
             return observed_invariant(
-                &input,
+                source,
                 limits,
                 lowered.cache_key,
                 &validated_inputs.hashes,
@@ -430,14 +642,14 @@ pub fn execute_function(
         &lowered.bytecode.blocks,
         &lowered.bytecode.result_type,
         &lowered.bytecode.register_types,
-        &input,
-        Some(&lowered),
+        source,
+        Some(lowered),
     ) {
         Ok(termination) => termination,
         Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
     };
     finish_runtime(
-        &input,
+        source,
         limits,
         lowered.cache_key,
         &validated_inputs.hashes,
@@ -446,13 +658,14 @@ pub fn execute_function(
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn run(
     runtime: &mut Runtime,
     limits: ExecutionLimits,
     blocks: &[crate::BytecodeBlock],
     result_type: &TypeExpr,
     register_types: &[TypeExpr],
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     lowered: Option<&LoweredFunction>,
 ) -> RuntimeResult<ExecutionTermination> {
     let mut stack: Vec<Suspended<'_>> = Vec::new();
@@ -471,7 +684,7 @@ fn run(
             {
                 return Ok(unwind(runtime, stack, termination));
             }
-            if input.profile.is_extended() {
+            if source.profile.is_extended() {
                 let call = if instruction.opcode == sley_ssmc::Opcode::CallDirect.tag() {
                     Some(prepare_call(
                         runtime,
@@ -489,7 +702,7 @@ fn run(
                         current.register_types,
                         lowered,
                         stack.len().saturating_add(1),
-                        input.contracts,
+                        source.contracts,
                     )?)
                 } else {
                     None
@@ -524,9 +737,13 @@ fn run(
                     }
                     continue;
                 }
-                if let Some(termination) =
-                    execute_extended(runtime, &limits, instruction, current.register_types, input)?
-                {
+                if let Some(termination) = execute_extended(
+                    runtime,
+                    &limits,
+                    instruction,
+                    current.register_types,
+                    source,
+                )? {
                     return Ok(unwind(runtime, stack, termination));
                 }
                 continue;
@@ -873,7 +1090,7 @@ fn execute_extended(
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
     register_types: &[TypeExpr],
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let opcode = sley_ssmc::Opcode::from_tag(instruction.opcode).ok_or(RuntimeFault)?;
     let mut operands = Vec::with_capacity(instruction.operands.len());
@@ -891,7 +1108,7 @@ fn execute_extended(
     // answers Err(Index, 2) under adequate budgets.
     if instruction.opcode == sley_ssmc::Opcode::AdapterInvoke.tag()
         && let Some(elements) = crate::extended::bridge_fuel_surcharge(
-            input.adapters,
+            source.adapters,
             &instruction.immediate,
             &operands,
         )
@@ -905,11 +1122,11 @@ fn execute_extended(
     }
     let value = {
         let mut context = crate::extended::ExecutionContext {
-            types: input.types,
-            constants: input.constants,
-            globals: input.globals,
-            schema_epoch: input.schema_epoch,
-            adapters: input.adapters,
+            types: source.types,
+            constants: source.constants,
+            globals: source.globals,
+            schema_epoch: source.schema_epoch,
+            adapters: source.adapters,
             cells: &mut runtime.cells,
         };
         crate::extended::execute_extended_instruction(
@@ -968,18 +1185,16 @@ fn validate_inputs(
     let mut hashes = Vec::with_capacity(request.inputs.len());
     let mut value_units = 0_u64;
     for (index, value) in request.inputs.iter().enumerate() {
-        input.types.check_constant(value)?;
-        input.types.require_hashable(&value.value_type)?;
         let parameter_type = input
             .parameters
             .iter()
             .find(|parameter| parameter.entity_id == input.function.parameters[index])
             .map(|parameter| &parameter.value_type)
             .ok_or(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch))?;
-        if &value.value_type != parameter_type {
-            return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
-        }
-        value_units = add_input_units(value_units, value_units_const(value))?;
+        value_units = add_input_units(
+            value_units,
+            check_input_shape(input.types, parameter_type, value)?,
+        )?;
         require_canonical_form(value)?;
         hashes.push(hash_validated_value(input.schema_epoch, value)?);
     }
@@ -987,6 +1202,56 @@ fn validate_inputs(
         hashes,
         value_units,
     })
+}
+
+/// Validates loaded-image inputs with the exact S20-270 checks, sourcing
+/// parameter types from the decoded registers instead of the SSMC
+/// inventory: count, per-value shape, capped units, canonical form, hashes.
+/// A parameter register the image does not type fails closed before
+/// execution; approved images always type every parameter register.
+fn validate_loaded_inputs(
+    source: &ExecutionSource<'_>,
+    bytecode: &crate::BytecodeFunction,
+    request: &ExecutionRequest,
+) -> Result<ValidatedInputs, ExecutionError> {
+    if request.inputs.len() != bytecode.parameter_registers.len() {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputCountMismatch));
+    }
+    enforce_input_count(request.inputs.len())?;
+    let mut hashes = Vec::with_capacity(request.inputs.len());
+    let mut value_units = 0_u64;
+    for (index, value) in request.inputs.iter().enumerate() {
+        let register = usize::try_from(bytecode.parameter_registers[index])
+            .ok()
+            .and_then(|register| bytecode.register_types.get(register))
+            .ok_or(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch))?;
+        value_units = add_input_units(
+            value_units,
+            check_input_shape(source.types, register, value)?,
+        )?;
+        require_canonical_form(value)?;
+        hashes.push(hash_validated_value(source.schema_epoch, value)?);
+    }
+    Ok(ValidatedInputs {
+        hashes,
+        value_units,
+    })
+}
+
+/// Checks one supplied input value against its expected type: complete
+/// constant/type/hashability judgment plus exact type equality. Returns the
+/// value's semantic units for capped accumulation by the caller.
+fn check_input_shape(
+    types: &TypeEnvironment,
+    expected: &TypeExpr,
+    value: &ConstValue,
+) -> Result<u64, ExecutionError> {
+    types.check_constant(value)?;
+    types.require_hashable(&value.value_type)?;
+    if &value.value_type != expected {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
+    }
+    Ok(value_units_const(value))
 }
 
 /// Requires that one supplied value has an exact S20-350 canonical form.
@@ -1265,14 +1530,14 @@ fn write_register(
 }
 
 fn observed_invariant(
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
     runtime: &Runtime,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     finish_runtime(
-        input,
+        source,
         limits,
         cache_key,
         input_hashes,
@@ -1282,7 +1547,7 @@ fn observed_invariant(
 }
 
 fn finish_runtime(
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1290,7 +1555,7 @@ fn finish_runtime(
     termination: ExecutionTermination,
 ) -> Result<ExecutionOutcome, ExecutionError> {
     finish(
-        input,
+        source,
         limits,
         cache_key,
         input_hashes,
@@ -1303,7 +1568,7 @@ fn finish_runtime(
 
 #[allow(clippy::too_many_arguments)]
 fn finish(
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1312,8 +1577,8 @@ fn finish(
     fuel_used: u64,
     peak_value_units: u64,
 ) -> Result<ExecutionOutcome, ExecutionError> {
-    let observation_id = derive_observation_id(
-        *input,
+    let observation_id = ObservationId::derive(observation_preimage(
+        source,
         limits,
         cache_key,
         input_hashes,
@@ -1321,11 +1586,11 @@ fn finish(
         instruction_count,
         fuel_used,
         peak_value_units,
-    )?;
+    )?);
     Ok(ExecutionOutcome {
-        state_root: input.state_root,
-        schema_epoch: input.schema_epoch,
-        function: input.function.entity_id,
+        state_root: source.state_root,
+        schema_epoch: source.schema_epoch,
+        function: source.function,
         cache_key,
         termination,
         instruction_count,
@@ -1355,8 +1620,9 @@ pub fn derive_observation_id(
     fuel_used: u64,
     peak_value_units: u64,
 ) -> Result<ObservationId, ExecutionError> {
+    let source = ExecutionSource::lowering(&input);
     Ok(ObservationId::derive(observation_preimage(
-        &input,
+        &source,
         limits,
         cache_key,
         input_hashes,
@@ -1369,7 +1635,7 @@ pub fn derive_observation_id(
 
 #[allow(clippy::too_many_arguments)]
 fn observation_preimage(
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     limits: ExecutionLimits,
     cache_key: BytecodeCacheKey,
     input_hashes: &[ValueHash],
@@ -1389,11 +1655,11 @@ fn observation_preimage(
     let mut preimage = Vec::with_capacity(capacity);
     raw(&mut preimage, b"SLEYOBS1");
     push_u32(&mut preimage, 1);
-    raw(&mut preimage, input.schema_epoch.as_bytes());
+    raw(&mut preimage, source.schema_epoch.as_bytes());
     raw(&mut preimage, &SSMC1_FIELD_SCHEMA_HASH);
     raw(&mut preimage, &SSMC1_DECODER_LIMITS_HASH);
-    raw(&mut preimage, input.state_root.as_bytes());
-    raw(&mut preimage, input.function.entity_id.as_bytes());
+    raw(&mut preimage, source.state_root.as_bytes());
+    raw(&mut preimage, source.function.as_bytes());
     raw(&mut preimage, cache_key.as_bytes());
     // The cache key above already binds the lowering profile, so an
     // observation cannot be ambiguous between the restricted and the extended
@@ -1419,7 +1685,7 @@ fn observation_preimage(
             push_u64(&mut preimage, value);
         }
     }
-    encode_termination(&mut preimage, input, termination)?;
+    encode_termination(&mut preimage, source, termination)?;
     push_u64(&mut preimage, instruction_count);
     push_u64(&mut preimage, fuel_used);
     push_u64(&mut preimage, peak_value_units);
@@ -1433,16 +1699,16 @@ fn observation_preimage(
 
 fn encode_termination(
     preimage: &mut Vec<u8>,
-    input: &LoweringInput<'_>,
+    source: &ExecutionSource<'_>,
     termination: &ExecutionTermination,
 ) -> Result<(), ExecutionError> {
     match termination {
         ExecutionTermination::Success(value) => {
             push_u32(preimage, 1);
-            input.types.require_hashable(&value.value_type)?;
+            source.types.require_hashable(&value.value_type)?;
             raw(
                 preimage,
-                hash_validated_value(input.schema_epoch, value)?.as_bytes(),
+                hash_validated_value(source.schema_epoch, value)?.as_bytes(),
             );
         }
         ExecutionTermination::ResourceLimit(kind) => {
@@ -1457,10 +1723,10 @@ fn encode_termination(
                 None => push_u32(preimage, 1),
                 Some(value) => {
                     push_u32(preimage, 2);
-                    input.types.require_hashable(&value.value_type)?;
+                    source.types.require_hashable(&value.value_type)?;
                     raw(
                         preimage,
-                        hash_validated_value(input.schema_epoch, value)?.as_bytes(),
+                        hash_validated_value(source.schema_epoch, value)?.as_bytes(),
                     );
                 }
             }
@@ -2213,8 +2479,10 @@ mod tests {
         let lowered = lower_function(fixture.input()).unwrap();
         let validated_inputs = validate_inputs(&fixture.input(), &request).unwrap();
         let outcome = execute_function(fixture.input(), request.clone()).unwrap();
+        let input = fixture.input();
+        let source = ExecutionSource::lowering(&input);
         let preimage = observation_preimage(
-            &fixture.input(),
+            &source,
             request.limits,
             lowered.cache_key,
             &validated_inputs.hashes,
@@ -2378,6 +2646,8 @@ mod tests {
             reachability: 1,
         }];
         let fixture = bool_fixture(Opcode::BoolAnd);
+        let input = fixture.input();
+        let source = ExecutionSource::lowering(&input);
         assert!(
             run(
                 &mut runtime,
@@ -2385,7 +2655,7 @@ mod tests {
                 &blocks,
                 &TypeExpr::Bool,
                 &[TypeExpr::Bool],
-                &fixture.input(),
+                &source,
                 None,
             )
             .is_err()

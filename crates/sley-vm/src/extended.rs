@@ -297,7 +297,11 @@ pub(crate) fn resolve_bridge_entry<'a>(
     }
     match entry {
         BridgeEntry::VectorPush => {
-            if carried.response_type == TypeExpr::Vector(Box::new(carried.request_type.clone())) {
+            // The one shared push-row predicate (RW-070): the gate routes
+            // row validation through this same resolver, and per-use
+            // selection builds on the same predicate, so the frozen-field
+            // and relationship checks cannot drift between paths.
+            if is_push_row(carried) {
                 Some((BridgeKind::VectorPush, carried))
             } else {
                 None
@@ -325,6 +329,48 @@ pub(crate) fn resolve_bridge_entry<'a>(
     }
 }
 
+/// Whether a carried import is a frozen-field push row: the PSH1 identity
+/// with equal adapter identity, ABI version 1, `Index` failure, an empty
+/// effect list, and the relationship pin (response exactly `Vector` of the
+/// request). Schemas beyond the relationship are the caller's per-use
+/// concern, so several monomorphized rows share this predicate.
+fn is_push_row(carried: &AdapterImport) -> bool {
+    carried.entity_id == bridge_entry_id(*b"PSH1")
+        && carried.adapter_id == bridge_adapter_id(*b"PSH1")
+        && carried.abi_version == 1
+        && carried.failure_type == TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)
+        && carried.effects.is_empty()
+        && carried.response_type == TypeExpr::Vector(Box::new(carried.request_type.clone()))
+}
+
+/// Resolves a push use against the carried inventory by identity plus exact
+/// per-use schemas: the first frozen-field row whose request and response
+/// equal the use's request and scope types. Each concrete element type
+/// declares its own closed row (monomorphization); a conforming row serves
+/// only its own element type, so same-identity rows never shadow each
+/// other. Conversions keep single rows and resolve through
+/// [`resolve_bridge_entry`].
+pub(crate) fn resolve_push_row<'a>(
+    adapters: &'a [AdapterImport],
+    scope: &TypeExpr,
+    request: &TypeExpr,
+) -> Option<(BridgeKind, &'a AdapterImport)> {
+    adapters
+        .iter()
+        .filter(|carried| {
+            is_push_row(carried)
+                && carried.request_type == *request
+                && carried.response_type == *scope
+        })
+        .map(|carried| (BridgeKind::VectorPush, carried))
+        .next()
+}
+
+/// Whether the carried inventory holds any frozen-field push row.
+pub(crate) fn has_push_row(adapters: &[AdapterImport]) -> bool {
+    adapters.iter().any(is_push_row)
+}
+
 fn u8_type() -> TypeExpr {
     TypeExpr::UInt(IntegerWidth::from_bits(8))
 }
@@ -348,6 +394,14 @@ pub fn bridge_fuel_surcharge(
     let Immediate::Entity(entry) = immediate else {
         return None;
     };
+    if *entry == bridge_entry_id(*b"PSH1")
+        && let [scope, request] = operands
+    {
+        // Push fuel never depends on which monomorphized row serves the
+        // use, but the row must exist: selection keeps surcharge aligned
+        // with judgment when several rows share the inventory.
+        return resolve_push_row(adapters, &scope.value_type, &request.value_type).map(|_| 1);
+    }
     match resolve_bridge_entry(adapters, entry)?.0 {
         BridgeKind::BytesToVector => match operands {
             [_, request] => match &request.data {
@@ -1167,45 +1221,65 @@ pub fn judge_extended_operation(
             // frozen field of that row must equal the frozen bridge values.
             // Every other adapter stays VM_LOWER_OPCODE_UNSUPPORTED however
             // well formed its operands are (contract section E8).
+            // Resolution precedes arity: a mistyped unapproved call is
+            // unsupported, not mismatched.
             let Immediate::Entity(entry) = immediate else {
                 return fail(LowerErrorCode::ImmediateMismatch);
             };
-            let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
-                return fail(LowerErrorCode::OpcodeUnsupported);
-            };
-            let [scope, request] = operands else {
-                return fail(LowerErrorCode::SignatureMismatch);
-            };
-            let response_type = match entry {
-                BridgeKind::VectorPush => {
-                    // Push-row binding (Ariadne HIGH-2 repair, matching
-                    // S20-230 §1.5): per-use operand types must equal the
-                    // carried row — scope is the row response, request is
-                    // the row request — and the row already satisfies
-                    // response == Vector<request> via resolve. Generic over
-                    // `E` by monomorphization only, byte-unaware by
-                    // construction.
-                    if **scope != carried.response_type || **request != carried.request_type {
-                        return fail(LowerErrorCode::SignatureMismatch);
-                    }
-                    carried.response_type.clone()
+            if *entry == bridge_entry_id(*b"PSH1") {
+                // Push uses resolve by identity plus exact per-use schemas,
+                // so several monomorphized rows share the inventory without
+                // shadowing (RW-070 repair): each concrete element type
+                // binds its own closed row.
+                if !has_push_row(context.adapters) {
+                    return fail(LowerErrorCode::OpcodeUnsupported);
                 }
-                BridgeKind::BytesToVector => {
-                    if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
-                        return fail(LowerErrorCode::SignatureMismatch);
-                    }
-                    TypeExpr::Vector(Box::new(u8_type()))
+                let [scope, request] = operands else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                let Some((_, carried)) = resolve_push_row(context.adapters, scope, request) else {
+                    // A carried push row exists, so the identity is approved
+                    // but no row serves these operand schemas.
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                TypeExpr::Result {
+                    ok: Box::new(carried.response_type.clone()),
+                    error: Box::new(bridge_index_error()),
                 }
-                BridgeKind::VectorToBytes => {
-                    if **scope != TypeExpr::Unit || **request != u8vec_type() {
-                        return fail(LowerErrorCode::SignatureMismatch);
+            } else {
+                let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
+                    return fail(LowerErrorCode::OpcodeUnsupported);
+                };
+                let [scope, request] = operands else {
+                    return fail(LowerErrorCode::SignatureMismatch);
+                };
+                let response_type = match entry {
+                    BridgeKind::VectorPush => {
+                        // Unreachable: PSH1 immediates take the branch above.
+                        // The shared resolver still pins the relationship for
+                        // its other callers (surcharge, gate history).
+                        if **scope != carried.response_type || **request != carried.request_type {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        carried.response_type.clone()
                     }
-                    TypeExpr::Bytes
+                    BridgeKind::BytesToVector => {
+                        if **scope != TypeExpr::Unit || **request != TypeExpr::Bytes {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        TypeExpr::Vector(Box::new(u8_type()))
+                    }
+                    BridgeKind::VectorToBytes => {
+                        if **scope != TypeExpr::Unit || **request != u8vec_type() {
+                            return fail(LowerErrorCode::SignatureMismatch);
+                        }
+                        TypeExpr::Bytes
+                    }
+                };
+                TypeExpr::Result {
+                    ok: Box::new(response_type),
+                    error: Box::new(bridge_index_error()),
                 }
-            };
-            TypeExpr::Result {
-                ok: Box::new(response_type),
-                error: Box::new(bridge_index_error()),
             }
         }
         _ => return fail(LowerErrorCode::OpcodeUnsupported),
@@ -1940,13 +2014,19 @@ pub fn execute_extended_instruction(
             // the same inventory rather than trusting the judgment — the
             // public helper cannot bypass registration: without the exact
             // frozen row (identity, ABI, schemas, relationship, purity)
-            // this faults.
+            // this faults. Push uses resolve by identity plus per-use
+            // schemas, so monomorphized rows never shadow each other.
             let Immediate::Entity(entry) = immediate else {
                 return Err(ExtendedFault);
             };
-            let Some((entry, carried)) = resolve_bridge_entry(context.adapters, entry) else {
-                return Err(ExtendedFault);
-            };
+            let (entry, carried) = if *entry == bridge_entry_id(*b"PSH1")
+                && let [scope, request] = operands
+            {
+                resolve_push_row(context.adapters, &scope.value_type, &request.value_type)
+            } else {
+                resolve_bridge_entry(context.adapters, entry)
+            }
+            .ok_or(ExtendedFault)?;
             bridge_execute(entry, carried, operands, result_type)?
         }
         _ => return Err(ExtendedFault),

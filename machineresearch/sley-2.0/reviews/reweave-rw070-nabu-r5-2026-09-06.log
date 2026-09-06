@@ -1,0 +1,23 @@
+RW-070 round-5 confirmation (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded confirmation of a
+post-PASS behavior-neutral change).
+
+VERDICT: PASS — confirmation, high confidence.
+
+- `resolve_bridge_entry` now delegates `VectorPush` validation to
+  `is_push_row`; the predicate repeats the same identity, adapter, ABI 1,
+  `Index`, empty-effects, and response/request relationship checks. No
+  behavior or code-path change found
+  (`crates/sley-vm/src/extended.rs:280-304,337-345`).
+- Documentation accurately describes the shared predicate structure
+  (`machineresearch/sley-2.0/reweave/rw-070.md:204-209`).
+- RW-070 remains closed; no reopened P1/P2 finding.
+
+Validation performed by reviewer: `cargo test -p sley-vm` PASS (69 library
++ 37 integration); `python3 scripts/check_host_abi_markers.py` PASS
+(`PINNED`); `git diff --check` PASS.
+
+Blockers: none.
+
+Disposition: Nabu lane CLOSED (confirmed). Preserved unedited as the
+passing round.

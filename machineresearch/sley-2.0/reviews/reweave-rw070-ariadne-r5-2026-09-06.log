@@ -1,0 +1,25 @@
+RW-070 round-5 delta review (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded delta).
+
+VERDICT: PASS.
+
+- Severity: none.
+- Round-4 P2 is resolved. `is_push_row` is the shared
+  frozen-field/relationship validator
+  (`crates/sley-vm/src/extended.rs:332-344`), used by
+  `resolve_bridge_entry` (`:299-308`), `resolve_push_row` (`:353-367`),
+  and `has_push_row` (`:369-371`).
+- Push judgment, surcharge, and execution use per-use row selection
+  (`crates/sley-vm/src/extended.rs:397-403,1229-1247,2022-2029`).
+- Bootstrap gate validation remains routed through `resolve_bridge_entry`
+  (`crates/sley-vm/src/bootstrap.rs:406-418`).
+- Documentation reflects the shared predicate and resolver roles
+  (`docs/spec/HOST_ABI_V1.md:75-92`).
+
+Validation performed by reviewer: `cargo test -p sley-vm` PASS (69 unit +
+37 RW-070); both host-ABI checkers PASS; digest `e6de00b8…04ecc2`;
+`git diff --check` PASS. Bounded delta review; V1 not run.
+
+Blockers: none.
+
+Disposition: Ariadne lane CLOSED. Preserved unedited as the passing round.

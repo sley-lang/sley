@@ -53,6 +53,8 @@ quick:
 	python3 scripts/check_bootstrap_profile_1.py
 	python3 scripts/check_bootstrap_gate_markers.py
 	python3 scripts/check_bootstrap_capability.py
+	python3 scripts/check_host_abi_v1.py
+	python3 scripts/check_host_abi_markers.py
 	python3 scripts/check_reference_adapter_profile.py
 	python3 scripts/check_report_envelope_profile.py
 	python3 scripts/check_index_snapshot_profile.py
@@ -136,6 +138,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json
 	python3 scripts/check_bootstrap_capability.py
 	python3 scripts/check_bootstrap_profile_1.py
+	python3 scripts/check_host_abi_v1.py
 	uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py
 
 adversarial:
