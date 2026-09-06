@@ -11,7 +11,8 @@
   }
  ],
  "expect": {
-  "readiness": "READY"
+  "readiness": "NOT_READY",
+  "structural": "PASS"
  },
  "gaps": [
   {
@@ -22,30 +23,29 @@
    "owner": "synthetic-owner"
   }
  ],
- "h_pinned_override": true,
  "manifest": {
   "stages": {
    "C0": {
-    "status": "no image (R3-and-later evidence; must not gate readiness)",
+    "status": "no image",
     "value": null
    },
    "C1": {
-    "status": "does not exist (R3-and-later evidence; must not gate readiness)",
+    "status": "does not exist",
     "value": null
    },
    "C2": {
-    "status": "does not exist (R3-and-later evidence; must not gate readiness)",
+    "status": "does not exist",
     "value": null
    },
    "C3": {
-    "status": "does not exist (R3-and-later evidence; must not gate readiness)",
+    "status": "does not exist",
     "value": null
    },
    "H": {
     "facts": {
      "os": "linux"
     },
-    "manifest_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    "manifest_digest": null
    },
    "P": {
     "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -57,12 +57,12 @@
     "value": "bound"
    },
    "S": {
-    "status": "does not exist (R3-and-later evidence; must not gate readiness)",
+    "status": "does not exist",
     "value": null
    }
   }
  },
- "note": "synthetic corpus case proving the readiness path is not rigged to NOT_READY AND that R3-and-later evidence (S/C0-C3) is not required early: P frozen, all exercises bound, no open blockers, charter + H-pin overrides true, S/C0-C3 null. READY must follow. This exercises the computation ONLY; it is not evidence and never leaves this corpus file.",
+ "note": "synthetic corpus case: boundary chartered but H manifest not pinned to it (digest null). Measured facts are inventory, not a pinned manifest: structurally fine, readiness must stay NOT_READY via h-manifest-unpinned. This exercises the computation ONLY; it is not evidence and never leaves this corpus file.",
  "synthetic": true,
  "vectors_present": [
   "synthetic-vector"

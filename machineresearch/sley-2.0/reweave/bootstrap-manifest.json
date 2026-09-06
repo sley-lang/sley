@@ -1,5 +1,5 @@
 {
- "note": "RW-040 slice 1 skeleton (2026-09-06). Stage meanings per REWEAVE 13.1. Missing values are null; no hash is invented. H carries measured host facts with sources; its manifest digest stays null until RW-030 pins the host record.",
+  "note": "RW-040 slice 1 skeleton (2026-09-06), H pinned by RW-030 (2026-09-06). Stage meanings per REWEAVE 13.1. Missing values are null; no hash is invented. H carries measured host facts with sources; its manifest digest equals the raw-byte SHA-256 of the chartered host-boundary.json.",
  "stages": {
   "C0": {
    "meaning": "preserved Rust bootstrap compiler (executable image)",
@@ -22,16 +22,18 @@
    "status": "does not exist",
    "value": null
   },
-  "H": {
-   "facts": {
-    "os": "linux",
-    "rust_toolchain": "1.93.0 minimal + clippy + rustfmt (rust-toolchain.toml)",
-    "target": "default host target; no override in rust-toolchain.toml or cargo config (E3 determinism pinned to toolchain+triple per VM_EXTENDED_OPCODE_PROFILE_V1.md)"
+   "H": {
+    "boundary_record": "host-boundary.json (repo root; contract sley2.host-boundary.v1)",
+    "facts": {
+     "os": "linux",
+     "rust_toolchain": "1.93.0 minimal + clippy + rustfmt (rust-toolchain.toml)",
+     "target": "default host target; no override in rust-toolchain.toml or cargo config (E3 determinism pinned to toolchain+triple per VM_EXTENDED_OPCODE_PROFILE_V1.md)"
+    },
+    "manifest_digest": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a",
+    "meaning": "pinned native execution host with no callable native Sley compiler/checker/lowerer service in the proof environment",
+    "pinned_by": "RW-030 charter (2026-09-06); digest = raw-byte SHA-256 of host-boundary.json",
+    "status": "facts measured, manifest pinned (RW-030)"
    },
-   "manifest_digest": null,
-   "meaning": "pinned native execution host with no callable native Sley compiler/checker/lowerer service in the proof environment",
-   "status": "facts measured, manifest not pinned (RW-030)"
-  },
   "P": {
    "meaning": "pinned build/lowering profile, schema epoch, host ABI, limits, permitted dependencies",
    "status": "not frozen (BOOTSTRAP_PROFILE_1 is RW-050; this audit informs it)",

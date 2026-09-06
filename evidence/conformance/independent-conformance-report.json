@@ -40,9 +40,9 @@
       "directory": "conformance/bootstrap-capability/v1",
       "files": [
         {
-          "bytes": 761,
+          "bytes": 853,
           "name": "SHA256SUMS",
-          "sha256": "14217cfefd7f29c11a8654fb30188425ef6b9ba8c50249752c9e3dcb1608930a"
+          "sha256": "521d3b819e21df348e67eba4fa7be1dcc96635ed543271962cba138a149c1f9f"
         },
         {
           "bytes": 352,
@@ -80,9 +80,14 @@
           "sha256": "e1b743cfa7336ec48e8d52eafaf7265624fbb157e00d299b66f99443c563b673"
         },
         {
-          "bytes": 2290,
+          "bytes": 1486,
+          "name": "readiness-h-unpinned.json",
+          "sha256": "0a8ecd0d75c85e4cd38a09c6c07289453f3bd3cf45a4f5450fe468fcf672d284"
+        },
+        {
+          "bytes": 1831,
           "name": "readiness-logic-positive.json",
-          "sha256": "a593b5afb41385f3e51471fcf6812db47c02d9d7659c44c1a1a296f99446b723"
+          "sha256": "35a9ac09114272b0ac978feacab5143c1982319e72a8b6c3a3ea0048e571a3ad"
         }
       ],
       "shape": {
@@ -100,6 +105,11 @@
         "manifest-incomplete.json": {},
         "manifest-invented-hash.json": {},
         "manifest-stages-without-source.json": {},
+        "readiness-h-unpinned.json": {
+          "exercises": 1,
+          "gaps": 1,
+          "vectors_present": 1
+        },
         "readiness-logic-positive.json": {
           "exercises": 1,
           "gaps": 1,
@@ -831,7 +841,7 @@
     "problems": [],
     "python_sources": 23
   },
-  "report_digest": "60555c53be519340e58f4e02f4f3b59f57e99569b0f0ee846bbb386f2eeb27ff",
+  "report_digest": "768a17e9ec14cb1eae57c14ccae8fab5badddc6fe4617b98ea938479935c89d5",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

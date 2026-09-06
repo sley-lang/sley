@@ -18,10 +18,22 @@ and never fails this checker). The negative corpus under
 unconditionally: each corpus case declares its expected verdict and any
 mismatch fails this checker, including one synthetic positive proving the
 readiness path is not rigged to NOT_READY.
+
+Phase rule (RW-030 charter repair, 2026-09-06): BOOTSTRAP_READY-proxy
+requires exactly the R2 preconditions -- audit rows complete, no open
+blockers, P (profile) frozen, boundary chartered, H manifest pinned to the
+boundary bytes. S/C0-C3 (toolchain program root, preserved image, staged
+images) are R3-and-later evidence and must not gate readiness; they are
+reported as later-stage info. Charter detection reads the enforced path
+only: repo-root `host-boundary.json`, the path the campaign-declaration
+consumer (`build_anti_goal_conformance.py`) actually reads. Earlier
+candidate paths (`reweave/`, `evidence/reweave/`) were never read by that
+consumer and are no longer consulted.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -37,11 +49,15 @@ ACCEPTED = ROOT / "conformance/vm-extended/v1/accepted.json"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 CORPUS = ROOT / "conformance/bootstrap-capability/v1"
 CHARTER_CANDIDATES = (
-    ROOT / "reweave/host-boundary.json",
-    ROOT / "evidence/reweave/host-boundary.json",
+    ROOT / "host-boundary.json",
 )
 
 STAGES = ("S", "P", "C0", "C1", "C2", "C3")
+# R2 readiness stages: only the frozen profile gates BOOTSTRAP_READY. S and
+# C0-C3 are R3-and-later evidence (RW-080+); requiring them would make
+# readiness depend on artifacts creatable only after readiness.
+READINESS_STAGES = ("P",)
+LATER_STAGES = ("S", "C0", "C1", "C2", "C3")
 CLASSIFICATIONS = (
     "BOOTSTRAP_BLOCKER",
     "FULL_MG_OBLIGATION",
@@ -180,7 +196,10 @@ def check_findings_format(doc) -> list[str]:
     return problems
 
 
-def readiness_reasons(exercises, gaps, stages, chartered: bool) -> list[str]:
+def readiness_reasons(exercises, gaps, stages, chartered: bool, h_pinned: bool) -> list[str]:
+    """R2 preconditions only: complete audit rows, no open blockers, frozen
+    profile, chartered boundary, pinned H manifest. S/C0-C3 are reported
+    separately as later-stage info, never as readiness reasons."""
     reasons: list[str] = []
     rows = exercises.get("exercises", []) if isinstance(exercises, dict) else []
     incomplete = [row.get("id") for row in rows if row.get("disposition") != "PASS-exists"]
@@ -191,20 +210,51 @@ def readiness_reasons(exercises, gaps, stages, chartered: bool) -> list[str]:
         reasons.append(f"open-bootstrap-blockers:{open_blockers}")
     unbound = [
         name
-        for name in STAGES
+        for name in READINESS_STAGES
         if not (
             isinstance(stages.get(name), dict) and stages[name].get("value") is not None
         )
     ]
     if unbound:
-        reasons.append(f"unbound-stages:{unbound}")
+        reasons.append(f"unbound-readiness-stages:{unbound}")
     if not chartered:
         reasons.append("rw030-not-chartered")
+    elif not h_pinned:
+        reasons.append("h-manifest-unpinned")
     return reasons
+
+
+def later_stages_unbound(stages: dict) -> list[str]:
+    """R3-and-later stages still unbound: explicit missing future evidence,
+    informational only, never a readiness reason."""
+    return [
+        name
+        for name in LATER_STAGES
+        if not (
+            isinstance(stages.get(name), dict) and stages[name].get("value") is not None
+        )
+    ]
 
 
 def live_chartered() -> bool:
     return any(path.is_file() for path in CHARTER_CANDIDATES)
+
+
+def live_boundary_digest() -> str | None:
+    for path in CHARTER_CANDIDATES:
+        if path.is_file():
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+    return None
+
+
+def live_h_pinned(stages: dict, boundary_digest: str | None) -> bool:
+    """H is pinned exactly when the manifest digest equals the actual
+    chartered boundary bytes. Measured facts without a matching digest are
+    inventory, not a pinned manifest."""
+    if boundary_digest is None:
+        return False
+    host = stages.get("H")
+    return isinstance(host, dict) and host.get("manifest_digest") == boundary_digest
 
 
 def run_corpus(accepted_ids: set[str], accepted_digests: dict) -> tuple[dict, list[str]]:
@@ -222,7 +272,8 @@ def run_corpus(accepted_ids: set[str], accepted_digests: dict) -> tuple[dict, li
         if name.startswith("manifest-"):
             structural = check_manifest_structure(manifest_stages(doc), chartered=False)
             reasons = readiness_reasons(
-                {"exercises": []}, {"gaps": []}, manifest_stages(doc), chartered=False
+                {"exercises": []}, {"gaps": []}, manifest_stages(doc),
+                chartered=False, h_pinned=False,
             )
             actual = {
                 "structural": "FAIL" if structural else "PASS",
@@ -238,16 +289,18 @@ def run_corpus(accepted_ids: set[str], accepted_digests: dict) -> tuple[dict, li
         elif name == "gaps-unowned.json":
             routing, _ = check_gap_routing(doc)
             actual = {"routing": "FAIL" if routing else "PASS"}
-        elif name == "readiness-logic-positive.json":
+        elif name.startswith("readiness-"):
             if not doc.get("synthetic"):
                 problems.append(f"corpus:{name}-positive-case-must-stay-synthetic")
                 continue
+            chartered = bool(doc.get("chartered_override"))
+            h_pinned = bool(doc.get("h_pinned_override"))
             stages = manifest_stages(doc.get("manifest", {}))
-            structural = check_manifest_structure(stages, chartered=True)
+            structural = check_manifest_structure(stages, chartered=chartered)
             vectors_present = set(doc.get("vectors_present", []))
             binding = check_exercise_bindings(doc, vectors_present, {v: v for v in vectors_present})
             routing, _ = check_gap_routing(doc)
-            reasons = readiness_reasons(doc, doc, stages, chartered=bool(doc.get("chartered_override")))
+            reasons = readiness_reasons(doc, doc, stages, chartered=chartered, h_pinned=h_pinned)
             actual = {
                 "structural": "FAIL" if structural else "PASS",
                 "binding": "FAIL" if binding else "PASS",
@@ -284,6 +337,8 @@ def main() -> int:
 
     stages = manifest_stages(manifest)
     chartered = live_chartered()
+    boundary_digest = live_boundary_digest()
+    h_pinned = live_h_pinned(stages, boundary_digest)
     structural = check_manifest_structure(stages, chartered)
     binding = check_exercise_bindings(exercises, accepted_ids, accepted_digests)
     routing, open_blockers = check_gap_routing(gaps)
@@ -296,17 +351,20 @@ def main() -> int:
     )
     if summary.get("phase") != "M2":
         live_problems.append("summary:phase-context")
-    reasons = readiness_reasons(exercises, gaps, stages, chartered)
+    reasons = readiness_reasons(exercises, gaps, stages, chartered, h_pinned)
+    later_unbound = later_stages_unbound(stages)
     corpus_outcomes, corpus_problems = run_corpus(accepted_ids, accepted_digests)
     problems = live_problems + [f"corpus:{p}" for p in corpus_problems]
     result = {
         "audit": "RW-040",
         "chartered_rw030": chartered,
         "corpus": corpus_outcomes,
+        "h_pinned": h_pinned,
+        "later_stages_unbound": later_unbound,
         "open_bootstrap_blockers": open_blockers,
         "problems": problems,
         "readiness": "READY" if not reasons else "NOT_READY",
-        "readiness_note": "NOT_READY is the expected audit-scope outcome; an audit documenting missing capabilities or unbound stages must not yield BOOTSTRAP_READY.",
+        "readiness_note": "NOT_READY is the expected audit-scope outcome; an audit documenting missing capabilities or unbound R2 prerequisites must not yield BOOTSTRAP_READY. Unbound S/C0-C3 (R3-and-later evidence) never block it.",
         "readiness_reasons": reasons,
         "result": "PASS" if not problems else "FAIL",
         "vectors": len(accepted_vectors),
