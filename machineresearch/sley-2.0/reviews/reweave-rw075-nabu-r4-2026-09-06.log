@@ -1,0 +1,42 @@
+RW-075 architecture/boundary delta re-review, round 4 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/greyforge/sley2`).
+
+status: fail
+
+VERDICT: FAIL — high confidence.
+
+findings:
+- **Equal-count replay binding absent.** `BootstrapProfileReport` is now
+  immutable externally (`bootstrap.rs:92-138`), but exact closure binding
+  remains absent. The report carries only function/import identities and
+  counts (`bootstrap.rs:103-112`); approval compares entry, import set,
+  and counts (`exec_package.rs:841-859`), while the receipt is
+  independently minted from any supplied package digest
+  (`exec_package.rs:807-812`). A genuine report can therefore be replayed
+  against a different, unjudged closure sharing those summaries. The new
+  test covers only differing counts, not equal-count replay
+  (`rw075_exec_closure.rs:1066-1080`).
+- PASS: recursive type encoding now enforces `MAX_TYPE_DEPTH` and
+  per-level byte ceilings (`exec_package.rs:342-449`), including
+  dependency-global propagation (`:673-688`) and the requested depth
+  test (`:1110-1116`).
+- PASS: `lane_round` parses numeric rounds with deterministic filename
+  tie-breaking (`check_r2_exit.py:170-194`).
+
+validation:
+- Confirmed branch `main`; worktree remains heavily modified/untracked.
+- Targeted reader search found external report readers migrated to
+  accessors.
+- Bounded AST probe confirmed `r10` sorts after `r9`.
+- No cargo tests run under the read-only constraint; no edits made.
+
+blockers:
+- Bind gate evidence to the exact canonical closure/package identity—not
+  only entry/import/count summaries—and add an equal-count replay
+  negative test.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 4. Preserved unedited; repairs below
+are a separate delta verified in round 5.

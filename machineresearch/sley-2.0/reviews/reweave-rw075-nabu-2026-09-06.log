@@ -1,0 +1,61 @@
+RW-075 architecture/boundary delta review, round 1 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta).
+
+VERDICT: FAIL — confidence high.
+
+Findings:
+
+- BLOCKER — admission is self-mintable and does not prevent profile
+  broadening. `AdmissionReceipt` is publicly constructible, while public
+  `admit_package` accepts any digest and `approve_package` hardcodes the
+  bootstrap-profile digest for any `EXTENDED_V1` package
+  (`crates/sley-vm/src/exec_package.rs:227-240,679-744`; exports at
+  `crates/sley-vm/src/lib.rs:22-26`). The claimed negative test only
+  cross-binds a float package to another package's approval; it never
+  attempts approving that float package itself
+  (`crates/sley-vm/tests/rw075_exec_closure.rs:728-757`). This does not
+  encode the separately accepted authority promised by
+  `docs/spec/EXEC_PACKAGE_V1.md:74-84`.
+- BLOCKER — the 64 MiB package-envelope ceiling is not enforced.
+  `EXEC_PACKAGE_MAX_BYTES` is defined but unused; `package_digests`
+  checks the image and individual sections only, while the dependency
+  section has no total/count ceiling
+  (`crates/sley-vm/src/exec_package.rs:83-99,555-620,633-670`). A package
+  can exceed the contract's total envelope bound.
+- BLOCKER — the separate R2 exit gate exists but can false-pass. It runs
+  the record-only checker, which explicitly never reads implementation
+  sources, and omits the production marker checker
+  (`scripts/check_r2_exit.py:121-135`;
+  `scripts/check_exec_package_v1.py:4-7`). Review acceptance is an
+  unanchored substring search for `"PASS"`, so a FAIL review mentioning
+  PASS can satisfy the gate (`scripts/check_r2_exit.py:144-165`).
+- PASS — inner image topology remains unchanged. No delta exists in
+  `lower.rs`, `host_abi.rs`, VM-extended conformance, or the SLEYBC02
+  specification; the new path feeds package image bytes through the
+  existing loader and preserves the callee table
+  (`crates/sley-vm/src/execute.rs:631-681`).
+- PASS — raw hashing is narrow and not yet profile-wired. It exposes one
+  bounded BLAKE3 variant and documents RW-080 as the future import-wiring
+  point (`crates/sley-vm/src/raw_hash.rs:63-74,105-147`;
+  `docs/spec/RAW_HASH_V1.md:3-6`).
+- PASS — RW-080 is materially concrete and remains contract-only. It
+  explicitly states no graph/C1 exists, specifies module
+  interfaces/dependencies, construction provenance, C0 limits, and
+  anti-copy evidence
+  (`machineresearch/sley-2.0/reweave/rw-080-contract.md:3-10,14-140,155-216`).
+
+Validation performed by reviewer: reviewed working-tree delta against
+parent `e85b89c`; targeted `git status`, `git diff`, `rg`, exact line
+reads, and `git diff --check` (clean). No tests executed (read-only
+handoff).
+
+Blockers (repair and re-review the delta only):
+
+- Encode an unforgeable/adjudicator-owned admission boundary and test
+  same-package out-of-bootstrap approval refusal.
+- Enforce the complete envelope/dependency ceiling.
+- Make R2 review parsing exact and include implementation-marker
+  validation.
+
+Disposition: Nabu lane FAIL round 1. Preserved unedited; repairs below
+are a separate delta verified in round 2.

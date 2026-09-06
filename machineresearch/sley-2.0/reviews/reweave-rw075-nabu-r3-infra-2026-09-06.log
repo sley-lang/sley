@@ -1,0 +1,12 @@
+RW-075 infra no-verdict event, round-3 dispatch (Nabu lane)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta).
+
+No verdict. The round-3 dispatch returned `status: blocked`: the handoff
+omitted an explicit repository coordinate, Atlas resolved the canonical
+Sley checkout to `/home/greyforge/sley` (a different checkout), and the
+agent's read-only grant prevented filesystem discovery, so the RW-075
+delta at `/home/greyforge/sley2` was never inspected. No evidence was
+reviewed and nothing was modified (working tree verified: only the RW-075
+package delta present, no agent writes). Recorded as a no-verdict
+infrastructure/routing event per the RW-070 precedent. Retried with the
+explicit checkout root.

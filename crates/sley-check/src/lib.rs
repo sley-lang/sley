@@ -238,6 +238,45 @@ impl TypeEnvironment {
         Ok(environment)
     }
 
+    /// Hydrates an already-admitted definition inventory without performing
+    /// any compiler-owned semantic judgment (RW-075 structural hydration).
+    ///
+    /// This constructor performs ONLY the two structural memory-safety
+    /// checks the host needs to hold an inventory safely:
+    /// duplicate-identity rejection (`TYPE_DEFINITION_DUPLICATE`) and the
+    /// definition-count bound (`TYPE_RESOURCE_LIMIT`).
+    ///
+    /// It deliberately does NOT perform any of the compiler-owned judgments
+    /// in [`Self::new`]: no definition-shape validation, no reference
+    /// resolution, no cycle discovery, no map-key/hashability determination,
+    /// no record-schema reconstruction, no typechecking, and no layout
+    /// inference or repair. Those judgments belong to the Sley
+    /// checker/lowerer and are bound into the execution package by digest;
+    /// the host trusts the admission receipt for them and verifies only
+    /// byte-level digest bindings before calling this constructor.
+    ///
+    /// Callers MUST verify the package digest against the admission receipt
+    /// (including constants/layout/import digests) before hydrating. Calling
+    /// this constructor on unadmitted bytes does not make them admitted.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TYPE_DEFINITION_DUPLICATE` for a repeated identity or
+    /// `TYPE_RESOURCE_LIMIT` when the inventory exceeds `MAX_DEFINITIONS`.
+    /// No other failure code is ever returned from this constructor.
+    pub fn hydrate_verified_definitions(definitions: Vec<TypeDefinition>) -> Result<Self> {
+        if definitions.len() > MAX_DEFINITIONS {
+            return fail(TypeErrorCode::ResourceLimit);
+        }
+        let mut by_id = BTreeMap::new();
+        for definition in definitions {
+            if by_id.insert(definition.entity_id, definition).is_some() {
+                return fail(TypeErrorCode::DefinitionDuplicate);
+            }
+        }
+        Ok(Self { definitions: by_id })
+    }
+
     /// Iterates exact definition identities in raw-ID order.
     #[must_use]
     pub fn definition_ids(&self) -> impl ExactSizeIterator<Item = EntityId> + '_ {

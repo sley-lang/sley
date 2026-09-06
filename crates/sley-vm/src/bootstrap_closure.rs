@@ -360,7 +360,9 @@ impl Program {
     fn gate_input(&self) -> BootstrapProfileInput<'_> {
         BootstrapProfileInput {
             types: &self.types,
+            schema_epoch: SchemaEpochId::from_bytes([8; 32]),
             entry: &self.entry,
+            presented_image_bytes: &[],
             functions: &self.functions,
             parameters: &self.parameters,
             blocks: &self.blocks,
@@ -2322,11 +2324,11 @@ fn closure_workloads_are_gate_admitted() {
         let report = judge_bootstrap_profile(&workload.program.gate_input())
             .expect("closure workload is gate-admitted");
         assert!(
-            !report.functions.is_empty(),
+            !report.functions().is_empty(),
             "admission covers the entry function"
         );
         if !workload.program.operations.is_empty() {
-            assert!(report.operation_count > 0, "admission covers operations");
+            assert!(report.operation_count() > 0, "admission covers operations");
         }
     }
     // The bridge-carrying workloads demonstrably use the registry.
@@ -2337,7 +2339,7 @@ fn closure_workloads_are_gate_admitted() {
         let report = judge_bootstrap_profile(&workload.program.gate_input())
             .expect("bridge workload is gate-admitted");
         assert!(
-            report.bridge_uses > 0,
+            report.bridge_uses() > 0,
             "bridge workloads admit through the registry"
         );
     }

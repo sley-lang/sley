@@ -1,0 +1,41 @@
+RW-075 architecture/boundary delta re-review, round 3 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/greyforge/sley2`).
+
+VERDICT: FAIL — confidence high.
+
+Findings (delta-only against round-2 FAIL, preserved in
+`reviews/reweave-rw075-nabu-r2-2026-09-06.log`):
+
+- BLOCKER: `BootstrapProfileReport` remains forgeable and is not bound to
+  the exact judged closure. `#[non_exhaustive]` prevents downstream
+  struct literals, but its public fields remain mutable
+  (`bootstrap.rs:92-116`). Approval compares only entry, import IDs,
+  operation count, and bridge count (`exec_package.rs:768-790`); distinct
+  closures sharing those values can reuse a genuine report. The new test
+  covers only differing counts (`rw075_exec_closure.rs:1067-1080`).
+- BLOCKER: Dependency enforcement remains post-growth within a global.
+  Recursive `encode_type_expr` has no byte check (`exec_package.rs:
+  328-377`), and the ceiling is checked only after the complete global is
+  encoded (`exec_package.rs:609-619`). One deeply nested global type can
+  substantially exceed 8 MiB before refusal. The new test only verifies
+  eventual `Oversized`, which the former final check also produced
+  (`rw075_exec_closure.rs:1084-1114`).
+- BLOCKER: `latest_lane_verdict` uses lexicographic filename ordering
+  rather than numeric round parsing (`check_r2_exit.py:170-188`). Thus
+  `r9` sorts after `r10`. Infrastructure exclusion and within-file FAIL
+  precedence are correct (`:181-195`), but selection is not fully
+  round-aware.
+
+Validation performed by reviewer: exact targeted reads and `rg`;
+confirmed checkout branch `main`; worktree heavily modified/untracked;
+Python AST parse passed; bounded ordering probe selected `r9` over `r10`.
+No tests executed (read-only handoff). No edits.
+
+Blockers (repair and re-review the delta only): bind immutable gate
+evidence to an exact canonical closure/package identity; enforce the byte
+limit during recursive type encoding; parse and compare numeric round
+identifiers.
+
+Disposition: Nabu lane FAIL round 3. Preserved unedited; repairs below
+are a separate delta verified in round 4.

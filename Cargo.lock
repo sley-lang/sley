@@ -400,6 +400,7 @@ dependencies = [
 name = "sley-vm"
 version = "2.0.0-alpha.0"
 dependencies = [
+ "blake3",
  "sha2",
  "sley-check",
  "sley-id",

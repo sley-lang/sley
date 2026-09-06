@@ -1,0 +1,42 @@
+RW-075 architecture/boundary delta re-review, round 5 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/greyforge/sley2`).
+
+status: fail
+
+VERDICT: FAIL.
+
+findings:
+- **VERDICT FAIL — high confidence.** Closure binding remains
+  caller-asserted rather than derived from executable content.
+  `ExecutionPackage` publicly accepts arbitrary
+  `gate_closure_fingerprints` (`exec_package.rs:190-228`); these values
+  are merely digested (`:638-675`) and compared with the report
+  (`:848-877`). `admit_package` still mints a receipt from any supplied
+  package digest (`:820-826`).
+- Consequently, a `bool_or` package can carry copied `bool_and`
+  counts/fingerprints, mint its own receipt, and approve against the
+  genuine `bool_and` report. The existing fabrication helper exposes
+  precisely this construction (`rw075_exec_closure.rs:125-155`).
+- The new replay test only submits a `bool_and` package with a `bool_or`
+  report (`rw075_exec_closure.rs:1126-1154`). It does not test a different
+  executable package carrying copied gate evidence, so it misses the
+  surviving replay.
+- PASS: epoch-bound per-function fingerprint computation, canonical
+  block-parameter narrowing, private report fields, and accessors are
+  present (`bootstrap.rs:75-163,351-429`).
+
+validation:
+- Read round-4 finding and targeted repair files.
+- `.git/HEAD` confirms `main`.
+- No tests or commands run because the handoff permits read actions only.
+
+blockers:
+- Derive or verify closure evidence against the package's actual
+  executable image; add the adversarial `bool_or package + copied
+  bool_and evidence/report` refusal test.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 5. Preserved unedited; repairs below
+are a separate delta verified in round 6.

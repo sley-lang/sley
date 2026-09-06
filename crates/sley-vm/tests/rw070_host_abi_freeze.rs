@@ -199,7 +199,9 @@ impl BridgeProgram {
     fn gate_report(&self) -> sley_vm::bootstrap::BootstrapProfileReport {
         sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
             types: &self.types,
+            schema_epoch: SchemaEpochId::from_bytes([8; 32]),
             entry: &self.entry,
+            presented_image_bytes: &[],
             functions: &self.functions,
             parameters: &self.parameters,
             blocks: &self.blocks,
@@ -304,7 +306,7 @@ fn push_u8_program() -> BridgeProgram {
 fn rw070_b2v1_exact_invocation_succeeds() {
     let program = b2v1_program();
     let report = program.gate_report();
-    assert_eq!(report.bridge_uses, 1);
+    assert_eq!(report.bridge_uses(), 1);
     let payload = ok_payload(execute_bridge(
         &program,
         vec![unit_value(), bytes_value(&[1, 2, 3])],
@@ -316,7 +318,7 @@ fn rw070_b2v1_exact_invocation_succeeds() {
 fn rw070_v2b1_exact_invocation_succeeds() {
     let program = v2b1_program();
     let report = program.gate_report();
-    assert_eq!(report.bridge_uses, 1);
+    assert_eq!(report.bridge_uses(), 1);
     let payload = ok_payload(execute_bridge(
         &program,
         vec![unit_value(), u8_sequence(&[4, 5])],
@@ -328,7 +330,7 @@ fn rw070_v2b1_exact_invocation_succeeds() {
 fn rw070_push_u8_exact_invocation_succeeds() {
     let program = push_u8_program();
     let report = program.gate_report();
-    assert_eq!(report.bridge_uses, 1);
+    assert_eq!(report.bridge_uses(), 1);
     let payload = ok_payload(execute_bridge(
         &program,
         vec![u8_sequence(&[1, 2]), u8_scalar(3)],
@@ -914,7 +916,9 @@ fn rw070_gate_refuses_unreferenced_import_rows() {
     program.adapters.push(frozen_push_u8());
     match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &program.types,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
         entry: &program.entry,
+        presented_image_bytes: &[],
         functions: &program.functions,
         parameters: &program.parameters,
         blocks: &program.blocks,
@@ -932,7 +936,9 @@ fn rw070_gate_refuses_unreferenced_import_rows() {
     program.adapters = vec![frozen_b2v1(), effectful];
     match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &program.types,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
         entry: &program.entry,
+        presented_image_bytes: &[],
         functions: &program.functions,
         parameters: &program.parameters,
         blocks: &program.blocks,
@@ -954,7 +960,9 @@ fn rw070_gate_denies_unknown_imports_like_lowering() {
     program.adapters = Vec::new();
     match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &program.types,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
         entry: &program.entry,
+        presented_image_bytes: &[],
         functions: &program.functions,
         parameters: &program.parameters,
         blocks: &program.blocks,
@@ -1181,7 +1189,9 @@ fn rw070_gate_refuses_second_push_row() {
     );
     match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &program.types,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
         entry: &program.entry,
+        presented_image_bytes: &[],
         functions: &program.functions,
         parameters: &program.parameters,
         blocks: &program.blocks,
@@ -1196,8 +1206,8 @@ fn rw070_gate_refuses_second_push_row() {
     }
     program.adapters = vec![frozen_push_u8()];
     let report = program.gate_report();
-    assert_eq!(report.bridge_uses, 1);
-    assert_eq!(report.imports, vec![program.adapters[0].entity_id]);
+    assert_eq!(report.bridge_uses(), 1);
+    assert_eq!(report.imports(), vec![program.adapters[0].entity_id]);
 }
 
 /// One closure pushing u8 and Unit side by side and tupling the results,
@@ -1333,7 +1343,9 @@ fn rw070_combined_push_types_share_one_closure() {
     let (program, u8_result, unit_result, tuple_result) = combined_push_program();
     match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &program.types,
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
         entry: &program.entry,
+        presented_image_bytes: &[],
         functions: &program.functions,
         parameters: &program.parameters,
         blocks: &program.blocks,

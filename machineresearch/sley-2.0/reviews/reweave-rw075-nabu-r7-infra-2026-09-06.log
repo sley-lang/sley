@@ -1,0 +1,12 @@
+RW-075 infra no-verdict event, round-7 dispatch (Nabu lane)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta).
+
+No verdict. The round-7 dispatch timed out on agent infrastructure
+(slow agent database open; request timed out before a response was
+generated). No evidence was reviewed and nothing was modified (working
+tree verified: only the RW-075 package delta present, no agent writes).
+Recorded as a no-verdict infrastructure event per the RW-070 precedent.
+Retried once: the retry also timed out on agent infrastructure with no
+verdict and no modifications. Round-7 Nabu delta re-review remains
+REQUESTED and PENDING; the R2 gate honestly reflects NOT_READY and
+RW-080 stays BLOCKED by rule.

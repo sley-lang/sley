@@ -1,0 +1,41 @@
+RW-075 architecture/boundary delta re-review, round 2 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta).
+
+VERDICT: FAIL — confidence high.
+
+Findings (delta-only against round-1 FAIL, preserved in
+`reviews/reweave-rw075-nabu-2026-09-06.log`):
+
+- BLOCKER: Admission remains forgeable and insufficiently closure-bound.
+  `BootstrapProfileReport` and all fields are publicly constructible
+  (`crates/sley-vm/src/bootstrap.rs:92-104`); `admit_package` accepts any
+  digest (`exec_package.rs:704-721`); approval checks only entry and
+  import IDs (`exec_package.rs:740-759`). A fabricated report matching
+  the target IDs can approve an out-of-bootstrap package. Tests use
+  genuine reports with distinct entry IDs and therefore miss this path
+  (`rw075_exec_closure.rs:855-904`).
+- BLOCKER: Dependency byte enforcement occurs only after fully encoding
+  the inventory. The buffer grows through globals, contracts, and
+  unbounded binding lists (`exec_package.rs:573-635`) before the 8 MiB
+  check (`:636-639`), so allocation can greatly exceed the ceiling before
+  refusal. The added test covers only the global-count limit
+  (`rw075_exec_closure.rs:933-958`).
+- BLOCKER: The R2 gate cannot supersede the preserved round-1 Nabu FAIL.
+  `review_verdict` returns FAIL upon any matching transcript
+  (`scripts/check_r2_exit.py:149-167`), while the RW-075 Nabu glob
+  includes every round (`:182-185`). A later round-2 PASS therefore
+  cannot clear the preserved FAIL.
+- PASS: Total-envelope arithmetic is now enforced
+  (`exec_package.rs:654-676`), and the production marker checker is
+  included (`check_r2_exit.py:135-140`).
+
+Validation performed by reviewer: targeted exact reads, `rg`, and
+`git status`; no tests executed under the read-only constraint. No edits.
+
+Blockers (repair and re-review the delta only): make gate evidence
+non-constructible and bind it to the exact judged closure; enforce
+dependency bytes incrementally before growth; make review selection
+round-aware while retaining within-review FAIL precedence.
+
+Disposition: Nabu lane FAIL round 2. Preserved unedited; repairs below
+are a separate delta verified in round 3.

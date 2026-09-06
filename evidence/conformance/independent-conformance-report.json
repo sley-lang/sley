@@ -3,11 +3,15 @@
   "coverage_depths": {
     "codec_and_identity": [
       "conformance/bootstrap-capability/v1",
+      "conformance/bootstrap-profile/v1",
       "conformance/candidate-result/v1",
       "conformance/complete-root-index-snapshot/v1",
       "conformance/context-capsule/v1",
+      "conformance/exec-package/v1",
+      "conformance/host-abi/v1",
       "conformance/mutation-candidate/v1",
       "conformance/mutation-value/v1",
+      "conformance/raw-hash/v1",
       "conformance/release-demo/v1",
       "conformance/repository-exchange/v1",
       "conformance/repository-pack/v1",
@@ -26,7 +30,7 @@
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 20,
+  "fixture_directories": 24,
   "fixtures": [
     {
       "claim": null,
@@ -40,9 +44,9 @@
       "directory": "conformance/bootstrap-capability/v1",
       "files": [
         {
-          "bytes": 853,
+          "bytes": 1044,
           "name": "SHA256SUMS",
-          "sha256": "521d3b819e21df348e67eba4fa7be1dcc96635ed543271962cba138a149c1f9f"
+          "sha256": "821ca52077cd67bddc67fbddd7664d289181e9e7df09f19bfc364539df9f3cc6"
         },
         {
           "bytes": 352,
@@ -85,6 +89,16 @@
           "sha256": "0a8ecd0d75c85e4cd38a09c6c07289453f3bd3cf45a4f5450fe468fcf672d284"
         },
         {
+          "bytes": 2525,
+          "name": "readiness-later-bound.json",
+          "sha256": "2814b35be9d181d6341a130fc1ef2c6390a1875df21c27594cbf2309253ab1a9"
+        },
+        {
+          "bytes": 1887,
+          "name": "readiness-later-without-r2.json",
+          "sha256": "92a26a0b7a22df6c74b21cc171e05431c641784bc1dc6a2c37dd9a6f44929971"
+        },
+        {
           "bytes": 1831,
           "name": "readiness-logic-positive.json",
           "sha256": "35a9ac09114272b0ac978feacab5143c1982319e72a8b6c3a3ea0048e571a3ad"
@@ -110,10 +124,59 @@
           "gaps": 1,
           "vectors_present": 1
         },
+        "readiness-later-bound.json": {
+          "exercises": 1,
+          "gaps": 1,
+          "vectors_present": 1
+        },
+        "readiness-later-without-r2.json": {
+          "exercises": 1,
+          "gaps": 1,
+          "vectors_present": 1
+        },
         "readiness-logic-positive.json": {
           "exercises": 1,
           "gaps": 1,
           "vectors_present": 1
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
+    {
+      "claim": "bootstrap-profile-1-closure-conformance",
+      "contract": "sley2-bootstrap-profile-1",
+      "coverage": {
+        "command": "python3 scripts/check_bootstrap_profile_1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/bootstrap-profile/v1",
+      "files": [
+        {
+          "bytes": 159,
+          "name": "SHA256SUMS",
+          "sha256": "b5b742faf0bb5860a91525c0d50617e9ccbcc562ef011e111aa772d1ad6621f7"
+        },
+        {
+          "bytes": 41621,
+          "name": "accepted.json",
+          "sha256": "878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad"
+        },
+        {
+          "bytes": 8774,
+          "name": "profile.json",
+          "sha256": "4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 20
+        },
+        "profile.json": {
+          "cache_key_inputs": 12,
+          "permitted_opcodes": 42
         }
       },
       "sums_consistent": true,
@@ -264,6 +327,66 @@
       "sums_file": true
     },
     {
+      "claim": null,
+      "contract": "sley2-exec-package-1",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/exec-package/v1",
+      "files": [
+        {
+          "bytes": 84,
+          "name": "SHA256SUMS",
+          "sha256": "44d4606ee208ddec6bde8d7504f703a9ebec575a22fb73cdf3ffb18381ec2020"
+        },
+        {
+          "bytes": 5626,
+          "name": "exec-package.json",
+          "sha256": "9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4"
+        }
+      ],
+      "shape": {
+        "exec-package.json": {
+          "negative_corpus": 18
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
+    {
+      "claim": null,
+      "contract": "sley2-host-abi-1",
+      "coverage": {
+        "command": "python3 scripts/check_host_abi_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/host-abi/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "3814ca5722701ab1321ea9960b02ff22a7b4e57ee03dc10bf18967a2de33e265"
+        },
+        {
+          "bytes": 19702,
+          "name": "host-abi.json",
+          "sha256": "e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2"
+        }
+      ],
+      "shape": {
+        "host-abi.json": {
+          "prohibited": 7
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
+    {
       "claim": "s20-520-merge-v1-conformance",
       "contract": "sley2-merge-v1",
       "coverage": {
@@ -375,6 +498,36 @@
         },
         "rejected.json": {
           "vectors": 18
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
+    {
+      "claim": null,
+      "contract": "sley2-raw-hash-1",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/raw-hash/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "3aa2ded17e76b5cc479387a96175ef7638340c51124752f6a54486f3c7c2f3e7"
+        },
+        {
+          "bytes": 2629,
+          "name": "raw-hash.json",
+          "sha256": "785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72"
+        }
+      ],
+      "shape": {
+        "raw-hash.json": {
+          "forbidden_natives": 5
         }
       },
       "sums_consistent": true,
@@ -819,7 +972,7 @@
       "sums_file": true
     }
   ],
-  "independently_checked": 20,
+  "independently_checked": 24,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -839,9 +992,9 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 23
+    "python_sources": 26
   },
-  "report_digest": "91b51c89aeac0b3733f66f6bd1699e83205489b650d3c55a6efaa3c9ca0b89d4",
+  "report_digest": "8bc9e20a3cda3f21533cc5a331d301c6e493a02aa04acd1227e29a82170f2131",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

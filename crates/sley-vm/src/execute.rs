@@ -570,6 +570,469 @@ pub fn execute_loaded_image(
         .map_err(LoadedExecutionError::Execution)
 }
 
+/// One approved-package execution failure: the exact structural refusal,
+/// never a new semantic code. Package/binding refusals keep the
+/// `PACKAGE_*` vocabulary; structural image refusals keep `IMAGE_*`;
+/// every later failure keeps the code the lowering path would report for
+/// the same condition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PackageExecutionError {
+    /// Envelope, digest, receipt, or complete-closure binding refusal.
+    Package(crate::exec_package::PackageError),
+    /// Structural image refusal after a valid package binding.
+    Image(ImageError),
+    /// Input, cache-key, fingerprint, or resource failure after valid load.
+    Execution(ExecutionError),
+}
+
+impl fmt::Display for PackageExecutionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Package(error) => error.fmt(formatter),
+            Self::Image(error) => error.fmt(formatter),
+            Self::Execution(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for PackageExecutionError {}
+
+/// Executes one complete execution package through the repaired host
+/// boundary (RW-075 AR-01/AR-03).
+///
+/// Verification order (all bindings, before execution):
+/// receipt vs package digest; every section digest vs header; image digest
+/// vs bytes; entry/epoch/root/profile/ABI/VM/limits vs package; exact
+/// import rows (`==`, full schemas — never IDs alone); re-derived cache
+/// key. The execution request limits must equal the admitted limits
+/// exactly: out-of-profile budgets cannot ride an approval for another
+/// budget, and a broader-profile operation cannot execute inside a
+/// bootstrap package merely because the shared runtime supports it.
+///
+/// Semantic validation (`TypeEnvironment::new`, `check_constant`,
+/// `require_hashable`, fingerprint claims, checker/lowerer judgments) is
+/// NOT rerun here. The compiler already performed it; the receipt binds
+/// that judgment by digest. The host performs only structural hydration
+/// (`hydrate_verified_definitions`: duplicate/bound checks), byte/codec
+/// framing checks, exact-equality comparisons, and resource accounting.
+/// Input values are checked for structural type equality against the
+/// decoded register types, canonical codec form, and value-unit bounds —
+/// never for language-level well-formedness. Observations are bound to the
+/// complete package identity (`SLEYPOBS1` domain plus every section
+/// digest), so two distinct packages cannot produce interchangeable
+/// authority evidence.
+///
+/// # Errors
+///
+/// The exact structural refusal for the first mismatched binding, or the
+/// preserved failure the lowering path would report for the same runtime
+/// condition.
+#[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
+pub fn execute_approved_package(
+    package: &crate::exec_package::ExecutionPackage,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    request: ExecutionRequest,
+) -> Result<ExecutionOutcome, PackageExecutionError> {
+    use crate::exec_package::{hydrate_layouts, package_digests, verify_package_binding};
+    let digests = package_digests(package).map_err(PackageExecutionError::Package)?;
+    verify_package_binding(package, &digests, expected).map_err(PackageExecutionError::Package)?;
+    if request.limits != expected.admitted_limits {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let loaded = load_image(&package.image_bytes).map_err(PackageExecutionError::Image)?;
+    if loaded.digest != expected.image_digest {
+        return Err(PackageExecutionError::Image(ImageError::DigestMismatch));
+    }
+    let types = hydrate_layouts(package.type_definitions.clone())
+        .map_err(PackageExecutionError::Package)?;
+    let source = ExecutionSource {
+        types: &types,
+        constants: &package.constants,
+        globals: &package.globals,
+        contracts: &package.contracts,
+        adapters: &package.imports,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        function: loaded.entry.function,
+    };
+    let cache_key = crate::derive_cache_key(
+        source.schema_epoch,
+        source.state_root,
+        source.function,
+        source.profile,
+    )
+    .map_err(|error| PackageExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+    if cache_key != expected.cache_key {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
+    let validated_inputs =
+        validate_package_inputs_structural(&loaded.entry, &request, source.schema_epoch)
+            .map_err(PackageExecutionError::Execution)?;
+    let lowered = LoweredFunction {
+        bytecode: loaded.entry.clone(),
+        bytes: package.image_bytes.clone(),
+        cache_key,
+        lowering_work: 0,
+        callees: loaded.callees.clone(),
+    };
+    execute_core_package(
+        &source,
+        &lowered,
+        &validated_inputs,
+        request,
+        expected,
+        &digests,
+    )
+    .map_err(PackageExecutionError::Execution)
+}
+
+/// Validates package-path inputs structurally (no semantic judgment).
+///
+/// Checks, per input: count agreement; structural type equality
+/// (`value.value_type == register_type` — never env lookup, trait
+/// computation, or inference); canonical codec form (the existing
+/// `encode_const_value` framing check, which prevents one semantic map
+/// from carrying two identities — a memory-safety/identity property, not
+/// a language verdict); capped value-unit accumulation; then the
+/// codec-plus-hash (`hash_validated_value`, which itself performs no env
+/// judgment). Language-level constant well-formedness and hashability were
+/// judged by the compiler and are bound via the receipt; the host trusts
+/// that binding and verifies only bytes.
+fn validate_package_inputs_structural(
+    bytecode: &crate::BytecodeFunction,
+    request: &ExecutionRequest,
+    schema_epoch: SchemaEpochId,
+) -> Result<ValidatedInputs, ExecutionError> {
+    if request.inputs.len() != bytecode.parameter_registers.len() {
+        return Err(ExecutionError::Exec(ExecutionErrorCode::InputCountMismatch));
+    }
+    enforce_input_count(request.inputs.len())?;
+    let mut hashes = Vec::with_capacity(request.inputs.len());
+    let mut value_units = 0_u64;
+    for (index, value) in request.inputs.iter().enumerate() {
+        let register = usize::try_from(bytecode.parameter_registers[index])
+            .ok()
+            .and_then(|register| bytecode.register_types.get(register))
+            .ok_or(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch))?;
+        if &value.value_type != register {
+            return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
+        }
+        value_units = add_input_units(value_units, value_units_const(value))?;
+        require_canonical_form(value)?;
+        hashes.push(hash_validated_value(schema_epoch, value)?);
+    }
+    Ok(ValidatedInputs {
+        hashes,
+        value_units,
+    })
+}
+
+/// Runs validated package inputs against one bytecode model with a
+/// package-bound observation (the structural runner for the repaired path).
+#[allow(clippy::too_many_lines)]
+fn execute_core_package(
+    source: &ExecutionSource<'_>,
+    lowered: &LoweredFunction,
+    validated_inputs: &ValidatedInputs,
+    request: ExecutionRequest,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    digests: &crate::exec_package::PackageDigests,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    let initial_live_total = initial_value_units(
+        &lowered.bytecode.register_types,
+        &lowered.bytes,
+        validated_inputs.value_units,
+    );
+    let ExecutionRequest { inputs, limits } = request;
+    let mut runtime = Runtime {
+        registers: vec![None; lowered.bytecode.register_types.len()],
+        block: usize::try_from(lowered.bytecode.entry_block).unwrap_or(usize::MAX),
+        instruction_count: 0,
+        fuel_used: 0,
+        live_value_units: initial_live_total,
+        peak_value_units: initial_live_total,
+        cells: Vec::new(),
+    };
+    if runtime.peak_value_units > limits.max_value_units {
+        return finish_package(
+            source,
+            limits,
+            lowered.cache_key,
+            &validated_inputs.hashes,
+            ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits),
+            runtime.instruction_count,
+            runtime.fuel_used,
+            runtime.peak_value_units,
+            expected,
+            digests,
+        );
+    }
+    for (index, value) in inputs.into_iter().enumerate() {
+        let Some(register) = lowered
+            .bytecode
+            .parameter_registers
+            .get(index)
+            .and_then(|value| usize::try_from(*value).ok())
+        else {
+            return observed_invariant_package(
+                source,
+                limits,
+                lowered.cache_key,
+                &validated_inputs.hashes,
+                &runtime,
+                expected,
+                digests,
+            );
+        };
+        if write_register(&mut runtime, register, RuntimeValue::new(value)).is_err() {
+            return observed_invariant_package(
+                source,
+                limits,
+                lowered.cache_key,
+                &validated_inputs.hashes,
+                &runtime,
+                expected,
+                digests,
+            );
+        }
+    }
+    let termination = match run(
+        &mut runtime,
+        limits,
+        &lowered.bytecode.blocks,
+        &lowered.bytecode.result_type,
+        &lowered.bytecode.register_types,
+        source,
+        Some(lowered),
+    ) {
+        Ok(termination) => termination,
+        Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
+    };
+    finish_runtime_package(
+        source,
+        limits,
+        lowered.cache_key,
+        &validated_inputs.hashes,
+        &runtime,
+        termination,
+        expected,
+        digests,
+    )
+}
+
+fn observed_invariant_package(
+    source: &ExecutionSource<'_>,
+    limits: ExecutionLimits,
+    cache_key: BytecodeCacheKey,
+    input_hashes: &[ValueHash],
+    runtime: &Runtime,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    digests: &crate::exec_package::PackageDigests,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    finish_runtime_package(
+        source,
+        limits,
+        cache_key,
+        input_hashes,
+        runtime,
+        ExecutionTermination::InternalInvariant,
+        expected,
+        digests,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_runtime_package(
+    source: &ExecutionSource<'_>,
+    limits: ExecutionLimits,
+    cache_key: BytecodeCacheKey,
+    input_hashes: &[ValueHash],
+    runtime: &Runtime,
+    termination: ExecutionTermination,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    digests: &crate::exec_package::PackageDigests,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    finish_package(
+        source,
+        limits,
+        cache_key,
+        input_hashes,
+        termination,
+        runtime.instruction_count,
+        runtime.fuel_used,
+        runtime.peak_value_units,
+        expected,
+        digests,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_package(
+    source: &ExecutionSource<'_>,
+    limits: ExecutionLimits,
+    cache_key: BytecodeCacheKey,
+    input_hashes: &[ValueHash],
+    termination: ExecutionTermination,
+    instruction_count: u64,
+    fuel_used: u64,
+    peak_value_units: u64,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    digests: &crate::exec_package::PackageDigests,
+) -> Result<ExecutionOutcome, ExecutionError> {
+    let observation_id = ObservationId::derive(observation_preimage_package(
+        source,
+        limits,
+        cache_key,
+        input_hashes,
+        &termination,
+        instruction_count,
+        fuel_used,
+        peak_value_units,
+        expected,
+        digests,
+    )?);
+    Ok(ExecutionOutcome {
+        state_root: source.state_root,
+        schema_epoch: source.schema_epoch,
+        function: source.function,
+        cache_key,
+        termination,
+        instruction_count,
+        fuel_used,
+        peak_value_units,
+        observation_id,
+    })
+}
+
+/// Package-bound observation preimage (`SLEYPOBS1` domain).
+///
+/// Binds everything the legacy `SLEYOBS1` preimage binds (epoch, schema
+/// hashes, root, function, cache key, input hashes, limits, termination,
+/// counts) PLUS the complete approved execution-package identity: package
+/// digest, every section digest, the `BOOTSTRAP_PROFILE_1` digest, and the
+/// host ABI version. The distinct domain prefix guarantees a package
+/// observation can never equal a legacy observation even when all shared
+/// fields coincide; the section digests guarantee two distinct packages
+/// cannot produce interchangeable evidence.
+#[allow(clippy::too_many_arguments)]
+fn observation_preimage_package(
+    source: &ExecutionSource<'_>,
+    limits: ExecutionLimits,
+    cache_key: BytecodeCacheKey,
+    input_hashes: &[ValueHash],
+    termination: &ExecutionTermination,
+    instruction_count: u64,
+    fuel_used: u64,
+    peak_value_units: u64,
+    expected: &crate::exec_package::ApprovedExecutionPackage,
+    digests: &crate::exec_package::PackageDigests,
+) -> Result<Vec<u8>, ExecutionError> {
+    let capacity = input_hashes
+        .len()
+        .checked_mul(32)
+        .and_then(|value| value.checked_add(768))
+        .filter(|value| *value <= MAX_OBSERVATION_PREIMAGE_BYTES)
+        .ok_or_else(|| {
+            ExecutionError::Fingerprint(FingerprintError::new(FingerprintErrorCode::ResourceLimit))
+        })?;
+    let mut preimage = Vec::with_capacity(capacity);
+    raw(&mut preimage, b"SLEYPOBS1");
+    push_u32(&mut preimage, 1);
+    raw(&mut preimage, source.schema_epoch.as_bytes());
+    raw(&mut preimage, &SSMC1_FIELD_SCHEMA_HASH);
+    raw(&mut preimage, &SSMC1_DECODER_LIMITS_HASH);
+    raw(&mut preimage, source.state_root.as_bytes());
+    raw(&mut preimage, source.function.as_bytes());
+    raw(&mut preimage, cache_key.as_bytes());
+    raw(&mut preimage, &digests.package_digest);
+    raw(&mut preimage, &digests.image_digest);
+    raw(&mut preimage, &digests.constants_digest);
+    raw(&mut preimage, &digests.layouts_digest);
+    raw(&mut preimage, &digests.imports_digest);
+    raw(&mut preimage, &digests.dependency_digest);
+    raw(&mut preimage, &expected.profile_digest);
+    push_u32(&mut preimage, expected.host_abi_version);
+    for part in CacheProfile::RESTRICTED_V1.vm_version {
+        push_u32(&mut preimage, part);
+    }
+    push_u32(&mut preimage, 1);
+    push_len(&mut preimage, input_hashes.len());
+    for hash in input_hashes {
+        raw(&mut preimage, hash.as_bytes());
+    }
+    push_u64(&mut preimage, limits.max_instructions);
+    push_u64(&mut preimage, limits.max_fuel);
+    push_u64(&mut preimage, limits.max_value_units);
+    push_u64(&mut preimage, limits.max_output_units);
+    match limits.cancel_at_fuel {
+        None => push_u32(&mut preimage, 1),
+        Some(value) => {
+            push_u32(&mut preimage, 2);
+            push_u64(&mut preimage, value);
+        }
+    }
+    encode_termination_package(&mut preimage, source, termination)?;
+    push_u64(&mut preimage, instruction_count);
+    push_u64(&mut preimage, fuel_used);
+    push_u64(&mut preimage, peak_value_units);
+    push_u64(&mut preimage, 0);
+    push_u64(&mut preimage, 0);
+    push_u64(&mut preimage, 0);
+    push_u64(&mut preimage, 0);
+    debug_assert!(preimage.len() <= MAX_OBSERVATION_PREIMAGE_BYTES);
+    Ok(preimage)
+}
+
+/// Package-path termination encoding: identical shapes to the legacy path
+/// but WITHOUT `require_hashable` language judgments.
+///
+/// Success/trap payloads are hashed directly (codec + hash are structural).
+/// Hashability was judged by the compiler and is bound via the receipt; the
+/// host trusts that binding. Removing the check here is the AR-01 repair:
+/// the host no longer performs language-level hashability judgment at
+/// observation time.
+fn encode_termination_package(
+    preimage: &mut Vec<u8>,
+    source: &ExecutionSource<'_>,
+    termination: &ExecutionTermination,
+) -> Result<(), ExecutionError> {
+    match termination {
+        ExecutionTermination::Success(value) => {
+            push_u32(preimage, 1);
+            raw(
+                preimage,
+                hash_validated_value(source.schema_epoch, value)?.as_bytes(),
+            );
+        }
+        ExecutionTermination::ResourceLimit(kind) => {
+            push_u32(preimage, 2);
+            push_u32(preimage, kind.tag());
+        }
+        ExecutionTermination::Cancelled => push_u32(preimage, 3),
+        ExecutionTermination::Trap { trap_tag, payload } => {
+            push_u32(preimage, 4);
+            push_u32(preimage, *trap_tag);
+            match payload {
+                None => push_u32(preimage, 1),
+                Some(value) => {
+                    push_u32(preimage, 2);
+                    raw(
+                        preimage,
+                        hash_validated_value(source.schema_epoch, value)?.as_bytes(),
+                    );
+                }
+            }
+        }
+        ExecutionTermination::InternalInvariant => push_u32(preimage, 5),
+    }
+    Ok(())
+}
+
 /// Runs validated inputs against one bytecode model: the single runner both
 /// execution paths share. Lowering and loading differ only in how the model
 /// and its validation arrive here.

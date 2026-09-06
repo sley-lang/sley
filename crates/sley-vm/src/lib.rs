@@ -10,26 +10,37 @@ pub mod bootstrap;
 mod bootstrap_closure;
 #[cfg(test)]
 mod bridge_adversarial;
+pub mod exec_package;
 mod execute;
 pub mod extended;
 #[cfg(test)]
 mod extended_tests;
 pub mod host_abi;
 mod lower;
+pub mod raw_hash;
 
+pub use exec_package::{
+    AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST, EXEC_PACKAGE_CONTRACT,
+    EXEC_PACKAGE_IDENTITY, EXEC_PACKAGE_VERSION, ExecutionPackage, PackageDigests, PackageError,
+    admit_package, approve_package, hydrate_layouts, package_digests, verify_package_binding,
+};
 pub use execute::{
     ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,
     ExecutionRequest, ExecutionStatusCode, ExecutionTermination, LoadedExecutionError,
     LoadedExecutionInput, MAX_EXECUTION_CELLS, MAX_EXECUTION_INPUT_VALUE_UNITS,
-    MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, ResourceKind, derive_observation_id,
-    execute_function, execute_loaded_image, execution_value_units,
-    validated_execution_input_hashes,
+    MAX_EXECUTION_INPUTS, MAX_OBSERVATION_PREIMAGE_BYTES, PackageExecutionError, ResourceKind,
+    derive_observation_id, execute_approved_package, execute_function, execute_loaded_image,
+    execution_value_units, validated_execution_input_hashes,
 };
 pub use lower::{
     BlockSlot, BytecodeBlock, BytecodeFunction, BytecodeSwitchArgument, BytecodeSwitchCase,
     BytecodeSwitchEdge, BytecodeTargetEdge, BytecodeTerminator, Instruction, LoweredFunction,
     LoweringError, LoweringInput, OperationJudgment, Register, judge_function_operations,
     lower_function,
+};
+pub use raw_hash::{
+    RAW_HASH_CONTRACT, RAW_HASH_IDENTITY, RAW_HASH_MAX_BYTES, RAW_HASH_VERSION, RawHashError,
+    raw_blake3_256, raw_hash_fuel, raw_hash_variant,
 };
 
 /// Frozen S20-260 SSMC1 field-schema hash.

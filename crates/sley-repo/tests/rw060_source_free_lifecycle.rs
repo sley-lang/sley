@@ -1448,7 +1448,9 @@ fn execute_committed(committed: &Committed, items: &[u8], tag: u8) -> Executed {
     assert_eq!(complete.functions.len(), 1, "single-function program");
     let gate = judge_bootstrap_profile(&BootstrapProfileInput {
         types: &types,
+        schema_epoch: committed.ctx.epoch,
         entry: &main,
+        presented_image_bytes: &[],
         functions: &complete.functions,
         parameters: &complete.parameters,
         blocks: &complete.blocks,
@@ -1457,10 +1459,14 @@ fn execute_committed(committed: &Committed, items: &[u8], tag: u8) -> Executed {
         constants: &complete.constants,
     })
     .expect("committed program is gate-admitted");
-    assert_eq!(gate.functions, vec![main.entity_id], "closure is the entry");
-    assert_eq!(gate.operation_count, 19, "every program operation judged");
-    assert_eq!(gate.bridge_uses, 0, "no bridge rows used");
-    eprintln!("RW060_EVIDENCE gate_operations={}", gate.operation_count);
+    assert_eq!(
+        gate.functions(),
+        vec![main.entity_id],
+        "closure is the entry"
+    );
+    assert_eq!(gate.operation_count(), 19, "every program operation judged");
+    assert_eq!(gate.bridge_uses(), 0, "no bridge rows used");
+    eprintln!("RW060_EVIDENCE gate_operations={}", gate.operation_count());
     let input = LoweringInput {
         types: &types,
         function: &main,
@@ -2437,7 +2443,9 @@ fn commit_parametrized_callee_validates_and_executes() {
         .clone();
     let gate = judge_bootstrap_profile(&BootstrapProfileInput {
         types: &types,
+        schema_epoch: ctx.epoch,
         entry: &entry,
+        presented_image_bytes: &[],
         functions: &complete.functions,
         parameters: &complete.parameters,
         blocks: &complete.blocks,
@@ -2446,10 +2454,10 @@ fn commit_parametrized_callee_validates_and_executes() {
         constants: &complete.constants,
     })
     .expect("calling program is gate-admitted");
-    assert_eq!(gate.functions.len(), 2, "entry plus callee reached");
-    assert_eq!(gate.functions[0], entry.entity_id, "walk starts at entry");
-    assert_eq!(gate.operation_count, 1, "one judged operation");
-    assert_eq!(gate.bridge_uses, 0, "no bridge rows used");
+    assert_eq!(gate.functions().len(), 2, "entry plus callee reached");
+    assert_eq!(gate.functions()[0], entry.entity_id, "walk starts at entry");
+    assert_eq!(gate.operation_count(), 1, "one judged operation");
+    assert_eq!(gate.bridge_uses(), 0, "no bridge rows used");
     let input = LoweringInput {
         types: &types,
         function: &entry,

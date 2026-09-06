@@ -46,9 +46,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use sley_check::TypeEnvironment;
+use sley_id::SemanticFingerprint;
 use sley_ssmc::{
     AdapterImport, Block, ConstantDefinition, FunctionGraph, Immediate, Opcode, Operation,
     Parameter, TypeExpr,
+    fingerprint::{FingerprintErrorCode, FunctionFingerprintInput},
 };
 
 use super::extended::resolve_bridge_entry;
@@ -73,6 +75,20 @@ pub struct BootstrapProfileInput<'a> {
     /// through it: a `Named` type admits only when its definition's
     /// fields/payloads admit).
     pub types: &'a TypeEnvironment,
+    /// Exact schema epoch the closure is admitted under. Semantic
+    /// fingerprints carried in the admission report are epoch-bound, so
+    /// the authority and the package builder must agree on this epoch
+    /// for their fingerprints to match byte-for-byte.
+    pub schema_epoch: sley_id::SchemaEpochId,
+    /// Image bytes presented with the closure for binding. The gate
+    /// records their SHA-256 digest into the report as a commitment
+    /// channel — a structural byte hash with no semantic judgment, no
+    /// lowering, and no correspondence verification. Correspondence
+    /// between these bytes and the judged graphs (builder faithfulness)
+    /// is verified by the admission authority's reference re-lowering
+    /// comparison (production: the Sley build driver per the RW-080
+    /// contract; RW-075: modeled in tests), never by the host path.
+    pub presented_image_bytes: &'a [u8],
     /// Entry function of the bootstrap closure.
     pub entry: &'a FunctionGraph,
     /// Complete function inventory (entry plus callees).
@@ -90,17 +106,84 @@ pub struct BootstrapProfileInput<'a> {
 }
 
 /// Successful gate admission evidence.
+///
+/// Sealed two ways: `#[non_exhaustive]` prevents downstream struct-literal
+/// construction, and private fields prevent downstream mutation of a
+/// genuine report. The only way to obtain a report is to run
+/// `judge_bootstrap_profile` over the closure's full inventories — which
+/// refuses out-of-profile closures instead of reporting them. Reads go
+/// through the `functions`, `imports`, `operation_count`, and
+/// `bridge_uses` accessors and work unchanged everywhere.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BootstrapProfileReport {
     /// Reached functions in traversal order, entry first.
-    pub functions: Vec<sley_id::EntityId>,
+    functions: Vec<sley_id::EntityId>,
     /// Admitted import identities in inventory order: exactly the invoked
     /// set, so the report names which imports the admission covers.
-    pub imports: Vec<sley_id::EntityId>,
+    imports: Vec<sley_id::EntityId>,
     /// Count of judged operations across the closure.
-    pub operation_count: u32,
+    operation_count: u32,
     /// Count of `adapter_invoke` operations admitted through the bridge.
-    pub bridge_uses: u32,
+    bridge_uses: u32,
+    /// Canonical semantic fingerprints of the judged closure, one per
+    /// reached function in traversal order (entry first). Computed from
+    /// the judged graphs after every membership check passes, so the
+    /// report is bound to the exact judged closure bytes — not only to
+    /// entry/import/count summaries. Two closures sharing summaries but
+    /// differing in any judged operation have different fingerprints
+    /// (BLAKE3 second-preimage resistance), and no report exists for a
+    /// gate-refused closure.
+    closure_fingerprints: Vec<SemanticFingerprint>,
+    /// SHA-256 digest of the image bytes presented with the closure.
+    admitted_image_digest: [u8; 32],
+}
+
+impl BootstrapProfileReport {
+    /// Reached functions in traversal order, entry first.
+    #[must_use]
+    pub fn functions(&self) -> &[sley_id::EntityId] {
+        &self.functions
+    }
+
+    /// Admitted import identities in inventory order.
+    #[must_use]
+    pub fn imports(&self) -> &[sley_id::EntityId] {
+        &self.imports
+    }
+
+    /// Count of judged operations across the closure.
+    #[must_use]
+    pub const fn operation_count(&self) -> u32 {
+        self.operation_count
+    }
+
+    /// Count of admitted `adapter_invoke` operations.
+    #[must_use]
+    pub const fn bridge_uses(&self) -> u32 {
+        self.bridge_uses
+    }
+
+    /// Canonical semantic fingerprints of the judged closure, entry first.
+    #[must_use]
+    pub fn closure_fingerprints(&self) -> &[SemanticFingerprint] {
+        &self.closure_fingerprints
+    }
+
+    /// SHA-256 digest of the image bytes presented with the closure.
+    ///
+    /// Commitment channel binding this sealed report to exact executable
+    /// bytes: approval and execution re-derive the digest from the
+    /// package image and refuse on mismatch, so a report cannot be
+    /// replayed against different executable content — including
+    /// same-opcode rewiring, which changes bytes and therefore the
+    /// digest. Recorded, never verified for graphs correspondence here;
+    /// correspondence is the admission authority's reference re-lowering
+    /// comparison (RW-080 contract), not host work.
+    #[must_use]
+    pub fn admitted_image_digest(&self) -> &[u8; 32] {
+        &self.admitted_image_digest
+    }
 }
 
 fn gate_fail(code: LowerErrorCode) -> Result<BootstrapProfileReport, LoweringError> {
@@ -297,12 +380,116 @@ pub fn judge_bootstrap_profile(
         operation_count = operation_count.saturating_add(operations);
         bridge_uses = bridge_uses.saturating_add(bridges);
     }
+    let closure_fingerprints = judged_closure_fingerprints(input, &reached, input.schema_epoch)?;
+    // Commitment digest over the presented image bytes: a structural
+    // SHA-256 with no semantic judgment, no lowering, and no
+    // correspondence verification. It binds this sealed report to exact
+    // executable bytes downstream.
+    let admitted_image_digest = {
+        use sha2::{Digest as _, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(input.presented_image_bytes);
+        hasher.finalize().into()
+    };
     Ok(BootstrapProfileReport {
         functions: reached,
         operation_count,
         bridge_uses,
         imports,
+        closure_fingerprints,
+        admitted_image_digest,
     })
+}
+
+/// Computes the canonical semantic fingerprint of every reached function
+/// in traversal order (entry first).
+///
+/// Narrowing rule (canonical): each function is fingerprinted over exactly
+/// its owned inventories — function parameters owned by the function,
+/// block parameters of the function's blocks (identified through the
+/// blocks' own parameter lists, since block parameters are owned by their
+/// block), blocks whose function is the function, and operations whose
+/// block belongs to one of those blocks — in inventory order. The builder
+/// of an execution package applies this same rule when it carries the
+/// gate's quantitative claims, so authority and builder fingerprints agree
+/// byte-for-byte.
+///
+/// This runs after every membership check passes and performs no new
+/// admission judgment of its own: it encodes the already-judged graphs.
+/// A fingerprint failure refuses admission fail-closed (`ResourceLimit`
+/// for bounds; `LocalReferenceInvalid` for fingerprint-unencodable
+/// reference shapes, which the profile gate deliberately leaves to
+/// lowering/CFG judgment — the gate refuses to admit what it cannot
+/// fingerprint).
+///
+/// # Errors
+///
+/// Returns the exact refusal for an unfingerprintable judged closure.
+fn judged_closure_fingerprints(
+    input: &BootstrapProfileInput<'_>,
+    reached: &[sley_id::EntityId],
+    schema_epoch: sley_id::SchemaEpochId,
+) -> Result<Vec<SemanticFingerprint>, LoweringError> {
+    let mut fingerprints = Vec::with_capacity(reached.len());
+    for function in reached {
+        let blocks: Vec<sley_ssmc::Block> = input
+            .blocks
+            .iter()
+            .filter(|block| &block.function == function)
+            .cloned()
+            .collect();
+        let operations: Vec<sley_ssmc::Operation> = input
+            .operations
+            .iter()
+            .filter(|operation| {
+                blocks
+                    .iter()
+                    .any(|block| block.entity_id == operation.block)
+            })
+            .cloned()
+            .collect();
+        let parameters: Vec<sley_ssmc::Parameter> = input
+            .parameters
+            .iter()
+            .filter(|parameter| {
+                &parameter.owner == function
+                    || blocks.iter().any(|block| {
+                        block.entity_id == parameter.owner
+                            && block.parameters.contains(&parameter.entity_id)
+                    })
+            })
+            .cloned()
+            .collect();
+        let Some(graph) = input
+            .functions
+            .iter()
+            .find(|graph| &graph.entity_id == function)
+        else {
+            return Err(LoweringError::Lower(LowerError::new(
+                LowerErrorCode::ImmediateMismatch,
+            )));
+        };
+        let fingerprint = sley_ssmc::fingerprint::fingerprint_function(
+            schema_epoch,
+            FunctionFingerprintInput {
+                function: graph,
+                parameters: &parameters,
+                blocks: &blocks,
+                operations: &operations,
+            },
+        )
+        .map_err(|error| {
+            LoweringError::Lower(LowerError::new(
+                if error.code() == FingerprintErrorCode::ResourceLimit {
+                    LowerErrorCode::ResourceLimit
+                } else {
+                    LowerErrorCode::LocalReferenceInvalid
+                },
+            ))
+        })?;
+        fingerprints.push(fingerprint);
+    }
+    Ok(fingerprints)
 }
 
 /// Depth-first call-closure walk from one function: judges the per-function
@@ -567,7 +754,9 @@ mod tests {
         fn input(&self) -> BootstrapProfileInput<'_> {
             BootstrapProfileInput {
                 types: &self.types,
+                schema_epoch: sley_id::SchemaEpochId::from_bytes([8; 32]),
                 entry: &self.entry,
+                presented_image_bytes: &[],
                 functions: &self.functions,
                 parameters: &self.parameters,
                 blocks: &self.blocks,

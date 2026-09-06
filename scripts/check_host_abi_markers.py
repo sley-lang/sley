@@ -114,7 +114,7 @@ for marker in [
 gate = GATE.read_text(encoding="utf-8")
 for marker in [
     "fn bootstrap_row_ok",
-    "pub imports",
+    "pub fn imports(",
 ]:
     if marker not in gate:
         problems.append(f"gate-missing:{marker}")
