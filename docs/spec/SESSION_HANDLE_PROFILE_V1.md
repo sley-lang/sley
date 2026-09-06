@@ -140,11 +140,16 @@ these checks in this order; the first failure answers:
    (`SESSION_WORKSPACE_MISMATCH`, threat T47);
 4. the repository's accepted schema epoch equals the session's epoch
    (`SESSION_EPOCH_MISMATCH`);
-5. the session's work budget is not exhausted
-   (`PROTOCOL_LIMIT_EXCEEDED`, S20-440);
-6. for head-bound methods only, the accepted head root equals the
+5. for head-bound methods only, the accepted head root equals the
    session's `bound_root` (`SESSION_ROOT_ADVANCED`); the caller renews
-   and retries.
+   and retries;
+6. the session's work budget is not exhausted
+   (`PROTOCOL_LIMIT_EXCEEDED`, S20-440).
+
+Every binding check precedes the budget: an exhausted session with a
+broken binding answers the binding failure, including a stale bound
+root on a head-bound method, and the budget failure answers only under
+a valid binding.
 
 The head-bound set is closed. A method is head-bound exactly when it
 answers over current repository state without naming the state it
@@ -154,7 +159,7 @@ and never derived for a new method; the stage checker compares the
 lists against the server's dispatch table and the SMP1 method table
 and fails closed on any difference.
 
-Head-bound methods (checked for the bound root, item 6):
+Head-bound methods (checked for the bound root, item 5):
 `workspace.open` (201), `refs.list` (202), `refs.resolve` (203),
 `exchange.export` (210), `gc.dry_run` (212), `refs.recover` (214),
 `query.root` (300), `query.continue` (301), `capsule` (302),
@@ -185,11 +190,12 @@ repository): `session.renew` (101), `session.close` (102),
 (603).
 
 `session.open` (100) precedes every check (section 2). Every method
-outside the head-bound set passes checks 1 through 5 and skips check
-6. A mutating method leaves the session bound to the previous root
+outside the head-bound set passes checks 1 through 4 and check 6 and
+skips check 5. A mutating method leaves the session bound to the previous root
 until an explicit renewal, which is the explicit signal that earlier
 handles and capsules describe an older root. The four reserved tags
-(305, 503, 601, 602) pass checks 1 through 5 and are then refused with
+(305, 503, 601, 602) pass checks 1 through 4 and check 6 and are then
+refused with
 `PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4); a reserved tag joins a
 list above only when its owner claims it.
 
@@ -296,8 +302,9 @@ Implementation acceptance requires at least:
 - the precedence matrix: an unknown name answering `SESSION_UNKNOWN`
   (never `PROTOCOL_REQUEST_ID_CONFLICT`), a remembered close answering
   `PROTOCOL_SESSION_CLOSED`, an exhausted budget answering the binding
-  failure ahead of `PROTOCOL_LIMIT_EXCEEDED` and the budget failure
-  under a valid binding, a mismatched renew body answering
+  failure ahead of `PROTOCOL_LIMIT_EXCEEDED` (the workspace mismatch,
+  and the stale bound root of a head-bound method) and the budget
+  failure under a valid binding, a mismatched renew body answering
   `PROTOCOL_FRAME_INVALID`, and the sessionless genesis exemption
   ending at the first head;
 - the cap matrix: opening past `max_sessions` refused with
@@ -342,7 +349,7 @@ capped at close.
   code rows, and the SMP1 and capsule revision pins.
 - Revision 3 (2026-09-05): the remaining P1, P2, and P3 items of the
   round: the SMP1 pin follows SMP1 to revision 11; `renewals` is a
-  `u16`, the range it always had; the four-way method classification
+  `u16`, the range it always had; the five-way method classification
   carries every frozen tag (the revision 2 enumeration named four
   head-bound methods under the wrong tags, and called the non-mutating
   `candidate.*` methods mutating), and the stage checker compares it
@@ -352,4 +359,10 @@ capped at close.
   the stage checker reads the capsule module, the server's capsule
   binding call, and the threat-matrix test names, and applies the
   register-first lane rule to the FAIL rounds until a same-lane
-  re-review PASS supersedes them.
+  re-review PASS supersedes them. The first re-review round of the same
+  day found the section 3 order placing the budget before the bound
+  root while the server had always checked the root first: the budget
+  is check 6 after every binding check, pinned by the precedence test
+  and the T15 matrix; the checker binds each `SESSION_*` variant to its
+  exact symbol and numeric pair, and the classification is named
+  five-way everywhere.

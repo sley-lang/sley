@@ -25,6 +25,7 @@ MATRICES = (
         "tests": [
             "handles_name_their_expected_root",
             "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root",
+            "binding_failures_precede_budget_exhaustion",
         ],
         "assertions": [
             "a handle expands under the session and root it names",
@@ -34,6 +35,7 @@ MATRICES = (
             "a pre-renewal handle naming the old root stays stale after renewal",
             "only a handle naming the new root resolves after renewal",
             "the closed head-bound set refuses branch reads under a stale session",
+            "an exhausted budget answers the stale bound root, not the budget failure",
         ],
     },
     {
@@ -74,7 +76,11 @@ MATRICES = (
 
 def commit() -> str:
     completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE, check=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        check=True,
     )
     return completed.stdout.strip()
 
@@ -91,7 +97,9 @@ def run_tests(filters: list[str]) -> None:
     failures = [
         line
         for line in completed.stdout.splitlines()
-        if line.startswith("test result: FAILED") or "FAILED" in line and line.startswith("test ")
+        if line.startswith("test result: FAILED")
+        or "FAILED" in line
+        and line.startswith("test ")
     ]
     if completed.returncode != 0 or failures:
         print(completed.stdout[-4000:])
@@ -117,7 +125,15 @@ def main() -> int:
         (directory / "matrix.json").write_text(
             json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-        print(json.dumps({"threat": matrix["threat"], "result": "PASS", "tests": len(matrix["tests"])}))
+        print(
+            json.dumps(
+                {
+                    "threat": matrix["threat"],
+                    "result": "PASS",
+                    "tests": len(matrix["tests"]),
+                }
+            )
+        )
     return 0
 
 

@@ -142,6 +142,28 @@ P1-3, P2-2, P2-3, P3-2, P3-3. The item numbers are the machine
 summary's `p1_open`, `p2_open`, and `p3_open` positions, taken from each
 reviewer's emitted JSON in order.
 
+## Re-review round 1 (2026-09-05, pinned at `bf715f9`)
+
+All three lanes closed every prior item and each raised one new
+residual (logs `s20-330-{ariadne,nabu,vulcan}-rereview-2026-09-05.log`):
+
+- Ariadne FAIL, one P1: section 3 ordered the budget (5) before the
+  bound root (6) while the server checks the root inside
+  `session_check` before the budget, so an exhausted stale head-bound
+  request answers `SESSION_ROOT_ADVANCED`, not `PROTOCOL_LIMIT_EXCEEDED`.
+  Answer: the contract now says what the server does and always did,
+  every binding check precedes the budget (root is check 5, budget 6),
+  the precedence test proves the exhausted-and-stale case, and the T15
+  matrix records it.
+- Nabu FAIL, one P2 (the prior P2-4 residual): the checker verified the
+  eight symbols and the eight numerics independently, so two swapped
+  numerics passed. Answer: the checker parses `as_str` and `numeric`
+  and binds each variant to its exact pair; a swapped pair was injected
+  and caught before commit.
+- Vulcan FAIL, one P3: the classification is five-way in the body and
+  checker but "four" in the ADR and the revision history. Answer: both
+  say five.
+
 ## Tier 2 handoff gate (2026-09-03, at `a0c9a70`)
 
 | Gate | Result |
@@ -160,4 +182,5 @@ boundary. Council reviews remain pending; the package is not complete.
 - contract draft revision 1: `c018cc8` (guard fix `3f598b4`).
 - contract draft revision 2: the S20-330 revision 2 commit on `main`
   (see `git log --oneline`, closeout revision 2 for the file set).
-- contract draft revision 3: the commit that adds this section.
+- contract draft revision 3: `34ea7f0`; the re-review round 1 residuals
+  land in the commit that adds the round 1 section.

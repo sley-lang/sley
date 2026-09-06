@@ -1,0 +1,57 @@
+DISPATCH S20-330 Ariadne contract re-review
+handoff_id: handoff_1788664990939_227b40d212efd515fdd9
+attempt_id: attempt_1788664990939_c1644cfb93ceb254f1f8
+reviewed_at: 2026-09-05 EDT
+repo: /home/greyforge/sley2
+pinned_head: bf715f9c33d0a3235e01af8c670ce5b3ae46977d
+mode: read-only triage; this log is the sole permitted write
+
+Repository preflight
+- HEAD matched bf715f9.
+- Branch reported main...origin/main [ahead 540, behind 90].
+- Pre-existing unrelated untracked path: machineresearch/sley-2.0/reviews/s20-330-vulcan-rereview-2026-09-05.log.
+- No cargo, make, deploy, merge, or external action was run.
+
+S20_330_CONTRACT_REREVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":[],"p1":["Contract section 3 orders the work-budget check before the head-bound root check, but Server::dispatch calls session_check first, and SessionAuthority::check_session performs RootAdvanced inside that call before dispatch tests the budget. An exhausted stale head-bound request therefore answers SESSION_ROOT_ADVANCED instead of the specified PROTOCOL_LIMIT_EXCEEDED; the checker does not validate this precedence."],"p2":[],"p3":[],"notes":"All 19 prior Ariadne findings are closed at bf715f9, but one new freeze-blocking P1 remains: budget/root precedence differs between contract and server."}
+
+Human verdict
+FAIL. Every item from the 2026-09-04 Ariadne review is closed, but the bounded pass found one new P1 contract/implementation mismatch.
+
+Prior P0 items
+1. CLOSED — unknown-session liveness now precedes admission and budget; the budget follows binding checks (crates/sley-protocol/src/server.rs:594-615). SESSION_BINDING_INVALID is enumerated and excludes headless open (docs/spec/SESSION_HANDLE_PROFILE_V1.md:89-100,260-271); ERROR_CODES freezes rows 33000-33007 (docs/spec/ERROR_CODES_V1.md:249-267).
+2. CLOSED — the profile pins SMP1 revision 11, capsule revision 3, and STATE_ROOT authority (docs/spec/SESSION_HANDLE_PROFILE_V1.md:11-25); the checker reads each dependency's own anchored status line (scripts/check_session_handle_profile.py:268-284), and ERROR_CODES carries frozen per-code rows (docs/spec/ERROR_CODES_V1.md:249-267).
+3. CLOSED — ServerNonce is in the identity preimage and the cross-instance/restart consequences are explicit (docs/spec/SESSION_HANDLE_PROFILE_V1.md:42-69); implementation derives with the nonce and mints it per authority instance (crates/sley-protocol/src/session.rs:166-206).
+
+Prior P1 items
+1. CLOSED — all live-session methods enter session_check before dispatch, including renew and close (crates/sley-protocol/src/server.rs:609-625,663-687); close's binding checks are stated (docs/spec/SESSION_HANDLE_PROFILE_V1.md:115-117).
+2. CLOSED — section 3 gives a closed five-part classification with correct frozen tags (docs/spec/SESSION_HANDLE_PROFILE_V1.md:149-194), matching server head_bound (crates/sley-protocol/src/server.rs:758-783); the checker compares contract, server, registry tags, reserved tags, and SMP1 (scripts/check_session_handle_profile.py:171-237).
+3. CLOSED — workspace.create/exchange.import are sessionless only while head_binding fails; a headed repository returns SESSION_BINDING_INVALID (crates/sley-protocol/src/server.rs:569-590; docs/spec/SESSION_HANDLE_PROFILE_V1.md:119-127).
+4. CLOSED — handle position is defined over canonical ascending EntityId order, and the 65,535 inventory/u64-handle boundary is stated (docs/spec/SESSION_HANDLE_PROFILE_V1.md:196-222).
+5. CLOSED — kind is sourced from the S20-250 projection and bindings/kinds misalignment is documented as SESSION_BINDING_INVALID (docs/spec/SESSION_HANDLE_PROFILE_V1.md:224-227); the server obtains entity.kind().tag() and passes aligned arrays to expansion (crates/sley-protocol/src/server.rs:1110-1126).
+6. CLOSED — live opens are capped by negotiated max_sessions (crates/sley-protocol/src/session.rs:304-345), and remembered closes are FIFO-capped and removed (crates/sley-protocol/src/lib.rs:1418-1449); the bounded reclamation rule is normative (docs/spec/SESSION_HANDLE_PROFILE_V1.md:325-331).
+7. CLOSED — renew requires the body SessionId to equal the frame session and otherwise returns PROTOCOL_FRAME_INVALID (crates/sley-protocol/src/server.rs:665-671; docs/spec/SESSION_HANDLE_PROFILE_V1.md:102-108).
+
+Prior P2 items
+1. CLOSED — renewal failures include epoch mismatch, and epoch change is explicitly terminal with fresh open as the only recovery (docs/spec/SESSION_HANDLE_PROFILE_V1.md:102-109).
+2. CLOSED — the identity is explicitly the session name, remains issuance-root-derived after renew, and capsule verifiers read current root from provenance (docs/spec/SESSION_HANDLE_PROFILE_V1.md:64-69,234-245).
+3. CLOSED — checker status handling permits implementation beside FROZEN and requires same-lane PASS for frozen/complete status (scripts/check_session_handle_profile.py:28-39,362-404); revision parsing is no longer tied to a literal draft marker (scripts/check_session_handle_profile.py:268-270).
+4. CLOSED — cursor handles are explicitly excluded and assigned to query.continue after-state (docs/spec/SESSION_HANDLE_PROFILE_V1.md:230-232,310-320).
+5. CLOSED — T47 now specifies the achievable one-server repository-workspace swap and authority-level epoch shape (docs/spec/SESSION_HANDLE_PROFILE_V1.md:286-291).
+
+Prior P3 items
+1. CLOSED — execute (600) is inside the normative head-bound enumeration, with no floating revision narration (docs/spec/SESSION_HANDLE_PROFILE_V1.md:157-162).
+2. CLOSED — contract and dependency revision regexes are anchored to each document's Status line (scripts/check_session_handle_profile.py:268-284).
+3. CLOSED — renewals and MAX_SESSION_RENEWALS are u16 with checked overflow (docs/spec/SESSION_HANDLE_PROFILE_V1.md:73-82; crates/sley-protocol/src/session.rs:145-154,376-381).
+4. CLOSED — S20-330 pins SMP1 revision 11 (docs/spec/SESSION_HANDLE_PROFILE_V1.md:11-20), SMP1's own status is revision 11 (docs/spec/SMP1.md:1-6), and the campaign records the revision-11 update (machineresearch/sley-2.0/s20-330-negotiated-session-campaign-2026-09-03.md:99-112).
+
+New finding
+P1-1 NOT CLOSED — docs/spec/SESSION_HANDLE_PROFILE_V1.md:137-147 orders admission, workspace, epoch, budget, then head-bound root. In code, crates/sley-protocol/src/server.rs:609-615 invokes session_check before testing budget; crates/sley-protocol/src/session.rs:427-439 performs the head-bound root comparison within session_check. Thus an exhausted session with an advanced root receives SESSION_ROOT_ADVANCED before PROTOCOL_LIMIT_EXCEEDED, contrary to contract item 5 before item 6. The existing evidence only exercises workspace mismatch versus exhausted budget (crates/sley-protocol/src/server_tests.rs:1448-1468), not root mismatch versus exhausted budget. scripts/check_session_handle_profile.py checks tables and markers but not this call-order relationship.
+
+Validation
+- Tier: none, by explicit instruction.
+- Read-only evidence: git status/log/show/blame and targeted file reads at bf715f9.
+- Inspected prior review, revision-3 contract and ADR, checker, session/server/registry paths, SMP1 status/method tables, ERROR_CODES rows, T15/T47/T56 matrices, campaign revision sections, and machine-summary Ariadne lists.
+- cargo/make/V1: skipped by instruction.
+
+blockers: one new P1 blocks PASS/freeze readiness; no access blocker.
+return_to: orchestrator; align contract item 5/6 with the intended server precedence and add a root-advanced-plus-exhausted regression assertion, then re-review.

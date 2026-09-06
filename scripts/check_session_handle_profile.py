@@ -61,7 +61,7 @@ CODES = (
 )
 # Contract section 3 classifies every frozen method tag into exactly one
 # list; the anchors are the list headings.
-HEAD_BOUND_ANCHOR = "Head-bound methods (checked for the bound root, item 6):"
+HEAD_BOUND_ANCHOR = "Head-bound methods (checked for the bound root, item 5):"
 CLASS_ANCHORS = (
     HEAD_BOUND_ANCHOR,
     "Handle expansion (checked for the bound root by its own comparison,",
@@ -386,12 +386,27 @@ def main() -> int:
             if marker not in capsule:
                 problems.append(f"capsule-marker:{marker}")
         check_method_classification(spec, server, registry, smp1, problems)
-        for symbol in [symbol for _, symbol in CODES]:
-            if symbol not in module:
-                problems.append(f"module-code:{symbol}")
-        for numeric, _ in CODES:
-            if f"33_{numeric % 1000:03d}" not in module:
-                problems.append(f"module-numeric:{numeric}")
+        # Each variant is bound to its exact symbol and numeric pair, so two
+        # swapped numerics fail even though every symbol and every literal
+        # is still present.
+        symbols = dict(
+            re.findall(
+                r'Self::(\w+) => "(SESSION_\w+)"',
+                rust_block(module, "pub const fn as_str(self) -> &'static str {"),
+            )
+        )
+        numerics = {
+            name: int(value.replace("_", ""))
+            for name, value in re.findall(
+                r"Self::(\w+) => (33_\d{3}),",
+                rust_block(module, "pub const fn numeric(self) -> u32 {"),
+            )
+        }
+        pairs = {(numerics.get(name), symbol) for name, symbol in symbols.items()}
+        if len(symbols) != len(CODES) or len(numerics) != len(CODES):
+            problems.append("module-codes:variant-count")
+        for pair in set(CODES) - pairs:
+            problems.append(f"module-code-pair:{pair[1]}:{pair[0]}")
         for marker in ID_MARKERS:
             if marker not in identifiers:
                 problems.append(f"id-marker:{marker}")

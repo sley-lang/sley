@@ -134,6 +134,12 @@ intentionally fail closed.
 ## Independent review
 
 Nabu architecture review, Ariadne contract review, and Vulcan surface
-review of 2026-09-04: FAIL with six P0s, closed by revision 2.
-Re-reviews pending. Sessions and verdicts are recorded here when they
-land.
+review of 2026-09-04: FAIL with six P0s, closed by revision 2; the 42
+P1, P2, and P3 items closed by revisions 2 and 3.
+
+Re-review round 1 (2026-09-05, pinned at `bf715f9`): Ariadne FAIL with
+one new P1 (budget before root in section 3 against the server's
+root-then-budget order), Nabu FAIL with one P2 (symbol and numeric
+checked independently), Vulcan FAIL with one P3 (four-way wording);
+every prior item closed in all three lanes. The three residuals are
+closed in the commit that records this round; round 2 is pending.

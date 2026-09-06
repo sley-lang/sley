@@ -1461,8 +1461,17 @@ fn binding_failures_precede_budget_exhaustion() {
     std::fs::rename(foreign_temp.child("repo"), &harness.repository).unwrap();
     let mismatch = harness.fail(Method::WorkspaceOpen, Vec::new());
     assert_eq!(mismatch.symbol, "SESSION_WORKSPACE_MISMATCH");
-    // Exhausted and validly bound: the budget failure answers.
     std::fs::rename(&harness.repository, foreign_temp.child("repo")).unwrap();
+    // Exhausted and bound to a root the head has left behind: the stale
+    // bound root answers on a head-bound method, not the budget (contract
+    // section 3, check 5 before check 6).
+    let (advanced_temp, _advanced_transactions, _advanced_genesis) =
+        genesis_in_workspace("smp1-330-budget-advance", dependency_free_bodies(), &[], 1);
+    std::fs::rename(advanced_temp.child("repo"), &harness.repository).unwrap();
+    let stale = harness.fail(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+    std::fs::rename(&harness.repository, advanced_temp.child("repo")).unwrap();
+    // Exhausted and validly bound: the budget failure answers.
     std::fs::rename(parked.child("repo"), &harness.repository).unwrap();
     let exhausted = harness.fail(Method::WorkspaceOpen, Vec::new());
     assert_eq!(exhausted.code, ProtocolErrorCode::LimitExceeded.numeric());

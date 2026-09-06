@@ -1,0 +1,47 @@
+DISPATCH S20-330 Nabu architecture re-review 2026-09-05
+
+Repository: /home/greyforge/sley2
+Pinned HEAD: bf715f9c33d0a3235e01af8c670ce5b3ae46977d
+Package commits reviewed: 34ea7f0b8c5d9fccc0eeff434ba66949c6d18538, d26b68645a98754904dc335ec72ce914e0580b52
+Mode: bounded read-only re-review; this log is the sole permitted write. No cargo or make.
+Confidence: high.
+
+Verdict: FAIL — 16 of 17 prior Nabu items are closed. Nabu P2-4 remains open because the checker confirms the eight symbols and eight numeric literals independently, not each symbol-to-numeric mapping. The implementation is currently correct, but swapping two numeric match arms in SessionErrorCode::numeric would still leave every required symbol and numeric substring present and the checker would pass.
+
+Prior-item disposition
+
+P0-1 CLOSED — the sessionless genesis branch now refuses workspace.create/exchange.import once head_binding succeeds, before dispatch: crates/sley-protocol/src/server.rs:569-589; contract: docs/spec/SESSION_HANDLE_PROFILE_V1.md:119-127.
+
+P1-1 CLOSED — authority liveness and remembered-close handling precede registry admission, with budget after session checking: crates/sley-protocol/src/server.rs:594-624; contract order: docs/spec/SESSION_HANDLE_PROFILE_V1.md:131-147.
+P1-2 CLOSED — the closed head-bound list is explicit and agrees with the server table: docs/spec/SESSION_HANDLE_PROFILE_V1.md:149-155; crates/sley-protocol/src/server.rs:758-783. The checker parses Method::tag, reserved tags, SMP1 rows, and the head_bound table: scripts/check_session_handle_profile.py:171-237.
+P1-3 CLOSED — the contract now says the identity names the session, retains the issuance root after renewal, and requires the capsule provenance for the live root: docs/spec/SESSION_HANDLE_PROFILE_V1.md:64-69,236-245.
+P1-4 CLOSED — max_sessions is negotiated and enforced at open, with bounded remembered closes: crates/sley-protocol/src/session.rs:304-343; crates/sley-protocol/src/lib.rs:1331-1344,1418-1450; contract: docs/spec/SESSION_HANDLE_PROFILE_V1.md:325-331.
+P1-5 CLOSED — T47 is restated as the achievable one-server repository-workspace change, with epoch checked at authority level: docs/spec/SESSION_HANDLE_PROFILE_V1.md:286-291; server exercise: crates/sley-protocol/src/server_tests.rs:1262-1278.
+P1-6 CLOSED — frozen status may coexist with implementation, and frozen/complete accepts either the original review field or the same-lane PASS field: scripts/check_session_handle_profile.py:368-417.
+P1-7 CLOSED — the checker now reads server.rs, RequestRegistry, context_capsule.rs, SMP1, and server tests, checks the head-bound partition, capsule markers/call, and evidence test-name existence: scripts/check_session_handle_profile.py:17-26,171-237,316-332,372-388.
+
+P2-1 CLOSED — renew and close pass through session_check before dispatch, and renew validates the body identity: crates/sley-protocol/src/server.rs:609-624,665-687,796-801; contract: docs/spec/SESSION_HANDLE_PROFILE_V1.md:102-117.
+P2-2 CLOSED — cross-epoch renewal is explicitly terminal and requires a fresh open: docs/spec/SESSION_HANDLE_PROFILE_V1.md:102-109.
+P2-3 CLOSED — ERROR_CODES_V1 has one frozen row per code and the checker requires each exact row: docs/spec/ERROR_CODES_V1.md:249-267; scripts/check_session_handle_profile.py:302-313.
+P2-4 NOT CLOSED — scripts/check_session_handle_profile.py:389-394 searches all symbols and all numeric literals in separate loops. It never asserts the pairings shown in crates/sley-protocol/src/session.rs:55-79. The current mapping is correct, but exchanging (for example) Unknown=>33_001 and WorkspaceMismatch=>33_000 would survive the checker, which is the original failure mode. Bind each SessionErrorCode variant to both its exact as_str symbol and exact numeric arm, or add an exhaustive executable mapping test that the stage checker itself binds.
+P2-5 CLOSED — the profile pins SMP1 revision 11, the checker anchors both authorities' own status lines, and SMP1's status is revision 11: docs/spec/SESSION_HANDLE_PROFILE_V1.md:12-21; scripts/check_session_handle_profile.py:268-284; docs/spec/SMP1.md:3-6.
+
+P3-1 CLOSED — bindings/kinds misalignment is explicitly documented as SESSION_BINDING_INVALID: docs/spec/SESSION_HANDLE_PROFILE_V1.md:224-228,265-271.
+P3-2 CLOSED — duplicate identity is expressly unreachable by construction and retained only as defense in depth: docs/spec/SESSION_HANDLE_PROFILE_V1.md:93-100.
+P3-3 CLOSED — capsule foreign-provenance refusal is expressly authority/unit-level rather than reachable on the server wire path: docs/spec/SESSION_HANDLE_PROFILE_V1.md:236-245; authority binding: crates/sley-protocol/src/session.rs:247-281.
+P3-4 CLOSED — the contract revision regex is anchored to the Status line, while SMP1 and capsule use their own anchored status regexes: scripts/check_session_handle_profile.py:268-284.
+
+Validation actually performed
+
+- git status --short; git rev-parse HEAD; git log --oneline -6: HEAD matched bf715f9c33d0a3235e01af8c670ce5b3ae46977d. Two unrelated untracked peer review logs were present and untouched.
+- git show --stat for 34ea7f0 and d26b686; targeted git diff and git diff --check over the package change.
+- Targeted reads of the prior Nabu review, revision-3 profile/ADR/checker, session/server/registry/capsule sources, server tests, SMP1 status/method table, ERROR_CODES rows, T15/T47/T56 matrices, campaign revision sections, and machine-summary lane lists.
+- No cargo, make, checker execution, deployment, merge, provider action, or canon mutation.
+
+S20_330_ARCHITECTURE_REREVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":[],"p2":["Nabu P2-4 remains open: scripts/check_session_handle_profile.py:389-394 checks the eight SESSION_* symbols and eight numeric literals independently, so swapping two SessionErrorCode::numeric mappings in crates/sley-protocol/src/session.rs:69-79 still passes; bind each variant to its exact symbol and numeric"],"p3":[],"notes":"High confidence. 16/17 prior items closed at bf715f9; current mappings are correct, but the stage checker still does not prevent symbol-to-numeric drift."}
+
+status: complete
+findings: FAIL; one prior P2 remains open; no additional finding needed to decide the verdict.
+validation: bounded read-only git/file inspection at bf715f9; no cargo or make; this log is the only write.
+blockers: Nabu P2-4 blocks PASS/freeze until exact symbol-to-numeric pairings are checker-bound.
+return_to: orchestrator

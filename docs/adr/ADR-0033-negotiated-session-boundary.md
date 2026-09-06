@@ -51,11 +51,13 @@ answer, submitted for re-review.
    S20-420/430 boundary, and threat T56 tracks it.
 3. **Every request is checked against the binding in true precedence.**
    Frame validity, remembered close, live existence, request-identity
-   admission, workspace, epoch, budget, then the bound root for the
-   closed head-bound set. `SESSION_UNKNOWN` is reachable on the wire;
-   the budget never masks a binding failure. Revision 3 classifies
-   every frozen method tag into exactly one of four lists (head-bound,
-   caller-named, mutating, session and transport) so head-boundness is
+   admission, workspace, epoch, the bound root for the closed head-bound
+   set, then the budget. `SESSION_UNKNOWN` is reachable on the wire;
+   the budget never masks a binding failure, the stale bound root
+   included. Revision 3 classifies
+   every frozen method tag into exactly one of five lists (head-bound,
+   handle expansion, caller-named, mutating, session and transport) so
+   head-boundness is
    read, never derived; the revision 2 enumeration had named four
    head-bound methods under the wrong tags and called the non-mutating
    `candidate.*` methods mutating.
@@ -79,7 +81,8 @@ answer, submitted for re-review.
    the server and registry implementation markers, the capsule module
    and the server's capsule binding call, cross-checks the SMP1
    revision 11 and capsule revision 3 pins against those documents'
-   own status lines, compares the four method lists against the
+   own status lines, binds each `SESSION_*` variant to its exact
+   symbol and numeric pair, compares the five method lists against the
    server dispatch table and the SMP1 method table, requires every
    threat-matrix test name to exist in the sources, applies the
    register-first lane rule to every FAIL round until a same-lane

@@ -6,15 +6,17 @@
     "unknown past the bound root inventory",
     "a pre-renewal handle naming the old root stays stale after renewal",
     "only a handle naming the new root resolves after renewal",
-    "the closed head-bound set refuses branch reads under a stale session"
+    "the closed head-bound set refuses branch reads under a stale session",
+    "an exhausted budget answers the stale bound root, not the budget failure"
   ],
-  "commit": "ec90b35887a2529428118801992092a7fe57378a",
+  "commit": "bf715f9c33d0a3235e01af8c670ce5b3ae46977d",
   "contract": "s20-330-session-handle-profile-v1",
   "expected_failure": "SESSION_STALE_HANDLE",
   "result": "PASS",
   "tests": [
     "handles_name_their_expected_root",
-    "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root"
+    "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root",
+    "binding_failures_precede_budget_exhaustion"
   ],
   "threat": "T15",
   "threat_name": "handle reuse across roots"
