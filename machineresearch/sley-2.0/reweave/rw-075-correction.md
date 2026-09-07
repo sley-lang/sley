@@ -282,3 +282,72 @@ defect in the repair).
   through Sley (`run_assembly(b"SLEYSFP1", 0x42)` and
   `run_assembly(b"SLEYSFP2", 0x41)`), each matching its own reference and
   differing from the honest digest.
+
+## 11. Round-12 plan (premium FAIL repairs, verified inputs only)
+
+Premium delta `reviews/reweave-rw075-premium-r1-2026-09-06.log` at
+`6c3d5df` holds the repair order. Verified in-tree inputs (no fix yet):
+
+- AR-02: canonical identity is single-shot `BLAKE3(domain || preimage)`
+  (`sley-id/src/lib.rs` `digest`); `MAX_FINGERPRINT_PREIMAGE_BYTES` is
+  67_108_864 (`sley-ssmc/src/fingerprint.rs:21`) against
+  `RAW_HASH_MAX_BYTES` 1_048_576 (`sley-vm/src/raw_hash.rs:72`), so a
+  compiler preimage may legally exceed the primitive bound 64x and the
+  `SLEYCHNK1` hash-of-chunks construction cannot carry canonical
+  identity (premium calculation: full `b2feb6...4f54e9` vs chunked
+  `0bc370...4582`, unequal). Repair direction: enforceable 1 MiB
+  bootstrap-profile bound plus measured evidence that every
+  bootstrap-required preimage fits with margin plus the existing typed
+  over-bound refusal (`Err(Index, 2)`); retire `SLEYCHNK1` as a
+  canonical construction (typed refusal replaces it; streaming stays an
+  explicit future gap, never a silent redefinition). The unbound
+  amendment (prose rule without JSON digest change) is resolved by the
+  removal: no normative rule lives in prose alone afterward.
+- AR-03: `ExecutionPackage` already carries full inventories
+  (`exec_package.rs:210`: constants, type_definitions, exact-row
+  imports, globals, contracts, entry, epoch, root). The authority
+  (`admission_authority.rs:122`) compares only image bytes plus gate
+  counts/fingerprints. Repair: compare package.constants against
+  closure.constants, package.type_definitions against closure.types,
+  package full import rows against closure.adapters, package
+  globals/contracts/entry/epoch/root against the closure, before
+  minting; no receipt on any mismatch.
+- AR-07: `admit_v2_package` unconditionally calls
+  `judge_bootstrap_profile` plus `lower_function`
+  (`admission_authority.rs:131/:144`); the RW-080 contract §1.4
+  repeats the reference-lowering procedure for the driver. Repair:
+  split structural verification (digest equality, binding checks —
+  permanent native mechanics, home of the AR-03 comparisons) from
+  semantic judgment (native seed path now, declared as C0 seed; typed
+  Sley-evidence ingress reserved for post-C1 with no minting path
+  until C1 exists); confine native re-lowering to C0/oracle evidence
+  in the contract.
+- AR-08: one shared `judge_bootstrap_profile` with no version
+  selector (`bootstrap.rs:283`; input struct `bootstrap.rs:73` carries
+  no profile version) serves both v1 and v2 through one
+  `resolve_bridge_entry` that admits `RHW1` (`extended.rs:304`).
+  Repair: version selector on the gate input (v1 admits exactly
+  B2V1/V2B1/PSH1, v2 admits plus RHW1); execution paths bound to
+  admitted packages, direct-execution closures explicitly
+  reference-only legacy boundary excluded from clean execution.
+- AR-06: `premium_verdict` (`check_r2_exit.py`) returns on the first
+  decisive file in sorted order, so an early FAIL masks a later PASS
+  (and prefix parsing is not exact full-line). Repair: latest-file
+  round semantics mirroring `latest_lane_verdict`, exact full-line
+  verdict parsing, review evidence bound to the reviewed
+  implementation revision.
+- AR-04: unify `rw-080-contract.md` on the successor digests
+  (profile v2 `fb2d8cc8...`, ABI v2 `bc564653...`, package v2
+  `f4958c5e...`; raw hash reachable, not "awaiting wiring"),
+  byte-level module and admission handoffs, chunk/framing ownership,
+  reserved verifier interface, Sley admission-evidence ingress.
+- AR-05: replay branching-traversal plus image-construction workloads
+  through the successor (v2) runner with Sley-side/host-side
+  attribution stated per metric; no host-owned algorithm reported as
+  Sley-owned.
+
+Order: AR-02 measurement first (it constrains the primitive every
+other repair builds on), then AR-03 + AR-08 + AR-06 (bounded code),
+then AR-07 + AR-04 (contract/design), then AR-05 evidence, then Nabu
+round-12 re-review and a fresh premium delta re-review. RW-080 stays
+BLOCKED throughout.
