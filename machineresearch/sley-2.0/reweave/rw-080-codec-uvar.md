@@ -97,7 +97,7 @@ prerequisite for leg wiring, not as license to invent it.
   mirrors `read_uvar` (`lib.rs:603`) exactly on both paths.
 - **Capacity restriction (AR-05).** B2V1 converts inputs up to the 1 MiB
   bridge cap; larger inputs refuse `SCB_RESOURCE_LIMIT` at conversion.
-  The epoch allows 67 MiB standalone. This is a documented restriction
+  The epoch allows 64 MiB (67,108,864 bytes) standalone. This is a documented restriction
   of the current slice, not a silent domain reduction: any input the
   slice accepts is decided exactly; inputs past 1 MiB are refused loudly
   with a distinct code, never misread.

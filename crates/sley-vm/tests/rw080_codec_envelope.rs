@@ -547,7 +547,7 @@ fn build_decode(a: &mut Asm, ns: Ns, fid: EntityId) -> (FunctionGraph, DecodeCon
 
     // Byte conversion: the whole input becomes a vector once, up front.
     // A bridge failure means the input exceeds the 1 MiB bridge cap, a
-    // documented capacity restriction against the 67 MiB epoch limit.
+    // documented capacity restriction against the 64 MiB (67,108,864 bytes) epoch limit.
     // Loop starts (pos0, value 0, shift 0u32, nread 0, vec, width).
     let z0 = a.cref(ns.o, b2v, c.c0, u64_type());
     let z1 = a.cref(ns.o, b2v, c.s0, u32_type());
@@ -2445,7 +2445,7 @@ fn build_encode(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
 //
 // Capacity restriction (AR-05, same class as slice 1): B2V1 converts
 // inputs up to the 1 MiB bridge cap; larger inputs refuse
-// `SCB_RESOURCE_LIMIT` at conversion. The epoch allows 67 MiB
+// `SCB_RESOURCE_LIMIT` at conversion. The epoch allows 64 MiB (67,108,864 bytes)
 // standalone. Any input this slice accepts is decided exactly; inputs
 // past 1 MiB are refused loudly with the same resource code, never
 // misread. RHW1 likewise refuses hash inputs past 1 MiB with the same
@@ -5732,7 +5732,7 @@ fn envelope_resource_observations_stay_within_codec_budgets() {
             "envelope instructions stay inside codec budget"
         );
     }
-    // Over-bridge-capacity input (format-valid per the 67 MiB epoch, but
+    // Over-bridge-capacity input (format-valid per the 64 MiB (67,108,864 bytes) epoch, but
     // past the admitted 1 MiB B2V1/RHW1 caps): resource refusal, never
     // truncation or a substitute digest. Payload 1_100_000 bytes keeps the
     // test allocation modest while clearing the cap. Under the test

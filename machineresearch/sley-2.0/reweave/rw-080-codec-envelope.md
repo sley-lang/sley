@@ -89,7 +89,7 @@ format-definition slice, not another audit.
 - **Capacity restriction (AR-05, same class as slice 1).** B2V1/RHW1
   refuse past the 1 MiB bridge caps with `SCB_RESOURCE_LIMIT` (typed)
   or execution `ResourceLimit` under tight test budgets; the epoch
-  allows 67 MiB standalone. Any input this slice accepts is decided
+  allows 64 MiB (67,108,864 bytes) standalone. Any input this slice accepts is decided
   exactly; over-cap inputs are refused loudly with resource semantics,
   never misread, truncated, or re-hashed under a changed domain. No
   chunk scheme, no substitute digest, no domain change, no silent
@@ -106,7 +106,7 @@ format-definition slice, not another audit.
   reaches a trap.
 - **Upfront `input.len > MAX` subsumed.** Reference checks
   `input.len > MAX_STANDALONE_BYTES` first (`lib.rs:431`); every
-  Sley-accepted input is below the 1 MiB bridge cap (far below 67 MiB),
+  Sley-accepted input is below the 1 MiB bridge cap (far below 64 MiB / 67,108,864 bytes),
   and over-cap inputs refuse resource-loudly. No dedicated Sley block;
   observation only, behavior coincides with the same resource code.
 
@@ -166,9 +166,9 @@ format-definition slice, not another audit.
   ≤ ~1 KiB for valid fixtures; capacity probes use opaque payloads to
   the measured value-units bound). No chunk scheme, no substitute
   digest, no domain change.
-- AR-05 (capacity): measured §8. Format validity (67 MiB epoch) is
+- AR-05 (capacity): measured §8. Format validity (64 MiB / 67,108,864-byte epoch) is
   distinguished from implementation/profile limits (1 MiB bridge/RHW1
-  caps; ~204 stored bytes under `codec_limits` value units). Per-byte
+  caps; 204 stored bytes demonstrated successful sample under `codec_limits` value units, not an exact maximum). Per-byte
   cost is dominated by the two persistent-vector copy loops (preimage
   plus payload), ~124 fuel/byte on the measured range.
 - AR-06 (readiness vs evidence): no technical condition blocks this
@@ -259,8 +259,9 @@ Under `codec_limits` (100K instructions / 1M fuel / 1M value units /
   stored-prefix pushes, V2B1, RHW1, 32 digest compares, and payload
   extraction (intermediate allocations counted in peak value units).
 - Supported envelope range under the admitted profile with these
-  test budgets: format-valid to 67 MiB per epoch; bridge/RHW1-typed to
-  1 MiB; Sley-executed to ~204 stored bytes (128 opaque payload) with
+  test budgets: format-valid to 64 MiB (67,108,864 bytes) per epoch; bridge/RHW1-typed to
+  1 MiB; Sley-executed 204 stored bytes (128 opaque payload) is the demonstrated successful sample
+  (not an exact maximum; larger may succeed with larger budgets or refuse on value units) with
   fixture-valid envelopes (76/79 B) far inside. Larger compiler
   preimages stay refused loudly (typed or execution resource), never
   truncated, re-hashed, or chunked.

@@ -532,7 +532,7 @@ fn build_decode(a: &mut Asm, ns: Ns, fid: EntityId) -> (FunctionGraph, DecodeCon
 
     // Byte conversion: the whole input becomes a vector once, up front.
     // A bridge failure means the input exceeds the 1 MiB bridge cap, a
-    // documented capacity restriction against the 67 MiB epoch limit.
+    // documented capacity restriction against the 64 MiB (67,108,864 bytes) epoch limit.
     // Loop starts (pos0, value 0, shift 0u32, nread 0, vec, width).
     let z0 = a.cref(ns.o, b2v, c.c0, u64_type());
     let z1 = a.cref(ns.o, b2v, c.s0, u32_type());
