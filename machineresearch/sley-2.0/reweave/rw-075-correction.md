@@ -197,8 +197,14 @@ BLOCKERs, preserved); Nabu round-10: FAIL (receipt-forgeability +
 executed-tamper BLOCKERs, preserved); Nabu round-11: PASS (final, no
 blockers, preserved in
 `reviews/reweave-rw075-nabu-r11-2026-09-06.log`); premium delta:
-REQUESTED (delta-only, same role that issued `R2_ARCHITECTURE_FAIL`);
-aggregate R2: NOT_READY (Nabu complete, premium pending — honest, not a
+FAIL (`R2_ARCHITECTURE_FAIL`, preserved in
+`reviews/reweave-rw075-premium-r1-2026-09-06.log` at `6c3d5df`: AR-01
+CLOSED; AR-02 through AR-06 PARTIALLY_CLOSED; new AR-07 BLOCKER (v2
+admission requires native semantic judgment/lowering per package) and
+new AR-08 HIGH (v1 authority not isolated from successor imports);
+gate-script weaknesses noted for `premium_verdict` supersession,
+`premium_verdict` prefix parsing, and R2 evidence binding);
+aggregate R2: NOT_READY (Nabu complete, premium FAIL — honest, not a
 defect in the repair).
 
 ## 8. Round-7 repairs (this delta, reviewable in round 8)

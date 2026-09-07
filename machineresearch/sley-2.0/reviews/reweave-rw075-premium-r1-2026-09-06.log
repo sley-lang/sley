@@ -1,0 +1,183 @@
+Premium architecture delta re-review: Sley REWEAVE R2 / RW-075
+Date: 2026-09-06
+Reviewer: Codex, premium architecture review lane
+Scope: review only, AR-01 through AR-06 and dependencies changed by their repairs.
+Confidence: high for the source-level findings and executed checks; compiler-scale performance remains unmeasured.
+
+The repairs do not yet establish the architecture boundary required for R2 exit. The v2 loaded runner is structurally prepared, RHW1 is callable, and receipt fields are sealed. However, canonical large-input hashing is still unavailable under the declared primitive, admission does not establish correspondence for the entire runtime-data/layout closure, and the only current v2 authority path requires native semantic checking/lowering. The RW-080 contract retains that dependency and obsolete v1 bindings. Nabu round-11 PASS accurately covers its final two repairs, but does not close these remaining delta findings.
+
+Reviewed identity and preservation
+
+Repository: /home/greyforge/sley2 (main).
+HEAD: 6c3d5df9230231962343a436be9b923ffc1a888f
+Git tree: 621280e267285791f949e4a6b0f8f9479d01dfae
+Worktree before review evidence: clean, no staged or unstaged changes.
+Tracked-content inventory: 959 files; SHA-256 229379df591047c53dbf80c13d0b2567c5ecb31907e99ecddf371111c4f4b786.
+Inventory method: git ls-files paths sorted lexically; each row is lowercase SHA-256 of current file bytes, two spaces, relative path, newline; hash the concatenated UTF-8 rows. Inventory retained at /tmp/sley-rw075-premium-review-target/reviewed-tracked-inventory.sha256.
+Delta base: e85b89c04da5ab112a6b4b2e884f6e46f1a819fc, preserving the reviewed RW-070 working state; RW-075 begins at 624f1c0.
+Nabu round 11 reviewed 3a72c91e46abfd51787fabfcd457ef3d728fc41f; the subsequent HEAD commit retains review/request records.
+
+The preserved original report is machineresearch/sley-2.0/reweave/rw-075-premium-fail.md. It explicitly says the original complete premium transcript was not found and reconstructs the six findings from the assignment. This review used that preserved record, the operator's complete finding definitions, and the cited original/current code; it does not claim to have recovered the absent transcript.
+
+All following digests were recomputed from repository file bytes:
+
+| Artifact | Relative location | Full SHA-256 |
+|---|---|---|
+| BOOTSTRAP_PROFILE_1 | conformance/bootstrap-profile/v1/profile.json | 4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630 |
+| Host charter | host-boundary.json | d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a |
+| HOST_ABI_V1 | conformance/host-abi/v1/host-abi.json | e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2 |
+| BOOTSTRAP_PROFILE_2 v2 | conformance/bootstrap-profile/v2/profile.json | fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459 |
+| HOST_ABI_V2 v2 | conformance/host-abi/v2/host-abi.json | bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5 |
+| EXEC_PACKAGE_V2 v2 | conformance/exec-package/v2/exec-package.json | f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94 |
+| RAW_BLAKE3_V1 | conformance/raw-hash/v1/raw-hash.json | 785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72 |
+
+The three original v1 artifacts were also compared directly with git-show bytes from e85b89c: all byte-identical. Both bootstrap accepted.json files hash to 878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad. New v2 record bytes have distinct identities. RAW_BLAKE3_V1 itself remains unchanged; no RAW_HASH_V2 implementation was found. Historical readiness and earlier FAIL rounds remain preserved.
+
+Finding dispositions
+
+| Original finding | Disposition |
+|---|---|
+| AR-01 | CLOSED |
+| AR-02 | PARTIALLY_CLOSED |
+| AR-03 | PARTIALLY_CLOSED |
+| AR-04 | PARTIALLY_CLOSED |
+| AR-05 | PARTIALLY_CLOSED |
+| AR-06 | PARTIALLY_CLOSED |
+
+AR-01: native semantic preparation was removed from the repaired v2 loaded-execution path.
+
+ExecutionPackage carries image bytes, constants, named type definitions/layouts, full import rows, globals, contracts, entry, epoch, root, runtime profile, admitted limits, and gate claims. PackageDigests/ApprovedExecutionPackage add section/package commitments, bootstrap profile, VM/ABI versions, cache identity, and the receipt. See crates/sley-vm/src/exec_package.rs:209, :272, :318, :872, :1239.
+
+The traced path is execute_approved_package_v2 -> package_digests_v2/verify_package_binding_v2 -> load_image -> hydrate_layouts -> hydrate_verified_definitions -> validate_package_inputs_structural -> execute_core_package -> run -> prepare_call/prepare_frame or execute_extended -> finish_package/observation_preimage_package/encode_termination_package. See execute.rs:707, :784, :817, :952, :1007, :1078, :1209, :1462, :1517, :1628; host_abi.rs:234; sley-check/src/lib.rs:268.
+
+Hydration checks definition count and duplicate identities, then indexes the supplied definitions. It does not call definition-shape checks, reference/cycle judgment, map-key traits, type/CFG/effect/contract checking, or lowering. Runtime RecordNew reads the supplied record's fields and aligns operands; it does not reconstruct a schema. ConstantRef reads the supplied constants. Runtime map key encoding/order and ValueHash are deterministic value operations; the map-key admissibility/trait routines are in lowering judgment, not this runner. The ConstValue codec encodes carried type and data independently (sley-mutate/src/codec.rs:2174); it is not a renamed TypeEnvironment semantic check. Input/output value hashing does not call require_hashable on this package path.
+
+Existing malformed/missing/changed layout and constant substitution tests were executed against the production package runner and refused as expected. Most are v1 EXEC_PACKAGE tests exercising the shared structural runner; v2-specific authority/package tests were also run. This establishes post-approval tamper refusal, not pre-admission correspondence. The latter remains AR-03. Compiler/runtime metadata is supplied in package fields, genuinely not reconstructed semantically during v2 execution. Closing this particular removal finding does not certify the supplied metadata's admission or the future clean-build authority path (AR-03/AR-07).
+
+AR-02: raw callability is repaired, but canonical hashing coverage is not.
+
+RHW1 is reachable in the v2 manifest, gate, shared resolver, surcharge path and execution arm. Its schema is actually Result<Bytes, BuiltinFailure(Index)>; Bytes32 is a length guarantee, not a distinct type. Scope is Unit, response length is enforced at 32, input limit is 1,048,576 bytes, and over-bound execution returns Index code 2 with adequate fuel. Unknown identity, adapter identity, ABI version, effectful row and wrong schemas fail closed. raw_hash_variant denies tags other than 1. Source: extended.rs:304, :432, :591; execute.rs:1649; raw_hash.rs:110, :126, :142. The raw function receives only &[u8], bounds it, and calls blake3::hash without domain interpretation, program/schema access, or semantic services. Hash surcharge is 1+ceil(len/1024), charged before bridge hashing, in addition to ordinary instruction fuel. Operand copies occur before this surcharge; this is not evidence that all copying cost is precharged.
+
+The real B2V1 -> PSH1 -> V2B1 -> RHW1 fixture unwraps each Result, joins separate domain/suffix inputs inside Sley, and executes both altered-input variants (rw075_raw_callable.rs:888, :1185). This is valid small assembly evidence. It executes through execute_function/reference lowering, not the v2 approved-package runner. The separate v2 package fixture demonstrates RHW1 on that runner.
+
+The eleven-domain fixture at rw075_raw_callable.rs:816/:849 constructs its preimages in Rust and hashes representative label strings. SLEYSFP1 and SLEYVHS1 are inner framing markers, not independent substitutes for the outer sley2 semantic/value domains. Strings such as "epoch||schema-hash||type||data" are not production serialization vectors. Therefore this test does not verify canonical preimage construction for eleven compiler identities. The genuine four-step fixture also does not establish the exact semantic-fingerprint serialization.
+
+The remaining BLOCKER is the large-preimage rule. sley-id/src/lib.rs:128 hashes domain || preimage directly. sley-ssmc/src/fingerprint.rs:21 allows preimages up to 67,108,864 bytes; hash_validated_value at :282 and finish_fingerprint retain the original canonical identity semantics. No general <=1 MiB bound on the compiler's required preimages is established. The statement that small R2 fixtures use <1 KiB is not such a bound.
+
+BOOTSTRAP_PROFILE_2.md:88 instead prescribes BLAKE3(SLEYCHNK1 || version || count || finalized chunk digests). This deterministic new construction is not BLAKE3 over the complete original preimage. The committed composition test compares it only with a second implementation of the same new construction, and performs chunk splitting/framing in Rust (rw075_raw_callable.rs:276/:301/:319). It neither implements streaming BLAKE3 nor preserves current canonical identity semantics.
+
+A separate review calculation using the current raw primitive confirmed this difference for a domain-prefixed large byte preimage:
+full-preimage BLAKE3: b2feb6141956fed0e5c25dd01acc6fe31ce59ad2587ee5442dfbee95ba4f54e9
+SLEYCHNK1 result:     0bc3707ed9bbcdf9c2e8c5687263e78e9b787bac67241b26576c50c420bd4582
+Equality: false; final frame length 81 bytes. This is a hash-semantics calculation, not a production admission exploit test. Its source/output are retained under /tmp/sley-rw075-premium-review-target/premium_hash_math.rs and premium_hash_math.log.
+
+The raw implementation also matched independent official unkeyed BLAKE3 expected vectors at lengths 0, 1 and 1024, using the official repeating 0..250 input rule and first 32 output bytes. Existing callable empty/abc and boundary tests passed. Primary vector source: https://raw.githubusercontent.com/BLAKE3-team/BLAKE3/master/test_vectors/test_vectors.json ; algorithm source: https://github.com/BLAKE3-team/BLAKE3-specs . This validates the primitive, not SLEYCHNK1 as canonical hashing.
+
+Required correction criterion: retain exact canonical full-preimage BLAKE3 semantics through a reviewed primitive capability, or establish an enforceable sufficient bound covering every required compiler obligation. A separate hash-of-chunks identity cannot silently replace existing domains. SHA-256 image/section/package integrity is an acceptable host artifact mechanic, distinct from semantic identity construction. The builder's receipt of those artifact digests still needs a concrete transport interface in AR-04; no semantic SHA service is required by this review.
+
+AR-03: post-seal binding is substantial; the pre-seal authority checks the wrong extent of closure.
+
+The receipt and gate report have non_exhaustive plus private fields/accessors. The v2 raw minter is crate-private and unexported. The source marker scans production call sites and currently finds only the permitted authority/module locations. This is reviewed in-crate discipline, not Rust visibility restricted exclusively to the authority module. Exact image commitment and single V2Closure derivation close the graph-A/gate versus graph-B/lowering split tested by the final repairs.
+
+However, admit_v2_package (admission_authority.rs:122) judges closure.types/constants/adapters and reference-lowers closure.globals/contracts as well. It then compares only reference.bytes with package.image_bytes, checks operation/bridge counts and function fingerprints, computes digests of the separately supplied package, and mints its receipt. There is no equality/provenance check binding package.constants to closure.constants, package.type_definitions to closure.types, or the package's full import/dependency rows to their judged counterparts. Package epoch/root are also independently supplied. approve_package_v2 compares import IDs, not rows against the authority's closure, and its report contains function fingerprints rather than complete runtime-data/type-definition commitments.
+
+This is a source-established admission correspondence defect: commitments to caller-supplied sections prove their later integrity, not that those sections were the ones judged. Constants and layouts are external to the image. ConstantRef retains an entity reference and later obtains its value from package.constants (extended.rs:1767); RecordNew consults hydrated package definitions (:1782). The current image-equality check cannot substitute for verifying these inventories. No new exploitation harness was constructed; the newly identified pre-admission gap is a static finding. Existing tests at rw075_exec_closure.rs:435/:456/:473/:490 use an already-approved original package and test subsequent substitution; they do not cover this missing comparison before minting.
+
+Verified post-seal bindings include image, constants, layouts, exact import-row digest, dependency section, entry/epoch/root, profile digest, VM/ABI versions, limits, package digest and receipt. Resource limits are encoded in the dependency section and must equal request limits; the EXEC_PACKAGE_V2 prose saying limits do not bind approval conflicts with implementation. Observations include package and section identities. Existing right-image/wrong-data, wrong-profile/limits/receipt/root/cache, copied gate evidence, rewired image, broader-runtime operation, and observation substitution tests pass within those limits of coverage.
+
+Required correction criterion: the separate admission authority must establish correspondence for the exact complete package, including all runtime metadata and dependency sections, before sealing. Preserve the structural execution path; do not repair this by adding native semantic checks to execute_approved_package_v2.
+
+AR-04: the contract has useful module decomposition but is not an acceptable current bootstrap contract.
+
+rw-080-contract.md gives named entries, broad input/output shapes, ownership, dependencies, error families, scaffold/algorithm distinctions and oracle comparisons for codec, checker/test planner, lowerer/package builder, and build driver. It defines S to include objects, runtime data/layouts and construction provenance. C0's first assembly and seed production of C1 are appropriately separated from later compiler ownership. Its anti-copy and changed-input/rejection requirements are useful.
+
+The actual file still selects BOOTSTRAP_PROFILE_1 at :29/:96, EXEC_PACKAGE_V1 at :87, and the v1 profile/ABI/package digests in S at :176. The raw hash is still described as awaiting RW-080 wiring. These contradict the current successor records, so the construction owner has no single current dependency contract.
+
+Section 1.4 (:126) requires the driver to re-lower judged graphs with the reference lowerer before any package admission; its reference is the native path, and the current implementation is the mandatory native authority described in AR-07. Merely labeling this authority/oracle work does not remove semantic work from C1->C2/C2->C3. Section 4 prohibits native lowering/package answers after C1, leaving a substantive contradiction.
+
+CanonicalObject, LoweredModel, BuildManifest and BuiltToolchain remain prose-level shapes without a concrete canonical schema/entry-ID binding. The reserved Witness section at :151 states ownership but supplies no canonical entry/input/output/error interface. Structural loader/executor and process/file recorders are listed as host primitives without distinguishing external staging from Sley-callable imports; the admitted registry has only B2V1/V2B1/PSH1/RHW1. There is no specified Sley-produced admission evidence ingress into the sealed authority objects. These are interface/ownership decisions required before construction, not a demand to implement RW-080 during R2.
+
+Required correction criterion: unify the contract on the successor dependencies; define byte-level module and admission handoffs, chunk/framing ownership and reserved verifier interface; confine native semantic reference work to C0 or independent non-prerequisite oracle evidence. No hidden seed fallback, cached final image, copied build result, or native semantic image construction is acceptable.
+
+AR-05: measured fixtures do not demonstrate the claimed compiler-scale algorithms.
+
+The executed figures reproduce, but their interpretation must be narrowed:
+
+| Workload | Observed | Algorithm actually exercised |
+|---|---|---|
+| Branching queue | BFS [0,1,2,3], 10 instructions, 15 fuel, peak 228 | Rust VecDeque/BTreeSet/adjacency loop owns traversal, sorting, visited state and enqueue; Sley evaluates NOT/AND for each edge. Metrics count one of two executions per edge; printed steps=5. |
+| Real image emission | 328 bytes, 3 blocks, both branches execute | Rust creates graphs and native lower_function emits the image twice. Sley executes the resulting image; it does not build that image from structures. |
+| Mixed workload | 5 instructions, 9 fuel, peak 228, 356 counted copied bytes | Rust sequences separate packages. The emission step is BoolAnd execution; raw over-bound refusal is a direct Rust helper call. This is not one Sley compiler pipeline. |
+
+Evidence: rw075_hydration_workloads.rs:478, :557, :791. These tests still use v1 package APIs. The correction's v2 RHW1 fixture and genuine four-step assembly do not replay an equivalent branching compiler/image-building pipeline through v2.
+
+PSH1 permits one element type per inventory. A byte-oriented push row can coexist with map-indexed work queues and explicit-stack algorithms, so this restriction alone is not a demonstrated missing semantic capability. Full-vector cloning in push/set/map operations creates a real scaling risk; current fuel counts and the synthetic copied-bytes metric do not measure that work. The 1 MiB bridge versus 64 MiB image boundary requires explicit chunked representation and mechanical transport; no honest larger Sley-built image workload demonstrates it here. The inherited chain/cycle DFS and byte-copy emission fixtures still pass, but do not replace branching traversal and structured image construction evidence.
+
+No final compiler benchmark is required. Ordinary algorithmic sufficiency remains plausible. Missing workload evidence and copy complexity are evidence/performance risks, not independently established semantic blockers. The concrete missing exact-hash capability is already AR-02. This finding cannot be closed by reporting host-owned algorithms as Sley-owned ones.
+
+AR-06: a separate aggregate exists and blocks today, but is not yet a sound current-evidence exit gate.
+
+check_r2_exit.py returned NOT_READY, exit 3, with premium pending and architecture_blocker_open=true. This is the expected gate predicate, not a failed implementation test. It correctly consumes successor record digests, distinguishes the historical readiness from advancement, preserves FAIL history, uses numeric Nabu rounds, and excludes S/C0/C1/C2/C3/RW-080+ from R2 prerequisites. Nabu final round 11 is selected correctly.
+
+Remaining gaps: RW-060 completion at :100 is summary status/hardcoded IDs plus file existence, not verification of the lifecycle evidence/driver identity. Current closure checks are frozen-record and source-marker checks; there is no revision-bound result for the affected production execution/admission fixtures. premium_verdict at :253 returns on the first decisive matching file, without examining later files, a reviewed revision, or all possible blocking verdicts. An earlier PASS can therefore mask a subsequent contrary review; a first FAIL also prevents later legitimate supersession. Its prefix regex is not exact full-line verdict parsing. architecture_blocker_open is derived only from historical FAIL existence and that premium result; there is no independently checked unresolved-finding state.
+
+Required correction criterion: bind review and behavioral evidence to the reviewed implementation, select the current premium review with fail-closed supersession, and consume actual lifecycle/closure evidence. Keep the correct stage separation and historical records. This review does not change or reconsider READY.
+
+New AR-07 — BLOCKER: the sealed v2 admission path currently requires native compiler semantics.
+
+admission_authority.rs:122/:132/:147 unconditionally invokes judge_bootstrap_profile and lower_function before minting. exec_package.rs:953 makes this the only external v2 receipt route, while BootstrapProfileReport is itself mintable only by the native gate. lib.rs publicly exports the authority. No current nonsemantic ingress accepts evidence produced by an approved Sley admission/checker program; the RW-080 contract instead tells its driver to repeat the reference-lowering procedure. This is a new mandatory dependency introduced while repairing receipt/image authority, beyond the original loaded-preparation defect.
+
+The defect is not that a seed/reference compiler remains in the repository, nor that modules share a crate. It is that obtaining authority for each newly built package currently depends on that compiler's semantic answers. With those entry points unavailable, the clean path cannot admit newly constructed C2/C3 packages; retaining them as prerequisite authority would make the intended seed-absence test fail to distinguish hidden native delegation. A contractually concrete Sley-owned admission/evidence handoff is required, with native minting reduced to authenticated/bound structural evidence handling and the initial seed/reference path explicitly excluded after C1.
+
+New AR-08 — HIGH: live v1 package authority is not isolated from successor imports.
+
+extended.rs:304 resolves RHW1 without receiving a selected host/profile version. The shared bootstrap gate now admits that fourth row. Public v1 admit_package/approve_package/verify_package_binding/execute_approved_package remain exported and bind the v1 digest/version, but do not enforce the original three-row allowlist (exec_package.rs:935/:977/:1173; execute.rs:632; lib.rs:24). Consequently the source-level v1 API contract does not restrict RHW1 to v2, despite preserved v1 JSON bytes. host_abi.rs:39 explicitly describes all live execution using the four-row resolver. The existing v1-receipt versus v2-approval negative tests do not test version-specific import isolation.
+
+This is a static successor-boundary finding, not a claim of an executed new substitution test. Require version-specific admission/execution allowlists or an explicit reference-only legacy boundary excluded from clean execution. Preserving old record bytes and making new digests different does not itself preserve old execution semantics.
+
+Additional successor and SLEYBC02 assessment
+
+The record-level v1/v2 split is real and the original byte identities are intact. Affected raw/package code was exercised in this review, inherited profile fixtures replayed under the current resolver, and RW-060 remained historical lifecycle evidence rather than being relabeled v2 package proof. The workload revalidation claim is overstated as described in AR-05.
+
+There is also an unbound semantic amendment: git diff 9574f8a..d628283 adds the SLEYCHNK1 rule to the authoritative profile/ABI markdown while the v2 JSON digests and versions stay unchanged. No old digest hashes different JSON bytes, but those digests do not commit the newly added normative hashing rule. The existing canonical sley-id domains have not been versioned or changed to that rule. This reinforces AR-02; neither prose changes nor v2 host-import availability can redefine their identities.
+
+No encode_sleybc02(high_level_program) service exists in the four admitted bridge entries. load_image/Cursor parse already-selected bytes/tags/registers/blocks/terminators structurally. exec_package section encoders frame carried representation data and do not lower graphs. lower::encode_function is native compiler assembly and is reachable from the current admission authority through lower_function; it is therefore not demonstrably reference-only for the proposed complete clean workflow, even though it is absent from the instruction bridge. Sley must own register assignment, block/layout/order/tag decisions and complete image/package construction after C1. Mechanical framing of a complete Sley-selected representation is permissible; native re-lowering to authorize it remains AR-07.
+
+Native remainder verdict, classified by responsibility and call reachability
+
+| Responsibility/functions | Class and disposition |
+|---|---|
+| Image cursor/prefix/length/tag decoding, package section framing, digest equality, import row equality, structural hydration, register/cell allocation and setup | A: intrinsic runtime mechanics. |
+| run, branch/switch/return dispatch, explicit call frames, read/write_register, instruction/fuel/value/output accounting, deterministic cancellation and termination | A: intrinsic runtime mechanics. Runtime contract dispatch exists in EXTENDED_V1 but is excluded by bootstrap admission; it is not compiler contract analysis. |
+| Checked integer/Boolean operations, tuple/vector/record/variant/cell/map operations, canonical value encoding/equality/order/ValueHash | B: deterministic value operations on already-admitted data; no definition/reference/trait analysis in this runner. |
+| B2V1/V2B1/PSH1, raw_blake3_256/RHW1 | B: frozen deterministic value/crypto primitives, subject to AR-02 and AR-08. |
+| SHA-256 image/section/package integrity; derive_cache_key from supplied fields; SLEYPOBS1 observation construction and hashing | A/B: structural artifact/runtime evidence mechanics, not an authority to select compiler closure or semantic preimages. |
+| TypeEnvironment::new, semantic definition/reference/cycle/trait judgment, judge_function_operations, CFG/effect/contract analyses, fingerprint_function, lower_function/encode_function, legacy execute_function/execute_loaded_image | D only when confined to seed/reference evidence and unavailable in clean stages. They are absent from repaired v2 execution but some are still mandatory through admission (next row). |
+| admit_v2_package -> native profile judgment and reference lowering | C in the current complete admission-to-execution workflow: compiler semantics are a prerequisite for execution authority. BLOCKER AR-07. |
+| Future Sley-produced receipt import/authentication, module schemas, chunked image transport and artifact-digest return interface | E: unresolved interfaces in the construction contract. No implementation of RW-080 demanded here; ownership and exact handoff must be settled. |
+| Cargo/rustc, Rust development tree, seed assemblers, test-only compilation helpers, native repository/mutation/query/protocol drivers and conformance oracles | D: required to be outside the clean self-build execution closure. Their presence for this review is not self-hosting evidence. |
+
+Not every currently required native responsibility fits A/B/D. The narrow v2 runner does, but its only admission route does not. The design therefore does not yet make the requested seed-absence test credible. A later environment must remove Cargo/rustc, seed compiler/tree and semantic service entry points, test helpers, undeclared caches, network retrieval and prebaked final images, while still admitting and executing genuinely newly Sley-built packages. AR-02 and AR-07 prevent concluding that this will work under the current boundary. No C1/C2/C3 or SH1/SH2 claim is established or implied.
+
+Validation and review evidence
+
+Validation tier: Tier 2, focused on RW-075 VM/package/admission/hash changes plus directly affected inherited profile/lifecycle dependencies. Full release gate was not run; this was not a restarted R2/full release audit.
+
+Commands used CARGO_TARGET_DIR=/tmp/sley-rw075-premium-review-target and --offline --locked:
+- cargo test -p sley-vm --test rw075_exec_closure --test rw075_hydration_workloads --test rw075_raw_callable -- --nocapture: 30 + 8 + 13 = 51 passed, zero failures.
+- cargo test -p sley-vm --lib bootstrap_closure:: -- --nocapture: 3 passed, one intentionally ignored fixture emitter; frozen fixture generation was not run.
+- cargo test -p sley-repo --test rw060_source_free_lifecycle: 15 passed, zero failures. Its expected-panic tests passed normally.
+- Eight v1/v2 profile/ABI/package freeze and marker scripts: all exit 0/PASS.
+- check_r2_exit.py: expected exit 3/NOT_READY, premium pending before this evidence was written.
+- Independent official vector comparison and canonical/chunked hash calculation: final run exit 0, three vector matches and unequal full/chunked digests.
+- git diff --exit-code and git status before evidence write: clean; HEAD/tree unchanged.
+
+No new malformed-package exploitation harness was generated. Existing production-path refusal tests were executed; remaining pre-admission and legacy-version defects were established by source inspection, with that evidence limitation stated above. Test passes do not establish properties their fixtures do not exercise.
+
+Review-tool repairs: the initial repository lookup included a nonexistent uppercase Sley path and was corrected; /home/greyforge/sley proved to be the unrelated v1 public checkout, with three existing dirty documents untouched. Worktree/path discovery located clean /home/greyforge/sley2. Large combined reads were truncated by output budgets; decision-bearing records/functions were reread in bounded ranges. One later read contained an accidental nonexistent filename; the intended codec/observation reads reran with exit 0. The independent hash helper initially copied 33-byte/overlong text from official XOF vectors instead of exactly 32 bytes for two cases, producing assertion exits 101. Both literals were corrected, all expected hex lengths checked at 64, and the complete intended comparison reran cleanly. Failed helper source/logs are preserved as premium_hash_math.attempt1.* and attempt2.* in the temporary review directory and are NON-AUTHORITATIVE; premium_hash_math.log is the successful rerun. None was a production test defect or hidden fallback.
+
+Authorities read: the operator's current review-only assignment and supplied AGENTS.md; Greyforge authority-loader SKILL.md; machineresearch/reference/pointer.md, operations-index.md, gold-standard-prompt.md and tiered-validation-policy.md; sley2 README.md and project-local RW-075 original-finding/correction/hash records, correction sections 7-10, successor profile/ABI/package/raw-hash/hydration contracts, RW-080 contract and actual gate/production/fixture sources; retained Nabu rounds 7-11, especially round 11. Council routing was not used and no specialist handoff is pending: additional agents were expressly prohibited.
+
+Only this premium-review evidence is written in the repository. No production/specification/governance/package-state file or Git history was modified. No agent, RW-080 construction, S/C1 artifact, aggregate READY update, R3 authorization, push or publication occurred. The historical BOOTSTRAP_READY TRUE remains preserved and superseded for advancement. This review does not authorize RW-080.
+
+VERDICT: R2_ARCHITECTURE_FAIL

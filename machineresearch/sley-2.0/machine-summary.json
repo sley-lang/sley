@@ -3447,7 +3447,7 @@
     "successor_package": "EXEC_PACKAGE_V2 f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
     "raw_primitive": "RAW_BLAKE3_V1 785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72 (unchanged, now reachable)",
     "nabu_round7": "FAIL (preserved)",
-    "premium_delta": "REQUESTED (delta-only, same role as R2_ARCHITECTURE_FAIL)",
+    "premium_delta": "FAIL (R2_ARCHITECTURE_FAIL, reviews/reweave-rw075-premium-r1-2026-09-06.log at 6c3d5df; AR-01 CLOSED, AR-02..AR-06 PARTIALLY_CLOSED, new AR-07 BLOCKER + AR-08 HIGH)",
     "rw080": "BLOCKED",
     "nabu_round8": "FAIL (preserved)",
     "nabu_round9": "FAIL (preserved)",
