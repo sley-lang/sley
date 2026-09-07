@@ -2849,7 +2849,7 @@
     "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
     "M6 release: the evidence chain is built and drift-checked (SBOM, provenance, reproducibility, finding register, GA acceptance, decision dossier). What remains is the operator's: the root license text, a second host attestation, and the release decision itself",
     "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down",
-    "Provenance/similarity audit of the Sley 1.2 source: not performed (S20-780 revision 3, Vulcan P1-2). Blocks GA acceptance of the clean-room claim; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
+    "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
   ],
   "open_risks": [
     "SSMC descriptor inputs are frozen, but complete production-epoch assembly awaits remaining descriptor-owning packages",
@@ -3067,7 +3067,7 @@
     "second_host_attestation": "multi-host reproducibility needs the gated laboratory lane",
     "release_decision": "the dossier derives BLOCKED; the decision and any publication are the operator's",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains",
-    "similarity_audit": "OPEN since 2026-09-05. No similarity or provenance audit of the Sley 1.2 source has been performed (S20-780 section 3). The boundary checker mechanizes sentinel, dependency, touchpoint, and register-hygiene facts only; wholesale-copy detection rests on review. Performing and recording the audit flips similarity_audit_performed without failing the gate."
+    "similarity_audit": "PERFORMED 2026-09-07, local implementation-session evidence (s20-780-similarity-audit-2026-09-07.md): no wholesale copying found; authorized touchpoint inventory unchanged. Independent (Argus/Council) review of the audit is still pending; the GA clean-room claim stays gated on that review. The boundary checker mechanizes sentinel, dependency, touchpoint, and register-hygiene facts only."
   },
   "epoch_migration_policy": {
     "status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
@@ -3154,7 +3154,9 @@
     "legacy_touchpoints": [
       "bench/legacy/runner.py (out of process)"
     ],
-    "similarity_audit_performed": false,
+    "similarity_audit_performed": true,
+    "similarity_audit_evidence": "machineresearch/sley-2.0/s20-780-similarity-audit-2026-09-07.md",
+    "similarity_audit_status": "PERFORMED_2026-09-07_LOCAL_EVIDENCE_NO_COPYING_FOUND_INDEPENDENT_REVIEW_PENDING",
     "new_stable_error_codes": 2,
     "new_error_code_range": "78000 through 78001",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
