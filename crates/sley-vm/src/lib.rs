@@ -20,7 +20,10 @@ pub mod host_abi;
 mod lower;
 pub mod raw_hash;
 
-pub use admission_authority::{AuthorityError, V2Closure, admit_v2_package};
+pub use admission_authority::{
+    AuthorityError, SleyAdmissionEvidence, V2Closure, admit_v2_package,
+    admit_v2_package_from_sley_evidence,
+};
 pub use exec_package::{
     AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
     BOOTSTRAP_PROFILE_2_DIGEST, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,

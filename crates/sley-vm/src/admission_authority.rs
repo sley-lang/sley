@@ -1,5 +1,25 @@
 //! Staged v2 admission authority (RW-075 correction, R2).
 //!
+//! C0 SEED PATH (declared): the semantic legs below — profile judgment
+//! and reference lowering — run the accepted native reference compiler.
+//! They are seed/oracle evidence, legitimate only before C1 exists, and
+//! are explicitly excluded from the clean stages after C1 (RW-080
+//! contract §1.4 and §4). What the seed verifies is graphs-to-image
+//! correspondence for one canonical closure bundle; what it can never
+//! supply after C1 is a semantic answer.
+//!
+//! PERMANENT MECHANICS: byte-hash equality, gate-claim binding, complete
+//! table correspondence, section digests, receipt minting discipline,
+//! and approval cross-checks. These are structural, carry no language
+//! judgment, and survive into the clean stages unchanged.
+//!
+//! SLEY INGRESS (reserved): post-C1 admission evidence produced by an
+//! approved Sley admission/checker program enters through
+//! [`SleyAdmissionEvidence`]. No constructor and no minting path exist
+//! until C1 exists: [`admit_v2_package_from_sley_evidence`] refuses with
+//! [`AuthorityError::SleyEvidenceUnavailable`]. Native minting is then
+//! reduced to authenticated/bound structural handling of that evidence.
+//!
 //! The host execution path verifies byte-hash equality but cannot prove a
 //! package image was lowered from the judged graphs. This staged authority
 //! is the exclusive v2 minter in reviewed paths: it takes one canonical
@@ -8,9 +28,7 @@
 //! for the gate and graph B for the lowering), judges, re-lowers,
 //! compares bytes exactly, verifies the package carries the gate's claims,
 //! and mints a v2 receipt only on exact match. A mismatch aborts with no
-//! receipt, so no approval or execution can follow. This is the exact
-//! procedure the Sley build driver replicates per the RW-080 contract
-//! §1.4; no toolchain graph, no C1, and no RW-080 construction live here.
+//! receipt, so no approval or execution can follow.
 //!
 //! Exclusivity is enforced in code: the raw v2 constructor
 //! (`exec_package::admit_package_v2`) is `pub(crate)`, and its public
@@ -96,6 +114,11 @@ pub enum AuthorityError {
     Digests(PackageError),
     /// Approval cross-check failed (never mint unapprovable receipts).
     ApprovalMismatch,
+    /// Sley-produced admission evidence is not yet available: no C1
+    /// exists, so the reserved ingress has no constructor and no
+    /// minting path. Post-C1 work fills this in; until then every
+    /// call refuses.
+    SleyEvidenceUnavailable,
 }
 
 impl core::fmt::Display for AuthorityError {
@@ -107,6 +130,7 @@ impl core::fmt::Display for AuthorityError {
             Self::ClaimsMismatch => "AUTHORITY_CLAIMS_MISMATCH",
             Self::Digests(_) => "AUTHORITY_DIGESTS",
             Self::ApprovalMismatch => "AUTHORITY_APPROVAL_MISMATCH",
+            Self::SleyEvidenceUnavailable => "AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE",
         };
         formatter.write_str(code)
     }
@@ -116,9 +140,15 @@ impl std::error::Error for AuthorityError {}
 
 /// Judge one closure, reference re-lower it, compare exactly, and mint.
 ///
-/// Both legs derive from `closure` internally; `package` supplies only the
-/// candidate bytes plus the claimed gate counts/fingerprints (verified,
-/// never trusted).
+/// C0 SEED PATH: the two semantic legs ([`judge_closure_for_seed`] and
+/// [`reference_lower_for_seed`]) run the accepted native reference
+/// compiler. They are seed/oracle evidence, legitimate only before C1
+/// exists. The structural legs ([`verify_structural_correspondence`],
+/// digests, minting, approval cross-check) are permanent mechanics.
+///
+/// Both semantic legs derive from `closure` internally; `package`
+/// supplies only the candidate bytes plus the claimed closure tables
+/// (verified, never trusted).
 ///
 /// # Errors
 ///
@@ -133,11 +163,32 @@ pub fn admit_v2_package(
         .iter()
         .find(|graph| graph.entity_id == closure.entry)
         .ok_or(AuthorityError::UnknownEntry)?;
-    let report = judge_bootstrap_profile(&BootstrapProfileInput {
+    // Semantic leg 1 (C0 seed): profile judgment.
+    let report = judge_closure_for_seed(closure, entry, &package.image_bytes)?;
+    // Semantic leg 2 (C0 seed): reference re-lowering.
+    let reference = reference_lower_for_seed(closure, entry)?;
+    // Permanent mechanics from here on: no language judgment.
+    verify_structural_correspondence(closure, package, &report, &reference.bytes)?;
+    let digests = package_digests_v2(package).map_err(AuthorityError::Digests)?;
+    let receipt = admit_package_v2(digests.package_digest);
+    approve_package_v2(package, &digests, receipt, &report)
+        .map_err(|_| AuthorityError::ApprovalMismatch)?;
+    Ok((digests, receipt, report))
+}
+
+/// Semantic leg 1, C0 seed only: judge the closure under the successor
+/// profile with the native gate. Excluded from clean stages after C1;
+/// post-C1 judgment evidence arrives via [`SleyAdmissionEvidence`].
+fn judge_closure_for_seed(
+    closure: &V2Closure<'_>,
+    entry: &FunctionGraph,
+    presented_image_bytes: &[u8],
+) -> Result<BootstrapProfileReport, AuthorityError> {
+    judge_bootstrap_profile(&BootstrapProfileInput {
         types: closure.types,
         schema_epoch: closure.schema_epoch,
         entry,
-        presented_image_bytes: &package.image_bytes,
+        presented_image_bytes,
         functions: closure.functions,
         parameters: closure.parameters,
         blocks: closure.blocks,
@@ -149,8 +200,18 @@ pub fn admit_v2_package(
         // its reports approve v2 packages only.
         profile_version: BootstrapProfileVersion::V2,
     })
-    .map_err(|_| AuthorityError::GateRefused)?;
-    let reference = lower_function(LoweringInput {
+    .map_err(|_| AuthorityError::GateRefused)
+}
+
+/// Semantic leg 2, C0 seed only: re-lower the judged graphs with the
+/// native reference lowerer. Excluded from clean stages after C1; the
+/// Sley build driver replicates this comparison with Sley-owned
+/// lowering evidence once C1 exists (RW-080 contract §1.4).
+fn reference_lower_for_seed(
+    closure: &V2Closure<'_>,
+    entry: &FunctionGraph,
+) -> Result<crate::lower::LoweredFunction, AuthorityError> {
+    lower_function(LoweringInput {
         types: closure.types,
         function: entry,
         parameters: closure.parameters,
@@ -165,8 +226,21 @@ pub fn admit_v2_package(
         contracts: closure.contracts,
         adapters: closure.adapters,
     })
-    .map_err(|_| AuthorityError::ReferenceMismatch)?;
-    if reference.bytes != package.image_bytes {
+    .map_err(|_| AuthorityError::ReferenceMismatch)
+}
+
+/// Permanent structural mechanics: reference-bytes equality, gate-claim
+/// binding, and complete-package correspondence. No language judgment:
+/// pure equality of bytes, counts, fingerprints, identities, and rows.
+/// Survives into the clean stages unchanged, whether the semantic legs
+/// above are seed-native (now) or Sley-evidenced (post-C1).
+fn verify_structural_correspondence(
+    closure: &V2Closure<'_>,
+    package: &ExecutionPackage,
+    report: &BootstrapProfileReport,
+    reference_bytes: &[u8],
+) -> Result<(), AuthorityError> {
+    if reference_bytes != package.image_bytes {
         return Err(AuthorityError::ReferenceMismatch);
     }
     if report.operation_count() != package.gate_operation_count
@@ -196,11 +270,58 @@ pub fn admit_v2_package(
     {
         return Err(AuthorityError::ClaimsMismatch);
     }
-    let digests = package_digests_v2(package).map_err(AuthorityError::Digests)?;
-    let receipt = admit_package_v2(digests.package_digest);
-    approve_package_v2(package, &digests, receipt, &report)
-        .map_err(|_| AuthorityError::ApprovalMismatch)?;
-    Ok((digests, receipt, report))
+    if report.admitted_image_digest() != &crate::host_abi::image_digest(&package.image_bytes) {
+        return Err(AuthorityError::ClaimsMismatch);
+    }
+    Ok(())
+}
+
+/// Reserved Sley-produced admission evidence (post-C1 ingress).
+///
+/// When C1 exists, an approved Sley admission/checker program produces
+/// this evidence: the judged closure identity, gate claims
+/// (operation/bridge counts, closure fingerprints), reference-image
+/// digest, and complete table digests (constants, type definitions,
+/// full import rows, globals, contracts) — all computed by Sley over
+/// Sley-built bytes. The authority then authenticates and bound-checks
+/// this evidence structurally (permanent mechanics) instead of running
+/// native semantics.
+///
+/// No constructor exists until C1 exists: the struct is sealed
+/// (`#[non_exhaustive]` plus private fields) and this module provides
+/// no constructor, so no caller can fabricate or complete one. This
+/// is an interface reservation, not a minting path.
+#[non_exhaustive]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SleyAdmissionEvidence {
+    /// BLAKE3 digest of the canonical judged-closure bytes (Sley-built).
+    closure_digest: [u8; 32],
+    /// Gate operation count claimed by the Sley admission program.
+    operation_count: u32,
+    /// Gate bridge-use count claimed by the Sley admission program.
+    bridge_uses: u32,
+    /// SHA-256 digest of the reference image bytes (Sley-lowered).
+    image_digest: [u8; 32],
+}
+
+/// Reserved post-C1 admission route: mint from Sley-produced evidence
+/// instead of native semantics.
+///
+/// Currently always refuses with
+/// [`AuthorityError::SleyEvidenceUnavailable`]: no C1 exists, so there
+/// is no evidence producer, no authenticator, and no minting path.
+/// Post-C1 work adds the producer, the structural authenticator, and
+/// the mint — without touching the native seed path above, which is
+/// then excluded from clean stages.
+///
+/// # Errors
+///
+/// Always [`AuthorityError::SleyEvidenceUnavailable`].
+pub fn admit_v2_package_from_sley_evidence(
+    _evidence: &SleyAdmissionEvidence,
+    _package: &ExecutionPackage,
+) -> Result<(PackageDigests, AdmissionReceipt, BootstrapProfileReport), AuthorityError> {
+    Err(AuthorityError::SleyEvidenceUnavailable)
 }
 
 /// Whether two identity-keyed table snapshots carry exactly the same
@@ -265,6 +386,23 @@ mod tests {
         assert_eq!(
             AuthorityError::ApprovalMismatch.to_string(),
             "AUTHORITY_APPROVAL_MISMATCH"
+        );
+        assert_eq!(
+            AuthorityError::SleyEvidenceUnavailable.to_string(),
+            "AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE"
+        );
+    }
+
+    #[test]
+    fn sley_evidence_ingress_has_no_minting_path() {
+        // The reserved post-C1 route refuses: no evidence producer, no
+        // authenticator, no receipt — by construction, not by test setup.
+        // `SleyAdmissionEvidence` is sealed with no constructor, so this
+        // test cannot even build one outside the module; the refusal is
+        // pinned at the type level. Here we pin the error code string.
+        assert_eq!(
+            AuthorityError::SleyEvidenceUnavailable.to_string(),
+            "AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE"
         );
     }
 }

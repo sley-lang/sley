@@ -1,5 +1,20 @@
 //! RW-075 AR-04 host-hydration probes and AR-05 compiler-scale workloads.
 //!
+//! HONEST ATTRIBUTION (AR-05 repair): nothing in this file is one Sley
+//! compiler pipeline, and no metric here measures Sley building an image
+//! from structures. Fixture construction, graph assembly, queue/visited
+//! state, sorting, enqueue decisions, and native reference lowering are
+//! Rust-owned (seed/reference). Sley executes admitted step programs on
+//! the approved-package path; instruction/fuel/peak figures are
+//! Sley-execution metrics for those steps only. The genuine Sley-owned
+//! traversal/emission replay through the successor runner lives in
+//! `bootstrap_closure::closure_workloads_replay_through_v2_with_attribution`
+//! (in-crate: worklist DFS, byte-emission loop, bounds-checked
+//! traversal, content hashing execute via `execute_approved_package_v2`
+//! with per-metric attribution). This file keeps the Rust-driven
+//! stepwise probes with their ownership stated, not re-reported as
+//! Sley-owned algorithms.
+//!
 //! AR-04: anti-shortcut probes showing the host cannot obtain or synthesize
 //! high-level semantic answers (`TypeEnvironment` judgments, constant
 //! validation, hashability, checker/lowering/image/candidate/dependency
@@ -7,12 +22,10 @@
 //! on the package path; behavioral probes show refusals without compiler
 //! artifacts.
 //!
-//! AR-05: branching work queue (fan-out 2, queue + visited + deterministic
-//! order + cycle), real image emission (lowered from independently supplied
-//! structures with nontrivial control flow, executed through the repaired
-//! boundary), and a mixed compiler-like workload (lookup + traversal +
-//! structured errors + byte emission + hashing) with measurements for the
-//! provisional early-R3 budget. `BOOTSTRAP_PROFILE_1` is NOT broadened.
+//! AR-05: Rust-driven stepwise probes (fan-out queue stepping, reference
+//! image emission executed through the boundary, sequenced mixed steps)
+//! with measurements for the provisional early-R3 budget, all with the
+//! ownership stated above. `BOOTSTRAP_PROFILE_1` is NOT broadened.
 
 use std::collections::{BTreeSet, VecDeque};
 use std::time::Instant;
@@ -477,6 +490,11 @@ fn enqueue_step_program() -> Program {
 
 #[test]
 fn branching_work_queue_with_fan_out_and_cycle() {
+    // Rust-driven stepwise probe (NOT a Sley-owned traversal): the Rust
+    // driver owns the queue, visited set, adjacency loop, sorting, and
+    // enqueue decisions; Sley executes one two-instruction enqueue
+    // predicate per edge. Metrics below are Sley step-execution totals
+    // (one execution per edge) plus driver-owned order/visited asserts.
     let started = Instant::now();
     let program = enqueue_step_program();
     let limits = generous_limits();
@@ -495,7 +513,10 @@ fn branching_work_queue_with_fan_out_and_cycle() {
         neighbors.sort_unstable();
         for neighbor in neighbors {
             let already = visited.contains(&neighbor);
-            let outcome = execute_approved_package(
+            // One counted Sley execution per edge: verdict and metrics
+            // come from the same outcome (the earlier probe executed
+            // twice per edge but counted one, understating totals).
+            let executed = execute_approved_package(
                 &package,
                 &approved,
                 ExecutionRequest {
@@ -503,22 +524,12 @@ fn branching_work_queue_with_fan_out_and_cycle() {
                     limits,
                 },
             )
-            .expect("enqueue step executes")
-            .termination;
+            .expect("enqueue step executes");
             step_executions += 1;
-            let outcome_ref = execute_approved_package(
-                &package,
-                &approved,
-                ExecutionRequest {
-                    inputs: vec![bool_value(already), bool_value(true)],
-                    limits,
-                },
-            )
-            .expect("repeat executes");
-            total_instructions += outcome_ref.instruction_count;
-            total_fuel += outcome_ref.fuel_used;
-            peak_units = peak_units.max(outcome_ref.peak_value_units);
-            let should_enqueue = match outcome {
+            total_instructions += executed.instruction_count;
+            total_fuel += executed.fuel_used;
+            peak_units = peak_units.max(executed.peak_value_units);
+            let should_enqueue = match executed.termination {
                 ExecutionTermination::Success(value) => match value.data {
                     ConstData::Bool(value) => value,
                     other => panic!("expected Bool, got {other:?}"),
@@ -538,7 +549,8 @@ fn branching_work_queue_with_fan_out_and_cycle() {
     assert_eq!(visited.len(), 4, "cycle 3->1 does not re-enqueue");
     assert!(step_executions >= 5, "fan-out edges each drive a VM step");
     eprintln!(
-        "RW075-A branching queue: order={order:?} steps={step_executions} \
+        "RW075-A branching queue (Rust-driven steps; Sley executes the enqueue predicate): \
+         order={order:?} steps={step_executions} \
          instructions={total_instructions} fuel={total_fuel} peak_units={peak_units} \
          elapsed_ms={}",
         started.elapsed().as_millis()
@@ -556,6 +568,12 @@ fn branching_work_queue_with_fan_out_and_cycle() {
 #[test]
 #[allow(clippy::too_many_lines)]
 fn real_image_emission_with_control_flow() {
+    // Reference emission (NOT Sley-built): Rust assembles the graphs and
+    // the native reference lowerer (`lower_function`, a seed compiler
+    // path) emits the image — twice, for determinism. Sley executes the
+    // resulting image through the repaired boundary; it does not build
+    // that image from structures. Byte/block figures measure reference
+    // output size; execution asserts cover both branches through Sley.
     use sley_ssmc::{CondBranchTerminator, TargetEdge};
     let started = Instant::now();
     let function = id(1);
@@ -769,7 +787,8 @@ fn real_image_emission_with_control_flow() {
         }
     }
     eprintln!(
-        "RW075-B image emission: bytes={} blocks={} digest={} elapsed_ms={}",
+        "RW075-B reference image emission (Rust-built graphs, native lowering; Sley executes): \
+         bytes={} blocks={} digest={} elapsed_ms={}",
         first.bytes.len(),
         loaded.entry.blocks.len(),
         hex_prefix(&digests.image_digest),
@@ -792,6 +811,15 @@ fn hex_prefix(digest: &[u8; 32]) -> String {
 
 #[test]
 fn mixed_compiler_like_workload_within_bounds() {
+    // Sequenced separate packages (NOT one Sley compiler pipeline):
+    // Rust sequences a lookup step, a traversal-predicate step, a
+    // BoolAnd emission-stand-in step, and a hashing step, each a
+    // separately approved package. `transport_bytes` sums package image
+    // sizes (Rust-measured transport, not Sley copy work); instruction/
+    // fuel/peak are summed Sley step-execution metrics. The emission
+    // step executes BoolAnd through Sley; raw over-bound refusal is a
+    // direct primitive call asserting the typed error, not pipeline
+    // output.
     let started = Instant::now();
     let limits = generous_limits();
     let lookup = constant_program();
@@ -806,7 +834,7 @@ fn mixed_compiler_like_workload_within_bounds() {
     let mut total_instructions = 0_u64;
     let mut total_fuel = 0_u64;
     let mut peak_units = 0_u64;
-    let mut copied_bytes = 0_usize;
+    let mut transport_bytes = 0_usize;
 
     let outcome = execute_approved_package(
         &lookup_package,
@@ -820,7 +848,7 @@ fn mixed_compiler_like_workload_within_bounds() {
     total_instructions += outcome.instruction_count;
     total_fuel += outcome.fuel_used;
     peak_units = peak_units.max(outcome.peak_value_units);
-    copied_bytes += lookup_package.image_bytes.len();
+    transport_bytes += lookup_package.image_bytes.len();
 
     let outcome = execute_approved_package(
         &traversal_package,
@@ -847,7 +875,7 @@ fn mixed_compiler_like_workload_within_bounds() {
     total_instructions += outcome.instruction_count;
     total_fuel += outcome.fuel_used;
     peak_units = peak_units.max(outcome.peak_value_units);
-    copied_bytes += emission_package.image_bytes.len();
+    transport_bytes += emission_package.image_bytes.len();
 
     let payload = ConstValue {
         value_type: TypeExpr::Bytes,
@@ -880,8 +908,9 @@ fn mixed_compiler_like_workload_within_bounds() {
         "structured error: over-bound hashing refuses instead of truncating"
     );
     eprintln!(
-        "RW075-C mixed workload: instructions={total_instructions} fuel={total_fuel} \
-         peak_units={peak_units} copied_bytes={copied_bytes} \
+        "RW075-C sequenced steps (Rust-sequenced separate packages; Sley executes each step): \
+         instructions={total_instructions} fuel={total_fuel} \
+         peak_units={peak_units} transport_bytes={transport_bytes} \
          emitted_bytes={} elapsed_ms={}",
         emission_package.image_bytes.len(),
         started.elapsed().as_millis()

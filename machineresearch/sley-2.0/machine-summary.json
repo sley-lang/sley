@@ -3455,6 +3455,7 @@
     "nabu_round11": "PASS_FINAL",
     "nabu_final": "PASS",
     "round12_implemented": "AR-06 (premium latest-round verdict) + AR-08 (gate version selector, report pin, approval pins) + AR-02 (v2 carried-Bytes bound, SLEYCHNK1 retired) + AR-03 (authority complete-package correspondence); sley-vm 176 passed, rw060 15 passed, checkers/markers PASS, fmt+clippy clean",
-    "round12_pending": "AR-07 + AR-04 (contract/design), AR-05 evidence, Nabu round-12, fresh premium delta re-review; RW-080 BLOCKED, R2 gate NOT_READY"
+    "round12_pending": "Nabu round-12 re-review, then fresh premium delta re-review; RW-080 BLOCKED, R2 gate NOT_READY",
+    "round12_part2": "AR-07 (C0-seed semantic legs vs permanent structural mechanics, reserved SleyAdmissionEvidence ingress with no minting path) + AR-04 (contract unified on successor digests, staged 1.4, 1.6 byte handoffs, retired chunk rule, verifier interface) + AR-05 (in-crate v2 replay with per-metric attribution; hydration probes narrowed to stated ownership); sley-vm 178 passed, rw060 15 passed, checkers/markers PASS, fmt+clippy clean"
   }
 }

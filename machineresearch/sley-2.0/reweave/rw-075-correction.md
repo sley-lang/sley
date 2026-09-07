@@ -408,3 +408,56 @@ suite property (AR-04).
   Nabu round-12 re-review, then a fresh premium delta re-review.
   RW-080 stays BLOCKED; the R2 gate stays NOT_READY until a new
   premium round passes.
+
+## 13. Round-12 part 2 (this delta: AR-07 + AR-04 + AR-05)
+
+- AR-07 (`sley-vm/src/admission_authority.rs`, `lib.rs`): the staged
+  authority is split into declared C0-seed semantic legs
+  (`judge_closure_for_seed`, `reference_lower_for_seed` — native gate
+  plus reference lowerer, confined to C0 and excluded from clean
+  stages) and permanent structural mechanics
+  (`verify_structural_correspondence` — byte equality, claim binding,
+  complete table correspondence, image-digest binding — plus digests,
+  minting, approval cross-check, all judgment-free). Reserved
+  post-C1 ingress: sealed `SleyAdmissionEvidence` (no constructor
+  until C1) plus `admit_v2_package_from_sley_evidence`, which always
+  refuses `SleyEvidenceUnavailable` — a typed reservation with no
+  minting path. Negatives: stable error codes incl. the new variant;
+  ingress-has-no-minting-path pin. Marker script still PASS.
+- AR-04 (`rw-080-contract.md`): unified on the successor baseline
+  (profile v2 `fb2d8cc8...`, ABI v2 `bc564653...`, package v2
+  `f4958c5e...`; `RAW_BLAKE3_V1` admitted and reachable, not
+  "awaiting wiring"; v1 records stay byte-identical history, no
+  module builds under them). §1.4 stages builder faithfulness
+  (C0 native seed now, Sley-owned evidence post-C1 via the reserved
+  ingress; no hidden fallback/image/replay in clean stages). New
+  §1.6 byte-level handoffs (codec/checker/lowerer/admission shapes
+  as exact bytes plus digests), retired-chunk rule (over-bound
+  refuses typed; `SLEYCHNK1` reserved-unused; streaming needs its own
+  domain), host-vs-staging split (registry exactly
+  B2V1/V2B1/PSH1/RHW1; recorders are external staging), and a
+  canonical reserved verifier interface
+  (`verify_witness` + `VerifierResult`/`VerifierError`, RW-150/170).
+- AR-05 (honest workload evidence): new in-crate
+  `closure_workloads_replay_through_v2_with_attribution` replays the
+  Sley-owned traversal/emission workloads (worklist DFS chain +
+  cycle, image-assemble-emit, value-hash-chain,
+  checked-length-traverse) through admit/approve/execute v2,
+  asserting v2 termination equals direct execution plus expected
+  values per case, with per-metric attribution (Rust seed vs Sley
+  execution vs harness). Measured: chain 2204 B / 34 instr / 124
+  fuel; cycle 2204 B / 23 / 81; emit 938 B / 19 / 75;
+  value-hash 304 B / 4 / 5; traverse 300 B / 2 / 12.
+  `rw075_hydration_workloads.rs` narrowed to stated ownership
+  (Rust-driven steps; reference emission; sequenced packages;
+  `transport_bytes` replaces synthetic `copied_bytes`; one counted
+  execution per edge).
+- Validation (Tier 2): sley-vm full suite 178 passed, 0 failed
+  (85 lib + 37 freeze + 30 exec_closure + 8 hydration + 18
+  raw_callable); sley-repo rw060 15 passed; profile/ABI freeze
+  checkers plus exec-package markers PASS; `cargo fmt --check`
+  clean; clippy 0 warnings (sley-vm, sley-repo); workspace
+  `--all-targets` check clean; `git diff --check` clean.
+- Still pending: Nabu round-12 re-review, then a fresh premium delta
+  re-review. RW-080 stays BLOCKED; the R2 gate stays NOT_READY until
+  a new premium round passes.

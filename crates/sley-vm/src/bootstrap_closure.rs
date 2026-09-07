@@ -357,7 +357,7 @@ impl Program {
         }
     }
 
-    fn gate_input(&self) -> BootstrapProfileInput<'_> {
+    fn gate_input(&self, profile_version: BootstrapProfileVersion) -> BootstrapProfileInput<'_> {
         BootstrapProfileInput {
             types: &self.types,
             schema_epoch: SchemaEpochId::from_bytes([8; 32]),
@@ -369,9 +369,7 @@ impl Program {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &self.constants,
-            // Frozen v1 workloads: no workload names the successor
-            // raw-hash row, so every closure judges under v1.
-            profile_version: BootstrapProfileVersion::V1,
+            profile_version,
         }
     }
 
@@ -2324,8 +2322,9 @@ fn workloads() -> Vec<Workload> {
 #[test]
 fn closure_workloads_are_gate_admitted() {
     for workload in workloads() {
-        let report = judge_bootstrap_profile(&workload.program.gate_input())
-            .expect("closure workload is gate-admitted");
+        let report =
+            judge_bootstrap_profile(&workload.program.gate_input(BootstrapProfileVersion::V1))
+                .expect("closure workload is gate-admitted");
         assert!(
             !report.functions().is_empty(),
             "admission covers the entry function"
@@ -2339,8 +2338,9 @@ fn closure_workloads_are_gate_admitted() {
         if workload.program.adapters.is_empty() {
             continue;
         }
-        let report = judge_bootstrap_profile(&workload.program.gate_input())
-            .expect("bridge workload is gate-admitted");
+        let report =
+            judge_bootstrap_profile(&workload.program.gate_input(BootstrapProfileVersion::V1))
+                .expect("bridge workload is gate-admitted");
         assert!(
             report.bridge_uses() > 0,
             "bridge workloads admit through the registry"
@@ -2363,6 +2363,152 @@ fn closure_workloads_execute_to_exact_terminations() {
             };
             assert_eq!(value, expected, "closure case {} value", case.id);
         }
+    }
+}
+
+/// AR-05 honest v2 replay (RW-075 round 12): branching traversal plus
+/// image-construction workloads through the successor runner.
+///
+/// Attribution, stated per metric (no host-owned algorithm is reported
+/// as Sley-owned):
+/// - Rust-owned (seed/reference, never Sley): fixture construction
+///   above, native reference lowering (`lower_function`), native gate
+///   judgment plus staged admission (`admit_v2_package`, a declared C0
+///   seed path). Image byte length below measures seed-lowering output
+///   size, not Sley construction.
+/// - Sley-owned: execution of the admitted image on the v2 approved
+///   package path (`execute_approved_package_v2`). Instruction, fuel,
+///   and peak-unit figures are Sley-execution metrics for the admitted
+///   program's own traversal/emission logic (iterative worklist,
+///   byte-emission loop, bounds-checked traversal, content hashing —
+///   all inside the admitted Sley program, not a Rust driver loop).
+/// - Harness-owned (neither): test-harness timing, not reported.
+///   Selected workloads are exactly those whose traversal/emission logic
+///   lives inside Sley. The Rust-driven stepwise queue of
+///   `rw075_hydration_workloads.rs` is deliberately not replayed here:
+///   its traversal owner is Rust, and re-reporting it through v2 would
+///   repeat the misattribution AR-05 names.
+#[test]
+fn closure_workloads_replay_through_v2_with_attribution() {
+    use crate::admission_authority::{V2Closure, admit_v2_package};
+    use crate::exec_package::{ExecutionPackage, approve_package_v2};
+    use crate::execute_approved_package_v2;
+
+    let epoch = SchemaEpochId::from_bytes([8; 32]);
+    let root = StateRoot::from_bytes([9; 32]);
+    let selected: Vec<(&str, Workload)> = vec![
+        (
+            "graph-worklist-dfs-chain",
+            graph_worklist_dfs("graph-worklist-dfs-chain", [(1, 2), (2, 3), (3, 4)], 1, 4),
+        ),
+        (
+            "graph-worklist-dfs-cycle",
+            graph_worklist_dfs("graph-worklist-dfs-cycle", [(1, 2), (2, 1), (9, 9)], 1, 2),
+        ),
+        ("image-assemble-emit", image_assemble_emit()),
+        ("value-hash-chain", value_hash_chain()),
+        ("checked-length-traverse", checked_length_traverse()),
+    ];
+    for (label, workload) in &selected {
+        // Seed/reference legs (Rust-owned): lower natively, judge
+        // natively under V2 for the package's gate claims.
+        let lowered = lower_function(workload.program.lowering_input())
+            .expect("replay workload lowers under the reference lowerer");
+        let prelim = judge_bootstrap_profile(&BootstrapProfileInput {
+            types: &workload.program.types,
+            schema_epoch: epoch,
+            entry: &workload.program.entry,
+            presented_image_bytes: &lowered.bytes,
+            functions: &workload.program.functions,
+            parameters: &workload.program.parameters,
+            blocks: &workload.program.blocks,
+            operations: &workload.program.operations,
+            adapters: &workload.program.adapters,
+            constants: &workload.program.constants,
+            profile_version: BootstrapProfileVersion::V2,
+        })
+        .expect("replay workload admits under V2");
+        assert_eq!(
+            prelim.profile_version(),
+            BootstrapProfileVersion::V2,
+            "{label}: preliminary report is V2-judged"
+        );
+        let package = ExecutionPackage {
+            image_bytes: lowered.bytes.clone(),
+            constants: workload.program.constants.clone(),
+            type_definitions: Vec::new(),
+            imports: workload.program.adapters.clone(),
+            globals: Vec::new(),
+            contracts: Vec::new(),
+            entry: workload.program.entry.entity_id,
+            schema_epoch: epoch,
+            state_root: root,
+            profile: CacheProfile::EXTENDED_V1,
+            admitted_limits: CLOSURE_LIMITS,
+            gate_operation_count: prelim.operation_count(),
+            gate_bridge_uses: prelim.bridge_uses(),
+            gate_closure_fingerprints: prelim.closure_fingerprints().to_vec(),
+        };
+        let closure = V2Closure {
+            types: &workload.program.types,
+            schema_epoch: epoch,
+            state_root: root,
+            entry: workload.program.entry.entity_id,
+            functions: &workload.program.functions,
+            parameters: &workload.program.parameters,
+            blocks: &workload.program.blocks,
+            operations: &workload.program.operations,
+            adapters: &workload.program.adapters,
+            constants: &workload.program.constants,
+            globals: &[],
+            contracts: &[],
+        };
+        let (digests, receipt, report) =
+            admit_v2_package(&closure, &package).expect("staged authority admits replay");
+        assert_eq!(
+            report.profile_version(),
+            BootstrapProfileVersion::V2,
+            "{label}: authority report is V2-judged"
+        );
+        let approved = approve_package_v2(&package, &digests, receipt, &report)
+            .expect("replay package approves under v2");
+        // Sley-owned legs: every vector case executes through the v2
+        // approved-package runner and must terminate exactly as the
+        // direct reference execution does.
+        let mut total_instructions = 0_u64;
+        let mut total_fuel = 0_u64;
+        let mut peak_units = 0_u64;
+        for case in &workload.cases {
+            let direct = workload.program.run(&case.inputs);
+            let via_v2 = execute_approved_package_v2(
+                &package,
+                &approved,
+                ExecutionRequest {
+                    inputs: case.inputs.clone(),
+                    limits: CLOSURE_LIMITS,
+                },
+            )
+            .expect("v2 runner executes replay case");
+            assert_eq!(
+                via_v2.termination, direct.termination,
+                "{label} case {}: v2 termination equals direct execution",
+                case.id
+            );
+            let Expect::Success(expected) = &case.expect;
+            let ExecutionTermination::Success(value) = &via_v2.termination else {
+                panic!("{label} case {} succeeds via v2", case.id);
+            };
+            assert_eq!(value, expected, "{label} case {} value via v2", case.id);
+            total_instructions += via_v2.instruction_count;
+            total_fuel += via_v2.fuel_used;
+            peak_units = peak_units.max(via_v2.peak_value_units);
+        }
+        eprintln!(
+            "RW075-AR05 v2 replay {label}: cases={} image_bytes={} (seed lowering) \
+             instructions={total_instructions} fuel={total_fuel} peak_units={peak_units} (Sley execution)",
+            workload.cases.len(),
+            lowered.bytes.len(),
+        );
     }
 }
 
@@ -2405,7 +2551,7 @@ fn emit_bootstrap_profile_vectors_for_freeze() {
         // Gate admission precedes emission: every vector proves profile
         // membership, so the frozen set cannot silently include an
         // out-of-profile program.
-        judge_bootstrap_profile(&workload.program.gate_input())
+        judge_bootstrap_profile(&workload.program.gate_input(BootstrapProfileVersion::V1))
             .expect("emitted vectors are gate-admitted");
         for case in &workload.cases {
             let lowered = lower_function(workload.program.lowering_input()).unwrap();

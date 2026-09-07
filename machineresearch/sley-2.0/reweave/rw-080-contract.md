@@ -1,10 +1,26 @@
 # RW-080 construction contract (corrected, RW-075 repair of AR-04)
 
-Status: CONTRACT ONLY (2026-09-06). No toolchain graph is constructed in
-RW-075; no C1 exists. RW-080 stays BLOCKED until this contract passes the
-architecture review plus the RW-075 premium delta re-review returns
-`R2_ARCHITECTURE_PASS` plus the aggregate R2 gate reads READY. Then — and
-only then — may a fresh `BOOTSTRAP_READY` decision authorize RW-080.
+Status: CONTRACT ONLY (2026-09-06; AR-04 unification 2026-09-07). No
+toolchain graph is constructed in RW-075; no C1 exists. RW-080 stays
+BLOCKED until this contract passes the architecture review plus the
+RW-075 premium delta re-review returns `R2_ARCHITECTURE_PASS` plus the
+aggregate R2 gate reads READY. Then — and only then — may a fresh
+`BOOTSTRAP_READY` decision authorize RW-080.
+
+Successor baseline (single current dependency contract): every module
+below builds under `BOOTSTRAP_PROFILE_2`
+(`fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459`),
+`HOST_ABI_V2`
+(`bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5`),
+and `EXEC_PACKAGE_V2`
+(`f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94`).
+`RAW_BLAKE3_V1` (`785205fb...69f72`) is admitted and reachable under
+the successor profile (single-shot BLAKE3 over Sley-built preimages,
+1 MiB per-call ceiling, typed over-bound refusal) — not "awaiting
+wiring". The v1 records (`BOOTSTRAP_PROFILE_1` `4f269150...efd630`,
+`HOST_ABI_V1` `e6de00b8...04ecc2`, `EXEC_PACKAGE_V1`
+`9e20da24...595d4`) stay byte-identical history; no RW-080 module
+builds under them.
 
 Depends on: RW-060 COMPLETE, RW-070 COMPLETE, RW-075 (this repair).
 Minimum gate: graph root, construction manifest, no source DSL.
@@ -25,7 +41,7 @@ Minimum gate: graph root, construction manifest, no source DSL.
 - Responsibility boundary: byte-exact SCB decoding/encoding with strict
   rejection and bounded traversal. Owns NO semantic judgment (no
   well-formedness beyond framing, no typechecking, no lowering).
-- Required `BOOTSTRAP_PROFILE_1` capabilities: E1 data (tuples, vectors,
+- Required `BOOTSTRAP_PROFILE_2` capabilities: E1 data (tuples, vectors,
   options, results, comparisons), E2 checked integers (length arithmetic),
   E4 maps (member tables where needed), E5 cells (decode cursor state
   where needed) plus value hashing, E8 bridge (byte/vector conversion for
@@ -33,8 +49,8 @@ Minimum gate: graph root, construction manifest, no source DSL.
   no contracts, no generics.
 - Required host ABI primitives: B2V1/V2B1 conversions plus the single
   per-inventory PSH1 row for output construction; `RAW_BLAKE3_V1` for
-  envelope digests once the RW-080 manifest wires it (admitted in RW-075,
-  reachable only here).
+  envelope digests over Sley-built preimages (admitted under the
+  successor profile and reachable here; single-shot only, 1 MiB ceiling).
 - Dependencies: none (leaf module; the driver feeds it bytes).
 - Error/result contract: every rejection is a typed `CodecError` value;
   resource exhaustion is `Limit` (never truncation); determinism
@@ -83,7 +99,7 @@ Minimum gate: graph root, construction manifest, no source DSL.
   Result<LoweredModel, LoweringError>` (frozen `LowerErrorCode`
   vocabulary); `build_package(lowered, closure_digests, manifest) ->
   Result<ExecutionPackage, BuildError>` emitting the exact
-  `EXEC_PACKAGE_V1` envelope (image + sections + digests).
+  `EXEC_PACKAGE_V2` envelope (image + sections + digests).
 - Input/output canonical types: checked closure in; lowered model
   (bytecode function + callee table) then envelope bytes out; errors are
   typed values in the frozen vocabularies (`LowerErrorCode`,
@@ -92,7 +108,7 @@ Minimum gate: graph root, construction manifest, no source DSL.
   assembly of the derived execution image and its package closure. Owns NO
   checking (inputs arrive checked), NO build orchestration, NO admission
   judgment (it assembles evidence; the admission authority judges).
-- Required profile/capabilities: full `BOOTSTRAP_PROFILE_1` including E6
+- Required profile/capabilities: full `BOOTSTRAP_PROFILE_2` including E6
   calls (callee table), bridge for byte emission, raw hash for
   digest/preimage inputs the builder constructs.
 - Host primitives: conversions/push (byte emission), raw hash (digests),
@@ -123,14 +139,30 @@ Minimum gate: graph root, construction manifest, no source DSL.
   checker/lowerer in order, assembles outputs, and reproduces its own
   executable toolchain (whole-toolchain reconstruction, RW-120 gate).
   Owns NO language judgment itself (it orchestrates module verdicts).
-  Builder faithfulness (RW-075 residual retirement): before presenting
-  any package for admission, the driver re-lowers the judged graphs with
-  the reference lowerer and compares bytes exactly; a mismatch aborts the
-  build with no receipt minted. This reference re-lowering comparison is
-  authority/oracle work (the same class as conformance builders comparing
-  bytes today), never host-path work, and it is what verifies
-  graphs-to-image correspondence that structural host checks cannot see
-  (e.g. same-opcode rewiring).
+- Builder faithfulness, staged (AR-07): before presenting any package
+  for admission, correspondence between the judged graphs and the
+  candidate image must be established by exact byte comparison of a
+  reference lowering against the candidate bytes; a mismatch aborts
+  with no receipt minted. Who performs that comparison depends on
+  stage, and the two stages never mix:
+  - C0 seed (now, before C1 exists): the native staged authority
+    (`sley-vm::admit_v2_package`) performs judgment plus reference
+    re-lowering as seed/oracle evidence. This is the same class as
+    conformance builders comparing bytes today — authority/oracle
+    work, never host-path execution work — but it IS native semantic
+    work, so it is confined to C0 and excluded from clean stages.
+  - Post-C1 (clean stages): the Sley driver replicates the comparison
+    with Sley-owned lowering evidence, and admission mints only from
+    Sley-produced evidence through the reserved
+    `SleyAdmissionEvidence` ingress (`sley-vm::admission_authority`,
+    currently refusing `SleyEvidenceUnavailable`: no constructor, no
+    minting path until C1 exists). Native handling is then
+    authenticated/bound structural verification only (byte equality,
+    claim binding, table correspondence, digests) — never a semantic
+    answer.
+  Neither stage permits a hidden seed fallback, cached final image,
+  copied build result, or native semantic image construction in a
+  clean stage.
 - Required profile: maps/vectors/records/variants for the closure graph,
   calls for module invocation, bridge + raw hash for transport and digest
   comparison, cells for build-state threading.
@@ -149,6 +181,19 @@ Minimum gate: graph root, construction manifest, no source DSL.
 
 ### 1.5 Witness checker/verifier ownership (reserved for later)
 
+- Canonical entry point (reserved, not implemented before RW-150):
+  `verify_witness(program_closure, witness) -> VerifierResult` where
+  `program_closure` is the complete canonical object closure (same
+  shape as §1.2 `check_program` input) and `witness` is the exact
+  `Bytes` witness artifact named by the RW-150 contract.
+- Input/output canonical types: typed closure plus witness bytes in;
+  `VerifierResult = Result<VerifierAccept, VerifierError>` out, with
+  `VerifierError` covering `WITNESS_MALFORMED | RULE_VIOLATION |
+  FLOW_VIOLATION | SINK_VIOLATION | LIMIT` (all typed values, never
+  traps). Byte-level handoff: the driver passes the already-lowered
+  module images plus witness bytes; the verifier returns the typed
+  verdict plus the verified-artifact digest. No other shape is
+  accepted.
 - The Witness checker Sley program (RW-170; contracts RW-150) owns Witness
   type rules, data/control-flow integrity analysis, verifier
   admissibility, and sink integrity after WA integration. The verifier/
@@ -160,6 +205,48 @@ Minimum gate: graph root, construction manifest, no source DSL.
   tests, and never receive language-owned verdicts. No unimplemented
   Witness semantics may be claimed protective before RW-150/RW-170.
 
+## 1.6 Byte-level module and admission handoffs (AR-04)
+
+Every handoff below is exact bytes plus digests, never prose-level
+shapes alone:
+
+- Codec (§1.1) in: SCB1 envelope `Bytes` (strict framing); out:
+  canonical object-closure bytes plus `CodecResult` typed value.
+  Byte identity: BLAKE3 over the exact envelope preimage image the
+  codec constructs as `Bytes` (host hashes only).
+- Checker (§1.2) in: canonical object-closure bytes plus the codec's
+  output digest; out: mandatory test plan bytes plus `CheckResult`
+  typed value. Oracle parity is byte-identical outputs plus identical
+  rejection codes.
+- Lowerer/builder (§1.3) in: checked closure bytes plus test-plan
+  digest; out: `EXEC_PACKAGE_V2` envelope bytes (image + constants +
+  layouts + exact import rows + globals + contracts + entry + epoch +
+  root + profile + limits) plus section digests. Emitted bytes must
+  round-trip through `load_image` and reproduce byte-identically on
+  re-lowering.
+- Admission ingress: the Sley driver presents the package envelope
+  bytes plus Sley-built evidence bytes conforming to the reserved
+  `SleyAdmissionEvidence` shape (judged-closure digest, gate counts,
+  reference-image digest, complete table digests). The authority
+  authenticates and bound-checks that evidence structurally and mints
+  the v2 receipt only on exact match. Until C1 exists the ingress
+  refuses (`SleyEvidenceUnavailable`); the C0 seed path
+  (`admit_v2_package`) is the only minting route and is excluded from
+  clean stages.
+- Chunk/framing ownership: preimages over the 1 MiB `RHW1` ceiling
+  refuse as typed `Err(Index, 2)` at admission (carried constants)
+  and execution (computed values). The former `SLEYCHNK1`
+  hash-of-chunks construction is retired and carries no identity;
+  the domain is reserved and must not be used. A future streaming
+  primitive needs its own domain constant and gated implementation —
+  never a silent redefinition of an existing domain.
+- Host vs staging split: the Sley-callable import registry holds
+  exactly B2V1/V2B1/PSH1/RHW1. Structural image loading, package
+  execution, digest comparison, and artifact recording are host
+  mechanics, not callable imports. Process/file evidence recorders
+  are external staging (declared inputs/transport only), never
+  Sley-callable imports and never semantic oracles.
+
 ## 2. S: the canonical toolchain graph root
 
 S is: the canonical toolchain graph root; the complete canonical object
@@ -167,9 +254,9 @@ closure (every entity/object the toolchain needs, content-addressed); the
 runtime data/layout closure (constants + type definitions carried as
 package sections); declared entry points (the four module mains above);
 the build manifest (exact input inventory + expected digests + profile +
-epoch + root); and the exact P/H dependencies (`BOOTSTRAP_PROFILE_1`
-digest `4f269150...efd630`; `HOST_ABI_V1` `e6de00b8...04ecc2` plus
-`EXEC_PACKAGE_V1` `9e20da24...595d4` and `RAW_BLAKE3_V1`
+epoch + root); and the exact P/H dependencies (`BOOTSTRAP_PROFILE_2`
+digest `fb2d8cc87ee7...459`; `HOST_ABI_V2` `bc564653...2af70d5` plus
+`EXEC_PACKAGE_V2` `f4958c5e...5770da94` and `RAW_BLAKE3_V1`
 `785205fb...69f72`; toolchain `1.93.0 minimal`; VM `[1,0,0]` /
 lowering profile 2 / lowerer `[2,0,0]`; epoch `08`*32 / root `09`*32 for
 closure evidence).
