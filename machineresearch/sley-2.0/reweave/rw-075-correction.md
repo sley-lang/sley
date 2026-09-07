@@ -351,3 +351,12 @@ other repair builds on), then AR-03 + AR-08 + AR-06 (bounded code),
 then AR-07 + AR-04 (contract/design), then AR-05 evidence, then Nabu
 round-12 re-review and a fresh premium delta re-review. RW-080 stays
 BLOCKED throughout.
+
+AR-02 probe done: `rw-075-ar02-evidence.md`. Cap-the-bound is viable
+(all real Sley-side RHW1 preimages measure <= ~1 KiB; all large
+digests are native single-shot and never route through RHW1); repair
+is (i) v2 admission bound on carried `Bytes` (rides AR-08 selector)
+plus the existing typed execution refusal as backstop, (ii) retire
+`SLEYCHNK1`, (iii) streaming deferred as an explicit gap, (iv)
+restate the ungrounded "<1 KiB adopted fixtures" claim as a measured
+suite property (AR-04).
