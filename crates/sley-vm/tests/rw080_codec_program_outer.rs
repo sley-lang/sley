@@ -5188,6 +5188,1346 @@ fn build_outer_decode(a: &mut Asm, ns: Ns, fid: EntityId, decode_fid: EntityId) 
     }
 }
 
+// ── outer encode (canonical 2-field emission) ────────────────────────
+// `encode_outer(entity_id: Bytes, body: Bytes, unit: Unit)` emits canonical
+// `encode_record([(1, entity_id), (2, body)])` bytes: count 2, tag1 len32,
+// tag2 len(body) via canonical uvar, all single-byte for small except len2
+// which reuses slice-1 `encode_uvar` via `CallDirect` (width 64) so
+// multi-byte lengths stay canonical. Entity length mirrors `decode_fixed`:
+// <32 -> LENGTH_OVERFLOW, >32 -> TRAILING. Body length past the epoch
+// ceiling -> RESOURCE_LIMIT. Bridge Err on inputs past 1 MiB -> RESOURCE.
+// Sley owns framing and byte emission; bridge uses B2V1/PSH1/V2B1 only.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+fn build_outer_encode(a: &mut Asm, ns: Ns, fid: EntityId, encode_fid: EntityId) -> FunctionGraph {
+    let bstart = a.blocks.len();
+    let res_t = encode_result_type();
+    let enc_t = encode_result_type();
+    let c0 = a.ku64(ns.k, 0);
+    let c1 = a.ku64(ns.k, 1);
+    let c2 = a.ku64(ns.k, 2);
+    let c32 = a.ku64(ns.k, 32);
+    let c_max = a.ku64(ns.k, 67_108_864);
+    let w64 = a.ku32(ns.k, 64);
+    let u01 = a.ku8(ns.k, 1);
+    let u02 = a.ku8(ns.k, 2);
+    let u20 = a.ku8(ns.k, 32);
+    let e_len = a.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let e_trail = a.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let e_res = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let q_eid = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let q_body = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let q_unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
+    let b_len = err_block(a, ns, fid, res_t.clone(), e_len);
+    let b_trail = err_block(a, ns, fid, res_t.clone(), e_trail);
+    let b_res = err_block(a, ns, fid, res_t.clone(), e_res);
+    let trap = trap_block(a, ns, fid);
+    // New blocks.
+    let eid_len = a.id(ns.b);
+    let eid_gt = a.id(ns.b);
+    let body_conv = a.id(ns.b);
+    let body_len = a.id(ns.b);
+    let len_enc = a.id(ns.b);
+    let len_enc_ok = a.id(ns.b);
+    let len_enc_err = a.id(ns.b);
+    let len_setup = a.id(ns.b);
+    let out_start = a.id(ns.b);
+    let push1 = a.id(ns.b);
+    let push2 = a.id(ns.b);
+    let push3 = a.id(ns.b);
+    let eid_copy_start = a.id(ns.b);
+    let eid_copy_check = a.id(ns.b);
+    let eid_copy_get = a.id(ns.b);
+    let eid_copy_get2 = a.id(ns.b);
+    let eid_copy_push = a.id(ns.b);
+    let eid_copy_next = a.id(ns.b);
+    let tag2_push = a.id(ns.b);
+    let lencopy_start = a.id(ns.b);
+    let lencopy_check = a.id(ns.b);
+    let lencopy_get = a.id(ns.b);
+    let lencopy_get2 = a.id(ns.b);
+    let lencopy_push = a.id(ns.b);
+    let lencopy_next = a.id(ns.b);
+    let bodycopy_start = a.id(ns.b);
+    let bodycopy_check = a.id(ns.b);
+    let bodycopy_get = a.id(ns.b);
+    let bodycopy_get2 = a.id(ns.b);
+    let bodycopy_push = a.id(ns.b);
+    let bodycopy_next = a.id(ns.b);
+    let out_done = a.id(ns.b);
+    let out_ret = a.id(ns.b);
+    // Entry: B2V1 entity.
+    let entry = a.id(ns.b);
+    let cv_eid = a.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(q_unit), pav(q_eid)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_B2V1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: entry,
+        function: fid,
+        parameters: Vec::new(),
+        operations: vec![cv_eid],
+        terminator: switch(
+            op_result(cv_eid),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    eid_len,
+                    vec![SwitchArgument::CasePayload, sav(q_body), sav(q_unit)],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Entity length: <32 LENGTH, >32 TRAILING (encode-side mirror of decode_fixed).
+    let v_eidvec = a.param(ns.p, eid_len, ParameterRole::Block, u8vec_type());
+    let v_bodyin = a.param(ns.p, eid_len, ParameterRole::Block, TypeExpr::Bytes);
+    let v_unit = a.param(ns.p, eid_len, ParameterRole::Block, TypeExpr::Unit);
+    let v_ln = a.op(
+        ns.o,
+        eid_len,
+        Opcode::VectorLen,
+        vec![pav(v_eidvec)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let v_k32 = a.cref(ns.o, eid_len, c32, u64_type());
+    let v_lt = a.op(
+        ns.o,
+        eid_len,
+        Opcode::LessThan,
+        vec![op_result(v_ln), op_result(v_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let v_gt = a.op(
+        ns.o,
+        eid_len,
+        Opcode::GreaterThan,
+        vec![op_result(v_ln), op_result(v_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: eid_len,
+        function: fid,
+        parameters: vec![v_eidvec, v_bodyin, v_unit],
+        operations: vec![v_ln, v_k32, v_lt, v_gt],
+        terminator: cond(
+            op_result(v_lt),
+            edge(b_len, Vec::new()),
+            edge(
+                eid_gt,
+                vec![pav(v_eidvec), pav(v_bodyin), pav(v_unit), op_result(v_gt)],
+            ),
+        ),
+        reachability: Reachability::Required,
+    });
+    let g_eidvec = a.param(ns.p, eid_gt, ParameterRole::Block, u8vec_type());
+    let g_bodyin = a.param(ns.p, eid_gt, ParameterRole::Block, TypeExpr::Bytes);
+    let g_unit = a.param(ns.p, eid_gt, ParameterRole::Block, TypeExpr::Unit);
+    let g_flag = a.param(ns.p, eid_gt, ParameterRole::Block, TypeExpr::Bool);
+    a.blocks.push(Block {
+        entity_id: eid_gt,
+        function: fid,
+        parameters: vec![g_eidvec, g_bodyin, g_unit, g_flag],
+        operations: Vec::new(),
+        terminator: cond(
+            pav(g_flag),
+            edge(b_trail, Vec::new()),
+            edge(body_conv, vec![pav(g_eidvec), pav(g_bodyin), pav(g_unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+    // Body convert.
+    let bc_eidvec = a.param(ns.p, body_conv, ParameterRole::Block, u8vec_type());
+    let bc_bodyin = a.param(ns.p, body_conv, ParameterRole::Block, TypeExpr::Bytes);
+    let bc_unit = a.param(ns.p, body_conv, ParameterRole::Block, TypeExpr::Unit);
+    let bc_cv = a.op(
+        ns.o,
+        body_conv,
+        Opcode::AdapterInvoke,
+        vec![pav(bc_unit), pav(bc_bodyin)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_B2V1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: body_conv,
+        function: fid,
+        parameters: vec![bc_eidvec, bc_bodyin, bc_unit],
+        operations: vec![bc_cv],
+        terminator: switch(
+            op_result(bc_cv),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    body_len,
+                    vec![sav(bc_eidvec), SwitchArgument::CasePayload, sav(bc_unit)],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let bl_eidvec = a.param(ns.p, body_len, ParameterRole::Block, u8vec_type());
+    let bl_bodyvec = a.param(ns.p, body_len, ParameterRole::Block, u8vec_type());
+    let bl_unit = a.param(ns.p, body_len, ParameterRole::Block, TypeExpr::Unit);
+    let bl_ln = a.op(
+        ns.o,
+        body_len,
+        Opcode::VectorLen,
+        vec![pav(bl_bodyvec)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let bl_max = a.cref(ns.o, body_len, c_max, u64_type());
+    let bl_gt = a.op(
+        ns.o,
+        body_len,
+        Opcode::GreaterThan,
+        vec![op_result(bl_ln), op_result(bl_max)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: body_len,
+        function: fid,
+        parameters: vec![bl_eidvec, bl_bodyvec, bl_unit],
+        operations: vec![bl_ln, bl_max, bl_gt],
+        terminator: cond(
+            op_result(bl_gt),
+            edge(b_res, Vec::new()),
+            edge(
+                len_enc,
+                vec![
+                    pav(bl_eidvec),
+                    pav(bl_bodyvec),
+                    op_result(bl_ln),
+                    pav(bl_unit),
+                ],
+            ),
+        ),
+        reachability: Reachability::Required,
+    });
+    // Encode body length via canonical encode_uvar (width 64).
+    let le_eidvec = a.param(ns.p, len_enc, ParameterRole::Block, u8vec_type());
+    let le_bodyvec = a.param(ns.p, len_enc, ParameterRole::Block, u8vec_type());
+    let le_blen = a.param(ns.p, len_enc, ParameterRole::Block, u64_type());
+    let le_unit = a.param(ns.p, len_enc, ParameterRole::Block, TypeExpr::Unit);
+    let le_w = a.cref(ns.o, len_enc, w64, u32_type());
+    let le_call = a.op(
+        ns.o,
+        len_enc,
+        Opcode::CallDirect,
+        vec![pav(le_blen), op_result(le_w), pav(le_unit)],
+        vec![enc_t.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: encode_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    let le_bytes = a.param(ns.p, len_enc_ok, ParameterRole::Block, TypeExpr::Bytes);
+    let le_oeid = a.param(ns.p, len_enc_ok, ParameterRole::Block, u8vec_type());
+    let le_obody = a.param(ns.p, len_enc_ok, ParameterRole::Block, u8vec_type());
+    let le_ounit = a.param(ns.p, len_enc_ok, ParameterRole::Block, TypeExpr::Unit);
+    let le_ebytes = a.param(ns.p, len_enc_err, ParameterRole::Block, TypeExpr::Bytes);
+    a.blocks.push(Block {
+        entity_id: len_enc,
+        function: fid,
+        parameters: vec![le_eidvec, le_bodyvec, le_blen, le_unit],
+        operations: vec![le_w, le_call],
+        terminator: switch(
+            op_result(le_call),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    len_enc_ok,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(le_eidvec),
+                        sav(le_bodyvec),
+                        sav(le_unit),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    len_enc_err,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let le_er = a.op(
+        ns.o,
+        len_enc_err,
+        Opcode::ResultErr,
+        vec![pav(le_ebytes)],
+        vec![res_t.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: len_enc_err,
+        function: fid,
+        parameters: vec![le_ebytes],
+        operations: vec![le_er],
+        terminator: ret(op_result(le_er)),
+        reachability: Reachability::Required,
+    });
+    let le_cv = a.op(
+        ns.o,
+        len_enc_ok,
+        Opcode::AdapterInvoke,
+        vec![pav(le_ounit), pav(le_bytes)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_B2V1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: len_enc_ok,
+        function: fid,
+        parameters: vec![le_bytes, le_oeid, le_obody, le_ounit],
+        operations: vec![le_cv],
+        terminator: switch(
+            op_result(le_cv),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    len_setup,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(le_oeid),
+                        sav(le_obody),
+                        sav(le_ounit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let ls_lenvec = a.param(ns.p, len_setup, ParameterRole::Block, u8vec_type());
+    let ls_eidvec = a.param(ns.p, len_setup, ParameterRole::Block, u8vec_type());
+    let ls_bodyvec = a.param(ns.p, len_setup, ParameterRole::Block, u8vec_type());
+    let ls_unit = a.param(ns.p, len_setup, ParameterRole::Block, TypeExpr::Unit);
+    let ls_llen = a.op(
+        ns.o,
+        len_setup,
+        Opcode::VectorLen,
+        vec![pav(ls_lenvec)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let ls_blen = a.op(
+        ns.o,
+        len_setup,
+        Opcode::VectorLen,
+        vec![pav(ls_bodyvec)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: len_setup,
+        function: fid,
+        parameters: vec![ls_lenvec, ls_eidvec, ls_bodyvec, ls_unit],
+        operations: vec![ls_llen, ls_blen],
+        terminator: branch(edge(
+            out_start,
+            vec![
+                pav(ls_lenvec),
+                op_result(ls_llen),
+                pav(ls_eidvec),
+                pav(ls_bodyvec),
+                op_result(ls_blen),
+                pav(ls_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    // Output assembly: VectorNew, then fixed pushes 02/01/20.
+    let os_lenvec = a.param(ns.p, out_start, ParameterRole::Block, u8vec_type());
+    let os_llen = a.param(ns.p, out_start, ParameterRole::Block, u64_type());
+    let os_eidvec = a.param(ns.p, out_start, ParameterRole::Block, u8vec_type());
+    let os_bodyvec = a.param(ns.p, out_start, ParameterRole::Block, u8vec_type());
+    let os_blen = a.param(ns.p, out_start, ParameterRole::Block, u64_type());
+    let os_unit = a.param(ns.p, out_start, ParameterRole::Block, TypeExpr::Unit);
+    let os_empty = a.op(
+        ns.o,
+        out_start,
+        Opcode::VectorNew,
+        Vec::new(),
+        vec![u8vec_type()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: out_start,
+        function: fid,
+        parameters: vec![os_lenvec, os_llen, os_eidvec, os_bodyvec, os_blen, os_unit],
+        operations: vec![os_empty],
+        terminator: branch(edge(
+            push1,
+            vec![
+                op_result(os_empty),
+                pav(os_lenvec),
+                pav(os_llen),
+                pav(os_eidvec),
+                pav(os_bodyvec),
+                pav(os_blen),
+                pav(os_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let p1_acc = a.param(ns.p, push1, ParameterRole::Block, u8vec_type());
+    let p1_lenvec = a.param(ns.p, push1, ParameterRole::Block, u8vec_type());
+    let p1_llen = a.param(ns.p, push1, ParameterRole::Block, u64_type());
+    let p1_eidvec = a.param(ns.p, push1, ParameterRole::Block, u8vec_type());
+    let p1_bodyvec = a.param(ns.p, push1, ParameterRole::Block, u8vec_type());
+    let p1_blen = a.param(ns.p, push1, ParameterRole::Block, u64_type());
+    let p1_unit = a.param(ns.p, push1, ParameterRole::Block, TypeExpr::Unit);
+    let p1_c = a.cref(ns.o, push1, u02, u8_type());
+    let p1_push = a.op(
+        ns.o,
+        push1,
+        Opcode::AdapterInvoke,
+        vec![pav(p1_acc), op_result(p1_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: push1,
+        function: fid,
+        parameters: vec![
+            p1_acc, p1_lenvec, p1_llen, p1_eidvec, p1_bodyvec, p1_blen, p1_unit,
+        ],
+        operations: vec![p1_c, p1_push],
+        terminator: switch(
+            op_result(p1_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    push2,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(p1_lenvec),
+                        sav(p1_llen),
+                        sav(p1_eidvec),
+                        sav(p1_bodyvec),
+                        sav(p1_blen),
+                        sav(p1_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let p2_acc = a.param(ns.p, push2, ParameterRole::Block, u8vec_type());
+    let p2_lenvec = a.param(ns.p, push2, ParameterRole::Block, u8vec_type());
+    let p2_llen = a.param(ns.p, push2, ParameterRole::Block, u64_type());
+    let p2_eidvec = a.param(ns.p, push2, ParameterRole::Block, u8vec_type());
+    let p2_bodyvec = a.param(ns.p, push2, ParameterRole::Block, u8vec_type());
+    let p2_blen = a.param(ns.p, push2, ParameterRole::Block, u64_type());
+    let p2_unit = a.param(ns.p, push2, ParameterRole::Block, TypeExpr::Unit);
+    let p2_c = a.cref(ns.o, push2, u01, u8_type());
+    let p2_push = a.op(
+        ns.o,
+        push2,
+        Opcode::AdapterInvoke,
+        vec![pav(p2_acc), op_result(p2_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: push2,
+        function: fid,
+        parameters: vec![
+            p2_acc, p2_lenvec, p2_llen, p2_eidvec, p2_bodyvec, p2_blen, p2_unit,
+        ],
+        operations: vec![p2_c, p2_push],
+        terminator: switch(
+            op_result(p2_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    push3,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(p2_lenvec),
+                        sav(p2_llen),
+                        sav(p2_eidvec),
+                        sav(p2_bodyvec),
+                        sav(p2_blen),
+                        sav(p2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let p3_acc = a.param(ns.p, push3, ParameterRole::Block, u8vec_type());
+    let p3_lenvec = a.param(ns.p, push3, ParameterRole::Block, u8vec_type());
+    let p3_llen = a.param(ns.p, push3, ParameterRole::Block, u64_type());
+    let p3_eidvec = a.param(ns.p, push3, ParameterRole::Block, u8vec_type());
+    let p3_bodyvec = a.param(ns.p, push3, ParameterRole::Block, u8vec_type());
+    let p3_blen = a.param(ns.p, push3, ParameterRole::Block, u64_type());
+    let p3_unit = a.param(ns.p, push3, ParameterRole::Block, TypeExpr::Unit);
+    let p3_c = a.cref(ns.o, push3, u20, u8_type());
+    let p3_push = a.op(
+        ns.o,
+        push3,
+        Opcode::AdapterInvoke,
+        vec![pav(p3_acc), op_result(p3_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: push3,
+        function: fid,
+        parameters: vec![
+            p3_acc, p3_lenvec, p3_llen, p3_eidvec, p3_bodyvec, p3_blen, p3_unit,
+        ],
+        operations: vec![p3_c, p3_push],
+        terminator: switch(
+            op_result(p3_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    eid_copy_start,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(p3_lenvec),
+                        sav(p3_llen),
+                        sav(p3_eidvec),
+                        sav(p3_bodyvec),
+                        sav(p3_blen),
+                        sav(p3_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Entity copy loop (32B).
+    let es_acc = a.param(ns.p, eid_copy_start, ParameterRole::Block, u8vec_type());
+    let es_lenvec = a.param(ns.p, eid_copy_start, ParameterRole::Block, u8vec_type());
+    let es_llen = a.param(ns.p, eid_copy_start, ParameterRole::Block, u64_type());
+    let es_eidvec = a.param(ns.p, eid_copy_start, ParameterRole::Block, u8vec_type());
+    let es_bodyvec = a.param(ns.p, eid_copy_start, ParameterRole::Block, u8vec_type());
+    let es_blen = a.param(ns.p, eid_copy_start, ParameterRole::Block, u64_type());
+    let es_unit = a.param(ns.p, eid_copy_start, ParameterRole::Block, TypeExpr::Unit);
+    let es_z0 = a.cref(ns.o, eid_copy_start, c0, u64_type());
+    a.blocks.push(Block {
+        entity_id: eid_copy_start,
+        function: fid,
+        parameters: vec![
+            es_acc, es_lenvec, es_llen, es_eidvec, es_bodyvec, es_blen, es_unit,
+        ],
+        operations: vec![es_z0],
+        terminator: branch(edge(
+            eid_copy_check,
+            vec![
+                op_result(es_z0),
+                pav(es_acc),
+                pav(es_lenvec),
+                pav(es_llen),
+                pav(es_eidvec),
+                pav(es_bodyvec),
+                pav(es_blen),
+                pav(es_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let ec_idx = a.param(ns.p, eid_copy_check, ParameterRole::Block, u64_type());
+    let ec_acc = a.param(ns.p, eid_copy_check, ParameterRole::Block, u8vec_type());
+    let ec_lenvec = a.param(ns.p, eid_copy_check, ParameterRole::Block, u8vec_type());
+    let ec_llen = a.param(ns.p, eid_copy_check, ParameterRole::Block, u64_type());
+    let ec_eidvec = a.param(ns.p, eid_copy_check, ParameterRole::Block, u8vec_type());
+    let ec_bodyvec = a.param(ns.p, eid_copy_check, ParameterRole::Block, u8vec_type());
+    let ec_blen = a.param(ns.p, eid_copy_check, ParameterRole::Block, u64_type());
+    let ec_unit = a.param(ns.p, eid_copy_check, ParameterRole::Block, TypeExpr::Unit);
+    let ec_k32 = a.cref(ns.o, eid_copy_check, c32, u64_type());
+    let ec_lt = a.op(
+        ns.o,
+        eid_copy_check,
+        Opcode::LessThan,
+        vec![pav(ec_idx), op_result(ec_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: eid_copy_check,
+        function: fid,
+        parameters: vec![
+            ec_idx, ec_acc, ec_lenvec, ec_llen, ec_eidvec, ec_bodyvec, ec_blen, ec_unit,
+        ],
+        operations: vec![ec_k32, ec_lt],
+        terminator: cond(
+            op_result(ec_lt),
+            edge(
+                eid_copy_get,
+                vec![
+                    pav(ec_idx),
+                    pav(ec_acc),
+                    pav(ec_lenvec),
+                    pav(ec_llen),
+                    pav(ec_eidvec),
+                    pav(ec_bodyvec),
+                    pav(ec_blen),
+                    pav(ec_unit),
+                ],
+            ),
+            edge(
+                tag2_push,
+                vec![
+                    pav(ec_acc),
+                    pav(ec_lenvec),
+                    pav(ec_llen),
+                    pav(ec_bodyvec),
+                    pav(ec_blen),
+                    pav(ec_unit),
+                ],
+            ),
+        ),
+        reachability: Reachability::Required,
+    });
+    let eg_idx = a.param(ns.p, eid_copy_get, ParameterRole::Block, u64_type());
+    let eg_acc = a.param(ns.p, eid_copy_get, ParameterRole::Block, u8vec_type());
+    let eg_lenvec = a.param(ns.p, eid_copy_get, ParameterRole::Block, u8vec_type());
+    let eg_llen = a.param(ns.p, eid_copy_get, ParameterRole::Block, u64_type());
+    let eg_eidvec = a.param(ns.p, eid_copy_get, ParameterRole::Block, u8vec_type());
+    let eg_bodyvec = a.param(ns.p, eid_copy_get, ParameterRole::Block, u8vec_type());
+    let eg_blen = a.param(ns.p, eid_copy_get, ParameterRole::Block, u64_type());
+    let eg_unit = a.param(ns.p, eid_copy_get, ParameterRole::Block, TypeExpr::Unit);
+    let eg_get = a.op(
+        ns.o,
+        eid_copy_get,
+        Opcode::VectorGet,
+        vec![pav(eg_eidvec), pav(eg_idx)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: eid_copy_get,
+        function: fid,
+        parameters: vec![
+            eg_idx, eg_acc, eg_lenvec, eg_llen, eg_eidvec, eg_bodyvec, eg_blen, eg_unit,
+        ],
+        operations: vec![eg_get],
+        terminator: switch(
+            op_result(eg_get),
+            vec![
+                (BuiltinCase::None, trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    eid_copy_get2,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(eg_idx),
+                        sav(eg_acc),
+                        sav(eg_lenvec),
+                        sav(eg_llen),
+                        sav(eg_eidvec),
+                        sav(eg_bodyvec),
+                        sav(eg_blen),
+                        sav(eg_unit),
+                    ],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Note: eid_copy_get2 drops the source vec (index is direct); Get-None
+    // unreachable since eid length was checked ==32.
+    let hg2_b = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u8_type());
+    let hg2_idx = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u64_type());
+    let hg2_acc = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_lenvec = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_llen = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u64_type());
+    let hg2_eidvec = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_bodyvec = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_blen = a.param(ns.p, eid_copy_get2, ParameterRole::Block, u64_type());
+    let hg2_unit = a.param(ns.p, eid_copy_get2, ParameterRole::Block, TypeExpr::Unit);
+    let hg2_push = a.op(
+        ns.o,
+        eid_copy_get2,
+        Opcode::AdapterInvoke,
+        vec![pav(hg2_acc), pav(hg2_b)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: eid_copy_get2,
+        function: fid,
+        parameters: vec![
+            hg2_b,
+            hg2_idx,
+            hg2_acc,
+            hg2_lenvec,
+            hg2_llen,
+            hg2_eidvec,
+            hg2_bodyvec,
+            hg2_blen,
+            hg2_unit,
+        ],
+        operations: vec![hg2_push],
+        terminator: switch(
+            op_result(hg2_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    eid_copy_push,
+                    vec![
+                        sav(hg2_idx),
+                        SwitchArgument::CasePayload,
+                        sav(hg2_lenvec),
+                        sav(hg2_llen),
+                        sav(hg2_eidvec),
+                        sav(hg2_bodyvec),
+                        sav(hg2_blen),
+                        sav(hg2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let ep_idx = a.param(ns.p, eid_copy_push, ParameterRole::Block, u64_type());
+    let ep_acc = a.param(ns.p, eid_copy_push, ParameterRole::Block, u8vec_type());
+    let ep_lenvec = a.param(ns.p, eid_copy_push, ParameterRole::Block, u8vec_type());
+    let ep_llen = a.param(ns.p, eid_copy_push, ParameterRole::Block, u64_type());
+    let ep_eidvec = a.param(ns.p, eid_copy_push, ParameterRole::Block, u8vec_type());
+    let ep_bodyvec = a.param(ns.p, eid_copy_push, ParameterRole::Block, u8vec_type());
+    let ep_blen = a.param(ns.p, eid_copy_push, ParameterRole::Block, u64_type());
+    let ep_unit = a.param(ns.p, eid_copy_push, ParameterRole::Block, TypeExpr::Unit);
+    let ep_c1 = a.cref(ns.o, eid_copy_push, c1, u64_type());
+    // Reuse next block id for increment to keep the graph small.
+    let ep_add = a.op(
+        ns.o,
+        eid_copy_push,
+        Opcode::IntAddChecked,
+        vec![pav(ep_idx), op_result(ep_c1)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: eid_copy_push,
+        function: fid,
+        parameters: vec![
+            ep_idx, ep_acc, ep_lenvec, ep_llen, ep_eidvec, ep_bodyvec, ep_blen, ep_unit,
+        ],
+        operations: vec![ep_c1, ep_add],
+        terminator: switch(
+            op_result(ep_add),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    eid_copy_next,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(ep_acc),
+                        sav(ep_lenvec),
+                        sav(ep_llen),
+                        sav(ep_eidvec),
+                        sav(ep_bodyvec),
+                        sav(ep_blen),
+                        sav(ep_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let en_idx = a.param(ns.p, eid_copy_next, ParameterRole::Block, u64_type());
+    let en_acc = a.param(ns.p, eid_copy_next, ParameterRole::Block, u8vec_type());
+    let en_lenvec = a.param(ns.p, eid_copy_next, ParameterRole::Block, u8vec_type());
+    let en_llen = a.param(ns.p, eid_copy_next, ParameterRole::Block, u64_type());
+    let en_eidvec = a.param(ns.p, eid_copy_next, ParameterRole::Block, u8vec_type());
+    let en_bodyvec = a.param(ns.p, eid_copy_next, ParameterRole::Block, u8vec_type());
+    let en_blen = a.param(ns.p, eid_copy_next, ParameterRole::Block, u64_type());
+    let en_unit = a.param(ns.p, eid_copy_next, ParameterRole::Block, TypeExpr::Unit);
+    a.blocks.push(Block {
+        entity_id: eid_copy_next,
+        function: fid,
+        parameters: vec![
+            en_idx, en_acc, en_lenvec, en_llen, en_eidvec, en_bodyvec, en_blen, en_unit,
+        ],
+        operations: Vec::new(),
+        terminator: branch(edge(
+            eid_copy_check,
+            vec![
+                pav(en_idx),
+                pav(en_acc),
+                pav(en_lenvec),
+                pav(en_llen),
+                pav(en_eidvec),
+                pav(en_bodyvec),
+                pav(en_blen),
+                pav(en_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    // Tag 2 push (02).
+    let t2_acc = a.param(ns.p, tag2_push, ParameterRole::Block, u8vec_type());
+    let t2_lenvec = a.param(ns.p, tag2_push, ParameterRole::Block, u8vec_type());
+    let t2_llen = a.param(ns.p, tag2_push, ParameterRole::Block, u64_type());
+    let t2_bodyvec = a.param(ns.p, tag2_push, ParameterRole::Block, u8vec_type());
+    let t2_blen = a.param(ns.p, tag2_push, ParameterRole::Block, u64_type());
+    let t2_unit = a.param(ns.p, tag2_push, ParameterRole::Block, TypeExpr::Unit);
+    let t2_c = a.cref(ns.o, tag2_push, u02, u8_type());
+    let t2_push = a.op(
+        ns.o,
+        tag2_push,
+        Opcode::AdapterInvoke,
+        vec![pav(t2_acc), op_result(t2_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: tag2_push,
+        function: fid,
+        parameters: vec![t2_acc, t2_lenvec, t2_llen, t2_bodyvec, t2_blen, t2_unit],
+        operations: vec![t2_c, t2_push],
+        terminator: switch(
+            op_result(t2_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    lencopy_start,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(t2_lenvec),
+                        sav(t2_llen),
+                        sav(t2_bodyvec),
+                        sav(t2_blen),
+                        sav(t2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Length-bytes copy loop.
+    let lc_acc = a.param(ns.p, lencopy_start, ParameterRole::Block, u8vec_type());
+    let lc_lenvec = a.param(ns.p, lencopy_start, ParameterRole::Block, u8vec_type());
+    let lc_llen = a.param(ns.p, lencopy_start, ParameterRole::Block, u64_type());
+    let lc_bodyvec = a.param(ns.p, lencopy_start, ParameterRole::Block, u8vec_type());
+    let lc_blen = a.param(ns.p, lencopy_start, ParameterRole::Block, u64_type());
+    let lc_unit = a.param(ns.p, lencopy_start, ParameterRole::Block, TypeExpr::Unit);
+    let lc_z0 = a.cref(ns.o, lencopy_start, c0, u64_type());
+    a.blocks.push(Block {
+        entity_id: lencopy_start,
+        function: fid,
+        parameters: vec![lc_acc, lc_lenvec, lc_llen, lc_bodyvec, lc_blen, lc_unit],
+        operations: vec![lc_z0],
+        terminator: branch(edge(
+            lencopy_check,
+            vec![
+                op_result(lc_z0),
+                pav(lc_acc),
+                pav(lc_lenvec),
+                pav(lc_llen),
+                pav(lc_bodyvec),
+                pav(lc_blen),
+                pav(lc_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let lk_idx = a.param(ns.p, lencopy_check, ParameterRole::Block, u64_type());
+    let lk_acc = a.param(ns.p, lencopy_check, ParameterRole::Block, u8vec_type());
+    let lk_lenvec = a.param(ns.p, lencopy_check, ParameterRole::Block, u8vec_type());
+    let lk_llen = a.param(ns.p, lencopy_check, ParameterRole::Block, u64_type());
+    let lk_bodyvec = a.param(ns.p, lencopy_check, ParameterRole::Block, u8vec_type());
+    let lk_blen = a.param(ns.p, lencopy_check, ParameterRole::Block, u64_type());
+    let lk_unit = a.param(ns.p, lencopy_check, ParameterRole::Block, TypeExpr::Unit);
+    let lk_lt = a.op(
+        ns.o,
+        lencopy_check,
+        Opcode::LessThan,
+        vec![pav(lk_idx), pav(lk_llen)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: lencopy_check,
+        function: fid,
+        parameters: vec![
+            lk_idx, lk_acc, lk_lenvec, lk_llen, lk_bodyvec, lk_blen, lk_unit,
+        ],
+        operations: vec![lk_lt],
+        terminator: cond(
+            op_result(lk_lt),
+            edge(
+                lencopy_get,
+                vec![
+                    pav(lk_idx),
+                    pav(lk_acc),
+                    pav(lk_lenvec),
+                    pav(lk_llen),
+                    pav(lk_bodyvec),
+                    pav(lk_blen),
+                    pav(lk_unit),
+                ],
+            ),
+            edge(
+                bodycopy_start,
+                vec![pav(lk_acc), pav(lk_bodyvec), pav(lk_blen), pav(lk_unit)],
+            ),
+        ),
+        reachability: Reachability::Required,
+    });
+    let lg_idx = a.param(ns.p, lencopy_get, ParameterRole::Block, u64_type());
+    let lg_acc = a.param(ns.p, lencopy_get, ParameterRole::Block, u8vec_type());
+    let lg_lenvec = a.param(ns.p, lencopy_get, ParameterRole::Block, u8vec_type());
+    let lg_llen = a.param(ns.p, lencopy_get, ParameterRole::Block, u64_type());
+    let lg_bodyvec = a.param(ns.p, lencopy_get, ParameterRole::Block, u8vec_type());
+    let lg_blen = a.param(ns.p, lencopy_get, ParameterRole::Block, u64_type());
+    let lg_unit = a.param(ns.p, lencopy_get, ParameterRole::Block, TypeExpr::Unit);
+    let lg_get = a.op(
+        ns.o,
+        lencopy_get,
+        Opcode::VectorGet,
+        vec![pav(lg_lenvec), pav(lg_idx)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: lencopy_get,
+        function: fid,
+        parameters: vec![
+            lg_idx, lg_acc, lg_lenvec, lg_llen, lg_bodyvec, lg_blen, lg_unit,
+        ],
+        operations: vec![lg_get],
+        terminator: switch(
+            op_result(lg_get),
+            vec![
+                (BuiltinCase::None, trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    lencopy_get2,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(lg_idx),
+                        sav(lg_acc),
+                        sav(lg_lenvec),
+                        sav(lg_llen),
+                        sav(lg_bodyvec),
+                        sav(lg_blen),
+                        sav(lg_unit),
+                    ],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let mh_b = a.param(ns.p, lencopy_get2, ParameterRole::Block, u8_type());
+    let mh_idx = a.param(ns.p, lencopy_get2, ParameterRole::Block, u64_type());
+    let mh_acc = a.param(ns.p, lencopy_get2, ParameterRole::Block, u8vec_type());
+    let mh_lenvec = a.param(ns.p, lencopy_get2, ParameterRole::Block, u8vec_type());
+    let mh_llen = a.param(ns.p, lencopy_get2, ParameterRole::Block, u64_type());
+    let mh_bodyvec = a.param(ns.p, lencopy_get2, ParameterRole::Block, u8vec_type());
+    let mh_blen = a.param(ns.p, lencopy_get2, ParameterRole::Block, u64_type());
+    let mh_unit = a.param(ns.p, lencopy_get2, ParameterRole::Block, TypeExpr::Unit);
+    let mh_push = a.op(
+        ns.o,
+        lencopy_get2,
+        Opcode::AdapterInvoke,
+        vec![pav(mh_acc), pav(mh_b)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: lencopy_get2,
+        function: fid,
+        parameters: vec![
+            mh_b, mh_idx, mh_acc, mh_lenvec, mh_llen, mh_bodyvec, mh_blen, mh_unit,
+        ],
+        operations: vec![mh_push],
+        terminator: switch(
+            op_result(mh_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    lencopy_push,
+                    vec![
+                        sav(mh_idx),
+                        SwitchArgument::CasePayload,
+                        sav(mh_lenvec),
+                        sav(mh_llen),
+                        sav(mh_bodyvec),
+                        sav(mh_blen),
+                        sav(mh_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let mh2_idx = a.param(ns.p, lencopy_push, ParameterRole::Block, u64_type());
+    let mh2_acc = a.param(ns.p, lencopy_push, ParameterRole::Block, u8vec_type());
+    let mh2_lenvec = a.param(ns.p, lencopy_push, ParameterRole::Block, u8vec_type());
+    let mh2_llen = a.param(ns.p, lencopy_push, ParameterRole::Block, u64_type());
+    let mh2_bodyvec = a.param(ns.p, lencopy_push, ParameterRole::Block, u8vec_type());
+    let mh2_blen = a.param(ns.p, lencopy_push, ParameterRole::Block, u64_type());
+    let mh2_unit = a.param(ns.p, lencopy_push, ParameterRole::Block, TypeExpr::Unit);
+    let mh2_c1 = a.cref(ns.o, lencopy_push, c1, u64_type());
+    let mh2_add = a.op(
+        ns.o,
+        lencopy_push,
+        Opcode::IntAddChecked,
+        vec![pav(mh2_idx), op_result(mh2_c1)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: lencopy_push,
+        function: fid,
+        parameters: vec![
+            mh2_idx,
+            mh2_acc,
+            mh2_lenvec,
+            mh2_llen,
+            mh2_bodyvec,
+            mh2_blen,
+            mh2_unit,
+        ],
+        operations: vec![mh2_c1, mh2_add],
+        terminator: switch(
+            op_result(mh2_add),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    lencopy_next,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(mh2_acc),
+                        sav(mh2_lenvec),
+                        sav(mh2_llen),
+                        sav(mh2_bodyvec),
+                        sav(mh2_blen),
+                        sav(mh2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let mn_idx = a.param(ns.p, lencopy_next, ParameterRole::Block, u64_type());
+    let mn_acc = a.param(ns.p, lencopy_next, ParameterRole::Block, u8vec_type());
+    let mn_lenvec = a.param(ns.p, lencopy_next, ParameterRole::Block, u8vec_type());
+    let mn_llen = a.param(ns.p, lencopy_next, ParameterRole::Block, u64_type());
+    let mn_bodyvec = a.param(ns.p, lencopy_next, ParameterRole::Block, u8vec_type());
+    let mn_blen = a.param(ns.p, lencopy_next, ParameterRole::Block, u64_type());
+    let mn_unit = a.param(ns.p, lencopy_next, ParameterRole::Block, TypeExpr::Unit);
+    a.blocks.push(Block {
+        entity_id: lencopy_next,
+        function: fid,
+        parameters: vec![
+            mn_idx, mn_acc, mn_lenvec, mn_llen, mn_bodyvec, mn_blen, mn_unit,
+        ],
+        operations: Vec::new(),
+        terminator: branch(edge(
+            lencopy_check,
+            vec![
+                pav(mn_idx),
+                pav(mn_acc),
+                pav(mn_lenvec),
+                pav(mn_llen),
+                pav(mn_bodyvec),
+                pav(mn_blen),
+                pav(mn_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    // Body copy loop.
+    let wc_acc = a.param(ns.p, bodycopy_start, ParameterRole::Block, u8vec_type());
+    let wc_bodyvec = a.param(ns.p, bodycopy_start, ParameterRole::Block, u8vec_type());
+    let wc_blen = a.param(ns.p, bodycopy_start, ParameterRole::Block, u64_type());
+    let wc_unit = a.param(ns.p, bodycopy_start, ParameterRole::Block, TypeExpr::Unit);
+    let wc_z0 = a.cref(ns.o, bodycopy_start, c0, u64_type());
+    a.blocks.push(Block {
+        entity_id: bodycopy_start,
+        function: fid,
+        parameters: vec![wc_acc, wc_bodyvec, wc_blen, wc_unit],
+        operations: vec![wc_z0],
+        terminator: branch(edge(
+            bodycopy_check,
+            vec![
+                op_result(wc_z0),
+                pav(wc_acc),
+                pav(wc_bodyvec),
+                pav(wc_blen),
+                pav(wc_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let wk_idx = a.param(ns.p, bodycopy_check, ParameterRole::Block, u64_type());
+    let wk_acc = a.param(ns.p, bodycopy_check, ParameterRole::Block, u8vec_type());
+    let wk_bodyvec = a.param(ns.p, bodycopy_check, ParameterRole::Block, u8vec_type());
+    let wk_blen = a.param(ns.p, bodycopy_check, ParameterRole::Block, u64_type());
+    let wk_unit = a.param(ns.p, bodycopy_check, ParameterRole::Block, TypeExpr::Unit);
+    let wk_lt = a.op(
+        ns.o,
+        bodycopy_check,
+        Opcode::LessThan,
+        vec![pav(wk_idx), pav(wk_blen)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: bodycopy_check,
+        function: fid,
+        parameters: vec![wk_idx, wk_acc, wk_bodyvec, wk_blen, wk_unit],
+        operations: vec![wk_lt],
+        terminator: cond(
+            op_result(wk_lt),
+            edge(
+                bodycopy_get,
+                vec![
+                    pav(wk_idx),
+                    pav(wk_acc),
+                    pav(wk_bodyvec),
+                    pav(wk_blen),
+                    pav(wk_unit),
+                ],
+            ),
+            edge(out_done, vec![pav(wk_acc), pav(wk_unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+    let wg_idx = a.param(ns.p, bodycopy_get, ParameterRole::Block, u64_type());
+    let wg_acc = a.param(ns.p, bodycopy_get, ParameterRole::Block, u8vec_type());
+    let wg_bodyvec = a.param(ns.p, bodycopy_get, ParameterRole::Block, u8vec_type());
+    let wg_blen = a.param(ns.p, bodycopy_get, ParameterRole::Block, u64_type());
+    let wg_unit = a.param(ns.p, bodycopy_get, ParameterRole::Block, TypeExpr::Unit);
+    let wg_get = a.op(
+        ns.o,
+        bodycopy_get,
+        Opcode::VectorGet,
+        vec![pav(wg_bodyvec), pav(wg_idx)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: bodycopy_get,
+        function: fid,
+        parameters: vec![wg_idx, wg_acc, wg_bodyvec, wg_blen, wg_unit],
+        operations: vec![wg_get],
+        terminator: switch(
+            op_result(wg_get),
+            vec![
+                (BuiltinCase::None, trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    bodycopy_get2,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(wg_idx),
+                        sav(wg_acc),
+                        sav(wg_bodyvec),
+                        sav(wg_blen),
+                        sav(wg_unit),
+                    ],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let wh_b = a.param(ns.p, bodycopy_get2, ParameterRole::Block, u8_type());
+    let wh_idx = a.param(ns.p, bodycopy_get2, ParameterRole::Block, u64_type());
+    let wh_acc = a.param(ns.p, bodycopy_get2, ParameterRole::Block, u8vec_type());
+    let wh_bodyvec = a.param(ns.p, bodycopy_get2, ParameterRole::Block, u8vec_type());
+    let wh_blen = a.param(ns.p, bodycopy_get2, ParameterRole::Block, u64_type());
+    let wh_unit = a.param(ns.p, bodycopy_get2, ParameterRole::Block, TypeExpr::Unit);
+    let wh_push = a.op(
+        ns.o,
+        bodycopy_get2,
+        Opcode::AdapterInvoke,
+        vec![pav(wh_acc), pav(wh_b)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: bodycopy_get2,
+        function: fid,
+        parameters: vec![wh_b, wh_idx, wh_acc, wh_bodyvec, wh_blen, wh_unit],
+        operations: vec![wh_push],
+        terminator: switch(
+            op_result(wh_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    bodycopy_push,
+                    vec![
+                        sav(wh_idx),
+                        SwitchArgument::CasePayload,
+                        sav(wh_bodyvec),
+                        sav(wh_blen),
+                        sav(wh_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let wh2_idx = a.param(ns.p, bodycopy_push, ParameterRole::Block, u64_type());
+    let wh2_acc = a.param(ns.p, bodycopy_push, ParameterRole::Block, u8vec_type());
+    let wh2_bodyvec = a.param(ns.p, bodycopy_push, ParameterRole::Block, u8vec_type());
+    let wh2_blen = a.param(ns.p, bodycopy_push, ParameterRole::Block, u64_type());
+    let wh2_unit = a.param(ns.p, bodycopy_push, ParameterRole::Block, TypeExpr::Unit);
+    let wh2_c1 = a.cref(ns.o, bodycopy_push, c1, u64_type());
+    let wh2_add = a.op(
+        ns.o,
+        bodycopy_push,
+        Opcode::IntAddChecked,
+        vec![pav(wh2_idx), op_result(wh2_c1)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: bodycopy_push,
+        function: fid,
+        parameters: vec![wh2_idx, wh2_acc, wh2_bodyvec, wh2_blen, wh2_unit],
+        operations: vec![wh2_c1, wh2_add],
+        terminator: switch(
+            op_result(wh2_add),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    bodycopy_next,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(wh2_acc),
+                        sav(wh2_bodyvec),
+                        sav(wh2_blen),
+                        sav(wh2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let wn_idx = a.param(ns.p, bodycopy_next, ParameterRole::Block, u64_type());
+    let wn_acc = a.param(ns.p, bodycopy_next, ParameterRole::Block, u8vec_type());
+    let wn_bodyvec = a.param(ns.p, bodycopy_next, ParameterRole::Block, u8vec_type());
+    let wn_blen = a.param(ns.p, bodycopy_next, ParameterRole::Block, u64_type());
+    let wn_unit = a.param(ns.p, bodycopy_next, ParameterRole::Block, TypeExpr::Unit);
+    a.blocks.push(Block {
+        entity_id: bodycopy_next,
+        function: fid,
+        parameters: vec![wn_idx, wn_acc, wn_bodyvec, wn_blen, wn_unit],
+        operations: Vec::new(),
+        terminator: branch(edge(
+            bodycopy_check,
+            vec![
+                pav(wn_idx),
+                pav(wn_acc),
+                pav(wn_bodyvec),
+                pav(wn_blen),
+                pav(wn_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let od_acc = a.param(ns.p, out_done, ParameterRole::Block, u8vec_type());
+    let od_unit = a.param(ns.p, out_done, ParameterRole::Block, TypeExpr::Unit);
+    let od_v2b = a.op(
+        ns.o,
+        out_done,
+        Opcode::AdapterInvoke,
+        vec![pav(od_unit), pav(od_acc)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_V2B1,
+        ))),
+    );
+    a.blocks.push(Block {
+        entity_id: out_done,
+        function: fid,
+        parameters: vec![od_acc, od_unit],
+        operations: vec![od_v2b],
+        terminator: switch(
+            op_result(od_v2b),
+            vec![
+                (BuiltinCase::Ok, out_ret, vec![SwitchArgument::CasePayload]),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let or_bytes = a.param(ns.p, out_ret, ParameterRole::Block, TypeExpr::Bytes);
+    let or_ok = a.op(
+        ns.o,
+        out_ret,
+        Opcode::ResultOk,
+        vec![pav(or_bytes)],
+        vec![res_t.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: out_ret,
+        function: fid,
+        parameters: vec![or_bytes],
+        operations: vec![or_ok],
+        terminator: ret(op_result(or_ok)),
+        reachability: Reachability::Required,
+    });
+    let _ = c2;
+
+    FunctionGraph {
+        entity_id: fid,
+        type_parameters: Vec::new(),
+        parameters: vec![q_eid, q_body, q_unit],
+        result_type: res_t,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: a.blocks[bstart..].iter().map(|b| b.entity_id).collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
 // ── fixture record engine (shared framing for synthetic + program) ───
 // Loop-free strict record framing reused by program outer: count/tags/
 // lens/bool/trailing with exact `SCB_*` codes. Two instantiations:
@@ -6530,6 +7870,58 @@ fn outer_decode_image() -> Image {
     }
 }
 
+fn outer_encode_image() -> Image {
+    use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
+    let mut a = Asm::new();
+    let ens = Ns {
+        k: 81,
+        p: 82,
+        b: 83,
+        o: 84,
+    };
+    let oens = Ns {
+        k: 85,
+        p: 86,
+        b: 87,
+        o: 88,
+    };
+    let encode_fid = eid(9, 33);
+    let outer_fid = eid(9, 34);
+    let encode_graph = build_encode(&mut a, ens, encode_fid);
+    let outer_graph = build_outer_encode(&mut a, oens, outer_fid, encode_fid);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: outer_graph.clone(),
+        functions: vec![outer_graph, encode_graph],
+        parameters: a.parameters,
+        blocks: a.blocks,
+        operations: a.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: a.constants,
+    }
+}
+
+fn outer_encode_call(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    eid_hex: &str,
+    body_hex: &str,
+) -> sley_vm::ExecutionOutcome {
+    execute(
+        package,
+        approved,
+        vec![
+            bytes_input(&hex_decode(eid_hex)),
+            bytes_input(&hex_decode(body_hex)),
+            unit_input(),
+        ],
+    )
+}
+
 fn outer_decode_call(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -6605,6 +7997,25 @@ fn outer_probe_ns_empty() {
         "OUTER_TWO fuel={} instr={} peak={}",
         outcome_two.fuel_used, outcome_two.instruction_count, outcome_two.peak_value_units
     );
+}
+
+#[test]
+fn outer_encode_probe_roundtrip() {
+    let (enc_pkg, enc_approved) = admit(&outer_encode_image());
+    let (dec_pkg, dec_approved) = admit(&outer_decode_image());
+    let eid_hex = "0101010101010101010101010101010101010101010101010101010101010101";
+    let body_hex = "03080201020000020100";
+    let expected_payload = "0201200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100";
+    let enc_outcome = outer_encode_call(&enc_pkg, &enc_approved, eid_hex, body_hex);
+    eprintln!("OUTER_ENC termination={:?}", enc_outcome.termination);
+    eprintln!(
+        "OUTER_ENC fuel={} instr={} peak={}",
+        enc_outcome.fuel_used, enc_outcome.instruction_count, enc_outcome.peak_value_units
+    );
+    assert_encode_ok(&enc_outcome, &hex_decode(expected_payload));
+    // Decode the emitted bytes back through Sley decode.
+    let dec_outcome = outer_decode_call(&dec_pkg, &dec_approved, expected_payload);
+    assert_outer_ok(&dec_outcome, &hex_decode(eid_hex), &hex_decode(body_hex));
 }
 
 fn bytes_input(bytes: &[u8]) -> ConstValue {
