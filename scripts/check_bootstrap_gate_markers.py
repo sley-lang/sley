@@ -65,7 +65,12 @@ else:
 closure = CLOSURE.read_text(encoding="utf-8")
 for marker in [
     "emit_bootstrap_profile_vectors_for_freeze",
-    "judge_bootstrap_profile(&workload.program.gate_input())",
+    # Versioned gate inputs (AR-08): frozen v1 workloads judge under V1,
+    # the successor replay judges under V2 — the admission-before-evidence
+    # property holds per version, never unversioned.
+    "judge_bootstrap_profile(&workload.program.gate_input(BootstrapProfileVersion::V1))",
+    "profile_version: BootstrapProfileVersion::V2,",
+    "closure_workloads_replay_through_v2_with_attribution",
     "Gate admission precedes emission",
     "BOOTSTRAP_PROFILE_VECTOR|",
     "graph_worklist_dfs",

@@ -46,7 +46,7 @@ judgment — out of identity scope by its own contract.
 | raw-hash conformance v1 vectors | whole file 2.5 KB | < 1 KiB each |
 | bridge adversarial lanes | tiny lanes + framing | <= ~8 B + framing |
 | boundary probes (synthetic fills) | `vec![0x..; N]` | 0 B, 1 B, 1 KiB admit; 1 MiB admits; 1 MiB+1 and 2 MiB refuse code 2 |
-| SLEYCHNK1 composition tests (synthetic fills) | 1 MiB+1, 2 MiB | over-bound, composed (non-canonical — see §5) |
+| over-bound refusal + framing inertia (`raw_over_bound_refuses_without_composition`) | 1 MiB+1, 2 MiB refuse; `SLEYCHNK1`-framed bytes hash single-shot | retired rule carries no identity (see §5) |
 
 `conformance/bootstrap-profile/v2/accepted.json` (20 vectors) carries
 acceptance records, not RHW1 preimages: max hex field is
@@ -55,15 +55,18 @@ never through RHW1. No real (non-synthetic) workload feeds more than
 ~1 KiB through RHW1; every over-1 MiB in-Sley case is a synthetic
 boundary probe.
 
-## 4. Admission gap (measured, not yet a rule)
+## 4. Admission bound (measured, then enforced — round-12 repair)
 
-The gate checks constant value *types* only
-(`bootstrap.rs:356-363`); `TypeExpr::Bytes` admits unconditionally
-(`bootstrap.rs:212`). A bootstrap closure may therefore legally carry
-a multi-MiB `Bytes` constant whose only honest fate at RHW1 is the
-typed mid-execution refusal. The refusal is honest (typed
-`Err(Index, 2)`, never truncation), but the "cap" is currently
-enforced at execution, not admission.
+The gate checked constant value *types* only; `TypeExpr::Bytes`
+admitted unconditionally. Round-12 closes the gap: under
+`BootstrapProfileVersion::V2` a carried `Bytes` constant over
+`RAW_HASH_MAX_BYTES` refuses at admission with `ResourceLimit`
+(`bootstrap.rs` constant-inventory loop); V1 needs no bound (no
+`RHW1`; `ValueHash` stays canonical under its own encoder/work
+limits). Computed over-bound values keep the typed mid-execution
+refusal (`Err(Index, 2)`) as backstop. Negative:
+`raw_v2_gate_bounds_carried_preimages` (over-bound refuses,
+exactly-1 MiB admits, V1 admits the same constant).
 
 ## 5. Ungrounded claims found (AR-04 input)
 
