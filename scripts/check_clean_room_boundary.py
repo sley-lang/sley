@@ -55,6 +55,7 @@ SENTINEL_INVENTORY = (
     "docs/spec/LEGACY_ARTIFACT_ADAPTER_V1.md",
     "machineresearch/sley-2.0/01-legacy-freeze-and-authority.md",
     "machineresearch/sley-2.0/s20-530-v4-semantic-amendment-design.md",
+    "machineresearch/sley-2.0/s20-780-similarity-audit-2026-09-07.md",
     "machineresearch/sley-2.0/machine-summary.json",
     "evidence/release/decision-dossier.json",
     "scripts/check_clean_room_boundary.py",

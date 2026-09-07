@@ -395,14 +395,41 @@ mod tests {
 
     #[test]
     fn sley_evidence_ingress_has_no_minting_path() {
-        // The reserved post-C1 route refuses: no evidence producer, no
-        // authenticator, no receipt — by construction, not by test setup.
-        // `SleyAdmissionEvidence` is sealed with no constructor, so this
-        // test cannot even build one outside the module; the refusal is
-        // pinned at the type level. Here we pin the error code string.
-        assert_eq!(
-            AuthorityError::SleyEvidenceUnavailable.to_string(),
-            "AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE"
-        );
+        // The reserved post-C1 route always refuses: no evidence
+        // producer, no authenticator, no receipt. `SleyAdmissionEvidence`
+        // is sealed with no constructor outside this module, so only
+        // this test can even build one — and the route still refuses.
+        let evidence = SleyAdmissionEvidence {
+            closure_digest: [0xA5; 32],
+            operation_count: 1,
+            bridge_uses: 0,
+            image_digest: [0x5A; 32],
+        };
+        let package = ExecutionPackage {
+            image_bytes: Vec::new(),
+            constants: Vec::new(),
+            type_definitions: Vec::new(),
+            imports: Vec::new(),
+            globals: Vec::new(),
+            contracts: Vec::new(),
+            entry: EntityId::from_bytes([1; 32]),
+            schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+            state_root: StateRoot::from_bytes([9; 32]),
+            profile: CacheProfile::EXTENDED_V1,
+            admitted_limits: crate::execute::ExecutionLimits {
+                max_instructions: 0,
+                max_fuel: 0,
+                max_value_units: 0,
+                max_output_units: 0,
+                cancel_at_fuel: None,
+            },
+            gate_operation_count: 0,
+            gate_bridge_uses: 0,
+            gate_closure_fingerprints: Vec::new(),
+        };
+        match admit_v2_package_from_sley_evidence(&evidence, &package) {
+            Err(AuthorityError::SleyEvidenceUnavailable) => {}
+            other => panic!("reserved ingress must refuse, got {other:?}"),
+        }
     }
 }

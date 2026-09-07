@@ -1440,6 +1440,55 @@ fn raw_v2_approval_refuses_v1_report() {
     }
 }
 
+fn smuggled_constant() -> ConstantDefinition {
+    ConstantDefinition {
+        entity_id: id(41),
+        value: bytes_value(b"smuggled"),
+    }
+}
+
+fn substituted_import_row(adapters: &[sley_ssmc::AdapterImport]) -> Vec<sley_ssmc::AdapterImport> {
+    let mut row = frozen_rhw1();
+    row.response_type = TypeExpr::Vector(Box::new(TypeExpr::UInt(
+        sley_ssmc::IntegerWidth::from_bits(8),
+    )));
+    let mut imports = adapters.to_vec();
+    imports[0] = row;
+    imports
+}
+
+fn added_global() -> sley_ssmc::GlobalValueDefinition {
+    sley_ssmc::GlobalValueDefinition {
+        entity_id: id(43),
+        value_type: TypeExpr::Unit,
+        initializer: id(44),
+        visibility: Visibility::Private,
+    }
+}
+
+fn smuggled_typedef() -> sley_ssmc::TypeDefinition {
+    // The fixture closure carries no type definitions; any carried row
+    // diverges from the judged environment.
+    sley_ssmc::TypeDefinition {
+        entity_id: id(45),
+        type_parameters: Vec::new(),
+        form: sley_ssmc::TypeDefForm::Record(Vec::new()),
+        invariants: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+fn added_contract() -> sley_ssmc::ContractDefinition {
+    sley_ssmc::ContractDefinition {
+        entity_id: id(46),
+        target: id(47),
+        contract_kind: sley_ssmc::ContractKind::Precondition,
+        predicate: id(48),
+        bindings: Vec::new(),
+        resource_limits: None,
+    }
+}
+
 #[test]
 fn raw_authority_refuses_substituted_tables() {
     // Complete-package correspondence (AR-03): the authority compares
@@ -1500,52 +1549,76 @@ fn raw_authority_refuses_substituted_tables() {
         Err(AuthorityError::ClaimsMismatch) => {}
         other => panic!("{label} must refuse with ClaimsMismatch, got {other:?}"),
     };
-    // Smuggled constant table.
-    refuse(
-        "substituted constants",
-        &ExecutionPackage {
-            constants: vec![ConstantDefinition {
-                entity_id: id(41),
-                value: bytes_value(b"smuggled"),
-            }],
-            ..honest.clone()
-        },
-    );
-    // Substituted import row schema (same identity, different body).
-    let mut row = frozen_rhw1();
-    row.response_type = TypeExpr::Vector(Box::new(TypeExpr::UInt(
-        sley_ssmc::IntegerWidth::from_bits(8),
-    )));
-    let mut imports = program.adapters.clone();
-    imports[0] = row;
-    refuse(
-        "substituted import row",
-        &ExecutionPackage {
-            imports,
-            ..honest.clone()
-        },
-    );
-    // Added global.
-    refuse(
-        "added global",
-        &ExecutionPackage {
-            globals: vec![sley_ssmc::GlobalValueDefinition {
-                entity_id: id(43),
-                value_type: TypeExpr::Unit,
-                initializer: id(44),
-                visibility: Visibility::Private,
-            }],
-            ..honest.clone()
-        },
-    );
-    // Rebound epoch.
-    refuse(
-        "rebound epoch",
-        &ExecutionPackage {
-            schema_epoch: SchemaEpochId::from_bytes([7; 32]),
-            ..honest.clone()
-        },
-    );
+    // One leg per carried table or binding: each substitutes exactly
+    // one table in an otherwise honest package.
+    let cases = substitution_cases(&honest, &program.adapters);
+    for (label, package) in &cases {
+        refuse(label, package);
+    }
+}
+
+fn substitution_cases(
+    honest: &sley_vm::ExecutionPackage,
+    adapters: &[sley_ssmc::AdapterImport],
+) -> Vec<(&'static str, sley_vm::ExecutionPackage)> {
+    vec![
+        (
+            "substituted constants",
+            sley_vm::ExecutionPackage {
+                constants: vec![smuggled_constant()],
+                ..honest.clone()
+            },
+        ),
+        (
+            "substituted import row",
+            sley_vm::ExecutionPackage {
+                imports: substituted_import_row(adapters),
+                ..honest.clone()
+            },
+        ),
+        (
+            "added global",
+            sley_vm::ExecutionPackage {
+                globals: vec![added_global()],
+                ..honest.clone()
+            },
+        ),
+        (
+            "rebound epoch",
+            sley_vm::ExecutionPackage {
+                schema_epoch: SchemaEpochId::from_bytes([7; 32]),
+                ..honest.clone()
+            },
+        ),
+        (
+            "smuggled type definition",
+            sley_vm::ExecutionPackage {
+                type_definitions: vec![smuggled_typedef()],
+                ..honest.clone()
+            },
+        ),
+        (
+            "added contract",
+            sley_vm::ExecutionPackage {
+                contracts: vec![added_contract()],
+                ..honest.clone()
+            },
+        ),
+        (
+            "rebound entry",
+            sley_vm::ExecutionPackage {
+                entry: id(49),
+                ..honest.clone()
+            },
+        ),
+        (
+            "rebound state root",
+            sley_vm::ExecutionPackage {
+                state_root: StateRoot::from_bytes([6; 32]),
+                ..honest.clone()
+            },
+        ),
+    ]
 }
 
 #[test]

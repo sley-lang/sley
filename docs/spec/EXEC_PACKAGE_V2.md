@@ -61,7 +61,9 @@ profile digest v2; VM `[1,0,0]`; host ABI version 2; admitted limits
 gate report consistency (entry-first, import-set equality,
 operation/bridge counts, closure fingerprints, admitted image digest —
 verified without running the gate). Cache key re-derived (same twelve
-fields). Limits bind the observation post hoc, not the approval.
+fields). Admitted limits must equal the request limits exactly at
+approval (mismatch refuses); observations additionally bind them
+post hoc.
 
 ## Hydration (unchanged)
 
