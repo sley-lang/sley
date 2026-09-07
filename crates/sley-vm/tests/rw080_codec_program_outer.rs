@@ -9301,12 +9301,12 @@ fn build_entrypoint_decode(
 // UNION_INVALID. Fixed pushes (10/26/02/01/20/02/01/exp) + 32B copy loop +
 // V2B1. No uvar callee needed (all single-byte for this fixed shape).
 #[allow(
-    dead_code,
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines
 )]
 fn build_entrypoint_encode(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
+    use sley_vm::host_abi::{BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
     let bstart = a.blocks.len();
     let res_t = encode_result_type();
     let c0 = a.ku64(ns.k, 0);
@@ -9351,6 +9351,8 @@ fn build_entrypoint_encode(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph 
     let p6 = a.id(ns.b);
     let p7 = a.id(ns.b);
     let p8 = a.id(ns.b);
+    let push_e1 = a.id(ns.b);
+    let push_e2 = a.id(ns.b);
     let out_done = a.id(ns.b);
     let out_ret = a.id(ns.b);
     // Exposure 1/2 else UNION (before function work, mirroring value order?
@@ -9418,9 +9420,8 @@ fn build_entrypoint_encode(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph 
         )),
         reachability: Reachability::Required,
     });
-    // func_conv takes (func, exp, unit) ignoring exp (validated); exp_is2
-    // passes [func, 2, unit] via constant. Fixed emission lands next; this
-    // checkpoint parks after B2V1 as RESOURCE (no success yet).
+    // func_conv takes (func, exp, unit); exposure already validated 1/2
+    // on both entry paths, so exp threads through to the final byte push.
     let f_func = a.param(ns.p, func_conv, ParameterRole::Block, TypeExpr::Bytes);
     let f_exp = a.param(ns.p, func_conv, ParameterRole::Block, u64_type());
     let f_unit = a.param(ns.p, func_conv, ParameterRole::Block, TypeExpr::Unit);
@@ -9442,51 +9443,507 @@ fn build_entrypoint_encode(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph 
         terminator: switch(
             op_result(f_cv),
             vec![
-                (BuiltinCase::Ok, b_res, vec![]),
+                (
+                    BuiltinCase::Ok,
+                    func_len,
+                    vec![SwitchArgument::CasePayload, sav(f_exp), sav(f_unit)],
+                ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
         ),
         reachability: Reachability::Required,
     });
-    // Fix exp_is2 edge above (currently 2 args to 3-param func_conv): patch by
-    // re-pushing is impossible; instead make exp_is2 carry a dummy exp constant.
-    // The pushed exp_is2 block above passes [func, unit] (2 args) but func_conv
-    // needs 3. This is a TargetArguments bug. Repair: change exp_is2 to pass
-    // [func, 2, unit] using a fresh constant. We cannot easily edit the pushed
-    // block now, so instead change func_conv back to 2 params and fix entry.
-    // Simplest correct repair: keep func_conv 3-param and fix exp_is2 edge via
-    // rebuilding is overkill; alternative: admit the 2-arg edge fails and fix
-    // both edges now by replacing blocks is complex. Chosen fix: redefine
-    // func_conv usage so entry true-branch drops exp through exp_is2-like path
-    // for exp==1 as well. Implement by changing entry terminator is already
-    // pushed (cannot change). Therefore this builder as written has an arity
-    // bug for the exp==1 path. Park encode as RES halt to avoid shipping a
-    // mislowered graph; the exposure-drop repair (one adapter block for exp==1)
-    // lands next. No success claimed for entrypoint encode yet.
-    let _ = (
+    // Function length: <32 LENGTH, >32 TRAILING (encode-side mirror of
+    // decode_fixed, same as outer encode eid check).
+    let v_funcvec = a.param(ns.p, func_len, ParameterRole::Block, u8vec_type());
+    let v_exp = a.param(ns.p, func_len, ParameterRole::Block, u64_type());
+    let v_unit = a.param(ns.p, func_len, ParameterRole::Block, TypeExpr::Unit);
+    let v_ln = a.op(
+        ns.o,
         func_len,
-        func_gt,
-        out_start,
-        p1,
-        p2,
-        p3,
-        p4,
-        p5,
-        fcopy_start,
-        fcopy_check,
-        fcopy_get,
-        fcopy_get2,
-        fcopy_push,
-        fcopy_next,
-        p6,
-        p7,
-        p8,
-        out_done,
-        out_ret,
-        exp_is2,
+        Opcode::VectorLen,
+        vec![pav(v_funcvec)],
+        vec![u64_type()],
+        Immediate::None,
     );
-    let _ = (c0, c1, c2, c32, u10, u26, u02, u01, u20, trap);
-    let _ = (b_len, b_trail);
+    let v_k32 = a.cref(ns.o, func_len, c32, u64_type());
+    let v_lt = a.op(
+        ns.o,
+        func_len,
+        Opcode::LessThan,
+        vec![op_result(v_ln), op_result(v_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let v_gt = a.op(
+        ns.o,
+        func_len,
+        Opcode::GreaterThan,
+        vec![op_result(v_ln), op_result(v_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: func_len,
+        function: fid,
+        parameters: vec![v_funcvec, v_exp, v_unit],
+        operations: vec![v_ln, v_k32, v_lt, v_gt],
+        terminator: cond(
+            op_result(v_lt),
+            edge(b_len, Vec::new()),
+            edge(
+                func_gt,
+                vec![pav(v_funcvec), pav(v_exp), pav(v_unit), op_result(v_gt)],
+            ),
+        ),
+        reachability: Reachability::Required,
+    });
+    let g_funcvec = a.param(ns.p, func_gt, ParameterRole::Block, u8vec_type());
+    let g_exp = a.param(ns.p, func_gt, ParameterRole::Block, u64_type());
+    let g_unit = a.param(ns.p, func_gt, ParameterRole::Block, TypeExpr::Unit);
+    let g_flag = a.param(ns.p, func_gt, ParameterRole::Block, TypeExpr::Bool);
+    a.blocks.push(Block {
+        entity_id: func_gt,
+        function: fid,
+        parameters: vec![g_funcvec, g_exp, g_unit, g_flag],
+        operations: Vec::new(),
+        terminator: cond(
+            pav(g_flag),
+            edge(b_trail, Vec::new()),
+            edge(out_start, vec![pav(g_funcvec), pav(g_exp), pav(g_unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+    // Output assembly: VectorNew, then fixed pushes 10/26/02/01/20
+    // (union tag 16, union len 38, count 2, field-1 tag 1, field-1 len 32).
+    let os_funcvec = a.param(ns.p, out_start, ParameterRole::Block, u8vec_type());
+    let os_exp = a.param(ns.p, out_start, ParameterRole::Block, u64_type());
+    let os_unit = a.param(ns.p, out_start, ParameterRole::Block, TypeExpr::Unit);
+    let os_empty = a.op(
+        ns.o,
+        out_start,
+        Opcode::VectorNew,
+        Vec::new(),
+        vec![u8vec_type()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: out_start,
+        function: fid,
+        parameters: vec![os_funcvec, os_exp, os_unit],
+        operations: vec![os_empty],
+        terminator: branch(edge(
+            p1,
+            vec![
+                op_result(os_empty),
+                pav(os_funcvec),
+                pav(os_exp),
+                pav(os_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    // Sequential fixed pushes p1..p5 (each threads acc/funcvec/exp/unit).
+    let push_const = [
+        (p1, p2, u10),
+        (p2, p3, u26),
+        (p3, p4, u02),
+        (p4, p5, u01),
+        (p5, fcopy_start, u20),
+    ];
+    for (cur, next, konst) in push_const {
+        let q_acc = a.param(ns.p, cur, ParameterRole::Block, u8vec_type());
+        let q_funcvec = a.param(ns.p, cur, ParameterRole::Block, u8vec_type());
+        let q_exp = a.param(ns.p, cur, ParameterRole::Block, u64_type());
+        let q_unit = a.param(ns.p, cur, ParameterRole::Block, TypeExpr::Unit);
+        let q_c = a.cref(ns.o, cur, konst, u8_type());
+        let q_push = a.op(
+            ns.o,
+            cur,
+            Opcode::AdapterInvoke,
+            vec![pav(q_acc), op_result(q_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: cur,
+            function: fid,
+            parameters: vec![q_acc, q_funcvec, q_exp, q_unit],
+            operations: vec![q_c, q_push],
+            terminator: switch(
+                op_result(q_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        next,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(q_funcvec),
+                            sav(q_exp),
+                            sav(q_unit),
+                        ],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
+    // Function copy loop (32B, Form A backedge; mirrors outer eid loop).
+    let es_acc = a.param(ns.p, fcopy_start, ParameterRole::Block, u8vec_type());
+    let es_funcvec = a.param(ns.p, fcopy_start, ParameterRole::Block, u8vec_type());
+    let es_exp = a.param(ns.p, fcopy_start, ParameterRole::Block, u64_type());
+    let es_unit = a.param(ns.p, fcopy_start, ParameterRole::Block, TypeExpr::Unit);
+    let es_z0 = a.cref(ns.o, fcopy_start, c0, u64_type());
+    a.blocks.push(Block {
+        entity_id: fcopy_start,
+        function: fid,
+        parameters: vec![es_acc, es_funcvec, es_exp, es_unit],
+        operations: vec![es_z0],
+        terminator: branch(edge(
+            fcopy_check,
+            vec![
+                op_result(es_z0),
+                pav(es_acc),
+                pav(es_funcvec),
+                pav(es_exp),
+                pav(es_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    let ec_idx = a.param(ns.p, fcopy_check, ParameterRole::Block, u64_type());
+    let ec_acc = a.param(ns.p, fcopy_check, ParameterRole::Block, u8vec_type());
+    let ec_funcvec = a.param(ns.p, fcopy_check, ParameterRole::Block, u8vec_type());
+    let ec_exp = a.param(ns.p, fcopy_check, ParameterRole::Block, u64_type());
+    let ec_unit = a.param(ns.p, fcopy_check, ParameterRole::Block, TypeExpr::Unit);
+    let ec_k32 = a.cref(ns.o, fcopy_check, c32, u64_type());
+    let ec_lt = a.op(
+        ns.o,
+        fcopy_check,
+        Opcode::LessThan,
+        vec![pav(ec_idx), op_result(ec_k32)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: fcopy_check,
+        function: fid,
+        parameters: vec![ec_idx, ec_acc, ec_funcvec, ec_exp, ec_unit],
+        operations: vec![ec_k32, ec_lt],
+        terminator: cond(
+            op_result(ec_lt),
+            edge(
+                fcopy_get,
+                vec![
+                    pav(ec_idx),
+                    pav(ec_acc),
+                    pav(ec_funcvec),
+                    pav(ec_exp),
+                    pav(ec_unit),
+                ],
+            ),
+            edge(p6, vec![pav(ec_acc), pav(ec_exp), pav(ec_unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+    let eg_idx = a.param(ns.p, fcopy_get, ParameterRole::Block, u64_type());
+    let eg_acc = a.param(ns.p, fcopy_get, ParameterRole::Block, u8vec_type());
+    let eg_funcvec = a.param(ns.p, fcopy_get, ParameterRole::Block, u8vec_type());
+    let eg_exp = a.param(ns.p, fcopy_get, ParameterRole::Block, u64_type());
+    let eg_unit = a.param(ns.p, fcopy_get, ParameterRole::Block, TypeExpr::Unit);
+    let eg_get = a.op(
+        ns.o,
+        fcopy_get,
+        Opcode::VectorGet,
+        vec![pav(eg_funcvec), pav(eg_idx)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: fcopy_get,
+        function: fid,
+        parameters: vec![eg_idx, eg_acc, eg_funcvec, eg_exp, eg_unit],
+        operations: vec![eg_get],
+        terminator: switch(
+            op_result(eg_get),
+            vec![
+                (BuiltinCase::None, trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    fcopy_get2,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(eg_idx),
+                        sav(eg_acc),
+                        sav(eg_funcvec),
+                        sav(eg_exp),
+                        sav(eg_unit),
+                    ],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Note: fcopy_get2 keeps the source vec (index is direct); Get-None
+    // unreachable since function length was checked ==32.
+    let hg2_b = a.param(ns.p, fcopy_get2, ParameterRole::Block, u8_type());
+    let hg2_idx = a.param(ns.p, fcopy_get2, ParameterRole::Block, u64_type());
+    let hg2_acc = a.param(ns.p, fcopy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_funcvec = a.param(ns.p, fcopy_get2, ParameterRole::Block, u8vec_type());
+    let hg2_exp = a.param(ns.p, fcopy_get2, ParameterRole::Block, u64_type());
+    let hg2_unit = a.param(ns.p, fcopy_get2, ParameterRole::Block, TypeExpr::Unit);
+    let hg2_push = a.op(
+        ns.o,
+        fcopy_get2,
+        Opcode::AdapterInvoke,
+        vec![pav(hg2_acc), pav(hg2_b)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+    );
+    a.blocks.push(Block {
+        entity_id: fcopy_get2,
+        function: fid,
+        parameters: vec![hg2_b, hg2_idx, hg2_acc, hg2_funcvec, hg2_exp, hg2_unit],
+        operations: vec![hg2_push],
+        terminator: switch(
+            op_result(hg2_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    fcopy_push,
+                    vec![
+                        sav(hg2_idx),
+                        SwitchArgument::CasePayload,
+                        sav(hg2_funcvec),
+                        sav(hg2_exp),
+                        sav(hg2_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let ep_idx = a.param(ns.p, fcopy_push, ParameterRole::Block, u64_type());
+    let ep_acc = a.param(ns.p, fcopy_push, ParameterRole::Block, u8vec_type());
+    let ep_funcvec = a.param(ns.p, fcopy_push, ParameterRole::Block, u8vec_type());
+    let ep_exp = a.param(ns.p, fcopy_push, ParameterRole::Block, u64_type());
+    let ep_unit = a.param(ns.p, fcopy_push, ParameterRole::Block, TypeExpr::Unit);
+    let ep_c1 = a.cref(ns.o, fcopy_push, c1, u64_type());
+    let ep_add = a.op(
+        ns.o,
+        fcopy_push,
+        Opcode::IntAddChecked,
+        vec![pav(ep_idx), op_result(ep_c1)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: fcopy_push,
+        function: fid,
+        parameters: vec![ep_idx, ep_acc, ep_funcvec, ep_exp, ep_unit],
+        operations: vec![ep_c1, ep_add],
+        terminator: switch(
+            op_result(ep_add),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    fcopy_next,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(ep_acc),
+                        sav(ep_funcvec),
+                        sav(ep_exp),
+                        sav(ep_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let en_idx = a.param(ns.p, fcopy_next, ParameterRole::Block, u64_type());
+    let en_acc = a.param(ns.p, fcopy_next, ParameterRole::Block, u8vec_type());
+    let en_funcvec = a.param(ns.p, fcopy_next, ParameterRole::Block, u8vec_type());
+    let en_exp = a.param(ns.p, fcopy_next, ParameterRole::Block, u64_type());
+    let en_unit = a.param(ns.p, fcopy_next, ParameterRole::Block, TypeExpr::Unit);
+    a.blocks.push(Block {
+        entity_id: fcopy_next,
+        function: fid,
+        parameters: vec![en_idx, en_acc, en_funcvec, en_exp, en_unit],
+        operations: Vec::new(),
+        terminator: branch(edge(
+            fcopy_check,
+            vec![
+                pav(en_idx),
+                pav(en_acc),
+                pav(en_funcvec),
+                pav(en_exp),
+                pav(en_unit),
+            ],
+        )),
+        reachability: Reachability::Required,
+    });
+    // Field-2 tag (02) then field-2 length (01): p6/p7.
+    let t_acc = a.param(ns.p, p6, ParameterRole::Block, u8vec_type());
+    let t_exp = a.param(ns.p, p6, ParameterRole::Block, u64_type());
+    let t_unit = a.param(ns.p, p6, ParameterRole::Block, TypeExpr::Unit);
+    let t_c = a.cref(ns.o, p6, u02, u8_type());
+    let t_push = a.op(
+        ns.o,
+        p6,
+        Opcode::AdapterInvoke,
+        vec![pav(t_acc), op_result(t_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+    );
+    a.blocks.push(Block {
+        entity_id: p6,
+        function: fid,
+        parameters: vec![t_acc, t_exp, t_unit],
+        operations: vec![t_c, t_push],
+        terminator: switch(
+            op_result(t_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    p7,
+                    vec![SwitchArgument::CasePayload, sav(t_exp), sav(t_unit)],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let l_acc = a.param(ns.p, p7, ParameterRole::Block, u8vec_type());
+    let l_exp = a.param(ns.p, p7, ParameterRole::Block, u64_type());
+    let l_unit = a.param(ns.p, p7, ParameterRole::Block, TypeExpr::Unit);
+    let l_c = a.cref(ns.o, p7, u01, u8_type());
+    let l_push = a.op(
+        ns.o,
+        p7,
+        Opcode::AdapterInvoke,
+        vec![pav(l_acc), op_result(l_c)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+    );
+    a.blocks.push(Block {
+        entity_id: p7,
+        function: fid,
+        parameters: vec![l_acc, l_exp, l_unit],
+        operations: vec![l_c, l_push],
+        terminator: switch(
+            op_result(l_push),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    p8,
+                    vec![SwitchArgument::CasePayload, sav(l_exp), sav(l_unit)],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    // Exposure byte select (p8): exp is proven 1/2 here; push u01/u02.
+    let s_acc = a.param(ns.p, p8, ParameterRole::Block, u8vec_type());
+    let s_exp = a.param(ns.p, p8, ParameterRole::Block, u64_type());
+    let s_unit = a.param(ns.p, p8, ParameterRole::Block, TypeExpr::Unit);
+    let s_k1 = a.cref(ns.o, p8, c1, u64_type());
+    let s_eq = a.op(
+        ns.o,
+        p8,
+        Opcode::Equal,
+        vec![pav(s_exp), op_result(s_k1)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: p8,
+        function: fid,
+        parameters: vec![s_acc, s_exp, s_unit],
+        operations: vec![s_k1, s_eq],
+        terminator: cond(
+            op_result(s_eq),
+            edge(push_e1, vec![pav(s_acc), pav(s_unit)]),
+            edge(push_e2, vec![pav(s_acc), pav(s_unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+    for (blk, konst) in [(push_e1, u01), (push_e2, u02)] {
+        let e_acc = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
+        let e_unit = a.param(ns.p, blk, ParameterRole::Block, TypeExpr::Unit);
+        let e_c = a.cref(ns.o, blk, konst, u8_type());
+        let e_push = a.op(
+            ns.o,
+            blk,
+            Opcode::AdapterInvoke,
+            vec![pav(e_acc), op_result(e_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: blk,
+            function: fid,
+            parameters: vec![e_acc, e_unit],
+            operations: vec![e_c, e_push],
+            terminator: switch(
+                op_result(e_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        out_done,
+                        vec![SwitchArgument::CasePayload, sav(e_unit)],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
+    // Finalize: V2B1 then Ok.
+    let d_acc = a.param(ns.p, out_done, ParameterRole::Block, u8vec_type());
+    let d_unit = a.param(ns.p, out_done, ParameterRole::Block, TypeExpr::Unit);
+    let d_conv = a.op(
+        ns.o,
+        out_done,
+        Opcode::AdapterInvoke,
+        vec![pav(d_unit), pav(d_acc)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+    );
+    a.blocks.push(Block {
+        entity_id: out_done,
+        function: fid,
+        parameters: vec![d_acc, d_unit],
+        operations: vec![d_conv],
+        terminator: switch(
+            op_result(d_conv),
+            vec![
+                (BuiltinCase::Ok, out_ret, vec![SwitchArgument::CasePayload]),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+    let r_bytes = a.param(ns.p, out_ret, ParameterRole::Block, TypeExpr::Bytes);
+    let r_ok = a.op(
+        ns.o,
+        out_ret,
+        Opcode::ResultOk,
+        vec![pav(r_bytes)],
+        vec![res_t.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: out_ret,
+        function: fid,
+        parameters: vec![r_bytes],
+        operations: vec![r_ok],
+        terminator: ret(op_result(r_ok)),
+        reachability: Reachability::Required,
+    });
 
     FunctionGraph {
         entity_id: fid,
@@ -10954,6 +11411,57 @@ fn entrypoint_decode_call(
     )
 }
 
+fn entrypoint_encode_image() -> Image {
+    use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
+    let mut a = Asm::new();
+    let ns = Ns {
+        k: 101,
+        p: 102,
+        b: 103,
+        o: 104,
+    };
+    let fid = eid(9, 37);
+    let graph = build_entrypoint_encode(&mut a, ns, fid);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: a.parameters,
+        blocks: a.blocks,
+        operations: a.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: a.constants,
+    }
+}
+
+fn u64_input(value: u64) -> ConstValue {
+    ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(value)),
+    }
+}
+
+fn entrypoint_encode_call(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    func_hex: &str,
+    exposure: u64,
+) -> sley_vm::ExecutionOutcome {
+    execute(
+        package,
+        approved,
+        vec![
+            bytes_input(&hex_decode(func_hex)),
+            u64_input(exposure),
+            unit_input(),
+        ],
+    )
+}
+
 fn assert_entrypoint_ok(
     outcome: &sley_vm::ExecutionOutcome,
     expected_func: &[u8],
@@ -11090,6 +11598,60 @@ fn entrypoint_probe_decode() {
         outcome_proto.fuel_used, outcome_proto.instruction_count, outcome_proto.peak_value_units
     );
     assert_entrypoint_ok(&outcome_proto, &[11u8; 32], 2);
+}
+
+#[test]
+fn entrypoint_encode_probe_roundtrip() {
+    let (enc_pkg, enc_approved) = admit(&entrypoint_encode_image());
+    let (dec_pkg, dec_approved) = admit(&entrypoint_decode_image());
+    // Same vectors the Sley decoder proves (entrypoint_probe_decode):
+    // ep-local func 0a*32 exposure 1, ep-proto func 0b*32 exposure 2.
+    let func_local = "0a".repeat(32);
+    let body_local =
+        "10260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101";
+    let enc_outcome = entrypoint_encode_call(&enc_pkg, &enc_approved, &func_local, 1);
+    eprintln!("ENTRY_ENC_LOCAL termination={:?}", enc_outcome.termination);
+    eprintln!(
+        "ENTRY_ENC_LOCAL fuel={} instr={} peak={}",
+        enc_outcome.fuel_used, enc_outcome.instruction_count, enc_outcome.peak_value_units
+    );
+    assert_encode_ok(&enc_outcome, &hex_decode(body_local));
+    // Determinism: a second run emits byte-identical output.
+    let enc_again = entrypoint_encode_call(&enc_pkg, &enc_approved, &func_local, 1);
+    assert_encode_ok(&enc_again, &hex_decode(body_local));
+    // Decode the emitted bytes back through Sley decode.
+    let dec_outcome = entrypoint_decode_call(&dec_pkg, &dec_approved, body_local);
+    assert_entrypoint_ok(&dec_outcome, &[10u8; 32], 1);
+    let func_proto = "0b".repeat(32);
+    let body_proto =
+        "10260201200b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b020102";
+    let enc_proto = entrypoint_encode_call(&enc_pkg, &enc_approved, &func_proto, 2);
+    eprintln!("ENTRY_ENC_PROTO termination={:?}", enc_proto.termination);
+    eprintln!(
+        "ENTRY_ENC_PROTO fuel={} instr={} peak={}",
+        enc_proto.fuel_used, enc_proto.instruction_count, enc_proto.peak_value_units
+    );
+    assert_encode_ok(&enc_proto, &hex_decode(body_proto));
+    let dec_proto = entrypoint_decode_call(&dec_pkg, &dec_approved, body_proto);
+    assert_entrypoint_ok(&dec_proto, &[11u8; 32], 2);
+}
+
+#[test]
+fn entrypoint_encode_rejections() {
+    let (package, approved) = admit(&entrypoint_encode_image());
+    let func32 = "0a".repeat(32);
+    let cases: [(&str, String, u64, &str); 5] = [
+        ("exp0", func32.clone(), 0, "SCB_UNION_INVALID"),
+        ("exp3", func32.clone(), 3, "SCB_UNION_INVALID"),
+        ("exp19", func32.clone(), 19, "SCB_UNION_INVALID"),
+        ("func31", "0a".repeat(31), 1, "SCB_LENGTH_OVERFLOW"),
+        ("func33", "0a".repeat(33), 1, "SCB_TRAILING_BYTES"),
+    ];
+    for (name, func_hex, exposure, expected) in cases {
+        let outcome = entrypoint_encode_call(&package, &approved, &func_hex, exposure);
+        assert_refusal(&outcome, expected);
+        eprintln!("ENTRY_ENC_REJ {name} -> {expected}");
+    }
 }
 
 #[test]
