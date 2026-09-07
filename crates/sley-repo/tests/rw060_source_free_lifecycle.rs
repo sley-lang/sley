@@ -73,7 +73,7 @@ use sley_txn::{
     CommitError, CommitInput, ImportedTransactionReceipt, TransactionRepository,
     TrustedGenesisInput, verify_receipt_against_objects,
 };
-use sley_vm::bootstrap::{BootstrapProfileInput, judge_bootstrap_profile};
+use sley_vm::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion, judge_bootstrap_profile};
 use sley_vm::{
     CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination, LoweringInput,
     execute_function,
@@ -1457,6 +1457,7 @@ fn execute_committed(committed: &Committed, items: &[u8], tag: u8) -> Executed {
         operations: &complete.operations,
         adapters: &complete.adapters,
         constants: &complete.constants,
+        profile_version: BootstrapProfileVersion::V1,
     })
     .expect("committed program is gate-admitted");
     assert_eq!(
@@ -2452,6 +2453,7 @@ fn commit_parametrized_callee_validates_and_executes() {
         operations: &complete.operations,
         adapters: &complete.adapters,
         constants: &complete.constants,
+        profile_version: BootstrapProfileVersion::V1,
     })
     .expect("calling program is gate-admitted");
     assert_eq!(gate.functions().len(), 2, "entry plus callee reached");

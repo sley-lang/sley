@@ -82,23 +82,21 @@ identities/versions deny with `VM_LOWER_OPCODE_UNSUPPORTED` (default
 deny; no fallback, no negotiation). Adding an algorithm needs a new owner
 amendment plus review, never analogy.
 
-Large-preimage composition (exact, Sley-owned): the primitive is
-stateless one-shot BLAKE3, so hashing chunks independently cannot
-reproduce BLAKE3 over the concatenation. For preimages longer than
-1 MiB the driver applies the frozen composition rule instead of a
-single call. Split `P` into `N = ceil(len/1_048_576)` chunks (`1 MiB`
-except the last, `N >= 2`); compute chunk digests `d_i = RAW(chunk_i)`
-via `RHW1`; build the final preimage `F = b"SLEYCHNK1" || u32(1) ||
-u32(N) || d_0 || ... || d_{N-1}` as ordinary `Bytes` with bootstrap ops;
-digest = `RAW(F)` via `RHW1`. `F` is at most `17 + 32*N` bytes (for the
-largest frozen preimage, 67 MiB fingerprints, `N <= 64`, `F <= 2064`
-bytes), so one final call suffices; recursion applies only beyond
-32 GiB, outside all frozen ceilings. Sley owns chunking, order, count,
-and framing (including the reserved `SLEYCHNK1` domain, which single-shot
-preimages must not use except through this rule); the host only hashes.
-All R2-required preimages in the adopted closure fixtures measure
-<1 KiB and use single-shot; composition is proved with 1 MiB+1 and 2 MiB
-vectors in `rw075_raw_callable.rs`.
+Large preimages (retired composition rule, RW-075 round 12): the
+primitive is stateless one-shot BLAKE3, so hashing chunks independently
+cannot reproduce BLAKE3 over the concatenation — and only the full
+preimage carries canonical identity. The former `SLEYCHNK1`
+hash-of-chunks construction is therefore retired: no chunked digest
+function shares the identity channels, and the `SLEYCHNK1` domain is
+reserved and must not be used. Preimages longer than 1 MiB refuse as
+the typed `Err(BuiltinFailure(Index), 2)` value above, both for carried
+constants (refused already at admission under the successor preimage
+bound) and for computed values (refused at execution). Measured suite
+property: every real Sley-side `RHW1` preimage in-tree is <= ~1 KiB
+and uses single-shot (evidence:
+`machineresearch/sley-2.0/reweave/rw-075-ar02-evidence.md`); a future
+streaming primitive needs its own domain constant and a gated
+implementation, never a silent redefinition.
 
 What `RHW1` is not: not `fingerprint(program)`, `object_id(program)`,
 `validate_and_hash_object(program)`, `candidate_digest` over a high-level

@@ -68,6 +68,7 @@ use sley_ssmc::{
 };
 
 use crate::bootstrap::BootstrapProfileReport;
+use crate::bootstrap::BootstrapProfileVersion;
 use crate::host_abi::{IMAGE_MAX_BYTES, image_digest};
 
 // Re-exported for the runner (`execute.rs`); the unit pins below use it too.
@@ -1022,6 +1023,14 @@ pub fn approve_package(
     if receipt.profile_digest != BOOTSTRAP_PROFILE_1_DIGEST {
         return Err(PackageError::BindingMismatch);
     }
+    // Version isolation: a v1 approval requires a v1-judged report. A
+    // v2-judged report (the only kind that can name the successor
+    // raw-hash row) can never back a v1 package, so v1 authority stays
+    // isolated from successor imports even though the report type is
+    // shared.
+    if gate.profile_version() != BootstrapProfileVersion::V1 {
+        return Err(PackageError::BindingMismatch);
+    }
     if receipt.host_abi_version != crate::host_abi::HOST_ABI_VERSION {
         return Err(PackageError::BindingMismatch);
     }
@@ -1099,6 +1108,11 @@ pub fn approve_package_v2(
         return Err(PackageError::BindingMismatch);
     }
     if receipt.profile_digest != BOOTSTRAP_PROFILE_2_DIGEST {
+        return Err(PackageError::BindingMismatch);
+    }
+    // Mirror pin: a v2 approval requires a v2-judged report, so a
+    // v1-judged report can never back a successor package.
+    if gate.profile_version() != BootstrapProfileVersion::V2 {
         return Err(PackageError::BindingMismatch);
     }
     if receipt.host_abi_version != crate::host_abi::HOST_ABI_V2_VERSION {

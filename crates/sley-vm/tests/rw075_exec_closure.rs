@@ -31,7 +31,7 @@ use sley_ssmc::{
     Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability, RecordField,
     ReturnTerminator, Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, Visibility,
 };
-use sley_vm::bootstrap::{BootstrapProfileInput, judge_bootstrap_profile};
+use sley_vm::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion, judge_bootstrap_profile};
 use sley_vm::{
     ApprovedExecutionPackage, CacheProfile, ExecutionLimits, ExecutionPackage, ExecutionRequest,
     ExecutionTermination, LoweringInput, PackageError, admit_package, approve_package,
@@ -177,6 +177,7 @@ impl Program {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &self.constants,
+            profile_version: BootstrapProfileVersion::V1,
         })
         .expect("fixture closure is gate-admitted")
     }
@@ -884,6 +885,7 @@ fn same_package_out_of_bootstrap_approval_refuses() {
         operations: &float_program.operations,
         adapters: &float_program.adapters,
         constants: &float_program.constants,
+        profile_version: BootstrapProfileVersion::V1,
     });
     assert!(
         gate_result.is_err(),

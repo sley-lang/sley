@@ -258,16 +258,32 @@ check("RW075_nabu_pass", rw075_nabu == "PASS", f"latest-round verdict: {rw075_na
 
 
 def premium_verdict() -> str:
-    """Premium delta verdict: exactly `VERDICT: R2_ARCHITECTURE_PASS`."""
-    for path in sorted(REVIEWS.glob("reweave-rw075-premium-*.log")):
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_FAIL", text, re.MULTILINE):
-            return "FAIL"
-        if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_PASS", text, re.MULTILINE):
-            return "PASS"
+    """Premium delta verdict: latest round file only, exact token parse.
+
+    Mirrors `latest_lane_verdict`: candidates matching
+    `reweave-rw075-premium-*.log` except `*infra*` order by numeric
+    round (`lane_round`), then filename; only the latest round file is
+    evaluated, with within-file FAIL precedence. Earlier failed rounds
+    stay preserved as history but never poison a later passing round;
+    a later FAIL always re-blocks. Verdict tokens must match exactly
+    (a longer token such as `R2_ARCHITECTURE_PASS_EXTRA` never parses),
+    while trailing reviewer notes after the token still parse.
+    """
+    candidates = sorted(
+        (lane_round(path), path)
+        for path in REVIEWS.glob("reweave-rw075-premium-*.log")
+        if "infra" not in path.name
+    )
+    if not candidates:
+        return "PENDING"
+    try:
+        text = candidates[-1][1].read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "PENDING"
+    if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_FAIL(?![A-Za-z0-9_])", text, re.MULTILINE):
+        return "FAIL"
+    if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_PASS(?![A-Za-z0-9_])", text, re.MULTILINE):
+        return "PASS"
     return "PENDING"
 
 

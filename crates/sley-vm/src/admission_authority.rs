@@ -32,11 +32,13 @@ use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     AdapterImport, Block, ConstantDefinition, ContractDefinition, FunctionGraph,
-    GlobalValueDefinition, Operation, Parameter,
+    GlobalValueDefinition, Operation, Parameter, TypeDefinition,
 };
 
 use crate::CacheProfile;
-use crate::bootstrap::{BootstrapProfileInput, BootstrapProfileReport, judge_bootstrap_profile};
+use crate::bootstrap::{
+    BootstrapProfileInput, BootstrapProfileReport, BootstrapProfileVersion, judge_bootstrap_profile,
+};
 use crate::exec_package::{
     AdmissionReceipt, ExecutionPackage, PackageDigests, PackageError, admit_package_v2,
     approve_package_v2, package_digests_v2,
@@ -85,7 +87,10 @@ pub enum AuthorityError {
     GateRefused,
     /// Reference re-lowering failed or its bytes differ from the package.
     ReferenceMismatch,
-    /// The package does not carry the gate's quantitative claims.
+    /// The package does not carry the closure's claims: gate counts,
+    /// fingerprints, entry/epoch/root binding, or any carried table
+    /// (constants, type definitions, full import rows, globals,
+    /// contracts) diverges from the judged closure.
     ClaimsMismatch,
     /// Package digests could not be computed (bounds/encoding).
     Digests(PackageError),
@@ -139,6 +144,10 @@ pub fn admit_v2_package(
         operations: closure.operations,
         adapters: closure.adapters,
         constants: closure.constants,
+        // The staged authority judges under the successor profile: it is
+        // the only production path that may admit `RHW1` closures, and
+        // its reports approve v2 packages only.
+        profile_version: BootstrapProfileVersion::V2,
     })
     .map_err(|_| AuthorityError::GateRefused)?;
     let reference = lower_function(LoweringInput {
@@ -166,11 +175,69 @@ pub fn admit_v2_package(
     {
         return Err(AuthorityError::ClaimsMismatch);
     }
+    // Complete-package correspondence: the receipt covers the package the
+    // closure actually describes, not only its image bytes and gate
+    // counts. Every table the package carries into execution is compared
+    // against the judged closure before minting — entry, epoch, root,
+    // constants, type definitions (by identity through the environment),
+    // full import rows (not only the identity set approval checks),
+    // globals, contracts. Any substitution, addition, removal, or
+    // re-binding refuses with `ClaimsMismatch`: no receipt, no approval,
+    // no execution. Row order is insignificant (rows are referenced by
+    // identity), so comparison is order-insensitive but exact per row.
+    if package.entry != closure.entry
+        || package.schema_epoch != closure.schema_epoch
+        || package.state_root != closure.state_root
+        || !tables_match(closure.constants, &package.constants, |row| row.entity_id)
+        || !type_tables_match(closure.types, &package.type_definitions)
+        || !tables_match(closure.adapters, &package.imports, |row| row.entity_id)
+        || !tables_match(closure.globals, &package.globals, |row| row.entity_id)
+        || !tables_match(closure.contracts, &package.contracts, |row| row.entity_id)
+    {
+        return Err(AuthorityError::ClaimsMismatch);
+    }
     let digests = package_digests_v2(package).map_err(AuthorityError::Digests)?;
     let receipt = admit_package_v2(digests.package_digest);
     approve_package_v2(package, &digests, receipt, &report)
         .map_err(|_| AuthorityError::ApprovalMismatch)?;
     Ok((digests, receipt, report))
+}
+
+/// Whether two identity-keyed table snapshots carry exactly the same
+/// rows: same identity set with equal bodies per identity.
+/// Order-insensitive (rows are referenced by identity, so order carries
+/// no semantics); any substitution, addition, or removal fails.
+fn tables_match<T: PartialEq>(closure: &[T], package: &[T], id: fn(&T) -> EntityId) -> bool {
+    if closure.len() != package.len() {
+        return false;
+    }
+    let mut left: Vec<(EntityId, &T)> = closure.iter().map(|row| (id(row), row)).collect();
+    let mut right: Vec<(EntityId, &T)> = package.iter().map(|row| (id(row), row)).collect();
+    left.sort_by_key(|(row_id, _)| *row_id);
+    right.sort_by_key(|(row_id, _)| *row_id);
+    left == right
+}
+
+/// Whether a package layout section carries exactly the type definitions
+/// of the closure's environment: same identity set with equal bodies per
+/// identity, order-insensitive like [`tables_match`].
+fn type_tables_match(types: &TypeEnvironment, package: &[TypeDefinition]) -> bool {
+    let ids: Vec<EntityId> = types.definition_ids().collect();
+    if ids.len() != package.len() {
+        return false;
+    }
+    let mut left = Vec::with_capacity(ids.len());
+    for row_id in ids {
+        let Ok(definition) = types.definition(row_id) else {
+            return false;
+        };
+        left.push((row_id, definition));
+    }
+    let mut right: Vec<(EntityId, &TypeDefinition)> =
+        package.iter().map(|row| (row.entity_id, row)).collect();
+    left.sort_by_key(|(row_id, _)| *row_id);
+    right.sort_by_key(|(row_id, _)| *row_id);
+    left == right
 }
 
 #[cfg(test)]

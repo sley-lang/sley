@@ -17,7 +17,7 @@ use sley_ssmc::{
 use sley_vm::{
     ApprovedImage, CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
     LoadedExecutionError, LoadedExecutionInput, LowerErrorCode, LoweringError, LoweringInput,
-    bootstrap::BootstrapProfileInput,
+    bootstrap::{BootstrapProfileInput, BootstrapProfileVersion},
     execute_function, execute_loaded_image,
     host_abi::{
         BRIDGE_ABI_VERSION, BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1,
@@ -208,6 +208,7 @@ impl BridgeProgram {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &[],
+            profile_version: BootstrapProfileVersion::V1,
         })
         .expect("gate admits the frozen program")
     }
@@ -925,6 +926,7 @@ fn rw070_gate_refuses_unreferenced_import_rows() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .unwrap_err()
     {
@@ -945,6 +947,7 @@ fn rw070_gate_refuses_unreferenced_import_rows() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .unwrap_err()
     {
@@ -969,6 +972,7 @@ fn rw070_gate_denies_unknown_imports_like_lowering() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .unwrap_err()
     {
@@ -1198,6 +1202,7 @@ fn rw070_gate_refuses_second_push_row() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .unwrap_err()
     {
@@ -1352,6 +1357,7 @@ fn rw070_combined_push_types_share_one_closure() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .unwrap_err()
     {

@@ -48,12 +48,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use sley_check::TypeEnvironment;
 use sley_id::SemanticFingerprint;
 use sley_ssmc::{
-    AdapterImport, Block, ConstantDefinition, FunctionGraph, Immediate, Opcode, Operation,
-    Parameter, TypeExpr,
+    AdapterImport, Block, ConstData, ConstantDefinition, FunctionGraph, Immediate, Opcode,
+    Operation, Parameter, TypeExpr,
     fingerprint::{FingerprintErrorCode, FunctionFingerprintInput},
 };
 
-use super::extended::resolve_bridge_entry;
+use super::extended::{BridgeKind, resolve_bridge_entry};
 use super::{LowerError, LowerErrorCode, LoweringError};
 
 /// Frozen bootstrap opcodes: E1 data (with the base Boolean operations),
@@ -68,6 +68,21 @@ const PERMITTED_BOOTSTRAP_OPCODES: &[u32] = &[
     96, 97, 98, 99, 100, 101, 102, 103, 104, 112, 128, 129, 130, 131, 176, 177, 178, 192,
 ];
 
+/// Bootstrap profile version selecting the gate's bridge allowlist.
+///
+/// V1 is the frozen `BOOTSTRAP_PROFILE_1` subset (conversions plus push).
+/// V2 is the successor `BOOTSTRAP_PROFILE_2` subset, which additionally
+/// admits the raw-hash row (`RHW1`) for Sley-owned digest assembly. The
+/// version travels from admission request into the admission report, so
+/// package approval can pin evidence to authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BootstrapProfileVersion {
+    /// Frozen v1 subset: no raw-hash row.
+    V1,
+    /// Successor v2 subset: raw-hash row admitted.
+    V2,
+}
+
 /// One gate admission request: the entry function plus the root-wide
 /// inventories the closure walks, mirroring the lowering input shape.
 pub struct BootstrapProfileInput<'a> {
@@ -75,6 +90,15 @@ pub struct BootstrapProfileInput<'a> {
     /// through it: a `Named` type admits only when its definition's
     /// fields/payloads admit).
     pub types: &'a TypeEnvironment,
+    /// Bootstrap profile version selecting the admitted bridge allowlist:
+    /// v1 admits exactly the conversions plus push (`B2V1`, `V2B1`,
+    /// `PSH1`); v2 additionally admits the raw-hash row (`RHW1`). The
+    /// version is recorded in the admission report, and package approval
+    /// pins the report version to the receipt profile — so a v2-judged
+    /// report (the only kind that can name `RHW1`) can never approve a
+    /// v1 package, and v1 authority stays isolated from successor
+    /// imports.
+    pub profile_version: BootstrapProfileVersion,
     /// Exact schema epoch the closure is admitted under. Semantic
     /// fingerprints carried in the admission report are epoch-bound, so
     /// the authority and the package builder must agree on this epoch
@@ -112,8 +136,9 @@ pub struct BootstrapProfileInput<'a> {
 /// genuine report. The only way to obtain a report is to run
 /// `judge_bootstrap_profile` over the closure's full inventories — which
 /// refuses out-of-profile closures instead of reporting them. Reads go
-/// through the `functions`, `imports`, `operation_count`, and
-/// `bridge_uses` accessors and work unchanged everywhere.
+/// through the `functions`, `imports`, `operation_count`,
+/// `bridge_uses`, and `profile_version` accessors and work unchanged
+/// everywhere.
 #[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BootstrapProfileReport {
@@ -137,6 +162,12 @@ pub struct BootstrapProfileReport {
     closure_fingerprints: Vec<SemanticFingerprint>,
     /// SHA-256 digest of the image bytes presented with the closure.
     admitted_image_digest: [u8; 32],
+    /// Profile version this report was judged under. Package approval
+    /// requires the report version matching the receipt profile (v1
+    /// reports approve v1 packages, v2 reports v2 packages), closing
+    /// cross-version report replay: a v2 report naming `RHW1` can never
+    /// back a v1 approval.
+    profile_version: BootstrapProfileVersion,
 }
 
 impl BootstrapProfileReport {
@@ -183,6 +214,12 @@ impl BootstrapProfileReport {
     #[must_use]
     pub fn admitted_image_digest(&self) -> &[u8; 32] {
         &self.admitted_image_digest
+    }
+
+    /// Profile version this report was judged under.
+    #[must_use]
+    pub const fn profile_version(&self) -> BootstrapProfileVersion {
+        self.profile_version
     }
 }
 
@@ -348,7 +385,7 @@ pub fn judge_bootstrap_profile(
         if !referenced.contains(&import.entity_id) {
             return gate_fail(LowerErrorCode::OpcodeUnsupported);
         }
-        if !bootstrap_row_ok(input.types, input.adapters, import) {
+        if !bootstrap_row_ok(input.types, input.adapters, import, input.profile_version) {
             return gate_fail(LowerErrorCode::OpcodeUnsupported);
         }
         imports.push(import.entity_id);
@@ -365,6 +402,20 @@ pub fn judge_bootstrap_profile(
             &mut BTreeSet::new(),
         ) {
             return gate_fail(LowerErrorCode::SignatureMismatch);
+        }
+        // Successor preimage bound (AR-02): under v2 a carried `Bytes`
+        // payload longer than the raw-hash ceiling refuses at admission
+        // with `ResourceLimit`. Every digest the closure can produce
+        // through `RHW1` then equals canonical single-shot BLAKE3 over
+        // the full preimage — no carried preimage can reach the
+        // execution-time refusal, and computed over-bound values keep
+        // that typed refusal as backstop. V1 needs no bound (no `RHW1`;
+        // `ValueHash` stays canonical at any size under its own
+        // encoder/work limits).
+        if input.profile_version == BootstrapProfileVersion::V2
+            && matches!(&constant.value.data, ConstData::Bytes(bytes) if bytes.len() > crate::raw_hash::RAW_HASH_MAX_BYTES)
+        {
+            return gate_fail(LowerErrorCode::ResourceLimit);
         }
     }
     // One resolution per function: the walk's map entry is the judged
@@ -398,6 +449,7 @@ pub fn judge_bootstrap_profile(
         imports,
         closure_fingerprints,
         admitted_image_digest,
+        profile_version: input.profile_version,
     })
 }
 
@@ -594,11 +646,19 @@ fn bootstrap_row_ok(
     types: &TypeEnvironment,
     adapters: &[AdapterImport],
     carried: &AdapterImport,
+    profile_version: BootstrapProfileVersion,
 ) -> bool {
-    let Some((_, resolved)) = resolve_bridge_entry(adapters, &carried.entity_id) else {
+    let Some((kind, resolved)) = resolve_bridge_entry(adapters, &carried.entity_id) else {
         return false;
     };
     if resolved.entity_id != carried.entity_id {
+        return false;
+    }
+    // Version-specific allowlist: the raw-hash row admits only under the
+    // successor profile. V1 authority therefore cannot cover a closure
+    // naming `RHW1` — no v1-judged report names it, and approval pins
+    // the report version to the receipt profile.
+    if kind == BridgeKind::RawHash && profile_version != BootstrapProfileVersion::V2 {
         return false;
     }
     bootstrap_type_ok(types, &resolved.request_type, true, &mut BTreeSet::new())
@@ -763,6 +823,9 @@ mod tests {
                 operations: &self.operations,
                 adapters: &self.adapters,
                 constants: &self.constants,
+                // In-crate profile tests judge the frozen v1 subset;
+                // successor coverage passes V2 explicitly per case.
+                profile_version: BootstrapProfileVersion::V1,
             }
         }
     }

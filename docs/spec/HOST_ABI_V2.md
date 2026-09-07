@@ -63,9 +63,9 @@ capacity code 2, monomorphization, single-push-row rule, shared
   `BuiltinFailure(Index)` code 2 for over-bound (typed value, never trap
   or truncation); fuel `1 + ceil(len/1024)` via `charge_action` up front;
   determinism byte-exact (audited `blake3 =1.8.2`); host adds no domain.
-  Large-preimage composition is Sley-owned per `BOOTSTRAP_PROFILE_2.md`
-  (`SLEYCHNK1` framing, chunk digests via `RHW1`, final hash via `RHW1`);
-  the primitive stays stateless one-shot.
+  Large preimages refuse typed per `BOOTSTRAP_PROFILE_2.md` (the former
+  `SLEYCHNK1` composition rule is retired: no chunked construction
+  carries canonical identity); the primitive stays stateless one-shot.
 
 Unknown identity/version/row, wrong schema/profile/epoch, and unlisted
 native functions all refuse with the frozen vocabularies

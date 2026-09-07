@@ -3453,6 +3453,8 @@
     "nabu_round9": "FAIL (preserved)",
     "nabu_round10": "FAIL (preserved)",
     "nabu_round11": "PASS_FINAL",
-    "nabu_final": "PASS"
+    "nabu_final": "PASS",
+    "round12_implemented": "AR-06 (premium latest-round verdict) + AR-08 (gate version selector, report pin, approval pins) + AR-02 (v2 carried-Bytes bound, SLEYCHNK1 retired) + AR-03 (authority complete-package correspondence); sley-vm 176 passed, rw060 15 passed, checkers/markers PASS, fmt+clippy clean",
+    "round12_pending": "AR-07 + AR-04 (contract/design), AR-05 evidence, Nabu round-12, fresh premium delta re-review; RW-080 BLOCKED, R2 gate NOT_READY"
   }
 }

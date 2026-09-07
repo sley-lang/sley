@@ -360,3 +360,51 @@ plus the existing typed execution refusal as backstop, (ii) retire
 `SLEYCHNK1`, (iii) streaming deferred as an explicit gap, (iv)
 restate the ungrounded "<1 KiB adopted fixtures" claim as a measured
 suite property (AR-04).
+
+## 12. Round-12 implementation (this delta, reviewable in round 12)
+
+- AR-06 (`scripts/check_r2_exit.py`): `premium_verdict` now mirrors
+  `latest_lane_verdict` (latest round file only, `*infra*` excluded)
+  with token-exact verdict parsing (a longer token never parses;
+  trailing reviewer notes still parse). Verified with scratch r2 files
+  (removed after): later PASS supersedes r1 FAIL, `PASS_EXTRA`
+  parses PENDING (still blocks), within-file FAIL keeps precedence.
+  Gate still reads NOT_READY on the retained r1 FAIL.
+- AR-08 (`sley-vm/src/bootstrap.rs`, `exec_package.rs`,
+  `admission_authority.rs`, `bootstrap_closure.rs`, all gate-input
+  call sites): new `BootstrapProfileVersion` (`V1`/`V2`) on the gate
+  input, recorded in the report (new `profile_version` accessor);
+  `RHW1` denies under V1 in `bootstrap_row_ok`; v1 approval requires
+  a V1 report and v2 approval a V2 report (closes cross-version
+  report replay — a V2 report naming `RHW1` can never back a v1
+  package). Negatives: `raw_v1_gate_refuses_successor_row`,
+  `raw_v1_approval_refuses_successor_report`,
+  `raw_v2_approval_refuses_v1_report`.
+- AR-02 (gate + specs + tests): v2 admission refuses carried `Bytes`
+  over 1 MiB with `ResourceLimit` (V1 needs no bound: no `RHW1`,
+  `ValueHash` stays canonical under its own limits); `SLEYCHNK1`
+  retired (`BOOTSTRAP_PROFILE_2.md` rule replaced, `HOST_ABI_V2.md`
+  note replaced, composition test replaced by
+  `raw_over_bound_refuses_without_composition`, which pins refusal
+  plus framing-domain inertia). Negative:
+  `raw_v2_gate_bounds_carried_preimages` (over-bound refuses,
+  exactly-1 MiB admits, V1 admits the same constant). Evidence:
+  `rw-075-ar02-evidence.md`.
+- AR-03 (`sley-vm/src/admission_authority.rs`): the authority
+  compares entry/epoch/root, constants, type definitions (by identity
+  through the environment), full import rows (order-insensitive, not
+  only the identity set), globals, and contracts against the judged
+  closure before minting; any divergence refuses `ClaimsMismatch`
+  (variant doc broadened). Negative:
+  `raw_authority_refuses_substituted_tables` (constants, import row,
+  global, epoch legs).
+- Validation (Tier 2): sley-vm full suite 176 passed, 0 failed
+  (83 lib + 37 freeze + 30 exec_closure + 8 hydration + 18
+  raw_callable); sley-repo rw060 15 passed; profile/ABI freeze
+  checkers plus exec-package markers PASS; `cargo fmt --check`
+  clean; clippy 0 warnings (sley-vm, sley-repo); workspace
+  `--all-targets` check clean.
+- Still pending: AR-07 + AR-04 (contract/design), AR-05 evidence,
+  Nabu round-12 re-review, then a fresh premium delta re-review.
+  RW-080 stays BLOCKED; the R2 gate stays NOT_READY until a new
+  premium round passes.

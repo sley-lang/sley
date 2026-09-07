@@ -31,7 +31,7 @@ use sley_ssmc::{
     VariantImmediate, Visibility,
 };
 
-use crate::bootstrap::{BootstrapProfileInput, judge_bootstrap_profile};
+use crate::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion, judge_bootstrap_profile};
 use crate::extended::{bridge_entry_id, bridge_test_imports};
 use crate::{
     CacheProfile, ExecutionLimits, ExecutionOutcome, ExecutionRequest, ExecutionTermination,
@@ -369,6 +369,9 @@ impl Program {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &self.constants,
+            // Frozen v1 workloads: no workload names the successor
+            // raw-hash row, so every closure judges under v1.
+            profile_version: BootstrapProfileVersion::V1,
         }
     }
 

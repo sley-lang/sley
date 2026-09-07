@@ -24,7 +24,7 @@ use sley_ssmc::{
     Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
     ReturnTerminator, Terminator, TypeDefinition, TypeExpr, ValueRef, Visibility,
 };
-use sley_vm::bootstrap::{BootstrapProfileInput, judge_bootstrap_profile};
+use sley_vm::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion, judge_bootstrap_profile};
 use sley_vm::{
     CacheProfile, ExecutionLimits, ExecutionPackage, ExecutionRequest, ExecutionTermination,
     LoweringInput, admit_package, approve_package, execute_approved_package, lower_function,
@@ -302,6 +302,7 @@ impl Program {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &self.constants,
+            profile_version: BootstrapProfileVersion::V1,
         })
         .expect("fixture closure is gate-admitted")
     }
@@ -727,6 +728,7 @@ fn real_image_emission_with_control_flow() {
         operations: &operations,
         adapters: &[],
         constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
     })
     .expect("emitted closure is gate-admitted");
     let package = ExecutionPackage {

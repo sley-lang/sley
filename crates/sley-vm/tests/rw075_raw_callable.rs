@@ -14,14 +14,14 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    AdapterImport, Block, BuiltinFailureKind, ConstData, ConstValue, FunctionGraph, Immediate,
-    Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability, ResultConst,
-    ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    AdapterImport, Block, BuiltinFailureKind, ConstData, ConstValue, ConstantDefinition,
+    FunctionGraph, Immediate, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
+    Reachability, ResultConst, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
 };
 use sley_vm::{
     CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination, LowerErrorCode,
     LoweringError, LoweringInput,
-    bootstrap::BootstrapProfileInput,
+    bootstrap::{BootstrapProfileInput, BootstrapProfileVersion},
     host_abi::{BRIDGE_ABI_VERSION, BRIDGE_CODE_RHW1, bridge_identity},
     lower_function,
 };
@@ -181,6 +181,7 @@ impl BridgeProgram {
             operations: &self.operations,
             adapters: &self.adapters,
             constants: &[],
+            profile_version: BootstrapProfileVersion::V2,
         })
         .expect("successor gate admits the RHW1 program")
     }
@@ -267,83 +268,37 @@ fn err_code(termination: ExecutionTermination) -> u16 {
     }
 }
 
-// ── Large-preimage composition (exact Sley-owned rule) ───────────────
-
-/// Sley-owned large-preimage composition through the callable primitive:
-/// split into 1 MiB chunks, hash each via `RHW1`, frame with `SLEYCHNK1`,
-/// hash the frame via `RHW1`. The host only hashes; Sley owns chunking,
-/// order, count, and framing.
-fn composed_digest(preimage: &[u8]) -> Vec<u8> {
-    const CHUNK: usize = 1_048_576;
-    assert!(
-        preimage.len() > CHUNK,
-        "composition is for over-bound inputs"
-    );
-    let chunks: Vec<&[u8]> = preimage.chunks(CHUNK).collect();
-    let chunk_digests: Vec<Vec<u8>> = chunks
-        .iter()
-        .map(|c| ok_bytes(execute_raw_with(c, big_limits())))
-        .collect();
-    let mut frame = Vec::new();
-    frame.extend_from_slice(b"SLEYCHNK1");
-    frame.extend_from_slice(&1_u32.to_be_bytes());
-    frame.extend_from_slice(
-        &u32::try_from(chunk_digests.len())
-            .expect("chunk count fits u32")
-            .to_be_bytes(),
-    );
-    for digest in &chunk_digests {
-        frame.extend_from_slice(digest);
-    }
-    ok_bytes(execute_raw_with(&frame, big_limits()))
-}
-
-fn reference_composed_digest(preimage: &[u8]) -> Vec<u8> {
-    const CHUNK: usize = 1_048_576;
-    let chunks: Vec<&[u8]> = preimage.chunks(CHUNK).collect();
-    let mut frame = Vec::new();
-    frame.extend_from_slice(b"SLEYCHNK1");
-    frame.extend_from_slice(&1_u32.to_be_bytes());
-    frame.extend_from_slice(
-        &u32::try_from(chunks.len())
-            .expect("chunk count fits u32")
-            .to_be_bytes(),
-    );
-    for chunk in &chunks {
-        frame.extend_from_slice(blake3::hash(chunk).as_bytes());
-    }
-    blake3::hash(&frame).as_bytes().to_vec()
-}
+// ── Over-bound refusal (composition rule retired, RW-075 round 12) ──
 
 #[test]
-fn raw_large_preimage_composition_is_exact() {
-    // 1 MiB + 1 refuses single-shot but composes exactly (big limits prove
-    // the typed value, not resource exhaustion, is what refuses).
+fn raw_over_bound_refuses_without_composition() {
+    // The retired `SLEYCHNK1` rule is gone: 1 MiB + 1 and 2 MiB refuse
+    // as typed values (big limits prove the typed value, not resource
+    // exhaustion, is what refuses), and `SLEYCHNK1`-framed bytes are
+    // ordinary bytes — their digest equals single-shot BLAKE3 over
+    // exactly those bytes and carries no chunked meaning.
     let one_plus = vec![0xABu8; sley_vm::RAW_HASH_MAX_BYTES + 1];
     assert_eq!(
         err_code(execute_raw_with(&one_plus, big_limits())),
         2,
-        "single-shot over-bound refuses"
+        "1 MiB + 1 refuses as typed Err(Index, 2)"
     );
-    assert_eq!(
-        composed_digest(&one_plus),
-        reference_composed_digest(&one_plus),
-        "composition matches the reference construction"
-    );
-    // 2 MiB composes exactly and differs from any single-shot meaning.
     let two_mib = vec![0xCDu8; 2 * sley_vm::RAW_HASH_MAX_BYTES];
     assert_eq!(
-        composed_digest(&two_mib),
-        reference_composed_digest(&two_mib),
-        "2 MiB composition matches"
+        err_code(execute_raw_with(&two_mib, big_limits())),
+        2,
+        "2 MiB refuses as typed Err(Index, 2)"
     );
-    assert_ne!(
-        composed_digest(&two_mib),
-        ok_bytes(execute_raw(b"unrelated small preimage")),
-        "composition is not confusable with single-shot digests"
+    let mut frame = b"SLEYCHNK1".to_vec();
+    frame.extend_from_slice(&1_u32.to_be_bytes());
+    frame.extend_from_slice(&2_u32.to_be_bytes());
+    frame.extend_from_slice(blake3::hash(&one_plus[..sley_vm::RAW_HASH_MAX_BYTES]).as_bytes());
+    frame.extend_from_slice(blake3::hash(&one_plus[1..]).as_bytes());
+    assert_eq!(
+        ok_bytes(execute_raw(&frame)),
+        blake3::hash(&frame).as_bytes().to_vec(),
+        "framing domain is inert: ordinary bytes, single-shot digest"
     );
-    // All R2-required fixture preimages in this file are small (<1 KiB)
-    // and use single-shot; composition is the defined over-bound rule.
 }
 
 // ── Callable shape + standard vectors ────────────────────────────────
@@ -541,6 +496,7 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
     })
     .expect("successor gate admits");
     let limits = generous_limits();
@@ -686,6 +642,7 @@ fn raw_staged_authority_binds_graphs_to_image() {
         operations: &program.operations,
         adapters: &program.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
     })
     .expect("gate admits");
     let limits = generous_limits();
@@ -772,6 +729,7 @@ fn raw_authority_refuses_graph_a_gate_with_graph_b_image() {
         operations: &program_a.operations,
         adapters: &program_a.adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
     })
     .expect("gate judges A (correspondence is the authority's job, not the gate's)");
     let limits = generous_limits();
@@ -1193,6 +1151,7 @@ fn raw_sley_built_preimage_end_to_end() {
         operations: &operations,
         adapters: &adapters,
         constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
     })
     .expect("four-step Sley assembly gate-admits");
     assert_eq!(
@@ -1332,4 +1291,308 @@ fn sleybc02_image_construction_is_not_a_native_service() {
         !host_abi.contains("construct_compiler_image"),
         "image construction is not a host service"
     );
+}
+// ── Version isolation (AR-08) and successor preimage bound (AR-02) ──
+
+/// Conversion-only program judging under both versions: the `B2V1`
+/// row admits under v1 and v2, so it carries the cross-version replay
+/// negatives both directions.
+fn b2v1_program() -> BridgeProgram {
+    use sley_vm::host_abi::BRIDGE_CODE_B2V1;
+    let identity = EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1));
+    let u8vec = TypeExpr::Vector(Box::new(TypeExpr::UInt(
+        sley_ssmc::IntegerWidth::from_bits(8),
+    )));
+    BridgeProgram::with(
+        BRIDGE_CODE_B2V1,
+        TypeExpr::Unit,
+        TypeExpr::Bytes,
+        result_of(u8vec.clone()),
+        vec![AdapterImport {
+            entity_id: identity,
+            adapter_id: *identity.as_bytes(),
+            abi_version: BRIDGE_ABI_VERSION,
+            request_type: TypeExpr::Bytes,
+            response_type: u8vec,
+            failure_type: index_failure(),
+            effects: Vec::new(),
+        }],
+    )
+}
+
+#[test]
+fn raw_v1_gate_refuses_successor_row() {
+    // The v1 allowlist has no raw-hash row: the RHW1 program the
+    // successor gate admits refuses under v1 with `OpcodeUnsupported`,
+    // so no v1-judged report can ever name `RHW1`.
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    match sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &[],
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
+    }) {
+        Err(LoweringError::Lower(error)) => {
+            assert_eq!(error.code(), LowerErrorCode::OpcodeUnsupported);
+        }
+        other => panic!("v1 gate must refuse the RHW1 program, got {other:?}"),
+    }
+}
+
+#[test]
+fn raw_v1_approval_refuses_successor_report() {
+    // Cross-version replay v2-report-into-v1-approval: the honest RHW1
+    // package, v2-judged report, and v1 receipt (minted for the same
+    // digest) satisfy every other binding check, so only the report
+    // version pin refuses — with `BindingMismatch`.
+    use sley_vm::{ExecutionPackage, admit_package, approve_package};
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
+    })
+    .expect("successor gate admits");
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: generous_limits(),
+        gate_operation_count: gate.operation_count(),
+        gate_bridge_uses: gate.bridge_uses(),
+        gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
+    };
+    let digests = sley_vm::package_digests_v2(&package).expect("v2 digests");
+    let v1_receipt = admit_package(digests.package_digest);
+    match approve_package(&package, &digests, v1_receipt, &gate) {
+        Err(sley_vm::PackageError::BindingMismatch) => {}
+        other => panic!("v1 approval must refuse the v2 report, got {other:?}"),
+    }
+}
+
+#[test]
+fn raw_v2_approval_refuses_v1_report() {
+    // Mirror replay v1-report-into-v2-approval: the conversion-only
+    // program judges under both versions, so the v2 authority mints a
+    // receipt for the package while the presented report is v1-judged —
+    // and v2 approval refuses it with `BindingMismatch`.
+    use sley_vm::{ExecutionPackage, approve_package_v2};
+    let program = b2v1_program();
+    let lowered = lower_function(program.lowering_input()).expect("v1 program lowers");
+    let v1_gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        profile_version: BootstrapProfileVersion::V1,
+    })
+    .expect("v1 gate admits the conversion-only program");
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: generous_limits(),
+        gate_operation_count: v1_gate.operation_count(),
+        gate_bridge_uses: v1_gate.bridge_uses(),
+        gate_closure_fingerprints: v1_gate.closure_fingerprints().to_vec(),
+    };
+    let (digests, receipt, _) =
+        stage_v2_admission(&program, &package).expect("v2 authority admits conversions too");
+    match approve_package_v2(&package, &digests, receipt, &v1_gate) {
+        Err(sley_vm::PackageError::BindingMismatch) => {}
+        other => panic!("v2 approval must refuse the v1 report, got {other:?}"),
+    }
+}
+
+#[test]
+fn raw_authority_refuses_substituted_tables() {
+    // Complete-package correspondence (AR-03): the authority compares
+    // every carried table against the judged closure, not only image
+    // bytes and gate counts. Each leg substitutes one table or binding
+    // in an otherwise honest package; every leg refuses with
+    // `ClaimsMismatch` and mints no receipt.
+    use sley_vm::{AuthorityError, ExecutionPackage, V2Closure};
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
+    })
+    .expect("successor gate admits");
+    let honest = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: generous_limits(),
+        gate_operation_count: gate.operation_count(),
+        gate_bridge_uses: gate.bridge_uses(),
+        gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
+    };
+    let closure = V2Closure {
+        types: &program.types,
+        schema_epoch: epoch(),
+        state_root: root(),
+        entry: program.entry.entity_id,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        globals: &[],
+        contracts: &[],
+    };
+    let admit = |package: &ExecutionPackage| sley_vm::admit_v2_package(&closure, package);
+    admit(&honest).expect("honest package admits");
+    let refuse = |label: &str, package: &ExecutionPackage| match admit(package) {
+        Err(AuthorityError::ClaimsMismatch) => {}
+        other => panic!("{label} must refuse with ClaimsMismatch, got {other:?}"),
+    };
+    // Smuggled constant table.
+    refuse(
+        "substituted constants",
+        &ExecutionPackage {
+            constants: vec![ConstantDefinition {
+                entity_id: id(41),
+                value: bytes_value(b"smuggled"),
+            }],
+            ..honest.clone()
+        },
+    );
+    // Substituted import row schema (same identity, different body).
+    let mut row = frozen_rhw1();
+    row.response_type = TypeExpr::Vector(Box::new(TypeExpr::UInt(
+        sley_ssmc::IntegerWidth::from_bits(8),
+    )));
+    let mut imports = program.adapters.clone();
+    imports[0] = row;
+    refuse(
+        "substituted import row",
+        &ExecutionPackage {
+            imports,
+            ..honest.clone()
+        },
+    );
+    // Added global.
+    refuse(
+        "added global",
+        &ExecutionPackage {
+            globals: vec![sley_ssmc::GlobalValueDefinition {
+                entity_id: id(43),
+                value_type: TypeExpr::Unit,
+                initializer: id(44),
+                visibility: Visibility::Private,
+            }],
+            ..honest.clone()
+        },
+    );
+    // Rebound epoch.
+    refuse(
+        "rebound epoch",
+        &ExecutionPackage {
+            schema_epoch: SchemaEpochId::from_bytes([7; 32]),
+            ..honest.clone()
+        },
+    );
+}
+
+#[test]
+fn raw_v2_gate_bounds_carried_preimages() {
+    // Successor preimage bound: a carried `Bytes` constant over the
+    // 1 MiB raw-hash ceiling refuses at admission with `ResourceLimit`
+    // under v2, so no carried preimage can reach the execution-time
+    // refusal; the same constant admits under v1 (no `RHW1` there to
+    // protect), and exactly 1 MiB admits under v2.
+    let over = ConstantDefinition {
+        entity_id: id(41),
+        value: bytes_value(&vec![0xABu8; sley_vm::RAW_HASH_MAX_BYTES + 1]),
+    };
+    let at = ConstantDefinition {
+        entity_id: id(42),
+        value: bytes_value(&vec![0xABu8; sley_vm::RAW_HASH_MAX_BYTES]),
+    };
+    let judge = |program: &BridgeProgram,
+                 constants: &[ConstantDefinition],
+                 version: BootstrapProfileVersion| {
+        sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+            types: &program.types,
+            schema_epoch: epoch(),
+            entry: &program.entry,
+            presented_image_bytes: &[],
+            functions: &program.functions,
+            parameters: &program.parameters,
+            blocks: &program.blocks,
+            operations: &program.operations,
+            adapters: &program.adapters,
+            constants,
+            profile_version: version,
+        })
+    };
+    let successor = BridgeProgram::new(vec![frozen_rhw1()]);
+    match judge(
+        &successor,
+        std::slice::from_ref(&over),
+        BootstrapProfileVersion::V2,
+    ) {
+        Err(LoweringError::Lower(error)) => {
+            assert_eq!(error.code(), LowerErrorCode::ResourceLimit);
+        }
+        other => panic!("v2 gate must refuse the over-bound constant, got {other:?}"),
+    }
+    judge(&successor, &[at], BootstrapProfileVersion::V2).expect("exactly 1 MiB admits under v2");
+    let conversions = b2v1_program();
+    judge(&conversions, &[over], BootstrapProfileVersion::V1)
+        .expect("v1 admits the same constant: no raw-hash row to protect");
 }
