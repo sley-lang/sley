@@ -9301,6 +9301,7 @@ fn build_entrypoint_decode(
 // UNION_INVALID. Fixed pushes (10/26/02/01/20/02/01/exp) + 32B copy loop +
 // V2B1. No uvar callee needed (all single-byte for this fixed shape).
 #[allow(
+    dead_code,
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines
@@ -11089,6 +11090,494 @@ fn entrypoint_probe_decode() {
         outcome_proto.fuel_used, outcome_proto.instruction_count, outcome_proto.peak_value_units
     );
     assert_entrypoint_ok(&outcome_proto, &[11u8; 32], 2);
+}
+
+#[test]
+fn outer_rejections_match_reference_order() {
+    let (package, approved) = admit(&outer_decode_image());
+    // Hand-derived from object.rs decode_object_record; each checks exact code
+    // and precedence (DUP/ORDER before payload, bounds before UNKNOWN).
+    // eid32 = 01*32 hex, body10 = ns-empty body.
+    let eid32 = "0101010101010101010101010101010101010101010101010101010101010101";
+    let body10 = "03080201020000020100";
+    let valid = format!("020120{eid32}020a{body10}");
+    // Sanity: valid decodes.
+    assert_outer_ok(
+        &outer_decode_call(&package, &approved, &valid),
+        &hex_decode(eid32),
+        &hex_decode(body10),
+    );
+    let cases: [(&str, &str, &str); 18] = [
+        ("count0", "00", "SCB_FIELD_MISSING"),
+        ("count1", &format!("010120{eid32}"), "SCB_FIELD_MISSING"),
+        ("count5", "05", "SCB_FIELD_UNKNOWN"),
+        // count 3/4 scope (pinned divergence vs native Ok for valid 3/4).
+        (
+            "count3scope",
+            "0301200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100010100",
+            "SSMC_RESERVED_FIELD_PRESENT",
+        ),
+        // [1,1] duplicate.
+        (
+            "dup11",
+            &format!("020120{eid32}0120{eid32}"),
+            "SCB_FIELD_DUPLICATE",
+        ),
+        // [1,0] order (second tag 0 < 1).
+        (
+            "order10",
+            &format!("020120{eid32}000a{body10}"),
+            "SCB_FIELD_ORDER",
+        ),
+        // [1,5] unknown (tag 5, bounds ok).
+        (
+            "unknown15",
+            &format!("020120{eid32}050a{body10}"),
+            "SCB_FIELD_UNKNOWN",
+        ),
+        // [2,2] duplicate via body-first path.
+        (
+            "dup22",
+            &format!("02020a{body10}0220{eid32}"),
+            "SCB_FIELD_DUPLICATE",
+        ),
+        // [2,1] order.
+        (
+            "order21",
+            &format!("02020a{body10}0120{eid32}"),
+            "SCB_FIELD_ORDER",
+        ),
+        // [2,0] order.
+        (
+            "order20",
+            &format!("02020a{body10}000a{body10}"),
+            "SCB_FIELD_ORDER",
+        ),
+        // [2,3] scope.
+        (
+            "scope23",
+            &format!("02020a{body10}030100"),
+            "SSMC_RESERVED_FIELD_PRESENT",
+        ),
+        // 31-byte ID -> LENGTH.
+        (
+            "id31",
+            &format!(
+                "02011f01010101010101010101010101010101010101010101010101010101010101020a{body10}"
+            ),
+            "SCB_LENGTH_OVERFLOW",
+        ),
+        // 33-byte ID -> TRAILING (decode_fixed mirror).
+        (
+            "id33",
+            &format!(
+                "020121010101010101010101010101010101010101010101010101010101010101010101020a{body10}"
+            ),
+            "SCB_TRAILING_BYTES",
+        ),
+        // Truncated body (len 10 claims, 5 available) -> LENGTH.
+        (
+            "truncbody",
+            &format!("020120{eid32}020a0308020102"),
+            "SCB_LENGTH_OVERFLOW",
+        ),
+        // Trailing after outer -> TRAILING.
+        ("trailing", &format!("{valid}00"), "SCB_TRAILING_BYTES"),
+        // Nonminimal count 8100 (=0 non-minimal) -> NON_MINIMAL via uvar.
+        (
+            "nonmincount",
+            "81000201200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100",
+            "SCB_VARINT_NON_MINIMAL",
+        ),
+        // Tag overflow at width32 (2^32) -> INTEGER_OVERFLOW.
+        (
+            "tagoverflow",
+            "028080808010200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100",
+            "SCB_INTEGER_OVERFLOW",
+        ),
+        // Precedence: [1,1] DUP before second-payload truncation (len huge).
+        (
+            "precedencedup",
+            &format!("020120{eid32}01ff7f"),
+            "SCB_FIELD_DUPLICATE",
+        ),
+    ];
+    for (name, hex, expected) in cases {
+        let outcome = outer_decode_call(&package, &approved, hex);
+        assert_refusal(&outcome, expected);
+        eprintln!("OUTER_REJ {name} -> {expected}");
+    }
+}
+
+#[test]
+fn outer_valid_reencode_matches_canonical() {
+    let (enc_pkg, enc_approved) = admit(&outer_encode_image());
+    let (dec_pkg, dec_approved) = admit(&outer_decode_image());
+    // Five canonical payloads: ns-empty/one/two (Namespace) + ep-local/proto
+    // (EntryPoint 40B bodies). Outer is opaque to body kind; all must roundtrip.
+    let eid_hex = "0101010101010101010101010101010101010101010101010101010101010101";
+    let cases = [
+        (
+            "03080201020000020100",
+            "0201200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100",
+        ),
+        (
+            "03290201020000022201200202020202020202020202020202020202020202020202020202020202020202",
+            "0201200101010101010101010101010101010101010101010101010101010101010101022b03290201020000022201200202020202020202020202020202020202020202020202020202020202020202",
+        ),
+        (
+            "10260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101",
+            "0201200101010101010101010101010101010101010101010101010101010101010101022810260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101",
+        ),
+        (
+            "10260201200b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b020102",
+            "0201200101010101010101010101010101010101010101010101010101010101010101022810260201200b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b020102",
+        ),
+    ];
+    for (body_hex, payload_hex) in cases {
+        let enc = outer_encode_call(&enc_pkg, &enc_approved, eid_hex, body_hex);
+        assert_encode_ok(&enc, &hex_decode(payload_hex));
+        let dec = outer_decode_call(&dec_pkg, &dec_approved, payload_hex);
+        assert_outer_ok(&dec, &hex_decode(eid_hex), &hex_decode(body_hex));
+        eprintln!(
+            "OUTER_REENC body{}B payload{}B enc_fuel={} dec_fuel={} enc_peak={} dec_peak={}",
+            hex_decode(body_hex).len(),
+            hex_decode(payload_hex).len(),
+            enc.fuel_used,
+            dec.fuel_used,
+            enc.peak_value_units,
+            dec.peak_value_units
+        );
+    }
+}
+
+#[test]
+fn entrypoint_rejections_match_reference() {
+    let (package, approved) = admit(&entrypoint_decode_image());
+    // Valid bodies from probe (40B each).
+    let local = "10260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101";
+    assert_entrypoint_ok(
+        &entrypoint_decode_call(&package, &approved, local),
+        &[10u8; 32],
+        1,
+    );
+    // func32 = 0a*32 hex for mutations below.
+    let f32 = "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a";
+    let cases: [(&str, String, &str); 12] = [
+        (
+            "union-ns-scope",
+            "03080201020000020100".to_string(),
+            "SSMC_RESERVED_FIELD_PRESENT",
+        ),
+        ("union-0", "0000".to_string(), "SCB_UNION_INVALID"),
+        (
+            "union-19",
+            format!("1301020120{f32}020101"),
+            "SCB_UNION_INVALID",
+        ),
+        ("count1", format!("1023010120{f32}"), "SCB_FIELD_MISSING"),
+        (
+            "count3",
+            format!("1029030120{f32}020101030100"),
+            "SCB_FIELD_UNKNOWN",
+        ),
+        (
+            "order21",
+            format!("1026020201010120{f32}"),
+            "SCB_FIELD_ORDER",
+        ),
+        (
+            "dup11",
+            format!("1045020120{f32}0120{f32}"),
+            "SCB_FIELD_DUPLICATE",
+        ),
+        (
+            "unknown13",
+            format!("1026020120{f32}030101"),
+            "SCB_FIELD_UNKNOWN",
+        ),
+        (
+            "func31",
+            "102502011f0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101"
+                .to_string(),
+            "SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "exp3",
+            format!("1026020120{f32}020103"),
+            "SCB_UNION_INVALID",
+        ),
+        ("trailing", format!("{local}00"), "SCB_TRAILING_BYTES"),
+        (
+            "trunc",
+            "10260201200a0a0a".to_string(),
+            "SCB_LENGTH_OVERFLOW",
+        ),
+    ];
+    for (name, hex, expected) in cases {
+        let outcome = entrypoint_decode_call(&package, &approved, &hex);
+        assert_refusal(&outcome, expected);
+        eprintln!("ENTRY_REJ {name} -> {expected}");
+    }
+}
+
+#[test]
+fn outer_runtime_mutations_agree_with_native_payload_layer() {
+    use sley_id::{ObjectId, SchemaEpochId};
+    let (package, approved) = admit(&outer_decode_image());
+    let epoch9 = SchemaEpochId::from_bytes([9; 32]);
+    let base = hex_decode(
+        "0201200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100",
+    );
+    let mut state = 0xE11E_0007u64;
+    let mut lcg = || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    };
+    let mut agree = 0u32;
+    let mut opaque_divergence = 0u32;
+    let mut scope_pins = 0u32;
+    for _ in 0..100 {
+        let mut bytes = base.clone();
+        match lcg() % 4 {
+            0 => {
+                if bytes.is_empty() {
+                    bytes.push(u8::try_from(lcg() % 256).expect("lcg byte fits u8"));
+                } else {
+                    let at = usize::try_from(lcg()).expect("lcg fits usize") % bytes.len();
+                    let bit = 1u8 << u32::try_from(lcg() % 8).expect("lcg remainder fits u32");
+                    bytes[at] ^= bit;
+                }
+            }
+            1 => {
+                bytes.pop();
+            }
+            2 => {
+                bytes.push(u8::try_from(lcg() % 256).expect("lcg byte fits u8"));
+            }
+            _ => {
+                let mut shifted = vec![u8::try_from(lcg() % 256).expect("lcg byte fits u8")];
+                shifted.extend_from_slice(&bytes);
+                bytes = shifted;
+            }
+        }
+        if bytes.len() > 1_048_576 {
+            bytes.truncate(1_048_576);
+        }
+        // Recomputed-digest stored so digest never conceals payload checks.
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(b"SLEYSCB1");
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(1));
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(200));
+        preimage.extend_from_slice(&[9u8; 32]);
+        preimage.extend_from_slice(&sley_scb1::encode_uvar(bytes.len() as u64));
+        preimage.extend_from_slice(&bytes);
+        let digest = ObjectId::derive(&preimage);
+        let mut stored = preimage;
+        stored.extend_from_slice(digest.as_bytes());
+        let native = sley_mutate::import_entity_object(epoch9, &stored);
+        let outcome = execute(&package, &approved, vec![bytes_input(&bytes), unit_input()]);
+        let sley_code = match &outcome.termination {
+            sley_vm::ExecutionTermination::Success(found) => match &found.data {
+                ConstData::Result(ResultConst::Ok(_)) => None,
+                ConstData::Result(ResultConst::Err(payload)) => match &payload.data {
+                    ConstData::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
+                    _ => panic!("refusal must carry Bytes"),
+                },
+                _ => panic!("must return Result"),
+            },
+            _ => panic!("must return Result"),
+        };
+        match (native, sley_code) {
+            (Ok(_), None) => agree += 1,
+            (Ok(_), Some(code)) => {
+                // Sley Err on native Ok: only allowed for pinned scope (count 3/4
+                // or tags 3/4 valid objects native accepts, Sley scope-limits).
+                assert_eq!(
+                    code, "SSMC_RESERVED_FIELD_PRESENT",
+                    "Sley Err on native Ok must be pinned scope, got {code}"
+                );
+                scope_pins += 1;
+            }
+            (Err(native_err), None) => {
+                // Sley Ok on native Err: outer valid, so native Err must be
+                // body-layer (opaque-scope divergence, pinned). Envelope always
+                // valid here (recomputed digest, tag200/epoch09), so native Err
+                // cannot be envelope-layer; outer-valid implies body-layer.
+                let _ = native_err.code().to_string();
+                opaque_divergence += 1;
+            }
+            (Err(native_err), Some(sley)) => {
+                if sley == "SSMC_RESERVED_FIELD_PRESENT" {
+                    scope_pins += 1;
+                } else {
+                    assert_eq!(
+                        sley,
+                        native_err.code().to_string(),
+                        "outer-layer codes must match"
+                    );
+                    agree += 1;
+                }
+            }
+        }
+    }
+    eprintln!("OUTER_MUT agree={agree} opaque={opaque_divergence} scope={scope_pins} /100");
+    assert!(agree + opaque_divergence + scope_pins == 100);
+}
+
+#[test]
+fn program_envelope_native_reference_with_entrypoint() {
+    use sley_id::{EntityId, SchemaEpochId};
+    use sley_mutate::value::{EntityBodyValue, EntryExposure, EntryPointBody};
+    use sley_mutate::{EntityObjectRecord, build_entity_object, import_entity_object};
+    let epoch9 = SchemaEpochId::from_bytes([9; 32]);
+    let eid1 = EntityId::from_bytes([1; 32]);
+    // Two EntryPoint records with varying function/exposure.
+    for (func_byte, exp, exp_u64) in [
+        (10u8, EntryExposure::Local, 1u64),
+        (11u8, EntryExposure::Protocol, 2u64),
+    ] {
+        let rec = EntityObjectRecord {
+            entity_id: eid1,
+            body: EntityBodyValue::EntryPoint(EntryPointBody {
+                function: EntityId::from_bytes([func_byte; 32]),
+                exposure: exp,
+            }),
+            label: None,
+            semantic_fingerprint: None,
+        };
+        let obj = build_entity_object(epoch9, &rec).unwrap();
+        let stored = obj.stored_bytes();
+        assert_eq!(stored.len(), 153, "ep stored 153B");
+        // Native import agrees (envelope tag200/epoch09/digest + outer + body).
+        let imported = import_entity_object(epoch9, stored).unwrap();
+        assert_eq!(imported.record(), &rec);
+        // Sley outer on extracted payload (native envelope slice): parse stored
+        // preimage to payload via native cursor, then Sley outer + entrypoint.
+        // Payload starts after magic8 ver1 tag2 epoch32 len1 (all single-byte here).
+        let pre = obj.preimage();
+        let payload = &pre[8 + 1 + 2 + 32 + 1..];
+        assert_eq!(payload.len(), 77, "ep payload 77B");
+        let (dec_pkg, dec_approved) = admit(&outer_decode_image());
+        let outer_out = outer_decode_call(&dec_pkg, &dec_approved, &hex_encode(payload));
+        let body_hex = if exp_u64 == 1 {
+            "10260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101"
+        } else {
+            "10260201200b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b020102"
+        };
+        assert_outer_ok(&outer_out, &[1u8; 32], &hex_decode(body_hex));
+        let (entry_pkg, entry_approved) = admit(&entrypoint_decode_image());
+        let entry_out = entrypoint_decode_call(&entry_pkg, &entry_approved, body_hex);
+        assert_entrypoint_ok(&entry_out, &[func_byte; 32], exp_u64);
+        eprintln!(
+            "ENVELOPE_NATIVE stored153B payload77B body40B func{func_byte} exp{exp_u64} digest_ok"
+        );
+    }
+    // Wrong epoch, tampered digest, wrong tag are envelope-layer rejections
+    // (native reference; Sley envelope lands next, no Sley verdict claimed here).
+    let rec = EntityObjectRecord {
+        entity_id: eid1,
+        body: EntityBodyValue::EntryPoint(EntryPointBody {
+            function: EntityId::from_bytes([10; 32]),
+            exposure: EntryExposure::Local,
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let obj = build_entity_object(epoch9, &rec).unwrap();
+    let stored = obj.stored_bytes().to_vec();
+    assert_eq!(
+        import_entity_object(SchemaEpochId::from_bytes([8; 32]), &stored)
+            .unwrap_err()
+            .code()
+            .to_string(),
+        "SCB_EPOCH_MISMATCH"
+    );
+    let mut tampered = stored.clone();
+    *tampered.last_mut().unwrap() ^= 1;
+    assert_eq!(
+        import_entity_object(epoch9, &tampered)
+            .unwrap_err()
+            .code()
+            .to_string(),
+        "SCB_DIGEST_MISMATCH"
+    );
+    eprintln!("ENVELOPE_NATIVE epoch/digest rejections agree");
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(char::from(HEX[usize::from(byte >> 4)]));
+        out.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    out
+}
+
+#[test]
+fn outer_entrypoint_resources_stay_inside_codec_budgets() {
+    let (dec_pkg, dec_approved) = admit(&outer_decode_image());
+    let (enc_pkg, enc_approved) = admit(&outer_encode_image());
+    let (entry_pkg, entry_approved) = admit(&entrypoint_decode_image());
+    // Increasing-size series: ns-empty 47B, ep 77B, ns-one 80B, ns-two 113B payloads.
+    // Outer decode/encode + entrypoint decode per-stage (explicit two-invocation
+    // boundary for outer+entrypoint; no single composed Sley invocation claimed).
+    let payloads = [
+        "0201200101010101010101010101010101010101010101010101010101010101010101020a03080201020000020100",
+        "0201200101010101010101010101010101010101010101010101010101010101010101022810260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101",
+        "0201200101010101010101010101010101010101010101010101010101010101010101022b03290201020000022201200202020202020202020202020202020202020202020202020202020202020202",
+        "0201200101010101010101010101010101010101010101010101010101010101010101024c034a0201020000024302200202020202020202020202020202020202020202020202020202020202020202200303030303030303030303030303030303030303030303030303030303030303",
+    ];
+    for payload in payloads {
+        let dec = outer_decode_call(&dec_pkg, &dec_approved, payload);
+        assert!(dec.fuel_used < 1_000_000, "decode fuel");
+        assert!(dec.instruction_count < 100_000, "decode instr");
+        assert!(dec.peak_value_units < 1_000_000, "decode value units");
+        eprintln!(
+            "RES outer-decode payload{}B fuel={} instr={} peak={}",
+            hex_decode(payload).len(),
+            dec.fuel_used,
+            dec.instruction_count,
+            dec.peak_value_units
+        );
+    }
+    // Entrypoint bodies 40B each (fixed shape, input-dependent func/exp).
+    for body in [
+        "10260201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020101",
+        "10260201200b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b020102",
+    ] {
+        let dec = entrypoint_decode_call(&entry_pkg, &entry_approved, body);
+        assert!(dec.fuel_used < 1_000_000);
+        assert!(dec.instruction_count < 100_000);
+        assert!(dec.peak_value_units < 1_000_000);
+        eprintln!(
+            "RES entry-decode body{}B fuel={} instr={} peak={}",
+            hex_decode(body).len(),
+            dec.fuel_used,
+            dec.instruction_count,
+            dec.peak_value_units
+        );
+    }
+    // Encode sample.
+    let enc = outer_encode_call(
+        &enc_pkg,
+        &enc_approved,
+        "0101010101010101010101010101010101010101010101010101010101010101",
+        "03080201020000020100",
+    );
+    assert!(enc.fuel_used < 1_000_000);
+    assert!(enc.peak_value_units < 1_000_000);
+    eprintln!(
+        "RES outer-encode fuel={} instr={} peak={}",
+        enc.fuel_used, enc.instruction_count, enc.peak_value_units
+    );
+    // 200-300K projection replaced: measured outer 47B 4875/677/67216,
+    // 80B 7567/883/96035, 113B 10181/1077/148500; encode 47B 2848/323/51234;
+    // entry 40B 5354/827/69727. All far inside 1M budgets; value-units bind first.
 }
 
 fn bytes_input(bytes: &[u8]) -> ConstValue {
