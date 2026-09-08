@@ -2,7 +2,7 @@
   "contract": "sley2-entity-read-v2-inputs",
   "claim": "hand-authored-semantic",
   "provenance": {
-    "design": "/home/greyforge/.local/state/sley2/at-mw-02/PHASE2_INDEPENDENT_VECTOR_DESIGN.md",
+    "design": "PHASE2_INDEPENDENT_VECTOR_DESIGN.md",
     "design_acceptance": "phase2-vector-design-acceptance.json",
     "static_acceptance": "phase2-static-acceptance.json",
     "profile": "docs/spec/ENTITY_READ_PROFILE_V2.md",
@@ -23,7 +23,7 @@
     "session": "5353535353535353535353535353535353535353535353535353535353535353",
     "content_epoch": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
     "root_bindings": 256,
-    "lookup_l": 9
+    "lookup_l": 10
   },
   "selected_limits": {
     "max_frame_bytes": 8388608,
@@ -215,7 +215,7 @@
         "scope_type": {"variant": "Bytes"},
         "request_type": {"variant": "Text"},
         "response_type": {"variant": "Bool"},
-        "failure_type": {"variant": "BuiltinFailure", "value": {"kind": "CapabilityFailure", "code": 1}},
+        "failure_type": {"variant": "BuiltinFailure", "value": "CapabilityFailure"},
         "visibility": "Workspace"
       }
     },
@@ -286,7 +286,7 @@
         "abi_version": 1,
         "request_type": {"variant": "Text"},
         "response_type": {"variant": "Bool"},
-        "failure_type": {"variant": "BuiltinFailure", "value": {"kind": "ContractViolation", "code": 1}},
+        "failure_type": {"variant": "BuiltinFailure", "value": "ContractViolation"},
         "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
       }
     },

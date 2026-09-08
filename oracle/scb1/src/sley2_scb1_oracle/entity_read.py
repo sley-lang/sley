@@ -53,9 +53,9 @@ from .mutation_value import (
 )
 
 
-# ---------------------------------------------------------------------------
+
 # Frozen contract pins (ENTITY_READ_PROFILE_V2.md, SMP1.md, SCHEMA_EPOCH_V1.md)
-# ---------------------------------------------------------------------------
+
 
 MAGIC = b"SLEYSCB1"
 FORMAT_VERSION = 1
@@ -198,9 +198,9 @@ class Overflow(Exception):
     """A checked-u64 arithmetic overflow in work / length preflight."""
 
 
-# ---------------------------------------------------------------------------
+
 # Strict bounded decoding (Rust-exact varint / length / record rules)
-# ---------------------------------------------------------------------------
+
 
 
 class Reader:
@@ -347,9 +347,34 @@ def compute_work(count_k: int, lookup_l: int, stored_b: int, ceiling_m: int) -> 
     return checked_add(step, ceiling_m)
 
 
-# ---------------------------------------------------------------------------
+def derived_lookup_l(inputs: Mapping[str, Any]) -> int:
+    """Derive L from declared synthetic N; redundant metadata must agree."""
+    context = inputs["context"]
+    raw_n = context.get("root_bindings")
+    if isinstance(raw_n, bool) or not isinstance(raw_n, int):
+        raise CheckFailed("work", "root_bindings must be an unsigned integer")
+    if raw_n < 0 or raw_n > U64_MAX:
+        raise CheckFailed("work", "root_bindings outside unsigned domain")
+    derived = int(raw_n).bit_length() + 1
+    if "lookup_l" in context:
+        supplied = context["lookup_l"]
+        if isinstance(supplied, bool) or not isinstance(supplied, int):
+            raise CheckFailed("work", "redundant lookup_l must be an unsigned integer")
+        if int(supplied) != derived:
+            raise CheckFailed("work", f"redundant lookup_l {supplied} != derived {derived}")
+    bindings = inputs.get("bindings")
+    if isinstance(bindings, Mapping) and "count" in bindings:
+        supplied_count = bindings["count"]
+        if isinstance(supplied_count, bool) or not isinstance(supplied_count, int):
+            raise CheckFailed("count", "redundant bindings.count must be an unsigned integer")
+        if int(supplied_count) != int(raw_n):
+            raise CheckFailed("count", f"redundant bindings.count {supplied_count} != declared {raw_n}")
+    return derived
+
+
+
 # Protocol schema-epoch derivation (SCHEMA_EPOCH_V1.md, frozen descriptor)
-# ---------------------------------------------------------------------------
+
 
 
 def encode_u32_set(values: list[int]) -> bytes:
@@ -420,9 +445,9 @@ def protocol_epoch_id() -> bytes:
     return blake3.blake3(EPOCH_DOMAIN + preimage).digest()
 
 
-# ---------------------------------------------------------------------------
+
 # Entity object construction (SSMC1 object envelope, design step 3)
-# ---------------------------------------------------------------------------
+
 
 
 def build_object(entity: Mapping[str, Any], content_epoch: bytes) -> dict[str, str]:
@@ -463,6 +488,26 @@ def build_object(entity: Mapping[str, Any], content_epoch: bytes) -> dict[str, s
     }
 
 
+def _decode_outer_metadata(fields: list[tuple[int, bytes]]) -> tuple[str | None, bytes | None]:
+    """Exact outer-object label/fingerprint validation shared by bound/unbound paths."""
+    label: str | None = None
+    fingerprint: bytes | None = None
+    for tag, payload in fields:
+        if tag == 3:
+            reader = Reader(payload)
+            raw = reader.sized(MAX_BYTE_PAYLOAD)
+            reader.finish()
+            try:
+                label = raw.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ScbError("SCB_UTF8_INVALID") from error
+            if unicodedata2.normalize("NFC", label) != label:
+                raise ScbError("SCB_LABEL_NOT_NFC")
+        elif tag == 4:
+            fingerprint = decode_fixed32(payload)
+    return label, fingerprint
+
+
 def decode_object_record(
     object_record: bytes, expected_kind: int, expected_id: bytes
 ) -> dict[str, Any]:
@@ -485,19 +530,7 @@ def decode_object_record(
     if kind_tag != expected_kind:
         raise CheckFailed("object_record", f"kind tag {kind_tag} != {expected_kind}")
     decode_declared_mutation_value(BODY_TYPES[expected_kind], body)
-    label: str | None = None
-    fingerprint: bytes | None = None
-    for tag, payload in fields:
-        if tag == 3:
-            raw = Reader(payload).sized(MAX_BYTE_PAYLOAD)
-            try:
-                label = raw.decode("utf-8")
-            except UnicodeDecodeError as error:
-                raise ScbError("SCB_UTF8_INVALID") from error
-            if unicodedata2.normalize("NFC", label) != label:
-                raise ScbError("SCB_LABEL_NOT_NFC")
-        elif tag == 4:
-            fingerprint = decode_fixed32(payload)
+    label, fingerprint = _decode_outer_metadata(fields)
     return {"entity_id": entity_id, "kind": kind_tag, "body": body, "label": label, "fingerprint": fingerprint}
 
 
@@ -524,9 +557,9 @@ def check_stored_object(stored: bytes, expected_kind: int, expected_id: bytes, c
     return decoded
 
 
-# ---------------------------------------------------------------------------
+
 # Request / response / bounds / frame / failure construction
-# ---------------------------------------------------------------------------
+
 
 
 def build_request_body(root: bytes, entity: bytes, max_objects: int, ceiling_m: int, max_work: int) -> bytes:
@@ -840,12 +873,13 @@ def decode_failure(body: bytes) -> dict[str, Any]:
     return {"code": code, "symbol": symbol, "phase": phase, "retryability": retry, "details": details}
 
 
-# ---------------------------------------------------------------------------
+
 # Hello / versioned selection / handshake (SMP1 section 2, profile section 2)
-# ---------------------------------------------------------------------------
+
 
 
 def build_hello(hello: Mapping[str, Any]) -> bytes:
+    validate_selected_limits(hello["limits"])
     versions = hello["protocol_versions"]
     if not versions or any(b <= a for a, b in zip(versions, versions[1:])):
         raise CheckFailed("hello", "versions must be strictly increasing")
@@ -856,12 +890,15 @@ def build_hello(hello: Mapping[str, Any]) -> bytes:
         raise CheckFailed("hello", "reserved tag in offer")
     if hello["features"] & ~FEATURE_MASK:
         raise CheckFailed("hello", "unknown feature bit")
-    for key in ("adapters", "effects", "schema_epochs"):
+    for key in ("adapters", "effects"):
         items = [bytes.fromhex(v) for v in hello[key]]
         if any(b <= a for a, b in zip(items, items[1:])):
             raise CheckFailed("hello", f"{key} must be strictly increasing")
-    if not hello["schema_epochs"]:
+    epochs = [bytes.fromhex(v) for v in hello["schema_epochs"]]
+    if not epochs:
         raise CheckFailed("hello", "epochs must be nonempty")
+    if len(set(epochs)) != len(epochs):
+        raise CheckFailed("hello", "epochs must be unique")
     return encode_record(
         [
             (1, encode_uvar(len(versions)) + b"".join(encode_sized(encode_uvar(v)) for v in versions)),
@@ -890,6 +927,8 @@ def build_selected(selection: Mapping[str, Any]) -> bytes:
 
 
 def negotiate_versioned(client: Mapping[str, Any], server: Mapping[str, Any]) -> dict[str, Any]:
+    validate_selected_limits(client["limits"])
+    validate_selected_limits(server["limits"])
     common_versions = [v for v in client["protocol_versions"] if v in server["protocol_versions"]]
     if not common_versions:
         raise CheckFailed("selection", "no common version")
@@ -921,9 +960,9 @@ def handshake_id(client_body: bytes, server_body: bytes, selection_preimage: byt
     return blake3.blake3(HANDSHAKE_DOMAIN + client_body + server_body + selection_preimage).digest()
 
 
-# ---------------------------------------------------------------------------
+
 # Context / signature / count / work checks (oracle layer, no new codes)
-# ---------------------------------------------------------------------------
+
 
 
 def check_context(
@@ -1010,7 +1049,8 @@ def decode_stored_record(object_record: bytes) -> dict[str, Any]:
     if kind_tag not in BODY_TYPES:
         raise ScbError("SCB_UNION_INVALID")
     decode_declared_mutation_value(BODY_TYPES[kind_tag], body)
-    return {"entity_id": entity_id, "kind": kind_tag, "body": body}
+    label, fingerprint = _decode_outer_metadata(fields)
+    return {"entity_id": entity_id, "kind": kind_tag, "body": body, "label": label, "fingerprint": fingerprint}
 
 
 def decode_stored_unbound(stored: bytes, content_epoch: bytes) -> dict[str, Any]:
@@ -1056,9 +1096,9 @@ def check_signature(
             raise CheckFailed("signature", f"parameter {index} identity mismatch")
 
 
-# ---------------------------------------------------------------------------
+
 # Case construction from semantic inputs
-# ---------------------------------------------------------------------------
+
 
 
 def build_success_case(inputs: Mapping[str, Any], case: Mapping[str, Any]) -> dict[str, Any]:
@@ -1074,7 +1114,7 @@ def build_success_case(inputs: Mapping[str, Any], case: Mapping[str, Any]) -> di
     count_k = len(ordered)
     stored_b = sum(len(item) for item in stored_list)
     ceiling_m = int(case["request"]["max_response_bytes"])
-    lookup_l = int(inputs["context"]["lookup_l"])
+    lookup_l = derived_lookup_l(inputs)
     try:
         work = compute_work(count_k, lookup_l, stored_b, ceiling_m)
     except Overflow as error:
@@ -1153,9 +1193,9 @@ def build_success_case(inputs: Mapping[str, Any], case: Mapping[str, Any]) -> di
     }
 
 
-# ---------------------------------------------------------------------------
+
 # Mutation recipes for rejected cases
-# ---------------------------------------------------------------------------
+
 
 
 def apply_record_surgery(body: bytes, recipe: Mapping[str, Any]) -> bytes:
@@ -1168,10 +1208,18 @@ def apply_record_surgery(body: bytes, recipe: Mapping[str, Any]) -> bytes:
     elif op == "add_field":
         fields = fields + [(int(recipe["tag"]), bytes.fromhex(recipe["payload_hex"]))]
     elif op == "dup_field":
-        matches = [(tag, payload) for tag, payload in fields if tag == int(recipe["tag"])]
+        target_tag = int(recipe["tag"])
+        matches = [(tag, payload) for tag, payload in fields if tag == target_tag]
         if not matches:
             raise ValueError("dup target missing")
-        fields = fields + [matches[0]]
+        duplicated: list[tuple[int, bytes]] = []
+        inserted = False
+        for tag, payload in fields:
+            duplicated.append((tag, payload))
+            if tag == target_tag and not inserted:
+                duplicated.append((tag, payload))
+                inserted = True
+        fields = duplicated
     elif op == "reorder_fields":
         order = [int(tag) for tag in recipe["order"]]
         by_tag = {tag: payload for tag, payload in fields}
@@ -1250,36 +1298,64 @@ def build_rejected_bytes(inputs: Mapping[str, Any], case: Mapping[str, Any], rec
         raise ValueError(f"unknown case kind: {kind}")
     target = recipe.get("target", "response")
     wire = response_wire if target == "response" else request_wire
-    level = recipe.get("level", "wire")
     protocol_epoch = protocol_epoch_id()
-    if level == "wire":
-        return apply_level_op(wire, recipe)
-    max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
-    stored, _prefix = split_wire(wire, max_frame)
-    payload, _trailer = check_envelope(stored, protocol_epoch)
-    frame = decode_frame_payload(payload)
-    if level == "payload":
-        mutated = apply_level_op(payload, recipe)
-        new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated)
-        return new_wire
-    if recipe.get("record") in ("request", "response", "failure"):
-        mutated_body = apply_record_surgery(frame["body"], recipe)
-    elif recipe.get("record") == "object":
-        mutated_body = mutate_object_in_body(inputs, case if kind == "success" else case["base"], frame["body"], recipe)
-    elif recipe.get("record") == "entry":
-        mutated_body = mutate_entry_in_body(inputs, frame["body"], recipe)
-    elif recipe.get("record") == "bounds":
-        mutated_body = frame["body"]
-        mutated_bounds = apply_record_surgery(frame["bounds"], recipe)
-        mutated_payload = build_frame_payload(frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], recipe.get("flags", frame["flags"]), mutated_bounds, mutated_body)
-        new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated_payload)
-        return new_wire
-    elif recipe.get("record") == "frame":
-        mutated_payload = apply_record_surgery(payload, recipe)
-        new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated_payload)
-        return new_wire
-    else:
+    if "record" not in recipe:
+        level = recipe.get("level", "wire")
+        if level == "wire":
+            return apply_level_op(wire, recipe)
+        max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
+        stored, _prefix = split_wire(wire, max_frame)
+        payload, _trailer = check_envelope(stored, protocol_epoch)
+        frame = decode_frame_payload(payload)
+        if level == "payload":
+            mutated = apply_level_op(payload, recipe)
+            new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated)
+            return new_wire
         mutated_body = apply_level_op(frame["body"], recipe)
+    else:
+        max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
+        stored, _prefix = split_wire(wire, max_frame)
+        payload, _trailer = check_envelope(stored, protocol_epoch)
+        frame = decode_frame_payload(payload)
+        if recipe.get("record") in ("request", "response", "failure"):
+            mutated_body = apply_record_surgery(frame["body"], recipe)
+        elif recipe.get("record") == "object":
+            mutated_body = mutate_object_in_body(inputs, case if kind == "success" else case["base"], frame["body"], recipe)
+        elif recipe.get("record") == "entry":
+            mutated_body = mutate_entry_in_body(inputs, frame["body"], recipe)
+        elif recipe.get("record") == "bounds":
+            mutated_body = frame["body"]
+            mutated_bounds = apply_record_surgery(frame["bounds"], recipe)
+            mutated_payload = build_frame_payload(frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], recipe.get("flags", frame["flags"]), mutated_bounds, mutated_body)
+            new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated_payload)
+            return new_wire
+        elif recipe.get("record") == "frame":
+            mutated_payload = apply_record_surgery(payload, recipe)
+            new_wire, _pre, _fid = build_envelope(protocol_epoch, mutated_payload)
+            return new_wire
+        else:
+            mutated_body = apply_level_op(frame["body"], recipe)
+    if kind == "success":
+        base_for_signature = case
+    else:
+        base_id = case.get("base")
+        base_for_signature = inputs["cases"].get(base_id, {}) if isinstance(base_id, str) else {}
+    frame_bounds = frame["bounds"]
+    if base_for_signature.get("signature") is not None and recipe.get("record") in ("object", "entry"):
+        try:
+            resp_preview = decode_response_body(mutated_body)
+            preview_entries = [decode_response_entry(raw) for raw in resp_preview["entries"]]
+            actual_k = len(preview_entries)
+            actual_b = sum(len(item["stored"]) for item in preview_entries)
+            derived = derived_lookup_l(inputs)
+            ceiling = int(base_for_signature["request"]["max_response_bytes"])
+            refreshed_work = compute_work(actual_k, derived, actual_b, ceiling)
+            body_fields = parse_record(mutated_body)
+            body_fields = [(tag, encode_uvar(refreshed_work) if tag == 8 else payload) for tag, payload in body_fields]
+            mutated_body = encode_fields(body_fields)
+            frame_bounds = build_bounds(inputs["selected_limits"], len(mutated_body), actual_k)
+        except (ScbError, CheckFailed, ValueError, KeyError, Overflow):
+            frame_bounds = frame["bounds"]
     if recipe.get("set_flags") is not None:
         flags = int(recipe["set_flags"])
     else:
@@ -1288,7 +1364,7 @@ def build_rejected_bytes(inputs: Mapping[str, Any], case: Mapping[str, Any], rec
         version = int(recipe["set_version"])
     else:
         version = frame["version"]
-    mutated_payload = build_frame_payload(version, frame["session"], frame["request_id"], frame["kind"], frame["method"], flags, frame["bounds"], mutated_body)
+    mutated_payload = build_frame_payload(version, frame["session"], frame["request_id"], frame["kind"], frame["method"], flags, frame_bounds, mutated_body)
     if recipe.get("set_epoch") is not None:
         epoch = bytes.fromhex(recipe["set_epoch"])
         preimage = MAGIC + encode_uvar(FORMAT_VERSION) + encode_uvar(FRAME_CONTRACT_TAG) + epoch + encode_sized(mutated_payload)
@@ -1411,8 +1487,17 @@ def mutate_object_in_body(inputs: Mapping[str, Any], case: Mapping[str, Any], bo
         mutated_stored = mutated_preimage + blake3.blake3(OBJECT_DOMAIN + mutated_preimage).digest()
     else:
         raise ValueError(f"unknown object op: {op}")
+    new_object_id = mutated_stored[-32:]
     entry_fields = parse_record(entries[index])
-    entry_fields = [(tag, encode_sized(mutated_stored) if tag == 4 else payload) for tag, payload in entry_fields]
+    refreshed: list[tuple[int, bytes]] = []
+    for tag, payload in entry_fields:
+        if tag == 3:
+            refreshed.append((tag, new_object_id))
+        elif tag == 4:
+            refreshed.append((tag, encode_sized(mutated_stored)))
+        else:
+            refreshed.append((tag, payload))
+    entry_fields = refreshed
     entries[index] = encode_fields(entry_fields)
     items = encode_uvar(len(entries)) + b"".join(encode_sized(entry) for entry in entries)
     fields = [(tag, items if tag == 7 else payload) for tag, payload in fields]
@@ -1473,9 +1558,9 @@ def build_failure_wire(inputs: Mapping[str, Any], case: Mapping[str, Any]) -> by
     return wire
 
 
-# ---------------------------------------------------------------------------
+
 # Layered validation of rejected bytes
-# ---------------------------------------------------------------------------
+
 
 
 def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: bytes) -> tuple[str, str | None]:
@@ -1564,14 +1649,15 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
         return "semantic_pending", None
     try:
         base_case = inputs["cases"][case["base"]]
-        spec = build_success_case(inputs, base_case)
         check_context(response, context, bytes.fromhex(inputs["entities"][base_case["entity"]]["id"]))
-        expected_work = compute_work(spec["count_k"], int(context["lookup_l"]), spec["stored_b"], int(base_case["request"]["max_response_bytes"]))
+        actual_k = len(response["entries"])
+        actual_b = sum(len(decode_response_entry(raw)["stored"]) for raw in response["entries"])
+        expected_work = compute_work(actual_k, derived_lookup_l(inputs), actual_b, int(base_case["request"]["max_response_bytes"]))
         if response["work"] != expected_work:
             raise CheckFailed("work", f"claimed {response['work']} != {expected_work}")
         if base_case.get("signature") is not None:
             sig = base_case["signature"]
-            expected_types = [bytes.fromhex(inputs["signature_types"][ref]) for ref in sig["parameters"]]
+            expected_types = [encode_mutation_value("TypeExpr", inputs["signature_types"][ref]) for ref in sig["parameters"]]
             check_signature(
                 [item["meta"] for item in decoded],
                 [item["body"] for item in decoded],
@@ -1594,9 +1680,9 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
     return "semantic_pending", None
 
 
-# ---------------------------------------------------------------------------
+
 # Accepted / rejected checking against materialized artifacts
-# ---------------------------------------------------------------------------
+
 
 
 def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> list[str]:
@@ -1640,7 +1726,7 @@ def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Ma
         )
         check_context(response, context, bytes.fromhex(inputs["entities"][case["entity"]]["id"]))
         check_counts(response, built["count_k"], len(bytes.fromhex(built["response_body_hex"])), bounds)
-        check_work(response, built["count_k"], int(context["lookup_l"]), built["stored_b"], int(case["request"]["max_response_bytes"]))
+        check_work(response, built["count_k"], derived_lookup_l(inputs), built["stored_b"], int(case["request"]["max_response_bytes"]))
         entries = [decode_response_entry(raw) for raw in response["entries"]]
         bodies: list[bytes] = []
         for entry in entries:
@@ -1648,7 +1734,7 @@ def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Ma
             bodies.append(decoded["body"])
         if case.get("signature") is not None:
             sig = case["signature"]
-            expected_types = [bytes.fromhex(inputs["signature_types"][ref]) for ref in sig["parameters"]]
+            expected_types = [encode_mutation_value("TypeExpr", inputs["signature_types"][ref]) for ref in sig["parameters"]]
             check_signature(
                 entries,
                 bodies,
@@ -1757,7 +1843,7 @@ def check_rejected(inputs: Mapping[str, Any], rejected: Mapping[str, Any]) -> li
         if case.get("kind") == "owner_case":
             check_owner_case(inputs, case, problems)
             continue
-        if case.get("kind") == "failure_wire":
+        if case.get("kind") in ("failure_wire", "failure_response"):
             data = bytes.fromhex(case["input_hex"])
             layer, _code = validate_rejected(inputs, {"recipe": {"target": "failure"}}, data)
             if layer != "failure_accepted":
@@ -1838,7 +1924,7 @@ def check_owner_case(inputs: Mapping[str, Any], case: Mapping[str, Any], problem
 
 def derive_relation(inputs: Mapping[str, Any], case: dict[str, Any]) -> dict[str, Any]:
     """Fill concrete derived numbers for a boundary relation from its base case."""
-    lookup_l = int(inputs["context"]["lookup_l"])
+    lookup_l = derived_lookup_l(inputs)
     relation = case["relation"]
     if relation == "checked_overflow":
         return case
@@ -1890,8 +1976,8 @@ def check_stateful_spec(case: Mapping[str, Any], problems: list[str]) -> None:
 
 
 def check_relation(inputs: Mapping[str, Any], case: Mapping[str, Any], problems: list[str]) -> None:
-    lookup_l = int(inputs["context"]["lookup_l"])
     try:
+        lookup_l = derived_lookup_l(inputs)
         if case["relation"] == "k_exact":
             base = build_success_case(inputs, inputs["cases"][case["base"]])
             if base["count_k"] != case["max_objects"]:
@@ -1979,9 +2065,9 @@ def check_fill_recipe(inputs: Mapping[str, Any], case: Mapping[str, Any], proble
         problems.append(f"{case['id']}:fill-error:{error}")
 
 
-# ---------------------------------------------------------------------------
+
 # Explicit Python-only refresh (root-owned staging outside the pin)
-# ---------------------------------------------------------------------------
+
 
 
 def git_head_revision(repo_root: Path) -> str:
@@ -2072,7 +2158,7 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
         if case.get("kind") == "relation":
             rejected_cases.append(derive_relation(inputs, dict(case)))
             continue
-        if case.get("kind") == "failure_response":
+        if case.get("kind") in ("failure_response", "failure_wire"):
             data = build_failure_wire(inputs, case).hex()
             rejected_cases.append({**case, "input_hex": data})
             continue
