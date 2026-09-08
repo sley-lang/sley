@@ -1,22 +1,27 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 4 (2026-09-08); Council review
+Status: S20-430 contract draft, revision 5 (2026-09-08); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
 offer (section 8); revision 4 re-pins SMP1 revision 11 and bridge revision 7
 (no behavior change; `scripts/check_cli_contract.py` asserts both pins
-against the composed status lines). The implementation is `crates/sley-cli`;
-implementation state is tracked in the machine summary.
+against the composed status lines); revision 5 re-pins SMP1 revision 12
+and bridge revision 8 and declares the prospective version-aware surface
+(section 9). Command defaults, version/report shapes, and legacy behavior
+are unchanged; capable CLI runtime is phase 3, declared pending, not
+implemented. The revision 4 history is retained as history and does not
+review revision 5; its new-delta review is pending. The implementation is
+`crates/sley-cli`; implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
 between standard input, standard output, and the deterministic S20-410
 server over one repository path, in either the canonical byte form or the
 S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
-(`docs/spec/SMP1.md` revision 11, S20-440 batch admission, S20-330
+(`docs/spec/SMP1.md` revision 12, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 7). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -219,3 +224,42 @@ release, or GA.
 - The revision pins are SMP1 revision 11 and bridge revision 7; the
   `version` example shows the emitted lexicographic field order; the
   "deferred methods" wording is dropped (`is_deferred` exists nowhere).
+
+### Revision 5 (2026-09-08)
+
+- The revision pins are SMP1 revision 12 and bridge revision 8; section 9
+  declares the prospective version-aware surface. Command defaults,
+  version/report shapes, and legacy behavior are unchanged; capable
+  runtime is phase 3.
+
+## 9. Prospective version-aware surface (phase 3, declared pending)
+
+The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
+`methods`, `version`, `serve`, `frame encode`, and `frame decode`. The
+profile enables the `[1,2]` offer; it never forces selection 2. The
+standalone frame commands (`frame encode`, `frame decode`) additionally
+require `--expected-version 1|2` with exact wire semantics: Hello uses
+expected 1, and every post-Hello frame uses the actual selected version
+(1 or 2). Expected 2 with Hello 1 is rejected; stateless frame commands
+never silently transition versions or accept mixed streams. Duplicate,
+missing, or unsupported flags, `--expected-version` without the profile,
+and `--expected-version` on other commands are rejected under the
+existing section 4 categories. There is no `--protocol-version` alias:
+the generator's exact-table selector
+(`scripts/generate_smp1_json_bridge_table.py --protocol-version`) is a
+separate internal tool.
+
+Capable metadata is the additive contract `sley2-cli-v2` carrying
+`protocol_profile` (`v2-capable`) and the offered `protocol_versions`
+`[1,2]`, preserving the independent `sley2-cli-v1` contract. No fictitious
+selected `protocol_version` is emitted. The capable report is
+`sley2-cli-report-v2`, retaining the section 3 counters and errors and
+adding `protocol_profile` (`v2-capable`) and `selected_protocol_version`
+(`null` before successful negotiation, otherwise the actual 1 or 2).
+Default metadata and reports retain the exact version 1 contracts and
+bytes. The profile-aware entrypoint keeps existing `ServeOptions` source
+compatibility with `serve` as the legacy wrapper.
+
+This surface is declared, not implemented: the endpoint, crate, rule audit,
+and vectors in this revision stay version 1-only, and prose presence here
+is never detected as implemented behavior.

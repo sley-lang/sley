@@ -38,11 +38,11 @@ IMPLEMENTATION_STATUSES = (
     COMPLETE_STATUS,
 )
 
-CONTRACT_REVISION = 3
+CONTRACT_REVISION = 4
 # The composed authorities' current revisions. Each is cross-checked
 # against that document's own status line, so the pin fails the moment
 # the authority moves instead of matching a stale substring elsewhere.
-SMP1_REVISION = 11
+SMP1_REVISION = 12
 CAPSULE_REVISION = 3
 SMP1_PIN = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
 CAPSULE_PIN = (
@@ -85,6 +85,7 @@ SPEC_MARKERS = (
     "## 8. Explicit exclusions",
     "at most `max_sessions` remembered",
     "handles naming query cursors",
+    "Protocol version 2 extension",
     "## 9. Revision history",
     "threat T56",
     SMP1_PIN,
@@ -171,14 +172,31 @@ def spec_paragraph(spec: str, anchor: str) -> str:
 def check_method_classification(
     spec: str, server: str, registry: str, smp1: str, problems: list[str]
 ) -> dict[str, list[int]]:
-    """Section 3 lists against the server dispatch table and SMP1 table."""
-    tag_of = {
-        name: int(tag)
-        for name, tag in re.findall(
-            r"Self::(\w+) => (\d+),",
-            rust_block(registry, "pub const fn tag(self) -> u32 {"),
-        )
+    """Section 3 lists against the server dispatch table and SMP1 table.
+
+    The version 1 partition is compared exactly; the version 2 partition is
+    the version 1 partition with the two entity-read tags added to the
+    head-bound list only. Numeric tag constants declared as named constants
+    (the entity-read tags) are resolved exactly; an unresolvable mapped
+    variant fails instead of being skipped.
+    """
+    tag_block = rust_block(registry, "pub const fn tag(self) -> u32 {")
+    const_values = {
+        name: int(value) for name, value in re.findall(r"pub const (\w+): u32 = (\d+);", registry)
     }
+    tag_of: dict[str, int] = {}
+    for name, value in re.findall(r"Self::(\w+) => ([^,]+),", tag_block):
+        value = value.strip()
+        if re.fullmatch(r"\d+", value):
+            tag_of[name] = int(value)
+        elif value in const_values:
+            tag_of[name] = const_values[value]
+        else:
+            problems.append(f"classification:unresolved-tag-const:{name}:{value}")
+    # Declared entity-tag constants resolve completely to their frozen tags.
+    for const, expected in (("ENTITY_VERSION_TAG", 306), ("ENTITY_SIGNATURE_TAG", 307)):
+        if const_values.get(const) != expected:
+            problems.append(f"classification:entity-tag-const:{const}")
     reserved = {
         tag_of[name]
         for name in re.findall(
@@ -187,6 +205,24 @@ def check_method_classification(
         )
         if name in tag_of
     }
+
+    def method_array(source: str, opener: str) -> set[str]:
+        start = source.find(opener)
+        if start < 0:
+            return set()
+        end = source.find("];", start)
+        return set(re.findall(r"Self::(\w+)", source[start:end] if end > start else source[start:]))
+
+    all_names = method_array(registry, "pub const ALL: [Self; 41] = [")
+    v2_names = method_array(registry, "pub const V2_ALL: [Self; 43] = [")
+    if len(all_names) != 41:
+        problems.append(f"classification:all-count:{len(all_names)}")
+    if len(v2_names) != 43:
+        problems.append(f"classification:v2-all-count:{len(v2_names)}")
+    if all_names and v2_names and v2_names - all_names != {"EntityVersion", "EntitySignature"}:
+        problems.append(
+            f"classification:v2-additions:{sorted(v2_names - all_names)}"
+        )
     server_head_bound = {
         tag_of[name]
         for name in re.findall(
@@ -195,6 +231,20 @@ def check_method_classification(
         )
         if name in tag_of
     }
+    # The versioned helper delegates to the legacy helper, so its partition
+    # is the legacy set union its explicit additions, never a partial parse.
+    versioned_block = rust_block(server, "const fn head_bound_versioned(method: Method) -> bool {")
+    if "Self::head_bound(method)" not in versioned_block:
+        problems.append("classification:versioned-delegation")
+    versioned_additions = {
+        tag_of[name]
+        for name in re.findall(r"Method::(\w+)", versioned_block)
+        if name in tag_of
+    }
+    for name in re.findall(r"Method::(\w+)", versioned_block):
+        if name not in tag_of:
+            problems.append(f"classification:unresolved-versioned-variant:{name}")
+    server_head_bound_versioned = server_head_bound | versioned_additions
     smp1_rows = dict(re.findall(r"^\| (\d{3}) \| `([a-z_.]+)` \|", smp1, flags=re.M))
     lists: dict[str, list[int]] = {}
     for anchor in CLASS_ANCHORS:
@@ -227,13 +277,35 @@ def check_method_classification(
         problems.append(
             f"classification:reserved:{sorted(stated_reserved)}!={sorted(reserved)}"
         )
-    covered = set(classified) | {SESSION_OPEN_TAG} | reserved
-    if tag_of and covered != set(tag_of.values()):
+    # The complete version 1 closed partition, then the version 2 partition
+    # obtained by adding 306/307 to head-bound only. No subset comparison:
+    # every tag on each side must match exactly.
+    v1_method_tags = {tag_of[name] for name in all_names} if all_names else set(tag_of.values())
+    covered_v1 = set(classified) | {SESSION_OPEN_TAG} | reserved
+    if tag_of and all_names and covered_v1 != v1_method_tags:
         problems.append(
-            "classification:partition:"
-            f"unclassified={sorted(set(tag_of.values()) - covered)}:"
-            f"unknown={sorted(covered - set(tag_of.values()))}"
+            "classification:partition-v1:"
+            f"unclassified={sorted(v1_method_tags - covered_v1)}:"
+            f"unknown={sorted(covered_v1 - v1_method_tags)}"
         )
+    extension = spec_paragraph(spec, "Protocol version 2 extension")
+    extension_pairs = re.findall(r"`([a-z_.]+)`\s+\((\d+)\)", extension)
+    extension_tags = {int(tag) for _, tag in extension_pairs}
+    if extension_tags != {306, 307}:
+        problems.append(f"classification:extension-tags:{sorted(extension_tags)}")
+    for name, tag in extension_pairs:
+        if smp1_rows.get(tag) != name:
+            problems.append(f"classification:extension-smp1-name:{name}:{tag}")
+    if set(tag_of.get(name, -1) for name in ("EntityVersion", "EntitySignature")) != {306, 307}:
+        problems.append("classification:entity-variant-tags")
+    if head_bound | {306, 307} != server_head_bound_versioned:
+        problems.append(
+            "classification:head-bound-versioned-drift:"
+            f"contract-v2={sorted((head_bound | {306, 307}) - server_head_bound_versioned)}:"
+            f"server-only={sorted(server_head_bound_versioned - head_bound - {306, 307})}"
+        )
+    if versioned_additions != {306, 307}:
+        problems.append(f"classification:versioned-additions:{sorted(versioned_additions)}")
     return lists
 
 

@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 7 (2026-09-08); Council review
+Status: S20-420 contract draft, revision 8 (2026-09-08); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -13,7 +13,12 @@ revision 11 (the version-claim split the bridge vectors already carry: a
 claimed protocol version below the selected one is `PROTOCOL_DOWNGRADE`,
 above it `PROTOCOL_VERSION_UNSUPPORTED`; no bridge behavior change, and
 `scripts/check_smp1_json_bridge_contract.py` now asserts the pin against
-the SMP1 status line). The implementation is
+the SMP1 status line); revision 8 re-pins the composed SMP1 revision 12
+and names the additive protocol version 2 method table (section 2). The
+version 1 table, bytes, and legacy entrypoints are unchanged; capable
+bridge runtime is phase 3, declared pending in section 10, not implemented.
+The revision 7 history is retained as history and does not review revision
+8; its new-delta review is pending. The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
 summary.
 
@@ -21,7 +26,7 @@ The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
 without an SCB1 encoder can read and write frames; it owns no semantics,
 performs no validation beyond shape, and never participates in any program
-identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 11):
+identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 12):
 the frame, hello, selected profile, limit profile, bounded context,
 failure envelope, stream chunk, and method table are the bridge's only
 subjects. Owner bodies (queries, capsules, candidates, receipts, exchange
@@ -115,10 +120,16 @@ the wire transcript, never from this text, and there is no
 `selected_from_json` reader by contract.
 
 `method` names are the frozen names of the SMP1 method table (`session.open`
-through `report`); the generated table `conformance/smp1-json-bridge/v1/methods.json`
-lists every name with its tag, family, and reserved flag, and the crate
-embeds and tests it against the frozen table. A name outside the table is
-`JSON_BRIDGE_METHOD_UNKNOWN`; the bridge never invents a tag.
+through `report`); the generated version 1 table
+`conformance/smp1-json-bridge/v1/methods.json` lists every version 1 name
+with its tag, family, and reserved flag (41 rows, 37 dispatched), and the
+crate embeds and tests it against the frozen table. The additive version 2
+table `conformance/smp1-json-bridge/v2/methods.json` unions that table with
+exactly `entity.version` (306) and `entity.signature` (307) (43 rows, 39
+dispatched); the generator selects the table explicitly by protocol version
+and the default build stays version 1 byte for byte. A name outside the
+selected table is `JSON_BRIDGE_METHOD_UNKNOWN`; the bridge never invents a
+tag.
 
 ## 3. Operations
 
@@ -163,8 +174,9 @@ emission order), then the frozen codec's `PROTOCOL_*` codes.
 
 ## 6. Required evidence
 
-- the generated method table, drift-gated against `docs/spec/SMP1.md` and
-  tested against the frozen `Method` table;
+- the generated method tables, drift-gated against `docs/spec/SMP1.md`
+  (the version 1 table frozen byte for byte, the additive version 2 table
+  checked explicitly) and tested against the frozen `Method` table;
 - round-trip vectors: every frame of `conformance/smp1/v1` rendered as JSON
   and parsed back to the identical bytes, with an independent Python
   rendering from the fixture bytes;
@@ -222,3 +234,13 @@ benchmark, packaging, release, or GA.
   and symbol, phase zero, `never`, no incident, no details. The bridge
   still contains no semantic validation; the envelope only names the
   bridge's own failure in the codec's record.
+
+## 10. Prospective version-aware surface (phase 3, declared pending)
+
+Capable bridge runtime receives a capability context for Hello names and
+an exact expected version for ordinary frames, delegates canonical bytes,
+identity, and error precedence to the protocol owners, and never admits
+entity methods on an explicit ordinary expected-1 frame even when a
+capable Hello 1 advertises them. This surface is declared, not
+implemented: the crate, vectors, and oracle in this revision stay version
+1-only, and no capable symbol is required by the stage checker.

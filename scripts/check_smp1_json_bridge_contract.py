@@ -16,6 +16,9 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 CRATE = ROOT / "crates/sley-json-bridge"
 TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
+V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
+SPEC_REVISION = 8
+SMP1_REVISION = 12
 
 DRAFT_STATUS = "S20_420_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_420_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -44,6 +47,8 @@ SPEC_MARKERS = (
     "at most 2^53 - 1 is a",
     "## 2. Objects",
     "conformance/smp1-json-bridge/v1/methods.json",
+    "conformance/smp1-json-bridge/v2/methods.json",
+    "## 10. Prospective version-aware surface",
     "## 3. Operations",
     "## 4. Unknown and omission states",
     "## 7. Explicit exclusions",
@@ -107,6 +112,30 @@ def main() -> int:
         problems.append("error-codes:range-sentence")
     if not TABLE.exists():
         problems.append("methods-table:missing")
+    if not V2_TABLE.exists():
+        problems.append("methods-table-v2:missing")
+    # Both static method tables and their counts: version 1 stays 41/37,
+    # version 2 is the sorted union at 43/39 with the same four reserved.
+    tables: dict[str, dict] = {}
+    for label, path in (("v1", TABLE), ("v2", V2_TABLE)):
+        if not path.exists():
+            continue
+        try:
+            tables[label] = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            problems.append(f"methods-table-{label}:unparsable")
+    v1_table = tables.get("v1", {})
+    v2_table = tables.get("v2", {})
+    if v1_table.get("method_count") != 41:
+        problems.append("methods-table-v1:count")
+    if v2_table.get("method_count") != 43 or v2_table.get("reserved_count") != 4:
+        problems.append("methods-table-v2:counts")
+    v1_tags = [method.get("tag") for method in v1_table.get("methods", [])]
+    v2_tags = [method.get("tag") for method in v2_table.get("methods", [])]
+    if v1_tags and v2_tags and v2_tags != sorted(set(v1_tags) | {306, 307}):
+        problems.append("methods-table-v2:union")
+    if v2_tags and [tag for tag in v2_tags if tag in (306, 307)] != [306, 307]:
+        problems.append("methods-table-v2:additions")
 
     summary = json.loads(read(SUMMARY))
     section = summary.get("json_bridge")
@@ -116,8 +145,10 @@ def main() -> int:
     status = section.get("status")
     expected = {
         "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+        "contract_revision": SPEC_REVISION,
         "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
         "method_table": "conformance/smp1-json-bridge/v1/methods.json",
+        "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json",
         "new_stable_error_codes": len(CODES),
         "canonical_form": "SMP1_BYTES_ONLY",
         "implementation_complete": status == COMPLETE_STATUS,
@@ -149,14 +180,15 @@ def main() -> int:
 
     # Own revision plus the composed authorities, each cross-checked against
     # that document's status line so a stale pin fails the moment it moves.
+    # Capable runtime stays phase 3: no capable bridge symbol is required.
     own = re.search(r"^Status: S20-420 contract draft, revision (\d+)", spec, flags=re.M)
-    if own is None or int(own.group(1)) != 7:
+    if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")
     smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
     smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
-    if smp1_status is None or int(smp1_status.group(1)) != 11:
+    if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
-    if "`docs/spec/SMP1.md` (revision 11)" not in spec:
+    if f"`docs/spec/SMP1.md` (revision {SMP1_REVISION})" not in spec:
         problems.append("smp1-pin-text")
     revision = re.search(r"revision (\d+)", spec)
     result = {

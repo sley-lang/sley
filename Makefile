@@ -29,6 +29,7 @@ quick:
 	python3 scripts/generate_smp1_fixtures.py --check
 	python3 scripts/check_smp1_json_bridge_contract.py
 	python3 scripts/generate_smp1_json_bridge_table.py --check
+	python3 scripts/generate_smp1_json_bridge_table.py --protocol-version 2 --check
 	python3 scripts/generate_smp1_json_bridge_fixtures.py --check
 	python3 scripts/generate_release_demo_fixtures.py --check
 	python3 scripts/generate_vm_extended_fixtures.py --check

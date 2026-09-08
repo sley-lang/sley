@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 11 (2026-09-05; the revision
+Status: S20-400 contract draft, revision 12 (2026-09-08; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -17,6 +17,9 @@ appendix B (closeout
 the JSON bridge from this contract (revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
 (revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
+Current composition (revision 12): the S20-420 bridge contract
+`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the S20-430 CLI contract
+`docs/spec/SLEY_CLI_V1.md` revision 5.
 Further implementation state is tracked in the machine summary.
 
 SMP1 is the primary programming interface of Sley 2. It transports the
@@ -45,7 +48,16 @@ with no other body changes; 11 answers the three Council review rounds in
 full (explicit retryability enumeration, enforced response ceilings,
 dispatch-cost budgets, identifier floor, negotiation floor, version-claim
 rule, failed-stream flag, per-seam reserved reasons, gated extended
-profile, stated details mapping, ordered appendix A, this history list).
+profile, stated details mapping, ordered appendix A, this history list);
+12 adds the protocol version 2 static successor metadata (the two
+S20-310 entity-read methods of `docs/spec/ENTITY_READ_PROFILE_V2.md`)
+without changing any version 1 row, byte, or helper. Document revision
+(a draft number of this file) and negotiated protocol version (the wire
+selection 1 or 2) are distinct: revision 12 still serves version 1
+exactly as before. Revision 12 is a static delta only: the version 1
+implementations remain in place, capable bridge/CLI runtime is phase 3,
+and the revision 11 review history is retained as history. Those reviews
+do not review revision 12; its new-delta review is pending.
 
 ## 1. Framing
 
@@ -179,7 +191,20 @@ selection; `session.capabilities` exposes the server's derived selection,
 and it equals the re-derived one.
 
 If no common version, epoch, or method family exists the server answers
-`PROTOCOL_NO_COMMON_PROFILE` and closes. A `session.open` whose identity
+`PROTOCOL_NO_COMMON_PROFILE` and closes. The explicit version-aware
+negotiation entrypoint (`negotiate_versioned`, revision 12) supports
+selected protocol versions 1 and 2 only: an unsupported greatest-common
+result, including 3, is refused with `PROTOCOL_VERSION_UNSUPPORTED`
+before establishment, without selecting a lesser common version. Under
+selected version 1 the intersection filters exactly the two version-2
+tags 306 and 307; unrelated opaque unknown numeric tags keep their
+legacy treatment. Every hello frame travels as frame version 1, so a
+version-1 peer can read a version-2 offer. The legacy numeric hello and
+negotiation helpers retain their existing behavior, including retaining
+unknown numeric tags such as 306 and 307 in a version-1-only offer
+intersection without thereby dispatching them. Old method, codec, and
+server entrypoints stay version-1-only; version-aware entrypoints select
+the expected version explicitly. A `session.open` whose identity
 is not the re-derived one is `PROTOCOL_DOWNGRADE` (threat T45).
 Tampering with either hello is the same failure: each side binds its true
 hello, so any tamper makes the two transcripts differ and the two
@@ -258,6 +283,12 @@ owner boundary the row says so. A tag added after freeze takes a new
 and a reserved tag goes live the same way, never by appearing in a
 negotiated `methods` intersection.
 
+### Protocol version 1
+
+The version 1 table below is frozen: 41 rows total, 37 dispatched
+(non-reserved) methods. Its rows, bytes, and legacy helpers are unchanged
+by revision 12.
+
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
 | 100 | `session.open` | `ProtocolHandshakeId` | `SessionId` | S20-330 |
@@ -301,6 +332,21 @@ negotiated `methods` intersection.
 | 602 | `tests.affected` | reserved | reserved | S20-620 |
 | 603 | `cancel` | `request_id` | none | S20-440 |
 | 604 | `report` | report identity | report record | S20-290 (report store is S20-560) |
+
+### Protocol version 2 additions
+
+Protocol version 2 is the sorted union of the version 1 table above and
+exactly the two rows below: 43 rows total, 39 dispatched methods. No
+second independently maintained 43-row table exists; consumers union the
+two tables in tag order. Reserved tags remain 305, 503, 601, 602 in both
+versions. Both additions are owned by S20-310; their request and response
+records are defined by `docs/spec/ENTITY_READ_PROFILE_V2.md` sections 3
+through 5, which this contract links to instead of restating.
+
+| Tag | Method | Request body | Response body | Owner |
+|---:|---|---|---|---|
+| 306 | `entity.version` | entity version request (ENTITY_READ section 3) | entity version response (ENTITY_READ sections 3-5) | S20-310 |
+| 307 | `entity.signature` | entity signature request (ENTITY_READ section 3) | entity signature response (ENTITY_READ sections 3-5) | S20-310 |
 
 A reserved method, or any tag outside this table, fails
 `PROTOCOL_METHOD_UNSUPPORTED` with the versioned reason; it never succeeds
@@ -413,7 +459,15 @@ empty body (section 7).
 
 ## 7. Cancellation and streaming
 
-S20-440 freezes these rules (appendix B carries the exact records):
+S20-440 freezes these rules (appendix B carries the exact records).
+The two protocol version 2 methods are the stated exception to the
+generic charging and streaming rules below: every successful
+`entity.version` (306) or `entity.signature` (307) request charges
+exactly the ENTITY_READ work bound and emits only a complete single-frame
+response, per `docs/spec/ENTITY_READ_PROFILE_V2.md` section 5. The generic
+per-byte dispatch-plus-body charge and the section 7 streaming path do not
+override that profile; all version 1 accounting is unchanged. The frozen
+version 1 rules are:
 
 - **Batch admission.** A batch is an explicit frame list: the canonical
   server answers one frame at a time, and `answer_batch` answers a list
@@ -474,7 +528,10 @@ S20-440 freezes these rules (appendix B carries the exact records):
 
 ## 8. JSON bridge
 
-S20-420 generates the JSON bridge from this contract. Byte strings are
+S20-420 generates the JSON bridge from this contract: the version 1
+method table above generates the frozen version 1 metadata, and the
+version 2 additions above generate the additive version 2 metadata (the
+S20-420 contract names both tables). Byte strings are
 lowercase hex, integers are decimal strings when above 2^53, codes and
 symbols are preserved verbatim, unknown and omission states are explicit,
 and the bridge performs no semantic validation. The integer rule stays
@@ -728,5 +785,17 @@ Rules:
   code. The identity derives from the exact report preimage, so it is a
   bearer capability for a requester that already computed it: store
   dedup confirms only what the requester knew, and answers nothing to a
-  guesser. S20-330 may bind report reads to the session workspace in a
-  later revision; at this one the store is identity-keyed.
+   guesser. S20-330 may bind report reads to the session workspace in a
+   later revision; at this one the store is identity-keyed.
+
+## Appendix D. Body references for the protocol version 2 additions (S20-310, revision 12)
+
+Appendices A and C above carry the 37 legacy body rows and are unchanged
+by revision 12. The two version-2 methods define no new serializer: their
+request and response records are the ENTITY_READ canonical records,
+referenced here and owned by S20-310.
+
+| Method | Request body | Response body |
+|---|---|---|
+| 306 `entity.version` | `docs/spec/ENTITY_READ_PROFILE_V2.md` section 3 request record (expected root, entity, positive `max_objects`/`max_response_bytes`/`max_work` ceilings) | `docs/spec/ENTITY_READ_PROFILE_V2.md` sections 3-5 response record (exactly the requested object; exact work bound; complete single frame) |
+| 307 `entity.signature` | `docs/spec/ENTITY_READ_PROFILE_V2.md` section 3 request record (same shape as 306) | `docs/spec/ENTITY_READ_PROFILE_V2.md` sections 3-5 response record (Function first, then exactly its ordered parameter objects; exact work bound; complete single frame) |

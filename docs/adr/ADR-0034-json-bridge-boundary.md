@@ -1,11 +1,14 @@
 # ADR-0034: JSON bridge as a generated, non-canonical representation
 
-Status: proposed; the S20-420 contract is a draft at revision 3 with
+Status: proposed; the S20-420 contract is a draft at revision 8 with
 Council review pending; implemented at `crates/sley-json-bridge`
 (2026-09-03) with a round-trip fixture, an independent oracle, and a
-persistent fuzz slice
+persistent fuzz slice. Revision 8 record (2026-09-08): the version 1
+table, bytes, and legacy entrypoints are unchanged; the additive version
+2 metadata table is generated explicitly; capable bridge runtime is phase
+3, declared pending, not implemented.
 
-Date: 2026-09-03
+Date: 2026-09-03; revision 8 record 2026-09-08
 
 ## Context
 
@@ -29,9 +32,11 @@ soon as a lane returns.
    numbers up to 2^53 - 1 and decimal strings above, frozen names for
    enumerations, booleans for flags and features, exact object shapes.
 3. **Generated method table.** The names of the bridge are the frozen
-   method names; a generator reads the contract table into a fixture that
-   the crate embeds and tests against the `Method` table, so the bridge
-   cannot drift from the contract.
+    method names; a generator reads the contract table into a fixture that
+    the crate embeds and tests against the `Method` table, so the bridge
+    cannot drift from the contract. The revision 8 record keeps the
+    version 1 table frozen byte for byte and generates the additive
+    version 2 table only on explicit selection.
 4. **States copied, codes verbatim.** Omission, truncation, continuation,
    codes, symbols, incidents, and details are copied; nothing is derived
    or collapsed.

@@ -1,8 +1,12 @@
 # ADR-0032: SMP1 transport, negotiation, and identity-scoping boundary
 
-Status: accepted; the S20-400 contract is at revision 11 with the
+Status: accepted; the S20-400 contract was at revision 11 with the
 Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
-and no new findings; implementation is S20-410
+and no new findings; implementation is S20-410. Current pin (2026-09-08):
+the contract draft is at revision 12 (static protocol version 2 successor
+metadata; version 1 rows, bytes, and helpers unchanged). The revision 11
+reviews above are retained as history and do not review revision 12; its
+new-delta review is pending.
 
 Date: 2026-09-03
 
@@ -54,10 +58,17 @@ soon as a lane returns.
    under the negotiated feature; budgets charge one unit at dispatch
    plus bytes on success.
 9. **Transcript-bound identity.** The selection is the canonical
-   `SelectedProfile` record digested with both hello bodies; each peer
-   re-derives from the hellos as observed, and `session.open` compares
-   against that derivation, so tamper with either hello is
-   `PROTOCOL_DOWNGRADE` at open.
+    `SelectedProfile` record digested with both hello bodies; each peer
+    re-derives from the hellos as observed, and `session.open` compares
+    against that derivation, so tamper with either hello is
+    `PROTOCOL_DOWNGRADE` at open.
+
+Revision 12 record (2026-09-08): the frozen version 1 method table is
+unchanged; the two S20-310 entity-read tags (306, 307) are additive
+protocol version 2 metadata with body definitions linked to
+`docs/spec/ENTITY_READ_PROFILE_V2.md`, current composition pins at bridge
+revision 8 and CLI revision 5, and capable runtime as phase 3. No decision
+above is altered.
 
 ## Consequences
 

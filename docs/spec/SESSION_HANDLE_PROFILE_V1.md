@@ -1,20 +1,25 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 3 (2026-09-05); implemented under
+Status: S20-330 contract draft, revision 4 (2026-09-08); implemented under
 this draft with Council re-reviews pending (Nabu architecture review,
 Ariadne contract review, Vulcan surface review), so the contract is not
 frozen and the package is not complete. Revision 2 closed the six P0s and
 the freeze-blocking P1s of the 2026-09-04 review round; revision 3 answers
-every remaining P1, P2, and P3 item of that round (section 9).
+every remaining P1, P2, and P3 item of that round (section 9); revision 4
+adds the protocol version 2 classification extension (the two S20-310
+entity-read methods, head-bound only in version 2) without changing the
+version 1 partition, handle bytes, or capsule format. The revision 3
+reviews are retained as history and do not review revision 4; its
+new-delta review is pending. Capable bridge/CLI runtime is phase 3.
 Implementation state is tracked in the machine summary.
 
 This profile defines the negotiated session authority that SMP1 (S20-400,
-revision 11) and the master context capsule (S20-320 full, revision 3)
+revision 12) and the master context capsule (S20-320 full, revision 3)
 reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
 and the `SESSION_*` codes. It composes, and never alters:
 
-- `docs/spec/SMP1.md` at revision 11: the handshake, `session.open`
+- `docs/spec/SMP1.md` at revision 12: the handshake, `session.open`
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;
@@ -199,6 +204,16 @@ refused with
 `PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4); a reserved tag joins a
 list above only when its owner claims it.
 
+Protocol version 2 extension (S20-310 entity reads, revision 4):
+`entity.version` (306) and `entity.signature` (307) are head-bound only
+in protocol version 2. The version 1 partition above is complete and
+unchanged; the version 2 partition is that partition with exactly these
+two tags added to the head-bound list and no other list changed. Both
+methods are checked for the bound root under item 5 on version-2
+sessions; on version-1 sessions they are refused with
+`PROTOCOL_METHOD_UNSUPPORTED` before the check runs (SMP1 section 2 and
+`docs/spec/ENTITY_READ_PROFILE_V2.md` section 4).
+
 ## 4. Handles
 
 A handle is the session-local name of one entity of the session's bound
@@ -363,6 +378,12 @@ capped at close.
   day found the section 3 order placing the budget before the bound
   root while the server had always checked the root first: the budget
   is check 6 after every binding check, pinned by the precedence test
-  and the T15 matrix; the checker binds each `SESSION_*` variant to its
-  exact symbol and numeric pair, and the classification is named
-  five-way everywhere.
+   and the T15 matrix; the checker binds each `SESSION_*` variant to its
+   exact symbol and numeric pair, and the classification is named
+   five-way everywhere.
+- Revision 4 (2026-09-08): the protocol version 2 extension: the two
+  S20-310 entity-read tags (306, 307) join the head-bound list in
+  version 2 only; the version 1 partition, handle record bytes, capsule
+  arm, and code rows are unchanged. The SMP1 pin follows SMP1 to
+  revision 12; the capsule pin stays at revision 3 because its format is
+  unchanged.

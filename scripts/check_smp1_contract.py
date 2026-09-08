@@ -45,6 +45,19 @@ METHOD_TAGS = (
     + [500, 501, 502, 503, 504]
     + [600, 601, 602, 603, 604]
 )
+# Protocol version 1 is the frozen table above. Protocol version 2 is the
+# sorted union with exactly the two S20-310 entity-read additions; no
+# second independently maintained 43-row table exists.
+V2_ADDITIONS = (306, 307)
+V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
+CONTRACT_REVISION = 12
+V1_SECTION = "### Protocol version 1"
+V2_SECTION = "### Protocol version 2 additions"
+V2_SECTION_END = "## 5. Bounded context"
+APPENDIX_A = "## Appendix A."
+APPENDIX_B = "## Appendix B."
+APPENDIX_C = "## Appendix C."
+APPENDIX_D = "## Appendix D."
 SPEC_MARKERS = (
     "Retryability is an explicit mapping from the owner's symbol",
     "`AFTER_REQUERY` names exactly `REF_CAS_STALE`,",
@@ -66,6 +79,11 @@ SPEC_MARKERS = (
     "identifier 0 never enters a session",
     "carries identifier 0, no other",
     "## 4. Method families and tags",
+    "### Protocol version 1",
+    "### Protocol version 2 additions",
+    "`entity.version`",
+    "`entity.signature`",
+    "43 rows total, 39 dispatched",
     "A tag added after freeze takes a new",
     "`SMP1-RESERVED-S20-370`",
     "`SMP1-RESERVED-S20-620`",
@@ -84,6 +102,7 @@ SPEC_MARKERS = (
     "## 10. Required evidence",
     "same-lane `PASS` obligations or itemized",
     "## Appendix A. Body records of the dispatched methods (S20-410)",
+    "## Appendix D.",
     "no non-reserved method answers a deferred detail",
     "## Appendix B. Cancellation, streaming, and budget records (S20-440)",
     "stream_chunk = record(1: uvar(index), 2: uvar(total), 3: bytes(chunk))",
@@ -149,18 +168,76 @@ def main() -> int:
     for numeric, symbol in CODES:
         if f"| {numeric} | `{symbol}` |" not in spec:
             problems.append(f"spec-code:{symbol}")
-    tags = [int(tag) for tag in re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", spec, flags=re.M)]
-    if tags != METHOD_TAGS:
-        problems.append(f"spec-method-table:{tags}")
-    # Every non-reserved tag has an appendix body row; reserved tags have
-    # none (their answer is the section 4 constant, pinned below).
+    lines = spec.splitlines()
+    for heading, expected_count in (
+        (V1_SECTION, 1),
+        (V2_SECTION, 1),
+        (V2_SECTION_END, 1),
+        (APPENDIX_A, 1),
+        (APPENDIX_B, 1),
+        (APPENDIX_C, 1),
+        (APPENDIX_D, 1),
+    ):
+        found = sum(1 for line in lines if line == heading or line.startswith(heading))
+        if found != expected_count:
+            problems.append(f"spec-section:{heading}:{found}")
+    v1_at = lines.index(V1_SECTION) if V1_SECTION in lines else -1
+    v2_at = lines.index(V2_SECTION) if V2_SECTION in lines else -1
+    v2_end = lines.index(V2_SECTION_END) if V2_SECTION_END in lines else -1
+    if not 0 <= v1_at < v2_at < v2_end:
+        problems.append("spec-section-order")
+        v1_tags: list[int] = []
+        v2_tags: list[int] = []
+    else:
+        v1_tags = [
+            int(tag)
+            for line in lines[v1_at + 1 : v2_at]
+            for tag in re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", line)
+        ]
+        v2_tags = [
+            int(tag)
+            for line in lines[v2_at + 1 : v2_end]
+            for tag in re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", line)
+        ]
+        # A method row outside the declared table sections is drift, never
+        # silently absorbed into either table.
+        scoped = len(v1_tags) + len(v2_tags)
+        total = len(re.findall(r"^\| (\d{3}) \| `[a-z._]+` \|", spec, flags=re.M))
+        if total != scoped:
+            problems.append(f"spec-method-table-scope:total={total}:scoped={scoped}")
+    if v1_tags != list(METHOD_TAGS):
+        problems.append(f"spec-method-table-v1:{v1_tags}")
+    if v2_tags != list(V2_ADDITIONS):
+        problems.append(f"spec-method-table-v2:{v2_tags}")
+    if sorted(v1_tags + v2_tags) != list(V2_METHOD_TAGS):
+        problems.append("spec-method-table-union")
+    # Every non-reserved version-1 tag has a legacy appendix body row in
+    # appendix A or C; the version-2 additions are referenced in appendix D
+    # only. Reserved tags have no body row anywhere.
+    def appendix_region(start: str, end: str) -> str:
+        if start not in spec or end not in spec:
+            return ""
+        return spec.split(start)[1].split(end)[0]
+
     appendix_tags = sorted(
         int(tag)
-        for tag in re.findall(r"^\| (\d{3}) `[^`]+` \|", spec, flags=re.M)
+        for tag in re.findall(
+            r"^\| (\d{3}) `[^`]+` \|",
+            appendix_region(APPENDIX_A, APPENDIX_B)
+            + appendix_region(APPENDIX_C, APPENDIX_D),
+            flags=re.M,
+        )
     )
     live_tags = sorted(tag for tag in METHOD_TAGS if tag not in RESERVED_TAGS)
     if appendix_tags != live_tags:
         problems.append(f"spec-appendix-coverage:{appendix_tags}")
+    appendix_d_tags = sorted(
+        int(tag)
+        for tag in re.findall(r"^\| (\d{3}) `[^`]+` \|", spec.split(APPENDIX_D)[1], flags=re.M)
+        if spec.count(APPENDIX_D) == 1
+    ) if spec.count(APPENDIX_D) == 1 else []
+    if appendix_d_tags != sorted(V2_ADDITIONS):
+        problems.append(f"spec-appendix-d:{appendix_d_tags}")
     for tag in RESERVED_TAGS:
         if tag in appendix_tags:
             problems.append(f"spec-appendix-reserved:{tag}")
@@ -168,8 +245,8 @@ def main() -> int:
     for marker in ADR_MARKERS:
         if marker not in adr:
             problems.append(f"adr-marker:{marker}")
-    if "revision 11" not in adr:
-        problems.append("adr-revision:11")
+    if "revision 12" not in adr:
+        problems.append("adr-revision:12")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:
@@ -222,21 +299,26 @@ def main() -> int:
         problems.append("machine-summary:protocol missing")
         section = {}
     status = section.get("status")
-    # Reverse pins: the composing contracts' current revisions as SMP1 names
-    # them must equal their own status lines (the forward pins live in
-    # check_smp1_json_bridge_contract.py and check_cli_contract.py).
-    for name, path, status_re, phrase in (
-        ("bridge", ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md", r"^Status: S20-420 contract draft, revision (\d+)", "the JSON bridge from this contract (revision {n}, closeout"),
-        ("cli", ROOT / "docs/spec/SLEY_CLI_V1.md", r"^Status: S20-430 contract draft, revision (\d+)", "wraps the CLI\n(revision {n}, closeout"),
+    # Reverse pins: the composing contracts' current revisions in the
+    # explicit Current composition field must equal their own status lines
+    # (the forward pins live in check_smp1_json_bridge_contract.py and
+    # check_cli_contract.py). Historical closeout sentences keep their own
+    # revisions and never satisfy these pins.
+    for name, path, status_re, pin_re in (
+        ("bridge", ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md", r"^Status: S20-420 contract draft, revision (\d+)", r"`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision (\d+)"),
+        ("cli", ROOT / "docs/spec/SLEY_CLI_V1.md", r"^Status: S20-430 contract draft, revision (\d+)", r"`docs/spec/SLEY_CLI_V1.md` revision (\d+)"),
     ):
         found = re.search(status_re, path.read_text(encoding="utf-8"), flags=re.M)
+        pin = re.search(pin_re, spec)
         if found is None:
             problems.append(f"reverse-pin:{name}:status-line")
-        elif phrase.format(n=found.group(1)) not in spec:
-            problems.append(f"reverse-pin:{name}:revision-{found.group(1)}")
+        elif pin is None or pin.group(1) != found.group(1):
+            problems.append(f"reverse-pin:{name}:revision-{found.group(1) if found else '?'}")
+    if "Current composition (revision 12)" not in spec:
+        problems.append("spec-current-composition")
     revision = re.search(r"Status: S20-400 contract draft, revision (\d+)", spec)
     contract_revision = int(revision.group(1)) if revision else None
-    if contract_revision is None:
+    if contract_revision != CONTRACT_REVISION:
         problems.append("spec-revision:status-line")
     expected = {
         "contract": "docs/spec/SMP1.md",
@@ -249,6 +331,11 @@ def main() -> int:
         "dispatched_methods": [t for t in METHOD_TAGS if t not in RESERVED_TAGS],
         "frame_contract_tags": [400],
         "contract_complete": status in (FROZEN_STATUS, COMPLETE_STATUS),
+        "version_2": {
+            "method_count": len(V2_METHOD_TAGS),
+            "dispatched_methods": [t for t in V2_METHOD_TAGS if t not in RESERVED_TAGS],
+            "reserved_methods": list(RESERVED_TAGS),
+        },
     }
     for key, value in expected.items():
         if section.get(key) != value:

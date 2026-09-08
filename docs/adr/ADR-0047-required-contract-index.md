@@ -1,9 +1,13 @@
 # ADR-0047: the required contracts are indexed, not restated
 
-Status: proposed; the S20-770 index is a draft at revision 1 with Council
-review pending; it defines no contract and changes no identity
+Status: proposed; the S20-770 index is a draft at revision 2 with Council
+review pending; it defines no contract and changes no identity. Revision
+2 record (2026-09-08): row 17.12 gains the accepted
+`ENTITY_READ_PROFILE_V2.md` document and the additive
+`conformance/smp1-json-bridge/v2` metadata directory; twelve rows and all
+digest domains unchanged.
 
-Date: 2026-09-03
+Date: 2026-09-03; revision 2 record 2026-09-08
 
 ## Context
 

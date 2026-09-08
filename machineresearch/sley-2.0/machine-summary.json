@@ -897,7 +897,7 @@
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
     "checker": "scripts/check_session_handle_profile.py",
     "identifier_domain": "sley2.session.v1",
@@ -1014,7 +1014,7 @@
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 7,
+    "contract_revision": 8,
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -1056,12 +1056,13 @@
       "the bridge answered SHAPE_INVALID for the hello session, request id, method, and flags that the codec already judges PROTOCOL_FRAME_INVALID, contradicting section 3, SMP1 section 8, and ADR-0034 decision 5; raised by nabu. The reader builds the frame and calls the codec's new ProtocolFrame::validate_header, so violations keep the codec's code with no silent header rewriting (which also closed a second hole: a hello text's protocol version now reaches codec judgment instead of being dropped); the all-zero bounds stay the bridge's own shape rule since SMP1 states no bounds rule; pinned by four re-coded plus two new matrix mutations",
       "precedence 'field encodings in field order' was undefined because section 1 defined field order as lexicographic while the crate, the oracle, and the vectors all ran declaration order, so a contract-conformant reader failed the matrix; raised by vulcan. Precedence order is now the record's declared field order, disambiguated in section 1 from the lexicographic emission order both sides produce (emission untouched, round-trip fixture byte-identical)",
       "integer field widths were undeclared: section 2 typed every field 'integer' while readers demote six fields to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract; raised by vulcan. Widths are declared per field (the six named fields plus max_sessions and method tags), and the matrix gains max_sessions overflow plus failure code/phase unit pins"
-    ]
+    ],
+    "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json"
   },
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
     "rule_audit": "scripts/check_cli_rules.py",
@@ -1568,7 +1569,7 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 11,
+    "contract_revision": 12,
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -1754,7 +1755,57 @@
       "Re-review PASS (p3): Vulcan P3-1: appendix A row order (210 before 209, 304 before 300).",
       "Re-review PASS (p3): Vulcan P3-2: session.budgets overloads LimitProfile.max_work as remaining with no discriminator.",
       "Re-review PASS (p3): Vulcan P3-3: ADR and campaign record still say revision 1 against contract revision 8."
-    ]
+    ],
+    "version_2": {
+      "method_count": 43,
+      "dispatched_methods": [
+        100,
+        101,
+        102,
+        103,
+        104,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        300,
+        301,
+        302,
+        303,
+        304,
+        306,
+        307,
+        400,
+        401,
+        402,
+        403,
+        404,
+        500,
+        501,
+        502,
+        504,
+        600,
+        603,
+        604
+      ],
+      "reserved_methods": [
+        305,
+        503,
+        601,
+        602
+      ]
+    }
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -3225,7 +3276,7 @@
   "required_contract_index": {
     "status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/REQUIRED_CONTRACT_INDEX_V1.md",
-    "contract_revision": 1,
+    "contract_revision": 2,
     "adr": "docs/adr/ADR-0047-required-contract-index.md",
     "checker": "scripts/check_required_contract_index.py",
     "master_goal_section": 17,

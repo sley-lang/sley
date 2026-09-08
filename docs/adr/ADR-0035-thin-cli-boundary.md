@@ -1,11 +1,15 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 2 with
+Status: proposed; the S20-430 contract is a draft at revision 5 with
 Council review pending; implemented at `crates/sley-cli` (2026-09-03)
 with endpoint tests over a trusted genesis repository and the mechanical
-rule audit in `make quick`
+rule audit in `make quick`. Revision 5 record (2026-09-08): command
+defaults, version/report shapes, and legacy behavior are unchanged; the
+prospective `--protocol-profile v2-capable` / `--expected-version`
+surface with additive `sley2-cli-v2` / `sley2-cli-report-v2` contracts is
+declared pending, not implemented; capable CLI runtime is phase 3.
 
-Date: 2026-09-03
+Date: 2026-09-03; revision 5 record 2026-09-08
 
 ## Context
 

@@ -28,6 +28,9 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
+SPEC_REVISION = 5
+SMP1_REVISION = 12
+BRIDGE_REVISION = 8
 
 CODES = (
     (43000, "CLI_USAGE_INVALID", 2),
@@ -50,6 +53,12 @@ SPEC_MARKERS = (
     "`scripts/check_cli_rules.py` fails closed",
     "## 6. Required evidence",
     "## 7. Explicit exclusions",
+    "## 9. Prospective version-aware surface",
+    "--protocol-profile v2-capable",
+    "--expected-version 1|2",
+    "`sley2-cli-v2`",
+    "`sley2-cli-report-v2`",
+    "no `--protocol-version` alias",
 )
 ADR_MARKERS = (
     "# ADR-0035: the CLI as a transport endpoint with no semantics",
@@ -112,6 +121,7 @@ def main() -> int:
     status = section.get("status")
     expected = {
         "contract": "docs/spec/SLEY_CLI_V1.md",
+        "contract_revision": SPEC_REVISION,
         "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
         "rule_audit": "scripts/check_cli_rules.py",
         "new_stable_error_codes": len(CODES),
@@ -144,20 +154,23 @@ def main() -> int:
 
     # Own revision plus the composed authorities, each cross-checked against
     # that document's status line so a stale pin fails the moment it moves.
+    # Future capable behavior is declared pending in section 9, never
+    # detected as implemented by prose presence: the crate assertions below
+    # stay legacy-only.
     own = re.search(r"^Status: S20-430 contract draft, revision (\d+)", spec, flags=re.M)
-    if own is None or int(own.group(1)) != 4:
+    if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")
     smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
     smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
-    if smp1_status is None or int(smp1_status.group(1)) != 11:
+    if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
-    if "SMP1 revision 11 and bridge revision 7" not in spec:
+    if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in spec:
         problems.append("smp1-pin-text")
     bridge_text = (ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md").read_text(encoding="utf-8")
     bridge_status = re.search(r"^Status: S20-420 contract draft, revision (\d+)", bridge_text, flags=re.M)
-    if bridge_status is None or int(bridge_status.group(1)) != 7:
+    if bridge_status is None or int(bridge_status.group(1)) != BRIDGE_REVISION:
         problems.append("bridge-revision-pin")
-    if "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 7" not in spec:
+    if f"`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision {BRIDGE_REVISION}" not in spec:
         problems.append("bridge-pin-text")
     revision = re.search(r"revision (\d+)", spec)
     result = {
