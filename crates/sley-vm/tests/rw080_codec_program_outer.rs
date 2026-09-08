@@ -14067,44 +14067,30 @@ fn build_program_encode(
     let hh_dig = a.param(ns.p, d_pre, ParameterRole::Block, TypeExpr::Bytes);
     let hh_pre = a.param(ns.p, d_pre, ParameterRole::Block, TypeExpr::Bytes);
     let hh_unit = a.param(ns.p, d_pre, ParameterRole::Block, TypeExpr::Unit);
-    // TEMP BISECT: observe TupleGet(1) directly; revert after diagnosing.
-    let t_ret = a.id(ns.b);
-    let t_got = a.param(ns.p, t_ret, ParameterRole::Block, TypeExpr::Bytes);
-    let t_okv = a.op(
-        ns.o,
-        t_ret,
-        Opcode::ResultOk,
-        vec![pav(t_got)],
-        vec![res_t.clone()],
-        Immediate::None,
-    );
+
+    // Digest append resumes here: hash the preimage, then convert.
     a.blocks.push(Block {
         entity_id: d_hash,
         function: fid,
         parameters: vec![h_tup, h_unit],
-        operations: vec![h_gpre, h_ghim],
-        terminator: branch(edge(t_ret, vec![op_result(h_ghim)])),
+        operations: vec![h_gpre, h_ghim, h_rhw],
+        terminator: switch(
+            op_result(h_rhw),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    d_pre,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        oav(h_gpre),
+                        sav(h_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
         reachability: Reachability::Required,
     });
-    a.blocks.push(Block {
-        entity_id: t_ret,
-        function: fid,
-        parameters: vec![t_got],
-        operations: vec![t_okv],
-        terminator: ret(op_result(t_okv)),
-        reachability: Reachability::Required,
-    });
-    // TEMP: disable the digest chain below (unreachable); restore after.
-    // (d_hash no longer targets d_pre; the chain stays for inventory.)
-    let h_rhw = a.op(
-        ns.o,
-        d_hash,
-        Opcode::AdapterInvoke,
-        vec![pav(h_unit), op_result(h_ghim)],
-        vec![index_result(TypeExpr::Bytes)],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
-    );
-    let _ = h_rhw;
     let hc_b2v = a.op(
         ns.o,
         d_pre,
