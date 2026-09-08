@@ -277,10 +277,20 @@ and SMP1 revision references together.
   unchanged; v2 mixed negotiation filters new methods on a v1 selection,
   and a v1 session rejects both new tags. Include legacy unknown-tag
   intersections containing 306, 307 and an unrelated unknown number.
-- A real runner/stdio scripted EC1a edit performs body query, candidate
-  creation and validation through ARM_AFFORDANCES without checkout,
-  exchange export or fixture-side knowledge of the pre-edit body. Add a
-  signature edit using retrieved parameter types to prove usable context.
+- A real runner/stdio bounded local expression replacement retrieves the
+  exact current Operation object, derives a canonical edit from its returned
+  fields and ObjectId, and creates and successfully validates a candidate
+  through ARM_AFFORDANCES. The edit preserves nontrivial existing operands
+  and unrelated body fields learned only from the response; varied fixtures
+  must reject a hardcoded substitute. Freeze the before/after semantics and
+  independently verify both changed and preserved fields. A separate
+  parameter-type-dependent signature edit uses retrieved Function and
+  Parameter objects, declaration order and exact parameter types to create
+  and successfully validate its candidate. Both demonstrations exclude
+  checkout, exchange export, raw repository body access and fixture-side
+  pre-edit contents in agent inputs. These are prospective acceptance cases;
+  the historical EC1a mapping remains unresolved, as recorded in
+  `docs/audits/AT_MW_02_CONSUMER_ACCEPTANCE_CLARIFICATION.md`.
 - Ariadne reviews the contract, Nabu reviews bounded-context architecture,
   and Vulcan reviews the serving and negative-test surface on pinned commits.
 
