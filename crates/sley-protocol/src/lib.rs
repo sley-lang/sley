@@ -26,6 +26,13 @@ use sley_schema::{ContractDescriptor, EpochLimits, SchemaEpochRecordV1, UnicodeV
 
 /// Frozen protocol version of this contract revision.
 pub const PROTOCOL_VERSION: u32 = 1;
+/// Protocol version 2: the only version admitting the entity-read methods
+/// 306 and 307 (contract `docs/spec/ENTITY_READ_PROFILE_V2.md`).
+pub const PROTOCOL_VERSION_V2: u32 = 2;
+/// Method tag of `entity.version`.
+pub const ENTITY_VERSION_TAG: u32 = 306;
+/// Method tag of `entity.signature`.
+pub const ENTITY_SIGNATURE_TAG: u32 = 307;
 /// Absolute frame ceiling; negotiated `max_frame_bytes` never exceeds it.
 pub const MAX_FRAME_BYTES: u64 = 67_108_864;
 /// Protocol frame contract tag (every frame kind shares it).
@@ -349,6 +356,10 @@ impl BoundedContext {
         ]))
     }
 
+    pub(crate) fn encode_bounds(&self) -> Result<Vec<u8>> {
+        self.encode()
+    }
+
     fn decode(input: &[u8]) -> Result<Self> {
         let fields = Reader::new(input).record(8)?;
         Ok(Self {
@@ -424,6 +435,8 @@ pub enum Method {
     TestsAffected,
     Cancel,
     Report,
+    EntityVersion,
+    EntitySignature,
 }
 
 impl Method {
@@ -454,6 +467,54 @@ impl Method {
         Self::QueryRestricted,
         Self::HandleExpand,
         Self::Diagnostics,
+        Self::CandidateCreate,
+        Self::CandidateAppend,
+        Self::CandidateValidate,
+        Self::CandidateInspect,
+        Self::CandidateDiscard,
+        Self::Commit,
+        Self::ReceiptRead,
+        Self::Checkout,
+        Self::RefMoveProtected,
+        Self::Recovery,
+        Self::Execute,
+        Self::TestsSelected,
+        Self::TestsAffected,
+        Self::Cancel,
+        Self::Report,
+    ];
+
+    /// The version-2 table: the frozen v1 tags plus the two entity-read
+    /// methods in tag order. The legacy `ALL` table is unchanged.
+    pub const V2_ALL: [Self; 43] = [
+        Self::SessionOpen,
+        Self::SessionRenew,
+        Self::SessionClose,
+        Self::SessionCapabilities,
+        Self::SessionBudgets,
+        Self::WorkspaceCreate,
+        Self::WorkspaceOpen,
+        Self::RefsList,
+        Self::RefsResolve,
+        Self::RevisionRead,
+        Self::BranchCreate,
+        Self::BranchAdvance,
+        Self::Compare,
+        Self::MergeJudge,
+        Self::MergeCommit,
+        Self::ExchangeExport,
+        Self::ExchangeImport,
+        Self::GcDryRun,
+        Self::GcCollect,
+        Self::RefsRecover,
+        Self::QueryRoot,
+        Self::QueryContinue,
+        Self::Capsule,
+        Self::QueryRestricted,
+        Self::HandleExpand,
+        Self::Diagnostics,
+        Self::EntityVersion,
+        Self::EntitySignature,
         Self::CandidateCreate,
         Self::CandidateAppend,
         Self::CandidateValidate,
@@ -515,6 +576,8 @@ impl Method {
             Self::TestsAffected => 602,
             Self::Cancel => 603,
             Self::Report => 604,
+            Self::EntityVersion => ENTITY_VERSION_TAG,
+            Self::EntitySignature => ENTITY_SIGNATURE_TAG,
         }
     }
 
@@ -562,6 +625,8 @@ impl Method {
             Self::TestsAffected => "tests.affected",
             Self::Cancel => "cancel",
             Self::Report => "report",
+            Self::EntityVersion => "entity.version",
+            Self::EntitySignature => "entity.signature",
         }
     }
 
@@ -591,6 +656,37 @@ impl Method {
             .copied()
             .find(|method| method.tag() == tag)
             .ok_or(ProtocolError(ProtocolErrorCode::MethodUnsupported))
+    }
+
+    /// Returns the protocol version that first admits a method.
+    #[must_use]
+    pub const fn introduced_in(self) -> u32 {
+        match self {
+            Self::EntityVersion | Self::EntitySignature => PROTOCOL_VERSION_V2,
+            _ => PROTOCOL_VERSION,
+        }
+    }
+
+    /// Resolves a tag under an explicitly selected protocol version.
+    ///
+    /// Version 2 methods stay `PROTOCOL_METHOD_UNSUPPORTED` on every v1
+    /// serving path, including an opaque negotiated intersection that
+    /// retained their numeric tags.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_METHOD_UNSUPPORTED` for any tag outside the
+    /// version's table.
+    pub fn from_tag_versioned(tag: u32, version: u32) -> Result<Self> {
+        let method = Self::V2_ALL
+            .iter()
+            .copied()
+            .find(|method| method.tag() == tag)
+            .ok_or(ProtocolError(ProtocolErrorCode::MethodUnsupported))?;
+        if version < method.introduced_in() {
+            return fail(ProtocolErrorCode::MethodUnsupported);
+        }
+        Ok(method)
     }
 }
 
@@ -802,6 +898,44 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
     })
 }
 
+/// Derives the selected profile from two hellos with explicit version
+/// awareness (contract `docs/spec/ENTITY_READ_PROFILE_V2.md` section 2).
+///
+/// The legacy derivation is preserved exactly, including opaque unknown
+/// numeric intersections; only the known version-2 tags are filtered from
+/// the intersection when the selected version is 1. Reserved tags remain
+/// invalid offers in both versions through `Hello::validate`.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common version, epoch, or
+/// method exists, or the hellos fail validation.
+pub fn negotiate_versioned(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
+    let mut profile = negotiate(client, server)?;
+    if profile.protocol_version == PROTOCOL_VERSION {
+        profile
+            .methods
+            .retain(|tag| *tag != ENTITY_VERSION_TAG && *tag != ENTITY_SIGNATURE_TAG);
+    }
+    Ok(profile)
+}
+
+/// Derives the version-aware selection and binds the observed hello
+/// transcript, like [`negotiate_identity`] for the legacy path.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common profile exists, or
+/// `PROTOCOL_INTERNAL_INVARIANT` when the transcript cannot be digested.
+pub fn negotiate_identity_versioned(
+    client: &Hello,
+    server: &Hello,
+) -> Result<(SelectedProfile, ProtocolHandshakeId)> {
+    let profile = negotiate_versioned(client, server)?;
+    let identity = profile.handshake_id_bound(&client.encode()?, &server.encode()?)?;
+    Ok((profile, identity))
+}
+
 fn intersect(left: &[[u8; 32]], right: &[[u8; 32]]) -> Vec<[u8; 32]> {
     left.iter()
         .copied()
@@ -994,14 +1128,22 @@ impl ProtocolFrame {
     }
 
     fn validate(&self) -> Result<()> {
-        // Below the implementation version is a downgrade attempt;
-        // above it names a version this code does not know (contract
-        // section 2; the selection-level split lives in
-        // `SelectedProfile::check_claim`).
-        if self.protocol_version < PROTOCOL_VERSION {
+        self.validate_for_version(PROTOCOL_VERSION)
+    }
+
+    /// Validates a decoded frame's header under an explicitly selected
+    /// protocol version (contract `docs/spec/ENTITY_READ_PROFILE_V2.md`
+    /// section 2): below the selection is a downgrade attempt, above it
+    /// names a version the selection does not know.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact validation failure; never a partial judgment.
+    pub fn validate_for_version(&self, expected_version: u32) -> Result<()> {
+        if self.protocol_version < expected_version {
             return fail(ProtocolErrorCode::Downgrade);
         }
-        if self.protocol_version > PROTOCOL_VERSION {
+        if self.protocol_version > expected_version {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
         if self.flags & !FLAG_MASK != 0 {
@@ -1040,7 +1182,7 @@ impl ProtocolFrame {
         ]))
     }
 
-    fn from_payload(payload: &[u8]) -> Result<Self> {
+    fn from_payload_for_version(payload: &[u8], expected_version: u32) -> Result<Self> {
         let fields = Reader::new(payload).record(8)?;
         let (session_tag, session_payload) = Reader::new(fields[1]).union()?;
         let session = match (session_tag, session_payload.len()) {
@@ -1058,7 +1200,7 @@ impl ProtocolFrame {
             bounds: BoundedContext::decode(fields[6])?,
             body: Reader::new(fields[7]).bytes()?.to_vec(),
         };
-        frame.validate()?;
+        frame.validate_for_version(expected_version)?;
         Ok(frame)
     }
 }
@@ -1069,10 +1211,20 @@ impl ProtocolFrame {
 ///
 /// Returns the validation failure or `PROTOCOL_FRAME_TOO_LARGE`.
 pub fn encode_frame(frame: &ProtocolFrame) -> Result<EncodedFrame> {
+    encode_frame_for_version(frame, PROTOCOL_VERSION)
+}
+
+/// Encodes a request, response, or event frame under an explicitly
+/// selected protocol version.
+///
+/// # Errors
+///
+/// Returns the validation failure or `PROTOCOL_FRAME_TOO_LARGE`.
+pub fn encode_frame_for_version(frame: &ProtocolFrame, version: u32) -> Result<EncodedFrame> {
     if frame.kind == FrameKind::Hello {
         return fail(ProtocolErrorCode::FrameInvalid);
     }
-    frame.validate()?;
+    frame.validate_for_version(version)?;
     encode_envelope(frame.kind, &frame.payload()?)
 }
 
@@ -1121,6 +1273,221 @@ fn encode_envelope(kind: FrameKind, payload: &[u8]) -> Result<EncodedFrame> {
     })
 }
 
+/// Computes the exact on-wire envelope length of one complete frame (the
+/// value carried by the length prefix: envelope preimage plus digest),
+/// from metadata and the body length, without encoding the body.
+///
+/// Checked arithmetic overflow answers `PROTOCOL_LIMIT_EXCEEDED`, matching
+/// the contract rule for the entity-read preflight.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_LIMIT_EXCEEDED` on checked overflow, or
+/// `PROTOCOL_INTERNAL_INVARIANT` when the bounds do not encode.
+/// Metadata describing one complete frame for exact length preflight.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FrameSize {
+    pub version: u32,
+    pub session: Option<SessionId>,
+    pub request_id: u64,
+    pub kind_tag: u32,
+    pub method: u32,
+    pub flags: u32,
+    pub bounds: BoundedContext,
+    pub body_len: u64,
+}
+
+pub(crate) fn frame_total_len(size: &FrameSize) -> Result<u64> {
+    let bounds_bytes = size.bounds.encode_bounds()?;
+    let bounds_len = u64::try_from(bounds_bytes.len())
+        .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    let payload_len = frame_payload_len(size, bounds_len)?;
+    let preimage_len = (MAGIC.len() as u64)
+        .checked_add(uvar_len(FORMAT_VERSION))
+        .and_then(|sum| sum.checked_add(uvar_len(u64::from(FRAME_CONTRACT_TAG))))
+        .and_then(|sum| sum.checked_add(ID_LEN as u64))
+        .and_then(|sum| sum.checked_add(uvar_len(payload_len)))
+        .and_then(|sum| sum.checked_add(payload_len))
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    preimage_len
+        .checked_add(ID_LEN as u64)
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))
+}
+
+fn frame_payload_len(size: &FrameSize, bounds_len: u64) -> Result<u64> {
+    let session_len: u64 = if size.session.is_some() { 34 } else { 2 };
+    let field = |tag: u64, value_len: u64| -> Result<u64> {
+        uvar_len(tag)
+            .checked_add(uvar_len(value_len))
+            .and_then(|prefix| prefix.checked_add(value_len))
+            .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))
+    };
+    let f1 = field(1, uvar_len(u64::from(size.version)))?;
+    let f2 = field(2, session_len)?;
+    let f3 = field(3, uvar_len(size.request_id))?;
+    let f4 = field(4, uvar_len(u64::from(size.kind_tag)))?;
+    let f5 = field(5, uvar_len(u64::from(size.method)))?;
+    let f6 = field(6, uvar_len(u64::from(size.flags)))?;
+    let f7 = field(7, bounds_len)?;
+    let body_value_len = uvar_len(size.body_len)
+        .checked_add(size.body_len)
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let f8 = field(8, body_value_len)?;
+    f1.checked_add(f2)
+        .and_then(|sum| sum.checked_add(f3))
+        .and_then(|sum| sum.checked_add(f4))
+        .and_then(|sum| sum.checked_add(f5))
+        .and_then(|sum| sum.checked_add(f6))
+        .and_then(|sum| sum.checked_add(f7))
+        .and_then(|sum| sum.checked_add(f8))
+        .and_then(|fields| uvar_len(8).checked_add(fields))
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))
+}
+
+/// Canonical unsigned-varint width.
+const fn uvar_len(value: u64) -> u64 {
+    if value < 128 {
+        1
+    } else if value < 16_384 {
+        2
+    } else if value < 2_097_152 {
+        3
+    } else if value < 268_435_456 {
+        4
+    } else if value < 34_359_738_368 {
+        5
+    } else if value < 4_398_046_511_104 {
+        6
+    } else if value < 562_949_953_421_312 {
+        7
+    } else if value < 72_057_594_037_927_936 {
+        8
+    } else if value < 9_223_372_036_854_775_808 {
+        9
+    } else {
+        10
+    }
+}
+
+/// Encodes one complete frame directly into a single buffer: the length
+/// prefix, the envelope preimage with the body copied once, and the digest
+/// over the final preimage slice. No body-sized intermediate is built.
+///
+/// # Errors
+///
+/// Returns the validation failure, `PROTOCOL_FRAME_TOO_LARGE` above the
+/// ceiling, or `PROTOCOL_INTERNAL_INVARIANT` on a length drift.
+pub(crate) fn encode_single_frame_direct(
+    frame: &ProtocolFrame,
+    max_frame_bytes: u64,
+) -> Result<EncodedFrame> {
+    frame.validate_for_version(frame.protocol_version)?;
+    let bounds_bytes = frame.bounds.encode_bounds()?;
+    let body_len =
+        u64::try_from(frame.body.len()).map_err(|_| ProtocolError(ProtocolErrorCode::FrameInvalid))?;
+    let total = frame_total_len(&FrameSize {
+        version: frame.protocol_version,
+        session: frame.session,
+        request_id: frame.request_id,
+        kind_tag: frame.kind.tag(),
+        method: frame.method,
+        flags: frame.flags,
+        bounds: frame.bounds,
+        body_len,
+    })?;
+    if total > max_frame_bytes.min(MAX_FRAME_BYTES) {
+        return fail(ProtocolErrorCode::FrameTooLarge);
+    }
+    let envelope =
+        usize::try_from(total).map_err(|_| ProtocolError(ProtocolErrorCode::FrameTooLarge))?;
+    let capacity = envelope
+        .checked_add(LENGTH_PREFIX)
+        .ok_or(ProtocolError(ProtocolErrorCode::FrameTooLarge))?;
+    let mut bytes = Vec::with_capacity(capacity);
+    bytes.extend_from_slice(&total.to_be_bytes());
+    let preimage_start = bytes.len();
+    bytes.extend_from_slice(MAGIC);
+    bytes.extend_from_slice(&encode_uvar(FORMAT_VERSION));
+    bytes.extend_from_slice(&encode_uvar(u64::from(FRAME_CONTRACT_TAG)));
+    let epoch = protocol_epoch_id()?;
+    bytes.extend_from_slice(epoch.as_bytes());
+    let payload_len = frame_payload_len(
+        &FrameSize {
+            version: frame.protocol_version,
+            session: frame.session,
+            request_id: frame.request_id,
+            kind_tag: frame.kind.tag(),
+            method: frame.method,
+            flags: frame.flags,
+            bounds: frame.bounds,
+            body_len,
+        },
+        u64::try_from(bounds_bytes.len())
+            .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?,
+    )?;
+    bytes.extend_from_slice(&encode_uvar(payload_len));
+    push_frame_payload(&mut bytes, frame, &bounds_bytes)?;
+    let frame_id = ProtocolFrameId::derive(&bytes[preimage_start..]);
+    bytes.extend_from_slice(frame_id.as_bytes());
+    let written = u64::try_from(bytes.len())
+        .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    let expected = total
+        .checked_add(LENGTH_PREFIX as u64)
+        .ok_or(ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    if written != expected {
+        return fail(ProtocolErrorCode::InternalInvariant);
+    }
+    Ok(EncodedFrame {
+        kind: frame.kind,
+        frame_id,
+        bytes,
+    })
+}
+
+fn push_frame_payload(
+    bytes: &mut Vec<u8>,
+    frame: &ProtocolFrame,
+    bounds_bytes: &[u8],
+) -> Result<()> {
+    bytes.extend_from_slice(&encode_uvar(8));
+    push_field(bytes, 1, &encode_uvar(u64::from(frame.protocol_version)))?;
+    match frame.session {
+        None => push_field(bytes, 2, &[0, 0])?,
+        Some(session) => {
+            let mut union = vec![
+                1,
+                u8::try_from(ID_LEN).map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?,
+            ];
+            union.extend_from_slice(session.as_bytes());
+            push_field(bytes, 2, &union)?;
+        }
+    }
+    push_field(bytes, 3, &encode_uvar(frame.request_id))?;
+    push_field(bytes, 4, &encode_uvar(u64::from(frame.kind.tag())))?;
+    push_field(bytes, 5, &encode_uvar(u64::from(frame.method)))?;
+    push_field(bytes, 6, &encode_uvar(u64::from(frame.flags)))?;
+    push_field(bytes, 7, bounds_bytes)?;
+    let body_len = u64::try_from(frame.body.len())
+        .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    let inner_len = uvar_len(body_len)
+        .checked_add(body_len)
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    bytes.extend_from_slice(&encode_uvar(8));
+    bytes.extend_from_slice(&encode_uvar(inner_len));
+    bytes.extend_from_slice(&encode_uvar(body_len));
+    bytes.extend_from_slice(&frame.body);
+    Ok(())
+}
+
+fn push_field(bytes: &mut Vec<u8>, tag: u64, value: &[u8]) -> Result<()> {
+    let len = u64::try_from(value.len())
+        .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    bytes.extend_from_slice(&encode_uvar(tag));
+    bytes.extend_from_slice(&encode_uvar(len));
+    bytes.extend_from_slice(value);
+    Ok(())
+}
+
 /// A decoded envelope before its body is interpreted.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecodedFrame {
@@ -1156,6 +1523,22 @@ pub fn frame_length(prefix: &[u8], max_frame_bytes: u64) -> Result<usize> {
 /// Returns the exact frame, version, or payload failure; never a partial
 /// frame.
 pub fn decode_frame(input: &[u8], max_frame_bytes: u64) -> Result<(DecodedFrame, ProtocolFrameId)> {
+    decode_frame_for_version(input, max_frame_bytes, PROTOCOL_VERSION)
+}
+
+/// Decodes one complete frame under an explicitly selected protocol
+/// version: below the selection is a downgrade attempt, above it names a
+/// version the selection does not know.
+///
+/// # Errors
+///
+/// Returns the exact frame, version, or payload failure; never a partial
+/// frame.
+pub fn decode_frame_for_version(
+    input: &[u8],
+    max_frame_bytes: u64,
+    expected_version: u32,
+) -> Result<(DecodedFrame, ProtocolFrameId)> {
     let length = frame_length(input, max_frame_bytes)?;
     let envelope = input
         .get(LENGTH_PREFIX..)
@@ -1189,7 +1572,7 @@ pub fn decode_frame(input: &[u8], max_frame_bytes: u64) -> Result<(DecodedFrame,
     if contract_tag != u64::from(FRAME_CONTRACT_TAG) {
         return fail(ProtocolErrorCode::FrameInvalid);
     }
-    let frame = ProtocolFrame::from_payload(payload)?;
+    let frame = ProtocolFrame::from_payload_for_version(payload, expected_version)?;
     let decoded = match frame.kind {
         FrameKind::Hello => DecodedFrame::Hello(Hello::decode(&frame.body)?),
         FrameKind::Request => DecodedFrame::Request(frame),
@@ -1756,6 +2139,69 @@ pub fn stream_response(
         ..response.clone()
     };
     frames.push(encode_frame(&last)?);
+    Ok(frames)
+}
+
+/// Streams a response under an explicitly selected protocol version.
+///
+/// # Errors
+///
+/// Returns `PROTOCOL_FRAME_INVALID` for a non-response frame, or
+/// `PROTOCOL_LIMIT_EXCEEDED` when the body cannot travel.
+pub fn stream_response_for_version(
+    response: &ProtocolFrame,
+    max_frame_bytes: u64,
+    stream_negotiated: bool,
+    version: u32,
+) -> Result<Vec<EncodedFrame>> {
+    if response.kind != FrameKind::Response {
+        return fail(ProtocolErrorCode::FrameInvalid);
+    }
+    let ceiling = max_frame_bytes.min(MAX_FRAME_BYTES);
+    let single = encode_frame_for_version(response, version)?;
+    if u64::try_from(single.bytes.len()).is_ok_and(|len| len <= ceiling) {
+        return Ok(vec![single]);
+    }
+    if !stream_negotiated {
+        return fail(ProtocolErrorCode::LimitExceeded);
+    }
+    let chunk_bytes = ceiling
+        .checked_sub(STREAM_FRAME_OVERHEAD)
+        .filter(|bytes| *bytes >= MIN_STREAM_CHUNK_BYTES)
+        .ok_or(ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let chunk_len = usize::try_from(chunk_bytes)
+        .map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let chunks: Vec<&[u8]> = response.body.chunks(chunk_len).collect();
+    let total =
+        u64::try_from(chunks.len()).map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?;
+    let mut frames = Vec::with_capacity(chunks.len() + 1);
+    for (index, chunk) in chunks.iter().enumerate() {
+        let record = StreamChunk {
+            index: u64::try_from(index)
+                .map_err(|_| ProtocolError(ProtocolErrorCode::LimitExceeded))?,
+            total,
+            bytes: chunk.to_vec(),
+        }
+        .encode()?;
+        let event = ProtocolFrame {
+            kind: FrameKind::Event,
+            flags: response.flags | FLAG_STREAM,
+            bounds: BoundedContext::none(),
+            body: record,
+            ..response.clone()
+        };
+        let encoded = encode_frame_for_version(&event, version)?;
+        if u64::try_from(encoded.bytes.len()).map_or(true, |len| len > ceiling) {
+            return fail(ProtocolErrorCode::LimitExceeded);
+        }
+        frames.push(encoded);
+    }
+    let last = ProtocolFrame {
+        flags: response.flags | FLAG_STREAM,
+        body: Vec::new(),
+        ..response.clone()
+    };
+    frames.push(encode_frame_for_version(&last, version)?);
     Ok(frames)
 }
 
@@ -2529,5 +2975,328 @@ mod tests {
                 code.numeric()
             );
         }
+    }
+
+    fn v2_client_hello() -> Hello {
+        let mut hello = client_hello();
+        hello.protocol_versions = vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2];
+        hello.methods.push(ENTITY_VERSION_TAG);
+        hello.methods.push(ENTITY_SIGNATURE_TAG);
+        hello.methods.push(999);
+        hello.methods.sort_unstable();
+        hello
+    }
+
+    fn v2_server_hello() -> Hello {
+        let mut hello = server_hello();
+        hello.protocol_versions = vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2];
+        hello.methods = vec![100, 102, 103, 300, 306, 307, 603, 999];
+        hello
+    }
+
+    /// Emits the frozen version-2 hello, selection, and frame vectors for
+    /// `scripts/generate_smp1_v2_fixtures.py`.
+    #[test]
+    #[ignore = "fixture refresh emitter; run through the generator script"]
+    fn emit_smp1_v2_vectors_for_fixture_refresh() {
+        println!(
+            "SMP1V2_EPOCH|{}",
+            hex(protocol_epoch_id().unwrap().as_bytes())
+        );
+        let client = v2_client_hello();
+        let server = v2_server_hello();
+        let selected = negotiate_versioned(&client, &server).unwrap();
+        assert_eq!(selected.protocol_version, PROTOCOL_VERSION_V2);
+        let (bound_selected, bound_id) = negotiate_identity_versioned(&client, &server).unwrap();
+        assert_eq!(bound_selected, selected);
+        for (label, hello) in [("client", &client), ("server", &server)] {
+            let frame = encode_hello_frame(hello).unwrap();
+            println!(
+                "SMP1V2_HELLO|{label}|{}|{}",
+                hex(&frame.bytes),
+                hex(frame.frame_id.as_bytes())
+            );
+        }
+        println!(
+            "SMP1V2_SELECTED|{}|{}|{}|{}|{}|{}|{}",
+            selected.protocol_version,
+            hex(selected.schema_epoch.as_bytes()),
+            hex(&selected.preimage().unwrap()),
+            hex(bound_id.as_bytes()),
+            selected.features,
+            selected
+                .methods
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+            hex(&handshake_transcript(
+                &client.encode().unwrap(),
+                &server.encode().unwrap(),
+                &selected.preimage().unwrap()
+            )),
+        );
+        let v1_only_server = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION],
+            ..server.clone()
+        };
+        let filtered = negotiate_versioned(&client, &v1_only_server).unwrap();
+        assert_eq!(filtered.protocol_version, PROTOCOL_VERSION);
+        assert!(!filtered.methods.contains(&ENTITY_VERSION_TAG));
+        assert!(filtered.methods.contains(&999));
+        println!(
+            "SMP1V2_FILTERED|{}|{}",
+            filtered.protocol_version,
+            filtered
+                .methods
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        let req = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session: Some(session(0x51)),
+            request_id: 7,
+            kind: FrameKind::Request,
+            method: ENTITY_VERSION_TAG,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: b"entity-version-body".to_vec(),
+        };
+        let encoded = encode_frame_for_version(&req, PROTOCOL_VERSION_V2).unwrap();
+        println!(
+            "SMP1V2_FRAME|request|{}|{}",
+            hex(&encoded.bytes),
+            hex(encoded.frame_id.as_bytes())
+        );
+        let response = ProtocolFrame {
+            kind: FrameKind::Response,
+            bounds: BoundedContext {
+                applied_limits: selected.limits,
+                returned_bytes: 300,
+                returned_entities: 1,
+                returned_edges: 0,
+                reached_depth: 0,
+                omitted: 0,
+                truncated: false,
+                continuation: false,
+            },
+            body: b"entity-version-response".to_vec(),
+            ..req.clone()
+        };
+        let encoded = encode_frame_for_version(&response, PROTOCOL_VERSION_V2).unwrap();
+        println!(
+            "SMP1V2_FRAME|response|{}|{}",
+            hex(&encoded.bytes),
+            hex(encoded.frame_id.as_bytes())
+        );
+        let failure = ProtocolFailure {
+            code: 31_008,
+            symbol: "QUERY_ROOT_MISMATCH".to_string(),
+            phase: 0,
+            retryability: Retryability::AfterRequery,
+            incident: None,
+            details: Vec::new(),
+        };
+        let failure_frame = ProtocolFrame {
+            kind: FrameKind::Response,
+            flags: FLAG_FAILED,
+            body: failure.encode().unwrap(),
+            ..req.clone()
+        };
+        let encoded = encode_frame_for_version(&failure_frame, PROTOCOL_VERSION_V2).unwrap();
+        println!(
+            "SMP1V2_FRAME|failure|{}|{}",
+            hex(&encoded.bytes),
+            hex(encoded.frame_id.as_bytes())
+        );
+        let base = encode_frame_for_version(&req, PROTOCOL_VERSION_V2)
+            .unwrap()
+            .bytes;
+        let _ = base;
+        let v1_claim = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            ..req.clone()
+        };
+        let v3_claim = ProtocolFrame {
+            protocol_version: 3,
+            ..req.clone()
+        };
+        let downgrade = encode_frame_for_version(&v1_claim, PROTOCOL_VERSION)
+            .unwrap()
+            .bytes;
+        let upgraded = encode_frame_for_version(&v3_claim, 3).unwrap().bytes;
+        let rejects: Vec<(&str, Vec<u8>, ProtocolErrorCode)> = vec![
+            ("v1-frame-on-v2", downgrade, ProtocolErrorCode::Downgrade),
+            (
+                "v3-frame-on-v2",
+                upgraded,
+                ProtocolErrorCode::VersionUnsupported,
+            ),
+        ];
+        for (label, bytes, expected) in rejects {
+            let code = decode_frame_for_version(&bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap_err()
+                .code();
+            assert_eq!(code, expected);
+            println!(
+                "SMP1V2_REJECT|{label}|{}|{}|{}",
+                hex(&bytes),
+                code.as_str(),
+                code.numeric()
+            );
+        }
+    }
+
+    #[test]
+    fn version_two_table_and_legacy_decoder_are_exact() {
+        assert_eq!(Method::ALL.len(), 41);
+        assert_eq!(Method::V2_ALL.len(), 43);
+        let tags: Vec<u32> = Method::V2_ALL.iter().map(|method| method.tag()).collect();
+        assert!(strictly_increasing(&tags));
+        assert_eq!(Method::EntityVersion.tag(), 306);
+        assert_eq!(Method::EntitySignature.tag(), 307);
+        assert_eq!(Method::EntityVersion.name(), "entity.version");
+        assert_eq!(Method::EntitySignature.name(), "entity.signature");
+        assert_eq!(Method::EntityVersion.family(), 3);
+        assert_eq!(
+            Method::EntityVersion.introduced_in(),
+            PROTOCOL_VERSION_V2
+        );
+        assert_eq!(Method::QueryRoot.introduced_in(), PROTOCOL_VERSION);
+        assert!(!Method::EntityVersion.is_reserved());
+        assert!(!Method::EntitySignature.is_reserved());
+        for method in Method::V2_ALL {
+            assert_eq!(
+                Method::from_tag_versioned(method.tag(), PROTOCOL_VERSION_V2).unwrap(),
+                method
+            );
+        }
+        assert_eq!(
+            Method::from_tag(306).unwrap_err().code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag(307).unwrap_err().code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag_versioned(306, PROTOCOL_VERSION)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag_versioned(307, PROTOCOL_VERSION)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag_versioned(999, PROTOCOL_VERSION_V2)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag_versioned(300, PROTOCOL_VERSION).unwrap(),
+            Method::QueryRoot
+        );
+    }
+
+    #[test]
+    fn versioned_negotiation_filters_only_known_v2_tags_on_v1() {
+        let mut client = client_hello();
+        let mut server = client.clone();
+        client.protocol_versions = vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2];
+        server.protocol_versions = vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2];
+        for hello in [&mut client, &mut server] {
+            hello.methods.push(306);
+            hello.methods.push(307);
+            hello.methods.push(999);
+            hello.methods.sort_unstable();
+        }
+        let legacy = negotiate(&client, &server).unwrap();
+        assert_eq!(legacy.protocol_version, PROTOCOL_VERSION_V2);
+        assert!(legacy.methods.contains(&306));
+        assert!(legacy.methods.contains(&307));
+        assert!(legacy.methods.contains(&999));
+        let v1_server = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION],
+            ..server.clone()
+        };
+        let v1_selected = negotiate_versioned(&client, &v1_server).unwrap();
+        assert_eq!(v1_selected.protocol_version, PROTOCOL_VERSION);
+        assert!(!v1_selected.methods.contains(&306));
+        assert!(!v1_selected.methods.contains(&307));
+        assert!(v1_selected.methods.contains(&999));
+        assert!(v1_selected.methods.contains(&100));
+        let v2_selected = negotiate_versioned(&client, &server).unwrap();
+        assert_eq!(v2_selected.protocol_version, PROTOCOL_VERSION_V2);
+        assert!(v2_selected.methods.contains(&306));
+        assert!(v2_selected.methods.contains(&307));
+        assert!(v2_selected.methods.contains(&999));
+        let (profile, identity) = negotiate_identity_versioned(&client, &server).unwrap();
+        assert_eq!(profile, v2_selected);
+        let (legacy_profile, legacy_identity) = negotiate_identity(&client, &server).unwrap();
+        assert_eq!(legacy_profile.methods, profile.methods);
+        assert_eq!(legacy_identity, identity);
+    }
+
+    #[test]
+    fn versioned_frame_codec_gates_claims_and_matches_legacy_bytes() {
+        let frame = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session: Some(session(0x31)),
+            request_id: 7,
+            kind: FrameKind::Request,
+            method: 306,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: vec![1, 2, 3],
+        };
+        assert_eq!(
+            encode_frame(&frame).unwrap_err().code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        let encoded = encode_frame_for_version(&frame, PROTOCOL_VERSION_V2).unwrap();
+        let (decoded, _) =
+            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap();
+        assert_eq!(decoded, DecodedFrame::Request(frame.clone()));
+        assert_eq!(
+            decode_frame(&encoded.bytes, MAX_FRAME_BYTES)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        assert_eq!(
+            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, 3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::Downgrade
+        );
+        let v1_frame = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            ..frame
+        };
+        assert_eq!(
+            decode_frame_for_version(
+                &encode_frame(&v1_frame).unwrap().bytes,
+                MAX_FRAME_BYTES,
+                PROTOCOL_VERSION_V2
+            )
+            .unwrap_err()
+            .code(),
+            ProtocolErrorCode::Downgrade
+        );
+        let legacy = encode_frame(&v1_frame).unwrap();
+        let direct = encode_single_frame_direct(&v1_frame, MAX_FRAME_BYTES).unwrap();
+        assert_eq!(direct.bytes, legacy.bytes);
+        assert_eq!(direct.frame_id, legacy.frame_id);
+        let frames = stream_response_for_version(&v1_frame, MAX_FRAME_BYTES, false, PROTOCOL_VERSION)
+            .unwrap_err();
+        assert_eq!(frames.code(), ProtocolErrorCode::FrameInvalid);
     }
 }

@@ -28,18 +28,20 @@ use sley_policy::{
     import_policy_root, validate_candidate_bytes,
 };
 use sley_query::{
-    Cursor, ImpactEdge, ImpactKind, IndexCompleteness, ModeledEntityKind, QueryLimits,
-    RestrictedQuery, RootQuery, SnapshotContext, build_index_snapshot,
-    build_restricted_query_request, execute_restricted_query,
+    Cursor, EntityReadCeilings, EntityReadError, EntityReadMethod, ImpactEdge, ImpactKind,
+    IndexCompleteness, ModeledEntityKind, QueryLimits, RestrictedQuery, RootQuery,
+    SnapshotContext, build_index_snapshot, build_restricted_query_request,
+    execute_restricted_query,
 };
 use sley_repo::{
     BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, GcDecision, GcReport,
     IndexCacheError, MergeCommitInput, MergeOutcome, MergeSide, ReportStoreErrorCode,
     RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
     RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
-    compare_complete_roots, export_repository_exchange, gc_collect, gc_dry_run,
-    import_repository_exchange, judge_merge_verified, read_execution_report, run_root_query,
-    store_execution_report, transaction_ancestry,
+    compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
+    gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
+    prepare_verified_entity_read, read_execution_report, run_root_query, store_execution_report,
+    transaction_ancestry,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
@@ -56,9 +58,10 @@ use crate::session::{
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_EXTENDED_EXECUTE,
     FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FrameKind, Hello, LimitProfile, Method,
-    PROTOCOL_VERSION, ProtocolError, ProtocolErrorCode, ProtocolFailure, ProtocolFrame,
-    RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame, encode_frame,
-    negotiate_identity, stream_response,
+    PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode, ProtocolFailure,
+    ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame,
+    decode_frame_for_version, encode_frame_for_version, negotiate_identity,
+    negotiate_identity_versioned, stream_response_for_version,
 };
 
 /// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `report` names no
@@ -190,6 +193,15 @@ pub struct Server {
     /// Bytes still available to each session under the negotiated
     /// `max_work` budget (contract appendix B).
     budgets: BTreeMap<SessionId, u64>,
+    /// Explicit version-aware serving mode, carried from the constructor
+    /// through decoding, dispatch, and response framing. Legacy servers
+    /// retain v1-only behavior even when legacy negotiation selected
+    /// version 2 from arbitrary hello offers.
+    version_aware: bool,
+    /// Test-only fault forcing an unexpected post-reservation encoding
+    /// failure on the entity-read path, proving the debit is retained.
+    #[cfg(test)]
+    entity_encode_fault: bool,
 }
 
 /// One answered frame and the request identity it belongs to.
@@ -230,6 +242,39 @@ impl Server {
             registry: RequestRegistry::new(),
             authority: SessionAuthority::new(handshake_id, fresh_server_nonce()),
             budgets: BTreeMap::new(),
+            version_aware: false,
+            #[cfg(test)]
+            entity_encode_fault: false,
+        })
+    }
+
+    /// Creates an explicitly version-aware server, deriving the selection
+    /// with version-aware negotiation (contract
+    /// `docs/spec/ENTITY_READ_PROFILE_V2.md` section 2). Opt-in is the
+    /// constructor, never the negotiated version alone: a legacy server
+    /// keeps legacy decoding, dispatch, and framing even when its
+    /// selection names version 2.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negotiation failure, or `PROTOCOL_INTERNAL_INVARIANT`
+    /// when the transcript cannot be digested.
+    pub fn new_versioned(
+        repository: impl Into<PathBuf>,
+        client_hello: &Hello,
+        server_hello: &Hello,
+    ) -> core::result::Result<Self, ProtocolError> {
+        let (profile, handshake_id) = negotiate_identity_versioned(client_hello, server_hello)?;
+        Ok(Self {
+            repository: repository.into(),
+            profile,
+            handshake_id,
+            registry: RequestRegistry::new(),
+            authority: SessionAuthority::new(handshake_id, fresh_server_nonce()),
+            budgets: BTreeMap::new(),
+            version_aware: true,
+            #[cfg(test)]
+            entity_encode_fault: false,
         })
     }
 
@@ -264,6 +309,45 @@ impl Server {
         Ok(hello)
     }
 
+    /// The hello an explicitly version-aware server offers: versions 1
+    /// and 2 with the v2 method table. The hello frame itself still
+    /// travels at frame version 1 so a v1 peer can read the offer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_INTERNAL_INVARIANT` when the conformance epoch
+    /// cannot be derived.
+    pub fn offered_hello_versioned() -> core::result::Result<Hello, ProtocolError> {
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
+        let hello = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2],
+            schema_epochs: vec![epoch],
+            limits: LimitProfile::maximum(),
+            methods: Method::V2_ALL
+                .iter()
+                .copied()
+                .filter(|method| !method.is_reserved())
+                .map(Method::tag)
+                .collect(),
+            features: FEATURE_CANCEL | FEATURE_STREAM,
+            adapters: Vec::new(),
+            effects: Vec::new(),
+        };
+        hello.validate()?;
+        Ok(hello)
+    }
+
+    /// The frame version this server answers with: the selected version on
+    /// the explicit path, always 1 on the legacy path.
+    fn response_version(&self) -> u32 {
+        if self.version_aware {
+            self.profile.protocol_version
+        } else {
+            PROTOCOL_VERSION
+        }
+    }
+
     #[must_use]
     pub fn repository(&self) -> &Path {
         &self.repository
@@ -285,6 +369,13 @@ impl Server {
     #[cfg(test)]
     pub(crate) fn authority_mut(&mut self) -> &mut SessionAuthority {
         &mut self.authority
+    }
+
+    /// Arms the test-only post-reservation encoding fault on the
+    /// entity-read path.
+    #[cfg(test)]
+    pub(crate) fn set_entity_encode_fault(&mut self, fault: bool) {
+        self.entity_encode_fault = fault;
     }
 
     /// Answers one complete request frame with one response frame.
@@ -322,7 +413,16 @@ impl Server {
         let mut decoded: Vec<Option<ProtocolFrame>> = Vec::with_capacity(requests.len());
         let mut early: Vec<Option<Answer>> = Vec::with_capacity(requests.len());
         for request_bytes in requests {
-            match decode_frame(request_bytes, self.profile.limits.max_frame_bytes) {
+            let decoded_frame = if self.version_aware {
+                decode_frame_for_version(
+                    request_bytes,
+                    self.profile.limits.max_frame_bytes,
+                    self.profile.protocol_version,
+                )
+            } else {
+                decode_frame(request_bytes, self.profile.limits.max_frame_bytes)
+            };
+            match decoded_frame {
                 Ok((DecodedFrame::Request(frame), _)) => {
                     decoded.push(Some(frame));
                     early.push(None);
@@ -433,6 +533,7 @@ impl Server {
         method: u32,
         outcome: Result<(Vec<u8>, BoundedContext)>,
     ) -> core::result::Result<Answer, ProtocolError> {
+        let version = self.response_version();
         let (body, bounds, failed) = match outcome {
             Ok((body, bounds)) => (body, bounds, false),
             Err(failure) => (
@@ -444,6 +545,11 @@ impl Server {
                 true,
             ),
         };
+        // Entity reads on the explicit path never stream: one direct frame
+        // or a limit failure with no partial body and no events.
+        if !failed && self.version_aware && is_entity_read_method(method) {
+            return self.respond_entity_direct(session, request_id, method, body, bounds);
+        }
         // The negotiated limits bind the transport outcome (contract
         // section 5): a successful body that does not fit fails with no
         // partial body, on the single-frame and streaming paths alike.
@@ -457,33 +563,11 @@ impl Server {
                 || bounds.returned_edges > limits.max_edges
                 || bounds.reached_depth > limits.max_depth
             {
-                let failure =
-                    ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
-                let refused = ProtocolFrame {
-                    protocol_version: PROTOCOL_VERSION,
-                    session,
-                    request_id,
-                    kind: FrameKind::Response,
-                    method,
-                    flags: FLAG_FAILED,
-                    bounds: BoundedContext {
-                        applied_limits: self.profile.limits,
-                        ..BoundedContext::none()
-                    },
-                    body: failure,
-                };
-                return Ok(Answer {
-                    session,
-                    request_id,
-                    method,
-                    failed: true,
-                    frame: encode_frame(&refused)?,
-                    events: Vec::new(),
-                });
+                return self.refuse_transport(session, request_id, method);
             }
         }
         let frame = ProtocolFrame {
-            protocol_version: PROTOCOL_VERSION,
+            protocol_version: version,
             session,
             request_id,
             kind: FrameKind::Response,
@@ -493,10 +577,11 @@ impl Server {
             body,
         };
         let stream_negotiated = self.profile.features & FEATURE_STREAM != 0;
-        let mut frames = match stream_response(
+        let mut frames = match stream_response_for_version(
             &frame,
             self.profile.limits.max_frame_bytes,
             stream_negotiated,
+            version,
         ) {
             Ok(frames) => frames,
             Err(error) if error.code() == ProtocolErrorCode::LimitExceeded && !failed => {
@@ -518,7 +603,7 @@ impl Server {
                     request_id,
                     method,
                     failed: true,
-                    frame: encode_frame(&refused)?,
+                    frame: encode_frame_for_version(&refused, version)?,
                     events: Vec::new(),
                 });
             }
@@ -537,6 +622,116 @@ impl Server {
         })
     }
 
+    /// Answers a transport-level limit refusal at the selected version with
+    /// no partial body and no events.
+    fn refuse_transport(
+        &self,
+        session: Option<SessionId>,
+        request_id: u64,
+        method: u32,
+    ) -> core::result::Result<Answer, ProtocolError> {
+        let version = self.response_version();
+        let failure = ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
+        let refused = ProtocolFrame {
+            protocol_version: version,
+            session,
+            request_id,
+            kind: FrameKind::Response,
+            method,
+            flags: FLAG_FAILED,
+            bounds: BoundedContext {
+                applied_limits: self.profile.limits,
+                ..BoundedContext::none()
+            },
+            body: failure,
+        };
+        Ok(Answer {
+            session,
+            request_id,
+            method,
+            failed: true,
+            frame: encode_frame_for_version(&refused, version)?,
+            events: Vec::new(),
+        })
+    }
+    /// the selected version: no streaming, no events, no partial body.
+    fn respond_entity_direct(
+        &self,
+        session: Option<SessionId>,
+        request_id: u64,
+        method: u32,
+        body: Vec<u8>,
+        bounds: BoundedContext,
+    ) -> core::result::Result<Answer, ProtocolError> {
+        let version = self.response_version();
+        let limits = self.profile.limits;
+        let body_len = u64::try_from(body.len())
+            .map_err(|_| ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
+        if body_len > limits.max_response_bytes
+            || bounds.returned_bytes > limits.max_response_bytes
+            || bounds.returned_entities > limits.max_entities
+            || bounds.returned_edges > limits.max_edges
+            || bounds.reached_depth > limits.max_depth
+        {
+            return self.refuse_entity_direct(session, request_id, method);
+        }
+        let frame = ProtocolFrame {
+            protocol_version: version,
+            session,
+            request_id,
+            kind: FrameKind::Response,
+            method,
+            flags: 0,
+            bounds,
+            body,
+        };
+        match crate::encode_single_frame_direct(&frame, limits.max_frame_bytes) {
+            Ok(encoded) => Ok(Answer {
+                session,
+                request_id,
+                method,
+                failed: false,
+                frame: encoded,
+                events: Vec::new(),
+            }),
+            Err(error) if error.code() == ProtocolErrorCode::FrameTooLarge => {
+                self.refuse_entity_direct(session, request_id, method)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn refuse_entity_direct(
+        &self,
+        session: Option<SessionId>,
+        request_id: u64,
+        method: u32,
+    ) -> core::result::Result<Answer, ProtocolError> {
+        let version = self.response_version();
+        let failure = ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded).encode()?;
+        let refused = ProtocolFrame {
+            protocol_version: version,
+            session,
+            request_id,
+            kind: FrameKind::Response,
+            method,
+            flags: FLAG_FAILED,
+            bounds: BoundedContext {
+                applied_limits: self.profile.limits,
+                ..BoundedContext::none()
+            },
+            body: failure,
+        };
+        Ok(Answer {
+            session,
+            request_id,
+            method,
+            failed: true,
+            frame: encode_frame_for_version(&refused, version)?,
+            events: Vec::new(),
+        })
+    }
+
     fn dispatch(&mut self, frame: &ProtocolFrame) -> Result<(Vec<u8>, BoundedContext)> {
         // A frame below the selection is a downgrade attempt; a frame
         // above it names a version the selection does not know (contract
@@ -552,8 +747,16 @@ impl Server {
         if frame.bounds != BoundedContext::none() {
             return protocol_failure(ProtocolErrorCode::FrameInvalid);
         }
-        let method = Method::from_tag(frame.method)
-            .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        // The legacy decoder stays v1-only: version-2 tags refuse on every
+        // v1 serving path, including an opaque negotiated intersection
+        // that retained their numerics.
+        let method = if self.version_aware {
+            Method::from_tag_versioned(frame.method, self.profile.protocol_version)
+                .map_err(|error| ProtocolFailure::protocol(error.code()))?
+        } else {
+            Method::from_tag(frame.method)
+                .map_err(|error| ProtocolFailure::protocol(error.code()))?
+        };
         // The pre-session space carries identifier 0 only (contract
         // section 3): hello, `session.open`, and the genesis path share
         // no counter with any session.
@@ -606,6 +809,17 @@ impl Server {
         self.registry
             .admit(session, frame.request_id, self.profile.limits.max_inflight)
             .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        // Entity reads on the explicit path retain the admitted revision
+        // through preparation with no second head load; every other method
+        // keeps the legacy admission order and accounting.
+        if self.version_aware
+            && matches!(
+                method,
+                Method::EntityVersion | Method::EntitySignature
+            )
+        {
+            return self.dispatch_entity_read(session, method, frame);
+        }
         let outcome = match self.session_check(session, method) {
             Ok(()) => {
                 if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
@@ -752,6 +966,12 @@ impl Server {
                 failure.retryability = Retryability::AfterCapability;
                 Err(failure)
             }
+            Method::EntityVersion | Method::EntitySignature => {
+                // Served only through the explicit entity-read path with
+                // its retained revision and debit table; reaching the
+                // generic owner dispatch is an internal invariant breach.
+                protocol_failure(ProtocolErrorCode::InternalInvariant)
+            }
         }
     }
 
@@ -780,6 +1000,138 @@ impl Server {
                 | Method::GcDryRun
                 | Method::Report
         )
+    }
+
+    /// Version-aware head-bound partition: the legacy set plus the two
+    /// entity-read methods, head-bound only in protocol version 2
+    /// (contract `docs/spec/ENTITY_READ_PROFILE_V2.md` section 6). The
+    /// legacy partition is unchanged.
+    const fn head_bound_versioned(method: Method) -> bool {
+        Self::head_bound(method)
+            || matches!(
+                method,
+                Method::EntityVersion | Method::EntitySignature
+            )
+    }
+
+    /// Admits a session and retains the owned verified revision whose
+    /// binding was checked, with no second head load. The legacy
+    /// unit-returning helper is unchanged.
+    fn session_check_retained(
+        &self,
+        session: SessionId,
+        method: Method,
+    ) -> Result<VerifiedRevision> {
+        let (revision, binding) = self.head_binding()?;
+        let head_bound = if self.version_aware {
+            Self::head_bound_versioned(method)
+        } else {
+            Self::head_bound(method)
+        };
+        self.authority
+            .check_session(session, &binding, head_bound)
+            .map_err(session_failure)?;
+        Ok(revision)
+    }
+
+    /// Serves an entity read on the explicit path with the ordered debit
+    /// table (contract `docs/spec/ENTITY_READ_PROFILE_V2.md` section 5):
+    /// admission failures precede the dispatch charge; every
+    /// pre-reservation failure costs exactly the dispatch unit; success
+    /// costs the full prepared work with no generic body-byte charge and
+    /// no refund after reservation.
+    fn dispatch_entity_read(
+        &mut self,
+        session: SessionId,
+        method: Method,
+        frame: &ProtocolFrame,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        if !self.profile.admits(method) {
+            return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
+        }
+        let revision = self.session_check_retained(session, method)?;
+        if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
+            self.registry
+                .complete(session)
+                .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+            return protocol_failure(ProtocolErrorCode::LimitExceeded);
+        }
+        let budget_before_dispatch = self.budgets.get(&session).copied().unwrap_or(0);
+        if let Some(remaining) = self.budgets.get_mut(&session) {
+            *remaining = remaining.saturating_sub(1);
+        }
+        let outcome = self.entity_read(session, method, frame, budget_before_dispatch, &revision);
+        if self.registry.is_open(session) {
+            self.registry
+                .complete(session)
+                .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        }
+        outcome
+    }
+
+    /// Prepares, preflights, reserves, and encodes one entity read over the
+    /// retained revision. Preparation runs only through the trusted
+    /// repository adapter; the full frame size is established before any
+    /// reservation or output allocation.
+    fn entity_read(
+        &mut self,
+        session: SessionId,
+        method: Method,
+        frame: &ProtocolFrame,
+        budget_before_dispatch: u64,
+        revision: &VerifiedRevision,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let read = match method {
+            Method::EntityVersion => EntityReadMethod::Version,
+            Method::EntitySignature => EntityReadMethod::Signature,
+            _ => return protocol_failure(ProtocolErrorCode::InternalInvariant),
+        };
+        let selected = EntityReadCeilings {
+            max_entities: self.profile.limits.max_entities,
+            max_response_bytes: self.profile.limits.max_response_bytes,
+            max_work: self.profile.limits.max_work,
+            budget_before_dispatch,
+        };
+        let (_, plan) = prepare_verified_entity_read(revision, read, &frame.body, &selected)
+            .map_err(entity_read_failure)?;
+        let bounds = BoundedContext {
+            applied_limits: self.profile.limits,
+            returned_bytes: plan.body_len(),
+            returned_entities: plan.object_count(),
+            ..BoundedContext::none()
+        };
+        let frame_len = crate::frame_total_len(&crate::FrameSize {
+            version: self.response_version(),
+            session: frame.session,
+            request_id: frame.request_id,
+            kind_tag: FrameKind::Response.tag(),
+            method: frame.method,
+            flags: 0,
+            bounds,
+            body_len: plan.body_len(),
+        })
+        .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        if frame_len > self.profile.limits.max_frame_bytes {
+            return protocol_failure(ProtocolErrorCode::LimitExceeded);
+        }
+        let reserve = plan
+            .work_units()
+            .checked_sub(1)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let remaining = self
+            .budgets
+            .get_mut(&session)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        *remaining = remaining
+            .checked_sub(reserve)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        #[cfg(test)]
+        if self.entity_encode_fault {
+            return protocol_failure(ProtocolErrorCode::InternalInvariant);
+        }
+        let outcome = encode_verified_entity_read_response(plan, session)
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        Ok((outcome.body, bounds))
     }
 
     fn head_binding(&self) -> Result<(VerifiedRevision, HeadBinding)> {
@@ -1448,6 +1800,30 @@ fn session_failure(error: SessionError) -> ProtocolFailure {
         _ => Retryability::Never,
     };
     failure
+}
+
+/// Whether a numeric method tag names an entity read (306 or 307).
+fn is_entity_read_method(tag: u32) -> bool {
+    tag == Method::EntityVersion.tag() || tag == Method::EntitySignature.tag()
+}
+
+/// Maps a transport-neutral entity-read failure to its wire failure:
+/// shape defects to `PROTOCOL_PAYLOAD_INVALID`, budget exhaustion and
+/// checked overflow to `PROTOCOL_LIMIT_EXCEEDED`, owner failures keeping
+/// their stable codes.
+fn entity_read_failure(error: EntityReadError) -> ProtocolFailure {
+    match error {
+        EntityReadError::NotCanonical => {
+            ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid)
+        }
+        EntityReadError::BudgetExceeded => {
+            ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded)
+        }
+        _ => owner(
+            error.owner_symbol().unwrap_or("QUERY_INTERNAL_INVARIANT"),
+            error.owner_numeric().unwrap_or(31_007),
+        ),
+    }
 }
 
 fn repository_query_failure(error: &RepositoryQueryError) -> ProtocolFailure {

@@ -12,7 +12,7 @@ use sley_repo::test_support::{
     complete_bodies, complete_dependency_root, executable_bodies, genesis,
 };
 use sley_repo::{CompleteRootRequest, run_root_query};
-use sley_scb1::{encode_record, encode_uvar};
+use sley_scb1::{MAX_BYTE_PAYLOAD, encode_bytes, encode_record, encode_uvar};
 
 use crate::server::{
     FUNCTION_UNKNOWN_DETAIL, REPORT_UNKNOWN_DETAIL, RESERVED_SEAM_370_DETAIL,
@@ -20,9 +20,10 @@ use crate::server::{
 };
 use crate::session::{CapsuleBindError, HeadBinding};
 use crate::{
-    BoundedContext, DecodedFrame, FEATURE_EXTENDED_EXECUTE, FrameKind, Hello, LimitProfile,
-    MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolErrorCode, ProtocolFailure, ProtocolFrame,
-    SessionId, decode_frame, encode_frame, negotiate, negotiate_identity,
+    BoundedContext, DecodedFrame, FEATURE_CANCEL, FEATURE_EXTENDED_EXECUTE, FEATURE_STREAM,
+    FrameKind, Hello, LimitProfile, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, ProtocolErrorCode,
+    ProtocolFailure, ProtocolFrame, SessionId, decode_frame, encode_frame, negotiate,
+    negotiate_identity,
 };
 
 fn epoch(byte: u8) -> SchemaEpochId {
@@ -2646,4 +2647,1931 @@ fn session_less_frame_with_nonzero_identifier_is_malformed() {
         ))
         .unwrap();
     assert!(!open.failed);
+}
+
+// ---------------------------------------------------------------------------
+// Protocol version 2 entity reads (AT-MW-02, ENTITY_READ_PROFILE_V2)
+// ---------------------------------------------------------------------------
+
+use crate::{
+    ENTITY_SIGNATURE_TAG, ENTITY_VERSION_TAG, PROTOCOL_VERSION_V2, decode_frame_for_version,
+    encode_frame_for_version, encode_single_frame_direct, frame_total_len,
+    negotiate_identity_versioned, negotiate_versioned,
+};
+use sley_id::{EntityId, StateRoot};
+use sley_query::decode_entity_read_response;
+
+fn vhello(methods: Vec<u32>, inflight: u32) -> Hello {
+    vhello_capped(methods, inflight, 100_000_000, 8_388_608, 8_388_608, 1)
+}
+
+fn vhello_capped(
+    methods: Vec<u32>,
+    inflight: u32,
+    max_work: u64,
+    max_frame_bytes: u64,
+    max_response_bytes: u64,
+    features: u32,
+) -> Hello {
+    Hello {
+        protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2],
+        schema_epochs: vec![epoch(0x11)],
+        limits: LimitProfile {
+            max_frame_bytes,
+            max_entities: 65_535,
+            max_edges: 400_000,
+            max_depth: 65_535,
+            max_response_bytes,
+            max_work,
+            max_inflight: inflight,
+            max_sessions: 256,
+        },
+        methods,
+        features,
+        adapters: vec![],
+        effects: vec![],
+    }
+}
+
+fn v2_methods() -> Vec<u32> {
+    Method::V2_ALL
+        .iter()
+        .filter(|method| !method.is_reserved())
+        .map(|method| method.tag())
+        .collect()
+}
+
+fn vrequest_frame(session: Option<SessionId>, request_id: u64, tag: u32, body: Vec<u8>) -> Vec<u8> {
+    encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session,
+            request_id,
+            kind: FrameKind::Request,
+            method: tag,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body,
+        },
+        PROTOCOL_VERSION_V2,
+    )
+    .unwrap()
+    .bytes
+}
+
+fn entity_read_body(root: StateRoot, entity: EntityId) -> Vec<u8> {
+    entity_read_body_capped(root, entity, 65_535, 8_388_608, 100_000_000)
+}
+
+fn entity_read_body_capped(
+    root: StateRoot,
+    entity: EntityId,
+    max_objects: u64,
+    max_response_bytes: u64,
+    max_work: u64,
+) -> Vec<u8> {
+    encode_record(&[
+        (1, root.as_bytes().to_vec()),
+        (2, entity.as_bytes().to_vec()),
+        (3, encode_uvar(max_objects)),
+        (4, encode_uvar(max_response_bytes)),
+        (5, encode_uvar(max_work)),
+    ])
+    .unwrap()
+}
+
+struct VServer {
+    _temp: sley_repo::test_support::TempDir,
+    repository: std::path::PathBuf,
+    server: Server,
+    session: SessionId,
+    root: StateRoot,
+    next_request: u64,
+}
+
+impl VServer {
+    fn new(label: &str) -> Self {
+        Self::with_bodies(label, executable_bodies(), &[])
+    }
+
+    fn with_bodies(
+        label: &str,
+        bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
+        dependency_roots: &[StateRoot],
+    ) -> Self {
+        Self::with_hellos_bodies(
+            label,
+            bodies,
+            dependency_roots,
+            vhello(v2_methods(), 4),
+            vhello(v2_methods(), 8),
+        )
+    }
+
+    fn with_hellos(
+        label: &str,
+        bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
+        dependency_roots: &[StateRoot],
+        client_hello: Hello,
+        server_hello: Hello,
+    ) -> Self {
+        Self::with_hellos_bodies(label, bodies, dependency_roots, client_hello, server_hello)
+    }
+
+    fn with_hellos_bodies(
+        label: &str,
+        bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
+        dependency_roots: &[StateRoot],
+        client_hello: Hello,
+        server_hello: Hello,
+    ) -> Self {
+        let (temp, _transactions, _) = genesis(label, bodies, dependency_roots);
+        Self::open_on_repo(temp, client_hello, server_hello)
+    }
+
+    /// Opens a version-aware session on an already-built repository path,
+    /// so a second server can share one fixture (for exact session-budget
+    /// ceilings derived from a first server's observed work).
+    fn alias_on_repo(
+        alias_label: &str,
+        repository: std::path::PathBuf,
+        client_hello: Hello,
+        server_hello: Hello,
+    ) -> Self {
+        let temp = sley_repo::test_support::TempDir::new(alias_label);
+        Self::open(temp, repository, client_hello, server_hello)
+    }
+
+    fn open_on_repo(
+        temp: sley_repo::test_support::TempDir,
+        client_hello: Hello,
+        server_hello: Hello,
+    ) -> Self {
+        let repository = temp.child("repo");
+        Self::open(temp, repository, client_hello, server_hello)
+    }
+
+    fn open(
+        temp: sley_repo::test_support::TempDir,
+        repository: std::path::PathBuf,
+        client_hello: Hello,
+        server_hello: Hello,
+    ) -> Self {
+        let mut server =
+            Server::new_versioned(&repository, &client_hello, &server_hello).unwrap();
+        assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V2);
+        let handshake = server.handshake_id();
+        let open = server
+            .answer(&vrequest_frame(
+                None,
+                0,
+                Method::SessionOpen.tag(),
+                handshake.as_bytes().to_vec(),
+            ))
+            .unwrap();
+        assert!(!open.failed);
+        assert!(open.events.is_empty());
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&open.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap()
+        else {
+            panic!("session open response");
+        };
+        assert_eq!(frame.protocol_version, PROTOCOL_VERSION_V2);
+        let session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+        let root = sley_txn::TransactionRepository::new(&repository)
+            .accepted_head()
+            .unwrap()
+            .verified_revision()
+            .state_root()
+            .root;
+        Self {
+            _temp: temp,
+            repository,
+            server,
+            session,
+            root,
+            next_request: 1,
+        }
+    }
+
+    fn call(&mut self, tag: u32, body: Vec<u8>) -> (bool, ProtocolFrame) {
+        let answer = self.call_raw(tag, body);
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap()
+        else {
+            panic!("response frame");
+        };
+        assert_eq!(frame.method, tag);
+        assert_eq!(frame.session, Some(self.session));
+        assert_eq!(frame.protocol_version, PROTOCOL_VERSION_V2);
+        assert!(answer.events.is_empty(), "entity reads never stream");
+        (answer.failed, frame)
+    }
+
+    fn call_raw(&mut self, tag: u32, body: Vec<u8>) -> crate::server::Answer {
+        let answer = self
+            .server
+            .answer(&vrequest_frame(
+                Some(self.session),
+                self.next_request,
+                tag,
+                body,
+            ))
+            .unwrap();
+        self.next_request += 1;
+        answer
+    }
+
+    fn read(&mut self, tag: u32, entity: EntityId) -> ProtocolFrame {
+        let (failed, frame) = self.call(tag, entity_read_body(self.root, entity));
+        assert!(
+            !failed,
+            "{tag} failed: {:?}",
+            ProtocolFailure::decode(&frame.body)
+        );
+        frame
+    }
+
+    fn refuse(&mut self, tag: u32, body: Vec<u8>) -> ProtocolFailure {
+        let (failed, frame) = self.call(tag, body);
+        assert!(failed, "{tag} unexpectedly succeeded");
+        ProtocolFailure::decode(&frame.body).unwrap()
+    }
+
+    fn budget(&self) -> u64 {
+        self.server.remaining_budget(self.session).unwrap()
+    }
+}
+
+/// A function whose declared parameter order is nonmonotonic in raw
+/// identity order, with varied parameter types, effects, and contracts.
+fn nonmonotonic_bodies() -> Vec<(u8, sley_mutate::value::EntityBodyValue)> {
+    use sley_mutate::value::{EntityBodyValue, FunctionBody, NamespaceBody, ParameterBody};
+    use sley_repo::test_support::{id, set};
+    use sley_ssmc::{ParameterRole, TypeExpr, Visibility};
+    let function = EntityBodyValue::Function(FunctionBody {
+        type_parameters: Vec::new(),
+        parameters: vec![id(43), id(41), id(42)],
+        result_type: TypeExpr::Tuple(vec![TypeExpr::Bool, TypeExpr::Text]),
+        effects: set(&[]),
+        entry_block: id(44),
+        blocks: vec![id(44)],
+        contracts: set(&[]),
+        visibility: Visibility::Private,
+    });
+    let types = [
+        TypeExpr::Bool,
+        TypeExpr::Text,
+        TypeExpr::Option(Box::new(TypeExpr::Bool)),
+    ];
+    let mut bodies = vec![(40, function)];
+    for (position, value_type) in types.into_iter().enumerate() {
+        let byte = [43_u8, 41, 42][position];
+        bodies.push((
+            byte,
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: id(40),
+                role: ParameterRole::Function,
+                ordinal: u32::try_from(position).unwrap(),
+                value_type,
+            }),
+        ));
+    }
+    bodies.push((
+        44,
+        EntityBodyValue::Namespace(NamespaceBody {
+            parent: None,
+            members: sley_mutate::value::EntityIdSet::from_unsorted(vec![]).unwrap(),
+        }),
+    ));
+    bodies
+}
+
+#[test]
+fn legacy_server_refuses_v2_tags_but_keeps_opaque_intersection() {
+    let mut methods = all_methods();
+    methods.push(ENTITY_VERSION_TAG);
+    methods.push(ENTITY_SIGNATURE_TAG);
+    methods.push(999);
+    methods.sort_unstable();
+    let client_hello = hello(methods.clone(), 4);
+    let server_hello = hello(methods, 8);
+    let profile = negotiate(&client_hello, &server_hello).unwrap();
+    assert!(profile.methods.contains(&ENTITY_VERSION_TAG));
+    assert!(profile.methods.contains(&ENTITY_SIGNATURE_TAG));
+    assert!(profile.methods.contains(&999));
+    let offered = Server::offered_hello().unwrap();
+    assert_eq!(offered.protocol_versions, vec![PROTOCOL_VERSION]);
+    assert!(!offered.methods.contains(&ENTITY_VERSION_TAG));
+    let mut harness = Harness::with_hellos("legacy-v2-refusal", client_hello, server_hello);
+    let control = harness.fail(Method::QueryRoot, b"junk".to_vec());
+    assert_eq!(control.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    let raw = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: Some(harness.session),
+        request_id: harness.next_request,
+        kind: FrameKind::Request,
+        method: ENTITY_VERSION_TAG,
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: b"junk".to_vec(),
+    })
+    .unwrap()
+    .bytes;
+    harness.next_request += 1;
+    let answer = harness.server.answer(&raw).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::MethodUnsupported.numeric()
+    );
+}
+
+#[test]
+fn legacy_server_with_v2_selection_keeps_v1_framing() {
+    let client_hello = vhello(v2_methods(), 4);
+    let server_hello = vhello(v2_methods(), 8);
+    let (temp, _transactions, _) = genesis("legacy-v2-select", executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let mut server = Server::new(&repository, &client_hello, &server_hello).unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V2);
+    let v2_frame = vrequest_frame(None, 0, Method::SessionOpen.tag(), vec![0; 32]);
+    let answer = server.answer(&v2_frame).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::VersionUnsupported.numeric()
+    );
+}
+
+#[test]
+fn versioned_hello_travels_at_frame_one_and_selects_two() {
+    let offered = Server::offered_hello_versioned().unwrap();
+    assert_eq!(
+        offered.protocol_versions,
+        vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2]
+    );
+    assert!(offered.methods.contains(&ENTITY_VERSION_TAG));
+    assert!(offered.methods.contains(&ENTITY_SIGNATURE_TAG));
+    assert_eq!(
+        offered.methods.len(),
+        Method::V2_ALL
+            .iter()
+            .filter(|method| !method.is_reserved())
+            .count()
+    );
+    let encoded = crate::encode_hello_frame(&offered).unwrap();
+    let (decoded, _) = decode_frame(&encoded.bytes, MAX_FRAME_BYTES).unwrap();
+    let DecodedFrame::Hello(label) = decoded else {
+        panic!("hello frame");
+    };
+    assert_eq!(label.protocol_versions, vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2]);
+    decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap();
+    assert_eq!(
+        decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::Downgrade
+    );
+    let mut vhello_frame = vhello(v2_methods(), 4);
+    vhello_frame.schema_epochs = offered.schema_epochs.clone();
+    let selected = negotiate_versioned(&vhello_frame, &offered).unwrap();
+    assert_eq!(selected.protocol_version, PROTOCOL_VERSION_V2);
+    let (reselected, reidentity) = negotiate_identity_versioned(&vhello_frame, &offered).unwrap();
+    assert_eq!(reselected.methods, selected.methods);
+    let _ = reidentity;
+}
+
+#[test]
+fn versioned_session_open_binds_and_claims_split() {
+    let mut harness = VServer::new("v2-open");
+    let session = harness.session;
+    assert!(harness.server.remaining_budget(session).is_some());
+    let v1_open = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Request,
+            method: Method::SessionOpen.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: harness.server.handshake_id().as_bytes().to_vec(),
+        },
+        PROTOCOL_VERSION,
+    )
+    .unwrap()
+    .bytes;
+    let answer = harness.server.answer(&v1_open).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::Downgrade.numeric()
+    );
+    let v3_open = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: 3,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Request,
+            method: Method::SessionOpen.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: harness.server.handshake_id().as_bytes().to_vec(),
+        },
+        3,
+    )
+    .unwrap()
+    .bytes;
+    let answer = harness.server.answer(&v3_open).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::VersionUnsupported.numeric()
+    );
+}
+
+#[test]
+fn entity_version_returns_exact_bytes_and_bounded_context() {
+    let mut harness = VServer::new("v2-version");
+    let transactions =
+        sley_txn::TransactionRepository::new(&harness.repository).accepted_head();
+    let revision = transactions.unwrap().verified_revision().clone();
+    let target = revision
+        .objects()
+        .iter()
+        .find(|object| object.record().entity_id == sley_repo::test_support::id(31))
+        .unwrap()
+        .clone();
+    let frame = harness.read(ENTITY_VERSION_TAG, target.record().entity_id);
+    assert_eq!(frame.bounds.applied_limits, harness.server.profile().limits);
+    assert_eq!(frame.bounds.returned_bytes, frame.body.len() as u64);
+    assert_eq!(frame.bounds.returned_entities, 1);
+    assert_eq!(frame.bounds.returned_edges, 0);
+    assert_eq!(frame.bounds.reached_depth, 0);
+    assert_eq!(frame.bounds.omitted, 0);
+    assert!(!frame.bounds.truncated);
+    assert!(!frame.bounds.continuation);
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    assert_eq!(response.objects.len(), 1);
+    assert_eq!(response.objects[0].entity, target.record().entity_id);
+    assert_eq!(response.objects[0].object_id, target.object_id());
+    assert_eq!(
+        response.objects[0].kind,
+        u64::from(target.record().body.kind_tag())
+    );
+    assert_eq!(response.objects[0].stored_bytes, target.stored_bytes());
+    assert_eq!(response.root, harness.root);
+    assert_eq!(response.session, harness.session);
+    assert_eq!(response.requested_entity, target.record().entity_id);
+    assert_eq!(response.workspace, revision.state_root().record.workspace_id);
+    assert_eq!(
+        response.epoch,
+        revision.state_root().record.schema_epoch_id
+    );
+    let direct = encode_single_frame_direct(&frame, MAX_FRAME_BYTES).unwrap();
+    let (DecodedFrame::Response(reframed), _) =
+        decode_frame_for_version(&direct.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(reframed.body, frame.body);
+}
+
+#[test]
+fn entity_signature_returns_declaration_order() {
+    let mut harness = VServer::with_bodies("v2-signature", nonmonotonic_bodies(), &[]);
+    let frame = harness.read(ENTITY_SIGNATURE_TAG, EntityId::from_bytes([40; 32]));
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    let order: Vec<EntityId> = response.objects.iter().map(|object| object.entity).collect();
+    assert_eq!(
+        order,
+        vec![
+            EntityId::from_bytes([40; 32]),
+            EntityId::from_bytes([43; 32]),
+            EntityId::from_bytes([41; 32]),
+            EntityId::from_bytes([42; 32]),
+        ]
+    );
+    let kinds: Vec<u64> = response.objects.iter().map(|object| object.kind).collect();
+    assert_eq!(kinds, vec![5, 6, 6, 6]);
+    assert_eq!(frame.bounds.returned_entities, 4);
+}
+
+#[test]
+fn entity_read_failure_precedence_is_exact() {
+    let mut harness = VServer::new("v2-precedence");
+    let junk = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
+    assert_eq!(junk.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    let zeros = harness.refuse(
+        ENTITY_VERSION_TAG,
+        encode_record(&[
+            (1, harness.root.as_bytes().to_vec()),
+            (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+            (3, encode_uvar(0)),
+            (4, encode_uvar(8_388_608)),
+            (5, encode_uvar(100_000_000)),
+        ])
+        .unwrap(),
+    );
+    assert_eq!(zeros.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    let over = harness.refuse(
+        ENTITY_VERSION_TAG,
+        encode_record(&[
+            (1, harness.root.as_bytes().to_vec()),
+            (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+            (3, encode_uvar(65_535)),
+            (4, encode_uvar(8_388_608)),
+            (5, encode_uvar(u64::MAX)),
+        ])
+        .unwrap(),
+    );
+    assert_eq!(over.code, ProtocolErrorCode::LimitExceeded.numeric());
+    let wrong_root = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(StateRoot::from_bytes([0x77; 32]), sley_repo::test_support::id(30)),
+    );
+    assert_eq!(wrong_root.code, 31_008);
+    assert_eq!(wrong_root.symbol, "QUERY_ROOT_MISMATCH");
+    let unknown = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, EntityId::from_bytes([0x63; 32])),
+    );
+    assert_eq!(unknown.code, 31_004);
+    let wrong_kind = harness.refuse(
+        ENTITY_SIGNATURE_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(34)),
+    );
+    assert_eq!(wrong_kind.code, 31_010);
+    let unknown_session = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session: Some(SessionId::from_bytes([0x99; 32])),
+            request_id: 91,
+            kind: FrameKind::Request,
+            method: ENTITY_VERSION_TAG,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: entity_read_body(harness.root, sley_repo::test_support::id(30)),
+        },
+        PROTOCOL_VERSION_V2,
+    )
+    .unwrap()
+    .bytes;
+    let answer = harness.server.answer(&unknown_session).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().symbol,
+        "SESSION_UNKNOWN"
+    );
+}
+
+#[test]
+fn entity_read_session_lifecycle_binds_one_snapshot() {
+    let mut harness = VServer::new("v2-session");
+    let (closed_failed, _) = harness.call(Method::SessionClose.tag(), Vec::new());
+    assert!(!closed_failed);
+    let closed = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(closed.code, ProtocolErrorCode::SessionClosed.numeric());
+}
+
+#[test]
+fn entity_read_head_advance_fails_before_body_decode() {
+    use sley_id::{CandidateNonce, PrincipalId};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent,
+        MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
+        PreimageRequirement, build_candidate, full_validation_profile_id,
+    };
+    use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
+    use sley_policy::build_capability_summary_projection;
+    let mut harness = VServer::new("v2-advance");
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository);
+    let head = transactions.accepted_head().unwrap();
+    let workspace = head.state_root().record.workspace_id;
+    let principal = PrincipalId::from_bytes([2; 32]);
+    let nonce = CandidateNonce::from_bytes([0x77; 32]);
+    let target = EntityId::derive(workspace, nonce, 3, 0);
+    let summary = build_capability_summary_projection(
+        principal,
+        workspace,
+        head.policy_root().root(),
+        head.state_root().root,
+        &[],
+    )
+    .unwrap();
+    let candidate = build_candidate(&CandidateRecord {
+        format_version: 1,
+        workspace_id: workspace,
+        base_transaction_id: head.transaction_id(),
+        base_root: head.state_root().root,
+        schema_epoch_id: head.state_root().record.schema_epoch_id,
+        policy_root_id: head.policy_root().root(),
+        principal_id: principal,
+        capability_summary_digest: summary.digest(),
+        operations: vec![MutationOperation {
+            ordinal: 0,
+            class: MutationClass::CreateEntity,
+            target_kind: 3,
+            target_entity: target,
+            field_tag: None,
+            payload: MutationPayload::CreateEntity(EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+            })),
+            precondition_ordinal: 0,
+        }],
+        preconditions: vec![BoundPrecondition {
+            operation_ordinal: 0,
+            requirement: PreimageRequirement::ExpectedIdentityAbsent,
+            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                entity_id: target,
+            }),
+        }],
+        validation_profile_id: full_validation_profile_id().unwrap(),
+        candidate_nonce: nonce,
+        expiry: CandidateExpiry::unix_millis(2_000),
+    })
+    .unwrap();
+    let (commit_failed, _) = harness.call(
+        Method::Commit.tag(),
+        encode_record(&[
+            (1, head.transaction_id().as_bytes().to_vec()),
+            (2, principal.as_bytes().to_vec()),
+            (3, encode_uvar(1_000)),
+            (4, candidate.stored_bytes.clone()),
+        ])
+        .unwrap(),
+    );
+    assert!(!commit_failed);
+    let new_root = sley_txn::TransactionRepository::new(&harness.repository)
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .state_root()
+        .root;
+    assert_ne!(new_root, harness.root);
+    let stale = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+    let malformed_stale = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
+    assert_eq!(malformed_stale.symbol, "SESSION_ROOT_ADVANCED");
+    let (renew_failed, _) = harness.call(Method::SessionRenew.tag(), harness.session.as_bytes().to_vec());
+    assert!(!renew_failed);
+    harness.root = new_root;
+    let frame = harness.read(ENTITY_VERSION_TAG, target);
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    assert_eq!(response.root, new_root);
+    assert_eq!(response.requested_entity, target);
+}
+
+#[test]
+fn entity_read_exact_and_one_below_limits() {
+    let mut harness = VServer::new("v2-limits");
+    let id = harness.next_request;
+    let signature_body = entity_read_body(harness.root, sley_repo::test_support::id(30));
+    let answer = harness.call_raw(ENTITY_SIGNATURE_TAG, signature_body);
+    assert!(!answer.failed);
+    assert!(answer.events.is_empty());
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    let work = response.work_units;
+    let body_len = frame.bounds.returned_bytes;
+    let narrow_objects = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+        (3, encode_uvar(2)),
+        (4, encode_uvar(8_388_608)),
+        (5, encode_uvar(100_000_000)),
+    ])
+    .unwrap();
+    let refused = harness.refuse(ENTITY_SIGNATURE_TAG, narrow_objects);
+    assert_eq!(refused.code, ProtocolErrorCode::LimitExceeded.numeric());
+    let exact_work = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+        (3, encode_uvar(65_535)),
+        (4, encode_uvar(8_388_608)),
+        (5, encode_uvar(work)),
+    ])
+    .unwrap();
+    let (failed_exact, exact_frame) = harness.call(ENTITY_SIGNATURE_TAG, exact_work);
+    assert!(!failed_exact);
+    assert_eq!(
+        decode_entity_read_response(&exact_frame.body)
+            .unwrap()
+            .work_units,
+        work
+    );
+    let below_work = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+        (3, encode_uvar(65_535)),
+        (4, encode_uvar(8_388_608)),
+        (5, encode_uvar(work - 1)),
+    ])
+    .unwrap();
+    let refused_work = harness.refuse(ENTITY_SIGNATURE_TAG, below_work);
+    assert_eq!(
+        refused_work.code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    let exact_bytes = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+        (3, encode_uvar(65_535)),
+        (4, encode_uvar(body_len)),
+        (5, encode_uvar(100_000_000)),
+    ])
+    .unwrap();
+    let (failed_bytes, _) = harness.call(ENTITY_SIGNATURE_TAG, exact_bytes);
+    assert!(!failed_bytes);
+    let tiny_bytes = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, sley_repo::test_support::id(30).as_bytes().to_vec()),
+        (3, encode_uvar(65_535)),
+        (4, encode_uvar(body_len / 2)),
+        (5, encode_uvar(100_000_000)),
+    ])
+    .unwrap();
+    let refused_bytes = harness.refuse(ENTITY_SIGNATURE_TAG, tiny_bytes);
+    assert_eq!(
+        refused_bytes.code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    let full_len = frame_total_len(&crate::FrameSize {
+        version: PROTOCOL_VERSION_V2,
+        session: Some(harness.session),
+        request_id: id,
+        kind_tag: 2,
+        method: ENTITY_SIGNATURE_TAG,
+        flags: 0,
+        bounds: frame.bounds,
+        body_len,
+    })
+    .unwrap();
+    assert_eq!(
+        full_len + 8,
+        u64::try_from(answer.frame.bytes.len()).unwrap()
+    );
+}
+
+#[test]
+fn entity_read_tiny_streaming_frame_refuses_without_events() {
+    let (temp, _transactions, _) = genesis("v2-tiny", executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let mut client_hello = vhello(v2_methods(), 4);
+    client_hello.limits.max_frame_bytes = 768;
+    client_hello.features |= FEATURE_STREAM;
+    let mut server_hello = vhello(v2_methods(), 8);
+    server_hello.limits.max_frame_bytes = 768;
+    server_hello.features |= FEATURE_STREAM;
+    let mut server = Server::new_versioned(&repository, &client_hello, &server_hello).unwrap();
+    let handshake = server.handshake_id();
+    let open = server
+        .answer(&vrequest_frame(
+            None,
+            0,
+            Method::SessionOpen.tag(),
+            handshake.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&open.frame.bytes, 768, PROTOCOL_VERSION_V2).unwrap()
+    else {
+        panic!("open frame");
+    };
+    let session = SessionId::from_bytes(frame.body.as_slice().try_into().unwrap());
+    let root = sley_txn::TransactionRepository::new(&repository)
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .state_root()
+        .root;
+    let answer = server
+        .answer(&vrequest_frame(
+            Some(session),
+            1,
+            ENTITY_SIGNATURE_TAG,
+            entity_read_body(root, sley_repo::test_support::id(30)),
+        ))
+        .unwrap();
+    assert!(answer.failed);
+    assert!(answer.events.is_empty());
+    let (DecodedFrame::Response(response), _) =
+        decode_frame_for_version(&answer.frame.bytes, 768, PROTOCOL_VERSION_V2).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&response.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+}
+
+#[test]
+fn entity_read_budget_debit_table_is_exact() {
+    let mut harness = VServer::new("v2-budget");
+    let entity = sley_repo::test_support::id(30);
+    let before = harness.budget();
+    let bad = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(StateRoot::from_bytes([0x77; 32]), entity),
+    );
+    assert_eq!(bad.code, 31_008);
+    assert_eq!(harness.budget(), before - 1);
+    let (failed, frame) = harness.call(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
+    assert!(!failed);
+    let work = decode_entity_read_response(&frame.body).unwrap().work_units;
+    assert_eq!(harness.budget(), before - 1 - work);
+    assert_ne!(
+        before - 1 - harness.budget(),
+        work + frame.body.len() as u64,
+        "generic body-byte charge must not apply"
+    );
+    harness.server.set_entity_encode_fault(true);
+    let faulted = harness.refuse(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
+    assert_eq!(
+        faulted.code,
+        ProtocolErrorCode::InternalInvariant.numeric()
+    );
+    assert_eq!(harness.budget(), before - 1 - work - work);
+    harness.server.set_entity_encode_fault(false);
+}
+
+// ---------------------------------------------------------------------------
+// Phase2 runtime correction regressions (AT-MW-02 repair checkpoint)
+// ---------------------------------------------------------------------------
+
+/// Methods without `entity.version`: the selection stays v2 but 306 is not
+/// negotiated.
+fn v2_methods_without_version() -> Vec<u32> {
+    v2_methods()
+        .into_iter()
+        .filter(|tag| *tag != ENTITY_VERSION_TAG)
+        .collect()
+}
+
+/// Commits a fresh namespace so the accepted head advances, returning the
+/// new root and the created entity.
+fn advance_head_with_namespace(harness: &mut VServer) -> (StateRoot, EntityId) {
+    use sley_id::{CandidateNonce, PrincipalId};
+    use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent,
+        MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
+        PreimageRequirement, build_candidate, full_validation_profile_id,
+    };
+    use sley_policy::build_capability_summary_projection;
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository);
+    let head = transactions.accepted_head().unwrap();
+    let workspace = head.state_root().record.workspace_id;
+    let principal = PrincipalId::from_bytes([2; 32]);
+    let nonce = CandidateNonce::from_bytes([0x77; 32]);
+    let target = EntityId::derive(workspace, nonce, 3, 0);
+    let summary = build_capability_summary_projection(
+        principal,
+        workspace,
+        head.policy_root().root(),
+        head.state_root().root,
+        &[],
+    )
+    .unwrap();
+    let candidate = build_candidate(&CandidateRecord {
+        format_version: 1,
+        workspace_id: workspace,
+        base_transaction_id: head.transaction_id(),
+        base_root: head.state_root().root,
+        schema_epoch_id: head.state_root().record.schema_epoch_id,
+        policy_root_id: head.policy_root().root(),
+        principal_id: principal,
+        capability_summary_digest: summary.digest(),
+        operations: vec![MutationOperation {
+            ordinal: 0,
+            class: MutationClass::CreateEntity,
+            target_kind: 3,
+            target_entity: target,
+            field_tag: None,
+            payload: MutationPayload::CreateEntity(EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+            })),
+            precondition_ordinal: 0,
+        }],
+        preconditions: vec![BoundPrecondition {
+            operation_ordinal: 0,
+            requirement: PreimageRequirement::ExpectedIdentityAbsent,
+            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                entity_id: target,
+            }),
+        }],
+        validation_profile_id: full_validation_profile_id().unwrap(),
+        candidate_nonce: nonce,
+        expiry: CandidateExpiry::unix_millis(2_000),
+    })
+    .unwrap();
+    let (commit_failed, _) = harness.call(
+        Method::Commit.tag(),
+        encode_record(&[
+            (1, head.transaction_id().as_bytes().to_vec()),
+            (2, principal.as_bytes().to_vec()),
+            (3, encode_uvar(1_000)),
+            (4, candidate.stored_bytes.clone()),
+        ])
+        .unwrap(),
+    );
+    assert!(!commit_failed);
+    let new_root = sley_txn::TransactionRepository::new(&harness.repository)
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .state_root()
+        .root;
+    assert_ne!(new_root, harness.root);
+    (new_root, target)
+}
+
+#[test]
+fn repair_unnegotiated_refusal_releases_its_slot() {
+    // R1 / VUL-P2-01: every admitted terminal result releases exactly one
+    // request slot. With max_inflight 1, three not-negotiated refusals must
+    // not block the next legitimate request.
+    let methods = v2_methods_without_version();
+    let mut harness = VServer::with_hellos(
+        "repair-r1-unnegotiated",
+        executable_bodies(),
+        &[],
+        vhello(methods.clone(), 1),
+        vhello(methods, 1),
+    );
+    let before = harness.budget();
+    for _ in 0..3 {
+        let (failed, frame) = harness.call(
+            ENTITY_VERSION_TAG,
+            entity_read_body(harness.root, sley_repo::test_support::id(30)),
+        );
+        assert!(failed, "unoffered entity.version must refuse");
+        assert_eq!(
+            ProtocolFailure::decode(&frame.body).unwrap().code,
+            ProtocolErrorCode::MethodUnsupported.numeric()
+        );
+    }
+    assert_eq!(
+        harness.budget(),
+        before - 3,
+        "each refused admission still costs the dispatch unit"
+    );
+    let frame = harness.read(
+        ENTITY_SIGNATURE_TAG,
+        sley_repo::test_support::id(30),
+    );
+    assert_eq!(frame.bounds.returned_entities, 3);
+}
+
+#[test]
+fn repair_stale_refusal_then_renew_and_read_at_inflight_one() {
+    // R1 stale/session refusal sequence with increasing request IDs: the
+    // stale refusal must release its slot so renewal and the next read
+    // admit under max_inflight 1.
+    let mut harness = VServer::with_hellos(
+        "repair-r1-stale",
+        executable_bodies(),
+        &[],
+        vhello(v2_methods(), 1),
+        vhello(v2_methods(), 1),
+    );
+    let (new_root, target) = advance_head_with_namespace(&mut harness);
+    let stale = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+    let (renew_failed, _) = harness.call(
+        Method::SessionRenew.tag(),
+        harness.session.as_bytes().to_vec(),
+    );
+    assert!(!renew_failed, "renewal must admit after the stale refusal");
+    harness.root = new_root;
+    let frame = harness.read(ENTITY_VERSION_TAG, target);
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    assert_eq!(response.root, new_root);
+    assert_eq!(response.requested_entity, target);
+}
+
+#[test]
+fn repair_session_budget_method_order_and_debit() {
+    // R2 / A-P2-1: inherited session-binding, budget-exhaustion, then
+    // method-negotiation order. A stale session combined with an unoffered
+    // method reports the session failure with no debit; a live funded
+    // unoffered method reports not-negotiated with exactly the dispatch
+    // debit and leaves the session viable.
+    let methods = v2_methods_without_version();
+    let mut harness = VServer::with_hellos(
+        "repair-r2-order",
+        executable_bodies(),
+        &[],
+        vhello(methods.clone(), 4),
+        vhello(methods, 4),
+    );
+    let (new_root, _) = advance_head_with_namespace(&mut harness);
+    let before = harness.budget();
+    let stale_unoffered = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(
+        stale_unoffered.symbol, "SESSION_ROOT_ADVANCED",
+        "session binding precedes method negotiation"
+    );
+    assert_eq!(harness.budget(), before, "session errors keep no-debit semantics");
+    let (renew_failed, _) = harness.call(
+        Method::SessionRenew.tag(),
+        harness.session.as_bytes().to_vec(),
+    );
+    assert!(!renew_failed);
+    harness.root = new_root;
+    let funded = harness.budget();
+    let unoffered = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(
+        unoffered.code,
+        ProtocolErrorCode::MethodUnsupported.numeric()
+    );
+    assert_eq!(
+        harness.budget(),
+        funded - 1,
+        "live unoffered method still costs the dispatch unit"
+    );
+    let frame = harness.read(
+        ENTITY_SIGNATURE_TAG,
+        sley_repo::test_support::id(30),
+    );
+    assert_eq!(frame.bounds.returned_entities, 3);
+}
+
+#[test]
+fn repair_exhausted_budget_precedes_unoffered_method() {
+    // R2 exhaustion order: draining a max_work 3 session with live
+    // unoffered requests leaves budget 0; the next unoffered request
+    // reports budget exhaustion with no further debit.
+    let methods = v2_methods_without_version();
+    let capped = vhello_capped(methods.clone(), 4, 3, 8_388_608, 8_388_608, 1);
+    let capped_server = vhello_capped(methods, 4, 3, 8_388_608, 8_388_608, 1);
+    let mut harness = VServer::with_hellos(
+        "repair-r2-exhausted",
+        executable_bodies(),
+        &[],
+        capped,
+        capped_server,
+    );
+    assert_eq!(harness.budget(), 3);
+    for _ in 0..3 {
+        let denied = harness.refuse(
+            ENTITY_VERSION_TAG,
+            entity_read_body_capped(
+                harness.root,
+                sley_repo::test_support::id(30),
+                65_535,
+                8_388_608,
+                3,
+            ),
+        );
+        assert_eq!(
+            denied.code,
+            ProtocolErrorCode::MethodUnsupported.numeric()
+        );
+    }
+    assert_eq!(harness.budget(), 0);
+    for _ in 0..2 {
+        let exhausted = harness.refuse(
+            ENTITY_VERSION_TAG,
+            entity_read_body_capped(
+                harness.root,
+                sley_repo::test_support::id(30),
+                65_535,
+                8_388_608,
+                3,
+            ),
+        );
+        assert_eq!(
+            exhausted.code,
+            ProtocolErrorCode::LimitExceeded.numeric(),
+            "exhausted budget precedes method negotiation"
+        );
+        assert_eq!(harness.budget(), 0, "exhaustion itself debits nothing");
+    }
+}
+
+#[test]
+fn repair_hello_wire_version_is_always_one() {
+    // R5: Hello transport is wire 1 independently of the caller's expected
+    // version. A correctly shaped Hello2 is malformed even under
+    // expected 2; the established claim checks are unchanged.
+    let hello = Server::offered_hello_versioned().unwrap();
+    let body = hello.encode().unwrap();
+    let hello_frame = |version: u32| ProtocolFrame {
+        protocol_version: version,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Hello,
+        method: 0,
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: body.clone(),
+    };
+    assert!(
+        hello_frame(PROTOCOL_VERSION)
+            .validate_for_version(PROTOCOL_VERSION)
+            .is_ok()
+    );
+    assert_eq!(
+        hello_frame(PROTOCOL_VERSION)
+            .validate_for_version(PROTOCOL_VERSION_V2)
+            .map_err(|error| error.code()),
+        Err(ProtocolErrorCode::Downgrade)
+    );
+    assert_eq!(
+        hello_frame(PROTOCOL_VERSION_V2)
+            .validate_for_version(PROTOCOL_VERSION_V2)
+            .map_err(|error| error.code()),
+        Err(ProtocolErrorCode::FrameInvalid),
+        "Hello2 is malformed even when expected"
+    );
+    assert_eq!(
+        hello_frame(PROTOCOL_VERSION_V2)
+            .validate_for_version(PROTOCOL_VERSION)
+            .map_err(|error| error.code()),
+        Err(ProtocolErrorCode::VersionUnsupported)
+    );
+}
+
+#[test]
+fn repair_explicit_negotiation_supports_only_one_and_two() {
+    // R6 / VUL-P2-04: the operational explicit path implements versions 1
+    // and 2 only. An unsupported greatest-common selection is refused with
+    // the existing VersionUnsupported code; legacy helpers keep arbitrary
+    // numeric behavior and opaque/reserved tag rules are unchanged.
+    let base = vhello(v2_methods(), 4);
+    let with_versions = |versions: Vec<u32>| Hello {
+        protocol_versions: versions,
+        ..base.clone()
+    };
+    for versions in [vec![1], vec![2], vec![1, 2]] {
+        let selected = negotiate_versioned(
+            &with_versions(versions.clone()),
+            &with_versions(versions.clone()),
+        )
+        .unwrap();
+        assert_eq!(
+            selected.protocol_version,
+            *versions.last().unwrap(),
+            "supported selection {versions:?}"
+        );
+    }
+    for versions in [vec![3], vec![1, 2, 3], vec![2, 3]] {
+        let refused = negotiate_versioned(
+            &with_versions(versions.clone()),
+            &with_versions(versions.clone()),
+        )
+        .err()
+        .unwrap_or_else(|| panic!("unsupported selection {versions:?} must fail"));
+        assert_eq!(refused.code(), ProtocolErrorCode::VersionUnsupported);
+    }
+    // Legacy negotiation still reports the arbitrary greatest-common
+    // version; only the explicit operational path gates serving.
+    let legacy = negotiate(&with_versions(vec![1, 2, 3]), &with_versions(vec![1, 2, 3])).unwrap();
+    assert_eq!(legacy.protocol_version, 3);
+    // The explicit constructor refuses the unsupported selection before a
+    // serving session can exist.
+    let (temp, _, _) = genesis("repair-r6-unsupported", executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let bad = with_versions(vec![1, 2, 3]);
+    assert_eq!(
+        Server::new_versioned(&repository, &bad, &bad)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::VersionUnsupported
+    );
+    // Version-aware method availability claims nothing for version 3 while
+    // the supported version rules are unchanged.
+    assert!(Method::from_tag_versioned(ENTITY_VERSION_TAG, PROTOCOL_VERSION_V2).is_ok());
+    assert_eq!(
+        Method::from_tag_versioned(ENTITY_VERSION_TAG, PROTOCOL_VERSION)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::MethodUnsupported
+    );
+    assert_eq!(
+        Method::from_tag_versioned(ENTITY_VERSION_TAG, 3)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::VersionUnsupported
+    );
+    // Opaque unrelated tags keep legacy treatment on both selections;
+    // reserved tags stay invalid offers on the explicit path.
+    let mut opaque = v2_methods();
+    opaque.push(999);
+    opaque.sort_unstable();
+    let selected_v1 =
+        negotiate_versioned(&with_versions_opaque(vec![1], &opaque), &with_versions_opaque(vec![1], &opaque))
+            .unwrap();
+    assert_eq!(selected_v1.protocol_version, PROTOCOL_VERSION);
+    assert!(selected_v1.methods.contains(&999));
+    assert!(!selected_v1.methods.contains(&ENTITY_VERSION_TAG));
+    assert!(!selected_v1.methods.contains(&ENTITY_SIGNATURE_TAG));
+    let selected_v2 =
+        negotiate_versioned(&with_versions_opaque(vec![1, 2], &opaque), &with_versions_opaque(vec![1, 2], &opaque))
+            .unwrap();
+    assert_eq!(selected_v2.protocol_version, PROTOCOL_VERSION_V2);
+    assert!(selected_v2.methods.contains(&999));
+    assert!(selected_v2.methods.contains(&ENTITY_VERSION_TAG));
+    let mut reserved = v2_methods();
+    reserved.push(305);
+    reserved.sort_unstable();
+    assert_eq!(
+        negotiate_versioned(
+            &with_versions_opaque(vec![1, 2], &reserved),
+            &with_versions_opaque(vec![1, 2], &reserved),
+        )
+        .unwrap_err()
+        .code(),
+        ProtocolErrorCode::PayloadInvalid
+    );
+
+    fn with_versions_opaque(versions: Vec<u32>, methods: &[u32]) -> Hello {
+        Hello {
+            protocol_versions: versions,
+            schema_epochs: vec![epoch(0x11)],
+            limits: LimitProfile {
+                max_frame_bytes: 8_388_608,
+                max_entities: 65_535,
+                max_edges: 400_000,
+                max_depth: 65_535,
+                max_response_bytes: 8_388_608,
+                max_work: 100_000_000,
+                max_inflight: 4,
+                max_sessions: 256,
+            },
+            methods: methods.to_vec(),
+            features: 1,
+            adapters: vec![],
+            effects: vec![],
+        }
+    }
+}
+
+#[test]
+fn repair_full_wire_ceiling_exact_and_one_below() {
+    // R4 / VUL-P2-03: the outgoing fit compares full encoded wire bytes
+    // INCLUDING the 8-byte prefix, while the prefix still stores the
+    // envelope length. Negotiating exactly the complete response length
+    // succeeds; exactly one below refuses before reservation with debit 1,
+    // no partial or event response, with streaming on or off.
+    let mut learn = VServer::new("repair-r4-learn");
+    let signature_body = entity_read_body(learn.root, sley_repo::test_support::id(30));
+    let answer = learn.call_raw(ENTITY_SIGNATURE_TAG, signature_body);
+    assert!(!answer.failed);
+    let (DecodedFrame::Response(learned), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    let body_len = learned.bounds.returned_bytes;
+    let object_count = learned.bounds.returned_entities;
+    assert_eq!(body_len, learned.body.len() as u64);
+
+    for stream in [false, true] {
+        let features = if stream {
+            FEATURE_CANCEL | FEATURE_STREAM
+        } else {
+            FEATURE_CANCEL
+        };
+        let capped = |max_frame_bytes: u64| {
+            vhello_capped(v2_methods(), 4, 100_000_000, max_frame_bytes, 8_388_608, features)
+        };
+        // The target server's bounds carry its own negotiated limits, so
+        // the expected wire length is solved under those exact limits: the
+        // limit value feeds the bounds encoding, hence the fixpoint.
+        let wire_for = |max_frame_bytes: u64| {
+            let limits = LimitProfile {
+                max_frame_bytes,
+                max_entities: 65_535,
+                max_edges: 400_000,
+                max_depth: 65_535,
+                max_response_bytes: 8_388_608,
+                max_work: 100_000_000,
+                max_inflight: 4,
+                max_sessions: 256,
+            };
+            let bounds = BoundedContext {
+                applied_limits: limits,
+                returned_bytes: body_len,
+                returned_entities: object_count,
+                ..BoundedContext::none()
+            };
+            frame_total_len(&crate::FrameSize {
+                version: PROTOCOL_VERSION_V2,
+                session: Some(learn.session),
+                request_id: 1,
+                kind_tag: 2,
+                method: ENTITY_SIGNATURE_TAG,
+                flags: 0,
+                bounds,
+                body_len,
+            })
+            .unwrap()
+                + 8
+        };
+        let mut wire = wire_for(8_388_608);
+        for _ in 0..3 {
+            wire = wire_for(wire);
+        }
+        assert_eq!(
+            wire_for(wire - 1),
+            wire,
+            "one-below ceiling must not shift the uvar widths under test"
+        );
+
+        let mut exact = VServer::with_hellos(
+            &format!("repair-r4-exact-{stream}"),
+            executable_bodies(),
+            &[],
+            capped(wire),
+            capped(wire),
+        );
+        let answer = exact.call_raw(
+            ENTITY_SIGNATURE_TAG,
+            entity_read_body(exact.root, sley_repo::test_support::id(30)),
+        );
+        assert!(!answer.failed, "exact full wire length must fit (stream={stream})");
+        assert!(answer.events.is_empty());
+        assert_eq!(
+            answer.frame.bytes.len(),
+            wire as usize,
+            "emitted bytes equal the negotiated full length (stream={stream})"
+        );
+        decode_frame_for_version(&answer.frame.bytes, wire, PROTOCOL_VERSION_V2).unwrap();
+
+        let mut below = VServer::with_hellos(
+            &format!("repair-r4-below-{stream}"),
+            executable_bodies(),
+            &[],
+            capped(wire - 1),
+            capped(wire - 1),
+        );
+        let before = below.budget();
+        let (failed, frame) = below.call(
+            ENTITY_SIGNATURE_TAG,
+            entity_read_body(below.root, sley_repo::test_support::id(30)),
+        );
+        assert!(failed, "one below full wire must refuse (stream={stream})");
+        assert_eq!(
+            ProtocolFailure::decode(&frame.body).unwrap().code,
+            ProtocolErrorCode::LimitExceeded.numeric()
+        );
+        assert_eq!(
+            below.budget(),
+            before - 1,
+            "preflight refusal costs only the dispatch unit (stream={stream})"
+        );
+        let (failed_again, _) = below.call(
+            ENTITY_SIGNATURE_TAG,
+            entity_read_body(below.root, sley_repo::test_support::id(30)),
+        );
+        assert!(failed_again);
+        assert_eq!(below.budget(), before - 2);
+    }
+}
+
+#[test]
+fn repair_wire_length_matches_encoding_across_varint_widths() {
+    // R4 preflight/writer drift guard: envelope length plus the 8-byte
+    // prefix equals the actually emitted bytes across uvar width
+    // boundaries for request IDs, methods, and body lengths.
+    for request_id in [1, 127, 128, 16_383, 16_384, u64::MAX] {
+        for body_len in [0_usize, 1, 127, 128, 300] {
+            for method in [ENTITY_VERSION_TAG, ENTITY_SIGNATURE_TAG, 603] {
+                let frame = ProtocolFrame {
+                    protocol_version: PROTOCOL_VERSION_V2,
+                    session: Some(SessionId::from_bytes([0x51; 32])),
+                    request_id,
+                    kind: FrameKind::Response,
+                    method,
+                    flags: 0,
+                    bounds: BoundedContext::none(),
+                    body: vec![0xAB; body_len],
+                };
+                let envelope = frame_total_len(&crate::FrameSize {
+                    version: PROTOCOL_VERSION_V2,
+                    session: frame.session,
+                    request_id,
+                    kind_tag: FrameKind::Response.tag(),
+                    method,
+                    flags: 0,
+                    bounds: BoundedContext::none(),
+                    body_len: body_len as u64,
+                })
+                .unwrap();
+                let emitted = encode_single_frame_direct(&frame, MAX_FRAME_BYTES)
+                    .unwrap()
+                    .bytes
+                    .len();
+                assert_eq!(
+                    emitted,
+                    envelope as usize + 8,
+                    "request {request_id} body {body_len} method {method}"
+                );
+            }
+        }
+    }
+}
+
+fn wide_hellos() -> (Hello, Hello) {
+    (
+        vhello_capped(v2_methods(), 4, 100_000_000, 67_108_864, 33_554_432, 1),
+        vhello_capped(v2_methods(), 8, 100_000_000, 67_108_864, 33_554_432, 1),
+    )
+}
+
+/// One Function plus six Parameters sharing one wide shallow Tuple type,
+/// per the R3 aggregate-fixture design: seven stored objects each far
+/// below the per-object Bytes cap whose aggregate response body exceeds
+/// the outer 16MiB frame-body Bytes ceiling.
+fn wide_signature_bodies() -> Vec<(u8, sley_mutate::value::EntityBodyValue)> {
+    use sley_mutate::value::{
+        BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, ParameterBody, TypeDefBody,
+    };
+    use sley_repo::test_support::id;
+    use sley_ssmc::{
+        NamedType, ParameterRole, Reachability, ReturnTerminator, Terminator, TypeDefForm,
+        TypeExpr, ValueRef, Visibility,
+    };
+    const TUPLE_ITEMS: usize = 65_535;
+    let wide_type = |definition: EntityId| {
+        TypeExpr::Tuple(
+            (0..TUPLE_ITEMS)
+                .map(|_| {
+                    TypeExpr::Named(NamedType {
+                        definition,
+                        arguments: Vec::new(),
+                    })
+                })
+                .collect(),
+        )
+    };
+    let empty = EntityIdSet::from_unsorted(Vec::new()).unwrap();
+    let mut bodies = executable_bodies();
+    bodies.push((
+        50,
+        EntityBodyValue::TypeDef(TypeDefBody {
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(Vec::new()),
+            invariants: empty.clone(),
+            visibility: Visibility::Private,
+        }),
+    ));
+    bodies.push((
+        51,
+        EntityBodyValue::Function(FunctionBody {
+            type_parameters: Vec::new(),
+            parameters: vec![id(60), id(61), id(62), id(63), id(64), id(65)],
+            result_type: wide_type(id(50)),
+            effects: empty.clone(),
+            entry_block: id(52),
+            blocks: vec![id(52)],
+            contracts: empty.clone(),
+            visibility: Visibility::Private,
+        }),
+    ));
+    bodies.push((
+        52,
+        EntityBodyValue::Block(BlockBody {
+            function: id(51),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(id(60)),
+            }),
+            reachability: Reachability::Required,
+        }),
+    ));
+    for (byte, ordinal) in [(60, 0), (61, 1), (62, 2), (63, 3), (64, 4), (65, 5)] {
+        bodies.push((
+            byte,
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: id(51),
+                role: ParameterRole::Function,
+                ordinal,
+                value_type: wide_type(id(50)),
+            }),
+        ));
+    }
+    bodies
+}
+
+fn aggregate_request_body(root: StateRoot, entity: EntityId) -> Vec<u8> {
+    entity_read_body_capped(root, entity, 7, 24_000_000, 100_000_000)
+}
+
+#[test]
+fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
+    // R3 / VUL-P2-02: the complete frame body travels as one SCB Bytes
+    // value, so the inherited MAX_BYTE_PAYLOAD ceiling binds the aggregate
+    // response body, not just each stored object. A real method-307
+    // signature over one Function plus six Parameters passes every
+    // per-object and owner ceiling while its aggregate body exceeds the
+    // outer 16MiB cap: serving must refuse with PROTOCOL_LIMIT_EXCEEDED
+    // before reservation (dispatch-only debit) and leave the session
+    // viable. Trusted genesis admits the inventory structurally; no full
+    // candidate semantic validation is claimed here.
+    use sley_query::{EntityReadCeilings, EntityReadMethod};
+    let ceiling = u64::try_from(MAX_BYTE_PAYLOAD).unwrap();
+    let (client, server) = wide_hellos();
+    let mut harness = VServer::with_hellos(
+        "repair-r3-aggregate",
+        wide_signature_bodies(),
+        &[],
+        client,
+        server,
+    );
+    let function = sley_repo::test_support::id(51);
+    let request = aggregate_request_body(harness.root, function);
+
+    // Preparation succeeds on the admitted revision: K/body/W metadata
+    // proves the transport bound is reached, not an earlier owner check.
+    // Every other ceiling is eliminated below, so the outer Bytes cap is
+    // the only intended first failing bound.
+    let revision = sley_txn::TransactionRepository::new(&harness.repository)
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .clone();
+    let epoch = revision.state_root().record.schema_epoch_id;
+    for byte in [51, 60, 61, 62, 63, 64, 65] {
+        let entity = sley_repo::test_support::id(byte);
+        let object = revision
+            .objects()
+            .iter()
+            .find(|object| object.record().entity_id == entity)
+            .unwrap_or_else(|| panic!("wide object {byte} missing"));
+        assert!(
+            object.stored_bytes().len() as u64 < ceiling,
+            "wide object {byte} must pass its own Bytes cap"
+        );
+        let imported =
+            sley_mutate::import_entity_object(epoch, object.stored_bytes()).unwrap();
+        assert_eq!(imported.object_id(), object.object_id());
+    }
+    let before = harness.budget();
+    let ceilings = EntityReadCeilings {
+        max_entities: 65_535,
+        max_response_bytes: 33_554_432,
+        max_work: 100_000_000,
+        budget_before_dispatch: before,
+    };
+    let (_, plan) = sley_repo::prepare_verified_entity_read(
+        &revision,
+        EntityReadMethod::Signature,
+        &request,
+        &ceilings,
+    )
+    .unwrap();
+    assert_eq!(plan.object_count(), 7);
+    assert!(
+        plan.body_len() > ceiling,
+        "aggregate body must exceed the outer Bytes cap"
+    );
+    assert!(
+        plan.body_len() <= 24_000_000,
+        "aggregate body must fit the request ceiling"
+    );
+    assert!(
+        plan.work_units() <= before,
+        "aggregate work must fit the live session budget"
+    );
+
+    let (failed, frame) = harness.call(ENTITY_SIGNATURE_TAG, request);
+    assert!(failed, "aggregate above the Bytes ceiling must refuse");
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    assert_eq!(
+        harness.budget(),
+        before - 1,
+        "outer-ceiling refusal costs only the dispatch unit: no work reserved"
+    );
+    let followup = harness.read(
+        ENTITY_VERSION_TAG,
+        sley_repo::test_support::id(31),
+    );
+    assert_eq!(followup.bounds.returned_entities, 1);
+}
+
+#[test]
+fn repair_frame_body_bytes_ceiling_edges() {
+    // R3 metadata/writer edges, distinct from the aggregate serving
+    // fixture: the canonical Bytes encoder and the direct frame writer
+    // agree on the inherited 16MiB body ceiling.
+    let ceiling = usize::try_from(MAX_BYTE_PAYLOAD).unwrap();
+    assert!(encode_bytes(&vec![0u8; ceiling]).is_ok());
+    assert!(encode_bytes(&vec![0u8; ceiling + 1]).is_err());
+    let frame_with_body = |len: usize| ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION_V2,
+        session: Some(SessionId::from_bytes([0x51; 32])),
+        request_id: 1,
+        kind: FrameKind::Response,
+        method: ENTITY_SIGNATURE_TAG,
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: vec![0xAB; len],
+    };
+    assert!(
+        encode_single_frame_direct(&frame_with_body(ceiling), MAX_FRAME_BYTES).is_ok(),
+        "a body exactly at the Bytes ceiling still encodes"
+    );
+    assert_eq!(
+        encode_single_frame_direct(&frame_with_body(ceiling + 1), MAX_FRAME_BYTES)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::LimitExceeded,
+        "the direct writer refuses one byte over the Bytes ceiling"
+    );
+}
+
+#[test]
+fn repair_exact_and_one_below_object_count() {
+    // R7 object-count dimension: a four-object signature serves with
+    // max_objects 4 and refuses with max_objects 3.
+    let mut counts = VServer::with_bodies("repair-r7-counts", nonmonotonic_bodies(), &[]);
+    let root = counts.root;
+    let function = EntityId::from_bytes([40; 32]);
+    let exact_k = entity_read_body_capped(root, function, 4, 8_388_608, 100_000_000);
+    let (failed_exact, exact_frame) = counts.call(ENTITY_SIGNATURE_TAG, exact_k);
+    assert!(!failed_exact, "exact object count must serve");
+    assert_eq!(exact_frame.bounds.returned_entities, 4);
+    let below_k = entity_read_body_capped(root, function, 3, 8_388_608, 100_000_000);
+    let denied_k = counts.refuse(ENTITY_SIGNATURE_TAG, below_k);
+    assert_eq!(denied_k.code, ProtocolErrorCode::LimitExceeded.numeric());
+}
+
+#[test]
+fn repair_response_body_ceiling_tracks_work_feedback() {
+    // R7 response-body dimension: the ceiling that binds is found live,
+    // because the charged work rides inside the body and shrinking the
+    // ceiling also shrinks the body. The learned length serves exactly;
+    // the descended threshold is the first ceiling that refuses.
+    let mut bodies = VServer::new("repair-r7-body");
+    let signature = entity_read_body(bodies.root, sley_repo::test_support::id(30));
+    let answer = bodies.call_raw(ENTITY_SIGNATURE_TAG, signature);
+    assert!(!answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    let _ = decode_entity_read_response(&frame.body).unwrap();
+    let body_len = frame.bounds.returned_bytes;
+    let exact_bytes =
+        entity_read_body_capped(bodies.root, sley_repo::test_support::id(30), 65_535, body_len, 100_000_000);
+    let (failed_bytes, _) = bodies.call(ENTITY_SIGNATURE_TAG, exact_bytes);
+    assert!(!failed_bytes, "exact response bytes must serve");
+    // The charged work rides inside the body, so shrinking the ceiling
+    // also shrinks the body: descend to the true work-feedback-stable
+    // threshold where the ceiling binds exactly.
+    assert!(body_len > 16);
+    let mut threshold = body_len;
+    while {
+        let capped = entity_read_body_capped(
+            bodies.root,
+            sley_repo::test_support::id(30),
+            65_535,
+            threshold - 1,
+            100_000_000,
+        );
+        let (failed, _) = bodies.call(ENTITY_SIGNATURE_TAG, capped);
+        !failed
+    } {
+        threshold -= 1;
+    }
+    assert!(threshold > 16);
+    let denied_bytes = bodies.refuse(
+        ENTITY_SIGNATURE_TAG,
+        entity_read_body_capped(
+            bodies.root,
+            sley_repo::test_support::id(30),
+            65_535,
+            threshold - 1,
+            100_000_000,
+        ),
+    );
+    assert_eq!(denied_bytes.code, ProtocolErrorCode::LimitExceeded.numeric());
+}
+
+#[test]
+fn repair_exact_and_one_below_session_budget() {
+    // R7 work dimension: a session budgeted at exactly the observed work
+    // serves once to zero; the next request reports exhaustion with no
+    // further debit. The work figure comes from a live read of the same
+    // repository and request shape on a generously budgeted server.
+    let mut learn = VServer::new("repair-r7-work-learn");
+    let entity = sley_repo::test_support::id(30);
+    let frame = learn.read(ENTITY_VERSION_TAG, entity);
+    let work = decode_entity_read_response(&frame.body).unwrap().work_units;
+    assert!(work > 1);
+    let capped = vhello_capped(v2_methods(), 4, work, 8_388_608, 8_388_608, 1);
+    let mut alias = VServer::alias_on_repo(
+        "repair-r7-budget",
+        learn.repository.clone(),
+        capped.clone(),
+        capped,
+    );
+    assert_eq!(alias.budget(), work);
+    let exact_work =
+        entity_read_body_capped(alias.root, entity, 65_535, 8_388_608, work);
+    let (failed_work, _) = alias.call(ENTITY_VERSION_TAG, exact_work);
+    assert!(!failed_work, "exact session budget must serve");
+    assert_eq!(alias.budget(), 0);
+    let exhausted = alias.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body_capped(alias.root, entity, 65_535, 8_388_608, work),
+    );
+    assert_eq!(exhausted.code, ProtocolErrorCode::LimitExceeded.numeric());
+    assert_eq!(alias.budget(), 0);
+}
+
+#[test]
+fn repair_foreign_workspace_swap_refuses_entity_read() {
+    // R7 selected wrong-workspace context: swapping in a foreign-workspace
+    // repository makes the live session foreign; the entity read refuses
+    // with SESSION_WORKSPACE_MISMATCH, no debit, and the session serves
+    // again once its own repository is restored (slot released).
+    use sley_repo::test_support::{TempDir, genesis_in_workspace};
+    let mut harness = VServer::new("repair-r7-swap");
+    let before = harness.budget();
+    let (foreign_temp, _, _) =
+        genesis_in_workspace("repair-r7-foreign", dependency_free_bodies(), &[], 2);
+    let parked = TempDir::new("repair-r7-parked");
+    std::fs::rename(&harness.repository, parked.child("repo")).unwrap();
+    std::fs::rename(foreign_temp.child("repo"), &harness.repository).unwrap();
+    let mismatch = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(mismatch.symbol, "SESSION_WORKSPACE_MISMATCH");
+    assert_eq!(mismatch.code, 33_001);
+    assert_eq!(harness.budget(), before, "session refusals debit nothing");
+    std::fs::rename(&harness.repository, foreign_temp.child("repo")).unwrap();
+    std::fs::rename(parked.child("repo"), &harness.repository).unwrap();
+    let frame = harness.read(
+        ENTITY_VERSION_TAG,
+        sley_repo::test_support::id(30),
+    );
+    assert_eq!(frame.bounds.returned_entities, 1);
+}
+
+#[test]
+fn repair_debit_phases_observe_budget_and_followup() {
+    // R7 debit table: every pre-reservation failure phase costs exactly
+    // the dispatch unit, session-binding failures cost nothing, and a
+    // follow-up request stays viable after each.
+    let mut harness = VServer::new("repair-r7-debit");
+    let entity = sley_repo::test_support::id(30);
+    let start = harness.budget();
+    let frame = harness.read(ENTITY_VERSION_TAG, entity);
+    let first_work = decode_entity_read_response(&frame.body).unwrap().work_units;
+    let mut expected = start - first_work;
+
+    let junk = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
+    assert_eq!(junk.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let unknown = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, EntityId::from_bytes([0x63; 32])),
+    );
+    assert_eq!(unknown.code, 31_004);
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let wrong_kind = harness.refuse(
+        ENTITY_SIGNATURE_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(34)),
+    );
+    assert_eq!(wrong_kind.code, 31_010);
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let narrow_objects = entity_read_body_capped(harness.root, entity, 2, 8_388_608, 100_000_000);
+    let denied_k = harness.refuse(ENTITY_SIGNATURE_TAG, narrow_objects);
+    assert_eq!(denied_k.code, ProtocolErrorCode::LimitExceeded.numeric());
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let over_work = encode_record(&[
+        (1, harness.root.as_bytes().to_vec()),
+        (2, entity.as_bytes().to_vec()),
+        (3, encode_uvar(65_535)),
+        (4, encode_uvar(8_388_608)),
+        (5, encode_uvar(u64::MAX)),
+    ])
+    .unwrap();
+    let denied_work = harness.refuse(ENTITY_VERSION_TAG, over_work);
+    assert_eq!(
+        denied_work.code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let tiny_bytes = entity_read_body_capped(harness.root, entity, 65_535, 16, 100_000_000);
+    let denied_bytes = harness.refuse(ENTITY_SIGNATURE_TAG, tiny_bytes);
+    assert_eq!(
+        denied_bytes.code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let wrong_root = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(StateRoot::from_bytes([0x77; 32]), entity),
+    );
+    assert_eq!(wrong_root.code, 31_008);
+    expected -= 1;
+    assert_eq!(harness.budget(), expected);
+
+    let followup = harness.read(ENTITY_VERSION_TAG, sley_repo::test_support::id(31));
+    assert_eq!(followup.bounds.returned_entities, 1);
+    expected -= decode_entity_read_response(&followup.body).unwrap().work_units;
+    assert_eq!(harness.budget(), expected);
+
+    // Session-binding failures debit nothing and release the slot.
+    let (new_root, target) = advance_head_with_namespace(&mut harness);
+    let after_commit = harness.budget();
+    for _ in 0..2 {
+        let stale = harness.refuse(
+            ENTITY_VERSION_TAG,
+            entity_read_body(harness.root, entity),
+        );
+        assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+        assert_eq!(harness.budget(), after_commit);
+    }
+    let (renew_failed, _) = harness.call(
+        Method::SessionRenew.tag(),
+        harness.session.as_bytes().to_vec(),
+    );
+    assert!(!renew_failed);
+    harness.root = new_root;
+    let renewed = harness.read(ENTITY_VERSION_TAG, target);
+    assert_eq!(
+        decode_entity_read_response(&renewed.body).unwrap().root,
+        new_root
+    );
 }
