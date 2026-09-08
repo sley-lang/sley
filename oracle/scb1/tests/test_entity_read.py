@@ -1710,6 +1710,66 @@ class CorpusContentClosureCases(unittest.TestCase):
             mutated["unexpected_top_level"] = 1
             self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected:fields")
 
+    def test_explicit_rejected_kind_must_be_known_string(self) -> None:
+        scoped, _accepted, rejected = _b1_control()
+        self.assertEqual(rejected["contract"], "sley2-entity-read-v2-rejected")
+        self.assertEqual(rejected["claim"], "independent-expected")
+        self.assertEqual(scoped["rejected"][0]["id"], "req_missing_field")
+        self.assertEqual(rejected["cases"][0]["id"], "req_missing_field")
+        self.assertNotIn("kind", scoped["rejected"][0])
+        self.assertNotIn("kind", rejected["cases"][0])
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        variants = (
+            ("null", None),
+            ("list", []),
+            ("object", {}),
+            ("false", False),
+            ("zero", 0),
+            ("one", 1),
+            ("empty-string", ""),
+            ("unknown-string", "future"),
+        )
+        for label, kind in variants:
+            with self.subTest(kind=label):
+                inputs = copy.deepcopy(scoped)
+                doc = copy.deepcopy(rejected)
+                inputs["rejected"][0]["kind"] = kind
+                doc["cases"][0]["kind"] = kind
+                doc["manifest"]["inputs_sha256"] = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+                original = copy.deepcopy((inputs, doc))
+                try:
+                    problems = entity_read.check_rejected(inputs, doc)
+                except Exception as error:
+                    self.fail(f"uncontrolled {type(error).__name__} for kind={label!r}: {error!r}")
+                self.assertEqual((inputs, doc), original)
+                self.assertB1Problems(problems, "rejected:req_missing_field:kind")
+
+    def test_mismatching_fill_length_cannot_drive_expansion(self) -> None:
+        scoped = _b1_scoped_inputs()
+        authored = copy.deepcopy(next(row for row in load_authored_inputs()["rejected"] if row["id"] == "fill_bytes_exact"))
+        scoped["rejected"] = [copy.deepcopy(authored)]
+        inputs_sha = hashlib.sha256(json.dumps(scoped, sort_keys=True).encode()).hexdigest()
+        doc = {
+            "contract": "sley2-entity-read-v2-rejected",
+            "claim": "independent-expected",
+            "manifest": {"inputs_sha256": inputs_sha},
+            "cases": [copy.deepcopy(authored)],
+        }
+        self.assertEqual(authored["fill_length"], 16777216)
+        self.assertEqual(doc["contract"], "sley2-entity-read-v2-rejected")
+        self.assertEqual(doc["claim"], "independent-expected")
+        self.assertEqual(doc["manifest"]["inputs_sha256"], hashlib.sha256(json.dumps(scoped, sort_keys=True).encode()).hexdigest())
+        self.assertEqual(len(doc["cases"]), 1)
+        self.assertEqual(entity_read.check_rejected(scoped, doc), [])
+        doc["cases"][0]["fill_length"] = 2**64
+        original = copy.deepcopy((scoped, doc))
+        try:
+            problems = entity_read.check_rejected(scoped, doc)
+        except Exception as error:
+            self.fail(f"uncontrolled {type(error).__name__}: {error!r}")
+        self.assertEqual((scoped, doc), original)
+        self.assertB1Problems(problems, "rejected:fill_bytes_exact:fill_length")
+
 
 if __name__ == "__main__":
     unittest.main()
