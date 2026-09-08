@@ -1877,7 +1877,8 @@ def derive_relation(inputs: Mapping[str, Any], case: dict[str, Any]) -> dict[str
     return case
 
 
-def check_stateful_spec(case: Mapping[str, Any], problems: list[str]) -> None:    if case.get("status") != "pending_runtime_comparison":
+def check_stateful_spec(case: Mapping[str, Any], problems: list[str]) -> None:
+    if case.get("status") != "pending_runtime_comparison":
         problems.append(f"{case['id']}:stateful-must-be-pending")
     for step in case.get("steps", []):
         symbol = step.get("expected_symbol")
