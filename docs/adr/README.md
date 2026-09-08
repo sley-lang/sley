@@ -24,6 +24,9 @@ Current records:
 - ADR-0016: protected capability-token admission and accounting
 - ADR-0017: candidate contract and identity freeze
 - ADR-0017: offline raw baseline evidence runner
+  (two records share the ADR-0017 number: `ADR-0017-candidate-contract-freeze.md`
+  and `ADR-0017-offline-raw-baseline-runner.md`; tolerated collision, both are
+  cited by number plus filename elsewhere, so neither is renumbered)
 - ADR-0018: frozen legacy artifact adapter and retained version smoke
 - ADR-0019: unreleased epoch-1 generic Option contract re-anchor
 - ADR-0020: candidate result identity and monotonic validation boundary

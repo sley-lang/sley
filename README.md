@@ -50,8 +50,9 @@ now adds a separately identified restricted evidence capsule for those complete
 responses, with exact raw-ID dictionaries and direct-edge tables but fixed
 no-omission, no-truncation, and no-continuation status. It is not the master
 context capsule and adds no workspace/root/session authority. Every next
-package must follow `docs/WORK_PACKAGES.md`. S20-330 is deliberately deferred
-until negotiated session and verified workspace/root authority exist. S20-340
+package must follow `docs/WORK_PACKAGES.md`. S20-330 (negotiated sessions)
+was deferred until verified workspace/root authority existed and closed on
+2026-09-05 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). S20-340
 now generates immutable mutation descriptors for all eighteen SSMC1 entity
 kinds and all sixteen primitive classes from the exact frozen manifest. It
 provides no candidate construction, executable mutation, validation, policy,
