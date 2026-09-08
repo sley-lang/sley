@@ -31,6 +31,16 @@
       "vectors": 24
     },
     {
+      "family": "exec-package",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
+      "family": "host-abi",
+      "rejections": 0,
+      "vectors": 0
+    },
+    {
       "family": "merge",
       "rejections": 4,
       "vectors": 19
@@ -44,6 +54,11 @@
       "family": "mutation-value",
       "rejections": 18,
       "vectors": 126
+    },
+    {
+      "family": "raw-hash",
+      "rejections": 0,
+      "vectors": 0
     },
     {
       "family": "release-demo",
@@ -109,7 +124,7 @@
   "conformance_rejections": 178,
   "conformance_vectors": 387,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "9d7f2bff37bfcfb2bfb931c3661dc3ef9fcd21591839860cc51f974b71065c86",
+  "inventory_digest": "e84f3be256896842331ef512ec893b9bd0020009e21330fd81e674e84bd961b2",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -233,7 +248,7 @@
     {
       "crate": "sley-repo",
       "ignored": 3,
-      "tests": 365
+      "tests": 380
     },
     {
       "crate": "sley-scb1",
@@ -268,11 +283,11 @@
     {
       "crate": "sley-vm",
       "ignored": 2,
-      "tests": 61
+      "tests": 229
     }
   ],
   "rust_ignored_emitters": 14,
-  "rust_unit_tests": 1106,
+  "rust_unit_tests": 1289,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

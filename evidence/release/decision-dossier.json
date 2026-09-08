@@ -3,14 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "10 review lanes are deferred and unavailable",
-    "69 review obligations are open",
+    "67 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e3b396de811f815fd07388713fd13b5078ea5944b43189e59f2eb6cbc9a2db20",
+  "dossier_digest": "16d87f81256978246722e921d5222bd86c033cf3266b56e4f42e96c8927805fa",
   "entries": [
     {
       "evidence": [
@@ -93,7 +93,7 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 20,
+        "independently_checked_families": 24,
         "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
@@ -109,7 +109,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 23,
+        "python_sources": 26,
         "rust_dependency_check": "PASS"
       }
     },
@@ -148,7 +148,7 @@
         "property_tests": 0,
         "python_tests": 148,
         "rust_ignored_emitters": 14,
-        "rust_unit_tests": 1106
+        "rust_unit_tests": 1289
       }
     },
     {
@@ -339,8 +339,8 @@
           "p4": 0
         },
         "deferred_reviews": 10,
-        "obligations": 218,
-        "open_reviews": 69,
+        "obligations": 221,
+        "open_reviews": 67,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 83,
@@ -352,9 +352,9 @@
         "states": {
           "DEFERRED": 10,
           "HISTORICAL_ROUND": 38,
-          "OTHER": 2,
-          "PASS": 99,
-          "PENDING": 69
+          "OTHER": 3,
+          "PASS": 103,
+          "PENDING": 67
         }
       }
     },
@@ -416,7 +416,7 @@
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
           "M6 release: the evidence chain is built and drift-checked (SBOM, provenance, reproducibility, finding register, GA acceptance, decision dossier). What remains is the operator's: the root license text, a second host attestation, and the release decision itself",
           "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down",
-          "Provenance/similarity audit of the Sley 1.2 source: not performed (S20-780 revision 3, Vulcan P1-2). Blocks GA acceptance of the clean-room claim; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
+          "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
       }
     },
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "c9f9fe2342ec7b591e6265bf061ea05c275512b4690355b9d93cf3272c0521f0",
+  "entries_digest": "b6ac3ee3433c9151ea21db01b15cb5cd82c88c77e254b3c04f008cf902ca5c24",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

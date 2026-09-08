@@ -880,4 +880,309 @@ CODE_OWNERSHIP: n/a
 REVIEW_REQUIRED: none.
 ```
 
+### 3.5 Canonical specification synchronization (spec section 14) and status mechanism (15.5)
+
+The spec-sync audit's 27-row drift table and its status-mechanism inventory
+are retained in the campaign worksheet; the records follow. Two red gates
+predate the campaign and are repaired here: the derived review evidence could
+not be rebuilt (AT-SS-04) and two Tier 1 checkers bind the master goal by a
+path outside the repository (AT-SS-13). machine-summary.json is the canonical
+hand-maintained status mechanism that section 15.5's locator extends
+(AT-SS-14).
+
+```text
+FINDING_ID: AT-SS-01
+TITLE: Bootstrap manifest and CONTRIBUTING still bind P to BOOTSTRAP_PROFILE_1 after the v2 successor became the current R2 candidate
+HYPOTHESIS: The REWEAVE lane record for P (bootstrap-manifest.json) and the governance text (CONTRIBUTING.md) were not moved when RW-075 introduced the v2 successor profile, ABI, and package.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json:49-53 `"status": "frozen (BOOTSTRAP_PROFILE_1 v1, RW-050 slice 2)", "value": "BOOTSTRAP_PROFILE_1", "digest": "4f2691504b5c..."` (last commit b2c850f, 2026-09-06, before 9574f8a); CONTRIBUTING.md:41-43 `governed by host-boundary.json, BOOTSTRAP_PROFILE_1, and the staged SH2 gates`; scripts/check_r2_exit.py:89-94 labels the v1 digest as `P_bootstrap_profile_1` while separately checking `R2_profile_v2`; scripts/check_bootstrap_profile_1.py and scripts/check_bootstrap_capability.py:47 read the manifest and bind its P digest; host-boundary.json:21 mentions BOOTSTRAP_PROFILE_1 but is digest-pinned (sha256 d935d238... equals manifest H.manifest_digest) and must stay byte-identical.
+SPEC_EVIDENCE: docs/spec/BOOTSTRAP_PROFILE_2.md:3-4,12 `frozen successor (RW-075 correction, 2026-09-06). Version 2. Current R2 candidate. ... Supersedes: BOOTSTRAP_PROFILE_1 v1`; reweave/rw-075-correction.md:64 `Supersession: v1 -> retained historical evidence; v2 -> current R2 candidate`; reweave/rw-080-contract.md:9-16 `every module below builds under BOOTSTRAP_PROFILE_2 ... no RW-080 module builds under them [v1]`; REWEAVE master 13.1 defines P as the pinned profile used in `C1 = C0.build(S, P)`; tightening spec section 14 forbids `master spec = new semantics / subordinate record = contradictory old semantics` without a supersession path.
+CURRENT_BEHAVIOR: The manifest that REWEAVE 13.1 designates as the binding of P records the superseded v1 as the bound value with no successor field; CONTRIBUTING names v1 as governing; the R2 gate labels v1 as "P". The supersession itself is explicit in the V2 documents and the correction record, so semantics are not ambiguous, but the subordinate lane record and governance text disagree with the current candidate.
+DESIRED_INVARIANT: Every record that names the bound P, host ABI, or exec package names the current candidate (v2 digests fb2d8cc8..., bc564653..., f4958c5e...) and carries v1 only as history.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Truthful record update with no semantic change: v2 is already frozen, reviewed (RW-075 Ariadne/Nabu PASS per check_r2_exit), and checker-validated; v1 stays byte-identical. The manifest edit must land together with check_bootstrap_profile_1.py / check_bootstrap_capability.py / check_r2_exit.py label changes because they bind the manifest, and host-boundary.json must not be touched.
+CANONICAL_IMPACT: none (no identity, digest, or domain changes)
+SCHEMA_IMPACT: none
+ABI_IMPACT: none (HOST_ABI_V2 already current)
+SELFHOST_IMPACT: none on semantics; the manifest becomes truthful for the eventual C1 = C0.build(S, P) record
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: check_bootstrap_profile_1.py, check_bootstrap_profile_2.py, check_bootstrap_capability.py, check_r2_exit.py, check_host_abi_v1/v2.py, check_exec_package_v1/v2.py all PASS after the edit; a manifest structural test that P.successor/history keys are provenanced (no invented hashes)
+SPECS_TO_UPDATE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json (P: current v2 + history v1), CONTRIBUTING.md:42, scripts/check_r2_exit.py labels; none of docs/spec
+CODE_OWNERSHIP: Ariadne (REWEAVE lane records), Codex/integrator (CONTRIBUTING), Vulcan (gate scripts)
+REVIEW_REQUIRED: yes, Nabu architecture re-read of the manifest binding (REWEAVE 13.1) before R2 exit re-evaluation
+```
+
+```text
+FINDING_ID: AT-SS-02
+TITLE: CLI and JSON-bridge contracts pin SMP1 revision 10 while SMP1 is at revision 11 and the bridge vectors already carry revision-11 semantics
+HYPOTHESIS: SMP1 revision 11 landed after the CLI and bridge closures and the subordinate contracts were never re-pinned, leaving implementation and vectors ahead of the contract text.
+REPOSITORY_EVIDENCE: docs/spec/SLEY_CLI_V1.md:15 `(docs/spec/SMP1.md revision 10, ...)` and :217 `The revision pins are SMP1 revision 10 and bridge revision 6` (last commit 981d6a1, 2026-09-05 08:34); docs/spec/SMP1_JSON_BRIDGE_V1.md:19 `It composes, and never alters, docs/spec/SMP1.md (revision 10)` (db631d3, 2026-09-05 08:14); docs/spec/SMP1.md:3 `revision 11 (2026-09-05 ...)` landed 776983f 2026-09-05 17:03; commit d26b686 (2026-09-05 23:20) "teach the bridge vector checker the SMP1 revision 11 version split ... The S20-400 closure re-emitted the two negative-zero rejected vectors as PROTOCOL_DOWNGRADE"; conformance/smp1-json-bridge/v1/rejected.json:161,166 `"expected_code": "PROTOCOL_DOWNGRADE"`; grep PROTOCOL_DOWNGRADE in SMP1_JSON_BRIDGE_V1.md and SLEY_CLI_V1.md: 0 hits (SMP1.md: 6, ERROR_CODES_V1.md: 1); scripts/check_cli_contract.py and check_smp1_json_bridge_contract.py only extract the contract's own revision (lines 145-149, 150-154) and never assert the SMP1 pin; scripts/check_session_handle_profile.py:42-47,272-276 does assert its SMP1 pin against SMP1's status line and is at 11; RESUME.md:429-433 records the same episode.
+SPEC_EVIDENCE: SMP1.md:32-50 revision history: "11 answers the three Council review rounds in full (explicit retryability enumeration, enforced response ceilings, ... version-claim rule, failed-stream flag, ...)"; tightening spec section 14: never `implementation = new semantics, canonical spec = old semantics`.
+CURRENT_BEHAVIOR: The bridge vectors and checker reject below-selected versions as PROTOCOL_DOWNGRADE (revision 11) while the bridge contract text pins revision 10 and does not name the downgrade outcome; the CLI contract pins revision 10 and no checker would catch either pin moving.
+DESIRED_INVARIANT: Every composing contract pins the revision of the authority it composes, the pin is asserted by its checker against the authority's own status line, and every vector outcome is named by the contract that owns the vector.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: SMP1, the bridge, and the CLI are all Council-review-pending drafts, not frozen contracts, so no supersession document is needed; re-pinning to revision 11 (bridge revision 7, CLI revision 4) with a revision note naming the downgrade split, plus checker-enforced pins modelled on check_session_handle_profile.py, is additive and records semantics that are already implemented and vectored.
+CANONICAL_IMPACT: none (sley2.protocol-frame.v1 / handshake domains unchanged)
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: check_cli_contract.py and check_smp1_json_bridge_contract.py gain an SMP1 pin assertion (fail when SMP1.md status revision differs); `make conformance` bridge vectors unchanged and green
+SPECS_TO_UPDATE: docs/spec/SMP1_JSON_BRIDGE_V1.md (pin 11, revision 7 note naming PROTOCOL_DOWNGRADE), docs/spec/SLEY_CLI_V1.md (pin 11, revision 4 note), docs/WORK_PACKAGES.md rows S20-420/S20-430, machine-summary.json json_bridge.contract_revision / cli.contract_revision
+CODE_OWNERSHIP: Merlin (S20-420, S20-430 packages), Ariadne (SMP1 contract owner)
+REVIEW_REQUIRED: yes, Ariadne contract re-read of the two pin bumps (bounded delta)
+```
+
+```text
+FINDING_ID: AT-SS-03
+TITLE: Required Contract Index status line and the S20-770 review state
+HYPOTHESIS: REQUIRED_CONTRACT_INDEX_V1.md "revision 1, Council review pending" is stale because later S20-770 work exists.
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:3-5 `Status: S20-770 contract draft, revision 1 (2026-09-03); Council review pending`; git log for the file: 783fec8, 6398acb (both 2026-09-03), nothing later; scripts/check_required_contract_index.py:20-21 tokens S20_770_CONTRACT_DRAFT_REVIEW_PENDING / S20_770_INDEX_ACCEPTED, run result PASS (12 required contracts, 19 documents, 18 checkers, 14 domains, 50 derived identifier domains); machineresearch/sley-2.0/reviews/verdicts.json 770-ariadne-contract FAIL (p1 3, p2 6, p3 2), 770-nabu-architecture FAIL (p1 4, p2 3, p3 3), 770-vulcan-surface FAIL (p1 1, p2 4, p3 3), all p0 0; evidence/review/finding-register.json:1746-1780 package_status S20_770_CONTRACT_DRAFT_REVIEW_PENDING; docs/adr/ADR-0047-required-contract-index.md:3-4 "proposed; the S20-770 index is a draft at revision 1 with Council review pending"; grep for lane2 / "lane 2" / lane-2 across *.md *.json: zero hits, no S20-770 revision-2 draft anywhere in the tree.
+SPEC_EVIDENCE: REQUIRED_CONTRACT_INDEX_V1.md:70 defines the two-state token vocabulary (DRAFT_REVIEW_PENDING until accepted); Sley2.0mastergoal.md section 17 names twelve contracts; the index table rows 17.1..17.12 name the identical twelve (verified string-for-string).
+CURRENT_BEHAVIOR: Index content, master section 17, checker, ADR-0047, machine-summary token, finding register, and verdicts all agree: revision 1 draft, reviewed once, three FAIL verdicts on P1 findings, not accepted. The status line says "review pending" rather than "reviewed FAIL, repairs pending", but the checker-bound token cannot express more and the verdict record carries the detail.
+DESIRED_INVARIANT: Index, master, checker, and review record agree on the accepted/not-accepted state. (Holds.)
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: No layer contradicts another. The open P1 findings are S20-770 package work (a revision-2 draft answering the three rounds), not a synchronization defect; the "lane2 work" premise is not present in the repository and is not assumed.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none beyond the existing check_required_contract_index.py PASS
+SPECS_TO_UPDATE: none for synchronization; optional wording "Council review round 1 returned FAIL on P1 findings (verdicts.json); revision 2 pending" is cosmetic
+CODE_OWNERSHIP: Ariadne (S20-770)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-04
+TITLE: Derived review records (finding register, decision dossier, test inventory) are stale and cannot be rebuilt because the RW-060 verdict fields use a vocabulary the ADR-0042 derivation reads as PENDING
+HYPOTHESIS: The machine summary moved fifteen commits past the last evidence refresh and one of those edits encoded PASS verdicts in a form the register derivation does not accept, so `make quick` is red at the pinned commit.
+REPOSITORY_EVIDENCE: evidence/review/finding-register.json, evidence/release/decision-dossier.json, evidence/validation/test-inventory.json last rebuilt at b2c850f (2026-09-06); machine-summary.json changed in b4c3390, e85b89c, 624f1c0, 9574f8a, 6c3d5df, 3f64497, 9bb442c, d4f5a88, 83fe94a, f6048a3, 72fff72, 94a2a57, 0470915, 12546de, 9b9d394; `python3 scripts/check_finding_register.py` -> FAIL problems [finding-register:obligations-drift, finding-register:obligations-digest, finding-register:drift, register-tests:fail]; `python3 scripts/check_decision_dossier.py` -> FAIL problems [decision-dossier:drift, test-inventory:drift, dossier-tests:fail]; `python3 scripts/build_finding_register.py --check` -> `{"code": 75002, "detail": "rw060_source_free_lifecycle.ariadne_review is PENDING; rw060_source_free_lifecycle.nabu_review is PENDING", "name": "COMPLETION_VIOLATION", "result": "FAIL"}`; `build_decision_dossier.py --check` -> 76003 DRIFT; `build_test_inventory.py --check` -> FAIL "tracked test inventory differs from the derived inventory"; machine-summary.json rw060_source_free_lifecycle: `"status": "RW060_COMPLETE"`, `"ariadne_review": "FAIL_3xP1_THEN_PASS_3x3_DELTA"`, `"nabu_review": "FAIL_THEN_PASS_P1_P2s_AND_P22_ARC_CLOSED"`; scripts/build_finding_register.py:49 "Nothing else maps to a state except by its first token", :155-163 classify_token (head FAIL -> FAIL_ROUND, superseded only by a same-reviewer PASS field in the same section, none present), :185-190 is_complete_status; Makefile:80-81 run both checkers inside `quick`.
+SPEC_EVIDENCE: reweave/rw-060.md:3-4 `Status: COMPLETE (implementation + validation green; Ariadne PASS, Nabu PASS with execution record)`; reviews/reweave-rw060-ariadne-r2-2026-09-06.log:18 and reweave-rw060-nabu-r2g-2026-09-06.log:20 orchestrator notes converting to final PASS on the execution record; docs/adr/ADR-0042 "the finding register is derived from recorded dispositions"; docs/spec/FINDING_REGISTER_V1.md section 2 vocabulary; tightening spec section 14 requires review/qualification records to agree with implementation.
+CURRENT_BEHAVIOR: The RW-060 verdicts are PASS in the lane record and transcripts, FAIL-headed strings in the summary, PENDING in the derivation, and absent from the tracked register, which still reflects b2c850f. The Tier 1 gate is red at the pinned commit for a record-encoding reason, not an engineering one.
+DESIRED_INVARIANT: Every summary review field uses the ADR-0042 vocabulary (first token PASS/FAIL/REVISE/PENDING/DEFERRED, FAIL rounds superseded by a same-reviewer PASS field), the derived register/dossier/inventory equal their `--check` derivation at every commit, and `make quick` is green.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Truthful re-encoding of verdicts that already exist (e.g. `ariadne_review_round1: FAIL_3_P1`, `ariadne_review: PASS_3_OF_3_DELTA_CLOSED`, same for Nabu) followed by `make evidence-refresh`; no semantic, identity, or gate change. Severity is high because a red Tier 1 gate masks later regressions and contradicts RESUME.md's "Tier 1 green" claim for every commit after b2c850f.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none (RW-060 evidence unchanged)
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: build_finding_register.py --check PASS, build_decision_dossier.py --check PASS, build_test_inventory.py --check PASS, check_finding_register.py PASS, check_decision_dossier.py PASS, `make quick` green; a regression unit test in the register test suite for a FAIL-then-PASS same-reviewer pair
+SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (rw060 review fields), regenerated evidence/review/finding-register.json, evidence/release/decision-dossier.json, evidence/validation/test-inventory.json (and ga-acceptance-report if evidence-refresh touches it)
+CODE_OWNERSHIP: Vulcan (S20-740 register), Codex (S20-750 dossier), Ariadne (RW-060 lane record)
+REVIEW_REQUIRED: no (mechanical re-derivation); note in the next handoff per the in-flight repair rule
+IMPLEMENTATION (slice 5a): rw060_source_free_lifecycle re-encoded as ariadne_round1/nabu_round1 = "FAIL (preserved)" and ariadne_review/nabu_review = "PASS_FINAL" (the rw075_correction convention), with the verdict narrative kept in round_history (a non-review key; a first attempt named review_history was itself classified OTHER and refused, which is the vocabulary working as designed). Rebuilt finding-register.json, decision-dossier.json, test-inventory.json and synced counters. build_finding_register --check FINDING_REGISTER_OPEN (its normal open state), build_decision_dossier --check PASS, build_test_inventory --check PASS, check_finding_register PASS, check_decision_dossier PASS, bench/review/tests OK. Register now derives 221 obligations, 67 open reviews, 10 deferred.
+```
+
+```text
+FINDING_ID: AT-SS-05
+TITLE: docs/WORK_PACKAGES.md carries stale contract revision pins and no REWEAVE rows
+HYPOTHESIS: The work-package DAG was last edited on 2026-09-05 and no longer matches the spec status lines or the active lane set.
+REPOSITORY_EVIDENCE: docs/WORK_PACKAGES.md last commit 1e71820 (2026-09-05); :31-32 `docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md (revision 9, 2026-09-03, ADR-0039, Council review pending)` vs docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md:3 `revision 13 (2026-09-06)`; :49 `docs/spec/SLEY_CLI_V1.md (revision 2, 2026-09-03, ...)` vs SLEY_CLI_V1.md:3 `revision 3 (2026-09-05)`; :59 `docs/spec/SLEY2_TRIAL_RUNNER_V1.md (revision 2, 2026-09-03, ...)` vs SLEY2_TRIAL_RUNNER_V1.md:3 `revision 3 (2026-09-04)`; the other eight revision pins (S20-420, 630, 710, 720, 730, 740, 750, 400) match; grep `RW-` / reweave in WORK_PACKAGES.md: zero hits, while reweave/rw-030..rw-080 records and ADR-0049 are active; scripts/check_local_completion_frontier.py:15,378 reads the file but asserts no revision or row set (PASS).
+SPEC_EVIDENCE: evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:105-111 names `docs/WORK_PACKAGES.md owners` as one of the two role-assignment authorities and binds RW-010/RW-020; REWEAVE master table rows RW-020..RW-040 (lines 595-597) define the lane DAG; README.md:53 "Every next package must follow docs/WORK_PACKAGES.md".
+CURRENT_BEHAVIOR: The document README names as the mandatory package authority is four revisions behind on S20-260/270, one behind on S20-430 and S20-620, and silent on the RW lane that has produced eleven landed packages/slices.
+DESIRED_INVARIANT: Every revision pin in WORK_PACKAGES.md equals the pinned document's status-line revision, and every active lane (S20 and RW) has a row or an explicit pointer to its DAG authority.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Pure record refresh; add a revision-pin assertion to check_local_completion_frontier.py (or a small check_work_packages.py) so the rows cannot drift silently again, and add RW rows or a pointer row to the REWEAVE master table and reweave/ records.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: revision-pin check over every `docs/spec/X.md (revision N` fragment in WORK_PACKAGES.md against X.md line 3, run in `make quick`
+SPECS_TO_UPDATE: docs/WORK_PACKAGES.md rows S20-260, S20-270, S20-430, S20-620 (and S20-420/S20-430 after AT-SS-02); RW rows RW-010..RW-080
+CODE_OWNERSHIP: Codex/integrator (DAG file), Vulcan (frontier checker)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-06
+TITLE: RESUME.md, README.md phase narrative, and the README Authority block predate REWEAVE adoption and contradict landed state
+HYPOTHESIS: The human entry points are frozen at 2026-09-05 (RESUME) and 2026-08-28 (README) and state facts that later commits reversed.
+REPOSITORY_EVIDENCE: RESUME.md:1 `# Resume state, 2026-09-05 (night, third push: S20-330 closed, checkpoint)` (9b7054c), :5-10 "the smoke attest of the S20-330 closure is the first action on resume", grep RW-0 in RESUME.md: zero hits; README.md:53-54 (39a6296, 2026-08-28) `S20-330 is deliberately deferred until negotiated session and verified workspace/root authority exist.` vs docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-148 round-2 PASS x3 and commit 1e71820 "close S20-330"; README.md:156-163 Authority block lists the master only by its symlink path `/home/greyforge/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md` and no REWEAVE master, machine-summary, or resume/locator; ARCHITECTURE.md:3 `Status: M1 normative baseline` (2026-08-27) vs machine-summary phase M2; later truth: 3fc2275 REWEAVE adoption (2026-09-06), reweave/rw-075-continuation-2026-09-07.md:1 `REVIEW_DEFERRED / IMPLEMENTATION_BLOCKED`, check_r2_exit `R2_EXIT: NOT_READY`, RW-080 slices 1-7 under operator override (machine-summary rw075_correction.operator_override_2026_09_07).
+SPEC_EVIDENCE: tightening spec 15.5 requires a locator naming canonical branch, active lanes, spec paths, epoch, ABI, package version, profile, blocked gates, last-updated; 15.6 requires remote review packets; section 14 requires records to agree with implementation.
+CURRENT_BEHAVIOR: A remote or resuming reader following README or RESUME is told S20-330 is deferred and that the next action is an S20-330 smoke attest; neither document mentions the self-hosting lane, the v2 successor contracts, the NOT_READY R2 gate, or the override under which the last nine commits landed.
+DESIRED_INVARIANT: The first-read documents point at one derived, checker-validated locator (AT-SS-14) and contain no phase claim that a later commit reversed.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: README:53 and the Authority block are stale facts in an authority document (real defect, truthful edit); RESUME.md should be superseded by or point at the locator rather than be rewritten by hand each session; ARCHITECTURE.md and the M0 dossier chapters (00-executive-summary.md:3 "Status: M0 complete", 22-independent-review.md:3) are dated records and only need an "as of" pointer, not a rewrite.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: locator checker (AT-SS-14) asserts README Authority block names the locator and both master paths with sha256
+SPECS_TO_UPDATE: README.md:53-54 and :156-163, RESUME.md (supersede or refresh with RW state), ARCHITECTURE.md:3 and machineresearch/sley-2.0/00-executive-summary.md:3 ("as of" pointer)
+CODE_OWNERSHIP: Codex/integrator
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-07
+TITLE: V1 to V2 supersession of BOOTSTRAP_PROFILE, HOST_ABI, and EXEC_PACKAGE is explicit and the V1 files were never edited after the V2 landed
+HYPOTHESIS: A V1 contract may have been edited after its V2 successor landed, or a V2 may lack a supersession statement.
+REPOSITORY_EVIDENCE: V2 files all landed in 9574f8a (2026-09-06); `git log -- docs/spec/BOOTSTRAP_PROFILE_1.md` = b2c850f only; `HOST_ABI_V1.md` = e85b89c only; `EXEC_PACKAGE_V1.md` = 624f1c0 only (all at or before 9574f8a, none after); check_bootstrap_profile_1.py, check_host_abi_v1.py, check_exec_package_v1.py PASS; the only V1/V2 basename pairs in docs/spec are EXEC_PACKAGE and HOST_ABI (plus the BOOTSTRAP_PROFILE_1/2 naming).
+SPEC_EVIDENCE: docs/spec/BOOTSTRAP_PROFILE_2.md:4,12 `Current R2 candidate. BOOTSTRAP_PROFILE_1 v1 preserved byte-identical as history.` / `Supersedes: BOOTSTRAP_PROFILE_1 v1`; HOST_ABI_V2.md:4,16 same pattern; EXEC_PACKAGE_V2.md:4,23 same pattern; reweave/rw-075-correction.md:64-68 `Supersession: v1 -> retained historical evidence; v2 -> current R2 candidate. V2 is a strict superset adding exactly one import row; no opcode/type/effect/capability broadening.`; tightening spec 2.2 GOOD pattern (`v1 preserved forever, v2 new meaning`).
+CURRENT_BEHAVIOR: Exactly the 2.2 GOOD pattern: V1 immutable and still checker-validated, V2 declares supersession and the delta, correction record explains the path. V1 files intentionally carry no forward pointer (adding one would break byte-identity).
+DESIRED_INVARIANT: Frozen V1 immutable; V2 names what it supersedes and why. (Holds.)
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Repository evidence satisfies section 2.2 and 14 without any change; the only residual is the lane-record/governance binding covered by AT-SS-01.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none (existing v1/v2 checkers)
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Ariadne
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-08
+TITLE: ADR index lists every ADR present but does not acknowledge the duplicated identifier ADR-0017
+HYPOTHESIS: docs/adr/README.md may omit ADR files or list ADRs that do not exist.
+REPOSITORY_EVIDENCE: docs/adr contains 50 ADR files; README.md lists numbers ADR-0001..ADR-0049 (each present); two files share ADR-0017: ADR-0017-candidate-contract-freeze.md and ADR-0017-offline-raw-baseline-runner.md; docs/adr/README.md:25-26 `- ADR-0017: candidate contract and identity freeze` / `- ADR-0017: offline raw baseline evidence runner` with no collision note; README last commit 3fc2275 (2026-09-06) added ADR-0049.
+SPEC_EVIDENCE: tightening spec section 14 (records must agree) and 15.5 remote navigation; no repository rule assigns ADR numbers uniquely, but every closeout, WORK_PACKAGES row and machine-summary field cites ADRs by number.
+CURRENT_BEHAVIOR: A citation "ADR-0017" is ambiguous between the S20-345 candidate freeze and the S20-610 offline runner; the index reproduces the ambiguity silently.
+DESIRED_INVARIANT: Every ADR identifier resolves to exactly one file, or the index states the tolerated collision and how citations disambiguate (by slug).
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Renumbering would rewrite history references in closeouts and the machine summary (net negative); a one-line tolerated-collision note in the index plus slug-qualified citations is additive and truthful.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: optional index check that every docs/adr/ADR-*.md is listed and duplicate numbers are annotated
+SPECS_TO_UPDATE: docs/adr/README.md:25-26
+CODE_OWNERSHIP: Codex/integrator
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-09
+TITLE: Master section 17 and the in-repo Required Contract Index name the same twelve contracts
+HYPOTHESIS: The index might have drifted from the master's required-contract list.
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:20-31 rows 17.1 sley-scb-object-v1 ... 17.12 sley-protocol-handshake-v1; `python3 scripts/check_required_contract_index.py` -> PASS, required_contracts 12, problems [].
+SPEC_EVIDENCE: /home/greyforge/machineresearch/Sley2.0mastergoal.md (sha256 e1e15346...) headings `## 17.1 sley-scb-object-v1` through `## 17.12 sley-protocol-handshake-v1`; string-for-string identical to the index rows in the same order.
+CURRENT_BEHAVIOR: Exact agreement, checker-enforced for document, checker, domain, and corpus existence.
+DESIRED_INVARIANT: Index equals master section 17. (Holds.)
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Verified directly against the master file at the stated digest.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Ariadne
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-10
+TITLE: REWEAVE requirements ledger entries reference only commits that exist; the ledger is an out-of-repo R1 draft that RW-020 accepted without regeneration
+HYPOTHESIS: Ledger entries claiming landed status may cite commits absent from this repository.
+REPOSITORY_EVIDENCE: /home/greyforge/machineresearch/SLEY_REWEAVE_MASTER_PACKAGE_V1/sley-reweave-v1/reweave-r1/requirements-ledger.json: 20 requirements (VERIFIED 1: REQ-LINEAGE; PARTIAL 11; NOT_STARTED 7; NOT_APPLICABLE_WITH_PROOF 1); the only commit-like token is `9b7054c` (REQ-RUST-BOOTSTRAP evidence "baseline commit 9b7054c") and `git cat-file -t 9b7054c` = commit; no entry claims VERIFIED at any other commit; reweave-r1/R1-README.json activation_status "PROPOSED ... R1 NOT passed, R2 NOT started"; reweave-r1/scope-adoption-record.json `adoption_mechanism: NOT YET RECORDED in-repo`; the repository has no copy of the ledger (grep requirements-ledger, REQ-SELFHOST: zero hits); evidence/release/operator-decision-ADOPT-REWEAVE-2026-09-06.md:138-142 `RW-020 ... COMPLETE using the technically accepted ledger draft (addendum section 3; not regenerated) ... sole VERIFIED obligation REQ-LINEAGE`, :118-119 "reconciliation itself remains open, owned by the RW-020 role assignments above ... required at a future RW-020 review"; reweave/rw-030-charter.md:3 "depends on RW-020 COMPLETE".
+SPEC_EVIDENCE: REWEAVE master table line 595 `RW-020 | Requirement ledger and retained implementation map | RW-010 | No unclassified active obligations`; docs/adr/ADR-0049 accepted 2026-09-06.
+CURRENT_BEHAVIOR: The ledger is a truthful R1 snapshot (its adoption line is stale only because it predates ADR-0049, and it says so); the operator record declares RW-020 complete on that draft and explicitly schedules regeneration for a future RW-020 review. Nothing points at a missing commit.
+DESIRED_INVARIANT: No landed claim cites a non-existent commit (holds); regeneration of the ledger into the repository is an already-recorded future RW-020 obligation.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The specific concern (phantom commits) is disproved; the staleness of the out-of-repo snapshot is already recorded with an owner and a trigger in the operator decision, so no new action is invented here. The locator (AT-SS-14) should name the ledger's canonical path and digest so remote readers can find it.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none now; ledger regeneration at the recorded RW-020 review
+CODE_OWNERSHIP: Ariadne (RW-020 traceability/ledger per ADOPT:106)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-11
+TITLE: Machine-summary REVIEW_PENDING tokens after PASS rounds are a documented, checker-bound convention, not drift
+HYPOTHESIS: machine-summary.json status fields (e.g. S20_330_IMPLEMENTED_REVIEW_PENDING, S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING, S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING) contradict closeouts that record PASS re-reviews.
+REPOSITORY_EVIDENCE: machine-summary.json session_handle_profile.status = S20_330_IMPLEMENTED_REVIEW_PENDING; docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md:147-154 `Re-review round 2 ... Ariadne PASS, Nabu PASS, Vulcan PASS ... The contract freeze and package completion status remain a separate gate: the summary keeps S20_330_IMPLEMENTED_REVIEW_PENDING with the three PASS obligations superseding the FAIL rounds, matching the S20-400 closure.`; scripts/check_cli_contract.py:19-24 and eleven sibling checkers define DRAFT / REVIEW_PENDING / COMPLETE tokens and assert the summary value; docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md:3 states the same for every implemented-with-reviews-pending package.
+SPEC_EVIDENCE: FINDING_REGISTER_V1.md / ADR-0042 (verdict obligations carried per field, package status is a separate gate); tightening spec section 14.
+CURRENT_BEHAVIOR: Summary tokens, closeouts, checkers, and the frontier agree on the meaning: implemented, reviewed PASS, freeze/completion gate not yet exercised.
+DESIRED_INVARIANT: Summary token semantics documented and enforced. (Holds.)
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The apparent contradiction is resolved by the closeout's explicit rule and by the checkers that pin the token.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-12
+TITLE: Machine summary indexes RW-080 provisional slices only through slice 4 while slices 5, 6, and 7 have landed records; rw-075.md lacks a forward pointer to its correction
+HYPOTHESIS: The last three RW-080 slices were committed without the summary entry the earlier slices received.
+REPOSITORY_EVIDENCE: machine-summary.json last commit 9b9d394 (slice 4); keys rw080_codec_scaffold_provisional, rw080_uvar_slice1_provisional, rw080_envelope_slice2_provisional, rw080_program_outer_slice3_provisional, rw080_program_body_slice4_provisional present, grep for slice 5/6/7: zero hits; records reweave/rw-080-codec-program-entrypoint-encode.md (`# RW-080 section 1.1 program slice 5 ... provisional C0 construction record`, 9b7c52d), rw-080-codec-program-envelope-compose.md (slice 6, 0a909e1), rw-080-codec-program-namespace.md (slice 7, 560a5f1) each `Status: PROVISIONAL (... operator development override ...)`; reweave/rw-075.md:3-4 `Status: IMPLEMENTED (validation green; independent Ariadne/Nabu reviews PENDING; premium delta re-review PENDING; RW-080 remains BLOCKED)` (624f1c0) vs check_r2_exit `RW075_ariadne_pass: PASS (latest-round verdict: PASS)`, `RW075_nabu_pass: PASS` and reweave/rw-075-correction.md carrying the later state.
+SPEC_EVIDENCE: rw-080-contract.md:3-8 (RW-080 BLOCKED until premium PASS plus R2 READY) and machine-summary rw075_correction.operator_override_2026_09_07 (development continuation permitted, provisional labelling required); tightening spec section 14 (review records agree with implementation).
+CURRENT_BEHAVIOR: The provisional slices are labelled consistently in their own records and in commit messages, but the summary, which the finding register and dossier derive from, stops at slice 4; a reader of rw-075.md alone sees reviews PENDING that later passed.
+DESIRED_INVARIANT: Every landed lane record has a summary entry in the same commit; a superseded lane record names its successor record.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Add the three provisional keys (same shape and wording as slices 1-4, "rw080 stays BLOCKED, R2 NOT_READY") and one "Superseded state: see rw-075-correction.md" line in rw-075.md; no semantic change and no authority claim.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none (provisional status unchanged)
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: a summary/records parity check listing every reweave/rw-*.md record and asserting a summary key or explicit exclusion
+SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json rw075_correction section; reweave/rw-075.md:3-4
+CODE_OWNERSHIP: Ariadne (REWEAVE lane records)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-13
+TITLE: Two Tier 1 checkers bind the out-of-repo Sley 2.0 master by a parent-directory-relative path and fail in every worktree, clone, or remote checkout
+HYPOTHESIS: Checkers that validate contracts against the canonical master assume the master's location relative to the repository's parent directory.
+REPOSITORY_EVIDENCE: scripts/check_transaction_contract.py:33 `MASTER = ROOT.parent / "machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md"`; scripts/check_candidate_result_contract.py:31 same path; both listed in `make quick` (Makefile:91,95); executed from this worktree: `{"problems": ["missing:/home/greyforge/cache/worktrees/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md"], "result": "FAIL"}` (exit 1) and the same "missing:" line from check_candidate_result_contract.py; `grep -l ROOT.parent scripts/*.py` returns only these two; /home/greyforge/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md is a symlink to ../../../Sley2.0mastergoal.md (sha256 e1e15346... both ways); README.md:158 and machineresearch/sley-2.0/SPEC_INPUT_DOSSIER.md:3 cite the symlink path.
+SPEC_EVIDENCE: tightening spec section 0 (independent reproducibility, remote inspectability), 14 (test vectors/checkers agree with canonical master), 15.6 (remote reviewer inspects exact code), 15.7 (no weakening of privacy to ease review); the master itself is outside the repository by design (task statement).
+CURRENT_BEHAVIOR: `make quick` is green only on the single canonical checkout at /home/greyforge/sley2; a remote reviewer or any worktree cannot run the Tier 1 gate without recreating the operator's home-directory layout; the checkers give no override.
+DESIRED_INVARIANT: Every Tier 1 checker runs from the repository alone, or reads the master from an explicit, documented override with a pinned digest recorded in-repo, and fails with a distinct SKIP/UNAVAILABLE code (never a silent pass) when the master is absent.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Additive: accept `SLEY2_MASTER_GOAL` (or a locator-declared path) with the expected sha256 pinned in the locator, keep the current default, and report `master:unavailable` distinctly so the failure is attributable; alternatively vendor the exact master sections these two checkers read as a digest-pinned extract. No semantic change to either contract.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: run both checkers from a fresh worktree with and without the override; `make quick` from a worktree
+SPECS_TO_UPDATE: none of docs/spec; README.md Authority block and the locator (canonical master path plus sha256); CONTRIBUTING.md validation notes
+CODE_OWNERSHIP: Merlin (S20-360/S20-390 checkers), Codex/integrator (locator)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-SS-14
+TITLE: No remote-head locator exists; machine-summary.json is the canonical machine-readable status mechanism to extend
+HYPOTHESIS: The repository may already carry a machine-readable status/index that the section 15.5 locator can extend instead of a new docs/status file.
+REPOSITORY_EVIDENCE: no docs/status directory at the pinned commit; inventory in section 2 of this audit: machine-summary.json (hand-maintained, bound by ~30 checkers, carries project/phase/status/m0_commit/final_commit and every package token, contract path, contract_revision, REWEAVE v1/v2 keys), evidence/release/decision-dossier.json (derived from the summary; decision_state BLOCKED; never decides), evidence/review/finding-register.json (derived), scripts/gate_status.py (static NOT_IMPLEMENTED stub, exit 2), scripts/check_r2_exit.py (run-time gate aggregation), docs/spec/REQUIRED_CONTRACT_INDEX_V1.md (traceability, not status), RESUME.md (hand narrative, stale, AT-SS-06), README Authority block (paths only). The lead's 5ff79ef adds scripts/check_remote_consistency.py (git-only freshness, no locator content).
+SPEC_EVIDENCE: tightening spec 15.5 "If the repository already has a canonical machine-readable status/index mechanism, extend that mechanism instead of creating redundant status files" and "The locator MUST NOT become a second source of truth for commit identity"; ADR-0043 "decision dossier derived, not decided".
+CURRENT_BEHAVIOR: The fields 15.5 requires are scattered: branch/commit in git, spec paths in README:158 and SPEC_INPUT_DOSSIER.md:3 (symlink form) and the operator decision, epoch in SCHEMA_EPOCH_V1.md, ABI/package/profile in the V2 status lines and rw-080-contract.md:9-16, blocked gates in check_r2_exit output and rw-075-continuation, last-updated nowhere.
+DESIRED_INVARIANT: One derived, checker-validated locator whose non-commit fields live in machine-summary.json and whose commit fields are read from git at check time; human documents point at it.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Extending machine-summary.json (add a `locator` section: canonical_integration_branch, active_reweave_branches, canonical_spec_path plus sha256, reweave_master_path plus sha256, requirements_ledger_path plus sha256, schema_epoch, host_abi HOST_ABI_V2 bc564653..., exec_package EXEC_PACKAGE_V2 f4958c5e..., bootstrap_profile BOOTSTRAP_PROFILE_2 fb2d8cc8..., known_blocked_gates [R2_EXIT NOT_READY, premium delta FAIL, S20-710 root license, ...], last_updated_utc) and a `scripts/check_remote_head.py` that (a) verifies each sha256 and each version claim against the spec status lines and check_r2_exit, (b) reads commits from git only, and (c) optionally renders docs/status/SLEY2-REMOTE-HEAD.md as a derived view, satisfies 15.5 without a second hand-maintained truth. `make quick` runs the checker; RESUME.md and README point at it.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: check_remote_head.py self-test (stale sha, stale version, missing field each FAIL), run in `make quick` and `make remote-consistency`
+SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (locator section), README.md Authority block, RESUME.md pointer, CONTRIBUTING.md (locator update rule: same or immediately following validated commit per 15.5)
+CODE_OWNERSHIP: Codex/integrator (summary, docs), Vulcan (checker)
+REVIEW_REQUIRED: yes, Nabu architecture read of the locator field set (bounded)
+```
+
 

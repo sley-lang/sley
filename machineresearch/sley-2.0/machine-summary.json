@@ -2978,11 +2978,11 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 218,
-    "open_reviews": 69,
+    "obligations": 221,
+    "open_reviews": 67,
     "deferred_reviews": 10,
-    "unclassified_dispositions": 2,
-    "complete_packages": 24,
+    "unclassified_dispositions": 3,
+    "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
     "new_stable_error_codes": 4,
@@ -3028,7 +3028,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "10 review lanes are deferred and unavailable",
-      "69 review obligations are open",
+      "67 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -3400,8 +3400,11 @@
     "call_observation": "10598b3a0a9d5627f484ea21b98fe6b80efd75593d82ac8479e4fe91a99da88a",
     "f1_repair": "candidate_validation.rs P7 parameters program-wide + parametrized-callee regression",
     "round1": "ariadne FAIL (3xP1) + nabu FAIL (1xP1+2xP2); transcripts preserved",
-    "ariadne_review": "FAIL_3xP1_THEN_PASS_3x3_DELTA",
-    "nabu_review": "FAIL_THEN_PASS_P1_P2s_AND_P22_ARC_CLOSED"
+    "ariadne_round1": "FAIL (preserved)",
+    "ariadne_review": "PASS_FINAL",
+    "nabu_round1": "FAIL (preserved)",
+    "nabu_review": "PASS_FINAL",
+    "round_history": "Ariadne round 1 FAIL with three P1 findings, closed by the 3-of-3 delta re-review PASS (reviews/reweave-rw060-ariadne-r2-2026-09-06.log); Nabu round 1 FAIL with P1 and P2 findings plus the P22 arc, closed by the r2g PASS on the execution record (reviews/reweave-rw060-nabu-r2g-2026-09-06.log). Re-encoded 2026-09-08 in the ADR-0042 first-token vocabulary (AT-SS-04); verdicts unchanged."
   },
   "bootstrap_profile_2": {
     "status": "BOOTSTRAP_PROFILE_2_FROZEN",
