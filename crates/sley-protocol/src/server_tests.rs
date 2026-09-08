@@ -2763,8 +2763,8 @@ impl VServer {
             label,
             bodies,
             dependency_roots,
-            vhello(v2_methods(), 4),
-            vhello(v2_methods(), 8),
+            &vhello(v2_methods(), 4),
+            &vhello(v2_methods(), 8),
         )
     }
 
@@ -2772,8 +2772,8 @@ impl VServer {
         label: &str,
         bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
         dependency_roots: &[StateRoot],
-        client_hello: Hello,
-        server_hello: Hello,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> Self {
         Self::with_hellos_bodies(label, bodies, dependency_roots, client_hello, server_hello)
     }
@@ -2782,8 +2782,8 @@ impl VServer {
         label: &str,
         bodies: Vec<(u8, sley_mutate::value::EntityBodyValue)>,
         dependency_roots: &[StateRoot],
-        client_hello: Hello,
-        server_hello: Hello,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> Self {
         let (temp, _transactions, _) = genesis(label, bodies, dependency_roots);
         Self::open_on_repo(temp, client_hello, server_hello)
@@ -2795,8 +2795,8 @@ impl VServer {
     fn alias_on_repo(
         alias_label: &str,
         repository: std::path::PathBuf,
-        client_hello: Hello,
-        server_hello: Hello,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> Self {
         let temp = sley_repo::test_support::TempDir::new(alias_label);
         Self::open(temp, repository, client_hello, server_hello)
@@ -2804,8 +2804,8 @@ impl VServer {
 
     fn open_on_repo(
         temp: sley_repo::test_support::TempDir,
-        client_hello: Hello,
-        server_hello: Hello,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> Self {
         let repository = temp.child("repo");
         Self::open(temp, repository, client_hello, server_hello)
@@ -2814,11 +2814,11 @@ impl VServer {
     fn open(
         temp: sley_repo::test_support::TempDir,
         repository: std::path::PathBuf,
-        client_hello: Hello,
-        server_hello: Hello,
+        client_hello: &Hello,
+        server_hello: &Hello,
     ) -> Self {
         let mut server =
-            Server::new_versioned(&repository, &client_hello, &server_hello).unwrap();
+            Server::new_versioned(&repository, client_hello, server_hello).unwrap();
         assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V2);
         let handshake = server.handshake_id();
         let open = server
@@ -3516,8 +3516,8 @@ fn entity_read_budget_debit_table_is_exact() {
         "v2-budget",
         executable_bodies(),
         &[],
-        vhello(v2_methods(), 1),
-        vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
     );
     let entity = sley_repo::test_support::id(30);
     let before = harness.budget();
@@ -3659,8 +3659,8 @@ fn repair_unnegotiated_refusal_releases_its_slot() {
         "repair-r1-unnegotiated",
         executable_bodies(),
         &[],
-        vhello(methods.clone(), 1),
-        vhello(methods, 1),
+        &vhello(methods.clone(), 1),
+        &vhello(methods, 1),
     );
     let before = harness.budget();
     for _ in 0..3 {
@@ -3695,8 +3695,8 @@ fn repair_stale_refusal_then_renew_and_read_at_inflight_one() {
         "repair-r1-stale",
         executable_bodies(),
         &[],
-        vhello(v2_methods(), 1),
-        vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
     );
     let (new_root, target) = advance_head_with_namespace(&mut harness);
     let stale = harness.refuse(
@@ -3728,8 +3728,8 @@ fn repair_session_budget_method_order_and_debit() {
         "repair-r2-order",
         executable_bodies(),
         &[],
-        vhello(methods.clone(), 4),
-        vhello(methods, 4),
+        &vhello(methods.clone(), 4),
+        &vhello(methods, 4),
     );
     let (new_root, _) = advance_head_with_namespace(&mut harness);
     let before = harness.budget();
@@ -3781,8 +3781,8 @@ fn repair_exhausted_budget_precedes_unoffered_method() {
         "repair-r2-exhausted",
         executable_bodies(),
         &[],
-        capped,
-        capped_server,
+        &capped,
+        &capped_server,
     );
     assert_eq!(harness.budget(), 3);
     for _ in 0..3 {
@@ -3871,6 +3871,26 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
     // and 2 only. An unsupported greatest-common selection is refused with
     // the existing VersionUnsupported code; legacy helpers keep arbitrary
     // numeric behavior and opaque/reserved tag rules are unchanged.
+    fn with_versions_opaque(versions: Vec<u32>, methods: &[u32]) -> Hello {
+        Hello {
+            protocol_versions: versions,
+            schema_epochs: vec![epoch(0x11)],
+            limits: LimitProfile {
+                max_frame_bytes: 8_388_608,
+                max_entities: 65_535,
+                max_edges: 400_000,
+                max_depth: 65_535,
+                max_response_bytes: 8_388_608,
+                max_work: 100_000_000,
+                max_inflight: 4,
+                max_sessions: 256,
+            },
+            methods: methods.to_vec(),
+            features: 1,
+            adapters: vec![],
+            effects: vec![],
+        }
+    }
     let base = vhello(v2_methods(), 4);
     let with_versions = |versions: Vec<u32>| Hello {
         protocol_versions: versions,
@@ -3957,27 +3977,6 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
         .code(),
         ProtocolErrorCode::PayloadInvalid
     );
-
-    fn with_versions_opaque(versions: Vec<u32>, methods: &[u32]) -> Hello {
-        Hello {
-            protocol_versions: versions,
-            schema_epochs: vec![epoch(0x11)],
-            limits: LimitProfile {
-                max_frame_bytes: 8_388_608,
-                max_entities: 65_535,
-                max_edges: 400_000,
-                max_depth: 65_535,
-                max_response_bytes: 8_388_608,
-                max_work: 100_000_000,
-                max_inflight: 4,
-                max_sessions: 256,
-            },
-            methods: methods.to_vec(),
-            features: 1,
-            adapters: vec![],
-            effects: vec![],
-        }
-    }
 }
 
 #[test]
@@ -4057,8 +4056,8 @@ fn repair_full_wire_ceiling_exact_and_one_below() {
             &format!("repair-r4-exact-{stream}"),
             executable_bodies(),
             &[],
-            capped(wire),
-            capped(wire),
+            &capped(wire),
+            &capped(wire),
         );
         let answer = exact.call_raw(
             ENTITY_SIGNATURE_TAG,
@@ -4077,8 +4076,8 @@ fn repair_full_wire_ceiling_exact_and_one_below() {
             &format!("repair-r4-below-{stream}"),
             executable_bodies(),
             &[],
-            capped(wire - 1),
-            capped(wire - 1),
+            &capped(wire - 1),
+            &capped(wire - 1),
         );
         let before = below.budget();
         let (failed, frame) = below.call(
@@ -4252,8 +4251,8 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
         "repair-r3-aggregate",
         wide_signature_bodies(),
         &[],
-        client,
-        server,
+        &client,
+        &server,
     );
     let function = sley_repo::test_support::id(51);
     let request = aggregate_request_body(harness.root, function);
@@ -4350,7 +4349,7 @@ fn repair_frame_body_bytes_ceiling_edges() {
     // R3 metadata/writer edges, distinct from the aggregate serving
     // fixture: the canonical Bytes encoder and the direct frame writer
     // agree on the inherited 16MiB body ceiling.
-    let ceiling = usize::try_from(MAX_BYTE_PAYLOAD).unwrap();
+    let ceiling = MAX_BYTE_PAYLOAD;
     assert!(encode_bytes(&vec![0u8; ceiling]).is_ok());
     assert!(encode_bytes(&vec![0u8; ceiling + 1]).is_err());
     let frame_with_body = |len: usize| ProtocolFrame {
@@ -4464,8 +4463,8 @@ fn repair_exact_and_one_below_session_budget() {
     let mut alias = VServer::alias_on_repo(
         "repair-r7-budget",
         learn.repository.clone(),
-        capped.clone(),
-        capped,
+        &capped,
+        &capped,
     );
     assert_eq!(alias.budget(), work);
     let exact_work =
@@ -4729,8 +4728,8 @@ fn repair_wrong_epoch_refuses_entity_read_without_debit() {
         "repair-r7-epoch",
         executable_bodies(),
         &[],
-        vhello(v2_methods(), 1),
-        vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
+        &vhello(v2_methods(), 1),
     );
     let bound = harness
         .server
@@ -4778,8 +4777,8 @@ fn repair_one_below_session_budget_refuses_before_reserve() {
     let mut harness = VServer::alias_on_repo(
         "repair-r7-budget-below",
         learn.repository.clone(),
-        capped.clone(),
-        capped,
+        &capped,
+        &capped,
     );
     assert_eq!(harness.budget(), work);
     let malformed = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
@@ -4794,7 +4793,7 @@ fn repair_one_below_session_budget_refuses_before_reserve() {
         ENTITY_VERSION_TAG,
         entity_read_body_capped(harness.root, entity, 65_535, 8_388_608, work),
     );
-    assert!(answer.failed, "work one below remaining budget must refuse");
+    assert!(answer.failed, "remaining budget one below required work must refuse");
     assert!(answer.events.is_empty(), "one-below refusal carries no events");
     let (DecodedFrame::Response(response), _) =
         decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
