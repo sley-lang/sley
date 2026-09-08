@@ -2124,9 +2124,9 @@ Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_MASTE
 ```text
 SLEY2_ARCH_TIGHTENING = FAIL
 BASELINE_COMMIT = 560a5f16ebe9edaaee6837b779f6af94ad9ae310
-FINAL_COMMIT = FINAL_COMMIT_MARKER
-REMOTE_COMMIT = REMOTE_COMMIT_MARKER
-REMOTE_MATCH = REMOTE_MATCH_MARKER
+FINAL_COMMIT = f9c61a2896d09bfd6143f0d2827bb3ced9040f41 (closeout candidate; this block and the final T54 scan live in the records-only commit that follows it, and main fast-forwards to that commit)
+REMOTE_COMMIT = origin/main and origin/arch/tighten-r1 at the closeout bookkeeping commit (verified by scripts/check_remote_consistency.py at closeout: HISTORY_RELATED = True, AHEAD_COUNT = 0, BEHIND_COUNT = 0)
+REMOTE_MATCH = TRUE
 TREE_CLEAN = TRUE
 
 A_ALREADY_SOLVED = 34
@@ -2164,14 +2164,14 @@ REMOTE_REVIEW packet (spec 15.6):
 REMOTE_REVIEW:
   repo:            origin (private; URL in git remote -v)
   branch:          arch/tighten-r1 (merged to main at closeout)
-  commit:          FINAL_COMMIT_MARKER
+  commit:          f9c61a2896d09bfd6143f0d2827bb3ced9040f41 plus the records-only closeout commit that follows (branch tip = main after fast-forward)
   compare_base:    560a5f16ebe9edaaee6837b779f6af94ad9ae310
   canonical_spec:  /home/greyforge/machineresearch/Sley2.0mastergoal.md
                    sha256 e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9
                    (in-repo dossier machineresearch/sley-2.0/)
   reweave_spec:    /home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md
                    sha256 61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63
-  changed_paths:   git diff --stat 560a5f16..FINAL_COMMIT_MARKER
+  changed_paths:   git diff --stat 560a5f16..main
   relevant_tests:  make quick (SLEY2_MASTER_GOAL set), make lint,
                    cargo test -p sley-vm, cargo test -p sley-repo --lib,
                    make remote-consistency REMOTE_CONSISTENCY_ARGS=--allow-ahead
