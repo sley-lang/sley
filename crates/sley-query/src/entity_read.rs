@@ -6,15 +6,19 @@
 //! deterministic work bound, and encodes the exact response. It performs no
 //! I/O, builds no whole-root index, and owns no session or transport debit:
 //! the caller reserves `work_units - 1` after [`prepare_entity_read`]
-//! succeeds and encodes with [`encode_entity_read_response`]. Frame-envelope
-//! preflight stays with the protocol caller, which owns envelope accounting.
+//! succeeds and encodes with [`encode_entity_read_response`], which writes
+//! the preflighted bytes into one pre-sized buffer. Frame-envelope preflight
+//! stays with the protocol caller, which owns envelope accounting.
 
 use core::fmt;
 
 use sley_id::{EntityId, ObjectId, SchemaEpochId, SessionId, StateRoot, WorkspaceId};
 use sley_mutate::EntityObject;
 use sley_mutate::value::EntityBodyValue;
-use sley_scb1::{ScbValueCursor, encode_list, encode_record, encode_uvar};
+use sley_scb1::{
+    MAX_BYTE_PAYLOAD, MAX_COLLECTION_ELEMENTS, MAX_RECORD_FIELDS, MAX_STANDALONE_BYTES,
+    ScbValueCursor,
+};
 use sley_ssmc::ParameterRole;
 
 /// Response record field 1: the protocol version this read answers under.
@@ -141,23 +145,48 @@ pub struct EntityReadCeilings {
     pub budget_before_dispatch: u64,
 }
 
-/// Checked preflight for one request: reserve `work_units - 1`, then encode.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EntityReadPlan {
-    /// Read the plan was prepared for.
-    pub method: EntityReadMethod,
-    /// Target entity identity.
-    pub entity: EntityId,
-    /// Positions into the revision objects, response order.
-    pub object_indices: Vec<usize>,
-    /// Exact returned object count.
-    pub object_count: u64,
-    /// Sum of selected stored byte lengths.
-    pub stored_bytes: u64,
-    /// Deterministic total charge, including the dispatch unit.
-    pub work_units: u64,
-    /// Exact response body length.
-    pub body_len: u64,
+/// Checked preflight for one request: the caller reserves `work_units - 1`,
+/// then encodes with [`encode_entity_read_response`].
+///
+/// Opaque and immutable: the only constructor is [`prepare_entity_read`],
+/// which copies the borrowed revision view, the decoded request, and the
+/// selected ceilings into the plan. The lifetime binds the backing revision
+/// slices. The encoder consumes the plan plus the session only, so no
+/// replacement method, revision, request, or limit can reach encoding.
+#[derive(Debug)]
+pub struct EntityReadPlan<'rev> {
+    revision: EntityReadRevision<'rev>,
+    request: EntityReadRequest,
+    // Sealed ceiling evidence: enforced once in preparation, never
+    // re-supplied to encoding.
+    #[allow(dead_code)]
+    selected: EntityReadCeilings,
+    indices: Vec<usize>,
+    object_count: u64,
+    stored_bytes: u64,
+    work_units: u64,
+    body_len: u64,
+    list_len: u64,
+}
+
+impl EntityReadPlan<'_> {
+    /// Returns the deterministic total charge, including the dispatch unit.
+    #[must_use]
+    pub const fn work_units(&self) -> u64 {
+        self.work_units
+    }
+
+    /// Returns the exact response body length.
+    #[must_use]
+    pub const fn body_len(&self) -> u64 {
+        self.body_len
+    }
+
+    /// Returns the exact returned object count.
+    #[must_use]
+    pub const fn object_count(&self) -> u64 {
+        self.object_count
+    }
 }
 
 /// Encoded complete response with its accounting.
@@ -230,12 +259,12 @@ pub fn decode_entity_read_request(input: &[u8]) -> Result<EntityReadRequest, Ent
 /// # Errors
 ///
 /// Returns the first failing contract check.
-pub fn prepare_entity_read(
+pub fn prepare_entity_read<'rev>(
     method: EntityReadMethod,
-    revision: &EntityReadRevision<'_>,
+    revision: &EntityReadRevision<'rev>,
     request: &EntityReadRequest,
     selected: &EntityReadCeilings,
-) -> Result<EntityReadPlan, EntityReadError> {
+) -> Result<EntityReadPlan<'rev>, EntityReadError> {
     admit_request(request, selected, &revision.root)?;
     let target = resolve_target(revision, &request.entity)?;
     let lookup_cost = lookup_cost(revision.bindings.len())?;
@@ -259,19 +288,24 @@ pub fn prepare_entity_read(
         request.max_response_bytes,
     )?;
     check_work(work, request, selected)?;
-    let body_len = response_body_len(revision, &selection.indices, work)?;
+    check_collection_count(selection.object_count)?;
+    let list_len = response_list_len(revision, &selection.indices)?;
+    let body_len = response_body_len(list_len, work)?;
     if body_len > request.max_response_bytes || body_len > selected.max_response_bytes {
         return Err(EntityReadError::BudgetExceeded);
     }
+    check_standalone_body(body_len)?;
     usize::try_from(body_len).map_err(|_| EntityReadError::BudgetExceeded)?;
     Ok(EntityReadPlan {
-        method,
-        entity: request.entity,
-        object_indices: selection.indices,
+        revision: *revision,
+        request: *request,
+        selected: *selected,
+        indices: selection.indices,
         object_count: selection.object_count,
         stored_bytes: selection.stored_bytes,
         work_units: work,
         body_len,
+        list_len,
     })
 }
 
@@ -357,9 +391,11 @@ impl EntitySelection<'_, '_> {
             .get(parameter_index)
             .ok_or(EntityReadError::InternalInvariant)?;
         agree(parameter, self.revision, parameter_id, parameter_index)?;
+        let parameter_len = stored_len(parameter)?;
+        check_byte_payload(parameter_len)?;
         self.stored_bytes = self
             .stored_bytes
-            .checked_add(stored_len(parameter)?)
+            .checked_add(parameter_len)
             .ok_or(EntityReadError::BudgetExceeded)?;
         self.object_count = self
             .object_count
@@ -396,14 +432,13 @@ fn admit_request(
     selected: &EntityReadCeilings,
     root: &StateRoot,
 ) -> Result<(), EntityReadError> {
-    if request.max_objects == 0 || request.max_objects > selected.max_entities {
-        return Err(EntityReadError::BudgetExceeded);
+    if request.max_objects == 0 || request.max_response_bytes == 0 || request.max_work == 0 {
+        return Err(EntityReadError::NotCanonical);
     }
-    if request.max_response_bytes == 0 || request.max_response_bytes > selected.max_response_bytes
+    if request.max_objects > selected.max_entities
+        || request.max_response_bytes > selected.max_response_bytes
+        || request.max_work > selected.max_work
     {
-        return Err(EntityReadError::BudgetExceeded);
-    }
-    if request.max_work == 0 || request.max_work > selected.max_work {
         return Err(EntityReadError::BudgetExceeded);
     }
     if request.expected_root != *root {
@@ -428,7 +463,9 @@ fn resolve_target(
         .get(index)
         .ok_or(EntityReadError::InternalInvariant)?;
     agree(target, revision, entity, index)?;
-    Ok((index, stored_len(target)?))
+    let target_len = stored_len(target)?;
+    check_byte_payload(target_len)?;
+    Ok((index, target_len))
 }
 
 fn lookup_cost(bindings: usize) -> Result<u64, EntityReadError> {
@@ -442,53 +479,19 @@ fn lookup_cost(bindings: usize) -> Result<u64, EntityReadError> {
 
 /// Encodes the complete response for a prepared plan.
 ///
+/// The plan already carries every check; the writer emits the exact
+/// preflighted bytes into one pre-sized buffer, copying each stored object
+/// once. Frame-envelope preflight and work reservation stay with the caller.
+///
 /// # Errors
 ///
-/// Returns `InternalInvariant` when the plan disagrees with the borrowed
-/// revision or the encoding drifts from the preflight length.
+/// Returns `InternalInvariant` when the written bytes drift from the
+/// preflight length.
 pub fn encode_entity_read_response(
-    method: EntityReadMethod,
-    revision: &EntityReadRevision<'_>,
+    plan: &EntityReadPlan<'_>,
     session: SessionId,
-    request: &EntityReadRequest,
-    plan: &EntityReadPlan,
 ) -> Result<EntityReadOutcome, EntityReadError> {
-    if plan.method != method || plan.entity != request.entity {
-        return Err(EntityReadError::InternalInvariant);
-    }
-    verify_plan(method, revision, request, plan)?;
-    let mut encoded_objects = Vec::with_capacity(plan.object_indices.len());
-    for index in &plan.object_indices {
-        let object = revision
-            .objects
-            .get(*index)
-            .ok_or(EntityReadError::InternalInvariant)?;
-        let (entity, object_id) = revision
-            .bindings
-            .get(*index)
-            .copied()
-            .ok_or(EntityReadError::InternalInvariant)?;
-        let record = encode_record(&[
-            (1, entity.as_bytes().to_vec()),
-            (2, encode_uvar(u64::from(object.record().body.kind_tag()))),
-            (3, object_id.as_bytes().to_vec()),
-            (4, object.stored_bytes().to_vec()),
-        ])
-        .map_err(|_| EntityReadError::InternalInvariant)?;
-        encoded_objects.push(record);
-    }
-    let list = encode_list(&encoded_objects).map_err(|_| EntityReadError::InternalInvariant)?;
-    let body = encode_record(&[
-        (1, encode_uvar(ENTITY_READ_RESPONSE_VERSION)),
-        (2, revision.workspace.as_bytes().to_vec()),
-        (3, revision.root.as_bytes().to_vec()),
-        (4, revision.epoch.as_bytes().to_vec()),
-        (5, session.as_bytes().to_vec()),
-        (6, request.entity.as_bytes().to_vec()),
-        (7, list),
-        (8, encode_uvar(plan.work_units)),
-    ])
-    .map_err(|_| EntityReadError::InternalInvariant)?;
+    let body = write_response_body(plan, session)?;
     let returned_bytes =
         u64::try_from(body.len()).map_err(|_| EntityReadError::InternalInvariant)?;
     if returned_bytes != plan.body_len {
@@ -500,6 +503,92 @@ pub fn encode_entity_read_response(
         returned_bytes,
         returned_entities: plan.object_count,
     })
+}
+
+fn write_response_body(
+    plan: &EntityReadPlan<'_>,
+    session: SessionId,
+) -> Result<Vec<u8>, EntityReadError> {
+    let capacity =
+        usize::try_from(plan.body_len).map_err(|_| EntityReadError::InternalInvariant)?;
+    let mut body = Vec::with_capacity(capacity);
+    push_uvar(&mut body, RESPONSE_FIELDS);
+    push_uvar_field(&mut body, 1, ENTITY_READ_RESPONSE_VERSION);
+    push_fixed_field(&mut body, 2, plan.revision.workspace.as_bytes());
+    push_fixed_field(&mut body, 3, plan.revision.root.as_bytes());
+    push_fixed_field(&mut body, 4, plan.revision.epoch.as_bytes());
+    push_fixed_field(&mut body, 5, session.as_bytes());
+    push_fixed_field(&mut body, 6, plan.request.entity.as_bytes());
+    push_uvar(&mut body, 7);
+    push_uvar(&mut body, plan.list_len);
+    push_uvar(&mut body, plan.object_count);
+    let mut written_stored: u64 = 0;
+    for index in &plan.indices {
+        let object = plan
+            .revision
+            .objects
+            .get(*index)
+            .ok_or(EntityReadError::InternalInvariant)?;
+        let (entity, object_id) = plan
+            .revision
+            .bindings
+            .get(*index)
+            .copied()
+            .ok_or(EntityReadError::InternalInvariant)?;
+        let stored = object.stored_bytes();
+        let stored_len =
+            u64::try_from(stored.len()).map_err(|_| EntityReadError::InternalInvariant)?;
+        written_stored = written_stored
+            .checked_add(stored_len)
+            .ok_or(EntityReadError::InternalInvariant)?;
+        let kind = u64::from(object.record().body.kind_tag());
+        let record_len = object_record_len(kind, stored_len)?;
+        let inner_len = sized_len(stored_len)?;
+        push_uvar(&mut body, record_len);
+        push_uvar(&mut body, OBJECT_FIELDS);
+        push_fixed_field(&mut body, 1, entity.as_bytes());
+        push_uvar_field(&mut body, 2, kind);
+        push_fixed_field(&mut body, 3, object_id.as_bytes());
+        push_uvar(&mut body, 4);
+        push_uvar(&mut body, inner_len);
+        push_uvar(&mut body, stored_len);
+        body.extend_from_slice(stored);
+    }
+    push_uvar_field(&mut body, 8, plan.work_units);
+    if written_stored != plan.stored_bytes
+        || u64::try_from(body.len()).map_err(|_| EntityReadError::InternalInvariant)?
+            != plan.body_len
+    {
+        return Err(EntityReadError::InternalInvariant);
+    }
+    Ok(body)
+}
+
+fn push_uvar(out: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        out.push(byte);
+        if value == 0 {
+            return;
+        }
+    }
+}
+
+fn push_uvar_field(out: &mut Vec<u8>, tag: u64, value: u64) {
+    push_uvar(out, tag);
+    let width = uvar_len(value);
+    push_uvar(out, width);
+    push_uvar(out, value);
+}
+
+fn push_fixed_field(out: &mut Vec<u8>, tag: u64, fixed: &[u8; 32]) {
+    push_uvar(out, tag);
+    push_uvar(out, 32);
+    out.extend_from_slice(fixed);
 }
 
 /// Decodes an exact response body.
@@ -573,98 +662,23 @@ fn read_ordered_fields<'a>(
 fn decode_response_object(input: &[u8]) -> Result<EntityReadResponseObject, EntityReadError> {
     let mut cursor = ScbValueCursor::new(input).map_err(|_| EntityReadError::NotCanonical)?;
     let fields = read_ordered_fields(&mut cursor, 4)?;
+    let inner = fields
+        .get(3)
+        .copied()
+        .ok_or(EntityReadError::NotCanonical)?;
+    let mut bytes = ScbValueCursor::new(inner).map_err(|_| EntityReadError::NotCanonical)?;
+    let stored = bytes
+        .read_bytes()
+        .map_err(|_| EntityReadError::NotCanonical)?;
+    bytes
+        .check_finished()
+        .map_err(|_| EntityReadError::NotCanonical)?;
     Ok(EntityReadResponseObject {
         entity: EntityId::from_bytes(response_fixed(fields.first().copied())?),
         kind: response_uvar(fields.get(1).copied())?,
         object_id: ObjectId::from_bytes(response_fixed(fields.get(2).copied())?),
-        stored_bytes: fields
-            .get(3)
-            .copied()
-            .ok_or(EntityReadError::NotCanonical)?
-            .to_vec(),
+        stored_bytes: stored.to_vec(),
     })
-}
-
-fn verify_plan(
-    method: EntityReadMethod,
-    revision: &EntityReadRevision<'_>,
-    request: &EntityReadRequest,
-    plan: &EntityReadPlan,
-) -> Result<(), EntityReadError> {
-    let count = u64::try_from(plan.object_indices.len())
-        .map_err(|_| EntityReadError::InternalInvariant)?;
-    if count != plan.object_count || count == 0 {
-        return Err(EntityReadError::InternalInvariant);
-    }
-    let mut stored_bytes: u64 = 0;
-    for (position, index) in plan.object_indices.iter().enumerate() {
-        let object = revision
-            .objects
-            .get(*index)
-            .ok_or(EntityReadError::InternalInvariant)?;
-        let (entity, object_id) = revision
-            .bindings
-            .get(*index)
-            .copied()
-            .ok_or(EntityReadError::InternalInvariant)?;
-        if object.record().entity_id != entity || object.object_id() != object_id {
-            return Err(EntityReadError::InternalInvariant);
-        }
-        if object.schema_epoch_id() != revision.epoch {
-            return Err(EntityReadError::InternalInvariant);
-        }
-        stored_bytes = stored_bytes
-            .checked_add(stored_len(object)?)
-            .ok_or(EntityReadError::InternalInvariant)?;
-        if position == 0 {
-            if entity != request.entity {
-                return Err(EntityReadError::InternalInvariant);
-            }
-            match method {
-                EntityReadMethod::Version => {
-                    if count != 1 {
-                        return Err(EntityReadError::InternalInvariant);
-                    }
-                }
-                EntityReadMethod::Signature => {
-                    if u64::from(object.record().body.kind_tag()) != FUNCTION_KIND {
-                        return Err(EntityReadError::InternalInvariant);
-                    }
-                    let EntityBodyValue::Function(function) = &object.record().body else {
-                        return Err(EntityReadError::InternalInvariant);
-                    };
-                    let expected = function.parameters.len();
-                    if plan.object_indices.len() != expected + 1 {
-                        return Err(EntityReadError::InternalInvariant);
-                    }
-                    for (ordinal, parameter_id) in function.parameters.iter().enumerate() {
-                        let parameter = revision
-                            .objects
-                            .get(plan.object_indices[ordinal + 1])
-                            .ok_or(EntityReadError::InternalInvariant)?;
-                        let EntityBodyValue::Parameter(parameter_body) = &parameter.record().body
-                        else {
-                            return Err(EntityReadError::InternalInvariant);
-                        };
-                        let expected_ordinal = u32::try_from(ordinal)
-                            .map_err(|_| EntityReadError::InternalInvariant)?;
-                        if parameter.record().entity_id != *parameter_id
-                            || parameter_body.owner != request.entity
-                            || parameter_body.role != ParameterRole::Function
-                            || parameter_body.ordinal != expected_ordinal
-                        {
-                            return Err(EntityReadError::InternalInvariant);
-                        }
-                    }
-                    return Ok(());
-                }
-            }
-        }
-    }
-    if stored_bytes != plan.stored_bytes {
-        return Err(EntityReadError::InternalInvariant);
-    }
-    Ok(())
 }
 
 fn agree(
@@ -690,6 +704,43 @@ fn agree(
 
 fn stored_len(object: &EntityObject) -> Result<u64, EntityReadError> {
     u64::try_from(object.stored_bytes().len()).map_err(|_| EntityReadError::BudgetExceeded)
+}
+
+fn check_byte_payload(stored: u64) -> Result<(), EntityReadError> {
+    let ceiling =
+        u64::try_from(MAX_BYTE_PAYLOAD).map_err(|_| EntityReadError::BudgetExceeded)?;
+    if stored > ceiling {
+        return Err(EntityReadError::BudgetExceeded);
+    }
+    Ok(())
+}
+
+fn check_collection_count(count: u64) -> Result<(), EntityReadError> {
+    if count > MAX_COLLECTION_ELEMENTS {
+        return Err(EntityReadError::BudgetExceeded);
+    }
+    Ok(())
+}
+
+fn check_standalone_body(body_len: u64) -> Result<(), EntityReadError> {
+    let ceiling =
+        u64::try_from(MAX_STANDALONE_BYTES).map_err(|_| EntityReadError::BudgetExceeded)?;
+    if body_len > ceiling {
+        return Err(EntityReadError::BudgetExceeded);
+    }
+    Ok(())
+}
+
+/// Fixed response record field count.
+const RESPONSE_FIELDS: u64 = 8;
+/// Fixed response object record field count.
+const OBJECT_FIELDS: u64 = 4;
+
+fn check_record_ceilings() -> Result<(), EntityReadError> {
+    if RESPONSE_FIELDS > MAX_RECORD_FIELDS || OBJECT_FIELDS > MAX_RECORD_FIELDS {
+        return Err(EntityReadError::BudgetExceeded);
+    }
+    Ok(())
 }
 
 fn check_work(
@@ -722,37 +773,45 @@ fn work_bound(
         .ok_or(EntityReadError::BudgetExceeded)
 }
 
-fn response_body_len(
+fn object_record_len(kind: u64, stored: u64) -> Result<u64, EntityReadError> {
+    let inner = sized_len(stored)?;
+    checked_sum(&[
+        uvar_len(OBJECT_FIELDS),
+        field_len(1, 32)?,
+        field_len(2, uvar_len(kind))?,
+        field_len(3, 32)?,
+        field_len(4, inner)?,
+    ])
+}
+
+fn response_list_len(
     revision: &EntityReadRevision<'_>,
     indices: &[usize],
-    work_units: u64,
 ) -> Result<u64, EntityReadError> {
+    check_record_ceilings()?;
     let mut list_content: u64 = 0;
     for index in indices {
         let object = revision
             .objects
             .get(*index)
             .ok_or(EntityReadError::InternalInvariant)?;
-        let kind_len = uvar_len(u64::from(object.record().body.kind_tag()));
-        let stored = stored_len(object)?;
-        let record_len = checked_sum(&[
-            uvar_len(4),
-            field_len(1, 32)?,
-            field_len(2, kind_len)?,
-            field_len(3, 32)?,
-            field_len(4, stored)?,
-        ])?;
+        let record_len = object_record_len(
+            u64::from(object.record().body.kind_tag()),
+            stored_len(object)?,
+        )?;
         list_content = list_content
             .checked_add(sized_len(record_len)?)
             .ok_or(EntityReadError::BudgetExceeded)?;
     }
-    let list_len = uvar_len(
-        u64::try_from(indices.len()).map_err(|_| EntityReadError::BudgetExceeded)?,
-    )
-    .checked_add(list_content)
-    .ok_or(EntityReadError::BudgetExceeded)?;
+    uvar_len(u64::try_from(indices.len()).map_err(|_| EntityReadError::BudgetExceeded)?)
+        .checked_add(list_content)
+        .ok_or(EntityReadError::BudgetExceeded)
+}
+
+fn response_body_len(list_len: u64, work_units: u64) -> Result<u64, EntityReadError> {
+    check_record_ceilings()?;
     checked_sum(&[
-        uvar_len(8),
+        uvar_len(RESPONSE_FIELDS),
         field_len(1, uvar_len(ENTITY_READ_RESPONSE_VERSION))?,
         field_len(2, 32)?,
         field_len(3, 32)?,
@@ -1233,24 +1292,22 @@ mod tests {
         out
     }
 
-    fn roundtrip(
+    fn roundtrip<'a>(
         method: EntityReadMethod,
-        fixture: &Fixture,
+        fixture: &'a Fixture,
         request: &EntityReadRequest,
         selected: &EntityReadCeilings,
-    ) -> (EntityReadPlan, EntityReadOutcome, EntityReadResponse) {
+    ) -> (EntityReadPlan<'a>, EntityReadOutcome, EntityReadResponse) {
         let revision = view(fixture);
         let plan = prepare_entity_read(method, &revision, request, selected).unwrap();
-        let outcome =
-            encode_entity_read_response(method, &revision, fixture.session, request, &plan)
-                .unwrap();
+        let outcome = encode_entity_read_response(&plan, fixture.session).unwrap();
         assert_eq!(
             u64::try_from(outcome.body.len()).unwrap(),
-            plan.body_len
+            plan.body_len()
         );
-        assert_eq!(outcome.returned_bytes, plan.body_len);
-        assert_eq!(outcome.returned_entities, plan.object_count);
-        assert_eq!(outcome.work_units, plan.work_units);
+        assert_eq!(outcome.returned_bytes, plan.body_len());
+        assert_eq!(outcome.returned_entities, plan.object_count());
+        assert_eq!(outcome.work_units, plan.work_units());
         let response = decode_entity_read_response(&outcome.body).unwrap();
         (plan, outcome, response)
     }
@@ -1263,14 +1320,13 @@ mod tests {
             let request = request(byte, fixture.root);
             let (plan, outcome, response) =
                 roundtrip(EntityReadMethod::Version, &fixture, &request, &selected);
-            assert_eq!(plan.object_count, 1);
+            assert_eq!(plan.object_count(), 1);
             assert_eq!(outcome.returned_entities, 1);
             let object = &fixture.objects[usize::from(byte - 1)];
             let stored_len = u64::try_from(object.stored_bytes().len()).unwrap();
             let lookup_cost = 6;
             let expected_work = 1 + lookup_cost + 2 * stored_len + request.max_response_bytes;
-            assert_eq!(plan.work_units, expected_work);
-            assert_eq!(plan.stored_bytes, stored_len);
+            assert_eq!(plan.work_units(), expected_work);
             assert_eq!(response.workspace, fixture.workspace);
             assert_eq!(response.root, fixture.root);
             assert_eq!(response.epoch, epoch());
@@ -1301,7 +1357,7 @@ mod tests {
         let request = request(40, fixture.root);
         let (plan, _, response) =
             roundtrip(EntityReadMethod::Signature, &fixture, &request, &selected);
-        assert_eq!(plan.object_count, 4);
+        assert_eq!(plan.object_count(), 4);
         assert_eq!(response.objects.len(), 4);
         let expected = [40_u8, 41, 42, 43];
         for (position, byte) in expected.iter().enumerate() {
@@ -1322,7 +1378,7 @@ mod tests {
         let request = request(5, fixture.root);
         let (plan, _, response) =
             roundtrip(EntityReadMethod::Signature, &fixture, &request, &ceilings());
-        assert_eq!(plan.object_count, 1);
+        assert_eq!(plan.object_count(), 1);
         assert_eq!(response.objects.len(), 1);
         assert_eq!(response.objects[0].entity, entity(5));
     }
@@ -1438,7 +1494,7 @@ mod tests {
         assert_eq!(
             prepare_entity_read(EntityReadMethod::Version, &revision, &zero_objects, &ceilings())
                 .unwrap_err(),
-            EntityReadError::BudgetExceeded
+            EntityReadError::NotCanonical
         );
         let mut over_selected = base;
         over_selected.max_objects = 65_536;
@@ -1452,14 +1508,14 @@ mod tests {
         assert_eq!(
             prepare_entity_read(EntityReadMethod::Version, &revision, &zero_bytes, &ceilings())
                 .unwrap_err(),
-            EntityReadError::BudgetExceeded
+            EntityReadError::NotCanonical
         );
         let mut zero_work = base;
         zero_work.max_work = 0;
         assert_eq!(
             prepare_entity_read(EntityReadMethod::Version, &revision, &zero_work, &ceilings())
                 .unwrap_err(),
-            EntityReadError::BudgetExceeded
+            EntityReadError::NotCanonical
         );
         let mut over_work = base;
         over_work.max_work = 100_000_001;
@@ -1489,7 +1545,7 @@ mod tests {
         // The work bound charges the ceiling itself, so narrowing the byte
         // ceiling also shrinks the body: walk down to the minimal feasible
         // ceiling and prove the step below it refuses.
-        let mut floor = plan.body_len;
+        let mut floor = plan.body_len();
         loop {
             let mut probe = request;
             probe.max_response_bytes = floor - 1;
@@ -1501,13 +1557,13 @@ mod tests {
             ) {
                 Err(EntityReadError::BudgetExceeded) => break,
                 Ok(narrower) => {
-                    assert!(narrower.body_len < floor);
-                    floor = narrower.body_len;
+                    assert!(narrower.body_len() < floor);
+                    floor = narrower.body_len();
                 }
                 Err(other) => panic!("unexpected error: {other}"),
             }
         }
-        assert!(floor <= plan.body_len);
+        assert!(floor <= plan.body_len());
         let mut exact_bytes = request;
         exact_bytes.max_response_bytes = floor;
         let exact = prepare_entity_read(
@@ -1517,18 +1573,11 @@ mod tests {
             &ceilings(),
         )
         .unwrap();
-        assert!(exact.body_len <= floor);
-        let outcome = encode_entity_read_response(
-            EntityReadMethod::Signature,
-            &revision,
-            fixture.session,
-            &exact_bytes,
-            &exact,
-        )
-        .unwrap();
+        assert!(exact.body_len() <= floor);
+        let outcome = encode_entity_read_response(&exact, fixture.session).unwrap();
         assert!(outcome.returned_bytes <= floor);
         let mut exact_work = request;
-        exact_work.max_work = plan.work_units;
+        exact_work.max_work = plan.work_units();
         prepare_entity_read(
             EntityReadMethod::Signature,
             &revision,
@@ -1537,7 +1586,7 @@ mod tests {
         )
         .unwrap();
         let mut below_work = request;
-        below_work.max_work = plan.work_units - 1;
+        below_work.max_work = plan.work_units() - 1;
         assert_eq!(
             prepare_entity_read(
                 EntityReadMethod::Signature,
@@ -1549,11 +1598,11 @@ mod tests {
             EntityReadError::BudgetExceeded
         );
         let mut exact_budget = ceilings();
-        exact_budget.budget_before_dispatch = plan.work_units;
+        exact_budget.budget_before_dispatch = plan.work_units();
         prepare_entity_read(EntityReadMethod::Signature, &revision, &request, &exact_budget)
             .unwrap();
         let mut below_budget = ceilings();
-        below_budget.budget_before_dispatch = plan.work_units - 1;
+        below_budget.budget_before_dispatch = plan.work_units() - 1;
         assert_eq!(
             prepare_entity_read(EntityReadMethod::Signature, &revision, &request, &below_budget)
                 .unwrap_err(),
@@ -1677,34 +1726,30 @@ mod tests {
     }
 
     #[test]
-    fn encode_rejects_a_plan_for_another_request() {
+    fn plan_captures_immutable_inputs() {
         let fixture = eighteen_kind_fixture();
         let revision = view(&fixture);
+        let mut request = request(1, fixture.root);
+        let mut selected = ceilings();
         let plan =
-            prepare_entity_read(EntityReadMethod::Version, &revision, &request(1, fixture.root), &ceilings())
+            prepare_entity_read(EntityReadMethod::Version, &revision, &request, &selected)
                 .unwrap();
+        assert_eq!(plan.work_units(), plan.work_units());
+        assert_eq!(plan.body_len(), plan.body_len());
+        assert_eq!(plan.object_count(), plan.object_count());
+        let first = encode_entity_read_response(&plan, fixture.session).unwrap();
+        request.expected_root = StateRoot::from_bytes([0x77; 32]);
+        request.max_objects = 1;
+        selected.max_work = 1;
+        selected.budget_before_dispatch = 1;
         assert_eq!(
-            encode_entity_read_response(
-                EntityReadMethod::Signature,
-                &revision,
-                fixture.session,
-                &request(1, fixture.root),
-                &plan
-            )
-            .unwrap_err(),
-            EntityReadError::InternalInvariant
+            prepare_entity_read(EntityReadMethod::Version, &revision, &request, &selected)
+                .unwrap_err(),
+            EntityReadError::BudgetExceeded
         );
-        assert_eq!(
-            encode_entity_read_response(
-                EntityReadMethod::Version,
-                &revision,
-                fixture.session,
-                &request(2, fixture.root),
-                &plan
-            )
-            .unwrap_err(),
-            EntityReadError::InternalInvariant
-        );
+        let second = encode_entity_read_response(&plan, fixture.session).unwrap();
+        assert_eq!(first.body, second.body);
+        assert_eq!(first.work_units, second.work_units);
     }
 
     #[test]
@@ -1718,5 +1763,322 @@ mod tests {
         assert_eq!(EntityReadError::NotCanonical.owner_numeric(), None);
         assert_eq!(EntityReadError::BudgetExceeded.owner_symbol(), None);
         assert_eq!(EntityReadError::BudgetExceeded.owner_numeric(), None);
+    }
+
+    fn push_uvar(out: &mut Vec<u8>, mut value: u64) {
+        loop {
+            let mut byte = (value & 0x7f) as u8;
+            value >>= 7;
+            if value != 0 {
+                byte |= 0x80;
+            }
+            out.push(byte);
+            if value == 0 {
+                return;
+            }
+        }
+    }
+
+    fn push_sized(out: &mut Vec<u8>, bytes: &[u8]) {
+        push_uvar(out, u64::try_from(bytes.len()).unwrap());
+        out.extend_from_slice(bytes);
+    }
+
+    fn push_field(out: &mut Vec<u8>, tag: u64, value: &[u8]) {
+        push_uvar(out, tag);
+        push_sized(out, value);
+    }
+
+    fn manual_object_record(entity: EntityId, kind: u64, object: &EntityObject) -> Vec<u8> {
+        let mut inner = Vec::new();
+        push_uvar(&mut inner, u64::try_from(object.stored_bytes().len()).unwrap());
+        inner.extend_from_slice(object.stored_bytes());
+        let mut record = Vec::new();
+        push_uvar(&mut record, 4);
+        push_field(&mut record, 1, entity.as_bytes());
+        let kind_bytes = {
+            let mut encoded = Vec::new();
+            push_uvar(&mut encoded, kind);
+            encoded
+        };
+        push_field(&mut record, 2, &kind_bytes);
+        push_field(&mut record, 3, object.object_id().as_bytes());
+        push_field(&mut record, 4, &inner);
+        record
+    }
+
+    fn manual_response_body(
+        fixture: &Fixture,
+        session: SessionId,
+        requested: EntityId,
+        entries: &[(EntityId, u64, &EntityObject)],
+        work_units: u64,
+    ) -> Vec<u8> {
+        let mut list_content = Vec::new();
+        push_uvar(&mut list_content, u64::try_from(entries.len()).unwrap());
+        for (entity, kind, object) in entries {
+            push_sized(
+                &mut list_content,
+                &manual_object_record(*entity, *kind, object),
+            );
+        }
+        let version_bytes = {
+            let mut encoded = Vec::new();
+            push_uvar(&mut encoded, ENTITY_READ_RESPONSE_VERSION);
+            encoded
+        };
+        let work_bytes = {
+            let mut encoded = Vec::new();
+            push_uvar(&mut encoded, work_units);
+            encoded
+        };
+        let mut body = Vec::new();
+        push_uvar(&mut body, 8);
+        push_field(&mut body, 1, &version_bytes);
+        push_field(&mut body, 2, fixture.workspace.as_bytes());
+        push_field(&mut body, 3, fixture.root.as_bytes());
+        push_field(&mut body, 4, epoch().as_bytes());
+        push_field(&mut body, 5, session.as_bytes());
+        push_field(&mut body, 6, requested.as_bytes());
+        push_field(&mut body, 7, &list_content);
+        push_field(&mut body, 8, &work_bytes);
+        body
+    }
+
+    #[test]
+    fn response_bytes_match_independent_canonical_assembly() {
+        let fixture = eighteen_kind_fixture();
+        let selected = ceilings();
+        let request = request(9, fixture.root);
+        let revision = view(&fixture);
+        let plan = prepare_entity_read(EntityReadMethod::Version, &revision, &request, &selected)
+            .unwrap();
+        let outcome = encode_entity_read_response(&plan, fixture.session).unwrap();
+        let object = &fixture.objects[8];
+        let expected = manual_response_body(
+            &fixture,
+            fixture.session,
+            entity(9),
+            &[(entity(9), 9, object)],
+            plan.work_units(),
+        );
+        assert_eq!(outcome.body, expected);
+        let response = decode_entity_read_response(&expected).unwrap();
+        assert_eq!(response.objects[0].stored_bytes, object.stored_bytes());
+    }
+
+    #[test]
+    fn inner_length_defects_are_not_canonical() {
+        let fixture = eighteen_kind_fixture();
+        let object = &fixture.objects[8];
+        let valid_inner = {
+            let mut inner = Vec::new();
+            push_uvar(&mut inner, u64::try_from(object.stored_bytes().len()).unwrap());
+            inner.extend_from_slice(object.stored_bytes());
+            inner
+        };
+        let overlong_inner = {
+            let mut inner = Vec::new();
+            push_uvar(
+                &mut inner,
+                u64::try_from(object.stored_bytes().len()).unwrap() + 1,
+            );
+            inner.extend_from_slice(object.stored_bytes());
+            inner
+        };
+        let nonminimal_inner = {
+            let mut inner = vec![
+            0x80 | u8::try_from(object.stored_bytes().len() & 0x7f).unwrap(),
+            0x00,
+        ];
+            inner.extend_from_slice(object.stored_bytes());
+            inner
+        };
+        let mut trailing_inner = valid_inner.clone();
+        trailing_inner.push(0x00);
+        for inner in [overlong_inner, nonminimal_inner, trailing_inner] {
+            let mut record = Vec::new();
+            push_uvar(&mut record, 4);
+            push_field(&mut record, 1, entity(9).as_bytes());
+            let mut kind_bytes = Vec::new();
+            push_uvar(&mut kind_bytes, 9);
+            push_field(&mut record, 2, &kind_bytes);
+            push_field(&mut record, 3, object.object_id().as_bytes());
+            push_field(&mut record, 4, &inner);
+            let mut list_content = Vec::new();
+            push_uvar(&mut list_content, 1);
+            push_sized(&mut list_content, &record);
+            let mut version_bytes = Vec::new();
+            push_uvar(&mut version_bytes, ENTITY_READ_RESPONSE_VERSION);
+            let mut work_bytes = Vec::new();
+            push_uvar(&mut work_bytes, 1);
+            let mut body = Vec::new();
+            push_uvar(&mut body, 8);
+            push_field(&mut body, 1, &version_bytes);
+            push_field(&mut body, 2, fixture.workspace.as_bytes());
+            push_field(&mut body, 3, fixture.root.as_bytes());
+            push_field(&mut body, 4, epoch().as_bytes());
+            push_field(&mut body, 5, fixture.session.as_bytes());
+            push_field(&mut body, 6, entity(9).as_bytes());
+            push_field(&mut body, 7, &list_content);
+            push_field(&mut body, 8, &work_bytes);
+            assert_eq!(
+                decode_entity_read_response(&body),
+                Err(EntityReadError::NotCanonical)
+            );
+        }
+    }
+
+    #[test]
+    fn zero_ceilings_are_not_canonical_before_root_checks() {
+        let fixture = eighteen_kind_fixture();
+        let revision = view(&fixture);
+        let base = request(1, fixture.root);
+        for ceiling in 0..3_u8 {
+            let mut defective = base;
+            match ceiling {
+                0 => defective.max_objects = 0,
+                1 => defective.max_response_bytes = 0,
+                _ => defective.max_work = 0,
+            }
+            assert_eq!(
+                prepare_entity_read(EntityReadMethod::Version, &revision, &defective, &ceilings())
+                    .unwrap_err(),
+                EntityReadError::NotCanonical,
+                "zero ceiling {ceiling} accepted"
+            );
+        }
+        let mut competing = base;
+        competing.max_objects = 0;
+        competing.expected_root = StateRoot::from_bytes([0x77; 32]);
+        assert_eq!(
+            prepare_entity_read(EntityReadMethod::Version, &revision, &competing, &ceilings())
+                .unwrap_err(),
+            EntityReadError::NotCanonical
+        );
+    }
+
+    #[test]
+    fn signature_preserves_nonmonotonic_declaration_order() {
+        let mut fixture = signature_fixture();
+        rebuild(
+            &mut fixture,
+            40,
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: Vec::new(),
+                parameters: vec![entity(43), entity(41), entity(42)],
+                result_type: TypeExpr::Bool,
+                effects: empty_set(),
+                entry_block: entity(44),
+                blocks: vec![entity(44)],
+                contracts: empty_set(),
+                visibility: Visibility::Private,
+            }),
+        );
+        for (byte, ordinal) in [(43_u8, 0_u32), (41, 1), (42, 2)] {
+            rebuild(&mut fixture, byte, parameter_body(40, ordinal));
+        }
+        let request = request(40, fixture.root);
+        let (_, _, response) =
+            roundtrip(EntityReadMethod::Signature, &fixture, &request, &ceilings());
+        let order: Vec<EntityId> = response.objects.iter().map(|object| object.entity).collect();
+        assert_eq!(order, vec![entity(40), entity(43), entity(41), entity(42)]);
+    }
+
+    #[test]
+    fn parameter_binding_and_epoch_defects_rejected_in_preparation() {
+        let mut fixture = signature_fixture();
+        fixture.bindings.swap(1, 2);
+        let revision = view(&fixture);
+        assert_eq!(
+            prepare_entity_read(
+                EntityReadMethod::Signature,
+                &revision,
+                &request(40, fixture.root),
+                &ceilings()
+            )
+            .unwrap_err(),
+            EntityReadError::InternalInvariant
+        );
+        let mut fixture = signature_fixture();
+        let foreign = build_entity_object(
+            SchemaEpochId::from_bytes([8; 32]),
+            &EntityObjectRecord {
+                entity_id: entity(42),
+                body: parameter_body(40, 1),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let position = fixture
+            .objects
+            .iter()
+            .position(|object| object.record().entity_id == entity(42))
+            .unwrap();
+        fixture.objects[position] = foreign;
+        fixture.bindings[position] = (entity(42), fixture.objects[position].object_id());
+        let revision = view(&fixture);
+        assert_eq!(
+            prepare_entity_read(
+                EntityReadMethod::Signature,
+                &revision,
+                &request(40, fixture.root),
+                &ceilings()
+            )
+            .unwrap_err(),
+            EntityReadError::InternalInvariant
+        );
+    }
+
+    #[test]
+    fn oversized_stored_object_refused_before_copy() {
+        let fixture = eighteen_kind_fixture();
+        let bulky = EntityBodyValue::Function(FunctionBody {
+            type_parameters: Vec::new(),
+            parameters: vec![entity(60); 1_000_000],
+            result_type: TypeExpr::Bool,
+            effects: empty_set(),
+            entry_block: entity(44),
+            blocks: vec![entity(44)],
+            contracts: empty_set(),
+            visibility: Visibility::Private,
+        });
+        let object = build(50, bulky);
+        assert!(u64::try_from(object.stored_bytes().len()).unwrap() > 16_777_216);
+        let bindings = vec![(entity(50), object.object_id())];
+        let objects = vec![object];
+        let revision = EntityReadRevision {
+            workspace: fixture.workspace,
+            root: fixture.root,
+            epoch: epoch(),
+            bindings: &bindings,
+            objects: &objects,
+            tombstones: &[],
+        };
+        let mut selected = ceilings();
+        selected.max_work = u64::MAX;
+        selected.max_response_bytes = u64::MAX;
+        selected.budget_before_dispatch = u64::MAX;
+        let mut request = request(50, fixture.root);
+        request.max_response_bytes = 40_000_000;
+        request.max_work = u64::MAX;
+        assert_eq!(
+            prepare_entity_read(EntityReadMethod::Version, &revision, &request, &selected)
+                .unwrap_err(),
+            EntityReadError::BudgetExceeded
+        );
+    }
+
+    #[test]
+    fn response_body_uses_a_single_exact_allocation() {
+        let fixture = signature_fixture();
+        let revision = view(&fixture);
+        let request = request(40, fixture.root);
+        let plan =
+            prepare_entity_read(EntityReadMethod::Signature, &revision, &request, &ceilings())
+                .unwrap();
+        let outcome = encode_entity_read_response(&plan, fixture.session).unwrap();
+        assert_eq!(outcome.body.capacity(), outcome.body.len());
     }
 }

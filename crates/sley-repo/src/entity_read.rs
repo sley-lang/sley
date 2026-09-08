@@ -29,15 +29,18 @@ fn view(revision: &VerifiedRevision) -> EntityReadRevision<'_> {
 /// Decodes the request and runs the ordered owner checks against one
 /// verified revision, without allocating object-sized output.
 ///
+/// The returned plan borrows the revision; it carries the copied revision
+/// view, request, and ceilings, and only it can drive encoding.
+///
 /// # Errors
 ///
 /// Returns the first failing contract check.
-pub fn prepare_verified_entity_read(
-    revision: &VerifiedRevision,
+pub fn prepare_verified_entity_read<'rev>(
+    revision: &'rev VerifiedRevision,
     method: EntityReadMethod,
     request_bytes: &[u8],
     selected: &EntityReadCeilings,
-) -> Result<(EntityReadRequest, EntityReadPlan), EntityReadError> {
+) -> Result<(EntityReadRequest, EntityReadPlan<'rev>), EntityReadError> {
     let request = decode_entity_read_request(request_bytes)?;
     let plan = prepare_entity_read(method, &view(revision), &request, selected)?;
     Ok((request, plan))
@@ -47,16 +50,13 @@ pub fn prepare_verified_entity_read(
 ///
 /// # Errors
 ///
-/// Returns `InternalInvariant` when the plan disagrees with the borrowed
-/// revision or the encoding drifts from the preflight length.
+/// Returns `InternalInvariant` when the written bytes drift from the
+/// preflight length.
 pub fn encode_verified_entity_read_response(
-    revision: &VerifiedRevision,
+    plan: &EntityReadPlan<'_>,
     session: SessionId,
-    method: EntityReadMethod,
-    request: &EntityReadRequest,
-    plan: &EntityReadPlan,
 ) -> Result<EntityReadOutcome, EntityReadError> {
-    encode_entity_read_response(method, &view(revision), session, request, plan)
+    encode_entity_read_response(plan, session)
 }
 
 #[cfg(test)]
@@ -105,14 +105,8 @@ mod tests {
             )
             .unwrap();
             assert_eq!(request.entity, entity);
-            let outcome = encode_verified_entity_read_response(
-                &revision,
-                session,
-                EntityReadMethod::Version,
-                &request,
-                &plan,
-            )
-            .unwrap();
+            let outcome =
+                encode_verified_entity_read_response(&plan, session).unwrap();
             assert_eq!(outcome.returned_entities, 1);
             let response = decode_entity_read_response(&outcome.body).unwrap();
             assert_eq!(response.root, root);
@@ -136,21 +130,14 @@ mod tests {
         let revision = transactions.verified_revision(genesis_id).unwrap();
         let root = revision.state_root().root;
         let session = SessionId::from_bytes([0x20; 32]);
-        let (request, plan) = prepare_verified_entity_read(
+        let (_request, plan) = prepare_verified_entity_read(
             &revision,
             EntityReadMethod::Signature,
             &encode_request(root, id(30)),
             &ceilings(),
         )
         .unwrap();
-        let outcome = encode_verified_entity_read_response(
-            &revision,
-            session,
-            EntityReadMethod::Signature,
-            &request,
-            &plan,
-        )
-        .unwrap();
+        let outcome = encode_verified_entity_read_response(&plan, session).unwrap();
         assert_eq!(outcome.returned_entities, 3);
         let response = decode_entity_read_response(&outcome.body).unwrap();
         let entities: Vec<EntityId> = response
