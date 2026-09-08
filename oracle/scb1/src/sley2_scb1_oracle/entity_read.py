@@ -1992,73 +1992,210 @@ def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], prob
             problems.append(f"selection:{name}:effects")
 
 
+_REJECTED_CONTRACT = "sley2-entity-read-v2-rejected"
+_REJECTED_CLAIM = "independent-expected"
+_REJECTED_TOP_FIELDS = frozenset({"contract", "claim", "manifest", "cases"})
+_REJECTED_KINDS = frozenset(
+    {
+        "relation",
+        "runtime_sequence",
+        "failure_response",
+        "failure_wire",
+        "owner_case",
+        "fill_recipe",
+        "hello_invalid",
+        "selection_invalid",
+    }
+)
+
+
+def _bind_expected_row(expected: Mapping[str, Any], supplied: Mapping[str, Any], row_id: str, problems: list[str]) -> None:
+    if set(supplied.keys()) != set(expected.keys()):
+        problems.append(f"rejected:{row_id}:fields")
+    for key in expected:
+        if not _same_value(expected[key], supplied.get(key)):
+            problems.append(f"rejected:{row_id}:{key}")
+
+
 def check_rejected(inputs: Mapping[str, Any], rejected: Mapping[str, Any]) -> list[str]:
     problems: list[str] = []
-    for case in rejected.get("cases", []):
-        if case.get("kind") == "runtime_sequence":
-            check_stateful_spec(case, problems)
+    if not isinstance(rejected, Mapping):
+        return ["rejected:fields"]
+    if rejected.get("contract") != _REJECTED_CONTRACT:
+        problems.append("rejected-contract")
+    if rejected.get("claim") != _REJECTED_CLAIM:
+        problems.append("rejected-claim")
+    if set(rejected.keys()) != set(_REJECTED_TOP_FIELDS):
+        problems.append("rejected:fields")
+    manifest = rejected.get("manifest")
+    if not isinstance(manifest, Mapping):
+        manifest = {}
+    if manifest.get("inputs_sha256") != hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest():
+        problems.append("manifest:inputs-sha256")
+    raw_authored = inputs.get("rejected", [])
+    authored_rows = raw_authored if isinstance(raw_authored, list) else []
+    authored_valid = isinstance(raw_authored, list)
+    authored_ids: list[str] = []
+    authored_by_id: dict[str, Mapping[str, Any]] = {}
+    for row in authored_rows:
+        if not isinstance(row, Mapping) or not isinstance(row.get("id"), str) or not row["id"]:
+            authored_valid = False
             continue
-        if case.get("kind") == "relation":
-            check_relation(inputs, case, problems)
+        authored_ids.append(row["id"])
+        authored_by_id.setdefault(row["id"], row)
+    if not authored_valid or len(set(authored_ids)) != len(authored_ids):
+        problems.append("inputs:rejected:ids")
+    raw_supplied = rejected.get("cases")
+    supplied_list = raw_supplied if isinstance(raw_supplied, list) else []
+    if not isinstance(raw_supplied, list):
+        problems.append("rejected:cases:inventory")
+    supplied_ids: list[str] = []
+    shaped_supplied: list[Mapping[str, Any]] = []
+    for row in supplied_list:
+        if not isinstance(row, Mapping) or not isinstance(row.get("id"), str):
+            problems.append("rejected:cases:inventory")
             continue
-        if case.get("kind") == "fill_recipe":
-            check_fill_recipe(inputs, case, problems)
+        supplied_ids.append(row["id"])
+        shaped_supplied.append(row)
+    if supplied_ids != authored_ids:
+        problems.append("rejected:cases:inventory")
+    for supplied in shaped_supplied:
+        row_id = supplied["id"]
+        authored = authored_by_id.get(row_id)
+        if authored is None:
             continue
-        if case.get("kind") == "hello_invalid":
-            try:
-                build_hello(case["hello"])
-            except CheckFailed as error:
-                if error.layer != case["failing_layer"]:
-                    problems.append(f"{case['id']}:layer:{error.layer}")
-            except (ScbError, ValueError) as error:
-                problems.append(f"{case['id']}:unexpected:{error}")
-            else:
-                problems.append(f"{case['id']}:accepted")
-            continue
-        if case.get("kind") == "selection_invalid":
-            try:
-                negotiate_versioned(inputs["hellos"][case["client"]], inputs["hellos"][case["server"]])
-            except CheckFailed as error:
-                if error.layer != case["failing_layer"]:
-                    problems.append(f"{case['id']}:layer:{error.layer}")
-            except (ScbError, ValueError) as error:
-                problems.append(f"{case['id']}:unexpected:{error}")
-            else:
-                problems.append(f"{case['id']}:accepted")
-            continue
-        if case.get("kind") == "owner_case":
-            check_owner_case(inputs, case, problems)
-            continue
-        if case.get("kind") in ("failure_wire", "failure_response"):
-            data = bytes.fromhex(case["input_hex"])
-            layer, _code = validate_rejected(inputs, {"recipe": {"target": "failure"}}, data)
-            if layer != "failure_accepted":
-                problems.append(f"{case['id']}:expected-accepted-failure-wire:{layer}")
-            else:
-                try:
-                    stored, _p = split_wire(data, int(inputs["selected_limits"]["max_frame_bytes"]))
-                    payload, _t = check_envelope(stored, protocol_epoch_id())
-                    frame = decode_frame_payload(payload)
-                    failure = decode_failure(frame["body"])
-                except (ScbError, CheckFailed, ValueError) as error:
-                    problems.append(f"{case['id']}:failure-decode:{error}")
-                    continue
-                if failure["code"] != case["expected_code"] or failure["symbol"] != case["expected_symbol"]:
-                    problems.append(f"{case['id']}:failure-identity")
-                if failure["retryability"] != case["expected_retryability"]:
-                    problems.append(f"{case['id']}:failure-retryability")
-            continue
-        data = bytes.fromhex(case["input_hex"])
-        layer, code = validate_rejected(inputs, case, data)
-        if layer != case["failing_layer"]:
-            problems.append(f"{case['id']}:layer:{layer}")
-            continue
-        if case.get("expected_scb") is not None and code != case["expected_scb"]:
-            problems.append(f"{case['id']}:scb:{code}")
-            continue
-        if case.get("expected_code") is not None and CODES.get(case.get("expected_symbol", "")) != case["expected_code"]:
-            problems.append(f"{case['id']}:registry")
+        _bind_rejected_row(inputs, authored, supplied, problems)
+        try:
+            _validate_rejected_row(inputs, authored, supplied, problems)
+        except (KeyError, TypeError, AttributeError):
+            problems.append(f"rejected:{row_id}:fields")
     return problems
+
+
+def _bind_rejected_row(
+    inputs: Mapping[str, Any],
+    authored: Mapping[str, Any],
+    supplied: Mapping[str, Any],
+    problems: list[str],
+) -> None:
+    # Dispatch on the authored kind; a supplied kind never authorizes itself.
+    row_id = authored["id"]
+    kind = authored.get("kind")
+    if kind is None:
+        try:
+            rebuilt = build_rejected_bytes(inputs, inputs["cases"][authored["base"]], authored["recipe"])
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError) as error:
+            problems.append(f"rejected:{row_id}:rebuild:{error}")
+            return
+        expected = dict(authored)
+        expected["input_hex"] = rebuilt.hex()
+        _bind_expected_row(expected, supplied, row_id, problems)
+        return
+    if kind not in _REJECTED_KINDS:
+        problems.append(f"rejected:{row_id}:kind")
+        return
+    if kind in ("failure_response", "failure_wire"):
+        try:
+            rebuilt = build_failure_wire(inputs, authored)
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError) as error:
+            problems.append(f"rejected:{row_id}:rebuild:{error}")
+            return
+        expected = dict(authored)
+        expected["input_hex"] = rebuilt.hex()
+        _bind_expected_row(expected, supplied, row_id, problems)
+        return
+    if kind == "relation":
+        try:
+            derived = derive_relation(inputs, dict(authored))
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError) as error:
+            problems.append(f"{row_id}:relation-error:{error}")
+            return
+        _bind_expected_row(derived, supplied, row_id, problems)
+        return
+    _bind_expected_row(authored, supplied, row_id, problems)
+
+
+def _validate_rejected_row(
+    inputs: Mapping[str, Any],
+    authored: Mapping[str, Any],
+    supplied: Mapping[str, Any],
+    problems: list[str],
+) -> None:
+    row_id = authored["id"]
+    kind = authored.get("kind")
+    if kind == "runtime_sequence":
+        check_stateful_spec(supplied, problems)
+        return
+    if kind == "relation":
+        check_relation(inputs, supplied, problems)
+        return
+    if kind == "fill_recipe":
+        check_fill_recipe(inputs, supplied, problems)
+        return
+    if kind == "hello_invalid":
+        try:
+            build_hello(supplied["hello"])
+        except CheckFailed as error:
+            if error.layer != supplied.get("failing_layer"):
+                problems.append(f"{row_id}:layer:{error.layer}")
+        except (ScbError, ValueError) as error:
+            problems.append(f"{row_id}:unexpected:{error}")
+        else:
+            problems.append(f"{row_id}:accepted")
+        return
+    if kind == "selection_invalid":
+        try:
+            negotiate_versioned(inputs["hellos"][supplied["client"]], inputs["hellos"][supplied["server"]])
+        except CheckFailed as error:
+            if error.layer != supplied.get("failing_layer"):
+                problems.append(f"{row_id}:layer:{error.layer}")
+        except (ScbError, ValueError) as error:
+            problems.append(f"{row_id}:unexpected:{error}")
+        else:
+            problems.append(f"{row_id}:accepted")
+        return
+    if kind == "owner_case":
+        check_owner_case(inputs, supplied, problems)
+        return
+    if kind in ("failure_response", "failure_wire"):
+        try:
+            data = bytes.fromhex(supplied["input_hex"])
+        except (KeyError, TypeError, ValueError):
+            problems.append(f"rejected:{row_id}:input_hex")
+            return
+        layer, _code = validate_rejected(inputs, {"recipe": {"target": "failure"}}, data)
+        if layer != "failure_accepted":
+            problems.append(f"{row_id}:expected-accepted-failure-wire:{layer}")
+        else:
+            try:
+                stored, _p = split_wire(data, int(inputs["selected_limits"]["max_frame_bytes"]))
+                payload, _t = check_envelope(stored, protocol_epoch_id())
+                frame = decode_frame_payload(payload)
+                failure = decode_failure(frame["body"])
+            except (ScbError, CheckFailed, ValueError) as error:
+                problems.append(f"{row_id}:failure-decode:{error}")
+                return
+            if failure["code"] != supplied["expected_code"] or failure["symbol"] != supplied["expected_symbol"]:
+                problems.append(f"{row_id}:failure-identity")
+            if failure["retryability"] != supplied["expected_retryability"]:
+                problems.append(f"{row_id}:failure-retryability")
+        return
+    if kind is not None:
+        return
+    try:
+        data = bytes.fromhex(supplied["input_hex"])
+    except (KeyError, TypeError, ValueError):
+        problems.append(f"rejected:{row_id}:input_hex")
+        return
+    layer, code = validate_rejected(inputs, supplied, data)
+    if layer != supplied["failing_layer"]:
+        problems.append(f"{row_id}:layer:{layer}")
+        return
+    if supplied.get("expected_scb") is not None and code != supplied["expected_scb"]:
+        problems.append(f"{row_id}:scb:{code}")
+        return
+    if supplied.get("expected_code") is not None and CODES.get(supplied.get("expected_symbol", "")) != supplied["expected_code"]:
+        problems.append(f"{row_id}:registry")
 
 
 def check_owner_case(inputs: Mapping[str, Any], case: Mapping[str, Any], problems: list[str]) -> None:
