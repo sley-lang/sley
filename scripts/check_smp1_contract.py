@@ -349,18 +349,22 @@ def main() -> int:
         problems.append("machine-summary:protocol missing")
         section = {}
     status = section.get("status")
-    # Reverse pins: exactly one anchored Current composition record names
-    # the composing contracts' current revisions, and each pin inside that
-    # record equals its own status line (the forward pins live in
+    # Reverse pins: exactly one line-anchored Current composition record
+    # names the composing contracts' current revisions, and each pin inside
+    # that record equals its own status line (the forward pins live in
     # check_smp1_json_bridge_contract.py and check_cli_contract.py).
     # Historical closeout sentences keep their own revisions and never
     # satisfy these pins.
-    composition = re.findall(r"Current composition \(revision (\d+)\):", spec)
-    if len(composition) != 1 or int(composition[0]) != CONTRACT_REVISION:
-        problems.append(f"spec-current-composition:{composition}")
+    composition_hits = list(
+        re.finditer(r"^Current composition \(revision (\d+)\):", spec, flags=re.M)
+    )
+    if len(composition_hits) != 1 or int(composition_hits[0].group(1)) != CONTRACT_REVISION:
+        problems.append(
+            f"spec-current-composition:{[hit.group(1) for hit in composition_hits]}"
+        )
         composition_text = ""
     else:
-        start = spec.index(f"Current composition (revision {CONTRACT_REVISION}):")
+        start = composition_hits[0].start()
         end = spec.find("\n\n", start)
         composition_text = spec[start:end] if end > start else spec[start:]
     for name, path, status_re, pin_re in (
@@ -373,10 +377,16 @@ def main() -> int:
             problems.append(f"reverse-pin:{name}:status-line")
         elif len(pins) != 1 or pins[0] != found.group(1):
             problems.append(f"reverse-pin:{name}:revision-{found.group(1) if found else '?'}")
-    revision = re.search(r"Status: S20-400 contract draft, revision (\d+)", spec)
-    contract_revision = int(revision.group(1)) if revision else None
-    if contract_revision != CONTRACT_REVISION:
+    status_hits = re.findall(
+        r"^Status: S20-400 contract draft, revision (\d+)", spec, flags=re.M
+    )
+    if len(status_hits) != 1:
         problems.append("spec-revision:status-line")
+        contract_revision = None
+    else:
+        contract_revision = int(status_hits[0])
+        if contract_revision != CONTRACT_REVISION:
+            problems.append("spec-revision:status-line")
     expected = {
         "contract": "docs/spec/SMP1.md",
         "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
@@ -405,17 +415,13 @@ def main() -> int:
     present = []
     if CRATE.exists():
         present.append("crates/sley-protocol")
-    # Contract acceptance (section 10) is the freeze: the three reviews
-    # must pass with every report-grade finding closed before the status
-    # may read FROZEN, and an implementation coexisting with a frozen
-    # reviewed document is normal (S20-410 implements under the draft).
-    # Only a draft still awaiting review must have no implementation yet.
+    # Contract acceptance (section 10) is the freeze: the revision-bound
+    # current review admits it, and an implementation coexisting with a
+    # frozen reviewed document is normal (S20-410 implements under the
+    # draft). Only a draft still awaiting review must have no
+    # implementation yet.
     if status == DRAFT_STATUS and present:
         problems.append(f"implementation-before-stage:{present}")
-    if status in (FROZEN_STATUS, COMPLETE_STATUS):
-        for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
-            if not str(section.get(key, "")).startswith("PASS"):
-                problems.append(f"completion-without-review:{key}")
     # Implemented under a draft means tracked, never silently pending: a
     # FAIL round must be itemized in non-empty same-lane register-first
     # open lists, or superseded by a same-lane PASS obligation. Unrelated

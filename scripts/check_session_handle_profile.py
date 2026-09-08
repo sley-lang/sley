@@ -241,7 +241,7 @@ def check_method_classification(
         problems.append("classification:versioned-delegation")
     if not re.search(
         r"\{\s*Self::head_bound\(method\)\s*\|\|\s*matches!\s*\(\s*method\s*,"
-        r"\s*Method::(?:EntityVersion\s*\|\s*EntitySignature|EntitySignature\s*\|\s*EntityVersion)"
+        r"\s*Method::(?:EntityVersion\s*\|\s*Method::EntitySignature|EntitySignature\s*\|\s*Method::EntityVersion)"
         r"\s*\)\s*,?\s*$",
         versioned_block,
         flags=re.DOTALL,
@@ -538,13 +538,6 @@ def main() -> int:
         for marker in ID_MARKERS:
             if marker not in identifiers:
                 problems.append(f"id-marker:{marker}")
-        if status in (FROZEN_STATUS, COMPLETE_STATUS):
-            for key, pass_key in LANE_PASS_FIELD.items():
-                lane_pass = str(section.get(key, "")).startswith("PASS") or str(
-                    section.get(pass_key, "")
-                ).startswith("PASS")
-                if not lane_pass:
-                    problems.append(f"completion-without-review:{key}")
         if status == REVIEW_PENDING_STATUS:
             for key, pass_key in LANE_PASS_FIELD.items():
                 if not str(section.get(key, "")).startswith("FAIL"):

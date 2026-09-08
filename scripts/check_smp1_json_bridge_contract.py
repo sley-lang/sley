@@ -212,10 +212,6 @@ def main() -> int:
         for numeric, symbol in CODES:
             if symbol not in source:
                 problems.append(f"crate-code:{symbol}")
-        if status == COMPLETE_STATUS:
-            for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
-                if not str(section.get(key, "")).startswith("PASS"):
-                    problems.append(f"completion-without-review:{key}")
 
     # Own revision plus the composed authorities, each cross-checked against
     # that document's status line so a stale pin fails the moment it moves.

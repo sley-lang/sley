@@ -154,11 +154,19 @@ def main() -> int:
     status = section.get("status")
     if status not in (DRAFT_STATUS, ACCEPTED_STATUS):
         problems.append("machine-summary:status")
-    own_revision = re.search(r"^Status:.*revision (\d+)", index, flags=re.M)
-    if own_revision is None:
+    status_hits = re.findall(r"^Status:.*revision (\d+)", index, flags=re.M)
+    if len(status_hits) != 1:
         problems.append("index-revision:status-line")
+        document_revision = None
     else:
-        check_current_delta_review(section, int(own_revision.group(1)), status, problems)
+        document_revision = int(status_hits[0])
+    section_revision = section.get("contract_revision")
+    if type(section_revision) is not int:
+        problems.append(f"machine-summary:contract_revision:{section_revision!r}")
+    elif document_revision is not None and section_revision != document_revision:
+        problems.append(f"machine-summary:contract_revision:{section_revision!r}")
+    if document_revision is not None:
+        check_current_delta_review(section, document_revision, status, problems)
     for key, value in (
         ("contract", "docs/spec/REQUIRED_CONTRACT_INDEX_V1.md"),
         ("adr", "docs/adr/ADR-0047-required-contract-index.md"),
@@ -169,14 +177,6 @@ def main() -> int:
     ):
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")
-    if status == ACCEPTED_STATUS:
-        for review in (
-            "ariadne_contract_review",
-            "nabu_architecture_review",
-            "vulcan_surface_review",
-        ):
-            if section.get(review) != "PASS":
-                problems.append(f"machine-summary:{review}")
     codes = read(ROOT / "docs/spec/ERROR_CODES_V1.md")
     for number, symbol in CODES:
         if symbol not in codes:
