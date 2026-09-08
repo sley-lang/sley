@@ -4259,7 +4259,7 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
             .find(|object| object.record().entity_id == entity)
             .unwrap_or_else(|| panic!("wide object {byte} missing"));
         assert!(
-            object.stored_bytes().len() as u64 < ceiling,
+            (object.stored_bytes().len() as u64) < ceiling,
             "wide object {byte} must pass its own Bytes cap"
         );
         let imported =
@@ -4294,8 +4294,24 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
         "aggregate work must fit the live session budget"
     );
 
-    let (failed, frame) = harness.call(ENTITY_SIGNATURE_TAG, request);
-    assert!(failed, "aggregate above the Bytes ceiling must refuse");
+    // The raw answer is asserted as a server failure before any client
+    // frame decode: on unfixed production this is the oversized success
+    // itself, which must never be decoded or unwrapped here.
+    let answer = harness.call_raw(ENTITY_SIGNATURE_TAG, request);
+    assert!(
+        answer.failed,
+        "aggregate above the Bytes ceiling must refuse"
+    );
+    assert!(
+        answer.events.is_empty(),
+        "outer-ceiling refusal carries no partial or event response"
+    );
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
     assert_eq!(
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::LimitExceeded.numeric()
@@ -4334,10 +4350,13 @@ fn repair_frame_body_bytes_ceiling_edges() {
         encode_single_frame_direct(&frame_with_body(ceiling), MAX_FRAME_BYTES).is_ok(),
         "a body exactly at the Bytes ceiling still encodes"
     );
+    let over = encode_single_frame_direct(&frame_with_body(ceiling + 1), MAX_FRAME_BYTES);
+    assert!(
+        over.is_err(),
+        "one byte over the Bytes ceiling must not encode"
+    );
     assert_eq!(
-        encode_single_frame_direct(&frame_with_body(ceiling + 1), MAX_FRAME_BYTES)
-            .unwrap_err()
-            .code(),
+        over.unwrap_err().code(),
         ProtocolErrorCode::LimitExceeded,
         "the direct writer refuses one byte over the Bytes ceiling"
     );
