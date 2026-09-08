@@ -10,6 +10,8 @@ path). Runs in `make quick` directly after `check_exec_package_v1.py`.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,13 +26,31 @@ LIB_RS = ROOT / "crates/sley-vm/src/lib.rs"
 problems: list[str] = []
 
 exec_rs = EXEC_RS.read_text(encoding="utf-8")
+
+
+def rust_digest_literal(source: str, name: str) -> str | None:
+    """Return the hex of `pub const NAME: [u8; 32] = [ ... ];` or None."""
+    match = re.search(rf"pub const {name}: \[u8; 32\] = \[(.*?)\];", source, flags=re.S)
+    if match is None:
+        return None
+    return "".join(f"{int(b, 16):02x}" for b in re.findall(r"0x([0-9a-fA-F]{2})", match.group(1)))
+
+
+# Every byte of the profile digests is bound to the frozen record it names;
+# a 4-byte prefix pin let a mis-transcribed v1 literal pass (AT-HH-01).
+for name, record in (
+    ("BOOTSTRAP_PROFILE_1_DIGEST", ROOT / "conformance/bootstrap-profile/v1/profile.json"),
+    ("BOOTSTRAP_PROFILE_2_DIGEST", ROOT / "conformance/bootstrap-profile/v2/profile.json"),
+):
+    literal = rust_digest_literal(exec_rs, name)
+    expected = hashlib.sha256(record.read_bytes()).hexdigest()
+    if literal != expected:
+        problems.append(f"exec-rs-digest-drift:{name}:{literal}")
 for pin, value in [
     ("EXEC_PACKAGE_IDENTITY", '"EXEC_PACKAGE_V1"'),
     ("EXEC_PACKAGE_CONTRACT", '"sley2-exec-package-1"'),
     ("EXEC_PACKAGE_VERSION", ": u32 = 1"),
     ("EXEC_PACKAGE_MAGIC", 'b"SLEYPKG1"'),
-    ("BOOTSTRAP_PROFILE_1_DIGEST", "0x4f, 0x26, 0x91, 0x50"),
-    ("BOOTSTRAP_PROFILE_2_DIGEST", "0xfb, 0x2d, 0x8c, 0xc8"),
     ("EXEC_PACKAGE_V2_IDENTITY", '"EXEC_PACKAGE_V2"'),
     ("EXEC_PACKAGE_V2_CONTRACT", '"sley2-exec-package-2"'),
     ("EXEC_PACKAGE_V2_VERSION", ": u32 = 2"),

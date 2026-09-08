@@ -1193,4 +1193,720 @@ REVIEW_REQUIRED: yes, Nabu architecture read of the locator field set (bounded)
 IMPLEMENTATION (slice 5f): machine-summary.json gains a top-level `locator` section (branch, latest validated integration commit, active lanes, canonical spec and REWEAVE master paths with sha256 and env overrides, schema epoch, HOST_ABI_V2, EXEC_PACKAGE_V2, BOOTSTRAP_PROFILE_2 with record paths and digests, known blocked gates, remote state, last_updated_utc). scripts/check_remote_head.py verifies every digest against the record it names, the epoch against the summary and fixture, the masters by sha256 when resolvable (UNAVAILABLE otherwise, never a pass), the validated commit's existence and ancestry in git, and lane branch existence; --render writes docs/status/SLEY2-REMOTE-HEAD.md, --check fails on a stale view. Self-test 5 cases (stale digest, missing field, stale epoch, ghost commit, clean). Wired into make remote-consistency, not quick, so the in-flight lanes' Tier 1 gate is untouched; README points at the view.
 ```
 
+### 3.6 Identity and invalidation graph, hash and preimage hygiene (spec sections 7 and 8)
+
+The full graph (66 identity records, edge list, duplicate-definition table
+with its divergence checkers, hygiene matrix) is the separate deliverable
+`SLEY-2.0-ARCHITECTURE-TIGHTENING-IDENTITY-MAP.md`. Records follow.
+
+
+Disposition summary: 1 C_PRE_FREEZE_REPAIR, 8 B_ADDITIVE_NOW, 10 A_ALREADY_SOLVED, 3 D_REJECT, 2 E_DEFER_2_1_PLUS (24 records).
+
+```text
+FINDING_ID: AT-IG-01
+TITLE: No single normative identity graph existed; rw-075 covers eight compiler-closure hash obligations out of more than sixty identities and sub-digests
+HYPOTHESIS: The repository has no one document that lists every canonical identity with domain, preimage, dependencies, invalidation, owner and vector, so section 7 cannot be checked against a committed artifact.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md lists 8 obligations scoped to the SH2 compiler closure and names SLEYPOBS1 without a layout; docs/spec/IDENTIFIERS_V1.md lists 50 domains with two exact preimages (workspace, entity) and delegates the rest to owning contracts; the preimages themselves live in 24 crate files and 7 Python oracles (section 1 records A1 to A18, B01 to B16, C01 to C25, D1 of this document); no in-tree file carries the dependency edge list of section 2.
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Create one normative dependency graph covering every canonical identity"); REWEAVE master section 6 ("All identifier preimages and hash domains remain explicit"); IDENTIFIERS_V1.md "Content-addressed identifiers" ("The owning contracts supply exact preimages").
+CURRENT_BEHAVIOR: Each identity is fully specified by its owning contract and implemented once; the graph is recoverable only by reading all of them. rw-075 is accurate for what it lists but is a closure inventory, not an identity graph.
+DESIRED_INVARIANT: One committed record enumerates every identity with the ten section 7 fields and the edge list, and is regenerated or re-verified when a domain is added.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: This document supplies the graph (sections 1 to 4). Committing it (for example under docs/audits next to the campaign record) is additive, changes no byte, and gives AT-G2 a checkable artifact. No redesign; no code.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none (optional: extend scripts/check_required_contract_index.py to require that every registry row is named in the committed graph)
+SPECS_TO_UPDATE: docs/audits (new record); rw-075-hash-inventory.md gains one pointer line to the graph
+CODE_OWNERSHIP: campaign integrator; ariadne for the pointer line
+REVIEW_REQUIRED: campaign independent review (AT-G8)
+```
+
+```text
+FINDING_ID: AT-IG-02
+TITLE: Independently maintained preimage definitions exist for 27 identities and a gate fails on divergence in both directions
+HYPOTHESIS: Rust and Python re-implement the same preimages with no checker that fails if they diverge (section 7 last sentence).
+REPOSITORY_EVIDENCE: Duplicate definitions (section 3 tables): EntityId (sley-id lib.rs:360 / candidate.py:135), ObjectId (object.rs:94, scb1 lib.rs:412 / codec.py:18, transaction_receipt.py), StateRoot (state-root lib.rs:451 / check_state_root_vector.py:113, transaction_receipt.py:29), TransactionId and ReceiptId (txn codec.rs:1040,495 / transaction_receipt.py:22-25), SchemaEpochId (schema lib.rs:441 / check_schema_epoch_vector.py:61-66), PolicyRootId (policy lib.rs:1958 / transaction_receipt.py:30), CandidateId and ValidationProfileId (mutate codec.rs:4022,4010 / candidate.py:32-34,118), CandidateResultId (candidate_result.rs:584 / candidate_result.py:15-16), accepted-head checksum (txn repository.rs:2893, repo exchange.rs:61-64 / check_repository_exchange_vector.py:17,22), BytecodeCacheKey (vm lib.rs:199 / vm_extended.py:346), image SHA-256 (host_abi.rs:210 / vm_extended.py:390), ExecutionReportId domain step (conformance lib.rs:426 / check_release_demo_vector.py:115-124), RepositoryPackId with leaf and node (repo lib.rs:558,922-955 / check_repository_pack_vector.py:16-127), RepositoryExchangeId with leaf, node, name key (exchange.rs:628,849-932, refs.rs:473 / check_repository_exchange_vector.py:15-23,152-170), MergeConflictId (merge.rs:2123 / check_merge_vector.py), SemanticDeltaId (compare.rs:1245 / check_semantic_comparison_vector.py), RootQueryId (root_query.rs:711 / check_root_backed_query_vector.py), ContextCapsuleId (context_capsule.rs:567 / check_context_capsule_vector.py), IndexSnapshotId arm 2 (snapshot.rs:535 / check_complete_root_index_snapshot_vector.py), ProtocolFrameId and ProtocolHandshakeId (protocol lib.rs:1098,715 / check_smp1_vector.py). Divergence gates: Python side make conformance (Makefile:116-148) over the committed fixture; Rust side make quick regenerates the fixture from the crate emitter and diffs (scripts/generate_*_fixtures.py --check, Makefile:19-52,94-100, each invoking cargo test emit_*_for_fixture_refresh) or reads the fixture directly (sley-scb1 tests/conformance.rs:45,82; sley-mutate codec/fixture_tests.rs:11-18; sley-json-bridge tests.rs:10) or pins the hex in source (state-root lib.rs, schema lib.rs). The standalone pack vector is bound on the Rust side transitively: the exchange fixture embeds the stored pack bytes (exchange payload field 2) and is regenerated under --check. scripts/check_oracle_independence.py forbids the Python side from importing or invoking the Rust side (PASS, 26 sources).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("Prefer one canonical library/generated definition per preimage. The checker SHALL fail if independently maintained preimage definitions diverge"); Sley2.0mastergoal.md 6.5 ("Neither implementation may derive expected bytes from the other"); REWEAVE master section 6 ("independently check Rust/Sley/independent-oracle conformance over the applicable canonical corpus").
+CURRENT_BEHAVIOR: A change to a Rust preimage regenerates different fixture bytes and fails make quick; a change to a Python oracle fails make conformance against the unchanged fixture; a change to the fixture fails both. The duplication is the intended independent-oracle design, not accidental reassembly.
+DESIRED_INVARIANT: Every duplicated preimage is arbitrated by one committed fixture that both implementations must reproduce, under gates that run on every make quick and make conformance. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The duplication is required by the master (independent oracle) and the divergence checker exists on both sides. The group files' caveat that Rust drift is caught only at fixture refresh was wrong: the refresh is executed and diffed by make quick. No consolidation is authorized; folding the Python oracle into the Rust definition would remove the independence the master requires.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-03
+TITLE: The accepted-head checksum codec is implemented in two Rust crates
+HYPOTHESIS: sley-txn and sley-repo each hardcode SLEYHD01, the version and the sley2.accepted-head.v1 domain, so the two copies can drift.
+REPOSITORY_EVIDENCE: crates/sley-txn/src/repository.rs:48-54 and :2893-2918 (encode_head, decode_head, owner); crates/sley-repo/src/exchange.rs:61-64 and :521-546 (second copy for exchange packaging); cross-crate equality test crates/sley-repo/src/exchange.rs:3149 fixed_head_bytes_match_the_transaction_model; Python re-derivation scripts/check_repository_exchange_vector.py:152-154 under make conformance; exchange import feeds the head back into sley-txn.
+SPEC_EVIDENCE: docs/spec/TRANSACTION_MODEL_V1.md "Fixed accepted-head visibility primitive" ("S20-500 later owns those semantics and may reuse the transaction codec and compare-and-swap mechanism without creating a sley-txn -> sley-repo dependency"); section 7 preference for one definition per preimage.
+CURRENT_BEHAVIOR: Two copies, bound by a Rust-to-Rust equality test and by the exchange fixture on both sides (AT-IG-02).
+DESIRED_INVARIANT: Copies of a preimage definition across crates are pinned to each other by a test that fails on divergence. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The duplication is deliberate to avoid a dependency inversion and is checked by a test and a frozen vector.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-txn, sley-repo (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-04
+TITLE: One registry domain sley2.observation.v1 covers two preimage framings (SLEYOBS1 and SLEYPOBS1)
+HYPOTHESIS: Reused domain across incompatible objects (section 8).
+REPOSITORY_EVIDENCE: crates/sley-vm/src/execute.rs:2185 (SLEYOBS1 || u32(1) ...) and :1021 (SLEYPOBS1 || u32(1) ...) both call ObservationId::derive; IDENTIFIERS_V1.md row "deterministic observation" names one domain; EXEC_PACKAGE_V1.md "Bindings" chose the SLEYPOBS1 magic so "package observations can never equal legacy SLEYOBS1 observations".
+SPEC_EVIDENCE: IDENTIFIERS_V1.md ("A domain cannot be renamed, aliased, or reused for another preimage"); section 8 "reused domain separation across incompatible objects".
+CURRENT_BEHAVIOR: The inner magic is the first preimage bytes and the two magics differ at byte 4 (O versus P) and in length (8 versus 9), so the two families are prefix-disjoint under one BLAKE3 domain; the observation binds the package digest, section digests, profile digest and ABI version in the SLEYPOBS1 arm and not in SLEYOBS1.
+DESIRED_INVARIANT: No two objects under one domain can share a preimage. Holds by construction.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The registry rule targets re-purposing a domain for a different object; here one identifier type has two framings distinguished inside the preimage, which is the same pattern as IndexSnapshotId arms (AT-HH-12). Optional: name both magics on the registry row (documentation only, folded into AT-IG-07).
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none required (see AT-IG-07 for the registry note)
+CODE_OWNERSHIP: sley-vm (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-05
+TITLE: REWEAVE 21.2 "toolchain-program root" has no dedicated repository identity; the binding it requires is carried by StateRoot plus the package dependency section
+HYPOTHESIS: Evidence cannot bind a toolchain-program root because none exists.
+REPOSITORY_EVIDENCE: bootstrap-manifest.json S.value = null ("does not exist (SH0: no Sley toolchain program)"); scripts/check_bootstrap_capability.py reports later_stages_unbound [S, C0, C1, C2, C3] and passes by design (docstring lines 21-27); the program root of every executed closure is bound as StateRoot in the cache key (crates/sley-vm/src/lib.rs:213), the dependency section (exec_package.rs:706), the package digest (:911), both observations (execute.rs:1026, :2190) and the execution report (sley-conformance lib.rs:434), with the judged closure fingerprints digested into the dependency section (exec_package.rs:721-725).
+SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md 21.2 ("Every result binds applicable source commit, toolchain-program root, compiled image, host binary/ABI, schema epoch, policy root ...") and 13.1 (S is "the immutable canonical root and complete dependency closure of the Sley toolchain program"); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-SI-03 (A_ALREADY_SOLVED, same conclusion from the identity-decomposition side).
+CURRENT_BEHAVIOR: The binding mechanism exists end to end; the S identity itself is R3 evidence that cannot exist before a Sley toolchain program does.
+DESIRED_INVARIANT: The root that execution evidence binds is the accepted StateRoot of the closure it judged, plus the closure fingerprints. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Same disposition and evidence as AT-SI-03; recorded here so the identity graph names where the "toolchain-program root" edge lands. Do not invent a placeholder root.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: RW-080 must record which StateRoot is S when it constructs the toolchain graph (already in AT-SI-03)
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: RW-080 lane
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-06
+TITLE: Witness roots, provenance roots and discharge receipts are absent at this commit
+HYPOTHESIS: Section 7 lists Witness/provenance roots and discharge receipts; they may exist unregistered.
+REPOSITORY_EVIDENCE: No sley2.witness*, provenance or discharge domain in IDENTIFIERS_V1.md or any crate; the only mentions are prohibitions of a native discharge_witness(program/value) service (docs/spec/HOST_ABI_V1.md:175; crates/sley-vm/src/host_abi.rs:11; tests/rw070_host_abi_freeze.rs:816-817) and the RW-170 reservation in rw-075-hash-inventory.md "Method".
+SPEC_EVIDENCE: REWEAVE master section 16 (Witness integration, future phase); docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-WB-01 (E_DEFER_2_1_PLUS, Witness not part of the active canonical architecture).
+CURRENT_BEHAVIOR: Nothing to inventory; nothing to audit for hygiene.
+DESIRED_INVARIANT: When Witness lands, its identities enter the registry with an ADR, fixtures and drift validation like every other domain.
+DISPOSITION: D_REJECT
+RATIONALE: A graph or hygiene finding against an identity that does not exist would be speculative. The scope question is already recorded as AT-WB-01.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-07
+TITLE: IDENTIFIERS_V1.md claims to carry "all fifty domains the implementation derives" while twenty-two sley2.* strings outside crates/ use different digest conventions and are not registry-checked
+HYPOTHESIS: The registry's scope statement overclaims, and the shared sley2. namespace is used for BLAKE3 hash-domain prefixes (registry), NUL-terminated SHA-256 prefixes (bench evidence chains) and JSON contract labels (qualification records) with no rule keeping them apart.
+REPOSITORY_EVIDENCE: docs/spec/IDENTIFIERS_V1.md paragraph after the table ("The registry now carries all fifty domains the implementation derives, scripts/check_required_contract_index.py compares the two over every crate"); scripts/check_required_contract_index.py:96-107 (scans crates/**/*.rs only); bench/sley2/runner.py:66-67 and bench/raw/runner.py:30-31 (b"sley2.sley2-trial-trace.v1\0", b"sley2.sley2-trial-digest-claim.v1\0", b"sley2.raw-run-manifest.v1\0", b"sley2.raw-trial-digest-claim.v1\0" as SHA-256 prefixes); scripts/build_decision_dossier.py:33, build_finding_register.py:32, build_release_provenance.py:30 and eleven more (JSON contract labels, record D1); host-boundary.json:57 (sley2.host-boundary.v1 label). Set difference computed this session: none of the 22 script-side strings equals a registered domain; scripts that hash with a registered domain (check_*_vector.py, oracle/) use the exact registered string.
+SPEC_EVIDENCE: IDENTIFIERS_V1.md "Invariants" ("Domains are closed constants"); RAW_BASELINE_RUNNER_V1.md:85-90 (documents the NUL-terminated SHA-256 convention for the bench chain); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 ("missing domain separation; reused domain separation across incompatible objects") and section 14 (spec synchronization).
+CURRENT_BEHAVIOR: No collision and no reuse today. The registry sentence is true for crates and false as written for the repository. A future script-side label that happened to equal a registry domain would not be caught by any checker.
+DESIRED_INVARIANT: The registry states exactly what it governs (every domain any crate hashes with, BLAKE3, bare ASCII prefix), names the two other conventions as outside its scope, and a checker asserts that script-side and bench-side sley2.* strings are disjoint from the registry unless the script is the independent oracle for that domain.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Wording-only correction of an authority document plus a small checker assertion; no byte changes. The operator rule against leaving a stale fact in an authority document applies. The alternative of registering the evidence-chain prefixes as domains is rejected: they are SHA-256 with a different framing and are not canonical identities.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: scripts/check_required_contract_index.py gains a disjointness assertion over scripts/ and bench/ (excluding the oracle allowlist); make quick
+SPECS_TO_UPDATE: docs/spec/IDENTIFIERS_V1.md (scope paragraph; optional note on the observation row naming SLEYOBS1 and SLEYPOBS1 per AT-IG-04)
+CODE_OWNERSHIP: ariadne (registry), thoth or campaign integrator (checker)
+REVIEW_REQUIRED: campaign independent review (AT-G8)
+```
+
+```text
+FINDING_ID: AT-IG-08
+TITLE: digest_domain_tag integers in contract descriptors have no global assignment table and follow two numbering conventions
+HYPOTHESIS: The descriptor field that names a digest domain by integer is unregistered, so production-epoch assembly could collide.
+REPOSITORY_EVIDENCE: Values 3, 4, 8 (docs/spec/SSMC1.md:32, STATE_ROOT_V1.md:49, POLICY_ROOT_V1.md:70) equal the sley-id Domain::ALL ordinals (crates/sley-id/src/lib.rs:46-82); values 18, 19, 20, 21, 22 (REPOSITORY_PACK_V1.md:26, REPOSITORY_EXCHANGE_V1.md:49, SEMANTIC_COMPARISON_V1.md:268, MERGE_V1.md:272, crates/sley-protocol/src/lib.rs:34) do not, and 18 to 22 are the ordinals of observation, execution-report, test-report, repository-pack and protocol-handshake. No code maps the integer to a domain string (grep digest_domain_tag: only descriptor encode/decode at crates/sley-schema/src/lib.rs:232,252,970 and per-epoch uniqueness at :877-893); every contract lives in its own single-descriptor conformance epoch (crates/sley-repo/src/lib.rs:318, exchange.rs:493, compare.rs:415, merge.rs:496, protocol lib.rs:973). Section 5 table of the Group C file lists all eight pairs; all distinct today.
+SPEC_EVIDENCE: SCHEMA_EPOCH_V1.md section 4 ("Contract tags, domain tags, and kind tags are unique within one epoch"); POLICY_ROOT_V1.md section 3 ("not the final production epoch assembled from all contracts"); IDENTIFIERS_V1.md has no digest_domain_tag column.
+CURRENT_BEHAVIOR: No collision; assembly of the production epoch has no single source for the integers. A future standalone contract for observation, execution-report, test-report or protocol-handshake choosing its ordinal would collide with 18, 19, 20 or 22 and the registry constructor would refuse the assembled epoch.
+DESIRED_INVARIANT: One frozen table from digest_domain_tag to domain string (or an explicit statement that the integer is an epoch-local label with no global meaning) that production-epoch assembly reads.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Documentation-only table plus a checker comparison with the crate constants; prevents a real assembly hazard at zero byte cost. Renumbering existing tags would change five conformance epoch ids and every dependent fixture for no present defect (that variant is D_REJECT).
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none now; the table becomes the input to production-epoch assembly
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: scripts/check_required_contract_index.py compares the table with DIGEST_DOMAIN_TAG constants in crates
+SPECS_TO_UPDATE: docs/spec/IDENTIFIERS_V1.md or REQUIRED_CONTRACT_INDEX_V1.md (table); SCHEMA_EPOCH_V1.md section 4 (pointer)
+CODE_OWNERSHIP: ariadne
+REVIEW_REQUIRED: campaign independent review (AT-G8)
+```
+
+```text
+FINDING_ID: AT-IG-09
+TITLE: EntityId does not bind the schema epoch
+HYPOTHESIS: entity_kind is an epoch-frozen tag but SchemaEpochId is not in the EntityId preimage, so a later epoch that renumbers kinds could derive a colliding EntityId for a different kind in the same workspace.
+REPOSITORY_EVIDENCE: crates/sley-id/src/lib.rs:358-372 (76-byte preimage: workspace, nonce, kind u32be, ordinal u64be); collision checks against live and tombstoned identities at validation phase 4 and at commit (crates/sley-txn/src/repository.rs tombstone ledger; IDENTIFIERS_V1.md "Entity identity").
+SPEC_EVIDENCE: Sley2.0mastergoal.md 5.1 EntityId ("generated deterministically from the creating candidate nonce, workspace domain, entity kind, and creation ordinal; collision-checked before acceptance; never reused after deletion"); REWEAVE master section 6 ("Entity IDs are not regenerated during the pivot").
+CURRENT_BEHAVIOR: EntityId is a stable logical identity that must survive epochs; kind tags are frozen by contract; collisions are rejected by the ledger.
+DESIRED_INVARIANT: Logical identity is epoch-independent and collision-checked. Holds.
+DISPOSITION: D_REJECT
+RATIONALE: Binding the epoch would break the master's stability requirement; the collision ledger is the designed defence.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-id (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-10
+TITLE: Seventeen single-owner identities have no independent oracle
+HYPOTHESIS: Section 8 item 6 ("independent conformance verification where required") is unmet for identities that have exactly one Rust owner.
+REPOSITORY_EVIDENCE: Rust-only with no Python byte-layout re-derivation: WorkspaceId (fixed vector only), CapabilityTokenDigest and MAC (scripts/check_capability_token.py:126-128 compares machine-summary pins only), CapabilitySummaryDigest (check_candidate_contract_freeze.py prose), CandidateAttemptDigest, ValidationContextDigest and components, PhaseEvidenceDigest (opaque fixed32 in candidate_result.py), SemanticFingerprint and ValueHash (vm_extended.py:9-12 excludes them; check_fingerprint_impact_profile.py is a marker check), ObservationId both framings (check_vm_execution_profile.py marker check), section and package digests (check_exec_package_v*.py hash the JSON record), TestReportId (pin cross-check only), branch record and ref digests (check_ref_branch_contract.py pins strings), merge-plan nonce, QueryId, RestrictedQueryCapsuleId (pin only), SessionId (random nonce by design), ReferenceAdapterId, AdapterStateId, AdapterTranscriptId (pin only). Each has one owner function (section 1 records) and, except the cases in AT-HH-04, a frozen Rust vector.
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 items 5 and 6; Sley2.0mastergoal.md 6.5 (independent oracle required for SCB1 encoders/decoders before GA; "The oracle is for conformance only. It must not become a second semantic kernel"); REWEAVE master section 6 (Rust/Sley/independent-oracle conformance "over the applicable canonical corpus" at final implementation); docs/audits AT-CL-03 (COMPLETE independent coverage is scoped to fixture families and the three uncovered required contracts are disclosed).
+CURRENT_BEHAVIOR: One owner per preimage (section 7 satisfied); independent verification exists for every SCB1 envelope and every stored repository, protocol and query-corpus identity, and is absent for derived evidence digests, session-local identities and the capability family. No spec names which of these are "required".
+DESIRED_INVARIANT: Independent oracles cover every identity that a second implementation (the Sley toolchain) must reproduce; derived evidence digests are covered when that implementation exists.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: Not required for correct 2.0: the master requires the independent oracle for canonical encoding and the required contracts, which are covered; the derived evidence digests are constructed only by the in-process validator or VM by design, and the Sley toolchain is the intended second implementation for fingerprints and value hashes. Record so the SH2 lane adds oracles for SemanticFingerprint and ValueHash first (they enter package identity). If the lead applies "where required" to CapabilityTokenDigest and CapabilitySummaryDigest because they enter TransactionId, the cheap path is the frozen-vector step in AT-HH-04, not a new oracle.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: the SH2 conformance corpus should include fingerprint and value-hash vectors
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now
+SPECS_TO_UPDATE: none now
+CODE_OWNERSHIP: RW lane (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-IG-11
+TITLE: NATIVE_REFS_BRANCHES_V1.md and MERGE_V1.md say their domains are not sley-id registry domains while IDENTIFIERS_V1.md lists them
+HYPOTHESIS: Two owning contracts contradict the registry about whether their separators are registered.
+REPOSITORY_EVIDENCE: docs/spec/NATIVE_REFS_BRANCHES_V1.md:99-101 ("branch_record_digest ... is not added to the sley-id domain registry"); docs/spec/MERGE_V1.md:210 ("sley2.merge-plan-nonce.v1 is a preimage separator, not a sley-id domain"); docs/spec/IDENTIFIERS_V1.md table rows for sley2.branch-record.v1, sley2.branch-ref.v1, sley2.branch-name-path.v1 (S20-500) and sley2.merge-plan-nonce.v1 (S20-520) added under ADR-0048; scripts/check_required_contract_index.py:104-107 fails if any crate-derived sley2.* string is absent from that file.
+SPEC_EVIDENCE: IDENTIFIERS_V1.md ("a domain may be derived by any crate that hashes"); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 14 (canonical specification synchronization).
+CURRENT_BEHAVIOR: Bytes and code are consistent; the prose in two owning contracts is stale relative to ADR-0048.
+DESIRED_INVARIANT: Owning contracts state that every domain string a crate hashes with is in the registry and point to it.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Documentation-only synchronization of a stale fact in two authority documents; no byte impact.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none beyond the existing drift check
+SPECS_TO_UPDATE: docs/spec/NATIVE_REFS_BRANCHES_V1.md section 4; docs/spec/MERGE_V1.md "Merge plan"
+CODE_OWNERSHIP: ariadne
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-01
+TITLE: The Rust BOOTSTRAP_PROFILE_1_DIGEST literal is a mis-transcription of the frozen profile digest, and the only checker pins four bytes of it
+HYPOTHESIS: A digest constant that enters the v1 package digest, v1 admission receipt and v1 SLEYPOBS1 observation does not equal the SHA-256 of the record it names, and no gate can detect it.
+REPOSITORY_EVIDENCE: crates/sley-vm/src/exec_package.rs:112-115 decodes to 4f2691504b5c756e a1f5ef01e6e998cc 4cd628d4b524b038 b10d583bfefd6330; sha256sum of conformance/bootstrap-profile/v1/profile.json (recomputed this session) is 4f2691504b5c756e ae1f5ef01e6e998c c4cd628d4b524b03 8b10d583bfefd630 (the literal drops the "e" at hex offset 17 and inserts a "3" before the final "0"). The documented value appears in docs/spec/BOOTSTRAP_PROFILE_1.md:5, EXEC_PACKAGE_V1.md, HOST_ABI_V1.md, conformance/exec-package/v1/exec-package.json, conformance/host-abi/v1/host-abi.json, conformance/bootstrap-profile/v1/SHA256SUMS, machine-summary.json and bootstrap-manifest.json, and scripts/check_bootstrap_profile_1.py:43-46 verifies the file against it on every make quick. The v2 literal (:123-126) equals the SHA-256 of conformance/bootstrap-profile/v2/profile.json (fb2d8cc8...847459, recomputed). The only code-side pin is scripts/check_exec_package_markers.py:31 ("BOOTSTRAP_PROFILE_1_DIGEST", "0x4f, 0x26, 0x91, 0x50"), a four-byte prefix the drifted literal satisfies; no Rust test hashes profile.json (grep of crates/sley-vm for bootstrap-profile/v and profile.json: none). All v1 uses (:839 package preimage, :939 receipt, :1023 approval, :1060, :1222 verification) compare against the same wrong constant, so v1 is internally consistent but binds the digest of nothing. Re-verified at HEAD 197198d6 (exec_package.rs diff since baseline is two doc comments). No committed evidence carries a v1 package digest hex (grep of evidence/, machineresearch/sley-2.0, docs: none) and no fixture pins one.
+SPEC_EVIDENCE: docs/spec/EXEC_PACKAGE_V1.md "Bindings" ("BOOTSTRAP_PROFILE_1 (4f26...d630 ...) is bound by digest"); BOOTSTRAP_PROFILE_1.md:5-9 ("the manifest stage P binds this digest"); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 7 ("The checker SHALL fail if independently maintained preimage definitions diverge") and section 8 ("omitted dependency binding; omitted schema/ABI/profile binding"); section 2.2 (no silent reinterpretation of a frozen preimage).
+CURRENT_BEHAVIOR: Every v1 package digest and v1 receipt carries 32 bytes that are not the profile digest the contract says they are. v2 (the current R2 candidate) is correct. Two copies of the value are maintained (Rust literal, JSON record) with no full-width comparison between them.
+DESIRED_INVARIANT: Every digest constant that enters a canonical preimage equals the SHA-256 of the record it names, and a test fails on any byte of divergence.
+DISPOSITION: C_PRE_FREEZE_REPAIR
+RATIONALE: This is a demonstrated canonical-identity defect (a preimage binds a value that identifies nothing) caught before freeze. Bounded repair, lead's choice between two variants under section 2.2: (a) correct the v1 literal to the documented digest and record the correction as a revision note in EXEC_PACKAGE_V1.md (no persisted v1 digest exists, so no frozen evidence is redefined), or (b) leave the v1 literal byte-identical as history and declare v1 packages non-evidence in EXEC_PACKAGE_V2.md. Either way add a Rust test that include_bytes! both profile.json records, hashes them with sha2, and compares all 32 bytes to both constants, and widen check_exec_package_markers.py to the full literal. Variant (a) is recommended because v1 is "preserved functional for legacy evidence only" and legacy evidence that binds a nonexistent digest is not evidence.
+CANONICAL_IMPACT: v1 package digest, v1 receipt profile_digest and v1 SLEYPOBS1 observation values change under variant (a); v2 unaffected; no registry domain changes
+SCHEMA_IMPACT: none
+ABI_IMPACT: none (HOST_ABI_VERSION field unchanged; host-abi.json v1 already records the correct digest)
+SELFHOST_IMPACT: none for R2 (v2 is the candidate); the bootstrap manifest stage P already binds the correct value
+MIGRATION_REQUIRED: no (no persisted v1 package digest found; confirm before choosing variant a)
+TESTS_REQUIRED: full 32-byte binding test for BOOTSTRAP_PROFILE_1_DIGEST and BOOTSTRAP_PROFILE_2_DIGEST against the profile.json bytes; check_exec_package_markers.py full-literal pin; cargo test -p sley-vm rw075_exec_closure; make quick
+SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V1.md (revision note) or EXEC_PACKAGE_V2.md (non-evidence statement); machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md item 4 or a correction record
+CODE_OWNERSHIP: crates/sley-vm/src/exec_package.rs, scripts/check_exec_package_markers.py (ariadne); vulcan review of the test
+REVIEW_REQUIRED: yes, campaign independent review (AT-G8) and Ariadne contract review
+IMPLEMENTATION (slice 6a, variant a): the literal in crates/sley-vm/src/exec_package.rs now equals the raw-byte SHA-256 of conformance/bootstrap-profile/v1/profile.json (4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630; the old bytes were a shifted hex transcription). No persisted v1 package digest exists in any record, fixture, or evidence file, so no frozen identity is reinterpreted; the V1 contract document already stated the correct digest, so this is the implementation catching up with its frozen spec. check_exec_package_markers.py replaced the 4-byte prefix pins with a full 32-byte comparison of both profile-digest literals against their records (a scratch copy with the old literal fails exec-rs-digest-drift). cargo test -p sley-vm all suites pass; check_exec_package_v1/v2 PASS.
+```
+
+```text
+FINDING_ID: AT-HH-02
+TITLE: Sley 2.0 master wording lists the digest as part of the hashed object for ObjectId, packs, capsules and candidates, which reads as a recursive definition
+HYPOTHESIS: Master text suggests the digest is inside its own preimage.
+REPOSITORY_EVIDENCE: Code and subordinate contracts are non-recursive everywhere: docs/spec/SCB1.md section 2 ("digest is outside its own preimage ... stored_bytes = envelope_preimage || digest"); crates/sley-mutate/src/object.rs:94-96; docs/spec/OBJECT_STORE_V1.md "Stored object record"; pack trailer outside preimage crates/sley-repo/src/lib.rs:566-567 and REPOSITORY_PACK_V1.md; capsule id derived over the response record which carries no capsule id (crates/sley-query/src/context_capsule.rs:567-640, capsule.rs:285-287); candidate trailer outside preimage crates/sley-mutate/src/codec.rs:4022-4038.
+SPEC_EVIDENCE: Sley2.0mastergoal.md:631-640 (ObjectId = BLAKE3-256("sley2.object.v1" || canonical_object_bytes)) read with :660-669 (5.2: "A canonical object contains: ... canonical digest"); :742-752 (5.7 pack "MUST contain ... digest tree"); :1136-1152 (8.3 capsule "MUST contain ... capsule digest"); :1366-1382 (10.1 candidate "MUST bind to ... candidate digest"). SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 last paragraph ("If current master wording suggests a recursive definition, the master spec MUST be clarified even if lower-level code is already correct").
+CURRENT_BEHAVIOR: A reader of the master alone could conclude that canonical_object_bytes includes the digest. Every implementation and every subordinate contract excludes the trailer.
+DESIRED_INVARIANT: The master states once that every content address is computed over the object's canonical bytes excluding the digest, that the digest is a trailer, and that "contains a digest" in the content lists means "is stored with".
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Required by section 8 even though the code is correct; one clarifying sentence in section 5.1 (and a cross-reference from 5.2, 5.7, 8.3, 10.1) with no canonical change.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: /home/greyforge/machineresearch/Sley2.0mastergoal.md 5.1 (ObjectId form), 5.2, 5.7, 8.3, 10.1
+CODE_OWNERSHIP: campaign integrator (master edit under section 14 rules); maat doctrine check
+REVIEW_REQUIRED: yes (master edit)
+```
+
+```text
+FINDING_ID: AT-HH-03
+TITLE: The master calls TransactionId the content address of a "transaction receipt" while the repository defines TransactionId over the transaction core and ReceiptId over the complete receipt
+HYPOTHESIS: Master wording conflates two identities.
+REPOSITORY_EVIDENCE: crates/sley-txn/src/codec.rs:452-464 (TransactionId over SLEYTXN1 core), :495-513 (ReceiptId over SLEYRCP1 receipt that embeds the stored transaction); docs/spec/TRANSACTION_MODEL_V1.md "Transaction identity" and "Complete persisted receipt"; docs/spec/IDENTIFIERS_V1.md "Content-addressed identifiers" ("ADR-0021 names its preimage the canonical parent-bound transaction receipt core. ReceiptId independently authenticates the complete persisted receipt").
+SPEC_EVIDENCE: Sley2.0mastergoal.md:650 ("TransactionId: Content address of a canonical parent-bound transaction receipt"); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 14 (spec synchronization) and section 8 (prose definition must match the exact preimage).
+CURRENT_BEHAVIOR: Consistent and non-cyclic in code and subordinate specs; the master names one identity where two exist.
+DESIRED_INVARIANT: The master names both identities and their relation (receipt contains transaction; transaction excludes receipt).
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Wording synchronization of the master with ADR-0021 and TRANSACTION_MODEL_V1; no canonical change.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: /home/greyforge/machineresearch/Sley2.0mastergoal.md 5.1 TransactionId entry (add ReceiptId)
+CODE_OWNERSHIP: campaign integrator; maat
+REVIEW_REQUIRED: yes (master edit)
+```
+
+```text
+FINDING_ID: AT-HH-04
+TITLE: Some canonical evidence identities lack a spec byte layout or a frozen positive vector
+HYPOTHESIS: Section 8 items 2 and 3 (exact byte preimage in prose, frozen positive vector) are unmet for a subset of identities.
+REPOSITORY_EVIDENCE: SLEYPOBS1 package-bound observation: layout only at crates/sley-vm/src/execute.rs:1000-1066 (including the RESTRICTED_V1.vm_version constant pushed at :1038); EXEC_PACKAGE_V1.md and exec-package.json give a prose field list without order or widths; no preimage or id hex pinned (tests/rw075_exec_closure.rs:740 proves inequality and repeatability only). Package digest v1/v2 and the four section digests: no pinned 32-byte value anywhere (exec-package.json records carry only profile digests and the record's own SHA-256; Rust tests exec_package.rs:1335-1372 prove determinism and tamper sensitivity). Branch record and branch ref digests: no frozen hex (only perturbation tests refs.rs:9218-9264, :10320-10355; the exchange vector freezes one of each transitively as opaque stored bytes). CandidateAttemptDigest, ValidationContextDigest and components, PhaseEvidenceDigest: no standalone frozen hex; opaque fixed32 fields in the candidate-result and transaction-receipt corpora. CapabilityTokenDigest, authenticator and CapabilitySummaryDigest: frozen only as machine-summary pins (scripts/check_capability_token.py:126-128) and a Rust unit constant (capability_summary.rs:275), not in a conformance JSON. Contrast: SLEYOBS1 has both (VM_EXECUTION_PROFILE_V1.md section 6; execute.rs:3013 pins the 420-byte preimage).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 ("Each canonical identity MUST have: 1. prose definition; 2. exact byte-preimage definition; 3. frozen positive vector"); EXEC_PACKAGE_V1.md "Bindings" (prose only for SLEYPOBS1).
+CURRENT_BEHAVIOR: Correct and deterministic in code; the listed identities are unfrozen (a silent layout change would pass every gate because no vector pins the bytes) and, for SLEYPOBS1, independently unimplementable from the specs.
+DESIRED_INVARIANT: Each listed identity has its byte layout in the owning spec and one fixed preimage-plus-digest vector consumed by a test.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Tests and documentation only; the vectors freeze current bytes and change nothing canonical. Priority order: SLEYPOBS1 and package/section digests (they are the R2 execution identity), then branch record/ref, then the capability pair (they enter TransactionId), then attempt/context/phase.
+CANONICAL_IMPACT: none (freezes current bytes)
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: pinned preimage and digest vectors in Rust tests or conformance JSON for each listed identity; make quick, make conformance
+SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V2.md (SLEYPOBS1 byte layout; the v2 path is the live one), NATIVE_REFS_BRANCHES_V1.md (vectors), CAPABILITY_TOKEN_V1.md and CAPABILITY_SUMMARY_V1.md (vector pointers), CANDIDATE_RESULT_V1.md (vector pointers)
+CODE_OWNERSHIP: sley-vm, sley-repo, sley-policy (ariadne); vulcan for test review
+REVIEW_REQUIRED: campaign independent review (AT-G8)
+```
+
+```text
+FINDING_ID: AT-HH-05
+TITLE: Negative-vector coverage for outer trailing bytes is missing for the exchange envelope and Rust-side for the pack envelope
+HYPOTHESIS: Section 8 item 4 (negative vectors where meaningful) is met unevenly across stored envelopes.
+REPOSITORY_EVIDENCE: conformance/repository-exchange/v1/rejected.json ids: flip-trailer, nested-exchange, reversed-branches, foreign-head, open-ancestry (no trailing-byte); crates/sley-repo/src/exchange.rs tests cover only a nested receipt trailing byte (:3019); the decoder does reject (exchange.rs:668-673). conformance/repository-pack/v1/rejected.json has trailing-byte (id list includes it; generated by scripts/generate_repository_pack_rejections.py from the accepted bytes and verified by the Python oracle) but no Rust test exercises the Rust pack decoder with it and no crate reads that rejected corpus (readers: sley-mutate, sley-scb1 only). Every other stored envelope has both a fixture and a Rust test (state-root lib.rs:1127-1130, txn codec.rs:1361-1371, schema lib.rs:1444-1462, policy lib.rs:2956-2959, candidate_result.rs:1293-1304, merge.rs:2779-2782, compare.rs:2455-2459, protocol length check :1146-1149, image rw070_host_abi_freeze.rs:1065-1068).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 ("trailing-byte acceptance" and "malformed/negative vectors where meaningful"); SCB1.md section 2 ("No bytes follow digest"); REPOSITORY_EXCHANGE_V1.md and REPOSITORY_PACK_V1.md strict-import rules.
+CURRENT_BEHAVIOR: Code paths correct by inspection; a regression in the Rust exchange trailing check would be caught by no test or fixture, and a regression in the Rust pack trailing check only by the Python-side corpus, which does not exercise Rust.
+DESIRED_INVARIANT: Each stored envelope has a trailing-byte negative vector consumed by both implementations.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Tests and one fixture row only; no canonical change.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: add trailing-byte to the exchange rejected corpus (scripts/generate_repository_exchange_fixtures.py) and Rust assertions for pack and exchange outer trailing bytes; make quick, make conformance
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-repo (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-06
+TITLE: Execution-package "envelope" wording and unreachable framing codes (already repaired at HEAD as AT-EC-04)
+HYPOTHESIS: The package identity prose says "over the envelope bytes" while the preimage is a header of digests, and four PACKAGE_* framing codes are declared but unreachable.
+REPOSITORY_EVIDENCE: At 560a5f16: crates/sley-vm/src/exec_package.rs:263 and :325 ("SHA-256 over the complete envelope bytes"), :141-153 (UnknownMagic, UnsupportedVersion, Truncated, TrailingData never constructed), :836-850 and :896-910 (actual header preimage); EXEC_PACKAGE_V1.md:77. At HEAD 197198d6: commit 3e6939b5 corrected both doc comments (exec_package.rs:262-264, :327) and added "Identity versus serialization" to docs/spec/EXEC_PACKAGE_V2.md:68-85 stating the header preimage, the absence of a serialized envelope, and the reserved codes.
+SPEC_EVIDENCE: docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md AT-EC-04 (B_ADDITIVE_NOW, implemented in slice 2) and AT-EC-07 (E_DEFER for the envelope codec); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 8 items 1 and 2.
+CURRENT_BEHAVIOR: Repaired at HEAD; B against the pinned baseline.
+DESIRED_INVARIANT: Prose matches the exact preimage; dead framing codes are documented as reserved. Holds at HEAD.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Duplicate of AT-EC-04, recorded here for hygiene-matrix traceability; when the RW-080 envelope codec lands it needs its own trailing and non-minimal vectors (AT-EC-07 already says so).
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none (AT-EC-04 ran check_exec_package_v2.py, check_exec_package_markers.py, rw075_exec_closure)
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-vm (ariadne)
+REVIEW_REQUIRED: covered by AT-EC-04 review
+```
+
+```text
+FINDING_ID: AT-HH-07
+TITLE: Length-prefix conventions differ across evidence digests (u64be versus uvar)
+HYPOTHESIS: Mixed conventions are a length-ambiguity risk.
+REPOSITORY_EVIDENCE: crates/sley-policy/src/candidate_result.rs:481 (SLEYATT1 u64be len), :493 (phase evidence uvar len), crates/sley-policy/src/candidate_validation.rs:592 (u64be), crates/sley-policy/src/lib.rs:1799 (SLEYCAPD u64be), every SCB1 envelope uvar; query, adapter and VM families use u64be counts and lengths throughout (query.rs:897-901, adapter lib.rs:1267-1275, fingerprint.rs Encoder).
+SPEC_EVIDENCE: Each owning contract states its own convention exactly (CANDIDATE_RESULT_V1.md sections 3 and 6, CAPABILITY_TOKEN_V1.md section 3, SCB1.md section 4); section 8 "length ambiguity".
+CURRENT_BEHAVIOR: Each preimage is unambiguous on its own, domain-separated, and frozen; no two conventions meet inside one preimage.
+DESIRED_INVARIANT: No preimage admits two parses. Holds.
+DISPOSITION: D_REJECT
+RATIONALE: Normalizing would change canonical bytes for no defect; the mix is a style difference, not an ambiguity.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-08
+TITLE: SCB1.md names EmbeddedContractBytes, a type no epoch, descriptor, oracle or crate declares
+HYPOTHESIS: The nested-envelope rule in the encoding contract is stated in terms of a phantom type.
+REPOSITORY_EVIDENCE: docs/spec/SCB1.md:55-58 is the only occurrence in docs, crates, scripts and oracle (grep this session). Every embedding is a plain Bytes field decoded separately by its owning contract: pack root_entry and object_entry stored_bytes (REPOSITORY_PACK_V1.md field schema), exchange object_pack and receipt stored_bytes (REPOSITORY_EXCHANGE_V1.md), receipt fields 3 to 7 (TRANSACTION_MODEL_V1.md), with nested-contract checks such as exchange.rs:958 embedded_pack_header_is_tag_170.
+SPEC_EVIDENCE: SCB1.md section 2 sentence; Sley2.0mastergoal.md section 6 does not mention the type.
+CURRENT_BEHAVIOR: Behavior matches the sentence's intent (opaque until separately decoded with explicit limits); an independent implementer reading SCB1.md expects a declared type and a decoder rule keyed on it that does not exist; the Python oracle passes without implementing it.
+DESIRED_INVARIANT: SCB1.md states the realized rule: embedded envelopes travel as Bytes fields whose owning contract names the nested contract and decodes them separately.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: Useful clarification with no byte effect and no present ambiguity in any realized contract; fold into the next SCB1.md revision rather than a standalone pre-freeze edit.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: docs/spec/SCB1.md section 2 (future revision)
+CODE_OWNERSHIP: ariadne
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-09
+TITLE: ValueHash canonical-form precondition is enforced by callers, not by the hash function
+HYPOTHESIS: hash_validated_value could hash a non-canonical value (map order, NaN) and produce a second identity for equal values.
+REPOSITORY_EVIDENCE: crates/sley-ssmc/src/fingerprint.rs:282-309 hashes the encoded type and data as given; VM_EXECUTION_PROFILE_V1.md section 1 requires VM_EXEC_INPUT_NOT_CANONICAL refusal before any hash; FINGERPRINT_IMPACT_PROFILE_V1.md section 6 ("Only a constant that passes S20-210 ... may be hashed"); SCB1.md section 7 (VM canonicalizes NaN and zero before a value can become canonical).
+SPEC_EVIDENCE: Sley2.0mastergoal.md 7 ("NaN results must be canonicalized after every operation"; "map iteration must be canonical").
+CURRENT_BEHAVIOR: The precondition is a documented caller contract and enforced at every VM input and result boundary.
+DESIRED_INVARIANT: A ValueHash is computed only over canonical bytes. Holds by layered contract.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The division (validate, then hash) is the stated design; moving validation into the hash function would duplicate S20-210 inside sley-ssmc.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-ssmc, sley-vm (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-10
+TITLE: The SMP1 handshake transcript concatenates three records without length words
+HYPOTHESIS: client_hello || server_hello || selection without length framing could admit two parses.
+REPOSITORY_EVIDENCE: crates/sley-protocol/src/lib.rs:715-727 (transcript), :661-681 (Hello::encode is one SCB1 record), :812-823 (SelectedProfile::preimage is one SCB1 record); a canonical record is prefix-delimited by its field count and per-field lengths; both peers hash the observed bytes; independent oracle scripts/check_smp1_vector.py rebuilds the transcript and passes; T45 downgrade test lib.rs:1976.
+SPEC_EVIDENCE: SMP1.md section 2; SCB1.md sections 4 and 5 (record encoding is self-delimiting).
+CURRENT_BEHAVIOR: Exactly one parse; no ambiguity demonstrable.
+DESIRED_INVARIANT: The transcript preimage has one parse. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Self-delimitation of canonical records is sufficient; a prose note in SMP1.md would be a nicety.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-protocol (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-11
+TITLE: Pack and exchange Merkle trees promote an unpaired final digest unchanged
+HYPOTHESIS: Promotion could let a leaf stand in for a node.
+REPOSITORY_EVIDENCE: Leaves and nodes use distinct domains (crates/sley-repo/src/lib.rs:59-60, exchange.rs:59-60); the payload stores the exact ordered leaf list and count, which the verifier recomputes before comparing the root (lib.rs:889-895 verify_digest_tree; exchange "Digest tree"); Python reproduces both trees (check_repository_pack_vector.py:111-127, check_repository_exchange_vector.py:153-170).
+SPEC_EVIDENCE: REPOSITORY_PACK_V1.md and REPOSITORY_EXCHANGE_V1.md "Digest tree".
+CURRENT_BEHAVIOR: Distinct domains plus a stored leaf list make a second-preimage substitution detectable.
+DESIRED_INVARIANT: Tree root cannot be forged by re-labelling a leaf as a node. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Proof above.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-repo (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-12
+TITLE: IndexSnapshotId uses one domain for the restricted arm and the complete-root arm
+HYPOTHESIS: Arm 1 and arm 2 records could be confused under one domain.
+REPOSITORY_EVIDENCE: The arm tag is inside the preimage (crates/sley-query/src/snapshot.rs:557); arm 2 requires a Some root (COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md lines 47-50); each consumer accepts exactly one arm (query.rs:412-416, root_query.rs:667-669); rejected fixture restricted-arm-tag in conformance/complete-root-index-snapshot/v1.
+SPEC_EVIDENCE: COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md lines 60-64.
+CURRENT_BEHAVIOR: Bound inside the preimage and refused on the wrong arm.
+DESIRED_INVARIANT: One domain, arms disjoint by bound tag. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Same pattern as AT-IG-04.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-query (ariadne)
+REVIEW_REQUIRED: no
+```
+
+```text
+FINDING_ID: AT-HH-13
+TITLE: The deterministic merge-plan nonce feeds EntityId derivation
+HYPOTHESIS: A deterministic nonce could make merge-created EntityIds collide across repositories or replays.
+REPOSITORY_EVIDENCE: nonce = BLAKE3("sley2.merge-plan-nonce.v1" || A.root || judged_merged.root) (crates/sley-repo/src/merge.rs:1373-1377); EntityId also binds WorkspaceId, kind and ordinal (crates/sley-id/src/lib.rs:358-372); a derived identity that names a live entity fails MERGE_PLAN_UNSUPPORTED (MERGE_V1.md "Merge plan"); the transaction layer collision-checks against live and tombstoned ids.
+SPEC_EVIDENCE: MERGE_V1.md "Merge plan" (determinism is the stated design: two peers computing the same merge derive the same plan); IDENTIFIERS_V1.md "Entity identity".
+CURRENT_BEHAVIOR: Deterministic by design; collision is refused rather than possible.
+DESIRED_INVARIANT: Identical merges derive identical plans; collisions never reach accepted state. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Proof above.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-repo (ariadne)
+REVIEW_REQUIRED: no
+```
+
+### 3.7 Machine-write ergonomics (spec section 9)
+
+Method: representative candidates for the eight edit classes were composed and
+encoded through the repository's independent oracle after showing it
+reproduces the committed mutation-candidate fixture byte for byte; every
+candidate strictly re-imports. No trial data exists at this commit
+(trials_executed 0), so round trips, validation failures and repair rounds are
+derived minima with typical fail-closed causes, marked
+NOT_MEASURABLE_AT_THIS_COMMIT. Primitive counts per class run from 1 to 18
+and record bytes from 469 to 3819, inside every frozen ceiling; no material
+machine-generation problem is demonstrated, so higher-order operations are
+deferred. Records follow.
+
+
+```text
+FINDING_ID: AT-MW-01
+TITLE: Higher-order typed mutation operations are not justified by a demonstrated machine-generation problem
+HYPOTHESIS: Primitive-only mutation makes representative agent edits so long, large, or failure-prone that composite operations are needed before the 2.0 freeze.
+REPOSITORY_EVIDENCE: ENCODED table in section 2 (measure_mw.py through oracle/scb1/src/sley2_scb1_oracle/candidate.py, oracle shown byte-identical to conformance/mutation-candidate/v1/accepted.json): 1 to 18 primitives, 469 B to 3819 B record bytes across the eight edit classes; ceilings docs/spec/VALIDATION_PROFILE_V1.md table (65,535 operations, 67,108,864 bytes); no trials: machineresearch/sley-2.0/machine-summary.json:2817, machineresearch/sley-2.0/18-legacy-succession-results.md:3, docs/spec/SLEY2_TRIAL_RUNNER_V1.md:259; composition surface crates/sley-protocol/src/server.rs:1284-1295; descriptor table crates/sley-mutate/src/generated.rs:682 (179 entries).
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md:391-397 (decision rule); Sley2.0mastergoal.md:1384-1405 (sixteen primitives, wire ops generated from schema); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:257 (typed affordances and the full candidate pipeline remain final requirements, no composite class named).
+CURRENT_BEHAVIOR: Sixteen frozen classes, 179 descriptors, one candidate record; every measured edit expands deterministically to a short primitive list; no composite exists and none is needed to express any of the eight classes.
+DESIRED_INVARIANT: The candidate record and its sixteen classes stay the only mutation authority; any composite is an expansion into them.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: No measured repair or failure data exists (rule: do not estimate), and the derived costs are bounded and linear; the residual costs (renumbering, replace-only fields, mandatory deletes) are expressible client-side without protocol change. Introducing a wire-level composite now would add a second place where semantics are defined.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none (a self-hosted writer library may expand composites into primitives; it must not become a checker)
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now; for 2.1+: expansion determinism tests (composite -> primitive bytes byte-identical across runs) and an oracle reproduction
+SPECS_TO_UPDATE: none now; 2.1+ recommendation recorded in this audit
+CODE_OWNERSHIP: S20-350 (sley-mutate) for any future expansion library; S20-420 JSON bridge if bridge-side
+REVIEW_REQUIRED: Ariadne contract review at 2.1 design time
+```
+
+```text
+FINDING_ID: AT-MW-02
+TITLE: No bounded typed entity-body read exists in SMP1, so most writes require context the machine protocol cannot supply
+HYPOTHESIS: A bounded-context writer can obtain every fact the frozen primitives require through the machine protocol.
+REPOSITORY_EVIDENCE: docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md:94-135 (nineteen classes) and :316-330 (payloads: class 2 is kind, ObjectId, fingerprint; others are identity lists, edges, rows); docs/spec/SMP1.md:586 (handle.expand facts) and :594 (checkout returns every object of a revision); docs/spec/SEMANTIC_COMPARISON_V1.md:300 (field_delta carries identity sets only); bench/sley2/runner.py:95-112 (arm allowlist) and :121,:123 (checkout, exchange.export denied); measurement: 11 of 13 encoded candidates in section 2 need a current body value (operands, terminator, TypeDefForm, BlockBody, list order) because MUTATION_SCHEMA_V1.md:73-75 makes non-scalar non-list fields replace-only; crates/sley-query/README.md:22.
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1107-1131 (SMP1 MUST expose GetEntityVersion, GetSignature, GetTypeClosure, GetDataDependencies among others), :1133-1150 (capsule MUST contain relevant type and effect facts), :2638-2649 (small-model task with capsule and affordances only, no entire-store dump); docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md:253 (excludes type, effect, contract, test facts); SLEY-2.0-ARCHITECTURE-TIGHTENING.md:12-34 (machine-generation efficiency, independent reproducibility are in scope).
+CURRENT_BEHAVIOR: A writer under the arm allowlist can learn identities, kinds, ObjectIds, edges, and closures but not one operand, terminator, type form, or list order; the only body read is a whole-revision checkout. Benchmark classes that edit existing bodies (local bug repair S2B-REPAIR-001, signature migration, type-model change) cannot be attempted by the arm as specified.
+DESIRED_INVARIANT: Every fact a frozen primitive requires as input (current typed field value, ordered child list, ObjectId) is obtainable for one named entity through one bounded, root-bound, session-safe SMP1 request, without a store dump.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Additive: a new query class (or new method under a new protocol_version, SMP1.md section 4 rule) returning the exact stored entity object bytes or typed body for one entity changes no canonical identity, preimage, epoch, or existing class; the object bytes already exist and are digest-bound. Material: without it the master-goal 20.10 demonstration and the succession benchmark's edit classes are unwritable in bounded context, and this is exact from the payload tables, not speculative. Not already solved: no class, method, or capsule field carries a body.
+CANONICAL_IMPACT: none (derived read of existing canonical objects; the response must copy the stored object bytes so ObjectId verification stays with the reader)
+SCHEMA_IMPACT: ROOT_BACKED_QUERY_PROFILE v1 class table is frozen at nineteen; add under profile_version 2 or a new SMP1 method tag with a protocol_version bump, never by widening v1
+ABI_IMPACT: none
+SELFHOST_IMPACT: a self-hosted writer needs the same read; without it the Sley-owned toolchain (REWEAVE section 9, typed operations over canonical graph state) cannot author edits from protocol context
+MIGRATION_REQUIRED: no (additive version)
+TESTS_REQUIRED: fixed vectors for the new class over the S20-310 fixture; bounded-context limits and PROTOCOL_LIMIT_EXCEEDED on oversize bodies; a trial-runner scripted smoke that performs one EC1a edit end to end (query body, create, validate) under ARM_AFFORDANCES; independent Python reproduction
+SPECS_TO_UPDATE: ROOT_BACKED_QUERY_PROFILE_V1.md (v2 or successor), SMP1.md section 4 and appendix A, CONTEXT_CAPSULE_PROFILE_V1.md (if the capsule carries the body), SLEY2_TRIAL_RUNNER_V1.md ARM_AFFORDANCES, REQUIRED_CONTRACT_INDEX_V1.md
+CODE_OWNERSHIP: S20-310 (sley-query) and S20-400/S20-410 (sley-protocol); S20-620 runner allowlist
+REVIEW_REQUIRED: Ariadne contract review, Nabu architecture review (bounded-context and dump-avoidance), Vulcan surface review
+```
+
+```text
+FINDING_ID: AT-MW-03
+TITLE: Master-goal mutation affordance templates are absent and the GA report maps the criterion to the protocol instead
+HYPOTHESIS: The capsule or a query already exposes per-entity operation templates (class, kind, handle, required fields, permitted value types, expected preimage, likely impact, required capability classes).
+REPOSITORY_EVIDENCE: docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md:136 and :253 (mutation affordances excluded); crates/sley-query/README.md:22 ("mutation affordances are not implemented"); evidence/release/ga-acceptance-report.json:149 and scripts/build_ga_acceptance_report.py:131 (criterion "typed affordances and mutations are available" evidenced by protocol status S20_400/S20_410); the static descriptor table crates/sley-mutate/src/generated.rs:682; per-principal class grants docs/spec/POLICY_ROOT_V1.md:40-46 with no query class exposing them (ROOT_BACKED_QUERY_PROFILE_V1.md:94-135).
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1407-1423 (SHOULD expose templates; "Affordances are hints"), :1146 (capsule MUST contain available mutation affordances), :1107-1131 (GetAvailableMutations MUST); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:257 ("typed affordances" remain final requirements).
+CURRENT_BEHAVIOR: A writer derives eligibility offline from the 179 descriptors and binds preimages via class 2; it cannot learn which mutation classes its principal is granted (POLICY_GRANT_DENIED is discovered only by validating) nor receive impact/preimage-bundled templates.
+DESIRED_INVARIANT: Affordances, when provided, are derived hints that never carry authority (master goal 10.3), and the GA criterion is evidenced by the surface the master goal names.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: Not a higher-order operation and not required to express any edit: class/kind/field eligibility is static and digest-pinned, the preimage is obtainable, and impact closure is class 14. The remaining value (granted classes, bundled templates) is convenience with no measured cost data. The master MUST in 8.3 versus the capsule exclusion is a specification synchronization conflict for AT-G5 to resolve by amendment or a capsule successor version, not by changing canonical state.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none now
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now
+SPECS_TO_UPDATE: for AT-G5: reconcile Sley2.0mastergoal.md 8.2/8.3/10.3 with CONTEXT_CAPSULE_PROFILE_V1.md section 11; scripts/build_ga_acceptance_report.py:131 should cite the affordance surface once one exists and state its absence until then
+CODE_OWNERSHIP: S20-320 (capsule), S20-310 (query), release report script
+REVIEW_REQUIRED: Maat doctrine check on the GA report wording; Ariadne at 2.1 design time
+```
+
+```text
+FINDING_ID: AT-MW-04
+TITLE: Validator fail-closed remainders, not the mutation substrate, make dependency-boundary and effectful edit classes unwritable at this commit
+HYPOTHESIS: The primitive set cannot express dependency-boundary changes or effect/capability repairs.
+REPOSITORY_EVIDENCE: EC7a/EC7b encode in 1 and 2 primitives (section 2); refusal crates/sley-policy/src/candidate_validation.rs:1328-1337 (any dependency_roots difference is INVALID_GRAPH CANDIDATE_DEPENDENCY_ROOT_CHANGE_UNSUPPORTED, Permanent) and test :2581-2588; excluded opcodes crates/sley-policy/src/candidate_program.rs:218 ([144,145,160,161,162]) with the phase 12 guard candidate_validation.rs:1550; docs/spec/CANDIDATE_RESULT_V1.md:359 and :450-456; docs/spec/TRANSACTION_MODEL_V1.md:16 (commit accepts the same profile); machine-summary.json /s20_360_candidate_validation/unsupported_operation_result and /evidence_gaps[1] (E7 semantics owned by S20-280/S20-380); benchmark tasks bench/corpus/v1/tasks.json S2B-EFFECT-001 (FileRead via effect_request) and S2B-CAP-001 (capability narrowing).
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1384-1403 (update dependency binding is a GA primitive), :2688-2706 (effect repair and capability-scope repair are required task classes); SLEY-2.0-ARCHITECTURE-TIGHTENING.md:24-34 (ALREADY_SOLVED when the substrate resolves the concern).
+CURRENT_BEHAVIOR: The candidate encodes and imports; validation refuses at phase 5 (dependency roots) or phase 12 (E7 opcodes) deterministically, so these classes cannot reach VALID or commit.
+DESIRED_INVARIANT: The mutation substrate expresses every GA edit class in bounded primitives; unsupported judgment fails closed until its owner lands, and never silently passes.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: For the machine-write question the substrate already resolves the concern (1 to 2 primitives, 572 to 746 B) and the fail-closed behaviour is the required invariant. The remaining work is implementation of owned phases (S20-360 dependency-root analysis; S20-280/S20-380 E7 semantics), already tracked as evidence gaps, not an architecture defect and not a mutation-model change. Recorded here so the benchmark's writable task space is stated truthfully.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none for the substrate; the self-hosted toolchain cannot use effect_request/adapter_invoke/capability_narrow until the owners land
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none new; existing refusal tests stand
+SPECS_TO_UPDATE: none; the benchmark plan should state that two required task classes are validator-blocked at this revision (S20-610/S20-620 owners)
+CODE_OWNERSHIP: S20-360, S20-280, S20-380
+REVIEW_REQUIRED: none for this disposition
+```
+
+```text
+FINDING_ID: AT-MW-05
+TITLE: VALIDATION_PROFILE_V1.md still states the success subset contains no Operation entities
+HYPOTHESIS: The validation profile document describes what a writer can get validated today.
+REPOSITORY_EVIDENCE: docs/spec/VALIDATION_PROFILE_V1.md:46-49 ("Its current supported success subset contains no SSMC1 Operation entities. Operation-bearing projected programs fail closed during supported resource analysis"); contradicted by docs/spec/CANDIDATE_RESULT_V1.md:419-456 (phase 7 judges every operation of every function unit; only five E7 opcodes excluded), docs/spec/TRANSACTION_MODEL_V1.md:16 and :165 (commit accepts programs carrying semantic operation entities under full operation analysis), docs/audits/S20_360_CANDIDATE_VALIDATION_CLOSEOUT.md:118-150 (addendum 2026-09-03), and the passing operation-bearing fixtures crates/sley-policy/src/candidate_validation.rs:3280-3420.
+SPEC_EVIDENCE: SLEY-2.0-ARCHITECTURE-TIGHTENING.md:86-101 (no silent reinterpretation), section 14 canonical specification synchronization.
+CURRENT_BEHAVIOR: A writer reading the profile contract concludes that any function-body edit (EC1, EC2, EC4, EC5, EC6b, EC8) cannot validate, which is false at this commit.
+DESIRED_INVARIANT: Every subordinate contract states the same supported subset as the owning result contract.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Documentation-only correction with exact evidence; the profile record bytes and ValidationProfileId (7d8ffff9...) are untouched, so no canonical or identity impact. Belongs to AT-G5 but is recorded here because it misinforms writers directly.
+CANONICAL_IMPACT: none (profile identity unchanged; verify with the profile vector after edit)
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: the stage checker that pins VALIDATION_PROFILE_V1.md markers (scripts/check_candidate_contract_freeze.py) must still pass; add a cross-document sentence check if one exists for the result contract
+SPECS_TO_UPDATE: docs/spec/VALIDATION_PROFILE_V1.md:46-49 to reference CANDIDATE_RESULT_V1.md section 9's exact subset
+CODE_OWNERSHIP: S20-345/S20-360 contract owner
+REVIEW_REQUIRED: Ariadne contract review (documentation delta)
+```
+
+```text
+FINDING_ID: AT-MW-06
+TITLE: Mid-list insertion costs a renumbering primitive per later sibling
+HYPOTHESIS: Inserting an operation or parameter at position i is one primitive.
+REPOSITORY_EVIDENCE: crates/sley-check/src/cfg.rs:723-734 (GRAPH_ORDINAL_MISMATCH when Operation.ordinal != list index), crates/sley-check/src/lib.rs:415 (parameter ordinal == index); docs/spec/SSMC1_EPOCH1_SCHEMA.txt (OperationBody field 2 ordinal, ParameterBody field 3 ordinal are body fields); ENCODED EC1c (2 of 5 primitives are renumbers) and EC4b (6 of 18); each renumber needs the sibling's ObjectId (PRECONDITION_PAYLOAD_V1.md, ExactEntityVersion).
+SPEC_EVIDENCE: docs/spec/CFG_VALIDATION_V1.md:41-42 ("Every ordinal is the zero-based position in the owner's ordered list"); docs/spec/SSMC1.md:131 ("Owner and ordinal facts must agree with the owner's list"); SLEY-2.0-ARCHITECTURE-TIGHTENING.md:86-101 (an epoch change is needed to redefine a body field).
+CURRENT_BEHAVIOR: Position is stored twice (list index and body ordinal) and both must agree; a writer inserting mid-block emits (n - i) SetScalarField operations with (n - i) preimages.
+DESIRED_INVARIANT: Canonical redundancy that the checker verifies stays; writers pay a linear, deterministic, client-expandable cost.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: Removing the ordinal field or making it derived changes SSMC1 epoch 1 (a new epoch, not a pre-freeze repair) for a cost that is bounded and expressible as a client-side expansion (insert-and-renumber); no trial data shows it drives repair churn. Appending at the end (EC3) is free. Record as a 2.1+ composite-expansion candidate.
+CANONICAL_IMPACT: none now; an epoch-2 schema decision if ever pursued
+SCHEMA_IMPACT: none now
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: S20-200/S20-220 (schema and CFG) if revisited; S20-350 for a client expansion
+REVIEW_REQUIRED: none now
+```
+
+```text
+FINDING_ID: AT-MW-07
+TITLE: Session handles should not be admitted into the canonical candidate record
+HYPOTHESIS: Handle-addressed mutations would cut the 32-byte identity cost per operation and precondition (master goal 8.5 "reduce context and mutation token cost").
+REPOSITORY_EVIDENCE: docs/spec/CANDIDATE_RECORD_V1.md:51-70 and PRECONDITION_PAYLOAD_V1.md tables (EntityId/ObjectId only, all thirteen fields enter CandidateId); ENCODED: a delete is 55 B op + 80 B precondition, 96 B of it identities; JSON bridge doubles (docs/spec/SMP1_JSON_BRIDGE_V1.md:31-35); docs/spec/SESSION_HANDLE_PROFILE_V1.md and SMP1.md:586 (handles are session- and root-bound, fail closed after rebinding).
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1178-1195 (handles are derived, never persisted as canonical identity, fail closed after the binding changes); SLEY-2.0-ARCHITECTURE-TIGHTENING.md:70-84 (stable logical identity distinct from session state; candidate must not depend on ambient state).
+CURRENT_BEHAVIOR: Candidates name raw identities; handles reduce read cost only.
+DESIRED_INVARIANT: CandidateId and every preimage bind stable identities; a candidate is meaningful outside the session that built it.
+DISPOSITION: D_REJECT
+RATIONALE: A handle inside the canonical record would make candidate identity depend on session state, creating a second addressing authority and breaking replay/attempt digests. If byte cost ever matters, the JSON bridge or a client library may expand handles to identities before canonical encoding (2.1+ convenience), which changes nothing here.
+CANONICAL_IMPACT: none (rejection preserves the frozen record)
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-MW-08
+TITLE: Creation identities must be derived client-side with BLAKE3 before candidate.create
+HYPOTHESIS: The endpoint derives or returns creation identities for the writer.
+REPOSITORY_EVIDENCE: crates/sley-mutate/src/candidate.rs:457-520 (construction rejects any class-1 target that is not EntityId::derive(workspace, nonce, kind, creation_ordinal), error MUTATION_CANDIDATE_TARGET_ENTITY at :75); crates/sley-protocol/src/server.rs:1277-1282 (candidate.create decodes and builds; no derivation); docs/spec/SMP1.md:250-315 (no identity-derivation method); oracle derive_entity_id (oracle/scb1/src/sley2_scb1_oracle/candidate.py:124-135) as the independent reference; ENCODED: EC2 needs 5 derivations, EC6b 8, all also referenced inside sibling bodies (block lists, operand refs) before any of them exists.
+SPEC_EVIDENCE: docs/spec/IDENTIFIERS_V1.md:111-124; docs/spec/CANDIDATE_RECORD_V1.md:71-75.
+CURRENT_BEHAVIOR: A writer needs BLAKE3, the WorkspaceId, its own nonce, and the creation ordinal discipline; a writer without BLAKE3 cannot create entities.
+DESIRED_INVARIANT: Deterministic, collision-checked creation identity bound to the candidate nonce (already true); tooling may compute it for the writer without changing the rule.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: The rule is correct and frozen; the friction is a client-library concern (the JSON bridge or a writer SDK can derive), with no measured cost data. A server-side "derive" helper would be additive but is not required to write any edit.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: a self-hosted writer needs a BLAKE3 implementation in Sley or the native substrate (REWEAVE section 10.3 native remainder)
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: S20-420 bridge or a writer SDK, 2.1+
+REVIEW_REQUIRED: none now
+```
+
+```text
+FINDING_ID: AT-MW-09
+TITLE: candidate.append re-sends the full header and returns the full stored candidate on every step
+HYPOTHESIS: Incremental candidate construction over SMP1 is cheaper than one-shot construction.
+REPOSITORY_EVIDENCE: crates/sley-protocol/src/server.rs:1284-1295 (append imports the stored candidate, decodes a second complete record, concatenates, rebuilds, returns the whole stored bytes); docs/spec/SMP1.md:588 and :591 ("the server holds no candidate state"); ENCODED: fixed header 332 B per record, stored candidate grows monotonically (EC8 3862 B), so k appends move about k x 332 B extra up and the cumulative stored size down.
+SPEC_EVIDENCE: Sley2.0mastergoal.md:1364-1382 (candidate binds all context fields); SMP1.md authority rule (transport owns no semantics, holds no state).
+CURRENT_BEHAVIOR: Stateless append; one-shot create is strictly cheaper in bytes and round trips for every measured edit.
+DESIRED_INVARIANT: The endpoint stays stateless with respect to candidates; writers build once.
+DISPOSITION: D_REJECT
+RATIONALE: A server-side candidate buffer would add mutable session state to a deliberately stateless surface for an unmeasured benefit; every representative edit fits in one create. Writers should compose locally and create once.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none (optionally a writer guidance note in SMP1 appendix A)
+CODE_OWNERSHIP: n/a
+REVIEW_REQUIRED: none
+```
 
