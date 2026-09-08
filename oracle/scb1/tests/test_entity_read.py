@@ -2386,7 +2386,7 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                     entity_read.decode_request_body(mutated_body, selected)
                 supplied = _b2_supplied_with_request_body(inputs, built, frame, mutated_body)
                 self.assertEqual(_b2_valid_frame(inputs, supplied, "request")[3]["body"], mutated_body)
-                _b2_expect(self, inputs, case, supplied, "request", "request_range", field)
+                _b2_expect(self, inputs, case, supplied, "request", "request_range", None)
         base_fields = entity_read.parse_record(frame["body"])
         record_rows = (
             ("root-31", [(t, root[:31] if t == 1 else p) for t, p in base_fields], "SCB_LENGTH_OVERFLOW"),
@@ -2479,6 +2479,43 @@ class SuppliedEntityFrameCases(unittest.TestCase):
             supplied = _b2_supplied_with_response_body(inputs, built, frame, mutated_body)
             self.assertEqual(_b2_valid_frame(inputs, supplied, "response")[3]["body"], mutated_body)
             _b2_expect(self, inputs, case, supplied, "response", "entry_binding", None)
+        with self.subTest(variant="stored-digest"):
+            entry = entity_read.decode_response_entry(response["entries"][0])
+            stored = entry["stored"]
+            preimage, trailer = stored[:-32], stored[-32:]
+            self.assertEqual(blake3.blake3(entity_read.OBJECT_DOMAIN + preimage).digest(), trailer)
+            bad_trailer = trailer[:-1] + bytes([trailer[-1] ^ 0x01])
+            self.assertNotEqual(bad_trailer, trailer)
+            bad_stored = preimage + bad_trailer
+            self.assertEqual(bad_stored[:-32], preimage)
+            self.assertEqual(bad_stored[:-32], stored[:-32])
+            self.assertEqual(len(bad_stored), len(stored))
+            self.assertNotEqual(blake3.blake3(entity_read.OBJECT_DOMAIN + preimage).digest(), bad_trailer)
+            content_epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+            with self.assertRaisesRegex(ScbError, "SCB_DIGEST_MISMATCH"):
+                entity_read.check_stored_object(bad_stored, entry["kind"], entry["entity"], content_epoch)
+            new_entry = entity_read.build_entry(entry["entity"], entry["kind"], bad_trailer, bad_stored)
+            check_entry = entity_read.decode_response_entry(new_entry)
+            self.assertEqual(check_entry["object_id"], bad_trailer)
+            self.assertEqual(check_entry["stored"][-32:], bad_trailer)
+            body_fields = entity_read.parse_record(frame["body"])
+            items_raw = entity_read.single_field(body_fields, 7)
+            reader = entity_read.Reader(items_raw)
+            count = reader.uvar(64)
+            entries = [reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(count)]
+            reader.finish()
+            self.assertEqual(count, built["count_k"])
+            entries[0] = new_entry
+            items = encode_uvar(count) + b"".join(encode_sized(item) for item in entries)
+            mutated_body = entity_read.encode_fields([(t, items if t == 7 else p) for t, p in body_fields])
+            self.assertEqual(len(entity_read.decode_response_body(mutated_body)["entries"]), built["count_k"])
+            self.assertEqual(len(bad_stored), built["stored_b"])
+            self.assertEqual(len(mutated_body), len(frame["body"]))
+            supplied = _b2_supplied_with_response_body(inputs, built, frame, mutated_body)
+            self.assertEqual(supplied["work"], built["work"])
+            self.assertEqual(supplied["response_body_hex"], mutated_body.hex())
+            self.assertEqual(_b2_valid_frame(inputs, supplied, "response")[3]["body"], mutated_body)
+            _b2_expect(self, inputs, case, supplied, "response", "object_envelope", "SCB_DIGEST_MISMATCH")
         with self.subTest(variant="claimed-work"):
             mutated_body = entity_read.apply_record_surgery(frame["body"], {"op": "shift_uvar_field", "tag": 8, "delta": -1})
             body_fields = entity_read.parse_record(mutated_body)
