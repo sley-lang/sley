@@ -135,7 +135,7 @@ def render(locator: dict, facts: dict, problems: list[str]) -> str:
     )
     gates = "\n".join(f"- {gate}" for gate in locator["known_blocked_gates"])
     candidates = "\n".join(
-        f"- round {c.get('round')}: `{c.get('ref')}` = `{c.get('sha')}` ({c.get('reviewers', '')})"
+        f"- round {c.get('round')}: `{c.get('ref')}` = `{c.get('sha')}` ({c.get('verdicts', '')})"
         for c in locator.get("review_candidates", [])
     ) or "- none"
     result = "PASS" if not problems else "FAIL: " + ", ".join(problems)

@@ -92,21 +92,21 @@
         "round": 1,
         "ref": "review/arch-tighten-r1-round1",
         "sha": "8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d",
-        "reviewers": "Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress)",
+        "verdicts": "Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress)",
         "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-{nabu,ariadne}-2026-09-08.log"
       },
       {
         "round": 2,
         "ref": "review/arch-tighten-r1-round2",
         "sha": "d4a1e330d66cca63fa83203f1c18cc051493c147",
-        "reviewers": "Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2)",
+        "verdicts": "Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2)",
         "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-nabu-r2-2026-09-08.log"
       },
       {
         "round": 3,
         "ref": "review/arch-tighten-r1-round3",
         "sha": "66a76781469625b9da3e5da18736153baae5b435",
-        "reviewers": "Ariadne round 2 (after the Ariadne round-1 repairs; worktree sley2-review-arch-tighten-r3)",
+        "verdicts": "Ariadne round 2 (after the Ariadne round-1 repairs; worktree sley2-review-arch-tighten-r3)",
         "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-ariadne-r2-2026-09-08.log"
       }
     ],
@@ -3090,10 +3090,10 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 223,
+    "obligations": 221,
     "open_reviews": 67,
     "deferred_reviews": 10,
-    "unclassified_dispositions": 5,
+    "unclassified_dispositions": 3,
     "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
