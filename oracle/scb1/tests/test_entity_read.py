@@ -606,5 +606,364 @@ class StoredMetadataExactnessCases(unittest.TestCase):
                     entity_read.decode_stored_unbound(mutated, epoch)
 
 
+_STRUCTURAL_ROWS = (
+    "reserved_method",
+    "unordered_methods",
+    "unordered_versions",
+    "unknown_feature",
+    "unordered_adapters",
+    "unordered_effects",
+    "empty_versions",
+    "empty_methods",
+    "empty_epochs",
+)
+
+
+def _structural_mutation(offer, row):
+    mutated = copy.deepcopy(offer)
+    if row == "reserved_method":
+        methods = mutated["methods"]
+        at = methods.index(306)
+        mutated["methods"] = methods[:at] + [305] + methods[at:]
+    elif row == "unordered_methods":
+        methods = mutated["methods"]
+        mutated["methods"] = [methods[1], methods[0]] + methods[2:]
+    elif row == "unordered_versions":
+        mutated["protocol_versions"] = [2, 1]
+    elif row == "unknown_feature":
+        mutated["features"] = mutated["features"] | 0x20
+    elif row == "unordered_adapters":
+        mutated["adapters"] = ["22" * 32, "11" * 32]
+    elif row == "unordered_effects":
+        mutated["effects"] = ["22" * 32, "11" * 32]
+    elif row == "empty_versions":
+        mutated["protocol_versions"] = []
+    elif row == "empty_methods":
+        mutated["methods"] = []
+    elif row == "empty_epochs":
+        mutated["schema_epochs"] = []
+    else:
+        raise AssertionError(row)
+    return mutated
+
+
+def _ceiling_values(list_name, n):
+    if list_name == "protocol_versions":
+        return list(range(1, n + 1))
+    if list_name == "methods":
+        return [100] + list(range(10000, 10000 + n - 1))
+    if list_name == "schema_epochs":
+        return ["c3" * 32] + [i.to_bytes(32, "big").hex() for i in range(1, n)]
+    if list_name in ("adapters", "effects"):
+        return [i.to_bytes(32, "big").hex() for i in range(1, n + 1)]
+    raise AssertionError(list_name)
+
+
+class HelloAdmissionConsistencyCases(unittest.TestCase):
+    def test_duplicate_epoch_preference_build_preserves_raw_list(self) -> None:
+        inputs = load_authored_inputs()
+        offer = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        offer["schema_epochs"] = ["d4" * 32, "c3" * 32, "d4" * 32]
+        raw = entity_read.build_hello(offer)
+        fields = entity_read.parse_record(raw)
+        epoch_list_raw = entity_read.single_field(fields, 2)
+        reader = entity_read.Reader(epoch_list_raw)
+        count = reader.uvar(64)
+        entries = [reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(count)]
+        reader.finish()
+        self.assertEqual(count, 3)
+        self.assertEqual([entry.hex() for entry in entries], ["d4" * 32, "c3" * 32, "d4" * 32])
+
+    def test_duplicate_epoch_preference_negotiation_selects_first_common(self) -> None:
+        inputs = load_authored_inputs()
+        with self.subTest(side="server_duplicate"):
+            client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+            server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+            server["schema_epochs"] = ["d4" * 32, "c3" * 32, "d4" * 32]
+            selection = entity_read.negotiate_versioned(client, server)
+            self.assertEqual(selection["protocol_version"], 2)
+            self.assertEqual(selection["schema_epoch"], "d4" * 32)
+        with self.subTest(side="client_duplicate"):
+            client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+            client["schema_epochs"] = ["d4" * 32, "c3" * 32, "d4" * 32]
+            server = inputs["hellos"]["hello_v2_server"]
+            selection = entity_read.negotiate_versioned(client, server)
+            self.assertEqual(selection["protocol_version"], 2)
+            self.assertEqual(selection["schema_epoch"], "c3" * 32)
+
+    def test_zero_depth_offer_build_is_valid(self) -> None:
+        inputs = load_authored_inputs()
+        ordinary = inputs["hellos"]["hello_v2_client"]
+        offer = copy.deepcopy(ordinary)
+        offer["limits"] = dict(offer["limits"])
+        offer["limits"]["max_depth"] = 0
+        raw = entity_read.build_hello(offer)
+        fields = entity_read.parse_record(raw)
+        limit_fields = entity_read.parse_record(entity_read.single_field(fields, 3))
+        self.assertEqual(entity_read.decode_uvar_exact(entity_read.single_field(limit_fields, 4), 32), 0)
+        self.assertEqual(
+            entity_read.decode_uvar_exact(entity_read.single_field(limit_fields, 1), 64),
+            ordinary["limits"]["max_frame_bytes"],
+        )
+
+    def test_zero_depth_offer_negotiation_is_valid(self) -> None:
+        inputs = load_authored_inputs()
+        limit_keys = ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")
+        for role in ("client", "server"):
+            with self.subTest(role=role):
+                client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+                target = client if role == "client" else server
+                target["limits"] = dict(target["limits"])
+                target["limits"]["max_depth"] = 0
+                selection = entity_read.negotiate_versioned(client, server)
+                self.assertEqual(selection["limits"]["max_depth"], 0)
+                for key in limit_keys:
+                    with self.subTest(field=key):
+                        self.assertEqual(selection["limits"][key], min(client["limits"][key], server["limits"][key]))
+
+    def test_invalid_offer_structure_refused_by_build(self) -> None:
+        inputs = load_authored_inputs()
+        for role in ("client", "server"):
+            base_name = "hello_v2_client" if role == "client" else "hello_v2_server"
+            for row in _STRUCTURAL_ROWS:
+                with self.subTest(role=role, row=row):
+                    offer = _structural_mutation(inputs["hellos"][base_name], row)
+                    with self.assertRaises(entity_read.CheckFailed) as raised:
+                        entity_read.build_hello(offer)
+                    self.assertEqual(raised.exception.layer, "hello")
+
+    def test_invalid_offer_structure_refused_by_negotiation(self) -> None:
+        inputs = load_authored_inputs()
+        for row in _STRUCTURAL_ROWS:
+            for role in ("client", "server"):
+                with self.subTest(role=role, row=row):
+                    client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                    server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+                    if role == "client":
+                        client = _structural_mutation(client, row)
+                    else:
+                        server = _structural_mutation(server, row)
+                    with self.assertRaises(entity_read.CheckFailed) as raised:
+                        entity_read.negotiate_versioned(client, server)
+                    self.assertEqual(raised.exception.layer, "hello")
+
+    def test_hello_list_ceiling_build_exact_and_over(self) -> None:
+        inputs = load_authored_inputs()
+        for list_name in ("protocol_versions", "methods", "schema_epochs", "adapters", "effects"):
+            with self.subTest(list=list_name):
+                exact = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                exact[list_name] = _ceiling_values(list_name, 4096)
+                entity_read.build_hello(exact)
+                over = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                over[list_name] = _ceiling_values(list_name, 4097)
+                with self.assertRaises(entity_read.CheckFailed) as raised:
+                    entity_read.build_hello(over)
+                self.assertEqual(raised.exception.layer, "hello")
+
+    def test_hello_list_ceiling_negotiation_exact_and_over(self) -> None:
+        inputs = load_authored_inputs()
+        for list_name in ("protocol_versions", "methods", "schema_epochs", "adapters", "effects"):
+            for role in ("client", "server"):
+                with self.subTest(list=list_name, role=role):
+                    client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                    server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+                    if role == "client":
+                        client[list_name] = _ceiling_values(list_name, 4096)
+                    else:
+                        server[list_name] = _ceiling_values(list_name, 4096)
+                    selection = entity_read.negotiate_versioned(client, server)
+                    self.assertEqual(selection["protocol_version"], 2)
+                    self.assertIn(100, selection["methods"])
+                    client = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                    server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+                    if role == "client":
+                        client[list_name] = _ceiling_values(list_name, 4097)
+                    else:
+                        server[list_name] = _ceiling_values(list_name, 4097)
+                    with self.assertRaises(entity_read.CheckFailed) as raised:
+                        entity_read.negotiate_versioned(client, server)
+                    self.assertEqual(raised.exception.layer, "hello")
+
+
+class RecipeSelectorAdmissionCases(unittest.TestCase):
+    def test_known_recipe_selector_controls(self) -> None:
+        inputs = load_authored_inputs()
+        base = inputs["cases"]["ver_ws"]
+        with self.subTest(route="named_record_omitted_level"):
+            authored = next(case for case in inputs["rejected"] if case["id"] == "req_missing_field")
+            data = entity_read.build_rejected_bytes(inputs, base, authored["recipe"])
+            self.assertEqual(
+                entity_read.validate_rejected(inputs, {"recipe": {"target": "request"}}, data),
+                ("request_record", "SCB_FIELD_MISSING"),
+            )
+        with self.subTest(route="named_record_explicit_body"):
+            authored = next(case for case in inputs["rejected"] if case["id"] == "req_missing_field")
+            recipe = dict(authored["recipe"])
+            recipe["level"] = "body"
+            data = entity_read.build_rejected_bytes(inputs, base, recipe)
+            self.assertEqual(
+                entity_read.validate_rejected(inputs, {"recipe": {"target": "request"}}, data),
+                ("request_record", "SCB_FIELD_MISSING"),
+            )
+        with self.subTest(route="explicit_body_append"):
+            recipe = {"target": "response", "level": "body", "op": "append", "hex": "00"}
+            data = entity_read.build_rejected_bytes(inputs, base, recipe)
+            self.assertEqual(
+                entity_read.validate_rejected(inputs, {"recipe": {"target": "response"}, "base": "ver_ws"}, data),
+                ("response_record", "SCB_TRAILING_BYTES"),
+            )
+        with self.subTest(route="wire_truncate"):
+            recipe = {"target": "response", "level": "wire", "op": "truncate", "n": 1}
+            data = entity_read.build_rejected_bytes(inputs, base, recipe)
+            self.assertEqual(
+                entity_read.validate_rejected(inputs, {"recipe": {"target": "response"}, "base": "ver_ws"}, data),
+                ("wire_prefix", None),
+            )
+
+    def test_unknown_target_selector_refused(self) -> None:
+        inputs = load_authored_inputs()
+        base = inputs["cases"]["ver_ws"]
+        good = {"target": "request", "record": "request", "op": "identity"}
+        wire = entity_read.build_rejected_bytes(inputs, base, good)
+        stored, _prefix = entity_read.split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
+        entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+        self.assertEqual(
+            entity_read.validate_rejected(inputs, {"recipe": {"target": "request"}, "base": "ver_ws"}, wire),
+            ("request_accepted", None),
+        )
+        bad = dict(good)
+        bad["target"] = "unknown-target"
+        with self.assertRaises(ValueError) as raised:
+            entity_read.build_rejected_bytes(inputs, base, bad)
+        message = str(raised.exception)
+        self.assertIn("target", message)
+        self.assertIn("unknown-target", message)
+
+    def test_unknown_record_selector_refused(self) -> None:
+        inputs = load_authored_inputs()
+        base = inputs["cases"]["ver_ws"]
+        good = {"target": "response", "record": "response", "op": "identity"}
+        wire = entity_read.build_rejected_bytes(inputs, base, good)
+        stored, _prefix = entity_read.split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
+        payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+        entity_read.decode_response_body(entity_read.decode_frame_payload(payload)["body"])
+        bad = dict(good)
+        bad["record"] = "unknown-record"
+        with self.assertRaises(ValueError) as raised:
+            entity_read.build_rejected_bytes(inputs, base, bad)
+        message = str(raised.exception)
+        self.assertIn("record", message)
+        self.assertIn("unknown-record", message)
+
+    def test_unknown_level_selector_refused(self) -> None:
+        inputs = load_authored_inputs()
+        base = inputs["cases"]["ver_ws"]
+        good = {"target": "response", "level": "body", "op": "identity"}
+        wire = entity_read.build_rejected_bytes(inputs, base, good)
+        stored, _prefix = entity_read.split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
+        payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+        entity_read.decode_response_body(entity_read.decode_frame_payload(payload)["body"])
+        bad = dict(good)
+        bad["level"] = "unknown-level"
+        with self.assertRaises(ValueError) as raised:
+            entity_read.build_rejected_bytes(inputs, base, bad)
+        message = str(raised.exception)
+        self.assertIn("level", message)
+        self.assertIn("unknown-level", message)
+
+
+def _sig_owner_control(testcase):
+    inputs = load_authored_inputs()
+    authored = next(item for item in inputs["rejected"] if item["id"] == "sig_owner")
+    base = inputs["cases"][authored["base"]]
+    wire = entity_read.build_rejected_bytes(inputs, base, authored["recipe"])
+    max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
+    stored, _prefix = entity_read.split_wire(wire, max_frame)
+    payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+    frame = entity_read.decode_frame_payload(payload)
+    response = entity_read.decode_response_body(frame["body"])
+    bounds = entity_read.decode_bounds(frame["bounds"])
+    epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+    entries = [entity_read.decode_response_entry(raw) for raw in response["entries"]]
+    for entry in entries:
+        with testcase.subTest(entry=entry["entity"].hex()):
+            checked = entity_read.check_stored_object(entry["stored"], entry["kind"], entry["entity"], epoch)
+            testcase.assertEqual(entry["object_id"], checked["object_id"])
+    requested = bytes.fromhex(inputs["entities"][base["entity"]]["id"])
+    entity_read.check_context(response, inputs["context"], requested)
+    count_k = len(entries)
+    stored_b = sum(len(entry["stored"]) for entry in entries)
+    lookup_l = int(inputs["context"]["root_bindings"]).bit_length() + 1
+    ceiling_m = int(base["request"]["max_response_bytes"])
+    testcase.assertEqual(response["work"], 1 + count_k * lookup_l + 2 * stored_b + ceiling_m)
+    testcase.assertEqual(bounds["returned_entities"], count_k)
+    testcase.assertEqual(bounds["returned_bytes"], len(frame["body"]))
+    testcase.assertEqual((bounds["returned_edges"], bounds["reached_depth"], bounds["omitted"]), (0, 0, 0))
+    testcase.assertFalse(bounds["truncated"])
+    testcase.assertFalse(bounds["continuation"])
+    testcase.assertEqual(entity_read.validate_rejected(inputs, authored, wire), ("signature", None))
+    return inputs, authored, base, wire, frame, response, bounds, entries
+
+
+class SignaturePriorCountCases(unittest.TestCase):
+    def test_wrong_owner_with_valid_counts_control(self) -> None:
+        _sig_owner_control(self)
+
+    def test_wrong_owner_with_wrong_returned_bytes_refuses_count_first(self) -> None:
+        inputs, authored, _base, _wire, frame, response, bounds, entries = _sig_owner_control(self)
+        actual_bytes = len(frame["body"])
+        actual_k = len(entries)
+        mutated_fields = [(tag, encode_uvar(actual_bytes + 1) if tag == 2 else payload) for tag, payload in entity_read.parse_record(frame["bounds"])]
+        mutated_payload = entity_read.build_frame_payload(
+            frame["version"],
+            frame["session"],
+            frame["request_id"],
+            frame["kind"],
+            frame["method"],
+            frame["flags"],
+            entity_read.encode_fields(mutated_fields),
+            frame["body"],
+        )
+        mutated_wire, _pre, _fid = entity_read.build_envelope(entity_read.protocol_epoch_id(), mutated_payload)
+        max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
+        stored, _prefix = entity_read.split_wire(mutated_wire, max_frame)
+        payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+        mutated_frame = entity_read.decode_frame_payload(payload)
+        self.assertEqual(mutated_frame["body"], frame["body"])
+        self.assertEqual(entity_read.decode_response_body(mutated_frame["body"])["work"], response["work"])
+        mutated_bounds = entity_read.decode_bounds(mutated_frame["bounds"])
+        self.assertEqual(mutated_bounds["returned_bytes"], actual_bytes + 1)
+        self.assertEqual(mutated_bounds["returned_entities"], actual_k)
+        self.assertEqual(entity_read.validate_rejected(inputs, authored, mutated_wire), ("count", None))
+
+    def test_wrong_owner_with_wrong_returned_entities_refuses_count_first(self) -> None:
+        inputs, authored, _base, _wire, frame, response, bounds, entries = _sig_owner_control(self)
+        actual_bytes = len(frame["body"])
+        actual_k = len(entries)
+        mutated_fields = [(tag, encode_uvar(actual_k + 1) if tag == 3 else payload) for tag, payload in entity_read.parse_record(frame["bounds"])]
+        mutated_payload = entity_read.build_frame_payload(
+            frame["version"],
+            frame["session"],
+            frame["request_id"],
+            frame["kind"],
+            frame["method"],
+            frame["flags"],
+            entity_read.encode_fields(mutated_fields),
+            frame["body"],
+        )
+        mutated_wire, _pre, _fid = entity_read.build_envelope(entity_read.protocol_epoch_id(), mutated_payload)
+        max_frame = int(inputs["selected_limits"]["max_frame_bytes"])
+        stored, _prefix = entity_read.split_wire(mutated_wire, max_frame)
+        payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+        mutated_frame = entity_read.decode_frame_payload(payload)
+        self.assertEqual(mutated_frame["body"], frame["body"])
+        self.assertEqual(entity_read.decode_response_body(mutated_frame["body"])["work"], response["work"])
+        mutated_bounds = entity_read.decode_bounds(mutated_frame["bounds"])
+        self.assertEqual(mutated_bounds["returned_entities"], actual_k + 1)
+        self.assertEqual(mutated_bounds["returned_bytes"], actual_bytes)
+        self.assertEqual(entity_read.validate_rejected(inputs, authored, mutated_wire), ("count", None))
+
+
 if __name__ == "__main__":
     unittest.main()
