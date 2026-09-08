@@ -163,6 +163,34 @@ class FrozenReviewCases(unittest.TestCase):
             f"refusal must come from the current-revision review guard, got: {problems}",
         )
 
+    def test_mismatched_current_revision_refused(self):
+        summary = json.loads(SUMMARY_TEXT)
+        review = summary["session_handle_profile"]["current_delta_review"]
+        self.assertEqual(review["contract_revision"], 4)
+        review["contract_revision"] = 3
+        code, payload = run_checker_with_overrides(
+            summary_text=json.dumps(summary)
+        )
+        self.assertEqual(payload.get("result"), "FAIL", "checker must refuse the drift")
+        self.assertNotEqual(code, 0, "checker must exit nonzero on the drift")
+        problems = payload.get("problems", [])
+        self.assertTrue(
+            any("review" in problem for problem in problems),
+            f"refusal must come from the current-revision review guard, got: {problems}",
+        )
+
+    def test_bound_all_pass_review_accepted(self):
+        summary = json.loads(SUMMARY_TEXT)
+        review = summary["session_handle_profile"]["current_delta_review"]
+        self.assertEqual(review["contract_revision"], 4)
+        for lane in ("ariadne", "nabu", "vulcan"):
+            review[lane] = "PASS"
+        code, payload = run_checker_with_overrides(
+            summary_text=json.dumps(summary)
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(payload.get("result"), "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()

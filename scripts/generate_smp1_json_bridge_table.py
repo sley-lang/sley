@@ -26,6 +26,14 @@ FAMILIES = {
     6: "runtime",
 }
 EXPECTED_V1_METHODS = 41
+EXPECTED_V1_TAGS = (
+    [100, 101, 102, 103, 104]
+    + list(range(200, 215))
+    + [300, 301, 302, 303, 304, 305]
+    + [400, 401, 402, 403, 404]
+    + [500, 501, 502, 503, 504]
+    + [600, 601, 602, 603, 604]
+)
 EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
 
@@ -83,6 +91,8 @@ def parse_tables(spec_text: str) -> tuple[list[dict], list[dict]]:
     v1_names = [method["name"] for method in v1_methods]
     if v1_tags != sorted(v1_tags) or len(set(v1_tags)) != len(v1_tags) or len(set(v1_names)) != len(v1_names):
         raise SystemExit("v1 method table is not strictly increasing with unique names")
+    if v1_tags != list(EXPECTED_V1_TAGS):
+        raise SystemExit(f"v1 method table is not the exact frozen tag inventory, found {v1_tags}")
     if [(method["tag"], method["name"]) for method in v2_additions] != list(EXPECTED_V2_ADDITIONS):
         raise SystemExit(
             "v2 additions must be exactly 306 entity.version and 307 entity.signature in order, "
@@ -95,6 +105,9 @@ def parse_tables(spec_text: str) -> tuple[list[dict], list[dict]]:
             raise SystemExit(f"v2 addition {method['tag']} must not be reserved")
     if {method["tag"] for method in v2_additions} & set(v1_tags):
         raise SystemExit("v2 additions overlap the v1 table")
+    union_names = [method["name"] for method in v1_methods + v2_additions]
+    if len(set(union_names)) != len(union_names):
+        raise SystemExit("method names are not unique across the v1 plus v2 union")
     return v1_methods, v2_additions
 
 

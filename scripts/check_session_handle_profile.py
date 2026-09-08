@@ -233,9 +233,20 @@ def check_method_classification(
     }
     # The versioned helper delegates to the legacy helper, so its partition
     # is the legacy set union its explicit additions, never a partial parse.
+    # The admitted shape is the known disjunction of the legacy call and a
+    # matches! over exactly the two additions; any other Boolean form or
+    # altered delegation refuses.
     versioned_block = rust_block(server, "const fn head_bound_versioned(method: Method) -> bool {")
     if "Self::head_bound(method)" not in versioned_block:
         problems.append("classification:versioned-delegation")
+    if not re.search(
+        r"\{\s*Self::head_bound\(method\)\s*\|\|\s*matches!\s*\(\s*method\s*,"
+        r"\s*Method::(?:EntityVersion\s*\|\s*EntitySignature|EntitySignature\s*\|\s*EntityVersion)"
+        r"\s*\)\s*,?\s*$",
+        versioned_block,
+        flags=re.DOTALL,
+    ):
+        problems.append("classification:versioned-delegation-shape")
     versioned_additions = {
         tag_of[name]
         for name in re.findall(r"Method::(\w+)", versioned_block)
@@ -296,8 +307,14 @@ def check_method_classification(
     for name, tag in extension_pairs:
         if smp1_rows.get(tag) != name:
             problems.append(f"classification:extension-smp1-name:{name}:{tag}")
-    if set(tag_of.get(name, -1) for name in ("EntityVersion", "EntitySignature")) != {306, 307}:
-        problems.append("classification:entity-variant-tags")
+    if tag_of.get("EntityVersion") != 306:
+        problems.append(
+            f"classification:entity-variant-tags:EntityVersion:{tag_of.get('EntityVersion')}"
+        )
+    if tag_of.get("EntitySignature") != 307:
+        problems.append(
+            f"classification:entity-variant-tags:EntitySignature:{tag_of.get('EntitySignature')}"
+        )
     if head_bound | {306, 307} != server_head_bound_versioned:
         problems.append(
             "classification:head-bound-versioned-drift:"
@@ -307,6 +324,44 @@ def check_method_classification(
     if versioned_additions != {306, 307}:
         problems.append(f"classification:versioned-additions:{sorted(versioned_additions)}")
     return lists
+
+
+def check_current_delta_review(
+    section: dict, expected_revision: int, status: object, problems: list[str]
+) -> None:
+    """The revision-bound current review record for this contract delta.
+
+    Historical review fields keep their own revisions and never satisfy the
+    current delta: only this object, bound to the anchored Status revision,
+    admits freeze/complete, while draft/review-pending states stay valid
+    with PENDING.
+    """
+    review = section.get("current_delta_review")
+    if not isinstance(review, dict) or set(review) != {
+        "contract_revision",
+        "ariadne",
+        "nabu",
+        "vulcan",
+    }:
+        problems.append("review:current-delta-shape")
+        return
+    revision = review.get("contract_revision")
+    if type(revision) is not int or revision != expected_revision:
+        problems.append(f"review:current-delta-revision:{revision!r}")
+    for lane in ("ariadne", "nabu", "vulcan"):
+        if review.get(lane) not in (
+            "PENDING",
+            "PASS",
+            "NEEDS_WORK",
+            "FAIL",
+            "INCOMPLETE",
+        ):
+            problems.append(f"review:current-delta-judgment:{lane}")
+    if status in (FROZEN_STATUS, COMPLETE_STATUS) or (
+        isinstance(status, str) and "CONTRACT_FROZEN" in status
+    ):
+        if not all(review.get(lane) == "PASS" for lane in ("ariadne", "nabu", "vulcan")):
+            problems.append("review:current-delta-frozen-requires-pass")
 
 
 def main() -> int:
@@ -423,6 +478,7 @@ def main() -> int:
             problems.append(f"machine-summary:{key}")
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
+    check_current_delta_review(section, CONTRACT_REVISION, status, problems)
     for list_key in OPEN_LISTS:
         if list_key in section or f"{list_key}_count" in section:
             items = section.get(list_key, [])

@@ -75,7 +75,10 @@ protocol_envelope = SCB1 standalone envelope with
 
 `frame_length` is the envelope's exact stored length and must not exceed
 the negotiated `max_frame_bytes` (never above 67,108,864); the check
-happens before allocation. It is not SCB1 section 2's `payload_length`:
+happens before allocation. The `frame_length` value excludes the eight-byte
+prefix that carries it. An outgoing response wire budget additionally
+includes those eight prefix bytes, per the ENTITY_READ complete-frame
+preflight; this ingress envelope limit is unchanged. It is not SCB1 section 2's `payload_length`:
 that inner `uvar` covers only the envelope's inner payload, while the
 outer `u64be` covers the whole envelope. The envelope digest is verified
 before any field is read. A frame that fails length, magic, tag, or
@@ -104,7 +107,7 @@ envelope epoch outside the protocol fails at the envelope layer.
 
 ```text
 ProtocolFrame {
-  protocol_version: u32,                    // negotiated, 1 at this revision
+  protocol_version: u32,                    // Hello 1 (bootstrap); ordinary post-Hello frames carry the selected version, 1 or 2
   session:          option(SessionId[32]),  // None only for hello and session.open
   request_id:       u64,                    // scoped to the session, strictly increasing
   kind:             u32 (1 request | 2 response | 3 event | 4 hello),

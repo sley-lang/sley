@@ -150,6 +150,44 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def check_current_delta_review(
+    section: dict, expected_revision: int, status: object, problems: list[str]
+) -> None:
+    """The revision-bound current review record for this contract delta.
+
+    Historical review fields keep their own revisions and never satisfy the
+    current delta: only this object, bound to the anchored Status revision,
+    admits freeze/complete, while draft/review-pending states stay valid
+    with PENDING.
+    """
+    review = section.get("current_delta_review")
+    if not isinstance(review, dict) or set(review) != {
+        "contract_revision",
+        "ariadne",
+        "nabu",
+        "vulcan",
+    }:
+        problems.append("review:current-delta-shape")
+        return
+    revision = review.get("contract_revision")
+    if type(revision) is not int or revision != expected_revision:
+        problems.append(f"review:current-delta-revision:{revision!r}")
+    for lane in ("ariadne", "nabu", "vulcan"):
+        if review.get(lane) not in (
+            "PENDING",
+            "PASS",
+            "NEEDS_WORK",
+            "FAIL",
+            "INCOMPLETE",
+        ):
+            problems.append(f"review:current-delta-judgment:{lane}")
+    if status in (FROZEN_STATUS, COMPLETE_STATUS) or (
+        isinstance(status, str) and "CONTRACT_FROZEN" in status
+    ):
+        if not all(review.get(lane) == "PASS" for lane in ("ariadne", "nabu", "vulcan")):
+            problems.append("review:current-delta-frozen-requires-pass")
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -213,34 +251,46 @@ def main() -> int:
         problems.append("spec-method-table-union")
     # Every non-reserved version-1 tag has a legacy appendix body row in
     # appendix A or C; the version-2 additions are referenced in appendix D
-    # only. Reserved tags have no body row anywhere.
+    # only. Reserved tags have no body row anywhere. Every body row in the
+    # document lives in exactly one of those three regions: a row anywhere
+    # else is drift, even when the scoped regions still match.
     def appendix_region(start: str, end: str) -> str:
         if start not in spec or end not in spec:
             return ""
         return spec.split(start)[1].split(end)[0]
 
-    appendix_tags = sorted(
-        int(tag)
-        for tag in re.findall(
-            r"^\| (\d{3}) `[^`]+` \|",
-            appendix_region(APPENDIX_A, APPENDIX_B)
-            + appendix_region(APPENDIX_C, APPENDIX_D),
-            flags=re.M,
-        )
+    body_row = re.compile(r"^\| (\d{3}) `[^`]+` \|", flags=re.M)
+    region_text = (
+        appendix_region(APPENDIX_A, APPENDIX_B)
+        + appendix_region(APPENDIX_C, APPENDIX_D)
     )
+    d_text = spec.split(APPENDIX_D)[1] if spec.count(APPENDIX_D) == 1 else ""
+    region_tags = [int(tag) for tag in body_row.findall(region_text)]
+    appendix_d_tags = sorted(int(tag) for tag in body_row.findall(d_text))
+    all_body_tags = [int(tag) for tag in body_row.findall(spec)]
+    if len(all_body_tags) != len(region_tags) + len(appendix_d_tags):
+        problems.append(
+            "spec-appendix-outside-region:"
+            f"total={len(all_body_tags)}:"
+            f"scoped={len(region_tags) + len(appendix_d_tags)}"
+        )
+    if len(all_body_tags) != len(set(all_body_tags)):
+        seen: set[int] = set()
+        doubled: list[int] = []
+        for tag in all_body_tags:
+            if tag in seen and tag not in doubled:
+                doubled.append(tag)
+            seen.add(tag)
+        problems.append(f"spec-appendix-duplicate:{sorted(doubled)}")
+    for tag in RESERVED_TAGS:
+        if tag in all_body_tags:
+            problems.append(f"spec-appendix-reserved:{tag}")
+    appendix_tags = sorted(region_tags)
     live_tags = sorted(tag for tag in METHOD_TAGS if tag not in RESERVED_TAGS)
     if appendix_tags != live_tags:
         problems.append(f"spec-appendix-coverage:{appendix_tags}")
-    appendix_d_tags = sorted(
-        int(tag)
-        for tag in re.findall(r"^\| (\d{3}) `[^`]+` \|", spec.split(APPENDIX_D)[1], flags=re.M)
-        if spec.count(APPENDIX_D) == 1
-    ) if spec.count(APPENDIX_D) == 1 else []
     if appendix_d_tags != sorted(V2_ADDITIONS):
         problems.append(f"spec-appendix-d:{appendix_d_tags}")
-    for tag in RESERVED_TAGS:
-        if tag in appendix_tags:
-            problems.append(f"spec-appendix-reserved:{tag}")
     adr = read(ADR)
     for marker in ADR_MARKERS:
         if marker not in adr:
@@ -299,23 +349,30 @@ def main() -> int:
         problems.append("machine-summary:protocol missing")
         section = {}
     status = section.get("status")
-    # Reverse pins: the composing contracts' current revisions in the
-    # explicit Current composition field must equal their own status lines
-    # (the forward pins live in check_smp1_json_bridge_contract.py and
-    # check_cli_contract.py). Historical closeout sentences keep their own
-    # revisions and never satisfy these pins.
+    # Reverse pins: exactly one anchored Current composition record names
+    # the composing contracts' current revisions, and each pin inside that
+    # record equals its own status line (the forward pins live in
+    # check_smp1_json_bridge_contract.py and check_cli_contract.py).
+    # Historical closeout sentences keep their own revisions and never
+    # satisfy these pins.
+    composition = re.findall(r"Current composition \(revision (\d+)\):", spec)
+    if len(composition) != 1 or int(composition[0]) != CONTRACT_REVISION:
+        problems.append(f"spec-current-composition:{composition}")
+        composition_text = ""
+    else:
+        start = spec.index(f"Current composition (revision {CONTRACT_REVISION}):")
+        end = spec.find("\n\n", start)
+        composition_text = spec[start:end] if end > start else spec[start:]
     for name, path, status_re, pin_re in (
-        ("bridge", ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md", r"^Status: S20-420 contract draft, revision (\d+)", r"`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision (\d+)"),
-        ("cli", ROOT / "docs/spec/SLEY_CLI_V1.md", r"^Status: S20-430 contract draft, revision (\d+)", r"`docs/spec/SLEY_CLI_V1.md` revision (\d+)"),
+        ("bridge", ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md", r"^Status: S20-420 contract draft, revision (\d+)", r"`docs/spec/SMP1_JSON_BRIDGE_V1\.md` revision (\d+)"),
+        ("cli", ROOT / "docs/spec/SLEY_CLI_V1.md", r"^Status: S20-430 contract draft, revision (\d+)", r"`docs/spec/SLEY_CLI_V1\.md` revision (\d+)"),
     ):
         found = re.search(status_re, path.read_text(encoding="utf-8"), flags=re.M)
-        pin = re.search(pin_re, spec)
+        pins = re.findall(pin_re, composition_text) if composition_text else []
         if found is None:
             problems.append(f"reverse-pin:{name}:status-line")
-        elif pin is None or pin.group(1) != found.group(1):
+        elif len(pins) != 1 or pins[0] != found.group(1):
             problems.append(f"reverse-pin:{name}:revision-{found.group(1) if found else '?'}")
-    if "Current composition (revision 12)" not in spec:
-        problems.append("spec-current-composition")
     revision = re.search(r"Status: S20-400 contract draft, revision (\d+)", spec)
     contract_revision = int(revision.group(1)) if revision else None
     if contract_revision != CONTRACT_REVISION:
@@ -342,6 +399,8 @@ def main() -> int:
             problems.append(f"machine-summary:{key}")
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
+    if contract_revision is not None:
+        check_current_delta_review(section, contract_revision, status, problems)
 
     present = []
     if CRATE.exists():

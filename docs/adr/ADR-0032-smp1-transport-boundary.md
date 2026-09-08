@@ -56,7 +56,9 @@ soon as a lane returns.
    running anything, under single-frame `answer` (acknowledge) and
    multi-frame `answer_batch` alike. Streaming chunks a fitting body
    under the negotiated feature; budgets charge one unit at dispatch
-   plus bytes on success.
+   plus bytes on success. This charging and streaming rule is the
+   version 1/default rule; the two ENTITY_READ version 2 methods use the
+   complete-single-frame/work exception stated in SMP1 section 7.
 9. **Transcript-bound identity.** The selection is the canonical
     `SelectedProfile` record digested with both hello bodies; each peer
     re-derives from the hellos as observed, and `session.open` compares
@@ -68,7 +70,7 @@ unchanged; the two S20-310 entity-read tags (306, 307) are additive
 protocol version 2 metadata with body definitions linked to
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, current composition pins at bridge
 revision 8 and CLI revision 5, and capable runtime as phase 3. No decision
-above is altered.
+above is altered except for the stated ENTITY_READ version 2 exception.
 
 ## Consequences
 

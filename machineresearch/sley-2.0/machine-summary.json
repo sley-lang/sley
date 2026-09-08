@@ -898,6 +898,12 @@
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
     "contract_revision": 4,
+    "current_delta_review": {
+      "contract_revision": 4,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
     "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
     "checker": "scripts/check_session_handle_profile.py",
     "identifier_domain": "sley2.session.v1",
@@ -1015,6 +1021,12 @@
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
     "contract_revision": 8,
+    "current_delta_review": {
+      "contract_revision": 8,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -1063,6 +1075,12 @@
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
     "contract_revision": 5,
+    "current_delta_review": {
+      "contract_revision": 5,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
     "rule_audit": "scripts/check_cli_rules.py",
@@ -1570,6 +1588,12 @@
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
     "contract_revision": 12,
+    "current_delta_review": {
+      "contract_revision": 12,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
     "method_count": 41,
@@ -3277,6 +3301,12 @@
     "status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/REQUIRED_CONTRACT_INDEX_V1.md",
     "contract_revision": 2,
+    "current_delta_review": {
+      "contract_revision": 2,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
     "adr": "docs/adr/ADR-0047-required-contract-index.md",
     "checker": "scripts/check_required_contract_index.py",
     "master_goal_section": 17,

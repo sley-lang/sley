@@ -37,6 +37,9 @@ CHECKER = load_module("smp1_contract_checker", "scripts/check_smp1_contract.py")
 GENERATOR = load_module("bridge_table_generator", "scripts/generate_smp1_json_bridge_table.py")
 
 SPEC_TEXT = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
+SUMMARY_TEXT = (ROOT / "machineresearch/sley-2.0/machine-summary.json").read_text(
+    encoding="utf-8"
+)
 
 APPENDIX_A = "## Appendix A. Body records of the dispatched methods (S20-410)"
 APPENDIX_B = "## Appendix B. Cancellation, streaming, and budget records (S20-440)"
@@ -44,13 +47,17 @@ CURRENT_COMPOSITION = "Current composition (revision 12):"
 V1_REPORT_ROW = "| 604 | `report` | report identity | report record | S20-290 (report store is S20-560) |"
 
 
-def run_checker_with_spec(mutated_spec: str) -> tuple[int, dict]:
+def run_checker_with_spec(
+    mutated_spec: str, summary_text: str | None = None
+) -> tuple[int, dict]:
     """Run the real checker with SPEC served from memory; all else real."""
     original_read = CHECKER.read
 
     def read(path):
         if Path(path) == CHECKER.SPEC:
             return mutated_spec
+        if summary_text is not None and Path(path) == CHECKER.SUMMARY:
+            return summary_text
         return original_read(path)
 
     CHECKER.read = read
@@ -175,6 +182,35 @@ class GeneratorTableCases(unittest.TestCase):
         self.assertNotEqual(mutated, SPEC_TEXT)
         with self.assertRaises(SystemExit):
             GENERATOR.parse_tables(mutated)
+
+
+class CurrentDeltaReviewCases(unittest.TestCase):
+    """N-STATIC-01: the current revision review is bound, not historical."""
+
+    def test_missing_current_review_refused(self):
+        summary = json.loads(SUMMARY_TEXT)
+        self.assertIn("current_delta_review", summary["protocol"])
+        del summary["protocol"]["current_delta_review"]
+        code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
+        assert_refused(self, code, payload, "review")
+
+    def test_mismatched_current_revision_refused(self):
+        summary = json.loads(SUMMARY_TEXT)
+        review = summary["protocol"]["current_delta_review"]
+        self.assertEqual(review["contract_revision"], 12)
+        review["contract_revision"] = 11
+        code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
+        assert_refused(self, code, payload, "review")
+
+    def test_bound_all_pass_review_accepted(self):
+        summary = json.loads(SUMMARY_TEXT)
+        review = summary["protocol"]["current_delta_review"]
+        self.assertEqual(review["contract_revision"], 12)
+        for lane in ("ariadne", "nabu", "vulcan"):
+            review[lane] = "PASS"
+        code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
+        self.assertEqual(code, 0)
+        self.assertEqual(payload.get("result"), "PASS")
 
 
 if __name__ == "__main__":

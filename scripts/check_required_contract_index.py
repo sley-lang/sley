@@ -40,6 +40,43 @@ def table_rows(text: str) -> list[list[str]]:
     return rows
 
 
+def check_current_delta_review(
+    section: dict, expected_revision: int, status: object, problems: list[str]
+) -> None:
+    """The revision-bound current review record for this contract delta.
+
+    Historical review fields keep their own revisions and never satisfy the
+    current delta: only this object, bound to the anchored Status revision,
+    admits acceptance, while draft states stay valid with PENDING.
+    """
+    review = section.get("current_delta_review")
+    if not isinstance(review, dict) or set(review) != {
+        "contract_revision",
+        "ariadne",
+        "nabu",
+        "vulcan",
+    }:
+        problems.append("review:current-delta-shape")
+        return
+    revision = review.get("contract_revision")
+    if type(revision) is not int or revision != expected_revision:
+        problems.append(f"review:current-delta-revision:{revision!r}")
+    for lane in ("ariadne", "nabu", "vulcan"):
+        if review.get(lane) not in (
+            "PENDING",
+            "PASS",
+            "NEEDS_WORK",
+            "FAIL",
+            "INCOMPLETE",
+        ):
+            problems.append(f"review:current-delta-judgment:{lane}")
+    if status == ACCEPTED_STATUS or (
+        isinstance(status, str) and "CONTRACT_FROZEN" in status
+    ):
+        if not all(review.get(lane) == "PASS" for lane in ("ariadne", "nabu", "vulcan")):
+            problems.append("review:current-delta-frozen-requires-pass")
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (INDEX, ADR, IDENTIFIERS, MAKEFILE, SUMMARY, WORK_PACKAGES):
@@ -117,6 +154,11 @@ def main() -> int:
     status = section.get("status")
     if status not in (DRAFT_STATUS, ACCEPTED_STATUS):
         problems.append("machine-summary:status")
+    own_revision = re.search(r"^Status:.*revision (\d+)", index, flags=re.M)
+    if own_revision is None:
+        problems.append("index-revision:status-line")
+    else:
+        check_current_delta_review(section, int(own_revision.group(1)), status, problems)
     for key, value in (
         ("contract", "docs/spec/REQUIRED_CONTRACT_INDEX_V1.md"),
         ("adr", "docs/adr/ADR-0047-required-contract-index.md"),
