@@ -14287,106 +14287,106 @@ fn build_program_encode_with_mode(
     let c2_done;
     match mode {
         DigestCopyMode::Unrolled => {
-    // Unrolled digest copy: 32 indexed Get+push pairs, no loop counter,
-    // no bound compare, no backedge (mirrors the proven slice-2 digest
-    // chain shape, appending instead of comparing). Get None targets the
-    // invariant trap: indices are in bounds for a 32-byte digest.
-    let mut uget: Vec<EntityId> = Vec::new();
-    let mut upush: Vec<EntityId> = Vec::new();
-    for _ in 0..32 {
-        uget.push(a.id(ns.b));
-        upush.push(a.id(ns.b));
-    }
-    c2_done = a.id(ns.b);
-    let f1_acc = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
-    let f1_dig = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
-    let f1_unit = a.param(ns.p, c1_done, ParameterRole::Block, TypeExpr::Unit);
-    a.blocks.push(Block {
-        entity_id: c1_done,
-        function: fid,
-        parameters: vec![f1_acc, f1_dig, f1_unit],
-        operations: vec![],
-        terminator: branch(edge(uget[0], vec![pav(f1_acc), pav(f1_dig), pav(f1_unit)])),
-        reachability: Reachability::Required,
-    });
-    // (ids reserved up front so c1_done can target the chain head)
-    for i in 0..32usize {
-        let gb = uget[i];
-        let pb = upush[i];
-        let idx_const = a.ku64(ns.k, u128::try_from(i).expect("digest index fits u128"));
-        let g_acc = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
-        let g_dig = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
-        let g_unit = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Unit);
-        let g_idxc = a.cref(ns.o, gb, idx_const, u64_type());
-        let g_get = a.op(
-            ns.o,
-            gb,
-            Opcode::VectorGet,
-            vec![pav(g_dig), op_result(g_idxc)],
-            vec![TypeExpr::Option(Box::new(u8_type()))],
-            Immediate::None,
-        );
-        // NOTE: upush takes (byte, acc, dig, unit); the Get payload flows
-        // positionally first.
-        let p_b = a.param(ns.p, pb, ParameterRole::Block, u8_type());
-        let p_acc = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
-        let p_dig = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
-        let p_unit = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Unit);
-        a.blocks.push(Block {
-            entity_id: gb,
-            function: fid,
-            parameters: vec![g_acc, g_dig, g_unit],
-            operations: vec![g_idxc, g_get],
-            terminator: switch(
-                op_result(g_get),
-                vec![
-                    (BuiltinCase::None, trap, Vec::new()),
-                    (
-                        BuiltinCase::Some,
-                        pb,
+            // Unrolled digest copy: 32 indexed Get+push pairs, no loop counter,
+            // no bound compare, no backedge (mirrors the proven slice-2 digest
+            // chain shape, appending instead of comparing). Get None targets the
+            // invariant trap: indices are in bounds for a 32-byte digest.
+            let mut uget: Vec<EntityId> = Vec::new();
+            let mut upush: Vec<EntityId> = Vec::new();
+            for _ in 0..32 {
+                uget.push(a.id(ns.b));
+                upush.push(a.id(ns.b));
+            }
+            c2_done = a.id(ns.b);
+            let f1_acc = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
+            let f1_dig = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
+            let f1_unit = a.param(ns.p, c1_done, ParameterRole::Block, TypeExpr::Unit);
+            a.blocks.push(Block {
+                entity_id: c1_done,
+                function: fid,
+                parameters: vec![f1_acc, f1_dig, f1_unit],
+                operations: vec![],
+                terminator: branch(edge(uget[0], vec![pav(f1_acc), pav(f1_dig), pav(f1_unit)])),
+                reachability: Reachability::Required,
+            });
+            // (ids reserved up front so c1_done can target the chain head)
+            for i in 0..32usize {
+                let gb = uget[i];
+                let pb = upush[i];
+                let idx_const = a.ku64(ns.k, u128::try_from(i).expect("digest index fits u128"));
+                let g_acc = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+                let g_dig = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+                let g_unit = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Unit);
+                let g_idxc = a.cref(ns.o, gb, idx_const, u64_type());
+                let g_get = a.op(
+                    ns.o,
+                    gb,
+                    Opcode::VectorGet,
+                    vec![pav(g_dig), op_result(g_idxc)],
+                    vec![TypeExpr::Option(Box::new(u8_type()))],
+                    Immediate::None,
+                );
+                // NOTE: upush takes (byte, acc, dig, unit); the Get payload flows
+                // positionally first.
+                let p_b = a.param(ns.p, pb, ParameterRole::Block, u8_type());
+                let p_acc = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+                let p_dig = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+                let p_unit = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Unit);
+                a.blocks.push(Block {
+                    entity_id: gb,
+                    function: fid,
+                    parameters: vec![g_acc, g_dig, g_unit],
+                    operations: vec![g_idxc, g_get],
+                    terminator: switch(
+                        op_result(g_get),
                         vec![
-                            SwitchArgument::CasePayload,
-                            sav(g_acc),
-                            sav(g_dig),
-                            sav(g_unit),
+                            (BuiltinCase::None, trap, Vec::new()),
+                            (
+                                BuiltinCase::Some,
+                                pb,
+                                vec![
+                                    SwitchArgument::CasePayload,
+                                    sav(g_acc),
+                                    sav(g_dig),
+                                    sav(g_unit),
+                                ],
+                            ),
                         ],
                     ),
-                ],
-            ),
-            reachability: Reachability::Required,
-        });
-        let u_push = a.op(
-            ns.o,
-            pb,
-            Opcode::AdapterInvoke,
-            vec![pav(p_acc), pav(p_b)],
-            vec![index_result(u8vec_type())],
-            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-        );
-        // NOTE: backedge-free chain; each push falls into the next get.
-        // The last push drops the digest vector (c2_done takes acc+unit).
-        let nx = if i == 31 { c2_done } else { uget[i + 1] };
-        let nx_args = if i == 31 {
-            vec![SwitchArgument::CasePayload, sav(p_unit)]
-        } else {
-            vec![SwitchArgument::CasePayload, sav(p_dig), sav(p_unit)]
-        };
-        a.blocks.push(Block {
-            entity_id: pb,
-            function: fid,
-            parameters: vec![p_b, p_acc, p_dig, p_unit],
-            operations: vec![u_push],
-            terminator: switch(
-                op_result(u_push),
-                vec![
-                    (BuiltinCase::Ok, nx, nx_args),
-                    (BuiltinCase::Err, b_res, Vec::new()),
-                ],
-            ),
-            reachability: Reachability::Required,
-        });
-    }
-    // NOTE: `nx` links the chain (no `next` variable remains).
+                    reachability: Reachability::Required,
+                });
+                let u_push = a.op(
+                    ns.o,
+                    pb,
+                    Opcode::AdapterInvoke,
+                    vec![pav(p_acc), pav(p_b)],
+                    vec![index_result(u8vec_type())],
+                    Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+                );
+                // NOTE: backedge-free chain; each push falls into the next get.
+                // The last push drops the digest vector (c2_done takes acc+unit).
+                let nx = if i == 31 { c2_done } else { uget[i + 1] };
+                let nx_args = if i == 31 {
+                    vec![SwitchArgument::CasePayload, sav(p_unit)]
+                } else {
+                    vec![SwitchArgument::CasePayload, sav(p_dig), sav(p_unit)]
+                };
+                a.blocks.push(Block {
+                    entity_id: pb,
+                    function: fid,
+                    parameters: vec![p_b, p_acc, p_dig, p_unit],
+                    operations: vec![u_push],
+                    terminator: switch(
+                        op_result(u_push),
+                        vec![
+                            (BuiltinCase::Ok, nx, nx_args),
+                            (BuiltinCase::Err, b_res, Vec::new()),
+                        ],
+                    ),
+                    reachability: Reachability::Required,
+                });
+            }
+            // NOTE: `nx` links the chain (no `next` variable remains).
         }
         DigestCopyMode::Counted | DigestCopyMode::SwappedEdgeControl => {
             let swapped = matches!(mode, DigestCopyMode::SwappedEdgeControl);
@@ -14564,6 +14564,52 @@ fn build_program_encode_with_mode(
             });
         }
     }
+    let d2_acc = a.param(ns.p, c2_done, ParameterRole::Block, u8vec_type());
+    let d2_unit = a.param(ns.p, c2_done, ParameterRole::Block, TypeExpr::Unit);
+    let d2_v2b = a.op(
+        ns.o,
+        c2_done,
+        Opcode::AdapterInvoke,
+        vec![pav(d2_unit), pav(d2_acc)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+    );
+    a.blocks.push(Block {
+        entity_id: c2_done,
+        function: fid,
+        parameters: vec![d2_acc, d2_unit],
+        operations: vec![d2_v2b],
+        terminator: switch(
+            op_result(d2_v2b),
+            vec![
+                (BuiltinCase::Ok, b_ret, vec![SwitchArgument::CasePayload]),
+                (BuiltinCase::Err, b_res, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let b_okv = a.op(
+        ns.o,
+        b_ret,
+        Opcode::ResultOk,
+        vec![pav(b_stored)],
+        vec![res_t.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: b_ret,
+        function: fid,
+        parameters: vec![b_stored],
+        operations: vec![b_okv],
+        terminator: ret(op_result(b_okv)),
+        reachability: Reachability::Required,
+    });
+
+    FunctionGraph {
+        entity_id: fid,
+        type_parameters: Vec::new(),
+        parameters: vec![p_eid, p_func, p_exp, p_unit],
         result_type: res_t,
         effects: Vec::new(),
         entry_block: entry,
@@ -25807,16 +25853,29 @@ fn program_encode_image_with_mode(mode: DigestCopyMode) -> Image {
     let encode_graph = build_encode(&mut a, uns, encode_fid);
     let outer_enc_graph = build_outer_encode(&mut a, ons, outer_enc_fid, encode_fid);
     let build_graph = build_program_build(&mut a, bns, build_fid);
-    let prog_graph = build_program_encode_with_mode(
-        &mut a,
-        pns,
-        prog_fid,
-        entry_enc_fid,
-        outer_enc_fid,
-        build_fid,
-        encode_fid,
-        mode,
-    );
+    let prog_graph = match mode {
+        DigestCopyMode::Unrolled => build_program_encode(
+            &mut a,
+            pns,
+            prog_fid,
+            entry_enc_fid,
+            outer_enc_fid,
+            build_fid,
+            encode_fid,
+        ),
+        DigestCopyMode::Counted | DigestCopyMode::SwappedEdgeControl => {
+            build_program_encode_with_mode(
+                &mut a,
+                pns,
+                prog_fid,
+                entry_enc_fid,
+                outer_enc_fid,
+                build_fid,
+                encode_fid,
+                mode,
+            )
+        }
+    };
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
         entry: prog_graph.clone(),
@@ -27315,8 +27374,6 @@ fn rw080_current_mechanism_f7_counted_composer_matches_native() {
         admit(&program_encode_image_with_mode(DigestCopyMode::Unrolled));
     let (counted_pkg, counted_approved) =
         admit(&program_encode_image_with_mode(DigestCopyMode::Counted));
-    // Same three independent canonical fixtures as the composed control;
-    // each mode is compared to the native bytes, never to the other mode.
     for (eid_byte, func_byte, exposure, exp_u64) in [
         (1u8, 10u8, EntryExposure::Local, 1u64),
         (1u8, 11u8, EntryExposure::Protocol, 2u64),
@@ -27369,8 +27426,6 @@ fn rw080_current_mechanism_f7_swapped_edge_is_observable() {
     let func_hex = hex_encode(&[10u8; 32]);
     let counted = program_encode_call(&counted_pkg, &counted_approved, &eid_hex, &func_hex, 1);
     assert_encode_ok(&counted, &expected);
-    // Intentionally wrong graph: must succeed into Bytes yet miss canonical
-    // bytes with the independently predicted prefix ++ even-digest shape.
     let swapped = program_encode_call(&swapped_pkg, &swapped_approved, &eid_hex, &func_hex, 1);
     match &swapped.termination {
         sley_vm::ExecutionTermination::Success(found) => match &found.data {
