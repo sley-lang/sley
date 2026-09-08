@@ -1,10 +1,14 @@
 # Bounded entity and signature reads
 
-Status: DRAFT, 2026-09-08; contract review required before implementation.
+Status: REVIEWED_IMPLEMENTATION_CONTRACT, 2026-09-08.
 Owner: S20-310 query semantics, S20-410 protocol integration.
 Authority: retained Machine Genesis section 8.2; REWEAVE sections 6–9;
-architecture finding AT-MW-02. This draft neither freezes a contract nor
-closes the finding.
+architecture finding AT-MW-02. Independent architecture, semantic and surface
+reviews passed on `48070373d59eb2241ad7fed4157d9016b514500f`; the integrator
+accepted that exact design under the operator's active development directive.
+This authorizes its scoped local implementation, not AT-MW-02 closure or
+runtime qualification. Consumer-contract synchronization remains required
+before integrating or claiming a frozen protocol successor.
 
 ## 1. Required behavior
 

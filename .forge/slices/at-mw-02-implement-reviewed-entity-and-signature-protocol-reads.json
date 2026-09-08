@@ -1,0 +1,97 @@
+{
+  "blocked_without_operator_approval": [
+    "merge",
+    "deploy",
+    "public_posting",
+    "provider_spend",
+    "runtime_mutation",
+    "trading",
+    "locked_canon_mutation"
+  ],
+  "created_at": "2026-09-08T14:18:38+00:00",
+  "evidence": [
+    {
+      "artifact": "",
+      "command": "",
+      "id": "targeted-tests",
+      "status": "not_run",
+      "summary": "Targeted validation for the changed surface."
+    }
+  ],
+  "owner": "muse-1.3-go",
+  "path_checks": [
+    {
+      "pattern": "crates/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "scripts/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "oracle/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "conformance/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "bench/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/spec/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "import_posture": "capability-only; no third-party code copied",
+    "origin": "Greyforge thin-slice pilot inspired by external Code Factory patterns"
+  },
+  "summary": "Active REWEAVE retained Machine Genesis 8.2; reviewed design candidate 48070373d59eb2241ad7fed4157d9016b514500f; exact ENTITY_READ_PROFILE_V2",
+  "tasks": [
+    {
+      "id": "I1",
+      "title": "Versioned protocol and dependent contract synchronization",
+      "status": "todo",
+      "owner": "muse-1.3-go",
+      "evidence_refs": []
+    },
+    {
+      "id": "I2",
+      "title": "Borrowed exact entity/signature owner and session-bound serving",
+      "status": "todo",
+      "owner": "muse-1.3-go",
+      "evidence_refs": []
+    },
+    {
+      "id": "I3",
+      "title": "Independent vectors and byte/resource/version/freshness regression tests",
+      "status": "todo",
+      "owner": "muse-1.3-go",
+      "evidence_refs": []
+    },
+    {
+      "id": "I4",
+      "title": "Bridge/CLI and real bounded-context EC1a/signature edit demonstrations",
+      "status": "todo",
+      "owner": "muse-1.3-go",
+      "evidence_refs": []
+    }
+  ],
+  "title": "AT-MW-02: implement reviewed entity and signature protocol reads"
+}

@@ -1,7 +1,27 @@
 # AT-MW-02 contract design
 
-Status: DRAFT, 2026-09-08; owner: Codex integrator.
+Status: REVIEWED_DESIGN, 2026-09-08; owner: Codex integrator.
 Ends when the reviewed contract and its implementation supersede this record.
+
+## Implementation decision
+
+Nabu, Ariadne and Vulcan independently returned `pass`, high confidence,
+on corrective candidate `48070373d59eb2241ad7fed4157d9016b514500f`. Both
+semantic findings and the budget-phase finding are resolved. The integrator
+accepts this design for local implementation under the active operator
+directive; Muse 1.3 through OpenCode Go owns the coding slice. Any required
+semantic deviation returns to the integrator for design and review.
+
+The open-question list below records the questions reviewed: declaration
+signature completeness and the explicit query-owner/host-work distinction
+were accepted; compatibility and BoundedContext mappings were checked;
+the exact failure phase order was corrected. Required dependent contract
+and consumer synchronization belongs to implementation acceptance.
+
+Review provenance remains independent manual-role subagents applying the
+canonical Council roles, with no ForgeNode runtime-registry qualification
+claim. The runtime gate, independent vectors, edit demonstrations, and
+AT-MW-02 finding remain open.
 
 Baseline: `b5793a5e5beb4df70d0aa41d3005a8aaf6190dd2`.
 The architecture audit found that current query responses omit entity bodies;
