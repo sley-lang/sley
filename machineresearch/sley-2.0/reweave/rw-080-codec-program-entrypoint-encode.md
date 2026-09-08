@@ -34,9 +34,12 @@ does the first item only. RW-080 construction stage and contract
   field-1 tag 1, field-1 len 32); 32B function copy loop (Form A
   backedge, mirrors outer eid loop, `VectorGet` + PSH1 + `IntAddChecked`,
   Get-None unreachable after the ==32 check, increment-overflow to trap);
-  field-2 tag `02` + len `01`; exposure byte via 1/2 select pushing `u01`/
+  field-2 tag `02` + len `01`;   exposure byte via 1/2 select pushing `u01`/
   `u02` constants (no u64-to-u8 conversion opcode needed); V2B1 finalize;
-  `ResultOk`. Bridge uses B2V1/PSH1/V2B1 only. No uvar callee (all
+  `ResultOk`. Canonical wire layout, 5 + 32 + 3 = 40 bytes total:
+  `10 26 02 01 20 <32 function bytes> 02 01 <01|02>` (union tag 16,
+  union len 38, count 2, field-1 tag 1 len 32, function body, field-2
+  tag 2 len 1, exposure byte). Bridge uses B2V1/PSH1/V2B1 only. No uvar callee (all
   single-byte for this fixed shape). No loops beyond the bounded 32B copy.
 - Correction to the slice-4 park note: the parked comment claimed the
   `entry` true-branch (exp==1 straight to `func_conv`) had a target-arity
@@ -94,8 +97,8 @@ deterministic and collision-free by construction (prior images use
 ## 5. Review provenance and acceptance debt
 
 Lint triage (repo zero-warning standard): `cargo fmt --all` clean
-(applied, touched only this test file); `cargo clippy --no-deps
---workspace --all-targets --locked -- -D warnings` clean;
+(applied, touched only this test file); `cargo clippy --workspace
+--all-targets -- -D warnings` clean;
 `git diff --check` clean. Author: same session/model as the candidate
 (self-review class under the standing amendment; supports provisional
 development only, never independent acceptance). Independent native
@@ -113,20 +116,29 @@ tiered-validation policy (affected: `sley-vm` program-outer 15/15 — was
 ## 6. Identities
 
 - Source: `crates/sley-vm/tests/rw080_codec_program_outer.rs` (seed-assembler
-  artifact; 15 tests green); base `699c228` (slice-4 checkpoint plus brand
-  image) through this slice's working tree.
-- Graphs/images: admitted per-test at runtime (no checked-in image);
-  profile `BOOTSTRAP_PROFILE_2`
-  (`fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459`);
+  artifact; 15 tests green); exact starting HEAD
+  `699c2283dd73d836630d0b81d01ac78a6aadf6d2` (this slice's parent:
+  slice-4 checkpoint plus brand image) through this slice's working tree.
+- Graphs/images: admitted per-test at runtime (no checked-in image).
+  The test path emits no graph-root hash and no image digest (in-memory
+  `Image`, lowered and admitted per test, nothing printed or hashed);
+  the binding identity this path produces is the per-test receipt
+  assertion `receipt.profile_digest() == BOOTSTRAP_PROFILE_2_DIGEST`
+  (`rw080_codec_program_outer.rs:11195-11201`), binding profile
+  `BOOTSTRAP_PROFILE_2`
+  (`fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459`
+  per `crates/sley-vm/src/exec_package.rs:123-126`);
   entry `encode_entrypoint` `(9,37)` under Ns 101-104.
   Runtime-generated identities are execution evidence (admit receipts
   assert the profile digest per test); "generated and admitted per test"
   is construction, not a substitute for these identities.
 - Dependencies: `HOST_ABI_V2` imports B2V1/PSH1/V2B1 only
-  (`bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5`;
+  (`bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5`
+  per `conformance/host-abi/v2/SHA256SUMS` and `docs/spec/HOST_ABI_V2.md`;
   RHW1 unused in Sley here); `EXEC_PACKAGE_V2` via C0 seed route
   (`f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94`
-  retained); reference `sley-scb1` (uvar/record/union/encode primitives)
+  per `conformance/exec-package/v2/SHA256SUMS` and
+  `docs/spec/EXEC_PACKAGE_V2.md`, unchanged by this slice); reference `sley-scb1` (uvar/record/union/encode primitives)
   + `sley-mutate` (`EntityBodyValue::EntryPoint`,
   `SSMC1_EPOCH1_SCHEMA.txt` rows 9/25/28).
 - Fixtures: ep-local/ep-proto 40B bodies (func `[0a;32]`/`[0b;32]`,
@@ -134,7 +146,7 @@ tiered-validation policy (affected: `sley-vm` program-outer 15/15 — was
   `cargo test -p sley-vm --test rw080_codec_program_outer` (15/15),
   `--test rw080_codec_uvar` (9/9), `--test rw080_codec_envelope` (9/9),
   `--test rw080_codec_scaffold` (2/2), `-p sley-scb1 --locked --lib`
-  (6/6), `-p sley-mutate --locked --lib object` (5/5), `cargo fmt`,
-  `cargo clippy --no-deps --workspace --all-targets --locked -- -D warnings`,
+  (6/6), `-p sley-mutate --locked --lib object` (5/5), `cargo fmt --all -- --check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
   `git diff --check`.
 - Validation tier: Tier 1 / targeted (listed above). Full gate: not run.
