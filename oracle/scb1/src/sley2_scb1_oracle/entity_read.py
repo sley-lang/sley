@@ -2080,8 +2080,7 @@ def _bind_rejected_row(
 ) -> None:
     # Dispatch on the authored kind; a supplied kind never authorizes itself.
     row_id = authored["id"]
-    kind = authored.get("kind")
-    if kind is None:
+    if "kind" not in authored:
         try:
             rebuilt = build_rejected_bytes(inputs, inputs["cases"][authored["base"]], authored["recipe"])
         except (ScbError, CheckFailed, ValueError, KeyError, TypeError) as error:
@@ -2091,7 +2090,8 @@ def _bind_rejected_row(
         expected["input_hex"] = rebuilt.hex()
         _bind_expected_row(expected, supplied, row_id, problems)
         return
-    if kind not in _REJECTED_KINDS:
+    kind = authored["kind"]
+    if not isinstance(kind, str) or kind not in _REJECTED_KINDS:
         problems.append(f"rejected:{row_id}:kind")
         return
     if kind in ("failure_response", "failure_wire"):
@@ -2122,7 +2122,12 @@ def _validate_rejected_row(
     problems: list[str],
 ) -> None:
     row_id = authored["id"]
-    kind = authored.get("kind")
+    if "kind" in authored:
+        kind = authored["kind"]
+        if not isinstance(kind, str) or kind not in _REJECTED_KINDS:
+            return
+    else:
+        kind = None
     if kind == "runtime_sequence":
         check_stateful_spec(supplied, problems)
         return
@@ -2130,7 +2135,7 @@ def _validate_rejected_row(
         check_relation(inputs, supplied, problems)
         return
     if kind == "fill_recipe":
-        check_fill_recipe(inputs, supplied, problems)
+        check_fill_recipe(inputs, authored, problems)
         return
     if kind == "hello_invalid":
         try:
