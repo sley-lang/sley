@@ -10127,11 +10127,7 @@ fn build_program_validate(
                 (
                     BuiltinCase::Ok,
                     b_len0,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(p_in),
-                        sav(p_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(p_in), sav(p_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -10249,10 +10245,7 @@ fn build_program_validate(
             operations: vec![expc, eq],
             terminator: cond(
                 op_result(eq),
-                edge(
-                    next,
-                    vec![pav(c_vec), pav(c_len), pav(c_in), pav(c_unit)],
-                ),
+                edge(next, vec![pav(c_vec), pav(c_len), pav(c_in), pav(c_unit)]),
                 edge(b_magic, Vec::new()),
             ),
             reachability: Reachability::Required,
@@ -10581,13 +10574,7 @@ fn build_program_validate(
             edge(b_len, Vec::new()),
             edge(
                 ep_get[0],
-                vec![
-                    pav(r_pos),
-                    pav(r_vec),
-                    pav(r_len),
-                    pav(r_in),
-                    pav(r_unit),
-                ],
+                vec![pav(r_pos), pav(r_vec), pav(r_len), pav(r_in), pav(r_unit)],
             ),
         ),
         reachability: Reachability::Required,
@@ -10663,13 +10650,7 @@ fn build_program_validate(
                 op_result(eq),
                 edge(
                     ic,
-                    vec![
-                        pav(p_idx),
-                        pav(p_vec),
-                        pav(p_len),
-                        pav(p_inb),
-                        pav(p_unitb),
-                    ],
+                    vec![pav(p_idx), pav(p_vec), pav(p_len), pav(p_inb), pav(p_unitb)],
                 ),
                 edge(b_epoch, Vec::new()),
             ),
@@ -11054,9 +11035,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: f_rem,
         function: fid,
-        parameters: vec![
-            g_pend, g_plen, g_ppos, g_remv, g_vec, g_len, g_in, g_unit,
-        ],
+        parameters: vec![g_pend, g_plen, g_ppos, g_remv, g_vec, g_len, g_in, g_unit],
         operations: vec![g32c, g_lt],
         terminator: cond(
             op_result(g_lt),
@@ -11150,9 +11129,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: h_after,
         function: fid,
-        parameters: vec![
-            j_dend, j_pend, j_plen, j_ppos, j_vec, j_len, j_in, j_unit,
-        ],
+        parameters: vec![j_dend, j_pend, j_plen, j_ppos, j_vec, j_len, j_in, j_unit],
         operations: vec![j_sub],
         terminator: switch(
             op_result(j_sub),
@@ -11245,9 +11222,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: d0,
         function: fid,
-        parameters: vec![
-            dd_dend, dd_pend, dd_plen, dd_ppos, dd_vec, dd_in, dd_unit,
-        ],
+        parameters: vec![dd_dend, dd_pend, dd_plen, dd_ppos, dd_vec, dd_in, dd_unit],
         operations: vec![d_empty],
         terminator: branch(edge(
             d_steps[0],
@@ -11287,9 +11262,7 @@ fn build_program_validate(
         a.blocks.push(Block {
             entity_id: st,
             function: fid,
-            parameters: vec![
-                s_acc, s_dend, s_pend, s_plen, s_ppos, s_vec, s_in, s_unit,
-            ],
+            parameters: vec![s_acc, s_dend, s_pend, s_plen, s_ppos, s_vec, s_in, s_unit],
             operations: vec![bc, push],
             terminator: switch(
                 op_result(push),
@@ -11588,9 +11561,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_done,
         function: fid,
-        parameters: vec![
-            h_acc, h_dend, h_pend, h_plen, h_ppos, h_vec, h_in, h_unit,
-        ],
+        parameters: vec![h_acc, h_dend, h_pend, h_plen, h_ppos, h_vec, h_in, h_unit],
         operations: vec![h_v2b],
         terminator: switch(
             op_result(h_v2b),
@@ -12319,10 +12290,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         function: fid,
         parameters: Vec::new(),
         operations: Vec::new(),
-        terminator: branch(edge(
-            b_head,
-            vec![pav(p_pay), pav(p_lenvec), pav(p_unit)],
-        )),
+        terminator: branch(edge(b_head, vec![pav(p_pay), pav(p_lenvec), pav(p_unit)])),
         reachability: Reachability::Required,
     });
 
@@ -12354,12 +12322,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         operations: vec![h_empty],
         terminator: branch(edge(
             h_steps[0],
-            vec![
-                op_result(h_empty),
-                pav(h_pay),
-                pav(h_lenvec),
-                pav(h_unit),
-            ],
+            vec![op_result(h_empty), pav(h_pay), pav(h_lenvec), pav(h_unit)],
         )),
         reachability: Reachability::Required,
     });
@@ -12472,12 +12435,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
             ),
             edge(
                 ep_done,
-                vec![
-                    pav(k_acc),
-                    pav(k_pay),
-                    pav(k_lenvec),
-                    pav(k_unit),
-                ],
+                vec![pav(k_acc), pav(k_pay), pav(k_lenvec), pav(k_unit)],
             ),
         ),
         reachability: Reachability::Required,
@@ -12569,12 +12527,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         operations: Vec::new(),
         terminator: branch(edge(
             len_copy,
-            vec![
-                pav(y_acc),
-                pav(y_lenvec),
-                pav(y_pay),
-                pav(y_unit),
-            ],
+            vec![pav(y_acc), pav(y_lenvec), pav(y_pay), pav(y_unit)],
         )),
         reachability: Reachability::Required,
     });
@@ -12647,14 +12600,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
                     pav(li_unit),
                 ],
             ),
-            edge(
-                lc_done,
-                vec![
-                    pav(li_acc),
-                    pav(li_pby),
-                    pav(li_unit),
-                ],
-            ),
+            edge(lc_done, vec![pav(li_acc), pav(li_pby), pav(li_unit)]),
         ),
         reachability: Reachability::Required,
     });
@@ -12796,10 +12742,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         function: fid,
         parameters: vec![pp_acc, pp_pby, pp_unit],
         operations: Vec::new(),
-        terminator: branch(edge(
-            post_b2v,
-            vec![pav(pp_acc), pav(pp_pby), pav(pp_unit)],
-        )),
+        terminator: branch(edge(post_b2v, vec![pav(pp_acc), pav(pp_pby), pav(pp_unit)])),
         reachability: Reachability::Required,
     });
     let qb_acc = a.param(ns.p, post_b2v, ParameterRole::Block, u8vec_type());
@@ -12824,11 +12767,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
                 (
                     BuiltinCase::Ok,
                     post_check,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(qb_acc),
-                        sav(qb_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(qb_acc), sav(qb_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -13059,11 +12998,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
                 (
                     BuiltinCase::Ok,
                     d0,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(pc2_acc),
-                        sav(pc2_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(pc2_acc), sav(pc2_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -13107,12 +13042,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         operations: vec![d_empty],
         terminator: branch(edge(
             d_steps[0],
-            vec![
-                op_result(d_empty),
-                pav(dd_vec),
-                pav(dd_pre),
-                pav(dd_unit),
-            ],
+            vec![op_result(d_empty), pav(dd_vec), pav(dd_pre), pav(dd_unit)],
         )),
         reachability: Reachability::Required,
     });
@@ -13375,10 +13305,7 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
                 (
                     BuiltinCase::Ok,
                     f_ok,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(hp_pay),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(hp_pay)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -13412,8 +13339,6 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
         reachability: Reachability::Required,
     });
 
-
-
     FunctionGraph {
         entity_id: fid,
         type_parameters: Vec::new(),
@@ -13439,7 +13364,11 @@ fn build_program_build(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
 // body codes with no remapping. The native harness supplies raw stored
 // bytes / structured values and compares results; it performs no
 // intermediate extraction, decode, or envelope work for Sley.
-#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
 fn build_program_decode(
     a: &mut Asm,
     ns: Ns,
@@ -13698,7 +13627,11 @@ fn build_program_decode(
     }
 }
 
-#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
 fn build_program_encode(
     a: &mut Asm,
     ns: Ns,
@@ -13716,7 +13649,6 @@ fn build_program_encode(
     let w64 = a.ku32(ns.k, 64);
     let c0 = a.ku64(ns.k, 0);
     let c1 = a.ku64(ns.k, 1);
-    let c32 = a.ku64(ns.k, 32);
     let e_res = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
 
     let p_eid = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
@@ -13756,11 +13688,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     x_ok,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(p_eid),
-                        sav(p_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(p_eid), sav(p_unit)],
                 ),
                 (BuiltinCase::Err, x_err, vec![SwitchArgument::CasePayload]),
             ],
@@ -13876,11 +13804,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     n_len,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(n_pay),
-                        sav(n_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(n_pay), sav(n_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -13924,11 +13848,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     t_ok,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(t_pay),
-                        sav(t_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(t_pay), sav(t_unit)],
                 ),
                 (BuiltinCase::Err, t_err, vec![SwitchArgument::CasePayload]),
             ],
@@ -13975,11 +13895,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     n_build,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(u_pay),
-                        sav(u_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(u_pay), sav(u_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -14029,11 +13945,7 @@ fn build_program_encode(
                     d_hash,
                     vec![SwitchArgument::CasePayload, sav(b_unit)],
                 ),
-                (
-                    BuiltinCase::Err,
-                    o_err,
-                    vec![SwitchArgument::CasePayload],
-                ),
+                (BuiltinCase::Err, o_err, vec![SwitchArgument::CasePayload]),
             ],
         ),
         reachability: Reachability::Required,
@@ -14080,11 +13992,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     d_pre,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        oav(h_gpre),
-                        sav(h_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, oav(h_gpre), sav(h_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -14110,11 +14018,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     d_pre2,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(hh_pre),
-                        sav(hh_unit),
-                    ],
+                    vec![SwitchArgument::CasePayload, sav(hh_pre), sav(hh_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -14143,11 +14047,7 @@ fn build_program_encode(
                 (
                     BuiltinCase::Ok,
                     d_acc,
-                    vec![
-                        sav(hp_dig),
-                        SwitchArgument::CasePayload,
-                        sav(hp_unit),
-                    ],
+                    vec![sav(hp_dig), SwitchArgument::CasePayload, sav(hp_unit)],
                 ),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
@@ -14212,11 +14112,6 @@ fn build_program_encode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
-    let c2_check = a.id(ns.b);
-    let c2_get = a.id(ns.b);
-    let c2_push = a.id(ns.b);
-    let c2_next = a.id(ns.b);
-    let c2_done = a.id(ns.b);
     a.blocks.push(Block {
         entity_id: c1_check,
         function: fid,
@@ -14235,10 +14130,7 @@ fn build_program_encode(
                     pav(q1_unit),
                 ],
             ),
-            edge(
-                c1_done,
-                vec![pav(q1_acc), pav(q1_dig), pav(q1_unit)],
-            ),
+            edge(c1_done, vec![pav(q1_acc), pav(q1_dig), pav(q1_unit)]),
         ),
         reachability: Reachability::Required,
     });
@@ -14363,164 +14255,106 @@ fn build_program_encode(
         reachability: Reachability::Required,
     });
     // Digest copy loop, bounded by the constant 32 (exact trailer).
+    // Unrolled digest copy: 32 indexed Get+push pairs, no loop counter,
+    // no bound compare, no backedge (mirrors the proven slice-2 digest
+    // chain shape, appending instead of comparing). Get None targets the
+    // invariant trap: indices are in bounds for a 32-byte digest.
+    let mut uget: Vec<EntityId> = Vec::new();
+    let mut upush: Vec<EntityId> = Vec::new();
+    for _ in 0..32 {
+        uget.push(a.id(ns.b));
+        upush.push(a.id(ns.b));
+    }
+    let c2_done = a.id(ns.b);
     let f1_acc = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
     let f1_dig = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
     let f1_unit = a.param(ns.p, c1_done, ParameterRole::Block, TypeExpr::Unit);
-    let f1_z0 = a.cref(ns.o, c1_done, c0, u64_type());
     a.blocks.push(Block {
         entity_id: c1_done,
         function: fid,
         parameters: vec![f1_acc, f1_dig, f1_unit],
-        operations: vec![f1_z0],
-        terminator: branch(edge(
-            c2_check,
-            vec![
-                op_result(f1_z0),
-                pav(f1_acc),
-                pav(f1_dig),
-                pav(f1_unit),
-            ],
-        )),
+        operations: vec![],
+        terminator: branch(edge(uget[0], vec![pav(f1_acc), pav(f1_dig), pav(f1_unit)])),
         reachability: Reachability::Required,
     });
-    let j_idx = a.param(ns.p, c2_check, ParameterRole::Block, u64_type());
-    let j_acc = a.param(ns.p, c2_check, ParameterRole::Block, u8vec_type());
-    let j_dig = a.param(ns.p, c2_check, ParameterRole::Block, u8vec_type());
-    let j_unit = a.param(ns.p, c2_check, ParameterRole::Block, TypeExpr::Unit);
-    let j32c = a.cref(ns.o, c2_check, c32, u64_type());
-    let j_lt = a.op(
-        ns.o,
-        c2_check,
-        Opcode::LessThan,
-        vec![pav(j_idx), op_result(j32c)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: c2_check,
-        function: fid,
-        parameters: vec![j_idx, j_acc, j_dig, j_unit],
-        operations: vec![j32c, j_lt],
-        terminator: cond(
-            op_result(j_lt),
-            edge(
-                c2_get,
-                vec![pav(j_idx), pav(j_acc), pav(j_dig), pav(j_unit)],
+    // (ids reserved up front so c1_done can target the chain head)
+    for i in 0..32usize {
+        let gb = uget[i];
+        let pb = upush[i];
+        let idx_const = a.ku64(ns.k, u128::try_from(i).expect("digest index fits u128"));
+        let g_acc = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+        let g_dig = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+        let g_unit = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Unit);
+        let g_idxc = a.cref(ns.o, gb, idx_const, u64_type());
+        let g_get = a.op(
+            ns.o,
+            gb,
+            Opcode::VectorGet,
+            vec![pav(g_dig), op_result(g_idxc)],
+            vec![TypeExpr::Option(Box::new(u8_type()))],
+            Immediate::None,
+        );
+        // NOTE: upush takes (byte, acc, dig, unit); the Get payload flows
+        // positionally first.
+        let p_b = a.param(ns.p, pb, ParameterRole::Block, u8_type());
+        let p_acc = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+        let p_dig = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+        let p_unit = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Unit);
+        a.blocks.push(Block {
+            entity_id: gb,
+            function: fid,
+            parameters: vec![g_acc, g_dig, g_unit],
+            operations: vec![g_idxc, g_get],
+            terminator: switch(
+                op_result(g_get),
+                vec![
+                    (BuiltinCase::None, trap, Vec::new()),
+                    (
+                        BuiltinCase::Some,
+                        pb,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(g_acc),
+                            sav(g_dig),
+                            sav(g_unit),
+                        ],
+                    ),
+                ],
             ),
-            edge(c2_done, vec![pav(j_acc), pav(j_unit)]),
-        ),
-        reachability: Reachability::Required,
-    });
-    let k_idx = a.param(ns.p, c2_get, ParameterRole::Block, u64_type());
-    let k_acc = a.param(ns.p, c2_get, ParameterRole::Block, u8vec_type());
-    let k_dig = a.param(ns.p, c2_get, ParameterRole::Block, u8vec_type());
-    let k_unit = a.param(ns.p, c2_get, ParameterRole::Block, TypeExpr::Unit);
-    let k_get = a.op(
-        ns.o,
-        c2_get,
-        Opcode::VectorGet,
-        vec![pav(k_dig), pav(k_idx)],
-        vec![TypeExpr::Option(Box::new(u8_type()))],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: c2_get,
-        function: fid,
-        parameters: vec![k_idx, k_acc, k_dig, k_unit],
-        operations: vec![k_get],
-        terminator: switch(
-            op_result(k_get),
-            vec![
-                (BuiltinCase::None, trap, Vec::new()),
-                (
-                    BuiltinCase::Some,
-                    c2_push,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(k_idx),
-                        sav(k_acc),
-                        sav(k_dig),
-                        sav(k_unit),
-                    ],
-                ),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-    let m_b = a.param(ns.p, c2_push, ParameterRole::Block, u8_type());
-    let m_idx = a.param(ns.p, c2_push, ParameterRole::Block, u64_type());
-    let m_acc = a.param(ns.p, c2_push, ParameterRole::Block, u8vec_type());
-    let m_dig = a.param(ns.p, c2_push, ParameterRole::Block, u8vec_type());
-    let m_unit = a.param(ns.p, c2_push, ParameterRole::Block, TypeExpr::Unit);
-    let m_push = a.op(
-        ns.o,
-        c2_push,
-        Opcode::AdapterInvoke,
-        vec![pav(m_acc), pav(m_b)],
-        vec![index_result(u8vec_type())],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-    );
-    a.blocks.push(Block {
-        entity_id: c2_push,
-        function: fid,
-        parameters: vec![m_b, m_idx, m_acc, m_dig, m_unit],
-        operations: vec![m_push],
-        terminator: switch(
-            op_result(m_push),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    c2_next,
-                    vec![
-                        sav(m_idx),
-                        sav(m_dig),
-                        SwitchArgument::CasePayload,
-                        sav(m_unit),
-                    ],
-                ),
-                (BuiltinCase::Err, b_res, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-    let p_idx = a.param(ns.p, c2_next, ParameterRole::Block, u64_type());
-    let p_dig = a.param(ns.p, c2_next, ParameterRole::Block, u8vec_type());
-    let p_acc = a.param(ns.p, c2_next, ParameterRole::Block, u8vec_type());
-    let p_ux = a.param(ns.p, c2_next, ParameterRole::Block, TypeExpr::Unit);
-    let p_onec = a.cref(ns.o, c2_next, c1, u64_type());
-    let p_add = a.op(
-        ns.o,
-        c2_next,
-        Opcode::IntAddChecked,
-        vec![pav(p_idx), op_result(p_onec)],
-        vec![arith_result(u64_type())],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: c2_next,
-        function: fid,
-        parameters: vec![p_idx, p_dig, p_acc, p_ux],
-        operations: vec![p_onec, p_add],
-        terminator: switch(
-            op_result(p_add),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    c2_check,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(p_dig),
-                        sav(p_acc),
-                        sav(p_ux),
-                    ],
-                ),
-                (BuiltinCase::Err, trap, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-    // Finalize: V2B1 then Ok. The accumulator now holds prefix ++
-    // 32-byte digest: the complete stored object.
+            reachability: Reachability::Required,
+        });
+        let u_push = a.op(
+            ns.o,
+            pb,
+            Opcode::AdapterInvoke,
+            vec![pav(p_acc), pav(p_b)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        // NOTE: backedge-free chain; each push falls into the next get.
+        // The last push drops the digest vector (c2_done takes acc+unit).
+        let nx = if i == 31 { c2_done } else { uget[i + 1] };
+        let nx_args = if i == 31 {
+            vec![SwitchArgument::CasePayload, sav(p_unit)]
+        } else {
+            vec![SwitchArgument::CasePayload, sav(p_dig), sav(p_unit)]
+        };
+        a.blocks.push(Block {
+            entity_id: pb,
+            function: fid,
+            parameters: vec![p_b, p_acc, p_dig, p_unit],
+            operations: vec![u_push],
+            terminator: switch(
+                op_result(u_push),
+                vec![
+                    (BuiltinCase::Ok, nx, nx_args),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
+    // NOTE: `nx` links the chain (no `next` variable remains).
     let d2_acc = a.param(ns.p, c2_done, ParameterRole::Block, u8vec_type());
     let d2_unit = a.param(ns.p, c2_done, ParameterRole::Block, TypeExpr::Unit);
     let d2_v2b = a.op(
@@ -16307,11 +16141,7 @@ fn program_build_call(
     execute(
         package,
         approved,
-        vec![
-            bytes_input(&payload),
-            u8vec_input(&lenvec),
-            unit_input(),
-        ],
+        vec![bytes_input(&payload), u8vec_input(&lenvec), unit_input()],
     )
 }
 
@@ -16365,14 +16195,12 @@ fn assert_program_decode_ok(
                         (ConstData::Bytes(eid), ConstData::Bytes(func), ConstData::UInt(exp)) => {
                             assert_eq!(eid, expected_eid, "entity_id bytes match");
                             assert_eq!(func, expected_func, "function bytes match");
-                            assert_eq!(
-                                exp,
-                                &u128::from(expected_exp),
-                                "exposure value matches"
-                            );
+                            assert_eq!(exp, &u128::from(expected_exp), "exposure value matches");
                             outcome.fuel_used
                         }
-                        other => panic!("program decode Ok must carry (Bytes, Bytes, UInt), got {other:?}"),
+                        other => panic!(
+                            "program decode Ok must carry (Bytes, Bytes, UInt), got {other:?}"
+                        ),
                     }
                 }
                 other => panic!("program decode Ok must carry a triple, got {other:?}"),
@@ -17148,110 +16976,6 @@ fn program_native_code(stored: &[u8]) -> String {
 }
 
 #[test]
-fn dbg_tmp_rhw1() {
-    use blake3::Hasher;
-    use sley_vm::host_abi::BRIDGE_CODE_RHW1;
-    let mut ma = Asm::new();
-    let mns = Ns {
-        k: 221,
-        p: 222,
-        b: 223,
-        o: 224,
-    };
-    let mf = eid(9, 70);
-    let mu = ma.param(mns.p, mf, ParameterRole::Function, TypeExpr::Unit);
-    let mb = ma.id(mns.b);
-    let res_t = encode_result_type();
-    let mres = ma.kbytes(mns.k, b"SCB_RESOURCE_LIMIT");
-    let mrb = err_block(&mut ma, mns, mf, res_t.clone(), mres);
-    let known = vec![7u8; 121];
-    let kb = ma.kbytes(mns.k, &known);
-    let kb2 = ma.cref(mns.o, mb, kb, TypeExpr::Bytes);
-    let rhw = ma.op(
-        mns.o,
-        mb,
-        Opcode::AdapterInvoke,
-        vec![pav(mu), op_result(kb2)],
-        vec![index_result(TypeExpr::Bytes)],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
-    );
-    let mret = ma.id(mns.b);
-    let mdb = ma.param(mns.p, mret, ParameterRole::Block, TypeExpr::Bytes);
-    ma.blocks.push(Block {
-        entity_id: mb,
-        function: mf,
-        parameters: Vec::new(),
-        operations: vec![kb2, rhw],
-        terminator: switch(
-            op_result(rhw),
-            vec![
-                (BuiltinCase::Ok, mret, vec![SwitchArgument::CasePayload]),
-                (BuiltinCase::Err, mrb, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-    let mok = ma.op(
-        mns.o,
-        mret,
-        Opcode::ResultOk,
-        vec![pav(mdb)],
-        vec![res_t.clone()],
-        Immediate::None,
-    );
-    ma.blocks.push(Block {
-        entity_id: mret,
-        function: mf,
-        parameters: vec![mdb],
-        operations: vec![mok],
-        terminator: ret(op_result(mok)),
-        reachability: Reachability::Required,
-    });
-    let mgraph = FunctionGraph {
-        entity_id: mf,
-        type_parameters: Vec::new(),
-        parameters: vec![mu],
-        result_type: res_t,
-        effects: Vec::new(),
-        entry_block: mb,
-        blocks: ma.blocks.iter().map(|b| b.entity_id).collect(),
-        contracts: Vec::new(),
-        visibility: Visibility::Private,
-    };
-    let mimage = Image {
-        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
-        entry: mgraph.clone(),
-        functions: vec![mgraph],
-        parameters: ma.parameters,
-        blocks: ma.blocks,
-        operations: ma.operations,
-        adapters: vec![frozen_import(
-            BRIDGE_CODE_RHW1,
-            TypeExpr::Bytes,
-            TypeExpr::Bytes,
-        )],
-        constants: ma.constants,
-    };
-    let (mpkg, mapp) = admit(&mimage);
-    let mout = execute(&mpkg, &mapp, vec![unit_input()]);
-    let mut hasher = Hasher::new();
-    hasher.update(&[7u8; 121]);
-    let exp = *hasher.finalize().as_bytes();
-    match &mout.termination {
-        sley_vm::ExecutionTermination::Success(found) => match &found.data {
-            ConstData::Result(ResultConst::Ok(payload)) => match &payload.data {
-                ConstData::Bytes(got) => {
-                    eprintln!("MICRO_RHW1 len={} match={}", got.len(), got.as_slice() == exp);
-                }
-                other => panic!("{other:?}"),
-            },
-            other => panic!("{other:?}"),
-        },
-        other => panic!("{other:?}"),
-    }
-}
-
-#[test]
 fn program_validate_probe_matches_native_payload() {
     use sley_mutate::value::EntryExposure;
     let (pkg, approved) = admit(&program_validate_image());
@@ -17302,19 +17026,11 @@ fn program_validate_rejections_match_reference() {
     // Fixture tag 2 is not accepted in program context.
     let mut tag2 = base.clone();
     tag2.splice(9..11, [0x02]);
-    vectors.push((
-        "tag2",
-        program_recompute(&tag2),
-        "SCB_CONTRACT_UNKNOWN",
-    ));
+    vectors.push(("tag2", program_recompute(&tag2), "SCB_CONTRACT_UNKNOWN"));
     // Unknown tag 201.
     let mut tag201 = base.clone();
     tag201[9] = 0xc9;
-    vectors.push((
-        "tag201",
-        program_recompute(&tag201),
-        "SCB_CONTRACT_UNKNOWN",
-    ));
+    vectors.push(("tag201", program_recompute(&tag201), "SCB_CONTRACT_UNKNOWN"));
     // Wrong epoch.
     let mut bad_epoch = base.clone();
     bad_epoch[11] = 0x08;
@@ -17324,19 +17040,11 @@ fn program_validate_rejections_match_reference() {
         "SCB_EPOCH_MISMATCH",
     ));
     // Truncated payload (digest kept): payload/digest bounds fail.
-    vectors.push((
-        "trunc_payload",
-        base[..143].to_vec(),
-        "SCB_LENGTH_OVERFLOW",
-    ));
+    vectors.push(("trunc_payload", base[..143].to_vec(), "SCB_LENGTH_OVERFLOW"));
     // Trailing byte before the trailer (digest kept).
     let mut trailing_pre = base.clone();
     trailing_pre.insert(121, 0x00);
-    vectors.push((
-        "trailing_pre",
-        trailing_pre,
-        "SCB_TRAILING_BYTES",
-    ));
+    vectors.push(("trailing_pre", trailing_pre, "SCB_TRAILING_BYTES"));
     // Trailing plus bad digest: trailing wins (reference order).
     let mut trailing_digest = base.clone();
     trailing_digest.insert(121, 0x00);
@@ -17350,20 +17058,12 @@ fn program_validate_rejections_match_reference() {
     // Trailing byte after the digest.
     let mut trailing_post = base.clone();
     trailing_post.push(0x00);
-    vectors.push((
-        "trailing_post",
-        trailing_post,
-        "SCB_TRAILING_BYTES",
-    ));
+    vectors.push(("trailing_post", trailing_post, "SCB_TRAILING_BYTES"));
     // Corrupted digest only.
     let mut bad_digest = base.clone();
     let last = bad_digest.len() - 1;
     bad_digest[last] ^= 0x01;
-    vectors.push((
-        "bad_digest",
-        bad_digest,
-        "SCB_DIGEST_MISMATCH",
-    ));
+    vectors.push(("bad_digest", bad_digest, "SCB_DIGEST_MISMATCH"));
     // Non-minimal payload length.
     let mut nonminimal = base.clone();
     nonminimal.splice(43..44, [0xcd, 0x00]);
@@ -17383,11 +17083,7 @@ fn program_validate_rejections_match_reference() {
     // Declared length past the remaining bytes.
     let mut len127 = base.clone();
     len127[43] = 0x7f;
-    vectors.push((
-        "len127",
-        program_recompute(&len127),
-        "SCB_LENGTH_OVERFLOW",
-    ));
+    vectors.push(("len127", program_recompute(&len127), "SCB_LENGTH_OVERFLOW"));
     for (name, bytes, expected) in &vectors {
         let outcome = program_validate_call(&pkg, &approved, &hex_encode(bytes));
         assert_refusal(&outcome, expected);
@@ -17459,12 +17155,7 @@ fn program_decode_composed_returns_structured_triple() {
     ] {
         let stored = program_stored(eid_byte, func_byte, exposure);
         let outcome = program_decode_call(&pkg, &approved, &hex_encode(&stored));
-        let fuel = assert_program_decode_ok(
-            &outcome,
-            &[eid_byte; 32],
-            &[func_byte; 32],
-            exp_u64,
-        );
+        let fuel = assert_program_decode_ok(&outcome, &[eid_byte; 32], &[func_byte; 32], exp_u64);
         assert_eq!(
             program_native_code(&stored),
             "OK",
@@ -17513,6 +17204,7 @@ fn program_encode_composed_matches_canonical_stored() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn program_composed_rejections_preserve_precedence_and_scope() {
     use sley_mutate::value::EntryExposure;
     let (pkg, approved) = admit(&program_decode_image());
@@ -17728,6 +17420,7 @@ fn program_composed_rejections_preserve_precedence_and_scope() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn program_composed_resources_stay_inside_codec_budgets() {
     use sley_mutate::value::EntryExposure;
     let (dec_pkg, dec_approved) = admit(&program_decode_image());
