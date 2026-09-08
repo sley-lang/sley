@@ -18,6 +18,10 @@ into the new kernel.
 ## Validation economy
 
 Run the smallest meaningful check first. `make quick` is the M0 inner loop;
+it reads the Sley 2.0 master goal from outside the repository, so in a
+worktree, clone, or remote checkout set `SLEY2_MASTER_GOAL` to the path of
+`Sley2.0mastergoal.md` (the two checkers that need it report
+`master:unavailable` otherwise);
 `make check-changed` reports affected surfaces. Use subsystem gates at work-
 package boundaries. `make v2` is the authoritative full product gate and must
 not be used as a debugging strategy.

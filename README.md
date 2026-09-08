@@ -156,6 +156,8 @@ document their manual indefinite-run form.
 ## Authority
 
 - Product goal: `/home/greyforge/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md`
+  (outside the repository; `SLEY2_MASTER_GOAL` overrides the location for
+  worktrees, clones, and remote review)
 - Local architecture: `ARCHITECTURE.md`
 - Security and threat register: `SECURITY.md`
 - Normative drafts: `docs/spec/`

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
@@ -30,7 +31,11 @@ FUZZ_TARGET = ROOT / "fuzz/targets/transaction_receipt.rs"
 FUZZ_CHECK = ROOT / "scripts/check_transaction_receipt_persistent_fuzz_slice.py"
 CLOSEOUT = ROOT / "docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md"
 EVIDENCE = ROOT / "evidence/validation/s20-390-atomic-commit-closeout-v1.json"
-MASTER = ROOT.parent / "machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md"
+# The master goal lives outside the repository. SLEY2_MASTER_GOAL names it
+# explicitly for worktrees, clones, and remote reviewers; the default is the
+# operator layout.
+MASTER_DEFAULT = ROOT.parent / "machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md"
+MASTER = Path(os.environ["SLEY2_MASTER_GOAL"]) if os.environ.get("SLEY2_MASTER_GOAL") else MASTER_DEFAULT
 
 
 ERROR_CODES = (
@@ -112,11 +117,12 @@ def main() -> int:
         FUZZ_CHECK,
         CLOSEOUT,
         EVIDENCE,
-        MASTER,
     )
     for path in paths:
         if not path.is_file():
             problems.append(f"missing:{path}")
+    if not MASTER.is_file():
+        problems.append(f"master:unavailable:{MASTER}:set-SLEY2_MASTER_GOAL")
     if problems:
         print(json.dumps({"problems": problems, "result": "FAIL"}, indent=2))
         return 1
