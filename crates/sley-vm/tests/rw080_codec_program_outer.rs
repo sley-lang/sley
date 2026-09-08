@@ -13627,11 +13627,13 @@ fn build_program_decode(
     }
 }
 
-#[allow(
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DigestCopyMode {
+    Unrolled,
+    Counted,
+    SwappedEdgeControl,
+}
+
 fn build_program_encode(
     a: &mut Asm,
     ns: Ns,
@@ -13640,6 +13642,33 @@ fn build_program_encode(
     outer_enc_fid: EntityId,
     build_fid: EntityId,
     encode_fid: EntityId,
+) -> FunctionGraph {
+    build_program_encode_with_mode(
+        a,
+        ns,
+        fid,
+        entry_enc_fid,
+        outer_enc_fid,
+        build_fid,
+        encode_fid,
+        DigestCopyMode::Unrolled,
+    )
+}
+
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+fn build_program_encode_with_mode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    entry_enc_fid: EntityId,
+    outer_enc_fid: EntityId,
+    build_fid: EntityId,
+    encode_fid: EntityId,
+    mode: DigestCopyMode,
 ) -> FunctionGraph {
     use sley_vm::host_abi::{
         BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1,
@@ -14255,6 +14284,9 @@ fn build_program_encode(
         reachability: Reachability::Required,
     });
     // Digest copy loop, bounded by the constant 32 (exact trailer).
+    let c2_done;
+    match mode {
+        DigestCopyMode::Unrolled => {
     // Unrolled digest copy: 32 indexed Get+push pairs, no loop counter,
     // no bound compare, no backedge (mirrors the proven slice-2 digest
     // chain shape, appending instead of comparing). Get None targets the
@@ -14265,7 +14297,7 @@ fn build_program_encode(
         uget.push(a.id(ns.b));
         upush.push(a.id(ns.b));
     }
-    let c2_done = a.id(ns.b);
+    c2_done = a.id(ns.b);
     let f1_acc = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
     let f1_dig = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
     let f1_unit = a.param(ns.p, c1_done, ParameterRole::Block, TypeExpr::Unit);
@@ -14355,52 +14387,183 @@ fn build_program_encode(
         });
     }
     // NOTE: `nx` links the chain (no `next` variable remains).
-    let d2_acc = a.param(ns.p, c2_done, ParameterRole::Block, u8vec_type());
-    let d2_unit = a.param(ns.p, c2_done, ParameterRole::Block, TypeExpr::Unit);
-    let d2_v2b = a.op(
-        ns.o,
-        c2_done,
-        Opcode::AdapterInvoke,
-        vec![pav(d2_unit), pav(d2_acc)],
-        vec![index_result(TypeExpr::Bytes)],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
-    );
-    a.blocks.push(Block {
-        entity_id: c2_done,
-        function: fid,
-        parameters: vec![d2_acc, d2_unit],
-        operations: vec![d2_v2b],
-        terminator: switch(
-            op_result(d2_v2b),
-            vec![
-                (BuiltinCase::Ok, b_ret, vec![SwitchArgument::CasePayload]),
-                (BuiltinCase::Err, b_res, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-
-    let b_okv = a.op(
-        ns.o,
-        b_ret,
-        Opcode::ResultOk,
-        vec![pav(b_stored)],
-        vec![res_t.clone()],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: b_ret,
-        function: fid,
-        parameters: vec![b_stored],
-        operations: vec![b_okv],
-        terminator: ret(op_result(b_okv)),
-        reachability: Reachability::Required,
-    });
-
-    FunctionGraph {
-        entity_id: fid,
-        type_parameters: Vec::new(),
-        parameters: vec![p_eid, p_func, p_exp, p_unit],
+        }
+        DigestCopyMode::Counted | DigestCopyMode::SwappedEdgeControl => {
+            let swapped = matches!(mode, DigestCopyMode::SwappedEdgeControl);
+            let c32 = a.ku64(ns.k, 32);
+            c2_done = a.id(ns.b);
+            let c2_check = a.id(ns.b);
+            let c2_get = a.id(ns.b);
+            let c2_push = a.id(ns.b);
+            let c2_next = a.id(ns.b);
+            let f1_acc = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
+            let f1_dig = a.param(ns.p, c1_done, ParameterRole::Block, u8vec_type());
+            let f1_unit = a.param(ns.p, c1_done, ParameterRole::Block, TypeExpr::Unit);
+            let f1_z0 = a.cref(ns.o, c1_done, c0, u64_type());
+            a.blocks.push(Block {
+                entity_id: c1_done,
+                function: fid,
+                parameters: vec![f1_acc, f1_dig, f1_unit],
+                operations: vec![f1_z0],
+                terminator: branch(edge(
+                    c2_check,
+                    vec![
+                        op_result(f1_z0),
+                        pav(f1_acc),
+                        pav(f1_dig),
+                        pav(f1_unit),
+                    ],
+                )),
+                reachability: Reachability::Required,
+            });
+            let j_idx = a.param(ns.p, c2_check, ParameterRole::Block, u64_type());
+            let j_acc = a.param(ns.p, c2_check, ParameterRole::Block, u8vec_type());
+            let j_dig = a.param(ns.p, c2_check, ParameterRole::Block, u8vec_type());
+            let j_unit = a.param(ns.p, c2_check, ParameterRole::Block, TypeExpr::Unit);
+            let j32c = a.cref(ns.o, c2_check, c32, u64_type());
+            let j_lt = a.op(
+                ns.o,
+                c2_check,
+                Opcode::LessThan,
+                vec![pav(j_idx), op_result(j32c)],
+                vec![TypeExpr::Bool],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: c2_check,
+                function: fid,
+                parameters: vec![j_idx, j_acc, j_dig, j_unit],
+                operations: vec![j32c, j_lt],
+                terminator: cond(
+                    op_result(j_lt),
+                    edge(
+                        c2_get,
+                        vec![pav(j_idx), pav(j_acc), pav(j_dig), pav(j_unit)],
+                    ),
+                    edge(c2_done, vec![pav(j_acc), pav(j_unit)]),
+                ),
+                reachability: Reachability::Required,
+            });
+            let k_idx = a.param(ns.p, c2_get, ParameterRole::Block, u64_type());
+            let k_acc = a.param(ns.p, c2_get, ParameterRole::Block, u8vec_type());
+            let k_dig = a.param(ns.p, c2_get, ParameterRole::Block, u8vec_type());
+            let k_unit = a.param(ns.p, c2_get, ParameterRole::Block, TypeExpr::Unit);
+            let k_get = a.op(
+                ns.o,
+                c2_get,
+                Opcode::VectorGet,
+                vec![pav(k_dig), pav(k_idx)],
+                vec![TypeExpr::Option(Box::new(u8_type()))],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: c2_get,
+                function: fid,
+                parameters: vec![k_idx, k_acc, k_dig, k_unit],
+                operations: vec![k_get],
+                terminator: switch(
+                    op_result(k_get),
+                    vec![
+                        (BuiltinCase::None, trap, Vec::new()),
+                        (
+                            BuiltinCase::Some,
+                            c2_push,
+                            vec![
+                                SwitchArgument::CasePayload,
+                                sav(k_idx),
+                                sav(k_acc),
+                                sav(k_dig),
+                                sav(k_unit),
+                            ],
+                        ),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+            let m_b = a.param(ns.p, c2_push, ParameterRole::Block, u8_type());
+            let m_idx = a.param(ns.p, c2_push, ParameterRole::Block, u64_type());
+            let m_acc = a.param(ns.p, c2_push, ParameterRole::Block, u8vec_type());
+            let m_dig = a.param(ns.p, c2_push, ParameterRole::Block, u8vec_type());
+            let m_unit = a.param(ns.p, c2_push, ParameterRole::Block, TypeExpr::Unit);
+            let m_push = a.op(
+                ns.o,
+                c2_push,
+                Opcode::AdapterInvoke,
+                vec![pav(m_acc), pav(m_b)],
+                vec![index_result(u8vec_type())],
+                Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            );
+            a.blocks.push(Block {
+                entity_id: c2_push,
+                function: fid,
+                parameters: vec![m_b, m_idx, m_acc, m_dig, m_unit],
+                operations: vec![m_push],
+                terminator: switch(
+                    op_result(m_push),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            c2_next,
+                            vec![
+                                sav(m_idx),
+                                sav(m_dig),
+                                SwitchArgument::CasePayload,
+                                sav(m_unit),
+                            ],
+                        ),
+                        (BuiltinCase::Err, b_res, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+            let p_idx = a.param(ns.p, c2_next, ParameterRole::Block, u64_type());
+            let p_dig = a.param(ns.p, c2_next, ParameterRole::Block, u8vec_type());
+            let p_acc = a.param(ns.p, c2_next, ParameterRole::Block, u8vec_type());
+            let p_ux = a.param(ns.p, c2_next, ParameterRole::Block, TypeExpr::Unit);
+            let p_onec = a.cref(ns.o, c2_next, c1, u64_type());
+            let p_add = a.op(
+                ns.o,
+                c2_next,
+                Opcode::IntAddChecked,
+                vec![pav(p_idx), op_result(p_onec)],
+                vec![arith_result(u64_type())],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: c2_next,
+                function: fid,
+                parameters: vec![p_idx, p_dig, p_acc, p_ux],
+                operations: vec![p_onec, p_add],
+                terminator: switch(
+                    op_result(p_add),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            c2_check,
+                            // Both vector slots share the u8vec type; order alone carries the role.
+                            if swapped {
+                                vec![
+                                    SwitchArgument::CasePayload,
+                                    sav(p_dig),
+                                    sav(p_acc),
+                                    sav(p_ux),
+                                ]
+                            } else {
+                                vec![
+                                    SwitchArgument::CasePayload,
+                                    sav(p_acc),
+                                    sav(p_dig),
+                                    sav(p_ux),
+                                ]
+                            },
+                        ),
+                        (BuiltinCase::Err, trap, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+        }
+    }
         result_type: res_t,
         effects: Vec::new(),
         entry_block: entry,
@@ -25597,6 +25760,10 @@ fn program_decode_image() -> Image {
 }
 
 fn program_encode_image() -> Image {
+    program_encode_image_with_mode(DigestCopyMode::Unrolled)
+}
+
+fn program_encode_image_with_mode(mode: DigestCopyMode) -> Image {
     use sley_vm::host_abi::{
         BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1,
     };
@@ -25640,7 +25807,7 @@ fn program_encode_image() -> Image {
     let encode_graph = build_encode(&mut a, uns, encode_fid);
     let outer_enc_graph = build_outer_encode(&mut a, ons, outer_enc_fid, encode_fid);
     let build_graph = build_program_build(&mut a, bns, build_fid);
-    let prog_graph = build_program_encode(
+    let prog_graph = build_program_encode_with_mode(
         &mut a,
         pns,
         prog_fid,
@@ -25648,6 +25815,7 @@ fn program_encode_image() -> Image {
         outer_enc_fid,
         build_fid,
         encode_fid,
+        mode,
     );
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -27138,6 +27306,104 @@ fn program_encode_composed_matches_canonical_stored() {
     );
     assert_refusal(&bad, "SCB_UNION_INVALID");
     eprintln!("PROG_ENC_REJ exp3 -> SCB_UNION_INVALID");
+}
+
+#[test]
+fn rw080_current_mechanism_f7_counted_composer_matches_native() {
+    use sley_mutate::value::EntryExposure;
+    let (unrolled_pkg, unrolled_approved) =
+        admit(&program_encode_image_with_mode(DigestCopyMode::Unrolled));
+    let (counted_pkg, counted_approved) =
+        admit(&program_encode_image_with_mode(DigestCopyMode::Counted));
+    // Same three independent canonical fixtures as the composed control;
+    // each mode is compared to the native bytes, never to the other mode.
+    for (eid_byte, func_byte, exposure, exp_u64) in [
+        (1u8, 10u8, EntryExposure::Local, 1u64),
+        (1u8, 11u8, EntryExposure::Protocol, 2u64),
+        (2u8, 12u8, EntryExposure::Protocol, 2u64),
+    ] {
+        let expected = program_stored(eid_byte, func_byte, exposure);
+        let eid_hex = hex_encode(&[eid_byte; 32]);
+        let func_hex = hex_encode(&[func_byte; 32]);
+        let unrolled =
+            program_encode_call(&unrolled_pkg, &unrolled_approved, &eid_hex, &func_hex, exp_u64);
+        let fuel_u = assert_encode_ok(&unrolled, &expected);
+        let counted =
+            program_encode_call(&counted_pkg, &counted_approved, &eid_hex, &func_hex, exp_u64);
+        let fuel_c = assert_encode_ok(&counted, &expected);
+        eprintln!(
+            "PROG_ENC_F7 eid{eid_byte} func{func_byte} exp{exp_u64} out{}B unrolled_fuel={fuel_u} counted_fuel={fuel_c} instr_u={} instr_c={} peak_u={} peak_c={}",
+            expected.len(),
+            unrolled.instruction_count,
+            counted.instruction_count,
+            unrolled.peak_value_units,
+            counted.peak_value_units
+        );
+    }
+    for (pkg, approved, name) in [
+        (&unrolled_pkg, &unrolled_approved, "unrolled"),
+        (&counted_pkg, &counted_approved, "counted"),
+    ] {
+        let bad = program_encode_call(
+            pkg,
+            approved,
+            &hex_encode(&[1u8; 32]),
+            &hex_encode(&[10u8; 32]),
+            3,
+        );
+        assert_refusal(&bad, "SCB_UNION_INVALID");
+        eprintln!("PROG_ENC_F7_REJ {name} exp3 -> SCB_UNION_INVALID");
+    }
+}
+
+#[test]
+fn rw080_current_mechanism_f7_swapped_edge_is_observable() {
+    use sley_mutate::value::EntryExposure;
+    let (counted_pkg, counted_approved) =
+        admit(&program_encode_image_with_mode(DigestCopyMode::Counted));
+    let (swapped_pkg, swapped_approved) =
+        admit(&program_encode_image_with_mode(DigestCopyMode::SwappedEdgeControl));
+    let expected = program_stored(1, 10, EntryExposure::Local);
+    assert_eq!(expected.len(), 153, "program stored 153B");
+    let eid_hex = hex_encode(&[1u8; 32]);
+    let func_hex = hex_encode(&[10u8; 32]);
+    let counted = program_encode_call(&counted_pkg, &counted_approved, &eid_hex, &func_hex, 1);
+    assert_encode_ok(&counted, &expected);
+    // Intentionally wrong graph: must succeed into Bytes yet miss canonical
+    // bytes with the independently predicted prefix ++ even-digest shape.
+    let swapped = program_encode_call(&swapped_pkg, &swapped_approved, &eid_hex, &func_hex, 1);
+    match &swapped.termination {
+        sley_vm::ExecutionTermination::Success(found) => match &found.data {
+            ConstData::Result(ResultConst::Ok(payload)) => match &payload.data {
+                ConstData::Bytes(bytes) => {
+                    assert_ne!(bytes, &expected, "swapped graph must miss canonical bytes");
+                    let prefix = &expected[..expected.len() - 32];
+                    let digest = &expected[expected.len() - 32..];
+                    let mut predicted = prefix.to_vec();
+                    for i in (0..32usize).step_by(2) {
+                        predicted.push(digest[i]);
+                    }
+                    assert_eq!(
+                        bytes,
+                        &predicted,
+                        "swapped graph emits the predicted even-byte shape"
+                    );
+                    eprintln!(
+                        "PROG_ENC_F7_SWAPPED prefix{}B baddigest{}B total{}B fuel={} instr={} peak={}",
+                        prefix.len(),
+                        predicted.len() - prefix.len(),
+                        bytes.len(),
+                        swapped.fuel_used,
+                        swapped.instruction_count,
+                        swapped.peak_value_units
+                    );
+                }
+                other => panic!("swapped control must succeed with Bytes, got {other:?}"),
+            },
+            other => panic!("swapped control must succeed, got {other:?}"),
+        },
+        other => panic!("swapped control must terminate successfully, got {other:?}"),
+    }
 }
 
 #[test]
