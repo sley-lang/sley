@@ -258,20 +258,79 @@ epoch + root); and the exact P/H dependencies (`BOOTSTRAP_PROFILE_2`
 digest `fb2d8cc87ee7...459`; `HOST_ABI_V2` `bc564653...2af70d5` plus
 `EXEC_PACKAGE_V2` `f4958c5e...5770da94` and `RAW_BLAKE3_V1`
 `785205fb...69f72`; toolchain `1.93.0 minimal`; VM `[1,0,0]` /
-lowering profile 2 / lowerer `[2,0,0]`; epoch `08`*32 / root `09`*32 for
-closure evidence).
+lowering profile 2 / lowerer `[2,0,0]`).
+
+The epoch `08`*32 and root `09`*32 previously cited here identify
+historical fixture closure evidence. They do not identify a newly retained
+canonical graph. Each retained component or complete S records its actual
+registered source schema epoch, canonical root bytes and derived root
+identity, and complete object bindings. Lowering, package admission and
+execution evidence must bind that same source epoch and root. Historical
+fixture records remain historical; no new root is asserted by copying
+those constants. Literal epoch bytes encoded by a bounded codec workload
+are distinct from the source graph's storage epoch and are not changed by
+this clarification.
+
+The complete closure includes any carried frozen bridge declarations
+permitted by §3, with their actual canonical object bytes and bindings.
+A profile reference alone is not a substitute for a required carried
+object. Inherited bridge identities do not authorize an invented
+dependency root or an unbound object. A retained component is recorded as
+partial toolchain construction; it is not complete S until all modules,
+entry points and dependencies required by this contract are present.
 
 ## 3. Construction manifest (every initial entity/object)
 
-Every initial entity/object carries: stable identity (`EntityId`
-derived per `sley-id` rules from workspace + candidate nonce + kind +
-ordinal — never random, never reused); creation provenance (seed-assembler
-record or subsequent Sley-mutation record with parent digests); semantic
-owner (codec/checker/lowerer/driver/verifier-reserved, exactly one);
-dependency (explicit entity refs, topologically closed); construction
-method (`seed-assembled` with the exact seed bytes cited, or
-`Sley-mutated` with the producing module + inputs cited); and whether
-created by the seed assembler or a subsequent Sley mutation.
+Every newly authored entity receives a stable `EntityId` derived per
+`sley-id` rules from workspace + candidate nonce + kind + ordinal, never
+random and never reused for another entity. A subsequent mutation
+preserves that entity's stable identity and records its parent digests.
+Canonical object identities and root identities are derived from their
+actual bytes under their existing identity contracts; they are not
+substitutes for entity creation provenance.
+
+Every carried entity/object has exactly one semantic owner
+(codec/checker/lowerer/driver/verifier-reserved), explicit entity
+references forming a closed dependency inventory, its canonical object
+identity and exact bytes, and the provenance fields applicable below.
+
+For newly authored entities, `identity_origin` is `derived`. The manifest
+records the workspace, candidate nonce, kind and ordinal, and creation
+provenance: `construction_method` is `seed-assembled` with the exact typed
+seed bytes cited, or `Sley-mutated` with the producing module, inputs and
+parent digests cited. Any seed-local identity mapping is explicit. It does
+not replace the derived retained identity.
+
+The only permitted `identity_origin: inherited_profile` values are the
+four fixed bridge identities B2V1, V2B1, PSH1 and RHW1 from the pinned
+`BOOTSTRAP_PROFILE_2` and `HOST_ABI_V2` records. This is a closed allowlist
+of four identities, not a requirement that every component carry four
+imports. A closure carries exactly its required bridge declarations,
+without duplicate identities or unreferenced imports, under the existing
+bootstrap admission rules. In particular, it cannot carry a second PSH1
+identity to obtain another monomorphized row.
+
+An inherited row's `construction_method` is
+`carried_profile_dependency`. Its manifest records the bridge code,
+fixed EntityId, adapter ID, ABI version, request and response types,
+failure type and effects; exact profile/ABI identities and digests;
+canonical object identity and bytes; and the exact declared typed input
+and source provenance used to materialize the carried row. Materializing
+that object does not allocate or recreate the frozen bridge identity.
+No workspace/nonce derivation or original creation event is fabricated
+for an inherited identity. The row must satisfy the existing frozen
+identity, field, type and per-use predicates, including the PSH1
+request/response relationship. Changing those predicates or importing an
+additional native capability requires its own governing admission; it is
+not permitted by this provenance exception.
+
+This exception applies only to those carried AdapterImport declarations.
+Language-owned functions, parameters, blocks, operations, constants,
+types, entry points and other newly authored entities remain subject to
+the derived-identity rule. An executable, compiler answer or language-owned
+entity cannot be classified as an inherited profile dependency. Both
+identity origins remain visible to the complete provenance and dependency
+audit; neither may be omitted from the canonical object closure.
 
 ## 4. C0's allowed seed-only work
 
@@ -299,13 +358,37 @@ or discharge judgments).
 
 ## 5. Explicit anti-copy evidence (from the beginning)
 
-No prebaked C2/C3 image exists in S (provenance audit: every entity is
-`seed-assembled` or `Sley-mutated`, none `prebaked`). No output-copy
-operation counts as a build (the driver must show checker/lowerer
-invocations with distinct intermediate digests). Changed toolchain input
-must change expected output/behavior (mutation corpus: at least one
-semantic change per module with before/after digests). Corrupt/omitted
-input must fail (rejection corpus per module). A fake builder returning a
-prior image must fail later RW-140 (fixed-point + self-change gates;
-the RW-080 manifest records the fake-builder rejection hook but does not
-execute it).
+No prebaked C2/C3 image exists in S. The provenance audit covers every
+entity/object: newly authored entities are `seed-assembled` or
+`Sley-mutated`; only the four allowlisted bridge identities may be
+`carried_profile_dependency` under §3, with exact pinned-profile and
+materialization provenance. None is `prebaked`. The inherited-identity
+exception admits no image, embedded compiler answer or hidden semantic
+service, and does not exempt constants or other objects from this audit.
+
+No output-copy operation counts as a build (the driver must show
+checker/lowerer invocations with distinct intermediate digests). Changed
+toolchain input must change expected output/behavior (mutation corpus: at
+least one semantic change per module with before/after digests).
+Corrupt/omitted input must fail (rejection corpus per module). A fake
+builder returning a prior image must fail later RW-140 (fixed-point +
+self-change gates; the RW-080 manifest records the fake-builder rejection
+hook but does not execute it).
+
+## 6. Identity/provenance clarification record
+
+RW080-ID-01 — candidate clarification; architecture acceptance pending.
+Affected requirements: §§2, 3 and 5 (AMENDED). Fixed bridge identities,
+profile/ABI/package pins, native behavior, §4 and construction prerequisites
+(RETAINED). Owner: RW-080 contract integrator. This record distinguishes
+new entity allocation from carrying the existing pinned bridge declarations
+and historical fixture identities from actual retained graph bindings.
+It grants no construction permission and records no current review PASS.
+
+The pre-clarification text is retained in git at
+`0b724aed17fcf5633551d78d8d89004ff551d305`. Architecture review must bind
+the exact proposed delta and resulting candidate, verify the unchanged
+prerequisites and frozen dependencies, and retain any failed rounds.
+Acceptance evidence and the adopting decision are appended only when they
+actually exist; current R2 and BOOTSTRAP_READY evidence is evaluated under
+the unchanged header before any construction begins.
