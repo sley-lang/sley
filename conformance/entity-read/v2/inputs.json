@@ -1,0 +1,562 @@
+{
+  "contract": "sley2-entity-read-v2-inputs",
+  "claim": "hand-authored-semantic",
+  "provenance": {
+    "design": "/home/greyforge/.local/state/sley2/at-mw-02/PHASE2_INDEPENDENT_VECTOR_DESIGN.md",
+    "design_acceptance": "phase2-vector-design-acceptance.json",
+    "static_acceptance": "phase2-static-acceptance.json",
+    "profile": "docs/spec/ENTITY_READ_PROFILE_V2.md",
+    "transport": "docs/spec/SMP1.md",
+    "schema": "docs/spec/SSMC1_EPOCH1_SCHEMA.txt",
+    "authored_at_revision": "f5b6a3557595e9461669cec5957bf3f52967fb9e",
+    "static_baseline": "d897719a8d3c9ce28f3990d1a7f36784d8e62e35",
+    "runtime_baseline": "6b37fd31140dc514c716eca29326280479ba6b46",
+    "identity_scheme": "Fresh synthetic opaque identities: entity ids are kind byte plus slot byte plus fixed 0xa5 fill, context ids are repeated ASCII bytes (W/R/S) or fixed patterns. No id, epoch, object, or malformed byte is copied from any Rust emitter or generated corpus. References between bodies are standalone structural fixtures, not a claim of one executable repository.",
+    "content_epoch_note": "Synthetic opaque 32-byte content epoch (0xc3 fill). Isolated codec vectors only; not production VerifiedRevision evidence.",
+    "protocol_epoch_note": "Derived by the oracle from fixed descriptor inputs and the SCHEMA_EPOCH_V1 bootstrap formula; never read from emitted output. Descriptor pins: tag 400, domain tag 22, kind tag 400, required fields 1..8, empty optional/variant sets, field-schema hash d36cce86..., decoder-limits hash 212b293d....",
+    "dangling_references": "Named type definition 0401, block rows 0701/0702, operation 0801, effect 0b01, contract 0d01, secondary package members and the absent ff00 entity are intentional structural references without their own object rows, except where the design requires explicit variants (ns_none, const_long, contract_limits).",
+    "no_execution": "Stage A authorship only. No Python, test, Rust, or refresh command was executed to produce this file; root executes all validation."
+  },
+  "context": {
+    "workspace": "5757575757575757575757575757575757575757575757575757575757575757",
+    "root": "5252525252525252525252525252525252525252525252525252525252525252",
+    "session": "5353535353535353535353535353535353535353535353535353535353535353",
+    "content_epoch": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+    "root_bindings": 256,
+    "lookup_l": 9
+  },
+  "selected_limits": {
+    "max_frame_bytes": 8388608,
+    "max_entities": 1024,
+    "max_edges": 10000,
+    "max_depth": 64,
+    "max_response_bytes": 4194304,
+    "max_work": 10000000,
+    "max_inflight": 16,
+    "max_sessions": 16
+  },
+  "bindings": {
+    "count": 256,
+    "note": "Synthetic root carrying 256 bindings; the listed members are the authored rows. The ff00 entity is not a member.",
+    "members": ["ws", "pkg", "ns", "ns_none", "typedef", "func", "param", "block", "op", "const", "const_long", "gval", "effect", "capreq", "contract", "contract_limits", "testcase", "adapter", "entrypoint", "policy", "depbinding", "sig_f", "sig_p_high", "sig_p_low", "sig_f0"]
+  },
+  "signature_types": {
+    "sig_p_high": {"variant": "Option", "value": {"variant": "Text"}},
+    "sig_p_low": {"variant": "Tuple", "value": [{"variant": "Bool"}, {"variant": "Text"}]}
+  },
+  "entities": {
+    "ws": {
+      "id": "0100a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 1,
+      "kind_name": "Workspace",
+      "body_type": "WorkspaceBody",
+      "label": "er2/k01/s00",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "packages": ["0200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "root_namespace": "0300a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "capability_requirements": ["0c00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "contracts": ["0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "tests": ["0e00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "pkg": {
+      "id": "0200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 2,
+      "kind_name": "Package",
+      "body_type": "PackageBody",
+      "label": "er2/k02/s00",
+      "body": {
+        "workspace": "0100a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "root_namespace": "0300a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "dependencies": ["1200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "exports": ["0301a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "ns": {
+      "id": "0300a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 3,
+      "kind_name": "Namespace",
+      "body_type": "NamespaceBody",
+      "label": "er2/k03/s00",
+      "body": {
+        "parent": {"variant": "Some", "value": "0301a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"},
+        "members": ["0400a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "ns_none": {
+      "id": "0301a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 3,
+      "kind_name": "Namespace",
+      "body_type": "NamespaceBody",
+      "note": "None-parent variant; metadata fully absent.",
+      "body": {
+        "parent": {"variant": "None"},
+        "members": ["0300a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "typedef": {
+      "id": "0400a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 4,
+      "kind_name": "TypeDef",
+      "body_type": "TypeDefBody",
+      "label": "er2/k04/s00",
+      "body": {
+        "type_parameters": [{"ordinal": 0}],
+        "form": {"variant": "Record", "value": [{"member_id": "4d009c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c", "value_type": {"variant": "Named", "value": {"definition": "0401a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "arguments": [{"variant": "Bool"}]}}, "visibility": "Exported"}]},
+        "invariants": ["0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "visibility": "Package"
+      }
+    },
+    "func": {
+      "id": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 5,
+      "kind_name": "Function",
+      "body_type": "FunctionBody",
+      "label": "er2/k05/s00",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "type_parameters": [{"ordinal": 0}],
+        "parameters": ["0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "result_type": {"variant": "Option", "value": {"variant": "Text"}},
+        "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "entry_block": "0700a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "blocks": ["0700a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0701a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "contracts": ["0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "visibility": "Exported"
+      }
+    },
+    "param": {
+      "id": "0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 6,
+      "kind_name": "Parameter",
+      "body_type": "ParameterBody",
+      "label": "er2/k06/s00",
+      "body": {
+        "owner": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "role": "Function",
+        "ordinal": 0,
+        "value_type": {"variant": "Option", "value": {"variant": "Text"}}
+      }
+    },
+    "block": {
+      "id": "0700a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 7,
+      "kind_name": "Block",
+      "body_type": "BlockBody",
+      "label": "er2/k07/s00",
+      "body": {
+        "function": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "parameters": ["0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "operations": ["0800a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "terminator": {"variant": "Return", "value": {"value": {"variant": "Parameter", "value": "0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}}},
+        "reachability": "Required"
+      }
+    },
+    "op": {
+      "id": "0800a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 8,
+      "kind_name": "Operation",
+      "body_type": "OperationBody",
+      "label": "er2/k08/s00",
+      "body": {
+        "block": "0700a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "ordinal": 1,
+        "opcode": 81,
+        "operands": [
+          {"variant": "Parameter", "value": "0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"},
+          {"variant": "OperationResult", "value": {"operation": "0801a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "result_index": 0}}
+        ],
+        "result_types": [{"variant": "F64"}],
+        "immediate": {"variant": "None"}
+      }
+    },
+    "const": {
+      "id": "0900a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 9,
+      "kind_name": "Constant",
+      "body_type": "ConstantBody",
+      "label": "er2/k09/s00",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "value": {"value_type": {"variant": "Text"}, "data": {"variant": "Text", "value": "sley2-entity-read-v0"}}
+      }
+    },
+    "const_long": {
+      "id": "0901a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 9,
+      "kind_name": "Constant",
+      "body_type": "ConstantBody",
+      "note": "Longer Bytes variant for boundary recipes; metadata absent.",
+      "body": {
+        "value": {"value_type": {"variant": "Bytes"}, "data": {"variant": "Bytes", "value": "abababababababababababababababababababababababababababababababab"}}
+      }
+    },
+    "gval": {
+      "id": "0a00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 10,
+      "kind_name": "GlobalValue",
+      "body_type": "GlobalValueBody",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "value_type": {"variant": "Named", "value": {"definition": "0401a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "arguments": [{"variant": "Bool"}]}},
+        "initializer": "0900a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "visibility": "Package"
+      }
+    },
+    "effect": {
+      "id": "0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 11,
+      "kind_name": "EffectDef",
+      "body_type": "EffectDefBody",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "effect_kind": "FileRead",
+        "scope_type": {"variant": "Bytes"},
+        "request_type": {"variant": "Text"},
+        "response_type": {"variant": "Bool"},
+        "failure_type": {"variant": "BuiltinFailure", "value": {"kind": "CapabilityFailure", "code": 1}},
+        "visibility": "Workspace"
+      }
+    },
+    "capreq": {
+      "id": "0c00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 12,
+      "kind_name": "CapabilityRequirement",
+      "body_type": "CapabilityRequirementBody",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "effect": "0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "allowed_scopes": [{"value_type": {"variant": "Bool"}, "data": {"variant": "Bool", "value": true}}],
+        "constraint_contracts": ["0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "contract": {
+      "id": "0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 13,
+      "kind_name": "Contract",
+      "body_type": "ContractBody",
+      "label": "er2/k13/s00",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "target": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "contract_kind": "Precondition",
+        "predicate": "0900a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "bindings": [{"predicate_parameter": 0, "source": {"variant": "Parameter", "value": "0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}}],
+        "resource_limits": {"variant": "None"}
+      }
+    },
+    "contract_limits": {
+      "id": "0d01a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 13,
+      "kind_name": "Contract",
+      "body_type": "ContractBody",
+      "note": "Resource-limits-present variant; metadata absent.",
+      "body": {
+        "target": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "contract_kind": "Precondition",
+        "predicate": "0900a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "bindings": [{"predicate_parameter": 0, "source": {"variant": "Parameter", "value": "0600a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}}],
+        "resource_limits": {"variant": "Some", "value": {"fuel": 1000, "memory_bytes": 65536, "output_bytes": 32768, "effect_count": 16, "call_depth": 8, "wall_timeout_millis": 5000}}
+      }
+    },
+    "testcase": {
+      "id": "0e00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 14,
+      "kind_name": "TestCase",
+      "body_type": "TestCaseBody",
+      "note": "Metadata fully absent.",
+      "body": {
+        "target": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "inputs": [{"value_type": {"variant": "Text"}, "data": {"variant": "Text", "value": "input"}}],
+        "effect_environment": {"variant": "Replay", "value": [{"adapter_import": "0f00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "request": [{"value_type": {"variant": "Bool"}, "data": {"variant": "Bool", "value": true}}], "response": {"variant": "Ok", "value": {"value_type": {"variant": "Unit"}, "data": {"variant": "Unit"}}}}]},
+        "expected": {"variant": "Value", "value": {"value_type": {"variant": "Text"}, "data": {"variant": "Text", "value": "ok"}}},
+        "observations": [{"observation_id": "4f009c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c", "value": {"value_type": {"variant": "Bool"}, "data": {"variant": "Bool", "value": false}}}],
+        "resource_limits": {"fuel": 2000, "memory_bytes": 131072, "output_bytes": 65536, "effect_count": 32, "call_depth": 16, "wall_timeout_millis": 9000}
+      }
+    },
+    "adapter": {
+      "id": "0f00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 15,
+      "kind_name": "AdapterImport",
+      "body_type": "AdapterImportBody",
+      "note": "Metadata fully absent.",
+      "body": {
+        "adapter_id": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+        "abi_version": 1,
+        "request_type": {"variant": "Text"},
+        "response_type": {"variant": "Bool"},
+        "failure_type": {"variant": "BuiltinFailure", "value": {"kind": "ContractViolation", "code": 1}},
+        "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "entrypoint": {
+      "id": "1000a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 16,
+      "kind_name": "EntryPoint",
+      "body_type": "EntryPointBody",
+      "note": "Metadata fully absent.",
+      "body": {
+        "function": "0500a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "exposure": "Protocol"
+      }
+    },
+    "policy": {
+      "id": "1100a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 17,
+      "kind_name": "PolicyBinding",
+      "body_type": "PolicyBindingBody",
+      "note": "Metadata fully absent.",
+      "body": {
+        "subject": "0100a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "requirements": ["0c00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+      }
+    },
+    "depbinding": {
+      "id": "1200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 18,
+      "kind_name": "DependencyBinding",
+      "body_type": "DependencyBindingBody",
+      "note": "Metadata fully absent.",
+      "body": {
+        "dependency_root": "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+        "external_package": "0200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "local_namespace": "0300a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      }
+    },
+    "sig_f": {
+      "id": "0514a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 5,
+      "kind_name": "Function",
+      "body_type": "FunctionBody",
+      "label": "er2/sig/f",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "type_parameters": [{"ordinal": 0}, {"ordinal": 1}],
+        "parameters": ["0609a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0602a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "result_type": {"variant": "Named", "value": {"definition": "0401a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "arguments": [{"variant": "Bool"}]}},
+        "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0b01a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "entry_block": "0701a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "blocks": ["0701a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "contracts": ["0d00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "0d01a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "visibility": "Exported"
+      }
+    },
+    "sig_p_high": {
+      "id": "0609a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 6,
+      "kind_name": "Parameter",
+      "body_type": "ParameterBody",
+      "label": "er2/sig/p-high",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "owner": "0514a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "role": "Function",
+        "ordinal": 0,
+        "value_type": {"variant": "Option", "value": {"variant": "Text"}}
+      }
+    },
+    "sig_p_low": {
+      "id": "0602a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 6,
+      "kind_name": "Parameter",
+      "body_type": "ParameterBody",
+      "label": "er2/sig/p-low",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "owner": "0514a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "role": "Function",
+        "ordinal": 1,
+        "value_type": {"variant": "Tuple", "value": [{"variant": "Bool"}, {"variant": "Text"}]}
+      }
+    },
+    "sig_f0": {
+      "id": "0515a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "kind": 5,
+      "kind_name": "Function",
+      "body_type": "FunctionBody",
+      "label": "er2/sig/f0",
+      "fingerprint": "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9",
+      "body": {
+        "type_parameters": [],
+        "parameters": [],
+        "result_type": {"variant": "Bool"},
+        "effects": [],
+        "entry_block": "0702a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+        "blocks": ["0702a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"],
+        "contracts": [],
+        "visibility": "Private"
+      }
+    }
+  },
+  "cases": {
+    "ver_ws": {"id": "ver_ws", "entity": "ws", "objects": ["ws"], "method": 306, "request": {"request_id": 1, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_pkg": {"id": "ver_pkg", "entity": "pkg", "objects": ["pkg"], "method": 306, "request": {"request_id": 2, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_ns": {"id": "ver_ns", "entity": "ns", "objects": ["ns"], "method": 306, "request": {"request_id": 3, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_ns_none": {"id": "ver_ns_none", "entity": "ns_none", "objects": ["ns_none"], "method": 306, "request": {"request_id": 4, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_typedef": {"id": "ver_typedef", "entity": "typedef", "objects": ["typedef"], "method": 306, "request": {"request_id": 5, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_func": {"id": "ver_func", "entity": "func", "objects": ["func"], "method": 306, "request": {"request_id": 6, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_param": {"id": "ver_param", "entity": "param", "objects": ["param"], "method": 306, "request": {"request_id": 7, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_block": {"id": "ver_block", "entity": "block", "objects": ["block"], "method": 306, "request": {"request_id": 8, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_op": {"id": "ver_op", "entity": "op", "objects": ["op"], "method": 306, "request": {"request_id": 9, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_const": {"id": "ver_const", "entity": "const", "objects": ["const"], "method": 306, "request": {"request_id": 10, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_const_long": {"id": "ver_const_long", "entity": "const_long", "objects": ["const_long"], "method": 306, "request": {"request_id": 11, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_gval": {"id": "ver_gval", "entity": "gval", "objects": ["gval"], "method": 306, "request": {"request_id": 12, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_effect": {"id": "ver_effect", "entity": "effect", "objects": ["effect"], "method": 306, "request": {"request_id": 13, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_capreq": {"id": "ver_capreq", "entity": "capreq", "objects": ["capreq"], "method": 306, "request": {"request_id": 14, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_contract": {"id": "ver_contract", "entity": "contract", "objects": ["contract"], "method": 306, "request": {"request_id": 15, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_contract_limits": {"id": "ver_contract_limits", "entity": "contract_limits", "objects": ["contract_limits"], "method": 306, "request": {"request_id": 16, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_testcase": {"id": "ver_testcase", "entity": "testcase", "objects": ["testcase"], "method": 306, "request": {"request_id": 17, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_adapter": {"id": "ver_adapter", "entity": "adapter", "objects": ["adapter"], "method": 306, "request": {"request_id": 18, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_entrypoint": {"id": "ver_entrypoint", "entity": "entrypoint", "objects": ["entrypoint"], "method": 306, "request": {"request_id": 19, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_policy": {"id": "ver_policy", "entity": "policy", "objects": ["policy"], "method": 306, "request": {"request_id": 20, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "ver_depbinding": {"id": "ver_depbinding", "entity": "depbinding", "objects": ["depbinding"], "method": 306, "request": {"request_id": 21, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}},
+    "sig_zero": {"id": "sig_zero", "entity": "sig_f0", "objects": ["sig_f0"], "method": 307, "request": {"request_id": 22, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}, "signature": {"function": "sig_f0", "parameters": []}, "note": "Zero-parameter signature; expected list is the Function alone."},
+    "sig_multi": {"id": "sig_multi", "entity": "sig_f", "objects": ["sig_f", "sig_p_high", "sig_p_low"], "method": 307, "request": {"request_id": 23, "max_objects": 16, "max_response_bytes": 200000, "max_work": 5000000}, "signature": {"function": "sig_f", "parameters": ["sig_p_high", "sig_p_low"]}, "note": "Declaration order [P_high slot 9, P_low slot 2] deliberately opposes bytewise sort; exact nested TypeExpr bytes Option<Text> and Tuple<Bool,Text>; TypeDef/EffectDef/Contract objects are available in context but not returned."}
+  },
+  "hellos": {
+    "hello_v2_client": {
+      "protocol_versions": [1, 2],
+      "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3", "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"],
+      "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 10000000, "max_inflight": 16, "max_sessions": 16},
+      "methods": [100, 101, 102, 103, 104, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 300, 301, 302, 303, 304, 306, 307, 400, 401, 402, 403, 404, 500, 501, 502, 504, 600, 603, 604, 900],
+      "features": 3,
+      "adapters": ["a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"],
+      "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+    },
+    "hello_v1_server": {
+      "protocol_versions": [1],
+      "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"],
+      "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 8000000, "max_inflight": 16, "max_sessions": 16},
+      "methods": [100, 101, 102, 103, 104, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 300, 301, 302, 303, 304, 306, 307, 400, 401, 402, 403, 404, 500, 501, 502, 504, 600, 603, 604, 900],
+      "features": 3,
+      "adapters": ["a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"],
+      "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+    },
+    "hello_v2_server": {
+      "protocol_versions": [1, 2],
+      "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"],
+      "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 8000000, "max_inflight": 16, "max_sessions": 16},
+      "methods": [100, 101, 102, 103, 104, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 300, 301, 302, 303, 304, 306, 307, 400, 401, 402, 403, 404, 500, 501, 502, 504, 600, 603, 604, 900],
+      "features": 3,
+      "adapters": ["a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"],
+      "effects": ["0b00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"]
+    },
+    "hello_v3_client": {
+      "protocol_versions": [1, 3],
+      "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"],
+      "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 10000000, "max_inflight": 16, "max_sessions": 16},
+      "methods": [100, 101, 102, 103, 104, 200, 300, 400, 500, 600, 603, 604],
+      "features": 1,
+      "adapters": [],
+      "effects": []
+    },
+    "hello_v3_server": {
+      "protocol_versions": [1, 3],
+      "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"],
+      "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 8000000, "max_inflight": 16, "max_sessions": 16},
+      "methods": [100, 101, 102, 103, 104, 200, 300, 400, 500, 600, 603, 604],
+      "features": 1,
+      "adapters": [],
+      "effects": []
+    }
+  },
+  "selection_scenarios": {
+    "v1_select": {"client": "hello_v2_client", "server": "hello_v1_server", "expect": "ok", "note": "[1,2] with [1] selects 1; 306/307 filtered, unrelated 900 retained."},
+    "v2_select": {"client": "hello_v2_client", "server": "hello_v2_server", "expect": "ok", "note": "[1,2] with [1,2] selects 2 with its distinct version/method set."},
+    "v3_refuse": {"client": "hello_v3_client", "server": "hello_v3_server", "expect": "fail", "expected_layer": "selection", "note": "Unsupported greatest-common version 3 is refused with VersionUnsupported, no fallback to 1."}
+  },
+  "rejected": [
+    {"id": "req_missing_field", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "drop_field", "tag": 5}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_MISSING"},
+    {"id": "req_unknown_field", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "add_field", "tag": 9, "payload_hex": ""}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_UNKNOWN"},
+    {"id": "req_duplicate_field", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "dup_field", "tag": 2}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_DUPLICATE"},
+    {"id": "req_reordered", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "reorder_fields", "order": [5, 4, 3, 2, 1]}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_ORDER"},
+    {"id": "req_trailing", "base": "ver_ws", "recipe": {"target": "request", "level": "body", "op": "append", "hex": "00"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_TRAILING_BYTES"},
+    {"id": "req_root_31", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_payload", "tag": 1, "payload_hex": "52525252525252525252525252525252525252525252525252525252525252"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_LENGTH_OVERFLOW"},
+    {"id": "req_entity_33", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_payload", "tag": 2, "payload_hex": "0200a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5aa"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_TRAILING_BYTES"},
+    {"id": "req_uvar_nonminimal", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_payload", "tag": 3, "payload_hex": "8000"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_VARINT_NON_MINIMAL"},
+    {"id": "req_uvar_truncated", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_payload", "tag": 3, "payload_hex": "80"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_LENGTH_OVERFLOW"},
+    {"id": "req_uvar_overflow", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_payload", "tag": 3, "payload_hex": "8080808080808080808001"}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_INTEGER_OVERFLOW"},
+    {"id": "req_zero_objects", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 3, "value": 0}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008},
+    {"id": "req_zero_bytes", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 4, "value": 0}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008},
+    {"id": "req_zero_work", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 5, "value": 0}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008},
+    {"id": "req_above_entities", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 3, "value": 1025}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "req_above_bytes", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 4, "value": 4194305}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "req_above_work", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "set_field_uvar", "tag": 5, "value": 10000001}, "failing_layer": "request_range", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "resp_missing_field", "base": "ver_ws", "recipe": {"record": "response", "op": "drop_field", "tag": 8}, "failing_layer": "response_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_MISSING"},
+    {"id": "resp_dup_field", "base": "ver_ws", "recipe": {"record": "response", "op": "dup_field", "tag": 2}, "failing_layer": "response_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_DUPLICATE"},
+    {"id": "resp_reordered", "base": "ver_ws", "recipe": {"record": "response", "op": "reorder_fields", "order": [8, 7, 6, 5, 4, 3, 2, 1]}, "failing_layer": "response_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_ORDER"},
+    {"id": "resp_trailing", "base": "ver_ws", "recipe": {"level": "body", "op": "append", "hex": "00"}, "failing_layer": "response_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_TRAILING_BYTES"},
+    {"id": "resp_version_1", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_uvar", "tag": 1, "value": 1}, "failing_layer": "response_record", "expected_symbol": null, "expected_code": null, "note": "Oracle rejection: response version must be 2. No runtime numeric claimed; pending Rust comparison."},
+    {"id": "obj_inner_drop_len", "base": "ver_ws", "recipe": {"record": "entry", "op": "corrupt_entry_framing", "index": 0, "field": 4, "mode": "drop_len"}, "failing_layer": "object_envelope", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_TRAILING_BYTES"},
+    {"id": "obj_inner_wrong_len", "base": "ver_ws", "recipe": {"record": "entry", "op": "corrupt_entry_framing", "index": 0, "field": 4, "mode": "wrong_len", "delta": 1}, "failing_layer": "object_envelope", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_LENGTH_OVERFLOW"},
+    {"id": "obj_trailing_stored", "base": "ver_ws", "recipe": {"record": "object", "op": "object_surgery", "index": 0, "surgery": {"op": "append_trailing", "hex": "00"}}, "failing_layer": "object_record", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_TRAILING_BYTES"},
+    {"id": "obj_unknown_field", "base": "ver_ws", "recipe": {"record": "object", "op": "object_surgery", "index": 0, "surgery": {"op": "add_field", "tag": 9, "payload_hex": ""}}, "failing_layer": "object_record", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_FIELD_UNKNOWN"},
+    {"id": "obj_corrupt_id", "base": "ver_ws", "recipe": {"record": "object", "op": "flip", "index": 0, "offset": -1}, "failing_layer": "object_envelope", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_DIGEST_MISMATCH"},
+    {"id": "obj_changed_body", "base": "ver_ws", "recipe": {"record": "object", "op": "flip", "index": 0, "offset": 60}, "failing_layer": "object_envelope", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_DIGEST_MISMATCH", "note": "Body byte changed with the original ObjectId trailer: integrity failure, not a semantic pass."},
+    {"id": "entry_entity", "base": "ver_ws", "recipe": {"record": "entry", "op": "set_entry_field", "index": 0, "field": 1, "value_hex": "ff00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}, "failing_layer": "entry_binding", "expected_symbol": null, "expected_code": null},
+    {"id": "entry_kind", "base": "ver_ws", "recipe": {"record": "entry", "op": "set_entry_uvar", "index": 0, "field": 2, "value": 9}, "failing_layer": "entry_binding", "expected_symbol": null, "expected_code": null},
+    {"id": "entry_object_id", "base": "ver_ws", "recipe": {"record": "entry", "op": "flip_entry_field_byte", "index": 0, "field": 3, "offset": 31}, "failing_layer": "entry_binding", "expected_symbol": null, "expected_code": null},
+    {"id": "entry_epoch", "base": "ver_ws", "recipe": {"record": "object", "op": "set_object_epoch", "index": 0, "value_hex": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"}, "failing_layer": "object_envelope", "expected_symbol": null, "expected_code": null, "expected_scb": "SCB_EPOCH_MISMATCH"},
+    {"id": "requested_identity", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_payload", "tag": 6, "payload_hex": "ff00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}, "failing_layer": "context", "expected_symbol": null, "expected_code": null},
+    {"id": "context_workspace", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_payload", "tag": 2, "payload_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "failing_layer": "context", "expected_symbol": null, "expected_code": null},
+    {"id": "context_root", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_payload", "tag": 3, "payload_hex": "5252525252525252525252525252525252525252525252525252525252525253"}, "failing_layer": "context", "expected_symbol": null, "expected_code": null},
+    {"id": "context_epoch", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_payload", "tag": 4, "payload_hex": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"}, "failing_layer": "context", "expected_symbol": null, "expected_code": null},
+    {"id": "context_session", "base": "ver_ws", "recipe": {"record": "response", "op": "set_field_payload", "tag": 5, "payload_hex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"}, "failing_layer": "context", "expected_symbol": null, "expected_code": null},
+    {"id": "claimed_work", "base": "ver_ws", "recipe": {"record": "response", "op": "shift_uvar_field", "tag": 8, "delta": -1}, "failing_layer": "work", "expected_symbol": null, "expected_code": null},
+    {"id": "claimed_count", "base": "ver_ws", "recipe": {"record": "bounds", "op": "shift_uvar_field", "tag": 3, "delta": 1}, "failing_layer": "count", "expected_symbol": null, "expected_code": null},
+    {"id": "claimed_bytes", "base": "ver_ws", "recipe": {"record": "bounds", "op": "shift_uvar_field", "tag": 2, "delta": 7}, "failing_layer": "count", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_swapped", "base": "sig_multi", "recipe": {"record": "entry", "op": "swap_params"}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null, "note": "Declaration order violated; every object individually valid."},
+    {"id": "sig_omitted", "base": "sig_multi", "recipe": {"record": "entry", "op": "drop_param"}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_extra", "base": "sig_multi", "recipe": {"record": "entry", "op": "extra_param", "entity_ref": "param"}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null, "note": "Foreign parameter (owner func, not sig_f) appended; oracle rejects, no runtime code invented."},
+    {"id": "sig_dup", "base": "sig_multi", "recipe": {"record": "entry", "op": "dup_param", "index": 1}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_owner", "base": "sig_multi", "recipe": {"record": "object", "op": "param_surgery", "index": 1, "sub": "set_owner", "value_hex": "ff00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_role", "base": "sig_multi", "recipe": {"record": "object", "op": "param_surgery", "index": 1, "sub": "set_role", "value": 2}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_ordinal", "base": "sig_multi", "recipe": {"record": "object", "op": "param_surgery", "index": 2, "sub": "set_ordinal", "value": 5}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null},
+    {"id": "sig_type", "base": "sig_multi", "recipe": {"record": "object", "op": "param_surgery", "index": 1, "sub": "set_value_type", "value_type": {"variant": "Bool"}}, "failing_layer": "signature", "expected_symbol": null, "expected_code": null, "note": "Exact nested TypeExpr bytes differ (Bool vs Option<Text>)."},
+    {"id": "frame_prefix_delta", "base": "ver_ws", "recipe": {"record": "response", "op": "identity", "prefix_delta": 1}, "failing_layer": "wire_prefix", "expected_symbol": "PROTOCOL_FRAME_INVALID", "expected_code": 40001},
+    {"id": "frame_truncated", "base": "ver_ws", "recipe": {"level": "wire", "op": "truncate", "n": 8}, "failing_layer": "wire_prefix", "expected_symbol": "PROTOCOL_FRAME_INVALID", "expected_code": 40001},
+    {"id": "frame_too_large", "base": "ver_ws", "recipe": {"level": "wire", "op": "prefix_set", "value": 8388609}, "failing_layer": "wire_ceiling", "expected_symbol": "PROTOCOL_FRAME_TOO_LARGE", "expected_code": 40002, "note": "Prefix claims one byte above the selected max_frame_bytes 8388608."},
+    {"id": "frame_wrong_epoch", "base": "ver_ws", "recipe": {"record": "response", "op": "identity", "set_epoch": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"}, "failing_layer": "frame_envelope", "expected_symbol": "PROTOCOL_VERSION_UNSUPPORTED", "expected_code": 40000, "expected_scb": "SCB_EPOCH_MISMATCH"},
+    {"id": "frame_wrong_trailer", "base": "ver_ws", "recipe": {"level": "wire", "op": "flip", "offset": -1}, "failing_layer": "frame_envelope", "expected_symbol": "PROTOCOL_FRAME_INVALID", "expected_code": 40001, "expected_scb": "SCB_DIGEST_MISMATCH"},
+    {"id": "req_failed_flag", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "identity", "set_flags": 4}, "failing_layer": "frame_header", "expected_symbol": "PROTOCOL_FRAME_INVALID", "expected_code": 40001},
+    {"id": "frame_v1_method", "base": "ver_ws", "recipe": {"record": "response", "op": "identity", "set_version": 1}, "failing_layer": "frame_version", "expected_symbol": null, "expected_code": null, "note": "Version-1 frame carrying method 306 with valid recomputed integrity: discriminates version admission from integrity. V1 serving-path refusal is a pending Rust comparison."},
+    {"id": "frame_v3_claim", "base": "ver_ws", "recipe": {"record": "response", "op": "identity", "set_version": 3}, "failing_layer": "frame_version", "expected_symbol": null, "expected_code": null, "note": "Above-selection version claim; runtime mapping is VersionUnsupported, pending Rust comparison."},
+    {"id": "hello_reserved", "kind": "hello_invalid", "hello": {"protocol_versions": [1, 2], "schema_epochs": ["c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"], "limits": {"max_frame_bytes": 8388608, "max_entities": 1024, "max_edges": 10000, "max_depth": 64, "max_response_bytes": 4194304, "max_work": 10000000, "max_inflight": 16, "max_sessions": 16}, "methods": [100, 305, 306], "features": 1, "adapters": [], "effects": []}, "failing_layer": "hello", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008},
+    {"id": "select_v3", "kind": "selection_invalid", "client": "hello_v3_client", "server": "hello_v3_server", "failing_layer": "selection", "expected_symbol": "PROTOCOL_VERSION_UNSUPPORTED", "expected_code": 40000},
+    {"id": "owner_wrong_root", "kind": "owner_case", "seam": "wrong_root", "method": 306, "request": {"root_hex": "5252525252525252525252525252525252525252525252525252525252525253", "entity_ref": "ws", "max_objects": 16, "ceiling_m": 200000, "max_work": 5000000}, "failing_layer": "owner_lookup", "expected_symbol": "QUERY_ROOT_MISMATCH", "expected_code": 31008},
+    {"id": "owner_absent", "kind": "owner_case", "seam": "absent_entity", "method": 306, "request": {"root_hex": "context", "entity_hex": "ff00a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "max_objects": 16, "ceiling_m": 200000, "max_work": 5000000}, "failing_layer": "owner_lookup", "expected_symbol": "QUERY_UNRESOLVED_ENTITY", "expected_code": 31004},
+    {"id": "owner_wrong_kind", "kind": "owner_case", "seam": "wrong_kind", "method": 307, "request": {"root_hex": "context", "entity_ref": "const", "max_objects": 16, "ceiling_m": 200000, "max_work": 5000000}, "failing_layer": "owner_lookup", "expected_symbol": "QUERY_CLASS_NOT_APPLICABLE", "expected_code": 31010},
+    {"id": "owner_missing_param", "kind": "owner_case", "seam": "missing_parameter", "method": 307, "request": {"root_hex": "context", "entity_ref": "sig_f", "max_objects": 16, "ceiling_m": 200000, "max_work": 5000000}, "failing_layer": "owner_lookup", "expected_symbol": "QUERY_INTERNAL_INVARIANT", "expected_code": 31007, "production_impossible_note": "Deliberately bounded owner seam: missing required Parameter under ordinary fully verified production input is impossible; the vector labels the seam without claiming production occurrence."},
+    {"id": "fail_root_mismatch", "kind": "failure_response", "method": 306, "request_id": 101, "code": 31008, "symbol": "QUERY_ROOT_MISMATCH", "expected_code": 31008, "expected_symbol": "QUERY_ROOT_MISMATCH", "expected_retryability": 1},
+    {"id": "fail_unresolved", "kind": "failure_response", "method": 306, "request_id": 102, "code": 31004, "symbol": "QUERY_UNRESOLVED_ENTITY", "expected_code": 31004, "expected_symbol": "QUERY_UNRESOLVED_ENTITY", "expected_retryability": 1},
+    {"id": "fail_class", "kind": "failure_response", "method": 307, "request_id": 103, "code": 31010, "symbol": "QUERY_CLASS_NOT_APPLICABLE", "expected_code": 31010, "expected_symbol": "QUERY_CLASS_NOT_APPLICABLE", "expected_retryability": 1},
+    {"id": "fail_invariant", "kind": "failure_response", "method": 307, "request_id": 104, "code": 31007, "symbol": "QUERY_INTERNAL_INVARIANT", "expected_code": 31007, "expected_symbol": "QUERY_INTERNAL_INVARIANT", "expected_retryability": 1},
+    {"id": "fail_payload", "kind": "failure_response", "method": 306, "request_id": 105, "code": 40008, "symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_retryability": 1},
+    {"id": "fail_limit", "kind": "failure_response", "method": 307, "request_id": 106, "code": 40009, "symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_retryability": 4},
+    {"id": "bound_k_exact", "kind": "relation", "relation": "k_exact", "base": "sig_multi", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "note": "max_objects equals K=3: admissible boundary; the one-below companion refuses."},
+    {"id": "bound_k_below", "kind": "relation", "relation": "k_one_below", "base": "sig_multi", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_bytes_exact", "kind": "relation", "relation": "bytes_exact", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_bytes_below", "kind": "relation", "relation": "bytes_one_below", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_wire_exact", "kind": "relation", "relation": "wire_exact", "base": "ver_ws", "failing_layer": "frame_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "note": "Full outgoing wire length including the 8-byte prefix; the prefix value itself excludes those eight bytes."},
+    {"id": "bound_wire_below", "kind": "relation", "relation": "wire_one_below", "base": "ver_ws", "failing_layer": "frame_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_work_exact", "kind": "relation", "relation": "work_exact", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_work_below", "kind": "relation", "relation": "work_one_below", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009},
+    {"id": "bound_work_recompute", "kind": "relation", "relation": "work_recompute_m", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "note": "W recomputed when M changes: base M and M+1, both away from uvar thresholds."},
+    {"id": "bound_uvar_threshold", "kind": "relation", "relation": "uvar_threshold", "base": "ver_ws", "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "note": "M 16383 to 16384 crosses the two-to-three-byte uvar threshold to exercise sizing."},
+    {"id": "bound_overflow", "kind": "relation", "relation": "checked_overflow", "arith_k": 4611686018427387904, "arith_l": 2, "arith_b": 0, "arith_m": 18446744073709551615, "failing_layer": "work_preflight", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009, "note": "Declared checked-arithmetic unit only: operands exceed every negotiated ceiling, so this is not a fabricated admissible request and proves no allocation path."},
+    {"id": "fill_bytes_exact", "kind": "fill_recipe", "fill_byte": "ab", "fill_length": 16777216, "expect_constructible": true, "note": "Exactly the 16,777,216-byte individual Bytes maximum as a deterministic fill recipe; no hex dump."},
+    {"id": "fill_bytes_over", "kind": "fill_recipe", "fill_byte": "ab", "fill_length": 16777217, "expect_constructible": true, "expect_too_large": true, "note": "One byte above the Bytes cap: refused at the outer Bytes/frame preflight."},
+    {"id": "fill_frame_body_over", "kind": "fill_recipe", "fill_byte": "ab", "fill_length": 16777217, "expect_constructible": true, "expect_too_large": true, "aggregate": {"objects": 3, "object_bytes": 400, "ceiling_m": 200000, "max_objects": 16}, "note": "Aggregate signature body beyond the frame Bytes cap while every stored object individually fits and earlier K/M ceilings hold."},
+    {"id": "seq_wrong_session", "kind": "runtime_sequence", "title": "Request under an unknown session name", "status": "pending_runtime_comparison", "steps": [{"action": "send entity.version under an unissued session id", "expected_symbol": "SESSION_UNKNOWN", "expected_code": null, "note": "Numeric rides the S20-330 registry; not frozen here."}], "observations": ["no budget charged; connection state unchanged"], "note": "Admission order: session routing precedes method work."},
+    {"id": "seq_closed_session", "kind": "runtime_sequence", "title": "Request under a remembered closed session", "status": "pending_runtime_comparison", "steps": [{"action": "session.close then entity.version under the closed name", "expected_symbol": "PROTOCOL_SESSION_CLOSED", "expected_code": 40006}], "observations": ["no budget charged"], "note": null},
+    {"id": "seq_renewed_session", "kind": "runtime_sequence", "title": "Entity read after session renewal", "status": "pending_runtime_comparison", "steps": [{"action": "session.renew then entity.version under the same name", "expected_symbol": null, "expected_code": null, "note": "Success path with rebound root; budget must not reset."}], "observations": ["session.budgets before and after; renewal leaves remaining untouched"], "note": null},
+    {"id": "seq_epoch_mismatch", "kind": "runtime_sequence", "title": "Request bound to a foreign epoch session", "status": "pending_runtime_comparison", "steps": [{"action": "entity.version under an epoch-mismatched session", "expected_symbol": "SESSION_EPOCH_MISMATCH", "expected_code": null}], "observations": [], "note": null},
+    {"id": "seq_root_advanced", "kind": "runtime_sequence", "title": "Entity read after head advancement", "status": "pending_runtime_comparison", "steps": [{"action": "advance the head then entity.version with the stale expected root", "expected_symbol": "QUERY_ROOT_MISMATCH", "expected_code": 31008}, {"action": "session.renew then retry with the live root", "expected_symbol": null, "expected_code": null, "note": "Success path."}], "observations": ["session.budgets across the advance"], "note": null},
+    {"id": "seq_request_id_conflict", "kind": "runtime_sequence", "title": "Conflicting request identities", "status": "pending_runtime_comparison", "steps": [{"action": "entity.version with request_id 40", "expected_symbol": null, "expected_code": null, "note": "Success."}, {"action": "entity.signature reusing request_id 40", "expected_symbol": "PROTOCOL_REQUEST_ID_CONFLICT", "expected_code": 40005}], "observations": [], "note": null},
+    {"id": "seq_unnegotiated_precedence", "kind": "runtime_sequence", "title": "Unnegotiated method combined with a bad session", "status": "pending_runtime_comparison", "steps": [{"action": "entity.version under a v1-only selection with a bad session", "expected_symbol": null, "expected_code": null, "note": "Session admission precedes method negotiation; exact precedence is runtime-compared."}], "observations": [], "note": null},
+    {"id": "seq_work_exhausted_precedence", "kind": "runtime_sequence", "title": "Exhausted work combined with a bad session", "status": "pending_runtime_comparison", "steps": [{"action": "entity.version with exhausted budget and stale root", "expected_symbol": null, "expected_code": null, "note": "Budget exhaustion precedes owner entry; exact precedence is runtime-compared."}], "observations": ["session.budgets reads zero remaining"], "note": null},
+    {"id": "seq_debit_phases", "kind": "runtime_sequence", "title": "Debit-table phases with budget observation", "status": "pending_runtime_comparison", "steps": [{"action": "malformed entity.version request", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "debit": "exactly the one admitted dispatch unit"}, {"action": "entity.version with wrong root", "expected_symbol": "QUERY_ROOT_MISMATCH", "expected_code": 31008, "debit": "exactly the one admitted dispatch unit"}, {"action": "successful entity.signature", "expected_symbol": null, "expected_code": null, "debit": "full work_units including the dispatch unit, no refund"}, {"action": "entity.version after injecting an encoding failure post-reservation", "expected_symbol": null, "expected_code": null, "debit": "full work_units retained, no object bytes"}], "observations": ["session.budgets before and after every phase", "a subsequent request proving identical debit and exhaustion behavior"], "note": "Pure static byte vectors cannot prove debit, allocation, or session issuance; these steps are runtime sequence obligations, not vector coverage."},
+    {"id": "seq_inflight_terminal", "kind": "runtime_sequence", "title": "max_inflight=1 terminal refusal cleanup", "status": "pending_runtime_comparison", "steps": [{"action": "negotiate max_inflight 1, hold one request outstanding, send entity.version", "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED", "expected_code": 40009}, {"action": "release and retry", "expected_symbol": null, "expected_code": null, "note": "Success after cleanup."}], "observations": ["session.budgets"], "note": null}
+  ]
+}
