@@ -1830,14 +1830,35 @@ def _b2_raw_envelope(payload, *, magic, format_value, tag_value, epoch):
     return wire, preimage, trailer
 
 
+def _b2_matches(problems, case_id, side, layer, code):
+    prefix = f"{case_id}:semantic:{side}:{layer}"
+    if not isinstance(problems, list):
+        return False
+    for entry in problems:
+        if not isinstance(entry, str):
+            continue
+        if code is None:
+            if entry == prefix or entry.startswith(prefix + ":"):
+                return True
+        else:
+            target = prefix + ":" + code
+            if entry == target or entry.startswith(target + ":") or entry.startswith(target + " "):
+                return True
+    return False
+
+
 def _b2_expect(testcase, inputs, case, supplied, side, layer, code):
     problems = []
     entity_read.semantic_check(inputs, case, supplied, problems)
-    head = f"{case['id']}:semantic:{side}:{layer}"
     testcase.assertIsInstance(problems, list)
-    testcase.assertTrue(any(head in entry for entry in problems), f"missing {head} in {problems!r}")
-    if code is not None:
-        testcase.assertTrue(any(code in entry for entry in problems), f"missing {code} in {problems!r}")
+    for entry in problems:
+        testcase.assertIsInstance(entry, str)
+    prefix = f"{case['id']}:semantic:{side}:{layer}"
+    if code is None:
+        testcase.assertTrue(any(entry == prefix or entry.startswith(prefix + ":") for entry in problems), f"missing {prefix} in {problems!r}")
+    else:
+        target = prefix + ":" + code
+        testcase.assertTrue(any(entry == target or entry.startswith(target + ":") or entry.startswith(target + " ") for entry in problems), f"missing {target} in {problems!r}")
 
 
 def _b2_check_request_zero_limits(testcase, inputs, frame):
@@ -1888,6 +1909,20 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                             self.assertEqual(bounds["returned_bytes"], len(frame["body"]))
                             self.assertEqual(response["work"], built["work"])
                             _b2_check_response_selected_limits(self, inputs, frame)
+        mechanics_rows = (
+            ("correct", ["ver_ws:semantic:request:frame_bounds:SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", True),
+            ("correct-detail", ["ver_ws:semantic:request:frame_bounds:SCB_FIELD_MISSING: detail"], "request", "frame_bounds", "SCB_FIELD_MISSING", True),
+            ("wrong-side", ["ver_ws:semantic:response:frame_bounds:SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("layer-suffix", ["ver_ws:semantic:request:frame_bounds_extra:SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("split", ["ver_ws:semantic:request:frame_bounds", "SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("prefixed", ["xxver_ws:semantic:request:frame_bounds:SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("nonstring", [None], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("none-correct", ["ver_ws:semantic:request:wire_prefix: mismatch"], "request", "wire_prefix", None, True),
+            ("none-wrong-side", ["ver_ws:semantic:response:wire_prefix: mismatch"], "request", "wire_prefix", None, False),
+        )
+        for name, probs, mside, mlayer, mcode, want in mechanics_rows:
+            with self.subTest(mechanics=name):
+                self.assertEqual(_b2_matches(probs, "ver_ws", mside, mlayer, mcode), want)
 
     def test_supplied_wire_prefix_and_exhaustion(self) -> None:
         inputs, case, built = _b2_load("ver_ws")
@@ -2020,6 +2055,48 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                     )
                     supplied = _b2_supplied_with_payload(built, side, mutated_payload)
                     _b2_expect(self, inputs, case, supplied, side, "frame_bounds", "SCB_LENGTH_OVERFLOW")
+            inner_rows = (
+                ("inner-missing-field", [(t, p) for t, p in limit_fields if t != 1], "SCB_FIELD_MISSING"),
+                ("inner-extra-field", limit_fields + [(9, b"")], "SCB_FIELD_UNKNOWN"),
+            )
+            for name, mutated_limits, code in inner_rows:
+                with self.subTest(side=side, variant=name):
+                    mutated_bounds = entity_read.encode_fields([(t, (entity_read.encode_fields(mutated_limits) if t == 1 else p)) for t, p in bound_fields])
+                    mutated_payload = entity_read.build_frame_payload(
+                        frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"], mutated_bounds, frame["body"]
+                    )
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_bounds", code)
+            with self.subTest(side=side, variant="inner-trailing"):
+                trailing_inner = entity_read.encode_fields(limit_fields) + b"\x00"
+                mutated_bounds = entity_read.encode_fields([(t, (trailing_inner if t == 1 else p)) for t, p in bound_fields])
+                mutated_payload = entity_read.build_frame_payload(
+                    frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"], mutated_bounds, frame["body"]
+                )
+                supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                _b2_expect(self, inputs, case, supplied, side, "frame_bounds", "SCB_TRAILING_BYTES")
+            for tag, _payload in sorted(limit_fields):
+                with self.subTest(side=side, variant=f"limit-field-{tag}-overflow"):
+                    overflow = (1 << 32) if tag in _B2_U32_LIMIT_TAGS else (1 << 64)
+                    mutated_limits = [(t, (encode_uvar(overflow) if t == tag else p)) for t, p in limit_fields]
+                    mutated_bounds = entity_read.encode_fields([(t, (entity_read.encode_fields(mutated_limits) if t == 1 else p)) for t, p in bound_fields])
+                    mutated_payload = entity_read.build_frame_payload(
+                        frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"], mutated_bounds, frame["body"]
+                    )
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_bounds", "SCB_INTEGER_OVERFLOW")
+            width_rows = (
+                ("uvar-1-32-at-64", encode_uvar(1 << 32), 64, 1 << 32, None),
+                ("uvar-1-32-at-32", encode_uvar(1 << 32), 32, None, "SCB_INTEGER_OVERFLOW"),
+                ("uvar-1-64-at-64", encode_uvar(1 << 64), 64, None, "SCB_INTEGER_OVERFLOW"),
+            )
+            for name, raw, width, want, code in width_rows:
+                with self.subTest(side=side, variant=name):
+                    if want is not None:
+                        self.assertEqual(entity_read.decode_uvar_exact(raw, width), want)
+                    else:
+                        with self.assertRaisesRegex(ScbError, code):
+                            entity_read.decode_uvar_exact(raw, width)
 
     def test_supplied_frame_version_and_header(self) -> None:
         for side in ("request", "response"):
