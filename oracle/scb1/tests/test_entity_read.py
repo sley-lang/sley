@@ -1216,6 +1216,13 @@ def _b1_case_by_id(supplied_cases, row_id):
 
 
 class CorpusContentClosureCases(unittest.TestCase):
+    def assertB1Problems(self, problems, *expected):
+        self.assertIsInstance(problems, list)
+        for entry in problems:
+            self.assertIsInstance(entry, str)
+        for diagnostic in expected:
+            self.assertIn(diagnostic, problems)
+
     def test_small_authored_content_control(self) -> None:
         scoped, accepted, rejected = _b1_control()
         self.assertEqual(accepted["contract"], "sley2-entity-read-v2")
@@ -1259,60 +1266,60 @@ class CorpusContentClosureCases(unittest.TestCase):
             mutated = copy.deepcopy(accepted)
             del mutated["cases"]["ver_ws"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:missing-expected", problems)
+            self.assertB1Problems(problems, "ver_ws:missing-expected")
         with self.subTest(mutation="clear-accepted-cases"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"] = {}
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:cases:inventory", problems)
+            self.assertB1Problems(problems, "ver_ws:missing-expected", "sig_multi:missing-expected")
         with self.subTest(mutation="extra-accepted-case"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"]["extra_case"] = copy.deepcopy(mutated["cases"]["ver_ws"])
             mutated["cases"]["extra_case"]["id"] = "extra_case"
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:cases:inventory", problems)
+            self.assertB1Problems(problems, "accepted:cases:inventory")
         with self.subTest(mutation="remove-sig_multi-object"):
             mutated = copy.deepcopy(accepted)
             del mutated["cases"]["sig_multi"]["objects"]["sig_p_low"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("sig_multi:objects:inventory", problems)
+            self.assertB1Problems(problems, "sig_multi:object:sig_p_low:stored_hex")
         with self.subTest(mutation="extra-sig_multi-object"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"]["sig_multi"]["objects"]["extra_obj"] = copy.deepcopy(
                 mutated["cases"]["sig_multi"]["objects"]["sig_p_low"]
             )
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("sig_multi:objects:inventory", problems)
+            self.assertB1Problems(problems, "sig_multi:objects:inventory")
         with self.subTest(mutation="remove-hello"):
             mutated = copy.deepcopy(accepted)
             del mutated["hellos"]["hello_v2_client"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:hellos:inventory", problems)
+            self.assertB1Problems(problems, "hello:hello_v2_client:body")
         with self.subTest(mutation="extra-hello"):
             mutated = copy.deepcopy(accepted)
             mutated["hellos"]["extra_hello"] = copy.deepcopy(mutated["hellos"]["hello_v2_client"])
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:hellos:inventory", problems)
+            self.assertB1Problems(problems, "accepted:hellos:inventory")
         with self.subTest(mutation="remove-success-selection"):
             mutated = copy.deepcopy(accepted)
             del mutated["selections"]["v2_select"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:selections:inventory", problems)
+            self.assertB1Problems(problems, "selection:v2_select:version")
         with self.subTest(mutation="extra-success-selection"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["extra_select"] = copy.deepcopy(mutated["selections"]["v2_select"])
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:selections:inventory", problems)
+            self.assertB1Problems(problems, "accepted:selections:inventory")
         with self.subTest(mutation="remove-failed-selection"):
             mutated = copy.deepcopy(accepted)
             del mutated["selections"]["v3_refuse"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:selections:inventory", problems)
+            self.assertB1Problems(problems, "selection:v3_refuse:missing-expected-failure")
         with self.subTest(mutation="extra-failed-selection"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["extra_refuse"] = {"expected_failure": "selection"}
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("accepted:selections:inventory", problems)
+            self.assertB1Problems(problems, "accepted:selections:inventory")
 
     def test_rejected_inventory_is_exact(self) -> None:
         scoped, _accepted, rejected = _b1_control()
@@ -1321,38 +1328,38 @@ class CorpusContentClosureCases(unittest.TestCase):
             mutated = copy.deepcopy(rejected)
             mutated["cases"] = []
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:cases:inventory", problems)
+            self.assertB1Problems(problems, "rejected:cases:inventory")
         with self.subTest(mutation="drop-one"):
             mutated = copy.deepcopy(rejected)
             mutated["cases"] = [case for case in mutated["cases"] if case["id"] != "bound_k_exact"]
             self.assertEqual(len(mutated["cases"]), 4)
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:cases:inventory", problems)
+            self.assertB1Problems(problems, "rejected:cases:inventory")
         with self.subTest(mutation="duplicate-id"):
             mutated = copy.deepcopy(rejected)
             mutated["cases"].append(copy.deepcopy(_b1_case_by_id(mutated["cases"], "req_missing_field")))
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:cases:inventory", problems)
+            self.assertB1Problems(problems, "rejected:cases:inventory")
         with self.subTest(mutation="extra-valid-row"):
             mutated = copy.deepcopy(rejected)
             extra = copy.deepcopy(_b1_case_by_id(mutated["cases"], "req_missing_field"))
             extra["id"] = "req_missing_field_extra"
             mutated["cases"].append(extra)
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:cases:inventory", problems)
+            self.assertB1Problems(problems, "rejected:cases:inventory")
         with self.subTest(mutation="reorder"):
             mutated = copy.deepcopy(rejected)
             mutated["cases"][0], mutated["cases"][1] = mutated["cases"][1], mutated["cases"][0]
             self.assertNotEqual(mutated["cases"][0]["id"], rejected["cases"][0]["id"])
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:cases:inventory", problems)
+            self.assertB1Problems(problems, "rejected:cases:inventory")
         with self.subTest(mutation="duplicate-inputs-ids"):
             mutated_inputs = copy.deepcopy(scoped)
             duplicated = copy.deepcopy(mutated_inputs["rejected"][0])
             mutated_inputs["rejected"].append(duplicated)
             rebuilt_rejected = _b1_build_rejected(mutated_inputs)
             problems = entity_read.check_rejected(mutated_inputs, rebuilt_rejected)
-            self.assertIn("inputs:rejected:ids", problems)
+            self.assertB1Problems(problems, "inputs:rejected:ids")
 
     def test_all_success_and_object_fields_are_bound(self) -> None:
         scoped, accepted, _rejected = _b1_control()
@@ -1374,18 +1381,18 @@ class CorpusContentClosureCases(unittest.TestCase):
                 mutated["cases"]["ver_ws"][field] = _b1_flip_hex(original)
                 self.assertNotEqual(mutated["cases"]["ver_ws"][field], original)
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn(f"ver_ws:{field}", problems)
+                self.assertB1Problems(problems, f"ver_ws:{field}")
         for field in ("response_wire_len", "work", "count_k", "stored_b"):
             with self.subTest(case="ver_ws", path=field):
                 mutated = copy.deepcopy(accepted)
                 mutated["cases"]["ver_ws"][field] += 1
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn(f"ver_ws:{field}", problems)
+                self.assertB1Problems(problems, f"ver_ws:{field}")
         with self.subTest(case="ver_ws", path="id"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"]["ver_ws"]["id"] = "ver_ws_other"
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:id", problems)
+            self.assertB1Problems(problems, "ver_ws:id")
         for field in ("record_hex", "preimage_hex", "stored_hex", "object_id"):
             with self.subTest(case="ver_ws", path=f"object:ws:{field}"):
                 mutated = copy.deepcopy(accepted)
@@ -1393,34 +1400,34 @@ class CorpusContentClosureCases(unittest.TestCase):
                 mutated["cases"]["ver_ws"]["objects"]["ws"][field] = _b1_flip_hex(original)
                 self.assertNotEqual(mutated["cases"]["ver_ws"]["objects"]["ws"][field], original)
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn(f"ver_ws:object:ws:{field}", problems)
+                self.assertB1Problems(problems, f"ver_ws:object:ws:{field}")
         for field in ("id", "request_preimage_hex", "response_preimage_hex", "response_wire_len"):
             with self.subTest(case="ver_ws", path=f"remove-{field}"):
                 mutated = copy.deepcopy(accepted)
                 del mutated["cases"]["ver_ws"][field]
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn(f"ver_ws:{field}", problems)
+                self.assertB1Problems(problems, f"ver_ws:{field}")
         with self.subTest(case="ver_ws", path="remove-object-record_hex"):
             mutated = copy.deepcopy(accepted)
             del mutated["cases"]["ver_ws"]["objects"]["ws"]["record_hex"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:object:ws:record_hex", problems)
+            self.assertB1Problems(problems, "ver_ws:object:ws:record_hex")
         with self.subTest(case="ver_ws", path="extra-case-field"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"]["ver_ws"]["unexpected_field"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:fields", problems)
+            self.assertB1Problems(problems, "ver_ws:fields")
         with self.subTest(case="ver_ws", path="extra-object-field"):
             mutated = copy.deepcopy(accepted)
             mutated["cases"]["ver_ws"]["objects"]["ws"]["unexpected_field"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:object:ws:fields", problems)
+            self.assertB1Problems(problems, "ver_ws:object:ws:fields")
         with self.subTest(case="ver_ws", path="count_k-bool"):
             mutated = copy.deepcopy(accepted)
             self.assertEqual(mutated["cases"]["ver_ws"]["count_k"], 1)
             mutated["cases"]["ver_ws"]["count_k"] = True
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("ver_ws:count_k", problems)
+            self.assertB1Problems(problems, "ver_ws:count_k")
 
     def test_hello_and_selection_fields_are_bound(self) -> None:
         scoped, accepted, _rejected = _b1_control()
@@ -1430,35 +1437,35 @@ class CorpusContentClosureCases(unittest.TestCase):
             original = mutated["hellos"]["hello_v2_client"]["body_hex"]
             mutated["hellos"]["hello_v2_client"]["body_hex"] = _b1_flip_hex(original)
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("hello:hello_v2_client:body", problems)
+            self.assertB1Problems(problems, "hello:hello_v2_client:body")
         with self.subTest(path="hello:hello_v2_client:fields"):
             mutated = copy.deepcopy(accepted)
             mutated["hellos"]["hello_v2_client"]["unexpected_field"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("hello:hello_v2_client:fields", problems)
+            self.assertB1Problems(problems, "hello:hello_v2_client:fields")
         with self.subTest(path="selection:v2_select:version"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["protocol_version"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:version", problems)
+            self.assertB1Problems(problems, "selection:v2_select:version")
         with self.subTest(path="selection:v2_select:methods"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["methods"] = [100]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:methods", problems)
+            self.assertB1Problems(problems, "selection:v2_select:methods")
         with self.subTest(path="selection:v2_select:epoch"):
             mutated = copy.deepcopy(accepted)
             original = mutated["selections"]["v2_select"]["schema_epoch"]
             mutated["selections"]["v2_select"]["schema_epoch"] = _b1_flip_hex(original)
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:epoch", problems)
+            self.assertB1Problems(problems, "selection:v2_select:epoch")
         for field in ("preimage_hex", "transcript_hex", "handshake_id"):
             suffix = {"preimage_hex": "preimage", "transcript_hex": "transcript", "handshake_id": "handshake"}[field]
             with self.subTest(path=f"selection:v2_select:{suffix}"):
                 mutated = copy.deepcopy(accepted)
                 mutated["selections"]["v2_select"][field] = _b1_flip_hex(mutated["selections"]["v2_select"][field])
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn(f"selection:v2_select:{suffix}", problems)
+                self.assertB1Problems(problems, f"selection:v2_select:{suffix}")
         limit_keys = (
             "max_frame_bytes",
             "max_entities",
@@ -1474,42 +1481,44 @@ class CorpusContentClosureCases(unittest.TestCase):
                 mutated = copy.deepcopy(accepted)
                 mutated["selections"]["v2_select"]["limits"][key] += 1
                 problems = entity_read.check_accepted(scoped, mutated)
-                self.assertIn("selection:v2_select:limits", problems)
+                self.assertB1Problems(problems, "selection:v2_select:limits")
         with self.subTest(path="selection:v2_select:features"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["features"] ^= 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:features", problems)
+            self.assertB1Problems(problems, "selection:v2_select:features")
         with self.subTest(path="selection:v2_select:adapters"):
+            self.assertNotEqual(accepted["selections"]["v2_select"]["adapters"], [])
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["adapters"] = []
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:adapters", problems)
+            self.assertB1Problems(problems, "selection:v2_select:adapters")
         with self.subTest(path="selection:v2_select:effects"):
+            self.assertNotEqual(accepted["selections"]["v2_select"]["effects"], [])
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["effects"] = []
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:effects", problems)
+            self.assertB1Problems(problems, "selection:v2_select:effects")
         with self.subTest(path="selection:v2_select:remove-limits"):
             mutated = copy.deepcopy(accepted)
             del mutated["selections"]["v2_select"]["limits"]
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:limits", problems)
+            self.assertB1Problems(problems, "selection:v2_select:limits")
         with self.subTest(path="selection:v2_select:fields"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v2_select"]["unexpected_field"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v2_select:fields", problems)
+            self.assertB1Problems(problems, "selection:v2_select:fields")
         with self.subTest(path="selection:v3_refuse:missing-expected-failure"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v3_refuse"]["expected_failure"] = "other"
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v3_refuse:missing-expected-failure", problems)
+            self.assertB1Problems(problems, "selection:v3_refuse:missing-expected-failure")
         with self.subTest(path="selection:v3_refuse:fields"):
             mutated = copy.deepcopy(accepted)
             mutated["selections"]["v3_refuse"]["unexpected_field"] = 1
             problems = entity_read.check_accepted(scoped, mutated)
-            self.assertIn("selection:v3_refuse:fields", problems)
+            self.assertB1Problems(problems, "selection:v3_refuse:fields")
 
     def test_rejected_same_layer_bytes_are_reconstructed(self) -> None:
         scoped, _accepted, rejected = _b1_control()
@@ -1529,7 +1538,7 @@ class CorpusContentClosureCases(unittest.TestCase):
         target = _b1_case_by_id(mutated["cases"], "req_missing_field")
         target["input_hex"] = alternative_bytes.hex()
         problems = entity_read.check_rejected(scoped, mutated)
-        self.assertIn("rejected:req_missing_field:input_hex", problems)
+        self.assertB1Problems(problems, "rejected:req_missing_field:input_hex")
 
     def test_rejected_expectation_metadata_cannot_authorize_itself(self) -> None:
         scoped, _accepted, rejected = _b1_control()
@@ -1538,15 +1547,14 @@ class CorpusContentClosureCases(unittest.TestCase):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "req_missing_field")["expected_scb"] = None
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:req_missing_field:expected_scb", problems)
+            self.assertB1Problems(problems, "rejected:req_missing_field:expected_scb")
         with self.subTest(path="rejected:req_missing_field:expected_code"):
             mutated = copy.deepcopy(rejected)
             target = _b1_case_by_id(mutated["cases"], "req_missing_field")
             target["expected_code"] = 40009
             target["expected_symbol"] = "PROTOCOL_LIMIT_EXCEEDED"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:req_missing_field:expected_code", problems)
-            self.assertIn("rejected:req_missing_field:expected_symbol", problems)
+            self.assertB1Problems(problems, "rejected:req_missing_field:expected_code", "rejected:req_missing_field:expected_symbol")
         with self.subTest(path="rejected:req_missing_field:recipe"):
             mutated = copy.deepcopy(rejected)
             target = _b1_case_by_id(mutated["cases"], "req_missing_field")
@@ -1554,7 +1562,7 @@ class CorpusContentClosureCases(unittest.TestCase):
             altered["tag"] = 4
             target["recipe"] = altered
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:req_missing_field:recipe", problems)
+            self.assertB1Problems(problems, "rejected:req_missing_field:recipe")
         with self.subTest(path="rejected:req_missing_field:coherent-replacement"):
             duplicate_authored = next(row for row in scoped["rejected"] if row["id"] == "req_duplicate_field")
             base = scoped["cases"][duplicate_authored["base"]]
@@ -1569,17 +1577,17 @@ class CorpusContentClosureCases(unittest.TestCase):
             target["input_hex"] = duplicate_bytes.hex()
             target["expected_scb"] = duplicate_authored["expected_scb"]
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:req_missing_field:input_hex", problems)
+            self.assertB1Problems(problems, "rejected:req_missing_field:input_hex")
         with self.subTest(control="wrong-layer-still-refused"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "req_missing_field")["failing_layer"] = "response_record"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("req_missing_field:layer:request_record", problems)
+            self.assertB1Problems(problems, "req_missing_field:layer:request_record")
         with self.subTest(control="wrong-scb-still-refused"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "req_missing_field")["expected_scb"] = "SCB_FIELD_DUPLICATE"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("req_missing_field:scb:SCB_FIELD_DUPLICATE", problems)
+            self.assertB1Problems(problems, "req_missing_field:scb:SCB_FIELD_MISSING")
 
     def test_derived_and_pending_rows_remain_bound(self) -> None:
         scoped, _accepted, rejected = _b1_control()
@@ -1588,58 +1596,64 @@ class CorpusContentClosureCases(unittest.TestCase):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "bound_k_exact")["max_objects"] = 999
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("bound_k_exact:k-relation", problems)
+            self.assertB1Problems(problems, "bound_k_exact:k-relation")
         with self.subTest(path="rejected:bound_k_exact:note"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "bound_k_exact")["note"] = "changed note"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:bound_k_exact:note", problems)
+            self.assertB1Problems(problems, "rejected:bound_k_exact:note")
         with self.subTest(path="rejected:bound_k_exact:expected_symbol"):
             mutated = copy.deepcopy(rejected)
             target = _b1_case_by_id(mutated["cases"], "bound_k_exact")
             target["expected_symbol"] = "PROTOCOL_PAYLOAD_INVALID"
             target["expected_code"] = 40008
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:bound_k_exact:expected_symbol", problems)
+            self.assertB1Problems(problems, "rejected:bound_k_exact:expected_symbol")
         with self.subTest(path="rejected:seq_wrong_session:title"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["title"] = "changed title"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:seq_wrong_session:title", problems)
+            self.assertB1Problems(problems, "rejected:seq_wrong_session:title")
         with self.subTest(path="rejected:seq_wrong_session:steps"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["steps"][0]["action"] = "changed action"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:seq_wrong_session:steps", problems)
+            self.assertB1Problems(problems, "rejected:seq_wrong_session:steps")
         with self.subTest(path="rejected:seq_wrong_session:steps-code"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["steps"][0]["expected_code"] = 40008
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:seq_wrong_session:steps", problems)
+            self.assertB1Problems(problems, "rejected:seq_wrong_session:steps")
         with self.subTest(path="rejected:seq_wrong_session:observations"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["observations"] = ["changed"]
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:seq_wrong_session:observations", problems)
+            self.assertB1Problems(problems, "rejected:seq_wrong_session:observations")
         with self.subTest(path="rejected:seq_wrong_session:note"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["note"] = "changed note"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:seq_wrong_session:note", problems)
+            self.assertB1Problems(problems, "rejected:seq_wrong_session:note")
         with self.subTest(path="seq_wrong_session:stateful-must-be-pending"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "seq_wrong_session")["status"] = "complete"
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("seq_wrong_session:stateful-must-be-pending", problems)
+            self.assertB1Problems(problems, "seq_wrong_session:stateful-must-be-pending")
         with self.subTest(control="fail_root_mismatch:failure-retryability"):
             mutated = copy.deepcopy(rejected)
             _b1_case_by_id(mutated["cases"], "fail_root_mismatch")["expected_retryability"] = 4
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("fail_root_mismatch:failure-retryability", problems)
+            self.assertB1Problems(problems, "fail_root_mismatch:failure-retryability")
         with self.subTest(path="rejected:fail_root_mismatch:input_hex"):
             full = load_authored_inputs()
             substitute = next(row for row in full["rejected"] if row["id"] == "fail_limit")
             substitute_wire = entity_read.build_failure_wire(scoped, substitute).hex()
+            original_wire = _b1_case_by_id(rejected["cases"], "fail_root_mismatch")["input_hex"]
+            self.assertNotEqual(substitute_wire, original_wire)
+            layer, _code = entity_read.validate_rejected(
+                scoped, {"recipe": {"target": "failure"}}, bytes.fromhex(substitute_wire)
+            )
+            self.assertEqual(layer, "failure_accepted")
             mutated = copy.deepcopy(rejected)
             target = _b1_case_by_id(mutated["cases"], "fail_root_mismatch")
             target["input_hex"] = substitute_wire
@@ -1649,7 +1663,7 @@ class CorpusContentClosureCases(unittest.TestCase):
             target["expected_symbol"] = substitute["expected_symbol"]
             target["expected_retryability"] = substitute["expected_retryability"]
             problems = entity_read.check_rejected(scoped, mutated)
-            self.assertIn("rejected:fail_root_mismatch:input_hex", problems)
+            self.assertB1Problems(problems, "rejected:fail_root_mismatch:input_hex")
 
     def test_document_contract_claim_and_extra_fields_are_bound(self) -> None:
         scoped, accepted, rejected = _b1_control()
@@ -1658,43 +1672,43 @@ class CorpusContentClosureCases(unittest.TestCase):
         with self.subTest(path="accepted-contract"):
             mutated = copy.deepcopy(accepted)
             mutated["contract"] = "sley2-entity-read-v2-wrong"
-            self.assertIn("accepted-contract", entity_read.check_accepted(scoped, mutated))
+            self.assertB1Problems(entity_read.check_accepted(scoped, mutated), "accepted-contract")
         with self.subTest(path="accepted-claim"):
             mutated = copy.deepcopy(accepted)
             mutated["claim"] = "wrong-claim"
-            self.assertIn("accepted-claim", entity_read.check_accepted(scoped, mutated))
+            self.assertB1Problems(entity_read.check_accepted(scoped, mutated), "accepted-claim")
         with self.subTest(path="accepted-missing-contract"):
             mutated = copy.deepcopy(accepted)
             del mutated["contract"]
-            self.assertIn("accepted-contract", entity_read.check_accepted(scoped, mutated))
+            self.assertB1Problems(entity_read.check_accepted(scoped, mutated), "accepted-contract")
         with self.subTest(path="accepted-missing-claim"):
             mutated = copy.deepcopy(accepted)
             del mutated["claim"]
-            self.assertIn("accepted-claim", entity_read.check_accepted(scoped, mutated))
+            self.assertB1Problems(entity_read.check_accepted(scoped, mutated), "accepted-claim")
         with self.subTest(path="accepted:fields"):
             mutated = copy.deepcopy(accepted)
             mutated["unexpected_top_level"] = 1
-            self.assertIn("accepted:fields", entity_read.check_accepted(scoped, mutated))
+            self.assertB1Problems(entity_read.check_accepted(scoped, mutated), "accepted:fields")
         with self.subTest(path="rejected-contract"):
             mutated = copy.deepcopy(rejected)
             mutated["contract"] = "wrong-contract"
-            self.assertIn("rejected-contract", entity_read.check_rejected(scoped, mutated))
+            self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected-contract")
         with self.subTest(path="rejected-claim"):
             mutated = copy.deepcopy(rejected)
             mutated["claim"] = "wrong-claim"
-            self.assertIn("rejected-claim", entity_read.check_rejected(scoped, mutated))
+            self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected-claim")
         with self.subTest(path="rejected-missing-contract"):
             mutated = copy.deepcopy(rejected)
             del mutated["contract"]
-            self.assertIn("rejected-contract", entity_read.check_rejected(scoped, mutated))
+            self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected-contract")
         with self.subTest(path="rejected-missing-claim"):
             mutated = copy.deepcopy(rejected)
             del mutated["claim"]
-            self.assertIn("rejected-claim", entity_read.check_rejected(scoped, mutated))
+            self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected-claim")
         with self.subTest(path="rejected:fields"):
             mutated = copy.deepcopy(rejected)
             mutated["unexpected_top_level"] = 1
-            self.assertIn("rejected:fields", entity_read.check_rejected(scoped, mutated))
+            self.assertB1Problems(entity_read.check_rejected(scoped, mutated), "rejected:fields")
 
 
 if __name__ == "__main__":
