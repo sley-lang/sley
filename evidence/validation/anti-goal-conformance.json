@@ -109,14 +109,14 @@
     {
       "acceptance_evidence": "absent from GA dependency graph unless declared in the authorized campaign boundary record (host-boundary.json) and gated by staged SH2 proofs",
       "anti_goal": "native/JIT/AOT/marketplace/self-hosting outside an authorized campaign",
-      "detail": "codegen or runtime crates in the lock: none; no declared SH2 work items",
+      "detail": "codegen or runtime crates in the lock: none; 7 declared SH2 work items cite the authorized boundary record and a staged gate",
       "state": "HOLDS",
       "surface": "workspace/package denylist + campaign-declaration record"
     },
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 40 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 48 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
@@ -172,14 +172,14 @@
     {
       "acceptance_evidence": "local commit only; no remote/tag/upload/deploy action",
       "anti_goal": "unauthorized publication/deploy/spend",
-      "detail": "git tags: 0; commits not pushed to origin/main: 552",
+      "detail": "git tags: 0; commits not pushed to origin/main: 593",
       "state": "HOLDS",
       "surface": "repo metadata and operator gate"
     }
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "17e39d29065d917806ffe144db3c4a0d06a4c7819939f3f3f4ac634684d57cad",
+  "report_digest": "e0ff644e7793485738072ad721b8f604b3e8849d9f7cd981d66bbc2e6e748bc5",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

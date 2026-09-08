@@ -1,0 +1,127 @@
+{
+ "boundary_record_authority": "host-boundary.json (sley2.host-boundary.v1), chartered by RW-030",
+ "contract": "sley2.reweave-sh2-work-items.v1",
+ "items": [
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-030",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-030-charter.md",
+    "machineresearch/sley-2.0/reweave/rw-030-entry-inventory.md",
+    "machineresearch/sley-2.0/reweave/rw-030-g10-admission.md",
+    "host-boundary.json"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "MPI-0 controls and self-hosting/host-boundary charter"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-040",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-040-audit-index.md",
+    "machineresearch/sley-2.0/reweave/rw-040-audit-slice-2.md",
+    "machineresearch/sley-2.0/reweave/rw-040-bootstrap-exercises-slice-2.json",
+    "machineresearch/sley-2.0/reweave/rw-040-m2-gap-list-slice-2.json",
+    "machineresearch/sley-2.0/reweave/rw-040-findings-slice-2.json"
+   ],
+   "status": "LANDED",
+   "title": "Bootstrap-capability audit, M2 gap lists and exercises"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-050",
+   "id": "RW-050",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-050-slice-1.md",
+    "machineresearch/sley-2.0/reweave/rw-050-slice-2.md",
+    "machineresearch/sley-2.0/reweave/rw-050-sufficiency.md",
+    "docs/spec/BOOTSTRAP_PROFILE_1.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "G-10 bridge under owner amendment A1, E8 adversarial lane, BOOTSTRAP_PROFILE_1 freeze"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-060",
+   "id": "RW-060",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-060.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "Source-free lifecycle"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-070",
+   "id": "RW-070",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-070.md",
+    "machineresearch/sley-2.0/reweave/rw-070-host-inventory.json",
+    "machineresearch/sley-2.0/reweave/rw-070-r2-handoff.md",
+    "docs/spec/HOST_ABI_V1.md",
+    "docs/spec/EXEC_PACKAGE_V1.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "Host ABI, executable image and permitted-import freeze"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-075",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-075.md",
+    "machineresearch/sley-2.0/reweave/rw-075-correction.md",
+    "machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md",
+    "machineresearch/sley-2.0/reweave/rw-075-ar02-evidence.md",
+    "docs/spec/BOOTSTRAP_PROFILE_2.md",
+    "docs/spec/HOST_ABI_V2.md",
+    "docs/spec/EXEC_PACKAGE_V2.md",
+    "docs/spec/RAW_HASH_V1.md"
+   ],
+   "status": "LANDED_CORRECTION_PREMIUM_ROUND_2_PENDING",
+   "title": "R2 executable-closure and self-host boundary repair; correction round introducing the v2 profile/ABI/package successors"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-080",
+   "id": "RW-080",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-080-contract.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-scaffold.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-uvar.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-envelope.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-body.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-entrypoint-encode.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-envelope-compose.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-namespace.md"
+   ],
+   "status": "PROVISIONAL_BLOCKED_NOT_AUTHORITY",
+   "title": "Codec construction contract plus provisional C0 construction slices 1 to 7 under the 2026-09-07 operator development override"
+  }
+ ],
+ "note": "Campaign-declaration registry read by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations (RW-030 charter section 1, C-01/C-02 rule). A declaration is a citation of the authorized boundary record by exact path and raw-byte SHA-256 plus a staged gate from host-boundary.json gate_set; the checker verifies citation only. Semantic authorization of every item below is the operator decision ADOPT-REWEAVE-2026-09-06 recorded in docs/adr/ADR-0049-reweave-scope-adoption.md and the per-package review transcripts under machineresearch/sley-2.0/reviews/. Created by the architecture-tightening campaign (finding AT-NA-04) so the check no longer holds vacuously over landed SH2 work; items are appended, never rewritten."
+}
