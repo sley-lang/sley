@@ -71,10 +71,20 @@ for name, path in [("accepted.json", ACCEPTED), ("profile.json", PROFILE)]:
 
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 stage_p = manifest.get("stages", {}).get("P", {})
-if stage_p.get("value") != "BOOTSTRAP_PROFILE_1":
+# The manifest binds v1 or its frozen successor (BOOTSTRAP_PROFILE_2, RW-075
+# correction), and a successor binding must name v1 as superseded history.
+SUCCESSOR = ("BOOTSTRAP_PROFILE_2", "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459")
+if stage_p.get("value") == "BOOTSTRAP_PROFILE_1":
+    if stage_p.get("digest") != digest:
+        problems.append("manifest-P-digest-drift")
+elif stage_p.get("value") == SUCCESSOR[0]:
+    if stage_p.get("digest") != SUCCESSOR[1]:
+        problems.append("manifest-P-successor-digest-drift")
+    provenance = stage_p.get("provenance")
+    if not (isinstance(provenance, dict) and "BOOTSTRAP_PROFILE_1" in str(provenance.get("supersedes", ""))):
+        problems.append("manifest-P-successor-without-v1-history")
+else:
     problems.append("manifest-P-value-drift")
-if stage_p.get("digest") != digest:
-    problems.append("manifest-P-digest-drift")
 if not isinstance(stage_p.get("provenance"), dict):
     problems.append("manifest-P-provenance-drift")
 

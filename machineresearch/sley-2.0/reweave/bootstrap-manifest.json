@@ -36,16 +36,18 @@
    },
   "P": {
    "meaning": "pinned build/lowering profile, schema epoch, host ABI, limits, permitted dependencies",
-   "status": "frozen (BOOTSTRAP_PROFILE_1 v1, RW-050 slice 2)",
-   "value": "BOOTSTRAP_PROFILE_1",
-   "digest": "4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630",
+   "status": "frozen (BOOTSTRAP_PROFILE_2 v2, RW-075 correction 2026-09-06; current R2 candidate)",
+   "value": "BOOTSTRAP_PROFILE_2",
+   "digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
    "provenance": {
-    "artifact": "conformance/bootstrap-profile/v1/profile.json",
-    "checker": "scripts/check_bootstrap_profile_1.py",
-    "closure_vectors": "conformance/bootstrap-profile/v1/accepted.json",
-    "contract_doc": "docs/spec/BOOTSTRAP_PROFILE_1.md",
+    "artifact": "conformance/bootstrap-profile/v2/profile.json",
+    "checker": "scripts/check_bootstrap_profile_2.py",
+    "closure_vectors": "conformance/bootstrap-profile/v2/accepted.json (v1 vectors replay unchanged)",
+    "contract_doc": "docs/spec/BOOTSTRAP_PROFILE_2.md",
     "digest_method": "raw-byte SHA-256 of profile.json",
-    "frozen_by": "RW-050 slice 2 (2026-09-06)"
+    "frozen_by": "RW-075 correction (2026-09-06)",
+    "supersedes": "BOOTSTRAP_PROFILE_1 v1 (RW-050 slice 2, 2026-09-06; digest recorded in docs/spec/BOOTSTRAP_PROFILE_2.md and conformance/bootstrap-profile/v1/SHA256SUMS; strict superset adding exactly the RHW1 import row); v1 stays frozen as history",
+    "updated_by": "architecture-tightening AT-SS-01 / AT-NA-05 (2026-09-08): the manifest bound the retired profile after v2 became the R2 candidate"
    }
   },
   "S": {

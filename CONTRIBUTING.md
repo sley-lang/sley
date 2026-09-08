@@ -43,6 +43,7 @@ shell, mandatory Greyforge dependency, native backend, marketplace, or self-
 hosting work to the 2.0 GA path.
 
 Self-hosting toolchain work adopted under REWEAVE-1.0 (SH2 campaign) is
-governed by host-boundary.json, BOOTSTRAP_PROFILE_1, and the staged SH2 gates
+governed by host-boundary.json, BOOTSTRAP_PROFILE_2 (the frozen successor of
+BOOTSTRAP_PROFILE_1), and the staged SH2 gates
 instead of this paragraph. Every other prohibition in this paragraph is
 unchanged.
