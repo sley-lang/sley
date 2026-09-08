@@ -18,11 +18,18 @@
       "summary": "Targeted validation for the changed surface."
     },
     {
-      "artifact": "/home/greyforge/.local/state/sley2/at-mw-02/ariadne-phase1-r2.json",
+      "artifact": "/home/greyforge/.local/state/sley2/at-mw-02/phase1-acceptance.json",
       "id": "phase1-review",
-      "status": "fail",
-      "summary": "Pinned c4b1487: A1-A4 implementation repairs supported; oversized wrong-kind precedence, consuming API and evidence wording remain. Session-bound serving remains unimplemented.",
-      "updated_at": "2026-09-08T15:03:22+00:00"
+      "status": "pass",
+      "summary": "Phase1 query/repo foundation and prospective consumer contract accepted at5e2ff61; full protocol/consumer implementation remains open.",
+      "updated_at": "2026-09-08T15:21:38+00:00"
+    },
+    {
+      "artifact": "/home/greyforge/.local/state/sley2/at-mw-02/phase1-acceptance.json",
+      "id": "runtime-targeted",
+      "status": "pass",
+      "summary": "Tier2 foundation only at5e2ff61: query89/repo367/focused24 and Clippy pass; no full gate or v2 serving claim.",
+      "updated_at": "2026-09-08T15:21:38+00:00"
     }
   ],
   "owner": "muse-1.3-go",
@@ -75,8 +82,9 @@
       "evidence_refs": [],
       "id": "I1",
       "owner": "muse-1.3-go",
-      "status": "todo",
-      "title": "Versioned protocol and dependent contract synchronization"
+      "status": "doing",
+      "title": "Versioned protocol and dependent contract synchronization",
+      "updated_at": "2026-09-08T15:21:39+00:00"
     },
     {
       "evidence_refs": [
@@ -92,15 +100,17 @@
       "evidence_refs": [],
       "id": "I3",
       "owner": "muse-1.3-go",
-      "status": "todo",
-      "title": "Independent vectors and byte/resource/version/freshness regression tests"
+      "status": "doing",
+      "title": "Independent vectors and byte/resource/version/freshness regression tests",
+      "updated_at": "2026-09-08T15:21:39+00:00"
     },
     {
       "evidence_refs": [],
       "id": "I4",
       "owner": "muse-1.3-go",
       "status": "todo",
-      "title": "Bridge/CLI and real bounded-context EC1a/signature edit demonstrations"
+      "title": "Bridge/CLI and response-derived bounded expression/signature edit demonstrations",
+      "updated_at": "2026-09-08T15:21:39+00:00"
     }
   ],
   "title": "AT-MW-02: implement reviewed entity and signature protocol reads"

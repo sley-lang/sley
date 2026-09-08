@@ -1,6 +1,7 @@
 # AT-MW-02 consumer acceptance clarification
 
-Status: PROPOSED_FOR_PINNED_REVIEW, 2026-09-08. This changes only the
+Status: REVIEWED_ACCEPTED, 2026-09-08. Ariadne and Nabu independently
+approved candidate `5e2ff61cc3e6dd6e437881d20ba7458f4896a1b9`. This changes only the
 consumer demonstration definition in ENTITY_READ_PROFILE_V2 section 7;
 the reviewed runtime and remaining acceptance requirements stay in force.
 
@@ -30,5 +31,5 @@ canonical machineresearch authority; this repository's
 `docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md` sections 2, 3.7 and 4;
 retained Machine Genesis section 8.2. The integrator retains the bounded
 search and source-hash receipt as `ec1a-source-resolution.json` in the
-private AT-MW-02 evidence directory. Independent review of this prospective
-amendment is required before consumer implementation or acceptance.
+private AT-MW-02 evidence directory. The amendment authorizes its defined
+consumer implementation; successful demonstration evidence remains required.

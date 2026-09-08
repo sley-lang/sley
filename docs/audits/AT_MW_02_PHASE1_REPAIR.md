@@ -1,10 +1,17 @@
 # AT-MW-02 phase-1 repair record
 
-Status: REPAIRED_PENDING_REVIEW, 2026-09-08; owner: Muse 1.3 (OpenCode Go).
+Status: REPAIRED_REVIEWED, 2026-09-08; implementation owner: Muse 1.3
+(OpenCode Go). Ariadne and Nabu approved candidate
+`5e2ff61cc3e6dd6e437881d20ba7458f4896a1b9`; independent Tier 2 validation
+on that exact candidate passed 89 query and 367 repository library tests,
+24 focused entity-read tests and targeted all-target Clippy with no warnings.
+The seven ignored library tests are intentional fixture emitters. The full
+gate was not run for this foundation checkpoint.
 Scope: `crates/sley-query/src/entity_read.rs`,
 `crates/sley-repo/src/entity_read.rs`, this record.
 Base: `e443850`; reviewed contract `docs/spec/ENTITY_READ_PROFILE_V2.md`
-at `aff5164` unchanged. Accepts Ariadne findings A1-A5 plus R1-R2 (Nabu
+at `aff5164` has unchanged runtime semantics; the separate consumer
+acceptance clarification is recorded in its own audit. Accepts Ariadne findings A1-A5 plus R1-R2 (Nabu
 concurs on A2 design). No protocol, session, bridge, CLI, or runner
 changes.
 
@@ -55,7 +62,7 @@ before parameter traversal or copying. An oversized non-Function answers
 
 ## Evidence
 
-Fail-before receipt (6 discriminating failures, exit 101):
+Fail-before receipt (six failing assertions, exit 101):
 `phase1-repair/fail-before.json`. Five behavioral assertions:
 independent canonical assembly, inner length defects, zero ceilings,
 updated zero assertions in the ceiling matrix, oversized object; plus
@@ -88,4 +95,6 @@ non-Function applicability precedence, exact final capacity/body length.
 
 None in this repair scope. Whole AT-MW-02 remains incomplete; protocol
 integration, independent vectors, and bounded-context demonstrations are
-subsequent phases. Stopping here for root integration review.
+subsequent phases. The integrator's private `phase1-acceptance.json` binds
+the exact review and validation receipts and accepts this foundation for
+local protocol integration.
