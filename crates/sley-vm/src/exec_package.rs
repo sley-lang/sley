@@ -260,7 +260,9 @@ pub struct PackageDigests {
     /// SHA-256 over the dependency/inventory section bytes
     /// (globals + contracts + entry + epoch + root + profile + limits).
     pub dependency_digest: [u8; 32],
-    /// SHA-256 over the complete envelope bytes (the package identity).
+    /// The package identity: SHA-256 over the header preimage (magic,
+    /// version, profile digest, ABI version, VM version, the five section
+    /// digests, entry, epoch, root), never over serialized envelope bytes.
     pub package_digest: [u8; 32],
 }
 
@@ -322,7 +324,7 @@ impl AdmissionReceipt {
 /// approval for another budget.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ApprovedExecutionPackage {
-    /// Expected package identity (SHA-256 over the envelope).
+    /// Expected package identity (SHA-256 over the header preimage).
     pub package_digest: [u8; 32],
     /// Expected image identity (SHA-256 over the exact image bytes).
     pub image_digest: [u8; 32],

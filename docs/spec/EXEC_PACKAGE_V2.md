@@ -65,6 +65,25 @@ fields). Admitted limits must equal the request limits exactly at
 approval (mismatch refuses); observations additionally bind them
 post hoc.
 
+## Identity versus serialization
+
+The package identity is the header digest above and nothing else. It is
+not a digest over serialized envelope bytes: the sections enter it only
+through their section digests. The `EXEC_PACKAGE_V1` wording "package
+digest (over the envelope of at most 67_108_864 total bytes)" describes
+the same header preimage bounded by the envelope ceiling; that text is
+frozen history and is superseded by this statement, not edited.
+
+No canonical byte serialization of the envelope (header layout, section
+order, length prefixes) is frozen by this contract, and no encoder or
+decoder for one exists. Packages reach `execute_approved_package_v2` as
+in-process structures. The framing codes `PACKAGE_UNKNOWN_MAGIC`,
+`PACKAGE_UNSUPPORTED_VERSION`, `PACKAGE_TRUNCATED` and
+`PACKAGE_TRAILING_DATA` are reserved for the strict decoder that the
+RW-080 builder/loader handoff will freeze together with its emitter and
+vectors; until then they are unreachable by design. Freezing the layout
+will not change the package digest preimage.
+
 ## Hydration (unchanged)
 
 Same allows/forbids as v1 (byte/framing decode, digest verification,
