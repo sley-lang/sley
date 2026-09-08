@@ -429,3 +429,250 @@ SPECS_TO_UPDATE: none now; lane: EXEC_PACKAGE_V2.md envelope layout section plus
 CODE_OWNERSHIP: RW-080 lane (sley-vm exec_package)
 REVIEW_REQUIRED: lane review (Ariadne contract, Vulcan surface)
 ```
+
+### 3.3 Conformance layering, BLACKGLASS wording, Witness boundary (spec sections 10, 11, 12)
+
+Oracle coverage at the baseline: 9 of the 12 required contracts are checked by
+the independent oracle at codec-and-identity depth, none at semantic depth (by
+design, master section 6.5); policy root and capability token have native
+vectors only; the test-report contract has no corpus with the reason machine
+guarded. Witnessed Authority is not part of the active architecture at this
+commit (no type, crate, domain, or corpus; host-boundary.json records "WA
+inactive"), so section 12 is scope-only until RW-150.
+
+
+```text
+FINDING_ID: AT-CL-01
+TITLE: No independent-implementation conformance strata; primary all-or-nothing is deliberate
+HYPOTHESIS: Sley conformance is unnecessarily all-or-nothing, so an independent implementation cannot make a bounded claim.
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:22-35 (mapping only, no prerequisite column); docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:186-208 (depth axis, the only conformance-claim stratification); docs/spec/SMP1.md:106-160 (selected profile: the only runtime partial-capability mechanism); ARCHITECTURE.md:18-33 and crates/*/Cargo.toml (layer prerequisites: sley-policy -> sley-vm, sley-query -> sley-state-root without txn); docs/WORK_PACKAGES.md:18-55 (package DAG); docs/adr/ADR-0044-candidate-operation-analysis-through-the-vm-owner.md:1-3; machineresearch/sley-2.0/reviews/s20-770-{ariadne,nabu,vulcan}-*-2026-09-04.log (index under three FAIL reviews, P1s open); evidence/conformance/independent-conformance-report.json (24 families, 4 semantic, 20 codec_and_identity, 0 native_only)
+SPEC_EVIDENCE: Sley2.0mastergoal.md:846-853 (6.5: oracle is for conformance only, not a second kernel); :3169-3190 (27: primary decision states are all-or-nothing); :465-468 (3.9: independent implementations can validate); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:281-290 (SH0..SH3 claim ladder), :754-770 (24.1), :125 (OVR-14 restricted results remain restricted); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 10 ("primarily an interoperability/documentation improvement")
+CURRENT_BEHAVIOR: The primary implementation's claim is all-or-nothing by master goal 27. Independent checking is stratified only by per-family depth. No document defines what a third implementation may claim, and no third implementation exists. The index maps names to artifacts but carries no ordering.
+DESIRED_INVARIANT: Lower layers have exact prerequisites; no unsupported higher-layer claim; partial conformance never weakens canonical semantics; the primary still satisfies the full target.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: No consumer of a strata vocabulary exists at 2.0 and none is a GA criterion (master 16.7, 26, 27). The raw material for exact prerequisites already exists and is machine-enforced (Cargo graph, package DAG, depth axis), so the future document is a derivation, not a design. Adding a prerequisite column to the S20-770 index now would widen an artifact under open P1 re-review. The strata table in section 2.2 of this audit is the recorded recommendation, with the repository-truth corrections: L3 requires L2 (ADR-0044), L4 query does not require L3 transaction, L6 is not definable until RW-150, L7 is already stratified as SH0..SH3.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none; SH claim ladder already exists and is the L7 stratum
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now; a future strata document would need a checker deriving prerequisites from Cargo.toml and the package DAG so the table cannot drift
+SPECS_TO_UPDATE: none now; future: a CONFORMANCE_STRATA document indexed from REQUIRED_CONTRACT_INDEX_V1.md after S20-770 re-review closes
+CODE_OWNERSHIP: Ariadne (contract), Codex (oracle and evidence tooling)
+REVIEW_REQUIRED: none now
+```
+
+```text
+FINDING_ID: AT-CL-02
+TITLE: Machine summary records 19 fixture families; tracked report and checker read 24
+HYPOTHESIS: The machine-readable conformance claim surface disagrees with the tracked report it points to, and the staged checker does not detect it.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/machine-summary.json:2889-2892 ("fixture_directories": 19, "independently_checked_families": 19); evidence/conformance/independent-conformance-report.json ("fixture_directories": 24, "independently_checked": 24, verified by `scripts/build_independent_conformance_report.py --check` PASS at this commit); scripts/check_reproducibility_and_independent_conformance.py:220-252 (compares contract, adr, checker, report paths, code count, ga_claimed, publication_authorized, implementation_complete; never compares the family counts or result against the report); scripts/check_oracle_independence.py:4-8 docstring still says "Nineteen fixture families"
+SPEC_EVIDENCE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:9-11 ("implementation state is tracked in the machine summary"); :252-269 (what the staged checker verifies; the summary-to-report count agreement is not listed); Sley2.0mastergoal.md:3078 ("The machine summary and human-readable evidence index must agree")
+CURRENT_BEHAVIOR: The summary understates independent coverage by five families while the result string matches. The count was last set at 7579d34 (2026-09-03); the five families added since (git first-add dates, all 2026-09-06) are bootstrap-capability, bootstrap-profile, exec-package, host-abi, and raw-hash. `make quick` passes with the drift present.
+DESIRED_INVARIANT: The machine summary's conformance counts and result equal the tracked report's, and the staged checker fails on disagreement.
+DISPOSITION: B_ADDITIVE_NOW
+RATIONALE: Demonstrated machine-surface drift on the exact surface a downstream consumer reads to learn what independent checking covers (the same class of defect Vulcan's S20-770 P1 raised for the index). The fix is bounded: update three summary fields and add a count-and-result comparison to the staged checker, plus the stale docstring in check_oracle_independence.py. No canonical, schema, or ABI meaning changes.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: scripts/check_reproducibility_and_independent_conformance.py compares summary fixture_directories, independently_checked_families, native_only_families, and independent_conformance_result against the tracked report and fails with CONFORMANCE_REPORT_DRIFT (73007) on mismatch; a negative case with a perturbed summary
+SPECS_TO_UPDATE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md section 8 (add the summary-agreement rule to the staged checker's list); machineresearch/sley-2.0/machine-summary.json; scripts/check_oracle_independence.py docstring
+CODE_OWNERSHIP: Codex (S20-730 evidence tooling) per docs/WORK_PACKAGES.md S20-730 row
+REVIEW_REQUIRED: Vulcan surface review of the checker delta (Tier 1 targeted); no Council contract re-review needed because the contract rule set gains one clause and no code
+IMPLEMENTATION (slice 3): machine-summary.json counts set to the report's 24/24; check_reproducibility_and_independent_conformance.py now fails closed on any mismatch between the summary section and the report for fixture_directories, independently_checked_families, native_only_families and independent_conformance_result (fail-before reproduced on the stale 19s: two report-mismatch problems; none after); stale hard-coded family counts removed from two script docstrings. The checker's two remaining problems (reproducibility-report stale since 84bfa9c9, release-tests:fail) exist unchanged at the baseline and are triaged in section 3.3.1.
+```
+
+```text
+FINDING_ID: AT-CL-03
+TITLE: COMPLETE independent coverage is scoped to fixture families, and the three uncovered required contracts are already disclosed
+HYPOTHESIS: INDEPENDENT_CONFORMANCE_COMPLETE could be read as "all twelve required contracts are independently checked" while 17.7, 17.8, and 17.10 are not.
+REPOSITORY_EVIDENCE: docs/spec/REQUIRED_CONTRACT_INDEX_V1.md:30-31 ("native vectors in `crates/sley-policy`" for sley-policy-v1 and sley-capability-token-v1), :33 (sley-test-report-v1: no corpus, reason stated), :44-48 (reason must be checkable; the S20-290 checker fails if the VM gains the four resource units); conformance/ directory listing (no policy, capability, or test-report family); evidence/conformance/independent-conformance-report.json (24 families, none of them policy or capability)
+SPEC_EVIDENCE: docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:150-151 (every directory under conformance/ is a family), :160-166 (COMPLETE means no family is native-only; does not promise semantic judgment), :288-292 (why COMPLETE keeps its rule); Sley2.0mastergoal.md:846-853 (6.5 requires two independent SCB1 encoders/decoders, nothing wider)
+CURRENT_BEHAVIOR: The report's claim boundary is families; the index's corpus column names the native-only status and the missing-corpus reason for the three contracts. Both are honest and machine-checked in their own terms.
+DESIRED_INVARIANT: A reader can determine, from tracked artifacts, which required contracts have independent checking and at what depth, without inferring more from COMPLETE than it states.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The index discloses the three gaps with reasons (rule 3, :44-48), the S20-730 contract scopes COMPLETE to families and records the depth limit, and master goal 6.5 does not require independent checking of policy, capability, or test reports. The cross-reference table in section 1 of this audit is derivable from tracked files. Making the index carry a coverage column belongs with the deferred strata document (AT-CL-01), not with a pre-freeze change.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Ariadne (index), Codex (report)
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-BG-01
+TITLE: MPI-0 and its corollaries are mechanism-neutral and protect the deeper invariant
+HYPOTHESIS: BLACKGLASS wording accidentally elevates SSMC1, SCB1, or SMP1 (replaceable, versioned mechanisms) above the machine-primacy invariant.
+REPOSITORY_EVIDENCE: machineresearch/sley-2.0/reweave/rw-030-charter.md:10-27 (MPI-0 control map; carriers are CONTRIBUTING.md C-01 and docs/ANTI_GOALS.md C-02); docs/spec/SCHEMA_EPOCH_V1.md and docs/spec/EPOCH_MIGRATION_POLICY_V1.md (mechanism replacement path exists as epochs)
+SPEC_EVIDENCE: Sley2.0.1mastergoal.md:94-95 (MPI-0 text, no mechanism named); :136-146 (3.2 no canonical source, mechanism-neutral); :158-160 (3.4 states precision, determinism, speed, token cost as the invariant's terms); :164-176 (3.5 no intentional ugliness); :791-793 (19: immature contracts may be broken; stable ones migrate; stability is no excuse for source-centric assumptions); :800-818 (20: implementation source is not Sley source); :857-865 (22: provider-specific encodings are adapters); :1229 (final directive names SSMC1/SCB1/SMP1 as preserved by that campaign); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:194 (unversioned SSMC/SCB/SMP statement); Sley2.0mastergoal.md:359-395 (3.1 invariant before 3.3 mechanism)
+CURRENT_BEHAVIOR: Every constitutional clause states the invariant in terms of machine sufficiency, precision, determinism, and efficiency; mechanisms are named as the current epoch's carriers and are replaceable by explicit migration (BG 19, REWEAVE 14.3, tightening 2.2). The prohibition on canonical human-readable text is intact in BG 3.2, master 3.2, ANTI_GOALS.md:16, and CONTRIBUTING.md:36-39.
+DESIRED_INVARIANT: Sley is optimized for machine semantic precision, correctness, generation efficiency, verification efficiency, and interoperability; human-oriented source conventions must not constrain canonical architecture; no replaceable mechanism is constitutional above that.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: No clause found that would forbid a v2 encoding epoch on constitutional grounds, and none that weakens the text prohibition. Section 3 of this audit quotes each clause with its verdict. Tightening section 11 default applies.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Maat (doctrine), Ariadne (contract)
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-BG-02
+TITLE: "SCB1 only" in the anti-goal evidence column is evidence wording, not a constitutional pin
+HYPOTHESIS: docs/ANTI_GOALS.md row "canonical text or human projection" with acceptance evidence "SCB1 only" makes the SCB1 mechanism, rather than the no-text invariant, the enforced rule.
+REPOSITORY_EVIDENCE: docs/ANTI_GOALS.md:16 (the row); evidence/validation/anti-goal-conformance.json entry for "canonical text or human projection" (state REVIEW_ONLY, "no mechanical evaluation; the Council review owns it"); scripts/build_anti_goal_conformance.py (no code evaluates that row); machineresearch/sley-2.0/03-constitution-and-anti-goals.md:7-9 ("SCB1/SSMC1 state is canonical while source text ... remain non-canonical")
+SPEC_EVIDENCE: Sley2.0.1mastergoal.md:136-146 (3.2, the invariant the row carries); :791-793 (mechanism migration allowed); docs/spec/EPOCH_MIGRATION_POLICY_V1.md (how a new encoding epoch enters)
+CURRENT_BEHAVIOR: The prohibition column is mechanism-neutral; the evidence column names the current encoding, as every evidence column in the matrix names current artifacts. The row is review-owned, so no checker would misfire on a future epoch. A new encoding epoch updates the evidence cell as part of ordinary epoch migration work.
+DESIRED_INVARIANT: The anti-goal prohibits canonical text and human projection regardless of which binary encoding epoch is current.
+DISPOSITION: D_REJECT
+RATIONALE: Rewording "SCB1 only" to "the current canonical encoding epoch only" would be a stylistic broadening with no present defect, which tightening section 11 forbids ("Do not modify BLACKGLASS merely to make it philosophically broader") and section 21 forbids ("reopen already-correct canonical decisions for stylistic preference"). Recorded so a future epoch's implementer knows the cell must move with the epoch.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Maat
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-BG-03
+TITLE: BLACKGLASS in-repo artifacts (MACHINE_PRIMACY.md, manifest, gate) are absent by REWEAVE design, not by wording defect
+HYPOTHESIS: BLACKGLASS section 7 and 10 require MACHINE_PRIMACY.md, a Machine Primacy Manifest, and a Machine Primacy Gate before any SSMC1/SCB1/SMP1 contract is declared Beta or GA; none exists in the repository.
+REPOSITORY_EVIDENCE: docs/MACHINE_PRIMACY.md does not exist; no "MPI-0" or "machine primacy" string in README.md, ARCHITECTURE.md, CONTRIBUTING.md, SECURITY.md, docs/*.md, or docs/adr/*.md except docs/adr/ADR-0049-reweave-scope-adoption.md; machineresearch/sley-2.0/reweave/rw-030-charter.md:1-27 (RW-030 "MPI-0 controls + host-boundary" charter; control map with enforcement, review lane, and later lifecycle evidence per control; carriers CONTRIBUTING.md C-01 and docs/ANTI_GOALS.md C-02 at adoption 3fc2275); docs/ANTI_GOALS.md:21 (human readability optimization row, REVIEW_ONLY)
+SPEC_EVIDENCE: Sley2.0.1mastergoal.md:49 (apply before Beta/GA), :334-373 (manifest), :429-455 (gate), :981-985 (BG-010, BG-050); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:112 (OVR-05: "Adopt applicable machine-primacy controls during reconciliation, complete dependent suites when the lifecycle exists"), :131 (BG's constitution, counterfactual, dependency firewall, and lifecycle suites are incorporated), :596 (RW-030), :614 (RW-210 "Full source-free and machine-primacy demonstrations: MG/BG/WA end-to-end coverage")
+CURRENT_BEHAVIOR: The newer authority (REWEAVE) explicitly re-times BLACKGLASS's suites to the lifecycle and RW-030 has recorded the control map with real enforcement for the mechanical rows and named review lanes for the prose rows. The constitution text itself is carried by CONTRIBUTING.md and ANTI_GOALS.md.
+DESIRED_INVARIANT: MPI-0 is enforced through machine-readable policy, architecture tests, dependency rules, conformance fixtures, benchmark gates, and contribution requirements (BG section 2) by the time the integrated candidate is qualified.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: This is a scheduling fact governed by REWEAVE OVR-05 and RW-030/RW-210, already recorded and reviewed (ADR-0049 review PASS transcripts named at docs/adr/ADR-0049-reweave-scope-adoption.md:4-6). It is not a wording defect in any constitutional clause and tightening section 11 authorizes no BLACKGLASS implementation work. Nothing to change in this pass.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none in this pass; RW-210 owns the BG lifecycle suites
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: RW-030 (Nabu/Ariadne review lane per the charter), RW-210
+REVIEW_REQUIRED: none in this pass
+```
+
+```text
+FINDING_ID: AT-WB-01
+TITLE: Witnessed Authority is not part of the active canonical architecture; audit is scope-only
+HYPOTHESIS: Witnessed Authority may already be present in crates, specs, or conformance, in which case its boundary must be audited.
+REPOSITORY_EVIDENCE: zero `Witness<` occurrences in crates/ (excluding target/); eighteen workspace crates, none for Witness; all "witness" hits are the GC store-root witness (docs/spec/GARBAGE_COLLECTION_V1.md:114, crates/sley-txn/src/repository.rs:4932-4940, docs/adr/ADR-0023-crash-recovery-boundary.md:445-460) or native denials (crates/sley-vm/src/host_abi.rs:11, crates/sley-vm/tests/rw070_host_abi_freeze.rs:816-817); host-boundary.json:178-179 ("WA inactive; no unimplemented Witness semantics may be claimed protective", status later-qualified); docs/spec/BOOTSTRAP_PROFILE_1.md:20 and :26-28 (Witness analysis and the WITNESS release surface are later, strict-superset surfaces); docs/spec/IDENTIFIERS_V1.md:21-70 (no witness, discharge, origin, or proposal-integrity domain); conformance/ (no such family); docs/adr/ADR-0049-reweave-scope-adoption.md:72-73
+SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:489-541 (section 16 incorporates the amended 2.1 WA master as the future contract), :533-541 (16.7: Witness lands inside the Sley toolchain closure after SH2; "After WA changes land, repeat ..."), :575 (phase R4), :608-613 (RW-150, RW-170, RW-180, RW-190, RW-200); SLEY-2.1-WITNESS-MASTER-SPEC.md (2.1 scope, headers only); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("If Witnessed Authority is already part of the active Sley 2.0 canonical architecture, audit ...")
+CURRENT_BEHAVIOR: No proposal type, origin representation, control-dependence rule, join/loop/function-boundary rule, persistence, promotion or discharge rule, authority sink, or verifier contract exists for Witness at this commit. The ten section-12 boundary questions have no code to bind to.
+DESIRED_INVARIANT: The Witness boundary is audited against frozen contracts and code when they exist (RW-150 onward), with the minimum semantics necessary for exact proposal, provenance, and promotion enforcement.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: The audit's own precondition is unmet. Recording scope-only with the evidence above so the next pass can start from RW-150's frozen contracts instead of re-establishing absence.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none now; REWEAVE 16.7 requires re-proving SH2 after Witness lands
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none now
+SPECS_TO_UPDATE: none now
+CODE_OWNERSHIP: RW-150 (contracts), RW-170/RW-180 (Sley checker and discharge)
+REVIEW_REQUIRED: none now; a full boundary audit at RW-150 freeze
+```
+
+```text
+FINDING_ID: AT-WB-02
+TITLE: Native discharge and Witness-trust judgment are already denied ahead of Witness landing
+HYPOTHESIS: The pre-Witness architecture might leave a native path that could later become a hidden discharge or trust authority.
+REPOSITORY_EVIDENCE: host-boundary.json:25-26 (native may not "typecheck, lower, validate programs, or discharge" nor "assemble compiler images or judge Witness trust"), :35 ("no imported discharge service decides promotion; the Sley semantic implementation of approved deterministic discharge profiles owns the judgment"), :45-46 (compiler-service ban and giant-opcode ban naming "compute Witness trust"), :178-179; docs/spec/HOST_ABI_V1.md:141 (native MUST NOT "perform CFG/effect/contract/Witness judgment"), :175 (`discharge_witness(program/value)` in the denied list); docs/spec/EFFECT_SYSTEM_V1.md:154-159 (pure primitives must not perform "Witness integrity/discharge judgment"); crates/sley-vm/tests/rw070_host_abi_freeze.rs:816-817 (the denial is pinned by test); crates/sley-vm/src/host_abi.rs:11
+SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:305-327 (10.2 item 3 and item 6, 10.3, 10.4: native may hold crypto primitives but never discharge judgment); :509-515 (16.3: the pre-existing protected policy binds the verifier; the judged candidate cannot select its own verifier); :533-537 (16.7: a transient Rust implementation cannot remain a hidden SH2 production dependency)
+CURRENT_BEHAVIOR: Every native surface that could later be misused as a discharge or trust authority is denied by contract, by boundary record, and by test, without claiming any Witness semantics exist.
+DESIRED_INVARIANT: Only an approved deterministic verifier bound by pre-existing protected policy may promote a witnessed value; no native or imported service may own that judgment.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The denial side of the future boundary is in place and is exactly the minimum tightening section 12 asks for ("Prefer the minimum semantics necessary"). Nothing to add before RW-150.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none; the denials are part of the SH2 boundary already
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none; rw070_native_compiler_services_are_not_admitted already pins the list
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: RW-070 (host ABI freeze), RW-030 (boundary record)
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-WB-03
+TITLE: Proposal-versus-authority separation already exists structurally in the candidate chain
+HYPOTHESIS: The 2.0 architecture might conflate a proposed change with an authoritative value, which Witness would later have to unwind.
+REPOSITORY_EVIDENCE: docs/spec/IDENTIFIERS_V1.md:31-32, :25-26 (distinct domains sley2.candidate.v1, sley2.candidate-result.v1, sley2.transaction.v1, sley2.transaction-receipt.v1); crates/sley-mutate/README.md:4 ("proposal-value host-model slice"); docs/ANTI_GOALS.md:23 ("model/reviewer as semantic oracle: deterministic kernel alone decides validity"), :24 ("self-authorizing candidate: candidate cannot change its judging roots"); crates/sley-protocol/src/session.rs:116-118 and crates/sley-query/src/context_capsule.rs:333-341 ("provenance" here is the engine-verified session binding, not a model-origin claim); docs/spec/CANDIDATE_RECORD_V1.md:6-17 (boundary), docs/spec/CANDIDATE_RESULT_V1.md, docs/spec/TRANSACTION_MODEL_V1.md
+SPEC_EVIDENCE: SLEY-2.1-WITNESS-MASTER-SPEC.md WA-0 "Proposal is not authority", WA-6 "Candidate and judge are separated" (headers); SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:529-531 (16.6: full existing validation and commit gates, not generic verifier success, control program changes); Sley2.0mastergoal.md:1792 (13.5 no prompt authority)
+CURRENT_BEHAVIOR: A candidate is a proposal with its own identity; validity is a separate result object; acceptance is a separate transaction with a receipt. No model output is an oracle. No "provenance" or "proposal" symbol in the tree carries model-origin meaning, so nothing pre-empts WA's origin-set representation.
+DESIRED_INVARIANT: Explicit proposal versus authoritative value, with the deterministic kernel as the only judge, preserved when Witness adds origin evidence to candidate identity (16.6).
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: The structural precursor of WA-0 and WA-6 is present and reviewed under S20-350/360/390. Adding origin evidence to candidate identity at RW-200 is additive to this chain, not a reinterpretation of it (tightening 2.2 will require a new candidate version at that point, which is RW-150's job).
+CANONICAL_IMPACT: none now
+SCHEMA_IMPACT: none now
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: Merlin (sley-mutate, sley-policy, sley-txn) per docs/WORK_PACKAGES.md
+REVIEW_REQUIRED: none
+```
+
+```text
+FINDING_ID: AT-WB-04
+TITLE: Generalized trust lattice, confidence lattice, and policy algebra are excluded
+HYPOTHESIS: Richer trust semantics might be needed for 2.0 correctness or might be tempting to pre-build.
+REPOSITORY_EVIDENCE: none present (no lattice, confidence, or trust-policy type in crates/ or docs/spec; grep for Witness types returns zero); host-boundary.json:179 forbids claiming unimplemented Witness semantics as protective
+SPEC_EVIDENCE: SLEY_2X_REWEAVE_MASTER_SPEC_V1.md:513 (16.3: "bounded evidence metadata within WA's existing two-class model, not a general trust lattice or partial-field discharge system"), :555 (18: "general security lattice" and "probabilistic language semantics" excluded), :557 (do not add an excluded effect merely because WA names it as an example sink); SLEY-2.0-ARCHITECTURE-TIGHTENING.md section 12 ("Any generalized probabilistic trust, confidence lattice, or policy algebra not required for current correctness SHALL be E_DEFER_2_1_PLUS") and section 21 ("add generalized AI trust theory" is a non-goal)
+CURRENT_BEHAVIOR: Nothing of the kind exists, and two authorities already forbid building it in this campaign.
+DESIRED_INVARIANT: Witness, when it lands, uses the two-class integrity model with exact proposal, provenance, and promotion enforcement and nothing more general.
+DISPOSITION: E_DEFER_2_1_PLUS
+RATIONALE: Required by the tightening spec's own rule; not needed for 2.0 correctness; already excluded by REWEAVE 16.3 and 18. Recorded so the exclusion is visible in this audit's register.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: RW-150 (any future WA contract change requires an operator scope amendment per REWEAVE 18 last paragraph)
+REVIEW_REQUIRED: none
+```
+
+
+
+#### 3.3.1 Triage of the S20-730 checker's two residual problems
+
+Running `scripts/check_reproducibility_and_independent_conformance.py` in the
+campaign worktree reports two problems that the baseline checker reports
+identically at 560a5f16 (verified by running the committed script from a
+scratch copy against the same tree):
+
+- `reproducibility-report:stale:84bfa9c9c5d9:32-surface-files-changed`: the
+  report attests commit 84bfa9c9 and the artifact surface has changed since.
+  RESUME.md records this as the by-design S20-730 staleness that re-attests at
+  the next `make release-candidate-smoke`, pending since the S20-330 closure.
+  Not caused by this campaign; cleared only by the smoke, which is a lane
+  action.
+- `release-tests:fail`: 15 of 59 tests under `bench/release/tests` error in
+  `setUp` with `INVENTORY_MISSING` because
+  `evidence/runtime/s20-720-release-candidate/evidence.json` does not exist.
+  That file is gitignored runtime evidence written by the release smoke, so it
+  is absent in every fresh worktree (the main checkout carries it). Expected
+  in this environment; not a repository defect; not changed here.
+
+Neither problem masks the AT-CL-02 repair: the new report-mismatch checks are
+independent of both and were exercised fail-before and pass-after.

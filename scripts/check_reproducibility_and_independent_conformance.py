@@ -301,6 +301,19 @@ def main() -> int:
             if report.get("work_package") != "S20-730":
                 problems.append(f"{path.name}:work_package")
 
+        # The summary section restates the report's coverage counts by hand;
+        # they drifted from 19 to 24 families in 2026-09 without any check.
+        if CONFORMANCE_REPORT.exists():
+            report = json.loads(read(CONFORMANCE_REPORT))
+            for summary_key, report_key in (
+                ("fixture_directories", "fixture_directories"),
+                ("independently_checked_families", "independently_checked"),
+                ("native_only_families", "native_only"),
+                ("independent_conformance_result", "result"),
+            ):
+                if section.get(summary_key) != report.get(report_key):
+                    problems.append(f"machine-summary:{summary_key}:report-mismatch")
+
         if REPRO_REPORT.exists():
             report = json.loads(read(REPRO_REPORT))
             if not report.get("attestations"):

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Fail if an independent oracle acquires a Rust implementation dependency.
 
-Nineteen fixture families are checked by an independent oracle, and only seven
-of those live under `oracle/scb1/src`: twelve are `scripts/check_*_vector.py`
-files run through the same environment. Scanning only the package left twelve
-oracles outside the check that vouches for them, so this audit reads every
-oracle the S20-730 coverage map names, wherever it lives.
+The independent oracles live partly under `oracle/scb1/src` and partly as
+`scripts/check_*_vector.py` files run through the same environment. Scanning
+only the package left the script oracles outside the check that vouches for
+them, so this audit reads every oracle the S20-730 coverage map names,
+wherever it lives.
 """
 
 from __future__ import annotations

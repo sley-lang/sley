@@ -290,8 +290,8 @@ def family_record(directory: Path, recipe: str) -> dict:
 def oracle_independence() -> dict:
     """Re-applies the S20-130 forbidden marker scan over every oracle.
 
-    Twelve of the nineteen independent checks live under `scripts/`, so a scan
-    of the package alone would vouch for oracles it never read.
+    Many of the independent checks live under `scripts/`, so a scan of the
+    package alone would vouch for oracles it never read.
     """
     sources = sorted((ORACLE / "src").rglob("*.py")) + [
         ROOT / "scripts" / name
