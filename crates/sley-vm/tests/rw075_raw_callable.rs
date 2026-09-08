@@ -1671,7 +1671,13 @@ fn raw_v2_gate_bounds_carried_preimages() {
 }
 
 fn hex32(bytes: &[u8; 32]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(64), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
 }
 
 // Frozen vectors for the R2 execution identity (AT-HH-04): the v2 package and
