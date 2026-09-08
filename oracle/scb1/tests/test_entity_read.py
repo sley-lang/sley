@@ -1771,5 +1771,290 @@ class CorpusContentClosureCases(unittest.TestCase):
         self.assertB1Problems(problems, "rejected:fill_bytes_exact:fill_length")
 
 
+_B2_LIMIT_KEYS = (
+    "max_frame_bytes",
+    "max_entities",
+    "max_edges",
+    "max_depth",
+    "max_response_bytes",
+    "max_work",
+    "max_inflight",
+    "max_sessions",
+)
+_B2_U32_LIMIT_TAGS = frozenset({4, 7, 8})
+
+
+def _b2_load(case_id):
+    inputs = load_authored_inputs()
+    case = inputs["cases"][case_id]
+    built = entity_read.build_success_case(inputs, case)
+    return inputs, case, built
+
+
+def _b2_max_frame(inputs):
+    return int(inputs["selected_limits"]["max_frame_bytes"])
+
+
+def _b2_valid_frame(inputs, built, side):
+    wire = bytes.fromhex(built[f"{side}_wire_hex"])
+    stored, _prefix = entity_read.split_wire(wire, _b2_max_frame(inputs))
+    payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+    frame = entity_read.decode_frame_payload(payload)
+    return wire, stored, payload, frame
+
+
+def _b2_supplied_wire_only(built, side, mutated_wire):
+    supplied = copy.deepcopy(built)
+    supplied[f"{side}_wire_hex"] = mutated_wire.hex()
+    if side == "response":
+        supplied["response_wire_len"] = len(mutated_wire)
+    return supplied
+
+
+def _b2_supplied_with_payload(built, side, mutated_payload):
+    supplied = copy.deepcopy(built)
+    wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), mutated_payload)
+    supplied[f"{side}_wire_hex"] = wire.hex()
+    supplied[f"{side}_preimage_hex"] = preimage.hex()
+    supplied[f"{side}_frame_id"] = frame_id.hex()
+    if side == "response":
+        supplied["response_wire_len"] = len(wire)
+    return supplied
+
+
+def _b2_raw_envelope(payload, *, magic, format_value, tag_value, epoch):
+    preimage = magic + encode_uvar(format_value) + encode_uvar(tag_value) + epoch + encode_sized(payload)
+    trailer = blake3.blake3(entity_read.FRAME_DOMAIN + preimage).digest()
+    stored = preimage + trailer
+    wire = len(stored).to_bytes(8, "big") + stored
+    return wire, preimage, trailer
+
+
+def _b2_expect(testcase, inputs, case, supplied, side, layer, code):
+    problems = []
+    entity_read.semantic_check(inputs, case, supplied, problems)
+    head = f"{case['id']}:semantic:{side}:{layer}"
+    testcase.assertIsInstance(problems, list)
+    testcase.assertTrue(any(head in entry for entry in problems), f"missing {head} in {problems!r}")
+    if code is not None:
+        testcase.assertTrue(any(code in entry for entry in problems), f"missing {code} in {problems!r}")
+
+
+def _b2_check_request_zero_limits(testcase, inputs, frame):
+    bound_fields = entity_read.parse_record(frame["bounds"])
+    limits_raw = entity_read.single_field(bound_fields, 1)
+    limit_fields = entity_read.parse_record(limits_raw)
+    testcase.assertEqual(sorted(tag for tag, _ in limit_fields), [1, 2, 3, 4, 5, 6, 7, 8])
+    for tag, payload in limit_fields:
+        width = 32 if tag in _B2_U32_LIMIT_TAGS else 64
+        testcase.assertEqual(entity_read.decode_uvar_exact(payload, width), 0)
+
+
+def _b2_check_response_selected_limits(testcase, inputs, frame):
+    bound_fields = entity_read.parse_record(frame["bounds"])
+    limits_raw = entity_read.single_field(bound_fields, 1)
+    limit_fields = entity_read.parse_record(limits_raw)
+    testcase.assertEqual(sorted(tag for tag, _ in limit_fields), [1, 2, 3, 4, 5, 6, 7, 8])
+    for (tag, payload), key in zip(sorted(limit_fields), _B2_LIMIT_KEYS):
+        width = 32 if tag in _B2_U32_LIMIT_TAGS else 64
+        testcase.assertEqual(entity_read.decode_uvar_exact(payload, width), int(inputs["selected_limits"][key]))
+
+
+class SuppliedEntityFrameCases(unittest.TestCase):
+    def test_actual_request_and_response_controls(self) -> None:
+        for case_id in ("ver_ws", "sig_multi"):
+            with self.subTest(case=case_id):
+                inputs, case, built = _b2_load(case_id)
+                problems = []
+                entity_read.semantic_check(inputs, case, built, problems)
+                self.assertEqual(problems, [])
+                for side in ("request", "response"):
+                    with self.subTest(side=side):
+                        wire, _stored, payload, frame = _b2_valid_frame(inputs, built, side)
+                        self.assertEqual(frame["version"], 2)
+                        self.assertEqual(frame["flags"], 0)
+                        if side == "request":
+                            decoded = entity_read.decode_request_body(frame["body"], {"limits": inputs["selected_limits"]})
+                            self.assertEqual(decoded["root"], bytes.fromhex(inputs["context"]["root"]))
+                            _b2_check_request_zero_limits(self, inputs, frame)
+                            bounds = entity_read.decode_bounds(frame["bounds"])
+                            self.assertEqual((bounds["returned_bytes"], bounds["returned_entities"]), (0, 0))
+                            self.assertFalse(bounds["truncated"])
+                            self.assertFalse(bounds["continuation"])
+                        else:
+                            response = entity_read.decode_response_body(frame["body"])
+                            bounds = entity_read.decode_bounds(frame["bounds"])
+                            self.assertEqual(bounds["returned_entities"], built["count_k"])
+                            self.assertEqual(bounds["returned_bytes"], len(frame["body"]))
+                            self.assertEqual(response["work"], built["work"])
+                            _b2_check_response_selected_limits(self, inputs, frame)
+
+    def test_supplied_wire_prefix_and_exhaustion(self) -> None:
+        inputs, case, built = _b2_load("ver_ws")
+        max_frame = _b2_max_frame(inputs)
+        for side in ("request", "response"):
+            wire = bytes.fromhex(built[f"{side}_wire_hex"])
+            with self.subTest(side=side, variant="control-split"):
+                stored, prefix = entity_read.split_wire(wire, max_frame)
+                self.assertEqual(int.from_bytes(prefix, "big"), len(stored))
+            length = int.from_bytes(wire[:8], "big")
+            variants = (
+                ("short-prefix", wire[:7]),
+                ("prefix-plus-one", (length + 1).to_bytes(8, "big") + wire[8:]),
+                ("prefix-minus-one", (length - 1).to_bytes(8, "big") + wire[8:]),
+                ("trailing-byte", wire + b"\x00"),
+            )
+            for name, mutated in variants:
+                with self.subTest(side=side, variant=name):
+                    supplied = _b2_supplied_wire_only(built, side, mutated)
+                    _b2_expect(self, inputs, case, supplied, side, "wire_prefix", None)
+            with self.subTest(side=side, variant="beyond-ceiling"):
+                over = (max_frame + 1).to_bytes(8, "big") + wire[8:]
+                supplied = _b2_supplied_wire_only(built, side, over)
+                _b2_expect(self, inputs, case, supplied, side, "wire_ceiling", None)
+
+    def test_supplied_envelope_integrity_and_identity(self) -> None:
+        for side in ("request", "response"):
+            inputs, case, built = _b2_load("ver_ws")
+            wire = bytes.fromhex(built[f"{side}_wire_hex"])
+            _wire, stored, payload, _frame = _b2_valid_frame(inputs, built, side)
+            epoch = entity_read.protocol_epoch_id()
+            with self.subTest(side=side, variant="canonical-raw"):
+                raw_wire, raw_pre, raw_trailer = _b2_raw_envelope(
+                    payload,
+                    magic=entity_read.MAGIC,
+                    format_value=entity_read.FORMAT_VERSION,
+                    tag_value=entity_read.FRAME_CONTRACT_TAG,
+                    epoch=epoch,
+                )
+                self.assertEqual(raw_wire, wire)
+                self.assertEqual(raw_pre.hex(), built[f"{side}_preimage_hex"])
+                self.assertEqual(raw_trailer.hex(), built[f"{side}_frame_id"])
+            with self.subTest(side=side, variant="bad-digest"):
+                preimage, trailer = stored[:-32], stored[-32:]
+                self.assertEqual(int.from_bytes(wire[:8], "big"), len(stored))
+                self.assertEqual(blake3.blake3(entity_read.FRAME_DOMAIN + preimage).digest(), trailer)
+                bad_trailer = trailer[:-1] + bytes([trailer[-1] ^ 0x01])
+                bad_stored = preimage + bad_trailer
+                self.assertNotEqual(blake3.blake3(entity_read.FRAME_DOMAIN + preimage).digest(), bad_trailer)
+                bad_wire = wire[:8] + bad_stored
+                supplied = copy.deepcopy(built)
+                supplied[f"{side}_wire_hex"] = bad_wire.hex()
+                supplied[f"{side}_frame_id"] = bad_trailer.hex()
+                if side == "response":
+                    supplied["response_wire_len"] = len(bad_wire)
+                _b2_expect(self, inputs, case, supplied, side, "frame_envelope", "SCB_DIGEST_MISMATCH")
+            bad_epoch = bytes([epoch[0] ^ 0x01]) + epoch[1:]
+            rows = (
+                ("bad-magic", b"X" + entity_read.MAGIC[1:], entity_read.FORMAT_VERSION, entity_read.FRAME_CONTRACT_TAG, epoch, "SCB_MAGIC_INVALID"),
+                ("bad-format", entity_read.MAGIC, entity_read.FORMAT_VERSION + 1, entity_read.FRAME_CONTRACT_TAG, epoch, "SCB_VERSION_UNSUPPORTED"),
+                ("bad-tag", entity_read.MAGIC, entity_read.FORMAT_VERSION, entity_read.FRAME_CONTRACT_TAG + 1, epoch, "SCB_CONTRACT_UNKNOWN"),
+                ("bad-epoch", entity_read.MAGIC, entity_read.FORMAT_VERSION, entity_read.FRAME_CONTRACT_TAG, bad_epoch, "SCB_EPOCH_MISMATCH"),
+            )
+            for name, magic, fmt, tag, ep, code in rows:
+                with self.subTest(side=side, variant=name):
+                    mal_wire, mal_pre, mal_trailer = _b2_raw_envelope(payload, magic=magic, format_value=fmt, tag_value=tag, epoch=ep)
+                    self.assertEqual(blake3.blake3(entity_read.FRAME_DOMAIN + mal_pre).digest(), mal_trailer)
+                    self.assertEqual(int.from_bytes(mal_wire[:8], "big"), len(mal_wire) - 8)
+                    supplied = copy.deepcopy(built)
+                    supplied[f"{side}_wire_hex"] = mal_wire.hex()
+                    supplied[f"{side}_preimage_hex"] = mal_pre.hex()
+                    supplied[f"{side}_frame_id"] = mal_trailer.hex()
+                    if side == "response":
+                        supplied["response_wire_len"] = len(mal_wire)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_envelope", code)
+
+    def test_supplied_frame_structure_and_bounds_structure(self) -> None:
+        for side in ("request", "response"):
+            inputs, case, built = _b2_load("ver_ws")
+            _wire, _stored, _payload, frame = _b2_valid_frame(inputs, built, side)
+            base_payload = _payload
+            frame_rows = []
+            fields = entity_read.parse_record(base_payload)
+            frame_rows.append(("missing-field", [(t, p) for t, p in fields if t != 5], "SCB_FIELD_MISSING"))
+            frame_rows.append(("extra-field", fields + [(9, b"")], "SCB_FIELD_UNKNOWN"))
+            dup = []
+            inserted = False
+            for tag, payload in fields:
+                dup.append((tag, payload))
+                if tag == 1 and not inserted:
+                    dup.append((tag, payload))
+                    inserted = True
+            frame_rows.append(("duplicate-field", dup, "SCB_FIELD_DUPLICATE"))
+            frame_rows.append(("reordered-fields", list(reversed(fields)), "SCB_FIELD_ORDER"))
+            bad_session = encode_uvar(1) + encode_sized(frame["session"][:31] if frame["session"] is not None else b"\x00" * 31)
+            frame_rows.append(("bad-session-width", [(t, bad_session if t == 2 else p) for t, p in fields], "SCB_UNION_INVALID"))
+            frame_rows.append(("body-trailing", [(t, (encode_sized(frame["body"]) + b"\x00") if t == 8 else p) for t, p in fields], "SCB_TRAILING_BYTES"))
+            for name, mutated_fields, code in frame_rows:
+                with self.subTest(side=side, variant=name):
+                    mutated_payload = entity_read.encode_fields(mutated_fields)
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_payload", code)
+            bounds_raw = frame["bounds"]
+            bound_fields = entity_read.parse_record(bounds_raw)
+            bound_by_tag = {tag: payload for tag, payload in bound_fields}
+            bound_rows = (
+                ("bounds-missing-field-1", [(t, p) for t, p in bound_fields if t != 1], "SCB_FIELD_MISSING"),
+                ("bounds-extra-field", bound_fields + [(9, b"")], "SCB_FIELD_UNKNOWN"),
+                ("bounds-trailing", None, "SCB_TRAILING_BYTES"),
+            )
+            for name, mutated_fields, code in bound_rows:
+                with self.subTest(side=side, variant=name):
+                    if mutated_fields is None:
+                        mutated_bounds = bounds_raw + b"\x00"
+                    else:
+                        mutated_bounds = entity_read.encode_fields(mutated_fields)
+                    mutated_payload = entity_read.build_frame_payload(
+                        frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"], mutated_bounds, frame["body"]
+                    )
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_bounds", code)
+            limits_raw = bound_by_tag[1]
+            limit_fields = entity_read.parse_record(limits_raw)
+            for tag, _payload in sorted(limit_fields):
+                with self.subTest(side=side, variant=f"limit-field-{tag}-truncated"):
+                    mutated_limits = [(t, (b"\x80" if t == tag else p)) for t, p in limit_fields]
+                    mutated_bounds = entity_read.encode_fields([(t, (entity_read.encode_fields(mutated_limits) if t == 1 else p)) for t, p in bound_fields])
+                    mutated_payload = entity_read.build_frame_payload(
+                        frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"], mutated_bounds, frame["body"]
+                    )
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    _b2_expect(self, inputs, case, supplied, side, "frame_bounds", "SCB_LENGTH_OVERFLOW")
+
+    def test_supplied_frame_version_and_header(self) -> None:
+        for side in ("request", "response"):
+            inputs, case, built = _b2_load("ver_ws")
+            _wire, _stored, _payload, frame = _b2_valid_frame(inputs, built, side)
+            self.assertEqual(frame["version"], 2)
+            self.assertEqual(frame["flags"], 0)
+            self.assertEqual(inputs["selected_limits"]["max_frame_bytes"], 8388608)
+            rows = [
+                ("version-1", {"version": 1}, "PROTOCOL_DOWNGRADE"),
+                ("version-3", {"version": 3}, "PROTOCOL_VERSION_UNSUPPORTED"),
+                ("flag-8", {"flags": 8}, "PROTOCOL_FRAME_INVALID"),
+                ("kind-0", {"kind": 0}, "PROTOCOL_FRAME_INVALID"),
+                ("kind-5", {"kind": 5}, "PROTOCOL_FRAME_INVALID"),
+                ("version-1-flag-8", {"version": 1, "flags": 8}, "PROTOCOL_DOWNGRADE"),
+                ("version-3-flag-8", {"version": 3, "flags": 8}, "PROTOCOL_VERSION_UNSUPPORTED"),
+            ]
+            if side == "request":
+                rows.append(("flag-4", {"flags": 4}, "PROTOCOL_FRAME_INVALID"))
+            for name, changes, code in rows:
+                with self.subTest(side=side, variant=name):
+                    mutated_payload = entity_read.build_frame_payload(
+                        changes.get("version", frame["version"]),
+                        frame["session"],
+                        frame["request_id"],
+                        changes.get("kind", frame["kind"]),
+                        frame["method"],
+                        changes.get("flags", frame["flags"]),
+                        frame["bounds"],
+                        frame["body"],
+                    )
+                    supplied = _b2_supplied_with_payload(built, side, mutated_payload)
+                    # Unknown kinds never reach version comparison: typed kind decoding owns the refusal.
+                    _b2_expect(self, inputs, case, supplied, side, "frame_header", code)
+
+
 if __name__ == "__main__":
     unittest.main()
