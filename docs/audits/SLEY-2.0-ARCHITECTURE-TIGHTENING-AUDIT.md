@@ -1971,7 +1971,7 @@ the two that are repository deliverables in their own right are
 | AT-G5 spec synchronization | FAIL (one open requirement gap) | masters, REWEAVE, contracts and checkers now agree except AT-MW-02 (master 8.2 GetEntityVersion/GetSignature have no SMP1 method), registered as an open 2.0 gap owned by S20-410 |
 | AT-G6 self-host preservation | NOT_REQUIRED | SH0; no C1/C2/C3 evidence exists to invalidate; the static no-hidden-fallback property holds |
 | AT-G7 remote freshness | PASS | private origin created by operator instruction; main, the campaign branch and the lane branches pushed; locator current; T54 secret scan PASS; the public mirror untouched |
-| AT-G8 independent review | AT_G8_MARKER | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; repaired in slice 7), Ariadne FAIL (1 P1, 3 P2; repaired in slice 8), see 5.1; round 2: Nabu on `review/arch-tighten-r1-round2` = d4a1e330 NABU_R2_MARKER; Ariadne on `review/arch-tighten-r1-round3` = ROUND3_MARKER |
+| AT-G8 independent review | FAIL | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; repaired in slice 7), Ariadne FAIL (1 P1, 3 P2; repaired in slice 8), see 5.1; round 2: Nabu on `review/arch-tighten-r1-round2` = d4a1e330 FAIL (1 P1: AT-MW-02 only; round-1 P1s resolved); Ariadne on `review/arch-tighten-r1-round3` = 66a76781 FAIL (2 P1 record items, repaired in slice 9, not re-reviewed) |
 
 ### 5.1 Independent review round 1 (candidate 8ff792e9, ref `review/arch-tighten-r1-round1`)
 
@@ -2037,7 +2037,60 @@ the identity review cites changed. Any Ariadne finding that cites one of
 those files is checked against both commits before it is acted on. Round 2
 uses a separate worktree per candidate.
 
-Tier 1 on the candidate: TIER1_MARKER
+### 5.2 Independent review round 2
+
+Nabu (architecture) on `review/arch-tighten-r1-round2` = d4a1e330, transcript
+`machineresearch/sley-2.0/reviews/arch-tighten-nabu-r2-2026-09-08.log`:
+verdict FAIL, 0 P0, 1 P1, 0 P2, 0 P3; CANONICAL_IDENTITY, NATIVE_AUTHORITY,
+SELFHOST_BOUNDARY and REMOTE_INSPECTABILITY answered true, SPEC_SYNC false.
+
+- All three round-1 P1s are recorded as resolved: erratum E1 is sufficient
+  under spec 2.2 (canonical meaning unchanged, no persisted identity used
+  the wrong literal, no versioned successor required); dropping the volatile
+  unpushed-commit count does not weaken the anti-goal evidence; the review
+  refs resolve exactly and the records-only locator commit after a candidate
+  is acceptable.
+- The one remaining P1 is AT-MW-02: the master's required `GetEntityVersion`
+  and `GetSignature` queries have no SMP1 method, so eleven of thirteen
+  representative writes need body data the protocol cannot supply. Nabu's
+  required repair is a versioned SMP1 method or query-profile successor
+  returning exact root-bound, session-safe entity bytes with limits,
+  vectors, independent reproduction, end-to-end mutation validation and a
+  synchronized contract index, without widening frozen v1.
+- Integrator decision: not implemented in this campaign. It is a protocol
+  feature under a version bump on S20-400/S20-410 (packages with their own
+  open Council reviews), and the governing spec's execution prompt says to
+  stop and report rather than improvise a repair outside the authorized
+  bounded scope. The gap is registered in the locator, WORK_PACKAGES.md and
+  this record; the closeout reads FAIL on AT-G5 and AT-G8 for this item
+  alone. The next bounded slice, if the operator authorizes it, is exactly
+  Nabu's repair statement above.
+
+Ariadne (canonical identity and contracts) on `review/arch-tighten-r1-round3`
+= 66a76781, transcript
+`machineresearch/sley-2.0/reviews/arch-tighten-ariadne-r2-2026-09-08.log`:
+verdict FAIL, 0 P0, 2 P1, 2 P2, 0 P3; CANONICAL_IDENTITY, NATIVE_AUTHORITY,
+SELFHOST_BOUNDARY and REMOTE_INSPECTABILITY true, SPEC_SYNC false. Ariadne
+confirmed every round-1 repair (status lines and transaction model agree;
+keeping the S20-360 closeout as history is correct; SMP1 reverse pins; the
+domain checker; erratum E1 sufficient under 2.2). Round-2 items, repaired in
+slice 9 (self-attested after the review, not re-reviewed):
+
+- P1 machine-summary `open_risks` still described S20-360 as operation-free:
+  the line now states the E1 through E6 subset and
+  check_candidate_result_contract.py validates that summary line together
+  with the two status lines and the transaction model.
+- P1 round-3 candidate absent from the locator at the candidate commit: the
+  entry existed in the records-only commit that followed (the candidate
+  cannot carry its own binding), but the checker could not detect omission;
+  check_remote_head.py now fails on any `review/` ref that exists in git or
+  is named in this record without a locator entry (negative reproduced).
+- P2 identity-map duplicate table and BOOTSTRAP digest rows: synchronized
+  with the frozen vectors and the 32-byte pin, baseline state kept as history.
+- P2 stale-status guard: now rejects the historical
+  "executable-program-operation-free" wording as well.
+
+Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_MASTER_GOAL set, plus make lint): lint PASS; 98 of 102 quick steps PASS; the four residual failures are the ones attributed in section 6 (three need the gitignored release-smoke evidence, one is the lane-owned error-symbol registration). Two further transient failures seen mid-run were caused by the campaign's own bookkeeping (a review-log file being written into the scanned tree and a locator key the register derivation parsed as a disposition) and were repaired before the closeout commit.
 
 ## 6. Not claimed
 
@@ -2069,7 +2122,7 @@ Tier 1 on the candidate: TIER1_MARKER
 ## 7. Closeout (spec section 24)
 
 ```text
-SLEY2_ARCH_TIGHTENING = CLOSEOUT_MARKER
+SLEY2_ARCH_TIGHTENING = FAIL
 BASELINE_COMMIT = 560a5f16ebe9edaaee6837b779f6af94ad9ae310
 FINAL_COMMIT = FINAL_COMMIT_MARKER
 REMOTE_COMMIT = REMOTE_COMMIT_MARKER
@@ -2089,15 +2142,21 @@ MACHINE_WRITE_ERGONOMICS = PASS
 SELFHOST_REQUALIFICATION = NOT_REQUIRED
 SPEC_SYNCHRONIZATION = FAIL
 REMOTE_INSPECTABILITY = PASS
-INDEPENDENT_REVIEW = INDEPENDENT_REVIEW_MARKER
+INDEPENDENT_REVIEW = FAIL
 
 SLEY_2_0_READY_FOR_FINAL_FREEZE = FALSE
 ```
 
 `SLEY2_ARCH_TIGHTENING` reads FAIL under the spec's own rule that completion
-requires every applicable gate: AT-G5 carries one open requirement gap
-(AT-MW-02). Every other gate passes or is not required. The campaign's own
-work is complete; the remaining item is owned by the S20-410 protocol package.
+requires every applicable gate. Two gates fail, for one reason and one
+consequence: AT-G5 carries the open requirement gap AT-MW-02 (the master's
+GetEntityVersion and GetSignature have no SMP1 method), and AT-G8 reads FAIL
+because both independent reviewers' latest verdicts are FAIL: Nabu round 2
+on AT-MW-02 alone, Ariadne round 2 on two record items that slice 9 repaired
+after the review without a further round. Every other gate passes or is not
+required. The campaign's own bounded work is complete; the remaining item is
+a versioned protocol feature owned by the S20-410 package and is the first
+resume item in RESUME.md.
 
 REMOTE_REVIEW packet (spec 15.6):
 

@@ -339,10 +339,16 @@ def main() -> int:
     for name, status in (("spec", spec_status), ("profile", profile_status)):
         if "E1 through E6" not in status or "ADR-0045" not in status:
             problems.append(f"status-subset-missing:{name}")
-        if "operation-free restricted conformance epoch" in status:
-            problems.append(f"status-subset-stale:{name}")
+        for stale in ("executable-program-operation-free", "operation-free restricted conformance epoch"):
+            if stale in status:
+                problems.append(f"status-subset-stale:{name}")
+                break
     if "validated by the S20-360 full operation analysis" not in normalized(TRANSACTION):
         problems.append("status-subset-missing:transaction-model")
+    summary_risks = json.loads((ROOT / "machineresearch/sley-2.0/machine-summary.json").read_text(encoding="utf-8")).get("open_risks", [])
+    s360 = [risk for risk in summary_risks if isinstance(risk, str) and risk.startswith("S20-360 ")]
+    if not s360 or any("E1 through E6" not in risk or "operation-free" in risk for risk in s360):
+        problems.append("status-subset-stale:machine-summary")
 
     validation = json.loads(VALIDATION_EVIDENCE.read_text(encoding="utf-8"))
     for field, expected in (

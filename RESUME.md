@@ -45,13 +45,19 @@ locator). Closeout block: audit record section 7.
 
 ## To resume
 
+0. **First bounded slice, if authorized: AT-MW-02.** The only item the
+   independent reviewers left open. Nabu's repair statement: a versioned SMP1
+   method or query-profile successor returning exact root-bound,
+   session-safe entity bytes (the master's required `GetEntityVersion` and
+   `GetSignature`), with limits, vectors, independent oracle reproduction,
+   end-to-end mutation validation, and the contract index synchronized;
+   frozen v1 not widened. Owner: S20-410 (with S20-310 query profile).
 1. **RW-080 lane:** rebase the next summary or manifest edit on merged
    `main`; register the five `PACKAGE_*` error symbols in ERROR_CODES_V1 and
    exercise `PACKAGE_SECTION_DIGEST_MISMATCH` (Tier 1 red until then); the
    envelope byte codec (AT-EC-07) is yours when the builder emits bytes.
-2. **S20-410 protocol package:** AT-MW-02, the master's required
-   `GetEntityVersion` and `GetSignature` queries have no SMP1 method; close
-   under an SMP1 revision with vectors, bridge and CLI re-pins.
+2. **S20-410 protocol package:** see item 0; bridge and CLI re-pins follow
+   the SMP1 revision (their checkers now assert the pins both ways).
 3. **Release smoke:** `make release-candidate-smoke` has not been re-attested
    since the S20-330 closure; the S20-730 report is stale by design until it
    runs. Expect the usual drift repairs, committed as deterministic rebuilds

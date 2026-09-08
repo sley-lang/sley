@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -119,12 +120,22 @@ def verify(locator: dict, summary: dict, repo: Path) -> tuple[list[str], dict]:
                 problems.append(f"lane:{lane.get('lane')}:branch-missing:{ref}")
     # A review candidate is an immutable ref: it must resolve to exactly the
     # recorded SHA so a verdict can never drift from the bytes it judged.
+    listed = {}
     for candidate in locator.get("review_candidates", []):
         ref, sha = candidate.get("ref"), candidate.get("sha")
         resolved = git("rev-parse", "--verify", "-q", f"{ref}^{{commit}}", repo=repo)
         if resolved != sha:
             problems.append(f"review-candidate:round-{candidate.get('round')}:ref-mismatch:{resolved[:12] or 'missing'}")
         facts[f"review_round_{candidate.get('round')}"] = sha
+        listed[ref] = sha
+    # Omission is as bad as mismatch: every review ref the audit record names
+    # must be a locator entry, and every review ref that exists in git must be
+    # listed, so a candidate cannot be reviewed without being bound here.
+    audit = repo / "docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md"
+    named = set(re.findall(r"`(review/[a-z0-9./-]+)`", audit.read_text(encoding="utf-8"))) if audit.is_file() else set()
+    existing = {ref for ref in git("for-each-ref", "--format=%(refname:short)", "refs/heads/review/", repo=repo).split("\n") if ref}
+    for ref in sorted((named | existing) - set(listed)):
+        problems.append(f"review-candidate:unlisted-ref:{ref}")
     return problems, facts
 
 

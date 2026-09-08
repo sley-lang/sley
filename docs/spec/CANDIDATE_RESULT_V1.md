@@ -4,8 +4,8 @@ Status: S20-360 normative contract implemented for the restricted conformance
 epoch. Supported success subset: the restricted subset plus programs carrying semantic `Operation`
 entities of the extended families E1 through E6, judged by the S20-360 full
 operation analysis (revision 2, ADR-0045); E7 opcodes are refused at phase 12
-(section 9; the earlier "executable-program-operation-free" status described
-the pre-ADR-0045 subset and was corrected 2026-09-08). Full-GA operation
+(section 9; the earlier operation-free status wording described the
+pre-ADR-0045 subset and was corrected 2026-09-08). Full-GA operation
 coverage remains incomplete; restricted S20-390 fixed-head commit is
 implemented as a separate layer.
 

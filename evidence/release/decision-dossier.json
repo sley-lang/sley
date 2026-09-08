@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "decb0dcdc42bbef010bfab0d14dbfe6b3d7468a25d00930a60276683c6cefa56",
+  "dossier_digest": "7bba86fb1031161d89f0499b924e5721d42e21c4af3e948f2a2e5930e2b903b7",
   "entries": [
     {
       "evidence": [
@@ -381,7 +381,7 @@
         "S20-330 is deliberately unimplemented until negotiated session, verified workspace/root, and epoch authority exist; claimed roots and capsule IDs are forbidden substitutes",
         "S20-340 is immutable descriptor codegen only; later restricted packages now provide candidate construction, validation, and one fixed-head commit boundary, while full executable semantic operations, policy transitions, M3/M4, and GA remain blocked",
         "S20-350 is complete as a proposal-only construction boundary with all 18 body codecs, 75 field codecs, independent candidate/envelope conformance, and a production persistent fuzz target; construction itself grants no semantic or commit authority",
-        "S20-360 is complete only for an explicit executable-program-operation-free restricted success subset; full operation analysis, mandatory production-epoch semantic fingerprints, runtime authority, M3/M4, and GA remain blocked",
+        "S20-360 is complete for the restricted subset plus programs carrying semantic Operation entities of the extended families E1 through E6 judged by the full operation analysis (ADR-0045, contract revision 2); E7 opcodes stay refused at phase 12, and mandatory production-epoch semantic fingerprints, runtime authority, M3/M4, and GA remain blocked",
         "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
         "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
         "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "1ed017c284c3e38d35d6c781957814c07abc483128232512dfe55824b9611e92",
+  "entries_digest": "54c2bebfa9ad1bc3435da3065476e9d6ddc02ac9ae7f0fc8f353989709d7fd4a",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
