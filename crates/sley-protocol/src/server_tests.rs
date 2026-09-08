@@ -3512,7 +3512,13 @@ fn entity_read_tiny_streaming_frame_refuses_without_events() {
 
 #[test]
 fn entity_read_budget_debit_table_is_exact() {
-    let mut harness = VServer::new("v2-budget");
+    let mut harness = VServer::with_hellos(
+        "v2-budget",
+        executable_bodies(),
+        &[],
+        vhello(v2_methods(), 1),
+        vhello(v2_methods(), 1),
+    );
     let entity = sley_repo::test_support::id(30);
     let before = harness.budget();
     let bad = harness.refuse(
@@ -3538,6 +3544,17 @@ fn entity_read_budget_debit_table_is_exact() {
     );
     assert_eq!(harness.budget(), before - 1 - work - work);
     harness.server.set_entity_encode_fault(false);
+    // Post-reservation cleanup and viability: after clearing the fault,
+    // a real read succeeds at max_inflight 1, proving the fault refusal
+    // released its slot, and pays full work again on top of the retained
+    // fault debit.
+    let (failed_again, again_frame) =
+        harness.call(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
+    assert!(!failed_again, "session stays viable after the fault refusal");
+    let again_work = decode_entity_read_response(&again_frame.body).unwrap().work_units;
+    assert_eq!(again_work, work);
+    assert_eq!(again_frame.bounds.returned_entities, 1);
+    assert_eq!(harness.budget(), before - 1 - work - work - again_work);
 }
 
 // ---------------------------------------------------------------------------
@@ -4745,30 +4762,50 @@ fn repair_wrong_epoch_refuses_entity_read_without_debit() {
 
 #[test]
 fn repair_one_below_session_budget_refuses_before_reserve() {
-    // R7 work dimension, true one-below case: a session budgeted at
-    // exactly the observed work minus one refuses the identical
-    // target/request/M before reservation with only the dispatch debit.
-    // Request max_work stays at the observed work, so the session budget
-    // is the only binding ceiling.
+    // R7 work dimension, true one-below case: selected max_work and
+    // request max_work both stay at the observed work W, so the request
+    // range stays admitted. One genuine admitted dispatch on a malformed
+    // owner request leaves actual remaining budget exactly W-1; the legal
+    // unchanged target/request/M then refuses with LimitExceeded before
+    // reservation at only one more dispatch debit, with no events.
+    // max_inflight 1 proves each refusal released its slot.
     let mut learn = VServer::new("repair-r7-work-learn-below");
     let entity = sley_repo::test_support::id(30);
     let frame = learn.read(ENTITY_VERSION_TAG, entity);
     let work = decode_entity_read_response(&frame.body).unwrap().work_units;
     assert!(work > 1);
-    let capped = vhello_capped(v2_methods(), 4, work - 1, 8_388_608, 8_388_608, 1);
+    let capped = vhello_capped(v2_methods(), 1, work, 8_388_608, 8_388_608, 1);
     let mut harness = VServer::alias_on_repo(
         "repair-r7-budget-below",
         learn.repository.clone(),
         capped.clone(),
         capped,
     );
-    assert_eq!(harness.budget(), work - 1);
+    assert_eq!(harness.budget(), work);
+    let malformed = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
+    assert_eq!(malformed.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    assert_eq!(
+        harness.budget(),
+        work - 1,
+        "one genuine dispatch leaves remaining budget exactly W-1"
+    );
     let before = harness.budget();
-    let denied = harness.refuse(
+    let answer = harness.call_raw(
         ENTITY_VERSION_TAG,
         entity_read_body_capped(harness.root, entity, 65_535, 8_388_608, work),
     );
-    assert_eq!(denied.code, ProtocolErrorCode::LimitExceeded.numeric());
+    assert!(answer.failed, "work one below remaining budget must refuse");
+    assert!(answer.events.is_empty(), "one-below refusal carries no events");
+    let (DecodedFrame::Response(response), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&response.body).unwrap().code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
     assert_eq!(
         harness.budget(),
         before - 1,
