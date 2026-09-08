@@ -3,6 +3,7 @@
 
 mod compare;
 mod complete_root;
+mod entity_read;
 mod exchange;
 mod gc;
 mod index_cache;
@@ -16,6 +17,7 @@ pub mod test_support;
 
 pub use compare::*;
 pub use complete_root::*;
+pub use entity_read::*;
 pub use exchange::*;
 pub use gc::*;
 pub use index_cache::*;
