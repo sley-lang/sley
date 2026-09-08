@@ -19441,16 +19441,33 @@ fn build_namespace_decode(
 // parent-dependent single bytes (union tag/len, field-1 len) fork on
 // the None/Some paths with constant bytes and rejoin. Bridge uses
 // B2V1/PSH1/V2B1 only.
-#[allow(
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ParentCopyMode {
+    Unrolled,
+    CountedConstant,
+    CountedLength,
+}
+
 fn build_namespace_encode(
     a: &mut Asm,
     ns: Ns,
     fid: EntityId,
     encode_fid: EntityId,
+) -> FunctionGraph {
+    build_namespace_encode_with_mode(a, ns, fid, encode_fid, ParentCopyMode::Unrolled)
+}
+
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+fn build_namespace_encode_with_mode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    encode_fid: EntityId,
+    mode: ParentCopyMode,
 ) -> FunctionGraph {
     use sley_vm::host_abi::{BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
     let bstart = a.blocks.len();
@@ -19866,120 +19883,347 @@ fn build_namespace_encode(
         ),
         reachability: Reachability::Required,
     });
-    // Parent 32B copy, UNROLLED (F8 dodge): 32 indexed Get+push
-    // pairs, no loop counter, no bound compare, no backedge (mirrors
-    // the slice-6 F7 digest-chain shape). The counted loop guard
-    // misroutes in this region while identical shapes elsewhere work;
-    // the unroll removes loop control from the suspect surface. Get
-    // None targets the invariant trap: indices are in bounds for the
+    // Parent 32B copy: Unrolled default; counted loop for F8 probes.
+    // Unrolled: 32 indexed Get+push pairs, no loop counter, no bound
+    // compare, no backedge (mirrors the slice-6 F7 digest-chain shape).
+    // Counted: shared loop shape parameterized by bound source
+    // (CountedConstant uses UInt64 32; CountedLength uses
+    // VectorLen(parent_vector) after the exact-32 parent check).
+    // Roles (same-type accumulator/parent slots stable by position):
+    // check/get: [index, accumulator, parent vector, bound, members, unit];
+    // push: [fetched byte, index, accumulator, parent vector, bound,
+    // members, unit]; next: [index, accumulator, parent vector, bound,
+    // members, unit]; next->check: [new index, accumulator, parent
+    // vector, bound, members, unit]; done: [accumulator, members, unit].
+    // Guard is LessThan(index,bound), true->Get, false->done. Get None
+    // targets the invariant trap: indices are in bounds for the
     // proven-32 parent vector.
     let es_acc = a.param(ns.p, pcopy_start, ParameterRole::Block, u8vec_type());
     let es_parvec = a.param(ns.p, pcopy_start, ParameterRole::Block, u8vec_type());
     let es_mem = a.param(ns.p, pcopy_start, ParameterRole::Block, TypeExpr::Bytes);
     let es_unit = a.param(ns.p, pcopy_start, ParameterRole::Block, TypeExpr::Unit);
-    let mut pget: Vec<EntityId> = Vec::new();
-    let mut ppush: Vec<EntityId> = Vec::new();
-    for _ in 0..32 {
-        pget.push(a.id(ns.b));
-        ppush.push(a.id(ns.b));
-    }
-    a.blocks.push(Block {
-        entity_id: pcopy_start,
-        function: fid,
-        parameters: vec![es_acc, es_parvec, es_mem, es_unit],
-        operations: Vec::new(),
-        terminator: branch(edge(
-            pget[0],
-            vec![pav(es_acc), pav(es_parvec), pav(es_mem), pav(es_unit)],
-        )),
-        reachability: Reachability::Required,
-    });
-    // (ids reserved up front so pcopy_start can target the chain head)
-    for i in 0..32usize {
-        let gb = pget[i];
-        let pb = ppush[i];
-        let idx_const = a.ku64(ns.k, u128::try_from(i).expect("parent index fits u128"));
-        let g_acc = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
-        let g_parvec = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
-        let g_mem = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Bytes);
-        let g_unit = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Unit);
-        let g_idxc = a.cref(ns.o, gb, idx_const, u64_type());
-        let g_get = a.op(
-            ns.o,
-            gb,
-            Opcode::VectorGet,
-            vec![pav(g_parvec), op_result(g_idxc)],
-            vec![TypeExpr::Option(Box::new(u8_type()))],
-            Immediate::None,
-        );
-        let p_b = a.param(ns.p, pb, ParameterRole::Block, u8_type());
-        let p_acc = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
-        let p_parvec = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
-        let p_mem = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Bytes);
-        let p_unit = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Unit);
-        a.blocks.push(Block {
-            entity_id: gb,
-            function: fid,
-            parameters: vec![g_acc, g_parvec, g_mem, g_unit],
-            operations: vec![g_idxc, g_get],
-            terminator: switch(
-                op_result(g_get),
-                vec![
-                    (BuiltinCase::None, trap, Vec::new()),
-                    (
-                        BuiltinCase::Some,
-                        pb,
+    match mode {
+        ParentCopyMode::Unrolled => {
+            let mut pget: Vec<EntityId> = Vec::new();
+            let mut ppush: Vec<EntityId> = Vec::new();
+            for _ in 0..32 {
+                pget.push(a.id(ns.b));
+                ppush.push(a.id(ns.b));
+            }
+            a.blocks.push(Block {
+                entity_id: pcopy_start,
+                function: fid,
+                parameters: vec![es_acc, es_parvec, es_mem, es_unit],
+                operations: Vec::new(),
+                terminator: branch(edge(
+                    pget[0],
+                    vec![pav(es_acc), pav(es_parvec), pav(es_mem), pav(es_unit)],
+                )),
+                reachability: Reachability::Required,
+            });
+            // (ids reserved up front so pcopy_start can target the chain head)
+            for i in 0..32usize {
+                let gb = pget[i];
+                let pb = ppush[i];
+                let idx_const = a.ku64(ns.k, u128::try_from(i).expect("parent index fits u128"));
+                let g_acc = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+                let g_parvec = a.param(ns.p, gb, ParameterRole::Block, u8vec_type());
+                let g_mem = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Bytes);
+                let g_unit = a.param(ns.p, gb, ParameterRole::Block, TypeExpr::Unit);
+                let g_idxc = a.cref(ns.o, gb, idx_const, u64_type());
+                let g_get = a.op(
+                    ns.o,
+                    gb,
+                    Opcode::VectorGet,
+                    vec![pav(g_parvec), op_result(g_idxc)],
+                    vec![TypeExpr::Option(Box::new(u8_type()))],
+                    Immediate::None,
+                );
+                let p_b = a.param(ns.p, pb, ParameterRole::Block, u8_type());
+                let p_acc = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+                let p_parvec = a.param(ns.p, pb, ParameterRole::Block, u8vec_type());
+                let p_mem = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Bytes);
+                let p_unit = a.param(ns.p, pb, ParameterRole::Block, TypeExpr::Unit);
+                a.blocks.push(Block {
+                    entity_id: gb,
+                    function: fid,
+                    parameters: vec![g_acc, g_parvec, g_mem, g_unit],
+                    operations: vec![g_idxc, g_get],
+                    terminator: switch(
+                        op_result(g_get),
                         vec![
-                            SwitchArgument::CasePayload,
-                            sav(g_acc),
-                            sav(g_parvec),
-                            sav(g_mem),
-                            sav(g_unit),
+                            (BuiltinCase::None, trap, Vec::new()),
+                            (
+                                BuiltinCase::Some,
+                                pb,
+                                vec![
+                                    SwitchArgument::CasePayload,
+                                    sav(g_acc),
+                                    sav(g_parvec),
+                                    sav(g_mem),
+                                    sav(g_unit),
+                                ],
+                            ),
                         ],
                     ),
-                ],
-            ),
-            reachability: Reachability::Required,
-        });
-        let u_push = a.op(
-            ns.o,
-            pb,
-            Opcode::AdapterInvoke,
-            vec![pav(p_acc), pav(p_b)],
-            vec![index_result(u8vec_type())],
-            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-        );
-        // NOTE: backedge-free chain; each push falls into the next get.
-        // The last push drops the parent vector (pcopy_done takes
-        // acc+members+unit).
-        let nx = if i == 31 { pcopy_done } else { pget[i + 1] };
-        let nx_args = if i == 31 {
-            vec![SwitchArgument::CasePayload, sav(p_mem), sav(p_unit)]
-        } else {
-            vec![
-                SwitchArgument::CasePayload,
-                sav(p_parvec),
-                sav(p_mem),
-                sav(p_unit),
-            ]
-        };
-        a.blocks.push(Block {
-            entity_id: pb,
-            function: fid,
-            parameters: vec![p_b, p_acc, p_parvec, p_mem, p_unit],
-            operations: vec![u_push],
-            terminator: switch(
-                op_result(u_push),
-                vec![
-                    (BuiltinCase::Ok, nx, nx_args),
-                    (BuiltinCase::Err, b_res, Vec::new()),
-                ],
-            ),
-            reachability: Reachability::Required,
-        });
+                    reachability: Reachability::Required,
+                });
+                let u_push = a.op(
+                    ns.o,
+                    pb,
+                    Opcode::AdapterInvoke,
+                    vec![pav(p_acc), pav(p_b)],
+                    vec![index_result(u8vec_type())],
+                    Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+                );
+                // NOTE: backedge-free chain; each push falls into the next get.
+                // The last push drops the parent vector (pcopy_done takes
+                // acc+members+unit).
+                let nx = if i == 31 { pcopy_done } else { pget[i + 1] };
+                let nx_args = if i == 31 {
+                    vec![SwitchArgument::CasePayload, sav(p_mem), sav(p_unit)]
+                } else {
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(p_parvec),
+                        sav(p_mem),
+                        sav(p_unit),
+                    ]
+                };
+                a.blocks.push(Block {
+                    entity_id: pb,
+                    function: fid,
+                    parameters: vec![p_b, p_acc, p_parvec, p_mem, p_unit],
+                    operations: vec![u_push],
+                    terminator: switch(
+                        op_result(u_push),
+                        vec![
+                            (BuiltinCase::Ok, nx, nx_args),
+                            (BuiltinCase::Err, b_res, Vec::new()),
+                        ],
+                    ),
+                    reachability: Reachability::Required,
+                });
+            }
+            // NOTE: `nx` links the chain (no `next` variable remains).
+        }
+        ParentCopyMode::CountedConstant | ParentCopyMode::CountedLength => {
+            let pcheck = a.id(ns.b);
+            let pget = a.id(ns.b);
+            let ppush = a.id(ns.b);
+            let pnext = a.id(ns.b);
+            if matches!(mode, ParentCopyMode::CountedLength) {
+                let z0 = a.cref(ns.o, pcopy_start, c0, u64_type());
+                let blen = a.op(
+                    ns.o,
+                    pcopy_start,
+                    Opcode::VectorLen,
+                    vec![pav(es_parvec)],
+                    vec![u64_type()],
+                    Immediate::None,
+                );
+                a.blocks.push(Block {
+                    entity_id: pcopy_start,
+                    function: fid,
+                    parameters: vec![es_acc, es_parvec, es_mem, es_unit],
+                    operations: vec![z0, blen],
+                    terminator: branch(edge(
+                        pcheck,
+                        vec![
+                            op_result(z0),
+                            pav(es_acc),
+                            pav(es_parvec),
+                            op_result(blen),
+                            pav(es_mem),
+                            pav(es_unit),
+                        ],
+                    )),
+                    reachability: Reachability::Required,
+                });
+            } else {
+                let z0 = a.cref(ns.o, pcopy_start, c0, u64_type());
+                let b32 = a.cref(ns.o, pcopy_start, c32, u64_type());
+                a.blocks.push(Block {
+                    entity_id: pcopy_start,
+                    function: fid,
+                    parameters: vec![es_acc, es_parvec, es_mem, es_unit],
+                    operations: vec![z0, b32],
+                    terminator: branch(edge(
+                        pcheck,
+                        vec![
+                            op_result(z0),
+                            pav(es_acc),
+                            pav(es_parvec),
+                            op_result(b32),
+                            pav(es_mem),
+                            pav(es_unit),
+                        ],
+                    )),
+                    reachability: Reachability::Required,
+                });
+            }
+            // pcheck params: [index, accumulator, parent vector, bound, members, unit].
+            let ck_idx = a.param(ns.p, pcheck, ParameterRole::Block, u64_type());
+            let ck_acc = a.param(ns.p, pcheck, ParameterRole::Block, u8vec_type());
+            let ck_par = a.param(ns.p, pcheck, ParameterRole::Block, u8vec_type());
+            let ck_bnd = a.param(ns.p, pcheck, ParameterRole::Block, u64_type());
+            let ck_mem = a.param(ns.p, pcheck, ParameterRole::Block, TypeExpr::Bytes);
+            let ck_unit = a.param(ns.p, pcheck, ParameterRole::Block, TypeExpr::Unit);
+            let ck_lt = a.op(
+                ns.o,
+                pcheck,
+                Opcode::LessThan,
+                vec![pav(ck_idx), pav(ck_bnd)],
+                vec![TypeExpr::Bool],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: pcheck,
+                function: fid,
+                parameters: vec![ck_idx, ck_acc, ck_par, ck_bnd, ck_mem, ck_unit],
+                operations: vec![ck_lt],
+                terminator: cond(
+                    op_result(ck_lt),
+                    edge(
+                        pget,
+                        vec![
+                            pav(ck_idx),
+                            pav(ck_acc),
+                            pav(ck_par),
+                            pav(ck_bnd),
+                            pav(ck_mem),
+                            pav(ck_unit),
+                        ],
+                    ),
+                    edge(pcopy_done, vec![pav(ck_acc), pav(ck_mem), pav(ck_unit)]),
+                ),
+                reachability: Reachability::Required,
+            });
+            // pget params: [index, accumulator, parent vector, bound, members, unit].
+            let gt_idx = a.param(ns.p, pget, ParameterRole::Block, u64_type());
+            let gt_acc = a.param(ns.p, pget, ParameterRole::Block, u8vec_type());
+            let gt_par = a.param(ns.p, pget, ParameterRole::Block, u8vec_type());
+            let gt_bnd = a.param(ns.p, pget, ParameterRole::Block, u64_type());
+            let gt_mem = a.param(ns.p, pget, ParameterRole::Block, TypeExpr::Bytes);
+            let gt_unit = a.param(ns.p, pget, ParameterRole::Block, TypeExpr::Unit);
+            let gt_get = a.op(
+                ns.o,
+                pget,
+                Opcode::VectorGet,
+                vec![pav(gt_par), pav(gt_idx)],
+                vec![TypeExpr::Option(Box::new(u8_type()))],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: pget,
+                function: fid,
+                parameters: vec![gt_idx, gt_acc, gt_par, gt_bnd, gt_mem, gt_unit],
+                operations: vec![gt_get],
+                terminator: switch(
+                    op_result(gt_get),
+                    vec![
+                        (BuiltinCase::None, trap, Vec::new()),
+                        (
+                            BuiltinCase::Some,
+                            ppush,
+                            vec![
+                                SwitchArgument::CasePayload,
+                                sav(gt_idx),
+                                sav(gt_acc),
+                                sav(gt_par),
+                                sav(gt_bnd),
+                                sav(gt_mem),
+                                sav(gt_unit),
+                            ],
+                        ),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+            // ppush params: [fetched byte, index, accumulator, parent vector, bound, members, unit].
+            let ps_b = a.param(ns.p, ppush, ParameterRole::Block, u8_type());
+            let ps_idx = a.param(ns.p, ppush, ParameterRole::Block, u64_type());
+            let ps_acc = a.param(ns.p, ppush, ParameterRole::Block, u8vec_type());
+            let ps_par = a.param(ns.p, ppush, ParameterRole::Block, u8vec_type());
+            let ps_bnd = a.param(ns.p, ppush, ParameterRole::Block, u64_type());
+            let ps_mem = a.param(ns.p, ppush, ParameterRole::Block, TypeExpr::Bytes);
+            let ps_unit = a.param(ns.p, ppush, ParameterRole::Block, TypeExpr::Unit);
+            let ps_push = a.op(
+                ns.o,
+                ppush,
+                Opcode::AdapterInvoke,
+                vec![pav(ps_acc), pav(ps_b)],
+                vec![index_result(u8vec_type())],
+                Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            );
+            a.blocks.push(Block {
+                entity_id: ppush,
+                function: fid,
+                parameters: vec![ps_b, ps_idx, ps_acc, ps_par, ps_bnd, ps_mem, ps_unit],
+                operations: vec![ps_push],
+                terminator: switch(
+                    op_result(ps_push),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            pnext,
+                            vec![
+                                sav(ps_idx),
+                                SwitchArgument::CasePayload,
+                                sav(ps_par),
+                                sav(ps_bnd),
+                                sav(ps_mem),
+                                sav(ps_unit),
+                            ],
+                        ),
+                        (BuiltinCase::Err, b_res, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+            // pnext params: [index, accumulator, parent vector, bound, members, unit].
+            let nx_idx = a.param(ns.p, pnext, ParameterRole::Block, u64_type());
+            let nx_acc = a.param(ns.p, pnext, ParameterRole::Block, u8vec_type());
+            let nx_par = a.param(ns.p, pnext, ParameterRole::Block, u8vec_type());
+            let nx_bnd = a.param(ns.p, pnext, ParameterRole::Block, u64_type());
+            let nx_mem = a.param(ns.p, pnext, ParameterRole::Block, TypeExpr::Bytes);
+            let nx_unit = a.param(ns.p, pnext, ParameterRole::Block, TypeExpr::Unit);
+            let nx_c1 = a.cref(ns.o, pnext, c1, u64_type());
+            let nx_add = a.op(
+                ns.o,
+                pnext,
+                Opcode::IntAddChecked,
+                vec![pav(nx_idx), op_result(nx_c1)],
+                vec![arith_result(u64_type())],
+                Immediate::None,
+            );
+            a.blocks.push(Block {
+                entity_id: pnext,
+                function: fid,
+                parameters: vec![nx_idx, nx_acc, nx_par, nx_bnd, nx_mem, nx_unit],
+                operations: vec![nx_c1, nx_add],
+                terminator: switch(
+                    op_result(nx_add),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            pcheck,
+                            vec![
+                                SwitchArgument::CasePayload,
+                                sav(nx_acc),
+                                sav(nx_par),
+                                sav(nx_bnd),
+                                sav(nx_mem),
+                                sav(nx_unit),
+                            ],
+                        ),
+                        (BuiltinCase::Err, trap, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+        }
     }
-    // NOTE: `nx` links the chain (no `next` variable remains).
-    // (pcopy_check/get/push/next superseded by the unrolled chain above.)
     // pcopy_done params: [Pu, members, unit]. Parent union complete;
     // the record prefix is assembled immediately (F6 discipline: Pu
     // is consumed here, never re-measured late).
@@ -25947,6 +26191,10 @@ fn namespace_decode_call(
 }
 
 fn namespace_encode_image() -> Image {
+    namespace_encode_image_with_mode(ParentCopyMode::Unrolled)
+}
+
+fn namespace_encode_image_with_mode(mode: ParentCopyMode) -> Image {
     use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
     let mut a = Asm::new();
     let ens = Ns {
@@ -25964,7 +26212,12 @@ fn namespace_encode_image() -> Image {
     let encode_fid = eid(9, 57);
     let ns_fid = eid(9, 58);
     let encode_graph = build_encode(&mut a, ens, encode_fid);
-    let ns_graph = build_namespace_encode(&mut a, nns, ns_fid, encode_fid);
+    let ns_graph = match mode {
+        ParentCopyMode::Unrolled => build_namespace_encode(&mut a, nns, ns_fid, encode_fid),
+        ParentCopyMode::CountedConstant | ParentCopyMode::CountedLength => {
+            build_namespace_encode_with_mode(&mut a, nns, ns_fid, encode_fid, mode)
+        }
+    };
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
         entry: ns_graph.clone(),
@@ -28142,6 +28395,99 @@ fn namespace_probe_valid_and_encode_bytes() {
             enc.instruction_count,
             enc.peak_value_units
         );
+    }
+}
+
+#[test]
+fn rw080_current_mechanism_f8_counted_parent_matches_native() {
+    let (unrolled_pkg, unrolled_approved) =
+        admit(&namespace_encode_image_with_mode(ParentCopyMode::Unrolled));
+    let (constant_pkg, constant_approved) =
+        admit(&namespace_encode_image_with_mode(ParentCopyMode::CountedConstant));
+    let (length_pkg, length_approved) =
+        admit(&namespace_encode_image_with_mode(ParentCopyMode::CountedLength));
+    // Parent-length guards first (matches `namespace_encode_rejections`
+    // par31/par33), before any copy-loop comparison.
+    let mem_two = hex_encode(&[2u8; 32].into_iter().chain([3u8; 32]).collect::<Vec<u8>>());
+    for (pkg, approved, name) in [
+        (&unrolled_pkg, &unrolled_approved, "unrolled"),
+        (&constant_pkg, &constant_approved, "counted-constant"),
+        (&length_pkg, &length_approved, "counted-length"),
+    ] {
+        let bad31 = namespace_encode_call(pkg, approved, &hex_encode(&[9u8; 31]), &mem_two);
+        assert_refusal(&bad31, "SCB_LENGTH_OVERFLOW");
+        let bad33 = namespace_encode_call(pkg, approved, &hex_encode(&[9u8; 33]), &mem_two);
+        assert_refusal(&bad33, "SCB_TRAILING_BYTES");
+        eprintln!("NS_ENC_F8_REJ {name} par31->SCB_LENGTH_OVERFLOW par33->SCB_TRAILING_BYTES");
+    }
+    // Six current shapes plus one nonuniform parent discriminator.
+    let mut cases: Vec<(&str, Vec<u8>, Vec<u8>, Vec<u8>)> = Vec::new();
+    let shapes: [(&str, Option<u8>, &[u8]); 6] = [
+        ("none0", None, &[]),
+        ("none1", None, &[2]),
+        ("none2", None, &[2, 3]),
+        ("some9_0", Some(9), &[]),
+        ("some9_1", Some(9), &[2]),
+        ("some9_3", Some(9), &[4, 5, 6]),
+    ];
+    for (name, parent, members) in shapes {
+        let stored = program_ns_stored(1, parent, members);
+        assert_eq!(program_native_code(&stored), "OK", "native accepts {name}");
+        let body = ns_body_of(&stored);
+        let (exp_par, exp_mem, _) = ns_semantics(parent, members);
+        cases.push((name, exp_par, exp_mem, body));
+    }
+    // Nonuniform parent bytes 0..31 with no members, built directly as a
+    // native NamespaceBody (the repeated-byte helper cannot express it).
+    {
+        use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
+        let mut parent_bytes = [0u8; 32];
+        for (i, b) in parent_bytes.iter_mut().enumerate() {
+            *b = u8::try_from(i).expect("parent index fits u8");
+        }
+        let record = sley_mutate::EntityObjectRecord {
+            entity_id: sley_id::EntityId::from_bytes([1; 32]),
+            body: EntityBodyValue::Namespace(NamespaceBody {
+                parent: Some(sley_id::EntityId::from_bytes(parent_bytes)),
+                members: EntityIdSet::from_unsorted(Vec::new()).expect("empty set is canonical"),
+            }),
+            label: None,
+            semantic_fingerprint: None,
+        };
+        let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+            .expect("native builds nonuniform parent fixture");
+        assert_eq!(program_native_code(&stored), "OK", "native accepts nonuniform");
+        let body = ns_body_of(&stored);
+        cases.push(("nonuniform0_31", parent_bytes.to_vec(), Vec::new(), body));
+    }
+    assert_eq!(cases.len(), 7, "six shapes plus nonuniform discriminator");
+    for (pkg, approved, mode) in [
+        (&unrolled_pkg, &unrolled_approved, "unrolled"),
+        (&constant_pkg, &constant_approved, "counted-constant"),
+        (&length_pkg, &length_approved, "counted-length"),
+    ] {
+        for (name, exp_par, exp_mem, body) in &cases {
+            let enc = namespace_encode_call(
+                pkg,
+                approved,
+                &hex_encode(exp_par),
+                &hex_encode(exp_mem),
+            );
+            let fuel = assert_encode_ok(&enc, body);
+            let enc_again = namespace_encode_call(
+                pkg,
+                approved,
+                &hex_encode(exp_par),
+                &hex_encode(exp_mem),
+            );
+            assert_encode_ok(&enc_again, body);
+            eprintln!(
+                "NS_ENC_F8 {mode} {name} body{}B fuel={fuel} instr={} peak={}",
+                body.len(),
+                enc.instruction_count,
+                enc.peak_value_units
+            );
+        }
     }
 }
 
