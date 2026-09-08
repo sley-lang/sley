@@ -202,6 +202,12 @@ pub struct Server {
     /// failure on the entity-read path, proving the debit is retained.
     #[cfg(test)]
     entity_encode_fault: bool,
+    /// Test-only count of accepted-head loads through [`Server::head`],
+    /// the single surface where the server loads a revision. A serving
+    /// test resets it after setup and asserts per-answer loads, proving
+    /// the retained admitted revision supplies the entire answer.
+    #[cfg(test)]
+    head_loads: core::cell::Cell<u64>,
 }
 
 /// One answered frame and the request identity it belongs to.
@@ -245,6 +251,8 @@ impl Server {
             version_aware: false,
             #[cfg(test)]
             entity_encode_fault: false,
+            #[cfg(test)]
+            head_loads: core::cell::Cell::new(0),
         })
     }
 
@@ -275,6 +283,8 @@ impl Server {
             version_aware: true,
             #[cfg(test)]
             entity_encode_fault: false,
+            #[cfg(test)]
+            head_loads: core::cell::Cell::new(0),
         })
     }
 
@@ -376,6 +386,18 @@ impl Server {
     #[cfg(test)]
     pub(crate) fn set_entity_encode_fault(&mut self, fault: bool) {
         self.entity_encode_fault = fault;
+    }
+
+    /// Test-only accepted-head load count through [`Server::head`].
+    #[cfg(test)]
+    pub(crate) fn head_load_count(&self) -> u64 {
+        self.head_loads.get()
+    }
+
+    /// Test-only reset of the accepted-head load count.
+    #[cfg(test)]
+    pub(crate) fn reset_head_load_count(&self) {
+        self.head_loads.set(0);
     }
 
     /// Answers one complete request frame with one response frame.
@@ -1046,10 +1068,21 @@ impl Server {
         method: Method,
         frame: &ProtocolFrame,
     ) -> Result<(Vec<u8>, BoundedContext)> {
-        if !self.profile.admits(method) {
-            return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
-        }
-        let revision = self.session_check_retained(session, method)?;
+        // Inherited order: session binding, then budget exhaustion, then
+        // method negotiation. Binding failures keep their no-debit
+        // semantics but must still release the admitted slot, exactly as
+        // the generic path does.
+        let revision = match self.session_check_retained(session, method) {
+            Ok(revision) => revision,
+            Err(failure) => {
+                if self.registry.is_open(session) {
+                    self.registry
+                        .complete(session)
+                        .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+                }
+                return Err(failure);
+            }
+        };
         if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
             self.registry
                 .complete(session)
@@ -1060,7 +1093,14 @@ impl Server {
         if let Some(remaining) = self.budgets.get_mut(&session) {
             *remaining = remaining.saturating_sub(1);
         }
-        let outcome = self.entity_read(session, method, frame, budget_before_dispatch, &revision);
+        // Method negotiation runs inside the outcome path whose cleanup
+        // cannot be skipped: a live funded request for an unoffered method
+        // still costs the one dispatch unit charged above.
+        let outcome = if self.profile.admits(method) {
+            self.entity_read(session, method, frame, budget_before_dispatch, &revision)
+        } else {
+            Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"))
+        };
         if self.registry.is_open(session) {
             self.registry
                 .complete(session)
@@ -1111,7 +1151,14 @@ impl Server {
             body_len: plan.body_len(),
         })
         .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-        if frame_len > self.profile.limits.max_frame_bytes {
+        // The outgoing fit compares the complete wire bytes INCLUDING the
+        // 8-byte length prefix against the negotiated ceiling, while the
+        // prefix value stays the envelope length. This preflight runs
+        // before any work reservation or output allocation.
+        let wire_len = frame_len
+            .checked_add(8)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded))?;
+        if wire_len > self.profile.limits.max_frame_bytes {
             return protocol_failure(ProtocolErrorCode::LimitExceeded);
         }
         let reserve = plan
@@ -1193,6 +1240,8 @@ impl Server {
     }
 
     fn head(&self) -> Result<VerifiedRevision> {
+        #[cfg(test)]
+        self.head_loads.set(self.head_loads.get().saturating_add(1));
         self.transactions()
             .accepted_head()
             .map(|head| head.verified_revision().clone())

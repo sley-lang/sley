@@ -21,7 +21,9 @@ use core::fmt;
 use std::collections::BTreeMap;
 
 use sley_id::{ProtocolFrameId, ProtocolHandshakeId, SchemaEpochId};
-use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
+use sley_scb1::{
+    MAX_BYTE_PAYLOAD, encode_bytes, encode_list, encode_record, encode_union, encode_uvar,
+};
 use sley_schema::{ContractDescriptor, EpochLimits, SchemaEpochRecordV1, UnicodeVersion};
 
 /// Frozen protocol version of this contract revision.
@@ -678,6 +680,11 @@ impl Method {
     /// Returns `PROTOCOL_METHOD_UNSUPPORTED` for any tag outside the
     /// version's table.
     pub fn from_tag_versioned(tag: u32, version: u32) -> Result<Self> {
+        // Only versions 1 and 2 are defined on the explicit path: no
+        // method is claimed for an undefined version.
+        if version != PROTOCOL_VERSION && version != PROTOCOL_VERSION_V2 {
+            return fail(ProtocolErrorCode::VersionUnsupported);
+        }
         let method = Self::V2_ALL
             .iter()
             .copied()
@@ -912,6 +919,15 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 /// method exists, or the hellos fail validation.
 pub fn negotiate_versioned(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
     let mut profile = negotiate(client, server)?;
+    // The operational explicit path implements versions 1 and 2 only: an
+    // unsupported greatest-common selection is refused before
+    // establishment with no fallback to a lower offered version. Legacy
+    // `negotiate` keeps arbitrary numeric behavior exactly.
+    if profile.protocol_version != PROTOCOL_VERSION
+        && profile.protocol_version != PROTOCOL_VERSION_V2
+    {
+        return fail(ProtocolErrorCode::VersionUnsupported);
+    }
     if profile.protocol_version == PROTOCOL_VERSION {
         profile
             .methods
@@ -1146,6 +1162,12 @@ impl ProtocolFrame {
         if self.protocol_version > expected_version {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
+        // Hello transport is always wire 1, independently of the expected
+        // version: the claim checks above stay exact, and a Hello naming
+        // any other version is malformed.
+        if self.kind == FrameKind::Hello && self.protocol_version != PROTOCOL_VERSION {
+            return fail(ProtocolErrorCode::FrameInvalid);
+        }
         if self.flags & !FLAG_MASK != 0 {
             return fail(ProtocolErrorCode::FrameInvalid);
         }
@@ -1298,6 +1320,15 @@ pub(crate) struct FrameSize {
 }
 
 pub(crate) fn frame_total_len(size: &FrameSize) -> Result<u64> {
+    // The complete frame body travels as one SCB Bytes value, so the
+    // inherited outer Bytes ceiling binds it before any output allocation
+    // or work reservation. The return stays the envelope length excluding
+    // the 8-byte prefix; callers compare the checked full wire length.
+    let bytes_ceiling = u64::try_from(MAX_BYTE_PAYLOAD)
+        .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
+    if size.body_len > bytes_ceiling {
+        return fail(ProtocolErrorCode::LimitExceeded);
+    }
     let bounds_bytes = size.bounds.encode_bounds()?;
     let bounds_len = u64::try_from(bounds_bytes.len())
         .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?;
@@ -1395,7 +1426,14 @@ pub(crate) fn encode_single_frame_direct(
         bounds: frame.bounds,
         body_len,
     })?;
-    if total > max_frame_bytes.min(MAX_FRAME_BYTES) {
+    // The outgoing fit compares the complete wire bytes INCLUDING the
+    // 8-byte length prefix against the ceiling, matching endpoint
+    // accounting. The prefix value written below stays the envelope
+    // length excluding the prefix.
+    let wire_len = total
+        .checked_add(LENGTH_PREFIX as u64)
+        .ok_or(ProtocolError(ProtocolErrorCode::FrameTooLarge))?;
+    if wire_len > max_frame_bytes.min(MAX_FRAME_BYTES) {
         return fail(ProtocolErrorCode::FrameTooLarge);
     }
     let envelope =

@@ -4675,3 +4675,103 @@ fn repair_frame_metadata_body_ceiling_exact_and_one_over() {
         "metadata one byte over the Bytes ceiling refuses"
     );
 }
+
+#[test]
+fn repair_entity_read_uses_single_admitted_head_load() {
+    // R7 one-snapshot proof: the retained admitted VerifiedRevision
+    // supplies the entire answer. The counter sits at the single Server
+    // head-loading surface, so exactly one load per answer proves
+    // preparation and encoding ran on the retained revision with no
+    // second load.
+    let mut harness = VServer::new("repair-r7-one-snapshot");
+    harness.server.reset_head_load_count();
+    let entity = sley_repo::test_support::id(30);
+    let frame = harness.read(ENTITY_VERSION_TAG, entity);
+    assert_eq!(frame.bounds.returned_entities, 1);
+    assert_eq!(
+        harness.server.head_load_count(),
+        1,
+        "one answer loads the accepted head exactly once"
+    );
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    assert_eq!(response.root, harness.root);
+    assert_eq!(response.requested_entity, entity);
+    // The pre-reservation failure path binds the same single snapshot.
+    harness.server.reset_head_load_count();
+    let denied = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
+    assert_eq!(denied.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    assert_eq!(harness.server.head_load_count(), 1);
+}
+
+#[test]
+fn repair_wrong_epoch_refuses_entity_read_without_debit() {
+    // R7 wrong-epoch context: a live session whose bound epoch no longer
+    // matches the head refuses with SESSION_EPOCH_MISMATCH, debits
+    // nothing, and releases its slot under max_inflight 1.
+    let mut harness = VServer::with_hellos(
+        "repair-r7-epoch",
+        executable_bodies(),
+        &[],
+        vhello(v2_methods(), 1),
+        vhello(v2_methods(), 1),
+    );
+    let bound = harness
+        .server
+        .authority_mut()
+        .record(harness.session)
+        .map(|record| record.schema_epoch)
+        .unwrap();
+    let mut wrong = *bound.as_bytes();
+    wrong[0] ^= 0x01;
+    harness
+        .server
+        .authority_mut()
+        .set_session_epoch_for_test(
+            harness.session,
+            sley_id::SchemaEpochId::from_bytes(wrong),
+        )
+        .unwrap();
+    let before = harness.budget();
+    for _ in 0..2 {
+        let denied = harness.refuse(
+            ENTITY_VERSION_TAG,
+            entity_read_body(harness.root, sley_repo::test_support::id(30)),
+        );
+        assert_eq!(denied.symbol, "SESSION_EPOCH_MISMATCH");
+        assert_eq!(denied.code, 33_003);
+        assert_eq!(harness.budget(), before, "session refusals debit nothing");
+    }
+}
+
+#[test]
+fn repair_one_below_session_budget_refuses_before_reserve() {
+    // R7 work dimension, true one-below case: a session budgeted at
+    // exactly the observed work minus one refuses the identical
+    // target/request/M before reservation with only the dispatch debit.
+    // Request max_work stays at the observed work, so the session budget
+    // is the only binding ceiling.
+    let mut learn = VServer::new("repair-r7-work-learn-below");
+    let entity = sley_repo::test_support::id(30);
+    let frame = learn.read(ENTITY_VERSION_TAG, entity);
+    let work = decode_entity_read_response(&frame.body).unwrap().work_units;
+    assert!(work > 1);
+    let capped = vhello_capped(v2_methods(), 4, work - 1, 8_388_608, 8_388_608, 1);
+    let mut harness = VServer::alias_on_repo(
+        "repair-r7-budget-below",
+        learn.repository.clone(),
+        capped.clone(),
+        capped,
+    );
+    assert_eq!(harness.budget(), work - 1);
+    let before = harness.budget();
+    let denied = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body_capped(harness.root, entity, 65_535, 8_388_608, work),
+    );
+    assert_eq!(denied.code, ProtocolErrorCode::LimitExceeded.numeric());
+    assert_eq!(
+        harness.budget(),
+        before - 1,
+        "one-below refusal costs only the dispatch unit: no work reserved"
+    );
+}

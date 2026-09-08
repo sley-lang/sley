@@ -401,6 +401,28 @@ impl SessionAuthority {
         Ok(())
     }
 
+    /// Test-only seam rebinding one live session's schema epoch, so a
+    /// serving test can observe the retained wrong-epoch refusal.
+    /// Production authority and its public API are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SESSION_UNKNOWN` for a session this authority never issued
+    /// or already closed.
+    #[cfg(test)]
+    pub fn set_session_epoch_for_test(
+        &mut self,
+        session: SessionId,
+        epoch: SchemaEpochId,
+    ) -> Result<(), SessionError> {
+        let record = self
+            .sessions
+            .get_mut(&session)
+            .ok_or(SessionError(SessionErrorCode::Unknown))?;
+        record.schema_epoch = epoch;
+        Ok(())
+    }
+
     /// Drops retained roots no live session binds. Sessions only ever add
     /// bindings, so pruning exactly the unbound keeps retention exact:
     /// every live session's root is catalogued, nothing else is.
