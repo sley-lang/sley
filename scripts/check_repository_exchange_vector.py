@@ -288,6 +288,12 @@ def main() -> int:
                 problems.append(f"{mutation['id']}:accepted-noncanonical-order")
             except DecodeError:
                 pass
+        elif mutation["id"] == "trailing-byte":
+            try:
+                reproduce(stored)
+                problems.append(f"{mutation['id']}:accepted-trailing-byte")
+            except DecodeError:
+                pass
     print(
         json.dumps(
             {

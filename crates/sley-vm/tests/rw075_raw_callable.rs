@@ -1669,3 +1669,128 @@ fn raw_v2_gate_bounds_carried_preimages() {
     judge(&conversions, &[over], BootstrapProfileVersion::V1)
         .expect("v1 admits the same constant: no raw-hash row to protect");
 }
+
+fn hex32(bytes: &[u8; 32]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+// Frozen vectors for the R2 execution identity (AT-HH-04): the v2 package and
+// section digests of the RHW1 bridge fixture and the SLEYPOBS1 observation of
+// its execution over the "package preimage" input. A change to a section
+// encoding, the package preimage, or the observation layout moves one of these
+// and must arrive as a new version, never as a silent redefinition.
+#[test]
+fn v2_package_section_digests_and_observation_are_frozen() {
+    use sley_vm::{ExecutionPackage, V2Closure, approve_package_v2, execute_approved_package_v2};
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &program.types,
+        schema_epoch: epoch(),
+        entry: &program.entry,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        profile_version: BootstrapProfileVersion::V2,
+    })
+    .expect("successor gate admits");
+    let limits = generous_limits();
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: limits,
+        gate_operation_count: gate.operation_count(),
+        gate_bridge_uses: gate.bridge_uses(),
+        gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
+    };
+    let closure = V2Closure {
+        types: &program.types,
+        schema_epoch: epoch(),
+        state_root: root(),
+        entry: program.entry.entity_id,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &[],
+        globals: &[],
+        contracts: &[],
+    };
+    let (digests, receipt, gate) =
+        sley_vm::admit_v2_package(&closure, &package).expect("authority admits honest");
+    let approved = approve_package_v2(&package, &digests, receipt, &gate).expect("v2 approves");
+    let outcome = execute_approved_package_v2(
+        &package,
+        &approved,
+        ExecutionRequest {
+            inputs: vec![unit_value(), bytes_value(b"package preimage")],
+            limits,
+        },
+    )
+    .expect("v2 executes");
+    let actual = [
+        ("package", hex32(&digests.package_digest)),
+        ("image", hex32(&digests.image_digest)),
+        ("constants", hex32(&digests.constants_digest)),
+        ("layouts", hex32(&digests.layouts_digest)),
+        ("imports", hex32(&digests.imports_digest)),
+        ("dependency", hex32(&digests.dependency_digest)),
+        ("observation", hex32(outcome.observation_id.as_bytes())),
+    ];
+    for (name, value) in &actual {
+        println!("FROZEN_V2_VECTOR|{name}|{value}");
+    }
+    assert_eq!(digests.package_digest, approved.package_digest);
+    for (name, value) in actual {
+        let expected = FROZEN_V2_VECTORS
+            .iter()
+            .find(|(frozen, _)| *frozen == name)
+            .map(|(_, frozen)| *frozen)
+            .expect("every vector is frozen");
+        assert_eq!(value, expected, "frozen v2 vector {name} moved");
+    }
+}
+
+const FROZEN_V2_VECTORS: &[(&str, &str)] = &[
+    (
+        "package",
+        "5822e1a93ff57c3e63cf6e74189081b8b00abe90dd14967295ff7669a50fe88d",
+    ),
+    (
+        "image",
+        "c95c23540b0724ccfe7a00aa32f1c757e29262fb6a8f5aa29438113710aeb760",
+    ),
+    (
+        "constants",
+        "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+    ),
+    (
+        "layouts",
+        "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+    ),
+    (
+        "imports",
+        "2f985494eebed35f83c7b909b25f9b2e60cff7e081b7a4124ac782f95b38bf05",
+    ),
+    (
+        "dependency",
+        "a345e4f383767176add3f5f8e88c49f33906a58f0756e142964e2f191c46002d",
+    ),
+    (
+        "observation",
+        "3c3b28834f50fbde5770cb1f95abd21ebb8cbd157144a6494f789c6591be667c",
+    ),
+];

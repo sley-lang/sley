@@ -157,6 +157,7 @@ TESTS_REQUIRED: scripts/check_remote_consistency.py PASS on main after the push
 SPECS_TO_UPDATE: remote-head locator (AT-RF-03) once the remote exists; RESUME/handoff packet
 CODE_OWNERSHIP: operator (remote creation); campaign integrator (remote configuration, push)
 REVIEW_REQUIRED: operator decision; AT-G7 cannot pass before it
+RESOLUTION (2026-09-08, operator instruction in session: "i always want the latest code in the repo, no matter what ... you can set it to private"): a new PRIVATE repository was created under the same GitHub organization (name in `git remote -v`; it contains the clean-room sentinel substring so it is not spelled here), `origin` now points at it and the public sanitized mirror remains reachable as the `mirror` remote. main (560a5f16), arch/tighten-r1 and every lane2/lane3 branch were pushed; no force-push, no history rewrite, the mirror untouched. check_remote_consistency on main: HISTORY_RELATED = True, AHEAD_COUNT = 0, BEHIND_COUNT = 0 (only the local-only .forge/ scratch reported as untracked). The private repository still holds the 73 files with machine-local paths and the Council transcripts; the public-policy scrub continues to apply only to the mirror.
 ```
 
 ```text
@@ -1500,6 +1501,7 @@ TESTS_REQUIRED: none
 SPECS_TO_UPDATE: /home/greyforge/machineresearch/Sley2.0mastergoal.md 5.1 (ObjectId form), 5.2, 5.7, 8.3, 10.1
 CODE_OWNERSHIP: campaign integrator (master edit under section 14 rules); maat doctrine check
 REVIEW_REQUIRED: yes (master edit)
+IMPLEMENTATION (slice 6c): the master goal (outside the repository, /home/greyforge/machineresearch/Sley2.0mastergoal.md, committed in the home repository at 779ebaf6) now states under 5.1 that canonical_object_bytes is the envelope preimage and the digest listed among an object's contents is the derived trailer, and adds the same one-sentence clarification after the 5.2 object, 5.7 pack, 8.3 capsule and 10.1 candidate field lists. New master sha256 e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9 recorded in the locator; no code or vector changed.
 ```
 
 ```text
@@ -1521,6 +1523,7 @@ TESTS_REQUIRED: none
 SPECS_TO_UPDATE: /home/greyforge/machineresearch/Sley2.0mastergoal.md 5.1 TransactionId entry (add ReceiptId)
 CODE_OWNERSHIP: campaign integrator; maat
 REVIEW_REQUIRED: yes (master edit)
+IMPLEMENTATION (slice 6c): master 5.x now says TransactionId is the content address of the transaction record (no TransactionId or ReceiptId field inside the record; trailer outside its preimage) and that the receipt is the stored form addressed by ReceiptId per ADR-0021 and TRANSACTION_MODEL_V1; same master commit as AT-HH-02.
 ```
 
 ```text
@@ -1542,6 +1545,7 @@ TESTS_REQUIRED: pinned preimage and digest vectors in Rust tests or conformance 
 SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V2.md (SLEYPOBS1 byte layout; the v2 path is the live one), NATIVE_REFS_BRANCHES_V1.md (vectors), CAPABILITY_TOKEN_V1.md and CAPABILITY_SUMMARY_V1.md (vector pointers), CANDIDATE_RESULT_V1.md (vector pointers)
 CODE_OWNERSHIP: sley-vm, sley-repo, sley-policy (ariadne); vulcan for test review
 REVIEW_REQUIRED: campaign independent review (AT-G8)
+IMPLEMENTATION (slice 6c, first priority band): EXEC_PACKAGE_V2.md now freezes the SLEYPOBS1 preimage byte layout (field order and widths as execute.rs builds it) and points at the frozen vectors; crates/sley-vm/tests/rw075_raw_callable.rs pins the v2 package digest, the five section digests and the observation id of the RHW1 bridge fixture (package 5822e1a9..., image c95c2354..., constants and layouts af5570f5... (both empty sections), imports 2f985494..., dependency a345e4f3..., observation 3c3b2883...). Not frozen here, left for their owners: branch record and ref digests (S20-500), capability token and summary (S20-380), attempt, context and phase digests (S20-360); listed in the closeout's not-claimed set.
 ```
 
 ```text
@@ -1563,6 +1567,7 @@ TESTS_REQUIRED: add trailing-byte to the exchange rejected corpus (scripts/gener
 SPECS_TO_UPDATE: none
 CODE_OWNERSHIP: sley-repo (ariadne)
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 6c): the exchange fixture emitter gains a trailing-byte rejection (stored bytes plus one byte), the generator's expected id list and the vector checker accept it, conformance/repository-exchange/v1/rejected.json regenerated (--check PASS) with the Python oracle rejecting it; crates/sley-repo gains outer_trailing_byte_fails_before_promotion for the pack decoder (SCB_TRAILING_BYTES, no promotion). sley-repo 363 tests pass; pack corpus unchanged and oracle PASS.
 ```
 
 ```text
@@ -1787,6 +1792,7 @@ TESTS_REQUIRED: fixed vectors for the new class over the S20-310 fixture; bounde
 SPECS_TO_UPDATE: ROOT_BACKED_QUERY_PROFILE_V1.md (v2 or successor), SMP1.md section 4 and appendix A, CONTEXT_CAPSULE_PROFILE_V1.md (if the capsule carries the body), SLEY2_TRIAL_RUNNER_V1.md ARM_AFFORDANCES, REQUIRED_CONTRACT_INDEX_V1.md
 CODE_OWNERSHIP: S20-310 (sley-query) and S20-400/S20-410 (sley-protocol); S20-620 runner allowlist
 REVIEW_REQUIRED: Ariadne contract review, Nabu architecture review (bounded-context and dump-avoidance), Vulcan surface review
+DISPOSITION NOTE (integrator): the record stands as B_ADDITIVE_NOW because the master's section 8.2 lists GetEntityVersion and GetSignature as required queries and no SMP1 method returns a bounded entity body (only 502 checkout returns a whole revision). The method itself is NOT implemented by this campaign: it is a protocol feature under a version bump on S20-400/S20-410, packages with open Council reviews, and implementing it inside an audit pass would bypass their review loop (spec section 21). Registered instead as an open 2.0 requirement gap in the locator's known_blocked_gates and in docs/WORK_PACKAGES.md (S20-410 row note), owned by the protocol package; it counts against AT-G5 in the closeout.
 ```
 
 ```text

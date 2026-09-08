@@ -1337,6 +1337,20 @@ mod tests {
     }
 
     #[test]
+    fn outer_trailing_byte_fails_before_promotion() {
+        let (_source_temp, source, root, _) = fixture();
+        let mut bytes = export_conformance_pack(&source, &[root], &verifier)
+            .unwrap()
+            .stored_bytes;
+        bytes.push(0);
+        let clean_temp = TempRoot::new("trailing");
+        let clean = ObjectStore::new(&clean_temp.0);
+        let error = import_conformance_pack(&clean, &bytes, &verifier).unwrap_err();
+        assert_eq!(error.symbol(), "SCB_TRAILING_BYTES");
+        assert!(!clean.root().join("objects").exists());
+    }
+
+    #[test]
     fn object_verifier_failure_precedes_all_promotions() {
         let (_source_temp, source, root, _) = fixture();
         let pack = export_conformance_pack(&source, &[root], &verifier).unwrap();

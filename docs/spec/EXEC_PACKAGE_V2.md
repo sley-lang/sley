@@ -84,6 +84,37 @@ RW-080 builder/loader handoff will freeze together with its emitter and
 vectors; until then they are unreachable by design. Freezing the layout
 will not change the package digest preimage.
 
+## Package observation preimage (`SLEYPOBS1`)
+
+The package-bound observation identity is
+`ObservationId = BLAKE3-256("sley2.observation.v1" || preimage)` with the
+preimage laid out exactly as `observation_preimage_package` in
+`crates/sley-vm/src/execute.rs` builds it (all integers big-endian):
+
+```text
+"SLEYPOBS1" || u32(1)
+|| schema_epoch[32] || ssmc1_field_schema_hash[32] || ssmc1_decoder_limits_hash[32]
+|| state_root[32] || entry_function[32] || cache_key[32]
+|| package_digest[32] || image_digest[32] || constants_digest[32]
+|| layouts_digest[32] || imports_digest[32] || dependency_digest[32]
+|| profile_digest[32] || u32(host_abi_version)
+|| u32(vm_major) || u32(vm_minor) || u32(vm_patch) || u32(1)
+|| u64(input_count) || input_value_hash[32]...
+|| u64(max_instructions) || u64(max_fuel) || u64(max_value_units) || u64(max_output_units)
+|| u32(1) | u32(2) || u64(cancel_at_fuel)
+|| termination (encode_termination_package)
+|| u64(instruction_count) || u64(fuel_used) || u64(peak_value_units)
+|| u64(0) || u64(0) || u64(0) || u64(0)
+```
+
+The `SLEYPOBS1` magic and the six package digests make a package observation
+prefix-disjoint from the S20-270 `SLEYOBS1` observation under the same domain.
+Frozen vectors for the v2 package digest, the five section digests and this
+observation over the RHW1 bridge fixture are pinned by
+`crates/sley-vm/tests/rw075_raw_callable.rs`
+(`v2_package_section_digests_and_observation_are_frozen`); moving any of them
+requires a new package or observation version.
+
 ## Hydration (unchanged)
 
 Same allows/forbids as v1 (byte/framing decode, digest verification,

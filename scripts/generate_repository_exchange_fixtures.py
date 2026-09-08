@@ -85,6 +85,7 @@ def main() -> int:
         "reversed-branches",
         "foreign-head",
         "open-ancestry",
+        "trailing-byte",
     ]:
         raise RuntimeError(f"unexpected rejection set {[r['id'] for r in rejections]}")
     accepted = {

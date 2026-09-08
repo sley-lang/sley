@@ -67,7 +67,7 @@
     },
     {
       "family": "repository-exchange",
-      "rejections": 5,
+      "rejections": 6,
       "vectors": 1
     },
     {
@@ -121,10 +121,10 @@
       "vectors": 29
     }
   ],
-  "conformance_rejections": 178,
+  "conformance_rejections": 179,
   "conformance_vectors": 387,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "e84f3be256896842331ef512ec893b9bd0020009e21330fd81e674e84bd961b2",
+  "inventory_digest": "780af0577781490b69685027d2609b32eff8e7fe8249be281fcf99f5bbdd0ac2",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -248,7 +248,7 @@
     {
       "crate": "sley-repo",
       "ignored": 3,
-      "tests": 380
+      "tests": 381
     },
     {
       "crate": "sley-scb1",
@@ -283,11 +283,11 @@
     {
       "crate": "sley-vm",
       "ignored": 2,
-      "tests": 229
+      "tests": 230
     }
   ],
   "rust_ignored_emitters": 14,
-  "rust_unit_tests": 1289,
+  "rust_unit_tests": 1291,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

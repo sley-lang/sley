@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "16d87f81256978246722e921d5222bd86c033cf3266b56e4f42e96c8927805fa",
+  "dossier_digest": "decb0dcdc42bbef010bfab0d14dbfe6b3d7468a25d00930a60276683c6cefa56",
   "entries": [
     {
       "evidence": [
@@ -136,7 +136,7 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 178,
+        "conformance_rejections": 179,
         "conformance_vectors": 387,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
@@ -148,7 +148,7 @@
         "property_tests": 0,
         "python_tests": 148,
         "rust_ignored_emitters": 14,
-        "rust_unit_tests": 1289
+        "rust_unit_tests": 1291
       }
     },
     {
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "b6ac3ee3433c9151ea21db01b15cb5cd82c88c77e254b3c04f008cf902ca5c24",
+  "entries_digest": "1ed017c284c3e38d35d6c781957814c07abc483128232512dfe55824b9611e92",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

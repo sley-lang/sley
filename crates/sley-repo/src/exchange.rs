@@ -3231,12 +3231,15 @@ pub(crate) mod tests {
             Vec::new(),
         )
         .unwrap();
+        let mut trailing = exchange.stored_bytes.clone();
+        trailing.push(0);
         for (id, bytes) in [
             ("flip-trailer", flipped_trailer),
             ("nested-exchange", nested.stored_bytes),
             ("reversed-branches", reversed.stored_bytes),
             ("foreign-head", foreign_head.stored_bytes),
             ("open-ancestry", open.stored_bytes),
+            ("trailing-byte", trailing),
         ] {
             let error = import_repository_exchange(&never, &bytes, &verify).unwrap_err();
             println!("EXCHANGE_REJECT|{id}|{}|{}", error.code(), hex(&bytes));
