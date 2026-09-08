@@ -97,8 +97,9 @@ receipt and root. The caller supplies only the branch name and origin
 `TransactionId`.
 
 `branch_record_digest` is an integrity digest over immutable repository
-metadata. It is not a `StateRoot` input and is not added to the `sley-id` domain
-registry.
+metadata. It is not a `StateRoot` input. Its domain is registered in
+`IDENTIFIERS_V1.md` (ADR-0048 rows); the earlier "not added to the registry"
+wording predates that registration (corrected 2026-09-08, AT-IG-11).
 
 ## 5. Mutable branch-ref record
 

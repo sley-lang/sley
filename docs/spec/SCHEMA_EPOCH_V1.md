@@ -110,6 +110,9 @@ Production descriptor rows are added only by their owning semantic work
 packages. S20-140 freezes the representation and lookup rules, not premature
 SSMC contract contents.
 
+The global assignment of `digest_domain_tag` integers across contracts is
+the table in `IDENTIFIERS_V1.md` (section "Digest domain tags").
+
 ## 5. Immutable registry and decoder selection
 
 A registry is constructed from a statically supplied, strictly ID-sorted set

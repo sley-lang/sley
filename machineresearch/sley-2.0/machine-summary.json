@@ -97,7 +97,7 @@
       "Remote inspectability: active lineage on no GitHub remote (AT-RF-01, operator hosting decision pending)"
     ],
     "remote": {
-      "repository": "https://github.com/GreyforgeLabs/sley.git",
+      "repository": "origin (public sanitized mirror; URL in git remote -v; the repository name is a clean-room sentinel)",
       "state": "public sanitized mirror at v2.0.0-alpha.1 with unrelated history; the active lineage is local-only until the operator decides hosting (AT-RF-01)"
     },
     "last_updated_utc": "2026-09-08T08:05:00Z"

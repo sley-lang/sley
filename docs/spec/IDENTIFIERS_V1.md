@@ -74,11 +74,18 @@ day (ADR-0048). Every one was specified and fixtured by its own package but neve
 this registry: the first four because no check compared the registry with the
 implementation, and the next sixteen because the check that was then added read
 only `crates/sley-id`, while a domain may be derived by any crate that hashes.
-The registry now carries all fifty domains the implementation derives,
+The registry now carries all fifty domains the crates derive,
 `scripts/check_required_contract_index.py` compares the two over every crate on
 every `make quick`, and the last two rows are labelled by what they are: a
 deterministic randomness domain that grants no authority, and a test-hook plan
-domain that a release build compiles out.
+domain that a release build compiles out. The registry's scope is the crate
+implementation. `sley2.*` strings that appear only under `scripts/` and
+`bench/` (evidence-chain SHA-256 prefixes such as the trial-trace and
+raw-run manifests, JSON report contract labels, the host-boundary record
+label) are not hash domains and are not registered;
+`scripts/check_domain_tags_and_strings.py` asserts that no such label is used
+by a script that also hashes with BLAKE3, so an identity domain cannot be
+introduced outside the registry.
 
 A domain cannot be renamed, aliased, or reused for another preimage. Adding a
 domain requires an ADR, fixtures, and registry drift validation.
@@ -93,6 +100,30 @@ later authenticated S20-380 capability evidence perform exact matching.
 proposal bindings introduced by S20-345. Neither proves that capabilities were
 authenticated or validation phases ran. Their owning contracts define exact
 preimages; S20-360 must compare them with trusted recomputation/evidence.
+
+## Digest domain tags
+
+Every conformance epoch's contract descriptor carries an integer
+`digest_domain_tag`. Two conventions coexist: 3, 4 and 8 equal the `sley-id`
+`Domain` ordinals of their domains, while 18 to 22 were assigned sequentially
+(they coincide with unrelated ordinals). No code maps the integer to a domain
+string, and every contract lives in its own single-descriptor conformance
+epoch, so the integers collide only if a future epoch assembles several
+descriptors. This table is the global assignment; a new tag must take the
+next unused integer here, never one derived by analogy.
+`scripts/check_domain_tags_and_strings.py` verifies each row against its
+source and that no crate declares a constant this table omits.
+
+| Tag | Contract | Source |
+|---:|---|---|
+| 3 | `sley2.object.v1` (SSMC1 epoch-1 contract descriptor) | `docs/spec/SSMC1.md` |
+| 4 | `sley2.state-root.v1` | `crates/sley-state-root/src/lib.rs` |
+| 8 | `sley2.policy-root.v1` | `crates/sley-policy/src/lib.rs` |
+| 18 | `sley2.repository-pack.v1` | `crates/sley-repo/src/lib.rs` |
+| 19 | `sley2.repository-exchange.v1` | `crates/sley-repo/src/exchange.rs` |
+| 20 | `sley2.semantic-delta.v1` (semantic comparison) | `crates/sley-repo/src/compare.rs` |
+| 21 | `sley2.merge-conflict.v1` (merge) | `crates/sley-repo/src/merge.rs` |
+| 22 | `sley2.protocol-handshake.v1` (SMP1) | `crates/sley-protocol/src/lib.rs` |
 
 ## Workspace identity
 

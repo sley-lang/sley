@@ -207,9 +207,9 @@ BLAKE3-256("sley2.merge-plan-nonce.v1" || A.root || judged_merged.root)`
 over the judged (pre-remap) merged root, assigns each such entity the
 derived identity in raw-ID order of the judged identities, and emits the
 creations in that same order, so derivation order and operation order
-agree. (`sley2.merge-plan-nonce.v1` is a preimage separator, not a
-`sley-id` domain: it names no identifier and is pinned by the stage
-checker as raw domain bytes.) A derived identity that already names an
+agree. (`sley2.merge-plan-nonce.v1` is a preimage separator registered in
+`IDENTIFIERS_V1.md` (ADR-0048): it names no identifier, is not a `sley-id`
+derived identity, and is pinned by the stage checker as raw domain bytes.) A derived identity that already names an
 unrelated live entity in `A` fails `MERGE_PLAN_UNSUPPORTED` instead of
 silently replacing it. Every local reference to a re-identified entity is
 rewritten in every merged body (identity fields, identity sets

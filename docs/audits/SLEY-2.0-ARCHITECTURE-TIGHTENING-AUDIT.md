@@ -15,7 +15,8 @@ repository already resolves is recorded as `A_ALREADY_SOLVED` with proof.
 ```text
 ARCH_TIGHTEN_BASELINE:
   canonical_repo:                 /home/greyforge/sley2
-                                  origin https://github.com/GreyforgeLabs/sley.git (PUBLIC)
+                                  origin = the public sanitized mirror (URL in `git remote -v`; the repository
+                                  name is a clean-room sentinel and is not spelled in this tree)
   canonical_branch:               main
   baseline_commit:                560a5f16ebe9edaaee6837b779f6af94ad9ae310
   baseline_parent:                5044168a448b46de22b29189d039bd1cc3b3056a
@@ -112,7 +113,7 @@ REPOSITORY_EVIDENCE:
   git rev-list --left-right --count main...origin/main -> 590 ahead, 90 behind
   origin/main 1d573a07 "docs: establish canonical Sley 2 identity"; 9bb8eb88
     "chore: authorize sanitized public source mirror (v2.0.0-alpha.1)" (2026-08-28)
-  gh repo view GreyforgeLabs/sley -> visibility PUBLIC, pushedAt 2026-08-30T06:13:05Z
+  gh repo view <origin> -> visibility PUBLIC, pushedAt 2026-08-30T06:13:05Z
   origin/main:repository-policy.json forbids "private evidence",
     "machine-local absolute paths", "operator-only authority files";
     origin/main:scripts/check_public_repository_policy.py enforces it in CI
@@ -140,8 +141,8 @@ RATIONALE: A material remote-inspectability defect that section 15 names as an e
   recorded public policy, and both remedies are outward-facing decisions reserved to the
   operator. The documented safety reason (15.2) for the current gap is recorded here.
   Smallest correct repair, recommended: create a PRIVATE GitHub repository for the active
-  lineage (for example GreyforgeLabs/sley2), set it as the upstream of main, push main and
-  arch/tighten-r1, and keep GreyforgeLabs/sley as the sanitized public mirror refreshed only
+  lineage (a new private repository under the same GitHub organization), set it as the upstream of main, push main and
+  arch/tighten-r1, and keep <origin> as the sanitized public mirror refreshed only
   by the existing rewrite pipeline under a separate publication decision. Alternative:
   refresh the public mirror now, which is a publication act and stays gated by
   publication_authorized = false.
@@ -880,6 +881,27 @@ CODE_OWNERSHIP: n/a
 REVIEW_REQUIRED: none.
 ```
 
+```text
+FINDING_ID: AT-NA-10
+TITLE: candidate.validate and candidate.commit take the current time from the request body
+HYPOTHESIS: Caller-supplied time is trusted for expiry judgment, so a client can extend a capability's validity (observation routed from the machine-write audit).
+REPOSITORY_EVIDENCE: crates/sley-protocol/src/server.rs:1312-1318 and :1336-1341 (`now = single_uvar(fields[2])` passed to CandidateValidationContext / CommitInput); docs/spec/EXPIRY_V1.md:3 ("no ambient clock authority"), :12-16 (epoch 1 clock tag 1, Unix milliseconds; `now_unix_millis < not_after` on trusted host input; the kernel never reads a clock and never proves freshness); docs/spec/CAPABILITY_TOKEN_V1.md expiry rows.
+SPEC_EVIDENCE: Sley 2.0 master: ambient authority forbidden, deterministic execution mandatory; EXPIRY_V1 is the S20-345 canonical time-bound contract; tightening spec 2.1 (effects and capabilities explicit; ambient authority forbidden).
+CURRENT_BEHAVIOR: The kernel never reads a clock by design; `now` is an explicit input of the transport boundary, recorded in the candidate attempt evidence, and freshness is the transport/host's responsibility, exactly as EXPIRY_V1 states.
+DESIRED_INVARIANT: No ambient clock inside the kernel; time enters as explicit, evidenced input whose trust is assigned to the host boundary. Holds.
+DISPOSITION: A_ALREADY_SOLVED
+RATIONALE: Explicit time input is the deliberate alternative to ambient clock authority, and the contract states that the value proves nothing about freshness. Whether the SMP1 transport should bind `now` to a host-attested clock is a host-boundary policy question already outside the kernel; recorded here so it is not mistaken for a hidden trust assumption.
+CANONICAL_IMPACT: none
+SCHEMA_IMPACT: none
+ABI_IMPACT: none
+SELFHOST_IMPACT: none
+MIGRATION_REQUIRED: no
+TESTS_REQUIRED: none
+SPECS_TO_UPDATE: none
+CODE_OWNERSHIP: sley-protocol (S20-410), EXPIRY_V1 (S20-345)
+REVIEW_REQUIRED: no
+```
+
 ### 3.5 Canonical specification synchronization (spec section 14) and status mechanism (15.5)
 
 The spec-sync audit's 27-row drift table and its status-mechanism inventory
@@ -1221,6 +1243,7 @@ TESTS_REQUIRED: none (optional: extend scripts/check_required_contract_index.py 
 SPECS_TO_UPDATE: docs/audits (new record); rw-075-hash-inventory.md gains one pointer line to the graph
 CODE_OWNERSHIP: campaign integrator; ariadne for the pointer line
 REVIEW_REQUIRED: campaign independent review (AT-G8)
+IMPLEMENTATION (slice 6a): landed as docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-IDENTITY-MAP.md (66 records, edge list, duplicate table, hygiene matrix); rw-075-hash-inventory.md untouched.
 ```
 
 ```text
@@ -1347,6 +1370,7 @@ TESTS_REQUIRED: scripts/check_required_contract_index.py gains a disjointness as
 SPECS_TO_UPDATE: docs/spec/IDENTIFIERS_V1.md (scope paragraph; optional note on the observation row naming SLEYOBS1 and SLEYPOBS1 per AT-IG-04)
 CODE_OWNERSHIP: ariadne (registry), thoth or campaign integrator (checker)
 REVIEW_REQUIRED: campaign independent review (AT-G8)
+IMPLEMENTATION (slice 6b): IDENTIFIERS_V1.md scope paragraph now states the registry covers the crate implementation and that script- and bench-side sley2.* strings are evidence-chain labels, not domains; scripts/check_domain_tags_and_strings.py (in make quick after the index check) fails any scripts/ or bench/ file that carries an unregistered sley2.* label and also hashes with blake3, so an identity domain cannot appear outside the registry; 43 unregistered labels inventoried, none in a blake3 script. The lane2-owned check_required_contract_index.py was not edited.
 ```
 
 ```text
@@ -1368,6 +1392,7 @@ TESTS_REQUIRED: scripts/check_required_contract_index.py compares the table with
 SPECS_TO_UPDATE: docs/spec/IDENTIFIERS_V1.md or REQUIRED_CONTRACT_INDEX_V1.md (table); SCHEMA_EPOCH_V1.md section 4 (pointer)
 CODE_OWNERSHIP: ariadne
 REVIEW_REQUIRED: campaign independent review (AT-G8)
+IMPLEMENTATION (slice 6b): IDENTIFIERS_V1.md gains the global digest_domain_tag table (3, 4, 8, 18, 19, 20, 21, 22 with contract and source) and the rule that a new tag takes the next unused integer; SCHEMA_EPOCH_V1.md section 4 points at it; scripts/check_domain_tags_and_strings.py verifies each row against its source, refuses duplicates, and refuses any crate DIGEST_DOMAIN_TAG constant the table omits (a scratch copy with the merge row changed to 23 fails source-value-drift). No integer changed.
 ```
 
 ```text
@@ -1431,6 +1456,7 @@ TESTS_REQUIRED: none beyond the existing drift check
 SPECS_TO_UPDATE: docs/spec/NATIVE_REFS_BRANCHES_V1.md section 4; docs/spec/MERGE_V1.md "Merge plan"
 CODE_OWNERSHIP: ariadne
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 6b): NATIVE_REFS_BRANCHES_V1.md and MERGE_V1.md now say the domains are registered (ADR-0048) with the correction dated; check_ref_branch_contract and check_merge_spec PASS.
 ```
 
 ```text
@@ -1824,6 +1850,7 @@ TESTS_REQUIRED: the stage checker that pins VALIDATION_PROFILE_V1.md markers (sc
 SPECS_TO_UPDATE: docs/spec/VALIDATION_PROFILE_V1.md:46-49 to reference CANDIDATE_RESULT_V1.md section 9's exact subset
 CODE_OWNERSHIP: S20-345/S20-360 contract owner
 REVIEW_REQUIRED: Ariadne contract review (documentation delta)
+IMPLEMENTATION (slice 6b): VALIDATION_PROFILE_V1.md now states the supported success subset per CANDIDATE_RESULT_V1 section 9 and TRANSACTION_MODEL_V1 and withdraws the pre-ADR-0045 sentence; profile identity unchanged; check_candidate_contract_freeze and check_candidate_result_contract PASS.
 ```
 
 ```text

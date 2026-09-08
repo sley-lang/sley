@@ -44,7 +44,11 @@ separate graph/reference and type/CFG terminal decisions, and forbids
 caller-asserted phase success.
 
 The implementation executes every phase in order and returns one canonical
-monotonic result. Its current supported success subset contains no SSMC1
-`Operation` entities. Operation-bearing projected programs fail closed during
-supported resource analysis; this profile identity does not imply complete GA
-operation coverage, commit authority, or runtime authority.
+monotonic result. Its supported success subset covers the restricted subset
+proven by S20-360 and programs carrying semantic `Operation` entities validated
+by the S20-360 full operation analysis (`CANDIDATE_RESULT_V1.md` section 9,
+`TRANSACTION_MODEL_V1.md`); the earlier "no `Operation` entities" statement
+described the pre-ADR-0045 subset and is withdrawn (2026-09-08, AT-MW-05).
+Unsupported operation forms still fail closed during supported resource
+analysis; this profile identity does not imply complete GA operation
+coverage, commit authority, or runtime authority.

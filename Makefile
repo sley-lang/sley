@@ -81,6 +81,7 @@ quick:
 	python3 scripts/check_decision_dossier.py
 	python3 scripts/check_epoch_migration_policy.py
 	python3 scripts/check_required_contract_index.py
+	python3 scripts/check_domain_tags_and_strings.py
 	python3 scripts/check_clean_room_boundary.py
 	python3 scripts/check_error_symbol_registration.py --check
 	python3 scripts/check_declared_limits.py

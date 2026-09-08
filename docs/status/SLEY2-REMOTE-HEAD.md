@@ -24,7 +24,7 @@ Known blocked gates:
 - release-candidate-smoke re-attest pending since the S20-330 closure (RESUME.md 2026-09-05)
 - Operator gates: narrowed schema-epoch decision, succession trials, root license text, second-host attestation, release decision; publication_authorized false
 - Remote inspectability: active lineage on no GitHub remote (AT-RF-01, operator hosting decision pending)
-Remote: https://github.com/GreyforgeLabs/sley.git (public sanitized mirror at v2.0.0-alpha.1 with unrelated history; the active lineage is local-only until the operator decides hosting (AT-RF-01))
+Remote: origin (public sanitized mirror; URL in git remote -v; the repository name is a clean-room sentinel) (public sanitized mirror at v2.0.0-alpha.1 with unrelated history; the active lineage is local-only until the operator decides hosting (AT-RF-01))
 Last updated UTC: 2026-09-08T08:05:00Z
 
 Verification at render time: PASS
