@@ -19,6 +19,7 @@ Current bootstrap profile: BOOTSTRAP_PROFILE_2 (`sley2-bootstrap-profile-2`, dig
 Review candidates (immutable refs):
 - round 1: `review/arch-tighten-r1-round1` = `8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d` (Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress))
 - round 2: `review/arch-tighten-r1-round2` = `d4a1e330d66cca63fa83203f1c18cc051493c147` (Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2))
+- round 3: `review/arch-tighten-r1-round3` = `66a76781469625b9da3e5da18736153baae5b435` (Ariadne round 2 (after the Ariadne round-1 repairs; worktree sley2-review-arch-tighten-r3))
 Known blocked gates:
 - R2 exit NOT_READY: premium delta re-review of the RW-075 correction still FAIL/PENDING (scripts/check_r2_exit.py)
 - RW-080 BLOCKED: Nabu round-12 review, premium round 2, S20-780 independent acceptance pending; slices 1 to 7 provisional
@@ -28,6 +29,6 @@ Known blocked gates:
 - Operator gates: narrowed schema-epoch decision, succession trials, root license text, second-host attestation, release decision; publication_authorized false
 - Open 2.0 requirement gap AT-MW-02: master 8.2 GetEntityVersion/GetSignature have no SMP1 method; owned by S20-410 under an SMP1 revision
 Remote: origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror (main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision)
-Last updated UTC: 2026-09-08T10:05:00Z
+Last updated UTC: 2026-09-08T10:40:00Z
 
 Verification at render time: PASS

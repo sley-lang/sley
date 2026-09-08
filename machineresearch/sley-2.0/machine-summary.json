@@ -101,6 +101,13 @@
         "sha": "d4a1e330d66cca63fa83203f1c18cc051493c147",
         "reviewers": "Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2)",
         "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-nabu-r2-2026-09-08.log"
+      },
+      {
+        "round": 3,
+        "ref": "review/arch-tighten-r1-round3",
+        "sha": "66a76781469625b9da3e5da18736153baae5b435",
+        "reviewers": "Ariadne round 2 (after the Ariadne round-1 repairs; worktree sley2-review-arch-tighten-r3)",
+        "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-ariadne-r2-2026-09-08.log"
       }
     ],
     "known_blocked_gates": [
@@ -116,7 +123,7 @@
       "repository": "origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror",
       "state": "main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision"
     },
-    "last_updated_utc": "2026-09-08T10:05:00Z"
+    "last_updated_utc": "2026-09-08T10:40:00Z"
   },
   "publication_authorized": false,
   "scb1": {
