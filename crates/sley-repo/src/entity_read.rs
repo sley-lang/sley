@@ -46,14 +46,14 @@ pub fn prepare_verified_entity_read<'rev>(
     Ok((request, plan))
 }
 
-/// Encodes the complete response for a prepared plan.
+/// Encodes the complete response for a prepared plan, consuming it.
 ///
 /// # Errors
 ///
 /// Returns `InternalInvariant` when the written bytes drift from the
 /// preflight length.
 pub fn encode_verified_entity_read_response(
-    plan: &EntityReadPlan<'_>,
+    plan: EntityReadPlan<'_>,
     session: SessionId,
 ) -> Result<EntityReadOutcome, EntityReadError> {
     encode_entity_read_response(plan, session)
@@ -106,7 +106,7 @@ mod tests {
             .unwrap();
             assert_eq!(request.entity, entity);
             let outcome =
-                encode_verified_entity_read_response(&plan, session).unwrap();
+                encode_verified_entity_read_response(plan, session).unwrap();
             assert_eq!(outcome.returned_entities, 1);
             let response = decode_entity_read_response(&outcome.body).unwrap();
             assert_eq!(response.root, root);
@@ -137,7 +137,7 @@ mod tests {
             &ceilings(),
         )
         .unwrap();
-        let outcome = encode_verified_entity_read_response(&plan, session).unwrap();
+        let outcome = encode_verified_entity_read_response(plan, session).unwrap();
         assert_eq!(outcome.returned_entities, 3);
         let response = decode_entity_read_response(&outcome.body).unwrap();
         let entities: Vec<EntityId> = response
