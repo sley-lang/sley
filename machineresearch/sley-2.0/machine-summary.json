@@ -13,6 +13,95 @@
   "m0_commit": "3a0fd1b46858e31a1e040dda9d4fafe65e83ed38",
   "final_commit": null,
   "status": "IN_PROGRESS",
+  "locator": {
+    "rule": "Section 15.5 remote-head locator. Non-commit fields only; git is authoritative for commit identity. scripts/check_remote_head.py verifies every digest and version claim here against the artifact it names and renders docs/status/SLEY2-REMOTE-HEAD.md. Update in the same or the immediately following validated commit.",
+    "canonical_integration_branch": "main",
+    "latest_validated_integration_commit": "560a5f16ebe9edaaee6837b779f6af94ad9ae310",
+    "active_lanes": [
+      {
+        "lane": "arch-tighten",
+        "branches": [
+          "arch/tighten-r1"
+        ],
+        "owner": "architecture-tightening campaign (integrator)",
+        "state": "audit slices landing; merge to main after the lane sessions hand off"
+      },
+      {
+        "lane": "lane3 RW-080",
+        "branches": [
+          "lane3/rw080-lower-scaffold-f1",
+          "lane3/rw080-f6f7-vm",
+          "lane3/rw080-checker-scaffold"
+        ],
+        "owner": "RW-080 codec construction (Ariadne lane)",
+        "state": "provisional slices 1 to 7 on main under the 2026-09-07 operator override; BLOCKED, not authority"
+      },
+      {
+        "lane": "lane2 S20-770",
+        "branches": [
+          "lane2/s20770-council-rereview-r1",
+          "lane2/s20770-acceptance-closeout-r1"
+        ],
+        "owner": "required-contract index (Ariadne package)",
+        "state": "Council re-review in progress; not merged"
+      }
+    ],
+    "canonical_spec": {
+      "path": "/home/greyforge/machineresearch/Sley2.0mastergoal.md",
+      "name": "Sley 2.0 Machine Genesis master goal",
+      "sha256": "e1e153468316d56e111af0f6f3bffa0d66601e3f5e2fe898a5af7fdfb14fc719",
+      "in_repo_dossier": "machineresearch/sley-2.0/",
+      "override_env": "SLEY2_MASTER_GOAL"
+    },
+    "reweave_master": {
+      "path": "/home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md",
+      "revision": "REWEAVE-1.0",
+      "sha256": "61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63",
+      "adoption": "docs/adr/ADR-0049-reweave-scope-adoption.md",
+      "override_env": "SLEY2_REWEAVE_MASTER"
+    },
+    "schema_epoch": {
+      "name": "SSMC1 epoch 1 (bootstrap SchemaEpochId)",
+      "id": "ae5b235713b46c04f73c1decd0fb0bb57c5557d0fe89dae7ddac4a7dba25564e",
+      "fixture": "conformance/schema-epoch/v1/bootstrap.json",
+      "fixture_sha256": "6c1c4396b99bb57f3d646fe5938f5393e606c8a5323f609d48c0bfaad4e1223a"
+    },
+    "host_abi": {
+      "identity": "HOST_ABI_V2",
+      "contract": "sley2-host-abi-2",
+      "digest": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
+      "record": "conformance/host-abi/v2/host-abi.json",
+      "contract_doc": "docs/spec/HOST_ABI_V2.md"
+    },
+    "exec_package": {
+      "identity": "EXEC_PACKAGE_V2",
+      "contract": "sley2-exec-package-2",
+      "digest": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
+      "record": "conformance/exec-package/v2/exec-package.json",
+      "contract_doc": "docs/spec/EXEC_PACKAGE_V2.md"
+    },
+    "bootstrap_profile": {
+      "identity": "BOOTSTRAP_PROFILE_2",
+      "contract": "sley2-bootstrap-profile-2",
+      "digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+      "record": "conformance/bootstrap-profile/v2/profile.json",
+      "contract_doc": "docs/spec/BOOTSTRAP_PROFILE_2.md"
+    },
+    "known_blocked_gates": [
+      "R2 exit NOT_READY: premium delta re-review of the RW-075 correction still FAIL/PENDING (scripts/check_r2_exit.py)",
+      "RW-080 BLOCKED: Nabu round-12 review, premium round 2, S20-780 independent acceptance pending; slices 1 to 7 provisional",
+      "Self-host succession not started: S, C1, C2, C3 do not exist (SH0)",
+      "Finding register FINDING_REGISTER_OPEN (open Council reviews across packages; evidence/review/finding-register.json)",
+      "release-candidate-smoke re-attest pending since the S20-330 closure (RESUME.md 2026-09-05)",
+      "Operator gates: narrowed schema-epoch decision, succession trials, root license text, second-host attestation, release decision; publication_authorized false",
+      "Remote inspectability: active lineage on no GitHub remote (AT-RF-01, operator hosting decision pending)"
+    ],
+    "remote": {
+      "repository": "https://github.com/GreyforgeLabs/sley.git",
+      "state": "public sanitized mirror at v2.0.0-alpha.1 with unrelated history; the active lineage is local-only until the operator decides hosting (AT-RF-01)"
+    },
+    "last_updated_utc": "2026-09-08T08:05:00Z"
+  },
   "publication_authorized": false,
   "scb1": {
     "status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",

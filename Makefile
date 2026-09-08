@@ -342,3 +342,5 @@ v2 release-check:
 remote-consistency:
 	python3 scripts/check_remote_consistency.py --self-test
 	python3 scripts/check_remote_consistency.py $(REMOTE_CONSISTENCY_ARGS)
+	python3 scripts/check_remote_head.py --self-test
+	python3 scripts/check_remote_head.py --check

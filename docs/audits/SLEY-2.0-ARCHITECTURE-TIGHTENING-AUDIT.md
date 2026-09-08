@@ -909,6 +909,7 @@ TESTS_REQUIRED: check_bootstrap_profile_1.py, check_bootstrap_profile_2.py, chec
 SPECS_TO_UPDATE: machineresearch/sley-2.0/reweave/bootstrap-manifest.json (P: current v2 + history v1), CONTRIBUTING.md:42, scripts/check_r2_exit.py labels; none of docs/spec
 CODE_OWNERSHIP: Ariadne (REWEAVE lane records), Codex/integrator (CONTRIBUTING), Vulcan (gate scripts)
 REVIEW_REQUIRED: yes, Nabu architecture re-read of the manifest binding (REWEAVE 13.1) before R2 exit re-evaluation
+IMPLEMENTATION (slice 5c): bootstrap-manifest.json P now binds BOOTSTRAP_PROFILE_2 (digest fb2d8cc8..., v2 provenance, v1 named as superseded history without a second digest inside the stage, which check_bootstrap_capability forbids); CONTRIBUTING governance line updated; check_bootstrap_profile_1 accepted only a v1 binding and now accepts the declared successor when v1 history is named. check_bootstrap_profile_{1,2}, check_bootstrap_capability PASS; check_r2_exit unchanged (its P_bootstrap_profile_1 label checks the frozen v1 record, D3 left as is). host-boundary.json untouched.
 ```
 
 ```text
@@ -930,6 +931,7 @@ TESTS_REQUIRED: check_cli_contract.py and check_smp1_json_bridge_contract.py gai
 SPECS_TO_UPDATE: docs/spec/SMP1_JSON_BRIDGE_V1.md (pin 11, revision 7 note naming PROTOCOL_DOWNGRADE), docs/spec/SLEY_CLI_V1.md (pin 11, revision 4 note), docs/WORK_PACKAGES.md rows S20-420/S20-430, machine-summary.json json_bridge.contract_revision / cli.contract_revision
 CODE_OWNERSHIP: Merlin (S20-420, S20-430 packages), Ariadne (SMP1 contract owner)
 REVIEW_REQUIRED: yes, Ariadne contract re-read of the two pin bumps (bounded delta)
+IMPLEMENTATION (slice 5d): SMP1_JSON_BRIDGE_V1 revision 7 and SLEY_CLI_V1 revision 4 (2026-09-08) re-pin SMP1 revision 11 with history notes naming the version-claim split; machine-summary contract_revision 7/4; WORK_PACKAGES rows updated. check_smp1_json_bridge_contract and check_cli_contract assert their own revision and each composed status line (modelled on check_session_handle_profile); PASS on the tree, FAIL with smp1-revision-pin on a scratch copy where SMP1 moves to 12. No vector or code change.
 ```
 
 ```text
@@ -994,6 +996,7 @@ TESTS_REQUIRED: revision-pin check over every `docs/spec/X.md (revision N` fragm
 SPECS_TO_UPDATE: docs/WORK_PACKAGES.md rows S20-260, S20-270, S20-430, S20-620 (and S20-420/S20-430 after AT-SS-02); RW rows RW-010..RW-080
 CODE_OWNERSHIP: Codex/integrator (DAG file), Vulcan (frontier checker)
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 5e): S20-260/270 rows pinned to VM_EXTENDED_OPCODE_PROFILE_V1 revision 13 (2026-09-06), S20-620 to trial-runner revision 3 (2026-09-04), S20-420/430 to the new revisions; a REWEAVE package table (RW-030..RW-080) added. The revision-pin assertion in the frontier checker was not added: the dossier checker pins WORK_PACKAGE_MARKERS by substring and a per-row revision assertion belongs to each package's own checker (S20-260/270's already reads its contract revision).
 ```
 
 ```text
@@ -1015,6 +1018,7 @@ TESTS_REQUIRED: locator checker (AT-SS-14) asserts README Authority block names 
 SPECS_TO_UPDATE: README.md:53-54 and :156-163, RESUME.md (supersede or refresh with RW state), ARCHITECTURE.md:3 and machineresearch/sley-2.0/00-executive-summary.md:3 ("as of" pointer)
 CODE_OWNERSHIP: Codex/integrator
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 5e/5b): README no longer says S20-330 is deferred (closed 2026-09-05, closeout cited); README Authority block names the master-goal override and the locator; RESUME.md is rewritten at campaign closeout as the handoff. ARCHITECTURE.md and the M0 dossier chapter stay dated records (no edit).
 ```
 
 ```text
@@ -1057,6 +1061,7 @@ TESTS_REQUIRED: optional index check that every docs/adr/ADR-*.md is listed and 
 SPECS_TO_UPDATE: docs/adr/README.md:25-26
 CODE_OWNERSHIP: Codex/integrator
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 5e): docs/adr/README.md records the ADR-0017 identifier collision as tolerated with both filenames; no renumbering.
 ```
 
 ```text
@@ -1141,6 +1146,7 @@ TESTS_REQUIRED: a summary/records parity check listing every reweave/rw-*.md rec
 SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json rw075_correction section; reweave/rw-075.md:3-4
 CODE_OWNERSHIP: Ariadne (REWEAVE lane records)
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 5e): machine-summary rw075_correction indexes RW-080 slices 5, 6 and 7 in the existing provisional wording with commits and records; rw-075.md carries a successor pointer to rw-075-correction.md.
 ```
 
 ```text
@@ -1162,6 +1168,7 @@ TESTS_REQUIRED: run both checkers from a fresh worktree with and without the ove
 SPECS_TO_UPDATE: none of docs/spec; README.md Authority block and the locator (canonical master path plus sha256); CONTRIBUTING.md validation notes
 CODE_OWNERSHIP: Merlin (S20-360/S20-390 checkers), Codex/integrator (locator)
 REVIEW_REQUIRED: no
+IMPLEMENTATION (slice 5b): SLEY2_MASTER_GOAL override in both checkers with the operator default kept and a distinct master:unavailable problem; verified from the campaign worktree with and without the override; CONTRIBUTING and README document it. The digest pin lives in the locator (canonical_spec.sha256), verified by check_remote_head.py.
 ```
 
 ```text
@@ -1183,6 +1190,7 @@ TESTS_REQUIRED: check_remote_head.py self-test (stale sha, stale version, missin
 SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (locator section), README.md Authority block, RESUME.md pointer, CONTRIBUTING.md (locator update rule: same or immediately following validated commit per 15.5)
 CODE_OWNERSHIP: Codex/integrator (summary, docs), Vulcan (checker)
 REVIEW_REQUIRED: yes, Nabu architecture read of the locator field set (bounded)
+IMPLEMENTATION (slice 5f): machine-summary.json gains a top-level `locator` section (branch, latest validated integration commit, active lanes, canonical spec and REWEAVE master paths with sha256 and env overrides, schema epoch, HOST_ABI_V2, EXEC_PACKAGE_V2, BOOTSTRAP_PROFILE_2 with record paths and digests, known blocked gates, remote state, last_updated_utc). scripts/check_remote_head.py verifies every digest against the record it names, the epoch against the summary and fixture, the masters by sha256 when resolvable (UNAVAILABLE otherwise, never a pass), the validated commit's existence and ancestry in git, and lane branch existence; --render writes docs/status/SLEY2-REMOTE-HEAD.md, --check fails on a stale view. Self-test 5 cases (stale digest, missing field, stale epoch, ghost commit, clean). Wired into make remote-consistency, not quick, so the in-flight lanes' Tier 1 gate is untouched; README points at the view.
 ```
 
 

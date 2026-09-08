@@ -164,6 +164,9 @@ document their manual indefinite-run form.
 - Normative drafts: `docs/spec/`
 - Work-package DAG: `docs/WORK_PACKAGES.md`
 - Evidence dossier: `machineresearch/sley-2.0/`
+- Remote-head locator: `docs/status/SLEY2-REMOTE-HEAD.md` (derived from the
+  machine summary's `locator` section by `scripts/check_remote_head.py`; git
+  stays authoritative for commit identity)
 
 The product goal controls when this repository disagrees with a local draft.
 
