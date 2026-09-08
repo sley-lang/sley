@@ -16,7 +16,7 @@
   "locator": {
     "rule": "Section 15.5 remote-head locator. Non-commit fields only; git is authoritative for commit identity. scripts/check_remote_head.py verifies every digest and version claim here against the artifact it names and renders docs/status/SLEY2-REMOTE-HEAD.md. Update in the same or the immediately following validated commit.",
     "canonical_integration_branch": "main",
-    "latest_validated_integration_commit": "560a5f16ebe9edaaee6837b779f6af94ad9ae310",
+    "latest_validated_integration_commit": "d2ba96c2a828d4cd79d5ed19e42de63220758b9b",
     "active_lanes": [
       {
         "lane": "arch-tighten",
@@ -24,7 +24,7 @@
           "arch/tighten-r1"
         ],
         "owner": "architecture-tightening campaign (integrator)",
-        "state": "audit slices landing; merge to main after the lane sessions hand off"
+        "state": "closed 2026-09-08; merged to main by fast-forward at d2ba96c2; open item AT-MW-02 owned by S20-410"
       },
       {
         "lane": "lane3 RW-080",
@@ -123,7 +123,7 @@
       "repository": "origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror",
       "state": "main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision"
     },
-    "last_updated_utc": "2026-09-08T10:40:00Z"
+    "last_updated_utc": "2026-09-08T11:15:00Z"
   },
   "publication_authorized": false,
   "scb1": {

@@ -5,9 +5,9 @@ Derived view of `machineresearch/sley-2.0/machine-summary.json` `locator`
 commit identity, this file only makes remote navigation fast).
 
 Canonical integration branch: `main`
-Latest validated integration commit: `560a5f16ebe9edaaee6837b779f6af94ad9ae310`
+Latest validated integration commit: `d2ba96c2a828d4cd79d5ed19e42de63220758b9b`
 Active REWEAVE / campaign lanes:
-- arch-tighten: arch/tighten-r1 (owner architecture-tightening campaign (integrator); audit slices landing; merge to main after the lane sessions hand off)
+- arch-tighten: arch/tighten-r1 (owner architecture-tightening campaign (integrator); closed 2026-09-08; merged to main by fast-forward at d2ba96c2; open item AT-MW-02 owned by S20-410)
 - lane3 RW-080: lane3/rw080-lower-scaffold-f1, lane3/rw080-f6f7-vm, lane3/rw080-checker-scaffold (owner RW-080 codec construction (Ariadne lane); provisional slices 1 to 7 on main under the 2026-09-07 operator override; BLOCKED, not authority)
 - lane2 S20-770: lane2/s20770-council-rereview-r1, lane2/s20770-acceptance-closeout-r1 (owner required-contract index (Ariadne package); Council re-review in progress; not merged)
 Current canonical Sley 2.0 spec path: `/home/greyforge/machineresearch/Sley2.0mastergoal.md` (sha256 `e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9`; in-repo dossier `machineresearch/sley-2.0/`)
@@ -29,6 +29,6 @@ Known blocked gates:
 - Operator gates: narrowed schema-epoch decision, succession trials, root license text, second-host attestation, release decision; publication_authorized false
 - Open 2.0 requirement gap AT-MW-02: master 8.2 GetEntityVersion/GetSignature have no SMP1 method; owned by S20-410 under an SMP1 revision
 Remote: origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror (main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision)
-Last updated UTC: 2026-09-08T10:40:00Z
+Last updated UTC: 2026-09-08T11:15:00Z
 
 Verification at render time: PASS
