@@ -19883,21 +19883,9 @@ fn build_namespace_encode_with_mode(
         ),
         reachability: Reachability::Required,
     });
-    // Parent 32B copy: Unrolled default; counted loop for F8 probes.
-    // Unrolled: 32 indexed Get+push pairs, no loop counter, no bound
-    // compare, no backedge (mirrors the slice-6 F7 digest-chain shape).
-    // Counted: shared loop shape parameterized by bound source
-    // (CountedConstant uses UInt64 32; CountedLength uses
-    // VectorLen(parent_vector) after the exact-32 parent check).
-    // Roles (same-type accumulator/parent slots stable by position):
-    // check/get: [index, accumulator, parent vector, bound, members, unit];
-    // push: [fetched byte, index, accumulator, parent vector, bound,
-    // members, unit]; next: [index, accumulator, parent vector, bound,
-    // members, unit]; next->check: [new index, accumulator, parent
-    // vector, bound, members, unit]; done: [accumulator, members, unit].
-    // Guard is LessThan(index,bound), true->Get, false->done. Get None
-    // targets the invariant trap: indices are in bounds for the
-    // proven-32 parent vector.
+    // Parent 32B copy: Unrolled default; counted F8 loop shares one shape.
+    // Same-type accumulator/parent slots stay stable by position through
+    // check/get/push/next; guard LessThan(index,bound), true->Get.
     let es_acc = a.param(ns.p, pcopy_start, ParameterRole::Block, u8vec_type());
     let es_parvec = a.param(ns.p, pcopy_start, ParameterRole::Block, u8vec_type());
     let es_mem = a.param(ns.p, pcopy_start, ParameterRole::Block, TypeExpr::Bytes);
@@ -28454,8 +28442,9 @@ fn rw080_current_mechanism_f8_counted_parent_matches_native() {
             label: None,
             semantic_fingerprint: None,
         };
-        let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        let stored_obj = sley_mutate::build_entity_object(program_epoch9(), &record)
             .expect("native builds nonuniform parent fixture");
+        let stored = stored_obj.stored_bytes().to_vec();
         assert_eq!(program_native_code(&stored), "OK", "native accepts nonuniform");
         let body = ns_body_of(&stored);
         cases.push(("nonuniform0_31", parent_bytes.to_vec(), Vec::new(), body));
