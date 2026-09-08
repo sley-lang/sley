@@ -1743,33 +1743,126 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
 
 
 
+_ACCEPTED_CONTRACT = "sley2-entity-read-v2"
+_ACCEPTED_CLAIM = "independent-expected"
+_ACCEPTED_TOP_FIELDS = frozenset({"contract", "claim", "manifest", "cases", "hellos", "selections"})
+_CASE_SCALAR_FIELDS = (
+    "request_body_hex",
+    "response_body_hex",
+    "request_wire_hex",
+    "response_wire_hex",
+    "request_preimage_hex",
+    "response_preimage_hex",
+    "request_frame_id",
+    "response_frame_id",
+    "response_wire_len",
+    "work",
+    "count_k",
+    "stored_b",
+)
+_OBJECT_FIELDS = ("record_hex", "preimage_hex", "stored_hex", "object_id")
+_HELLO_FIELDS = frozenset({"body_hex"})
+_FAILED_SELECTION_FIELDS = frozenset({"expected_failure"})
+_SELECTION_FIELDS = frozenset(
+    {
+        "protocol_version",
+        "schema_epoch",
+        "limits",
+        "methods",
+        "features",
+        "adapters",
+        "effects",
+        "preimage_hex",
+        "transcript_hex",
+        "handshake_id",
+    }
+)
+
+
+def _same_value(first: Any, second: Any) -> bool:
+    """Type-sensitive structural equality: bool is never int."""
+    if isinstance(first, bool) or isinstance(second, bool):
+        return type(first) is type(second) and first == second
+    if isinstance(first, Mapping) and isinstance(second, Mapping):
+        return set(first.keys()) == set(second.keys()) and all(
+            _same_value(first[key], second[key]) for key in first.keys()
+        )
+    if isinstance(first, list) and isinstance(second, list):
+        return len(first) == len(second) and all(_same_value(left, right) for left, right in zip(first, second))
+    return type(first) is type(second) and first == second
+
+
 def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> list[str]:
     problems: list[str] = []
-    if accepted.get("contract") != "sley2-entity-read-v2":
+    if not isinstance(accepted, Mapping):
+        return ["accepted:fields"]
+    if accepted.get("contract") != _ACCEPTED_CONTRACT:
         problems.append("accepted-contract")
-    manifest = accepted.get("manifest", {})
+    if accepted.get("claim") != _ACCEPTED_CLAIM:
+        problems.append("accepted-claim")
+    if set(accepted.keys()) != set(_ACCEPTED_TOP_FIELDS):
+        problems.append("accepted:fields")
+    manifest = accepted.get("manifest")
+    if not isinstance(manifest, Mapping):
+        manifest = {}
     if manifest.get("inputs_sha256") != hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest():
         problems.append("manifest:inputs-sha256")
-    for case_id, case in inputs["cases"].items():
-        if case.get("kind", "success") != "success":
+    raw_cases = inputs.get("cases", {})
+    inputs_cases = raw_cases if isinstance(raw_cases, Mapping) else {}
+    supplied_cases = accepted.get("cases")
+    if not isinstance(supplied_cases, Mapping):
+        problems.append("accepted:cases:inventory")
+        supplied_cases = {}
+    expected_ids: set[str] = set()
+    for case_id, case in inputs_cases.items():
+        kind = case.get("kind", "success") if isinstance(case, Mapping) else "success"
+        if kind != "success":
+            problems.append(f"{case_id}:unknown-kind")
             continue
+        expected_ids.add(case_id)
+    if set(supplied_cases.keys()) - expected_ids:
+        problems.append("accepted:cases:inventory")
+    for case_id in inputs_cases:
+        if case_id not in expected_ids:
+            continue
+        case = inputs_cases[case_id]
         try:
             built = build_success_case(inputs, case)
         except (ScbError, CheckFailed, ValueError) as error:
             problems.append(f"{case_id}:rebuild:{error}")
             continue
-        expected = accepted["cases"].get(case_id)
-        if expected is None:
+        supplied = supplied_cases.get(case_id)
+        if supplied is None:
             problems.append(f"{case_id}:missing-expected")
             continue
-        for key in ("request_body_hex", "response_body_hex", "request_wire_hex", "response_wire_hex", "request_frame_id", "response_frame_id", "work", "count_k", "stored_b"):
-            if built[key] != expected[key]:
-                problems.append(f"{case_id}:{key}")
-        for ref, item in built["objects"].items():
-            exp_obj = expected["objects"].get(ref, {})
-            for key in ("stored_hex", "preimage_hex", "object_id"):
-                if item[key] != exp_obj.get(key):
-                    problems.append(f"{case_id}:object:{ref}:{key}")
+        if not isinstance(supplied, Mapping):
+            problems.append(f"{case_id}:fields")
+            continue
+        if set(supplied.keys()) != ({"id", "objects"} | set(_CASE_SCALAR_FIELDS)):
+            problems.append(f"{case_id}:fields")
+        if not _same_value(case_id, supplied.get("id")):
+            problems.append(f"{case_id}:id")
+        for field in _CASE_SCALAR_FIELDS:
+            if not _same_value(built[field], supplied.get(field)):
+                problems.append(f"{case_id}:{field}")
+        authored_refs = case.get("objects", []) if isinstance(case, Mapping) else []
+        supplied_objects = supplied.get("objects")
+        if not isinstance(supplied_objects, Mapping):
+            problems.append(f"{case_id}:objects:inventory")
+        else:
+            if set(supplied_objects.keys()) - set(authored_refs):
+                problems.append(f"{case_id}:objects:inventory")
+            for ref in authored_refs:
+                candidate = supplied_objects.get(ref)
+                if not isinstance(candidate, Mapping):
+                    for field in _OBJECT_FIELDS:
+                        problems.append(f"{case_id}:object:{ref}:{field}")
+                    continue
+                if set(candidate.keys()) != set(_OBJECT_FIELDS):
+                    problems.append(f"{case_id}:object:{ref}:fields")
+                for field in _OBJECT_FIELDS:
+                    if not _same_value(built["objects"][ref][field], candidate.get(field)):
+                        problems.append(f"{case_id}:object:{ref}:{field}")
         semantic_check(inputs, case, built, problems)
     check_selection(inputs, accepted, problems)
     return problems
@@ -1805,63 +1898,98 @@ def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Ma
 
 
 def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], problems: list[str]) -> None:
-    for name, hello in inputs["hellos"].items():
+    raw_hellos = inputs.get("hellos", {})
+    authored_hellos = raw_hellos if isinstance(raw_hellos, Mapping) else {}
+    raw_scenarios = inputs.get("selection_scenarios", {})
+    scenarios = raw_scenarios if isinstance(raw_scenarios, Mapping) else {}
+    supplied = accepted if isinstance(accepted, Mapping) else {}
+    supplied_hellos = supplied.get("hellos")
+    if not isinstance(supplied_hellos, Mapping):
+        problems.append("accepted:hellos:inventory")
+        supplied_hellos = {}
+    elif set(supplied_hellos.keys()) - set(authored_hellos.keys()):
+        problems.append("accepted:hellos:inventory")
+    supplied_selections = supplied.get("selections")
+    if not isinstance(supplied_selections, Mapping):
+        problems.append("accepted:selections:inventory")
+        supplied_selections = {}
+    elif set(supplied_selections.keys()) - set(scenarios.keys()):
+        problems.append("accepted:selections:inventory")
+    rebuilt_bodies: dict[str, bytes] = {}
+    for name, hello in authored_hellos.items():
         try:
             body = build_hello(hello)
-        except (ScbError, CheckFailed, ValueError) as error:
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError) as error:
             problems.append(f"hello:{name}:{error}")
             continue
-        expected = accepted.get("hellos", {}).get(name, {})
-        if body.hex() != expected.get("body_hex"):
+        rebuilt_bodies[name] = body
+        candidate = supplied_hellos.get(name)
+        if not isinstance(candidate, Mapping):
             problems.append(f"hello:{name}:body")
-    for name, scenario in inputs["selection_scenarios"].items():
+            continue
+        if set(candidate.keys()) != set(_HELLO_FIELDS):
+            problems.append(f"hello:{name}:fields")
+        if candidate.get("body_hex") != body.hex():
+            problems.append(f"hello:{name}:body")
+    for name, scenario in scenarios.items():
+        if not isinstance(scenario, Mapping):
+            problems.append(f"selection:{name}:fields")
+            continue
         if scenario.get("expect") == "fail":
             try:
-                negotiate_versioned(inputs["hellos"][scenario["client"]], inputs["hellos"][scenario["server"]])
+                negotiate_versioned(authored_hellos[scenario["client"]], authored_hellos[scenario["server"]])
             except CheckFailed as error:
                 if error.layer != scenario.get("expected_layer", "selection"):
                     problems.append(f"selection:{name}:layer:{error.layer}")
-            except (ScbError, ValueError) as error:
+            except (ScbError, ValueError, KeyError, TypeError, AttributeError) as error:
                 problems.append(f"selection:{name}:unexpected:{error}")
             else:
                 problems.append(f"selection:{name}:accepted")
-            expected = accepted.get("selections", {}).get(name, {})
-            if expected.get("expected_failure") != "selection":
+            candidate = supplied_selections.get(name)
+            if not isinstance(candidate, Mapping) or candidate.get("expected_failure") != "selection":
                 problems.append(f"selection:{name}:missing-expected-failure")
+            if isinstance(candidate, Mapping) and set(candidate.keys()) != set(_FAILED_SELECTION_FIELDS):
+                problems.append(f"selection:{name}:fields")
             continue
         try:
-            selection = negotiate_versioned(inputs["hellos"][scenario["client"]], inputs["hellos"][scenario["server"]])
-        except (ScbError, CheckFailed, ValueError) as error:
+            selection = negotiate_versioned(authored_hellos[scenario["client"]], authored_hellos[scenario["server"]])
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError) as error:
             problems.append(f"selection:{name}:{error}")
             continue
-        expected = accepted.get("selections", {}).get(name, {})
         try:
             preimage = build_selected(selection)
-            transcript = (
-                bytes.fromhex(accepted["hellos"][scenario["client"]]["body_hex"])
-                + bytes.fromhex(accepted["hellos"][scenario["server"]]["body_hex"])
-                + preimage
-            )
-            digest = handshake_id(
-                bytes.fromhex(accepted["hellos"][scenario["client"]]["body_hex"]),
-                bytes.fromhex(accepted["hellos"][scenario["server"]]["body_hex"]),
-                preimage,
-            )
-        except (KeyError, ValueError) as error:
+            client_body = rebuilt_bodies[scenario["client"]]
+            server_body = rebuilt_bodies[scenario["server"]]
+            transcript = client_body + server_body + preimage
+            digest = handshake_id(client_body, server_body, preimage)
+        except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError) as error:
             problems.append(f"selection:{name}:transcript:{error}")
             continue
-        if selection["protocol_version"] != expected.get("protocol_version"):
+        candidate = supplied_selections.get(name)
+        if not isinstance(candidate, Mapping):
+            candidate = {}
+        if set(candidate.keys()) != set(_SELECTION_FIELDS):
+            problems.append(f"selection:{name}:fields")
+        if not _same_value(selection["protocol_version"], candidate.get("protocol_version")):
             problems.append(f"selection:{name}:version")
-        if selection["methods"] != expected.get("methods"):
+        if not _same_value(selection["methods"], candidate.get("methods")):
             problems.append(f"selection:{name}:methods")
-        if selection["schema_epoch"] != expected.get("schema_epoch"):
+        if not _same_value(selection["schema_epoch"], candidate.get("schema_epoch")):
             problems.append(f"selection:{name}:epoch")
-        if preimage.hex() != expected.get("preimage_hex"):
+        if preimage.hex() != candidate.get("preimage_hex"):
             problems.append(f"selection:{name}:preimage")
-        if transcript.hex() != expected.get("transcript_hex"):
+        if transcript.hex() != candidate.get("transcript_hex"):
             problems.append(f"selection:{name}:transcript")
-        if digest.hex() != expected.get("handshake_id"):
+        if digest.hex() != candidate.get("handshake_id"):
             problems.append(f"selection:{name}:handshake")
+        if not _same_value(selection["limits"], candidate.get("limits")):
+            problems.append(f"selection:{name}:limits")
+        if not _same_value(selection["features"], candidate.get("features")):
+            problems.append(f"selection:{name}:features")
+        if not _same_value(selection["adapters"], candidate.get("adapters")):
+            problems.append(f"selection:{name}:adapters")
+        if not _same_value(selection["effects"], candidate.get("effects")):
+            problems.append(f"selection:{name}:effects")
 
 
 def check_rejected(inputs: Mapping[str, Any], rejected: Mapping[str, Any]) -> list[str]:
