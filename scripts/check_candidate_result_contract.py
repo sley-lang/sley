@@ -331,6 +331,19 @@ def main() -> int:
         if marker not in closeout:
             problems.append(f"candidate-validation-closeout-missing:{marker}")
 
+    # The two status lines and the transaction model must describe the same
+    # supported success subset; the closeout and its evidence stay the
+    # historical record of the restricted (operation-free) closure.
+    spec_status = normalized(SPEC).split("## 1.", 1)[0]
+    profile_status = normalized(PROFILE).split("The validation profile is", 1)[0]
+    for name, status in (("spec", spec_status), ("profile", profile_status)):
+        if "E1 through E6" not in status or "ADR-0045" not in status:
+            problems.append(f"status-subset-missing:{name}")
+        if "operation-free restricted conformance epoch" in status:
+            problems.append(f"status-subset-stale:{name}")
+    if "validated by the S20-360 full operation analysis" not in normalized(TRANSACTION):
+        problems.append("status-subset-missing:transaction-model")
+
     validation = json.loads(VALIDATION_EVIDENCE.read_text(encoding="utf-8"))
     for field, expected in (
         ("contract", "s20-360-candidate-validation-closeout-v1"),
@@ -353,7 +366,7 @@ def main() -> int:
         "contract": "s20-360-restricted-candidate-validation-v1",
         "decisions": len(DECISIONS),
         "durable_commit": False,
-        "operation_success_subset": "executable-program-operation-free",
+        "operation_success_subset": "restricted plus E1 through E6 analyzed operations (E7 refused at phase 12)",
         "phase_tags": len(PHASES),
         "validator_source_symbols": len(validator_source_symbols()),
         "problems": problems,

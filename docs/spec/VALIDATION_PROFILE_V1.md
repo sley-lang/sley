@@ -1,8 +1,11 @@
 # Candidate Validation Profile v1
 
 Status: S20-345 identity contract frozen; S20-360 pipeline implemented for the
-executable-program-operation-free restricted conformance epoch. Full-GA
-operation analysis remains incomplete; restricted S20-390 fixed-head commit is
+restricted conformance epoch. Supported success subset: the restricted subset plus programs carrying semantic `Operation`
+entities of the extended families E1 through E6, judged by the S20-360 full
+operation analysis (revision 2, ADR-0045); E7 opcodes are refused at phase 12
+(`CANDIDATE_RESULT_V1.md` section 9; status corrected 2026-09-08). Full-GA
+operation coverage remains incomplete; restricted S20-390 fixed-head commit is
 implemented as a separate layer.
 
 The validation profile is immutable policy-independent data naming the phases

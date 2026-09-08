@@ -88,7 +88,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 222,
+  "obligation_count": 223,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -1086,6 +1086,18 @@
         "P1",
         "P3"
       ],
+      "state": "OTHER",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2)",
+      "field": "reviewers",
+      "package_status": "IN_PROGRESS",
+      "reviewer": null,
+      "section": "locator.review_candidates[1]",
+      "severities": [],
       "state": "OTHER",
       "superseded_by": null
     },
@@ -3225,7 +3237,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "f417693250ade94423135f653c61443067f4bb43bc4d0f9b499801072a34cfa2",
+  "obligations_digest": "c12293724aaeee6cf74cf9910b1052b92a37dee0afdc1abd33389fdd50f3b7c8",
   "open_reviews": [
     {
       "disposition": "FAIL_2_P0_7_P1_7_P2_3_P3",
@@ -3942,7 +3954,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "6dd11114537d3625671832069548ba492e79fdedb439494640d82a307d7338ba",
+  "register_digest": "1257baf442a4d877c1e0c7d8f7694d7d6396264dc7700a728bb507b5ff39ef18",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 83,
@@ -3955,7 +3967,7 @@
   "states": {
     "DEFERRED": 10,
     "HISTORICAL_ROUND": 38,
-    "OTHER": 4,
+    "OTHER": 5,
     "PASS": 103,
     "PENDING": 67
   },
@@ -4194,6 +4206,11 @@
       "disposition": "Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress)",
       "field": "reviewers",
       "section": "locator.review_candidates[0]"
+    },
+    {
+      "disposition": "Nabu round 2 (dispatched after the round-1 repairs; separate worktree sley2-review-arch-tighten-r2)",
+      "field": "reviewers",
+      "section": "locator.review_candidates[1]"
     },
     {
       "disposition": "TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX",

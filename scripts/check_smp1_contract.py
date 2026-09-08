@@ -222,6 +222,18 @@ def main() -> int:
         problems.append("machine-summary:protocol missing")
         section = {}
     status = section.get("status")
+    # Reverse pins: the composing contracts' current revisions as SMP1 names
+    # them must equal their own status lines (the forward pins live in
+    # check_smp1_json_bridge_contract.py and check_cli_contract.py).
+    for name, path, status_re, phrase in (
+        ("bridge", ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md", r"^Status: S20-420 contract draft, revision (\d+)", "the JSON bridge from this contract (revision {n}, closeout"),
+        ("cli", ROOT / "docs/spec/SLEY_CLI_V1.md", r"^Status: S20-430 contract draft, revision (\d+)", "wraps the CLI\n(revision {n}, closeout"),
+    ):
+        found = re.search(status_re, path.read_text(encoding="utf-8"), flags=re.M)
+        if found is None:
+            problems.append(f"reverse-pin:{name}:status-line")
+        elif phrase.format(n=found.group(1)) not in spec:
+            problems.append(f"reverse-pin:{name}:revision-{found.group(1)}")
     revision = re.search(r"Status: S20-400 contract draft, revision (\d+)", spec)
     contract_revision = int(revision.group(1)) if revision else None
     if contract_revision is None:

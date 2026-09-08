@@ -28,7 +28,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 IDENTIFIERS = ROOT / "docs/spec/IDENTIFIERS_V1.md"
 TABLE_HEADING = "## Digest domain tags"
-DOMAIN_STRING = re.compile(r'"(sley2\.[a-z0-9.\-]+)"')
+# Python string literals in either quote style, with or without a bytes prefix.
+DOMAIN_STRING = re.compile(r"""[bB]?(["'])(sley2\.[a-z0-9.\-]+)\1""")
+BLAKE3_USE = re.compile(r"^\s*(?:import\s+blake3|from\s+blake3\s+import)|\bblake3\s*\.", re.M)
 RUST_TAG = re.compile(r"DIGEST_DOMAIN_TAG: u32 = (\d+)")
 
 
@@ -38,6 +40,52 @@ def read(path: Path) -> str:
 
 def registry_domains(text: str) -> set[str]:
     return set(re.findall(r"`(sley2\.[a-z0-9.\-]+)`", text.split(TABLE_HEADING)[0]))
+
+
+def script_label_problems(root: Path, registered: set[str]) -> tuple[list[str], list[str]]:
+    """Unregistered `sley2.*` labels under scripts/ and bench/, and the files
+    that carry one while also using blake3."""
+    problems: list[str] = []
+    unregistered: list[str] = []
+    for path in sorted(list((root / "scripts").rglob("*.py")) + list((root / "bench").rglob("*.py"))):
+        relative = str(path.relative_to(root))
+        if "/tests/" in relative or "/.venv/" in relative or path.resolve() == Path(__file__).resolve():
+            continue
+        body = read(path)
+        labels = {domain for _, domain in DOMAIN_STRING.findall(body) if domain not in registered}
+        unregistered.extend(f"{relative}:{domain}" for domain in sorted(labels))
+        if labels and BLAKE3_USE.search(body):
+            problems.append(f"domain-string:unregistered-label-in-blake3-script:{relative}:{','.join(sorted(labels))}")
+    return problems, unregistered
+
+
+def self_test() -> int:
+    """Evasion regression: a single-quoted label in a blake3 script must fail."""
+    import tempfile
+
+    failures: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "scripts").mkdir()
+        (root / "bench").mkdir()
+        evasive = root / "scripts" / "evasive.py"
+        evasive.write_text("import blake3\nDOMAIN = 'sley2.evasive-label.v1'\n", encoding="utf-8")
+        problems, _ = script_label_problems(root, {"sley2.object.v1"})
+        if not any("evasive.py" in p for p in problems):
+            failures.append("single-quoted-label-in-blake3-script-not-detected")
+        evasive.write_text("from blake3 import blake3\nDOMAIN = b'sley2.evasive-label.v1'\n", encoding="utf-8")
+        problems, _ = script_label_problems(root, {"sley2.object.v1"})
+        if not any("evasive.py" in p for p in problems):
+            failures.append("bytes-label-with-from-import-not-detected")
+        evasive.write_text("import hashlib\nDOMAIN = 'sley2.evidence-label.v1'\n# blake3 mentioned only in a comment\n", encoding="utf-8")
+        problems, unregistered = script_label_problems(root, {"sley2.object.v1"})
+        if problems or len(unregistered) != 1:
+            failures.append("sha256-label-without-blake3-wrongly-flagged")
+    if failures:
+        print("SELF_TEST FAIL: " + ", ".join(failures))
+        return 1
+    print("SELF_TEST PASS: 3 cases")
+    return 0
 
 
 def tag_table(text: str) -> list[tuple[int, str, str]]:
@@ -54,6 +102,8 @@ def tag_table(text: str) -> list[tuple[int, str, str]]:
 
 
 def main() -> int:
+    if "--self-test" in sys.argv[1:]:
+        return self_test()
     problems: list[str] = []
     text = read(IDENTIFIERS)
     rows = tag_table(text)
@@ -87,16 +137,8 @@ def main() -> int:
     # are evidence-chain labels (SHA-256 framing, JSON contract names). They may
     # never be fed to the BLAKE3 identity hasher without registration.
     registered = registry_domains(text)
-    unregistered: list[str] = []
-    for path in sorted(list((ROOT / "scripts").rglob("*.py")) + list((ROOT / "bench").rglob("*.py"))):
-        relative = str(path.relative_to(ROOT))
-        if "/tests/" in relative or "/.venv/" in relative:
-            continue
-        body = read(path)
-        labels = {domain for domain in DOMAIN_STRING.findall(body) if domain not in registered}
-        unregistered.extend(f"{relative}:{domain}" for domain in sorted(labels))
-        if labels and "blake3" in body:
-            problems.append(f"domain-string:unregistered-label-in-blake3-script:{relative}:{','.join(sorted(labels))}")
+    label_problems, unregistered = script_label_problems(ROOT, registered)
+    problems.extend(label_problems)
 
     print(
         json.dumps(

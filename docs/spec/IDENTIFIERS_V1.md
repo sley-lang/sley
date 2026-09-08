@@ -83,9 +83,10 @@ implementation. `sley2.*` strings that appear only under `scripts/` and
 `bench/` (evidence-chain SHA-256 prefixes such as the trial-trace and
 raw-run manifests, JSON report contract labels, the host-boundary record
 label) are not hash domains and are not registered;
-`scripts/check_domain_tags_and_strings.py` asserts that no such label is used
-by a script that also hashes with BLAKE3, so an identity domain cannot be
-introduced outside the registry.
+`scripts/check_domain_tags_and_strings.py` asserts that no such label (in
+either quote style, bytes or text) is used by a script that imports or calls
+blake3, so an identity domain cannot be introduced outside the registry; its
+`--self-test` carries the evasion regressions.
 
 A domain cannot be renamed, aliased, or reused for another preimage. Adding a
 domain requires an ADR, fixtures, and registry drift validation.

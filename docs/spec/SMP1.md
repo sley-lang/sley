@@ -14,9 +14,9 @@ non-reserved methods dispatched, closeout
 cancellation, streaming, and budget rules carried in section 7 and
 appendix B (closeout
 `docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`), S20-420 generates
-the JSON bridge from this contract (revision 6, closeout
+the JSON bridge from this contract (revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
-(revision 3, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
+(revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
 Further implementation state is tracked in the machine summary.
 
 SMP1 is the primary programming interface of Sley 2. It transports the

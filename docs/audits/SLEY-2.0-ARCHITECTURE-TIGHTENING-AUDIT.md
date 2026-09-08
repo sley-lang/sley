@@ -1971,7 +1971,7 @@ the two that are repository deliverables in their own right are
 | AT-G5 spec synchronization | FAIL (one open requirement gap) | masters, REWEAVE, contracts and checkers now agree except AT-MW-02 (master 8.2 GetEntityVersion/GetSignature have no SMP1 method), registered as an open 2.0 gap owned by S20-410 |
 | AT-G6 self-host preservation | NOT_REQUIRED | SH0; no C1/C2/C3 evidence exists to invalidate; the static no-hidden-fallback property holds |
 | AT-G7 remote freshness | PASS | private origin created by operator instruction; main, the campaign branch and the lane branches pushed; locator current; T54 secret scan PASS; the public mirror untouched |
-| AT-G8 independent review | AT_G8_MARKER | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; all repaired in slice 7, see 5.1), Ariadne ARIADNE_R1_MARKER; round 2 on ROUND2_MARKER |
+| AT-G8 independent review | AT_G8_MARKER | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; repaired in slice 7), Ariadne FAIL (1 P1, 3 P2; repaired in slice 8), see 5.1; round 2: Nabu on `review/arch-tighten-r1-round2` = d4a1e330 NABU_R2_MARKER; Ariadne on `review/arch-tighten-r1-round3` = ROUND3_MARKER |
 
 ### 5.1 Independent review round 1 (candidate 8ff792e9, ref `review/arch-tighten-r1-round1`)
 
@@ -1996,7 +1996,32 @@ verdict FAIL, 0 P0, 3 P1, 0 P2, 1 P3. Dispositions:
 
 Ariadne (canonical identity and contracts), round 1 on the same candidate,
 transcript `machineresearch/sley-2.0/reviews/arch-tighten-ariadne-2026-09-08.log`:
-ARIADNE_R1_RESULT_MARKER
+verdict FAIL, 0 P0, 1 P1, 3 P2, 0 P3; CANONICAL_IDENTITY, NATIVE_AUTHORITY,
+SELFHOST_BOUNDARY and REMOTE_INSPECTABILITY answered true, SPEC_SYNC false.
+Ariadne independently confirmed the v1 digest literal equals the profile
+record's SHA-256 with no persisted v1 package digest, and that the SLEYPOBS1
+layout matches the code. Dispositions (all repaired in slice 8):
+
+- P1 contradictory supported-operation contract: the status lines of
+  CANDIDATE_RESULT_V1 and VALIDATION_PROFILE_V1 still declared the
+  operation-free epoch (the AT-MW-05 body edit had left them) and the
+  candidate-result checker reported that subset. Both status lines now state
+  the E1 through E6 analyzed-operation subset (ADR-0045, revision 2) and the
+  checker asserts the two status lines and the transaction model agree and
+  refuses the stale phrase (negative reproduced in place); the S20-360
+  closeout and its evidence stay the historical record of the restricted
+  closure and are untouched.
+- P2 identity map not updated after AT-HH-04: rows B05 and B07 and the
+  hygiene matrix now cite the frozen vectors and the written layout, keeping
+  the baseline state as history.
+- P2 reverse protocol pins: SMP1.md's implementation references now name
+  bridge revision 7 and CLI revision 4, and check_smp1_contract.py asserts
+  the reverse pins against those status lines (negative reproduced on a
+  scratch copy).
+- P2 domain-string checker scope: the checker now matches single- or
+  double-quoted and bytes labels and detects blake3 by import or call, with
+  an evasion self-test (three cases) and self-exclusion from its own scan;
+  the registry paragraph states the enforced scope exactly.
 
 Integrator incident, recorded so no finding is misattributed: while Ariadne's
 round-1 review was running against the shared review worktree
