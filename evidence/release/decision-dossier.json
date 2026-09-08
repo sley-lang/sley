@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "decb0dcdc42bbef010bfab0d14dbfe6b3d7468a25d00930a60276683c6cefa56",
+  "dossier_digest": "7ba738e16370c81f9bbde87cab0f02ca9f7c6e67702fccaa79c372c3b0adf338",
   "entries": [
     {
       "evidence": [
@@ -339,20 +339,20 @@
           "p4": 0
         },
         "deferred_reviews": 10,
-        "obligations": 221,
+        "obligations": 222,
         "open_reviews": 67,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 83,
-          "P1": 95,
+          "P1": 96,
           "P2": 98,
-          "P3": 87,
+          "P3": 88,
           "P4": 0
         },
         "states": {
           "DEFERRED": 10,
           "HISTORICAL_ROUND": 38,
-          "OTHER": 3,
+          "OTHER": 4,
           "PASS": 103,
           "PENDING": 67
         }
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "1ed017c284c3e38d35d6c781957814c07abc483128232512dfe55824b9611e92",
+  "entries_digest": "e971c9f626ac25b864f42efb1d5fe4174f2392e0f9f22974720316b93375e5b9",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

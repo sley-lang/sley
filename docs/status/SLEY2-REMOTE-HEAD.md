@@ -16,6 +16,8 @@ Current schema epoch: `ae5b235713b46c04f73c1decd0fb0bb57c5557d0fe89dae7ddac4a7db
 Current host ABI: HOST_ABI_V2 (`sley2-host-abi-2`, digest `bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5`)
 Current execution-package version: EXEC_PACKAGE_V2 (`sley2-exec-package-2`, digest `f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94`)
 Current bootstrap profile: BOOTSTRAP_PROFILE_2 (`sley2-bootstrap-profile-2`, digest `fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459`)
+Review candidates (immutable refs):
+- round 1: `review/arch-tighten-r1-round1` = `8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d` (Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress))
 Known blocked gates:
 - R2 exit NOT_READY: premium delta re-review of the RW-075 correction still FAIL/PENDING (scripts/check_r2_exit.py)
 - RW-080 BLOCKED: Nabu round-12 review, premium round 2, S20-780 independent acceptance pending; slices 1 to 7 provisional

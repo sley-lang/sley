@@ -117,6 +117,14 @@ def verify(locator: dict, summary: dict, repo: Path) -> tuple[list[str], dict]:
         for ref in lane.get("branches", []):
             if git("rev-parse", "--verify", "-q", ref, repo=repo) == "":
                 problems.append(f"lane:{lane.get('lane')}:branch-missing:{ref}")
+    # A review candidate is an immutable ref: it must resolve to exactly the
+    # recorded SHA so a verdict can never drift from the bytes it judged.
+    for candidate in locator.get("review_candidates", []):
+        ref, sha = candidate.get("ref"), candidate.get("sha")
+        resolved = git("rev-parse", "--verify", "-q", f"{ref}^{{commit}}", repo=repo)
+        if resolved != sha:
+            problems.append(f"review-candidate:round-{candidate.get('round')}:ref-mismatch:{resolved[:12] or 'missing'}")
+        facts[f"review_round_{candidate.get('round')}"] = sha
     return problems, facts
 
 
@@ -126,6 +134,10 @@ def render(locator: dict, facts: dict, problems: list[str]) -> str:
         for lane in locator["active_lanes"]
     )
     gates = "\n".join(f"- {gate}" for gate in locator["known_blocked_gates"])
+    candidates = "\n".join(
+        f"- round {c.get('round')}: `{c.get('ref')}` = `{c.get('sha')}` ({c.get('reviewers', '')})"
+        for c in locator.get("review_candidates", [])
+    ) or "- none"
     result = "PASS" if not problems else "FAIL: " + ", ".join(problems)
     return f"""# SLEY2 remote head locator
 
@@ -143,6 +155,8 @@ Current schema epoch: `{locator['schema_epoch']['id']}` ({locator['schema_epoch'
 Current host ABI: {locator['host_abi']['identity']} (`{locator['host_abi']['contract']}`, digest `{locator['host_abi']['digest']}`)
 Current execution-package version: {locator['exec_package']['identity']} (`{locator['exec_package']['contract']}`, digest `{locator['exec_package']['digest']}`)
 Current bootstrap profile: {locator['bootstrap_profile']['identity']} (`{locator['bootstrap_profile']['contract']}`, digest `{locator['bootstrap_profile']['digest']}`)
+Review candidates (immutable refs):
+{candidates}
 Known blocked gates:
 {gates}
 Remote: {locator['remote']['repository']} ({locator['remote']['state']})
@@ -179,10 +193,16 @@ def self_test() -> int:
     problems, _ = verify(ghost, summary, ROOT)
     if "validated-commit:not-in-git" not in problems:
         failures.append("ghost-commit-not-detected")
+    if base.get("review_candidates"):
+        moved = json.loads(json.dumps(base))
+        moved["review_candidates"][0]["sha"] = "1" * 40
+        problems, _ = verify(moved, summary, ROOT)
+        if not any(p.startswith("review-candidate:") for p in problems):
+            failures.append("moved-review-candidate-not-detected")
     if failures:
         print("SELF_TEST FAIL: " + "; ".join(failures))
         return 1
-    print("SELF_TEST PASS: 5 cases")
+    print("SELF_TEST PASS: 6 cases")
     return 0
 
 

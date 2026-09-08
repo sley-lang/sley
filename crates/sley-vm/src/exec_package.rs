@@ -108,7 +108,13 @@ pub const EXEC_PACKAGE_MAX_CONSTANTS: usize = 1_000_000;
 pub const EXEC_PACKAGE_MAX_IMPORTS: usize = 1_000_000;
 
 /// Frozen `BOOTSTRAP_PROFILE_1` digest bound by every v1 package (contract
-/// `sley2-bootstrap-profile-1`; preserved byte-identical as history).
+/// `sley2-bootstrap-profile-1`): the raw-byte SHA-256 of
+/// `conformance/bootstrap-profile/v1/profile.json`, as the frozen contract
+/// states. Before 2026-09-08 this literal was a shifted hex transcription of
+/// that digest (implementation erratum E1 in `EXEC_PACKAGE_V2.md`); no v1
+/// package, receipt, or observation identity computed from the old literal
+/// was ever persisted, and `check_exec_package_markers.py` now binds all
+/// 32 bytes to the record.
 pub const BOOTSTRAP_PROFILE_1_DIGEST: [u8; 32] = [
     0x4f, 0x26, 0x91, 0x50, 0x4b, 0x5c, 0x75, 0x6e, 0xae, 0x1f, 0x5e, 0xf0, 0x1e, 0x6e, 0x99, 0x8c,
     0xc4, 0xcd, 0x62, 0x8d, 0x4b, 0x52, 0x4b, 0x03, 0x8b, 0x10, 0xd5, 0x83, 0xbf, 0xef, 0xd6, 0x30,

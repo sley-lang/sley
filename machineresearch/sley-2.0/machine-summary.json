@@ -87,6 +87,15 @@
       "record": "conformance/bootstrap-profile/v2/profile.json",
       "contract_doc": "docs/spec/BOOTSTRAP_PROFILE_2.md"
     },
+    "review_candidates": [
+      {
+        "round": 1,
+        "ref": "review/arch-tighten-r1-round1",
+        "sha": "8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d",
+        "reviewers": "Nabu (FAIL, 3 P1, 1 P3: erratum record for the v1 digest literal, anti-goal report drift, candidate not bound to a stable ref), Ariadne (round 1 in progress)",
+        "transcripts": "machineresearch/sley-2.0/reviews/arch-tighten-{nabu,ariadne}-2026-09-08.log"
+      }
+    ],
     "known_blocked_gates": [
       "R2 exit NOT_READY: premium delta re-review of the RW-075 correction still FAIL/PENDING (scripts/check_r2_exit.py)",
       "RW-080 BLOCKED: Nabu round-12 review, premium round 2, S20-780 independent acceptance pending; slices 1 to 7 provisional",
@@ -3067,10 +3076,10 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 221,
+    "obligations": 222,
     "open_reviews": 67,
     "deferred_reviews": 10,
-    "unclassified_dispositions": 3,
+    "unclassified_dispositions": 4,
     "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",

@@ -191,6 +191,7 @@ SPECS_TO_UPDATE: none (Makefile target `remote-consistency`, kept out of `quick`
   branch is legitimately ahead mid-slice; run at handoff)
 CODE_OWNERSHIP: scripts/check_remote_consistency.py, Makefile target remote-consistency
 REVIEW_REQUIRED: independent review at campaign close (AT-G8)
+IMPLEMENTATION (slice 1): scripts/check_remote_consistency.py plus the Makefile target remote-consistency; self-test 8 cases PASS.
 ```
 
 ### 3.2 Semantic identity decomposition and executable closure (spec sections 4.1 and 5)
@@ -365,6 +366,7 @@ TESTS_REQUIRED: scripts/check_exec_package_v2.py PASS (doc markers and record di
 SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V2.md (new statement); EXEC_PACKAGE_V1.md untouched (superseded by reference)
 CODE_OWNERSHIP: sley-vm exec_package doc comments (campaign integrator, two comment lines)
 REVIEW_REQUIRED: yes, in the campaign's independent review (AT-G8)
+IMPLEMENTATION (slice 2): both doc comments corrected and the identity-versus-serialization statement added to EXEC_PACKAGE_V2.md; check_exec_package_v2 PASS with the record digest unchanged, markers PASS, rw075_exec_closure 30/30.
 ```
 
 ```text
@@ -774,6 +776,7 @@ SPECS_TO_UPDATE: evidence/reweave/sh2-work-items.json (new); optionally a pointe
 CODE_OWNERSHIP: REWEAVE campaign records; checker unchanged.
 REVIEW_REQUIRED: Maat (campaign-declaration compliance), lightweight.
 IMPLEMENTATION (slice 4): evidence/reweave/sh2-work-items.json created (contract sley2.reweave-sh2-work-items.v1, seven items RW-030, RW-040, RW-050, RW-060, RW-070, RW-075, RW-080, each citing host-boundary.json sha256 d935d238... and a gate from gate_set, records verified to exist). build_anti_goal_conformance.py rebuilt evidence/validation/anti-goal-conformance.json: the campaign-declaration detail changed from "no declared SH2 work items" to "7 declared SH2 work items cite the authorized boundary record and a staged gate"; --check PASS. Discrimination proved on a scratch root: a wrong digest and a blank gate both return VIOLATED. Semantic authorization of the items is ADR-0049 (operator decision ADOPT-REWEAVE-2026-09-06); the registry declares, it does not authorize.
+REVIEW REPAIR (slice 7, Nabu round-1 P1): the tracked anti-goal report drifted at every commit because its publication row embedded the count of commits not on origin/main; build_anti_goal_conformance.py now reports that count only through check_remote_consistency.py, the report is stable across commits, and --check PASS at the repaired candidate.
 ```
 
 ```text
@@ -1214,6 +1217,7 @@ SPECS_TO_UPDATE: machineresearch/sley-2.0/machine-summary.json (locator section)
 CODE_OWNERSHIP: Codex/integrator (summary, docs), Vulcan (checker)
 REVIEW_REQUIRED: yes, Nabu architecture read of the locator field set (bounded)
 IMPLEMENTATION (slice 5f): machine-summary.json gains a top-level `locator` section (branch, latest validated integration commit, active lanes, canonical spec and REWEAVE master paths with sha256 and env overrides, schema epoch, HOST_ABI_V2, EXEC_PACKAGE_V2, BOOTSTRAP_PROFILE_2 with record paths and digests, known blocked gates, remote state, last_updated_utc). scripts/check_remote_head.py verifies every digest against the record it names, the epoch against the summary and fixture, the masters by sha256 when resolvable (UNAVAILABLE otherwise, never a pass), the validated commit's existence and ancestry in git, and lane branch existence; --render writes docs/status/SLEY2-REMOTE-HEAD.md, --check fails on a stale view. Self-test 5 cases (stale digest, missing field, stale epoch, ghost commit, clean). Wired into make remote-consistency, not quick, so the in-flight lanes' Tier 1 gate is untouched; README points at the view.
+REVIEW REPAIR (slice 7, Nabu round-1 P1): review candidates are immutable branch refs (review/arch-tighten-r1-roundN, pushed; tags are not used because the anti-goal gate treats any git tag as a publication signal) recorded in the locator's review_candidates with their exact SHA; check_remote_head.py fails if a candidate ref resolves to a different SHA (self-test case added) and renders them in the status view.
 ```
 
 ### 3.6 Identity and invalidation graph, hash and preimage hygiene (spec sections 7 and 8)
@@ -1480,6 +1484,7 @@ SPECS_TO_UPDATE: docs/spec/EXEC_PACKAGE_V1.md (revision note) or EXEC_PACKAGE_V2
 CODE_OWNERSHIP: crates/sley-vm/src/exec_package.rs, scripts/check_exec_package_markers.py (ariadne); vulcan review of the test
 REVIEW_REQUIRED: yes, campaign independent review (AT-G8) and Ariadne contract review
 IMPLEMENTATION (slice 6a, variant a): the literal in crates/sley-vm/src/exec_package.rs now equals the raw-byte SHA-256 of conformance/bootstrap-profile/v1/profile.json (4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630; the old bytes were a shifted hex transcription). No persisted v1 package digest exists in any record, fixture, or evidence file, so no frozen identity is reinterpreted; the V1 contract document already stated the correct digest, so this is the implementation catching up with its frozen spec. check_exec_package_markers.py replaced the 4-byte prefix pins with a full 32-byte comparison of both profile-digest literals against their records (a scratch copy with the old literal fails exec-rs-digest-drift). cargo test -p sley-vm all suites pass; check_exec_package_v1/v2 PASS.
+REVIEW REPAIR (slice 7, Nabu round-1 P1): the in-place literal change is now an explicit implementation erratum, E1 in docs/spec/EXEC_PACKAGE_V2.md, stating that the frozen contract meaning is unchanged, that the implementation was corrected to it, that no v1 package, receipt or observation identity from the old literal is persisted anywhere (the old hex appears nowhere in the tree), and that any such value outside the repository is non-evidence; the code comment no longer claims byte-identical history and names the erratum. Restoring the wrong literal was rejected: it would freeze an implementation defect against the contract's own stated digest.
 ```
 
 ```text
@@ -1941,5 +1946,133 @@ TESTS_REQUIRED: none
 SPECS_TO_UPDATE: none (optionally a writer guidance note in SMP1 appendix A)
 CODE_OWNERSHIP: n/a
 REVIEW_REQUIRED: none
+```
+
+## 4. Audit worksheets
+
+The six audit worksheets (StateRoot inventory and closure inventory,
+native authority inventory, identity records and edge list, machine-write
+measurements with the oracle script and raw JSON, oracle coverage and strata
+table, and the 27-row drift table with the status-mechanism inventory) are
+retained in the campaign scratch area and summarized in sections 3.2 to 3.7;
+the two that are repository deliverables in their own right are
+`SLEY-2.0-ARCHITECTURE-TIGHTENING-NATIVE-INVENTORY.md` and
+`SLEY-2.0-ARCHITECTURE-TIGHTENING-IDENTITY-MAP.md`.
+
+## 5. Gate status (spec section 20)
+
+| Gate | State | Basis |
+|---|---|---|
+| AT-G0 baseline integrity | PASS | section 1 baseline; in-flight lanes explicitly excluded (section 2) |
+| AT-G1 audit completeness | PASS | all mandatory audits closed; 80 findings, each with exactly one disposition |
+| AT-G2 canonical identity integrity | PASS | identity map, hygiene matrix; AT-HH-01 repaired with a 32-byte pin; frozen v2 vectors; no silent redefinition (every B/C note states what byte, if any, changed) |
+| AT-G3 native/Sley boundary | PASS | native inventory complete (AT-NA-01); no unjustified native semantic authority; SH2 boundary exact at SH0 |
+| AT-G4 executable closure | PASS | EXEC_PACKAGE_V2 binds the closure; execute path structural only (AT-EC-01..03) |
+| AT-G5 spec synchronization | FAIL (one open requirement gap) | masters, REWEAVE, contracts and checkers now agree except AT-MW-02 (master 8.2 GetEntityVersion/GetSignature have no SMP1 method), registered as an open 2.0 gap owned by S20-410 |
+| AT-G6 self-host preservation | NOT_REQUIRED | SH0; no C1/C2/C3 evidence exists to invalidate; the static no-hidden-fallback property holds |
+| AT-G7 remote freshness | PASS | private origin created by operator instruction; main, the campaign branch and the lane branches pushed; locator current; T54 secret scan PASS; the public mirror untouched |
+| AT-G8 independent review | AT_G8_MARKER | round 1 on `review/arch-tighten-r1-round1` = 8ff792e9: Nabu FAIL (3 P1, 1 P3; all repaired in slice 7, see 5.1), Ariadne ARIADNE_R1_MARKER; round 2 on ROUND2_MARKER |
+
+### 5.1 Independent review round 1 (candidate 8ff792e9, ref `review/arch-tighten-r1-round1`)
+
+Nabu (architecture), transcript `machineresearch/sley-2.0/reviews/arch-tighten-nabu-2026-09-08.log`:
+verdict FAIL, 0 P0, 3 P1, 0 P2, 1 P3. Dispositions:
+
+- P1 canonical identity, `BOOTSTRAP_PROFILE_1_DIGEST` changed in place under a
+  "byte-identical history" comment: repaired by erratum E1 (AT-HH-01 note);
+  the corrected literal is kept because it is the digest the frozen contract
+  states and nothing persisted depends on the old one.
+- P1 native/self-host evidence, `build_anti_goal_conformance.py --check`
+  failing at the candidate: root cause was a volatile unpushed-commit count
+  inside the derived report; removed (AT-NA-04 note); report rebuilt.
+- P1 remote inspectability, candidate SHA one behind the branch tip and not
+  bound to a stable ref: review candidates are now immutable branch refs
+  recorded in the locator and verified by the checker (AT-SS-14 note).
+- P3 bookkeeping, "79" versus 80 findings: the 79 came from the review
+  request text; the record has 80 findings, each with exactly one
+  disposition (Nabu's parser agreed), and section 7 says 80.
+- Nabu could not run the repository-exchange Python checker (needs the
+  `uv run --project oracle/scb1` environment); it passes in that environment.
+
+Tier 1 on the candidate: TIER1_MARKER
+
+## 6. Not claimed
+
+- Sley 2.0 is not ready for final freeze: R2 exit is NOT_READY (premium delta
+  re-review of the RW-075 correction), self-host succession has not started
+  (SH0), the finding register is FINDING_REGISTER_OPEN, five operator gates
+  stand, and AT-MW-02 is an open 2.0 requirement gap.
+- Five error symbols introduced by RW-075 code (`PACKAGE_*` in
+  crates/sley-vm/src/exec_package.rs) are unregistered in ERROR_CODES_V1 and
+  the tracked error-symbol registration report predates them, so
+  `check_error_symbol_registration --check` fails at the baseline and at the
+  candidate; registering numeric codes is the RW-075/RW-080 lane's contract
+  work and was not done here.
+- `make quick` cannot pass in a fresh worktree or clone without the
+  gitignored release-candidate smoke evidence: the S20-720, S20-730 and
+  S20-710 checkers and 15 release tests need
+  evidence/runtime/s20-720-release-candidate/evidence.json, produced only by
+  `make release-candidate-smoke`. Pre-existing; documented, not changed.
+- Frozen vectors were added only for the R2 execution identity (package,
+  section and observation digests); branch record and ref digests, the
+  capability token and summary pair, and the attempt, context and phase
+  digests remain owner work (S20-500, S20-380, S20-360).
+- The EXEC_PACKAGE_V2 envelope byte codec (AT-EC-07) and the SMP1 entity-body
+  query (AT-MW-02) are recorded, not implemented.
+- The campaign edited machine-summary.json and bootstrap-manifest.json, which
+  the RW-080 lane also maintains; the lane must rebase its next summary edit
+  on the merged main.
+
+## 7. Closeout (spec section 24)
+
+```text
+SLEY2_ARCH_TIGHTENING = CLOSEOUT_MARKER
+BASELINE_COMMIT = 560a5f16ebe9edaaee6837b779f6af94ad9ae310
+FINAL_COMMIT = FINAL_COMMIT_MARKER
+REMOTE_COMMIT = REMOTE_COMMIT_MARKER
+REMOTE_MATCH = REMOTE_MATCH_MARKER
+TREE_CLEAN = TRUE
+
+A_ALREADY_SOLVED = 34
+B_ADDITIVE_NOW = 25
+C_PRE_FREEZE_REPAIR = 2
+D_REJECT = 7
+E_DEFER_2_1_PLUS = 12
+
+CANONICAL_IDENTITY = PASS
+EXECUTABLE_CLOSURE = PASS
+NATIVE_SLEY_BOUNDARY = PASS
+MACHINE_WRITE_ERGONOMICS = PASS
+SELFHOST_REQUALIFICATION = NOT_REQUIRED
+SPEC_SYNCHRONIZATION = FAIL
+REMOTE_INSPECTABILITY = PASS
+INDEPENDENT_REVIEW = INDEPENDENT_REVIEW_MARKER
+
+SLEY_2_0_READY_FOR_FINAL_FREEZE = FALSE
+```
+
+`SLEY2_ARCH_TIGHTENING` reads FAIL under the spec's own rule that completion
+requires every applicable gate: AT-G5 carries one open requirement gap
+(AT-MW-02). Every other gate passes or is not required. The campaign's own
+work is complete; the remaining item is owned by the S20-410 protocol package.
+
+REMOTE_REVIEW packet (spec 15.6):
+
+```text
+REMOTE_REVIEW:
+  repo:            origin (private; URL in git remote -v)
+  branch:          arch/tighten-r1 (merged to main at closeout)
+  commit:          FINAL_COMMIT_MARKER
+  compare_base:    560a5f16ebe9edaaee6837b779f6af94ad9ae310
+  canonical_spec:  /home/greyforge/machineresearch/Sley2.0mastergoal.md
+                   sha256 e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9
+                   (in-repo dossier machineresearch/sley-2.0/)
+  reweave_spec:    /home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md
+                   sha256 61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63
+  changed_paths:   git diff --stat 560a5f16..FINAL_COMMIT_MARKER
+  relevant_tests:  make quick (SLEY2_MASTER_GOAL set), make lint,
+                   cargo test -p sley-vm, cargo test -p sley-repo --lib,
+                   make remote-consistency REMOTE_CONSISTENCY_ARGS=--allow-ahead
+  open_gates:      docs/status/SLEY2-REMOTE-HEAD.md "Known blocked gates"
 ```
 

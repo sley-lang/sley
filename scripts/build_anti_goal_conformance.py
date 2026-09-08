@@ -216,11 +216,13 @@ def evaluate() -> dict[str, dict]:
     )
 
     tags = [tag for tag in git("tag").split("\n") if tag]
-    unpushed = git("log", "origin/main..HEAD", "--oneline").count("\n")
+    # The unpushed-commit count moves with every commit, so it made this
+    # derived report drift at each checkpoint; scripts/check_remote_consistency.py
+    # reports it at handoff instead.
     record(
         "unauthorized publication/deploy/spend",
         not tags,
-        f"git tags: {len(tags)}; commits not pushed to origin/main: {unpushed + 1 if unpushed else 0}",
+        f"git tags: {len(tags)}; unpushed commits are reported by scripts/check_remote_consistency.py",
     )
 
     legacy = sorted(

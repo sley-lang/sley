@@ -115,6 +115,33 @@ observation over the RHW1 bridge fixture are pinned by
 (`v2_package_section_digests_and_observation_are_frozen`); moving any of them
 requires a new package or observation version.
 
+## Implementation erratum E1 (V1 profile digest literal)
+
+`EXEC_PACKAGE_V1` binds `BOOTSTRAP_PROFILE_1` by its frozen digest
+`4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630`
+(`BOOTSTRAP_PROFILE_1.md`, `conformance/bootstrap-profile/v1/SHA256SUMS`).
+Until 2026-09-08 the Rust literal `BOOTSTRAP_PROFILE_1_DIGEST` in
+`crates/sley-vm/src/exec_package.rs` carried a shifted hex transcription of
+that value (`...756ea1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd6330`), and
+the marker checker pinned only its first four bytes. Every v1 package digest,
+v1 receipt and v1 package observation the implementation computed before that
+date therefore bound a value the contract never defined.
+
+Disposition (architecture-tightening finding AT-HH-01, C_PRE_FREEZE_REPAIR):
+
+- The frozen contract meaning is unchanged; the implementation was corrected
+  to it. This is a repair of the implementation, not a redefinition of the
+  V1 identity.
+- No v1 package digest, receipt, or observation identity computed from the
+  old literal is persisted in any record, fixture, evidence file, review log
+  or lane record (searched at the repair commit; the old literal's hex
+  appears nowhere in the tree). Any such value that exists outside the
+  repository is non-evidence and must not be cited.
+- `scripts/check_exec_package_markers.py` now binds all 32 bytes of both
+  profile-digest literals to their records.
+- V1 remains "preserved functional for legacy evidence only" as stated above;
+  new executions use v2, whose literal was always correct.
+
 ## Hydration (unchanged)
 
 Same allows/forbids as v1 (byte/framing decode, digest verification,
