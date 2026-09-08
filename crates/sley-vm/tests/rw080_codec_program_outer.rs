@@ -29151,28 +29151,10 @@ fn program_ns_value_units_bind_first() {
     );
 }
 
-// ── RW080 current F6 liveness/materialization probe ─────────────────────
-// Wrapper over the actual current `build_encode` (uvar width 64) and
-// `build_program_build` (length-first prefix plus domain preimage) direct
-// callees with frozen B2V1/V2B1/RHW1 bridges only (PSH1 appears solely
-// inside the unchanged callees). The wrapper returns the full 9-component
-// Result tuple: (payload_snapshot, length_before, length_after,
-// stored_prefix, hash_input, digest, payload_length, length_before_count,
-// length_after_count).
-//
-// Same-type edge roles stay nominally distinct per block, never inferred
-// from types: P is the payload vector under observation, L the length
-// vector under observation, pay the original payload Bytes, len_bytes the
-// uvar length Bytes from the encode callee, len_before/after the V2B1
-// snapshots of L, pre/him the build callee outputs, digest the RHW1 output.
-// Liveness schedules: LiveAcrossEncoding forwards the originally
-// materialized P across encode call, length conversion, build call and
-// hash; RematerializeAfterLength drops the temp payload vector after n is
-// derived, carries only pay across encode/length blocks, recreates P via
-// B2V1 once len_before exists, then retains it through build/hash. Both
-// retain L across the build call and the hash and snapshot actual vectors
-// after (never the imported length Bytes). n and both counts come from
-// actual VectorLen observations; host uvar is oracle only, never input.
+// F6: P is the payload vector under observation, L the length vector; Live
+// forwards P across encode while Remat recreates P via B2V1 after n. Both
+// retain L across build/hash; snapshots and counts come from actual vectors,
+// a graph use/forwarding distinction only.
 #[derive(Clone, Copy)]
 enum LengthLivenessMode {
     LiveAcrossEncoding,
@@ -29200,9 +29182,6 @@ fn f6_liveness_result_type() -> TypeExpr {
     }
 }
 
-// Shared tail: built (split build tuple, RHW1 over hash input) → hashed
-// (VectorLen P/L, V2B1 length_after) → snap (V2B1 payload_snapshot) → done
-// (9-tuple ResultOk). Returns the `built` block id the mode heads target.
 #[allow(clippy::too_many_lines, clippy::many_single_char_names)]
 fn f6_tail(
     a: &mut Asm,
@@ -29212,7 +29191,7 @@ fn f6_tail(
     tup_t: TypeExpr,
     b_res: EntityId,
 ) -> EntityId {
-    use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
+    use sley_vm::host_abi::{BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
     let built = a.id(ns.b);
     let hashed = a.id(ns.b);
     let snap = a.id(ns.b);
@@ -29356,7 +29335,7 @@ fn f6_tail(
         Opcode::AdapterInvoke,
         vec![pav(s_unit), pav(s_p)],
         vec![index_result(TypeExpr::Bytes)],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
     );
     a.blocks.push(Block {
         entity_id: snap,
@@ -29993,8 +29972,7 @@ fn f6_call(
     )
 }
 
-// Decodes the 9-component F6 tuple in contracted order. A ResourceLimit is
-// a recorded failure, never a pass: the caller keeps every required case.
+// ResourceLimit is a recorded failure, never a pass.
 #[allow(clippy::type_complexity)]
 fn assert_f6_ok(
     outcome: &sley_vm::ExecutionOutcome,
@@ -30079,7 +30057,7 @@ fn rw080_current_mechanism_f6_live_length_vectors_match_independent_bytes() {
             exp_prefix.extend_from_slice(payload);
             let mut exp_him = b"sley2.object.v1".to_vec();
             exp_him.extend_from_slice(&exp_prefix);
-            let exp_digest = sley_id::ObjectId::derive(&exp_him).as_bytes().to_vec();
+            let exp_digest = blake3::hash(&exp_him).as_bytes().to_vec();
             let outcome = f6_call(pkg, approved, payload);
             let (snap, before, after, pre, him, digest, got_n, got_lb, got_la) =
                 assert_f6_ok(&outcome, mode, case);
