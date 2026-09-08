@@ -1,4 +1,4 @@
-.PHONY: evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -334,3 +334,11 @@ persistent-fuzz-all:
 
 v2 release-check:
 	@python3 scripts/gate_status.py $@
+
+# SLEY-2.0-ARCHITECTURE-TIGHTENING section 16. Read-only: it never pushes or
+# fetches. Not part of `quick` because a branch can be legitimately ahead of
+# its upstream mid-slice; run it at handoff. `--allow-ahead` declares unpushed
+# work that is not being offered for remote review.
+remote-consistency:
+	python3 scripts/check_remote_consistency.py --self-test
+	python3 scripts/check_remote_consistency.py $(REMOTE_CONSISTENCY_ARGS)
