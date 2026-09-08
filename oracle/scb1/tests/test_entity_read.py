@@ -1836,7 +1836,8 @@ def _b2_matches(problems, case_id, side, layer, code):
         return False
     for entry in problems:
         if not isinstance(entry, str):
-            continue
+            return False
+    for entry in problems:
         if code is None:
             if entry == prefix or entry.startswith(prefix + ":"):
                 return True
@@ -1855,10 +1856,10 @@ def _b2_expect(testcase, inputs, case, supplied, side, layer, code):
         testcase.assertIsInstance(entry, str)
     prefix = f"{case['id']}:semantic:{side}:{layer}"
     if code is None:
-        testcase.assertTrue(any(entry == prefix or entry.startswith(prefix + ":") for entry in problems), f"missing {prefix} in {problems!r}")
+        testcase.assertTrue(_b2_matches(problems, case["id"], side, layer, code), f"missing {prefix} in {problems!r}")
     else:
         target = prefix + ":" + code
-        testcase.assertTrue(any(entry == target or entry.startswith(target + ":") or entry.startswith(target + " ") for entry in problems), f"missing {target} in {problems!r}")
+        testcase.assertTrue(_b2_matches(problems, case["id"], side, layer, code), f"missing {target} in {problems!r}")
 
 
 def _b2_check_request_zero_limits(testcase, inputs, frame):
@@ -1917,6 +1918,7 @@ class SuppliedEntityFrameCases(unittest.TestCase):
             ("split", ["ver_ws:semantic:request:frame_bounds", "SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
             ("prefixed", ["xxver_ws:semantic:request:frame_bounds:SCB_FIELD_MISSING"], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
             ("nonstring", [None], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
+            ("mixed-valid-nonstring", ["ver_ws:semantic:request:frame_bounds:SCB_FIELD_MISSING", None], "request", "frame_bounds", "SCB_FIELD_MISSING", False),
             ("none-correct", ["ver_ws:semantic:request:wire_prefix: mismatch"], "request", "wire_prefix", None, True),
             ("none-wrong-side", ["ver_ws:semantic:response:wire_prefix: mismatch"], "request", "wire_prefix", None, False),
         )
