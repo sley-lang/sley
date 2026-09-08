@@ -14,6 +14,7 @@ Root execution contract (never executed by the author of this file):
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -443,12 +444,21 @@ class FailureEnvelopeCases(unittest.TestCase):
                 self.assertEqual(failure["retryability"], case["expected_retryability"])
 
     def test_authored_failure_response_dispatches_through_checker(self) -> None:
-        inputs = load_authored_inputs()
-        authored = next(case for case in inputs["rejected"] if case["id"] == "fail_root_mismatch")
-        scoped = dict(authored)
-        scoped["input_hex"] = entity_read.build_failure_wire(inputs, authored).hex()
+        full = load_authored_inputs()
+        authored = next(case for case in full["rejected"] if case["id"] == "fail_root_mismatch")
+        scoped_inputs = copy.deepcopy(full)
+        scoped_inputs["rejected"] = [copy.deepcopy(authored)]
+        scoped = copy.deepcopy(authored)
+        scoped["input_hex"] = entity_read.build_failure_wire(scoped_inputs, authored).hex()
         self.assertEqual(scoped["kind"], "failure_response")
-        problems = entity_read.check_rejected(inputs, {"cases": [scoped]})
+        inputs_sha = hashlib.sha256(json.dumps(scoped_inputs, sort_keys=True).encode()).hexdigest()
+        rejected = {
+            "contract": "sley2-entity-read-v2-rejected",
+            "claim": "independent-expected",
+            "manifest": {"inputs_sha256": inputs_sha},
+            "cases": [scoped],
+        }
+        problems = entity_read.check_rejected(scoped_inputs, rejected)
         self.assertEqual(problems, [])
 
 
@@ -1110,6 +1120,581 @@ class HelloIdentityEqualityCases(unittest.TestCase):
             server = copy.deepcopy(server_base)
             server["effects"] = [distinct]
             self.assertEqual(entity_read.negotiate_versioned(client, server)["effects"], [])
+
+
+def _b1_scoped_inputs():
+    full = load_authored_inputs()
+    scoped = copy.deepcopy(full)
+    scoped["cases"] = {key: copy.deepcopy(full["cases"][key]) for key in ("ver_ws", "sig_multi")}
+    scoped["hellos"] = {
+        key: copy.deepcopy(full["hellos"][key])
+        for key in ("hello_v2_client", "hello_v1_server", "hello_v2_server", "hello_v3_client", "hello_v3_server")
+    }
+    scoped["selection_scenarios"] = {
+        key: copy.deepcopy(full["selection_scenarios"][key]) for key in ("v1_select", "v2_select", "v3_refuse")
+    }
+    wanted = ("req_missing_field", "req_duplicate_field", "fail_root_mismatch", "bound_k_exact", "seq_wrong_session")
+    by_id = {row["id"]: row for row in full["rejected"]}
+    scoped["rejected"] = [copy.deepcopy(by_id[row_id]) for row_id in wanted]
+    return scoped
+
+
+def _b1_build_accepted(scoped):
+    cases = {}
+    for case_id in ("ver_ws", "sig_multi"):
+        built = entity_read.build_success_case(scoped, scoped["cases"][case_id])
+        cases[case_id] = {"id": case_id, **built}
+    hellos = {name: {"body_hex": entity_read.build_hello(offer).hex()} for name, offer in scoped["hellos"].items()}
+    selections = {}
+    for name, scenario in scoped["selection_scenarios"].items():
+        if scenario.get("expect") == "fail":
+            try:
+                entity_read.negotiate_versioned(scoped["hellos"][scenario["client"]], scoped["hellos"][scenario["server"]])
+            except entity_read.CheckFailed as error:
+                assert error.layer == "selection"
+                selections[name] = {"expected_failure": "selection"}
+            else:
+                raise AssertionError(f"{name} was accepted")
+            continue
+        selection = entity_read.negotiate_versioned(scoped["hellos"][scenario["client"]], scoped["hellos"][scenario["server"]])
+        preimage = entity_read.build_selected(selection)
+        client_body = bytes.fromhex(hellos[scenario["client"]]["body_hex"])
+        server_body = bytes.fromhex(hellos[scenario["server"]]["body_hex"])
+        transcript = client_body + server_body + preimage
+        selections[name] = {
+            **selection,
+            "preimage_hex": preimage.hex(),
+            "transcript_hex": transcript.hex(),
+            "handshake_id": entity_read.handshake_id(client_body, server_body, preimage).hex(),
+        }
+    inputs_sha = hashlib.sha256(json.dumps(scoped, sort_keys=True).encode()).hexdigest()
+    return {
+        "contract": "sley2-entity-read-v2",
+        "claim": "independent-expected",
+        "manifest": {"inputs_sha256": inputs_sha},
+        "cases": cases,
+        "hellos": hellos,
+        "selections": selections,
+    }
+
+
+def _b1_build_rejected(scoped):
+    cases = []
+    for authored in scoped["rejected"]:
+        row = copy.deepcopy(authored)
+        if row["id"] in ("req_missing_field", "req_duplicate_field"):
+            base = scoped["cases"][row["base"]]
+            row["input_hex"] = entity_read.build_rejected_bytes(scoped, base, row["recipe"]).hex()
+        elif row["id"] == "fail_root_mismatch":
+            row["input_hex"] = entity_read.build_failure_wire(scoped, row).hex()
+        elif row["id"] == "bound_k_exact":
+            row = entity_read.derive_relation(scoped, row)
+        cases.append(row)
+    inputs_sha = hashlib.sha256(json.dumps(scoped, sort_keys=True).encode()).hexdigest()
+    return {
+        "contract": "sley2-entity-read-v2-rejected",
+        "claim": "independent-expected",
+        "manifest": {"inputs_sha256": inputs_sha},
+        "cases": cases,
+    }
+
+
+def _b1_control():
+    scoped = _b1_scoped_inputs()
+    return scoped, _b1_build_accepted(scoped), _b1_build_rejected(scoped)
+
+
+def _b1_flip_hex(value):
+    assert len(value) >= 1
+    first = value[0]
+    replacement = "0" if first != "0" else "1"
+    return replacement + value[1:]
+
+
+def _b1_case_by_id(supplied_cases, row_id):
+    return next(case for case in supplied_cases if case["id"] == row_id)
+
+
+class CorpusContentClosureCases(unittest.TestCase):
+    def test_small_authored_content_control(self) -> None:
+        scoped, accepted, rejected = _b1_control()
+        self.assertEqual(accepted["contract"], "sley2-entity-read-v2")
+        self.assertEqual(accepted["claim"], "independent-expected")
+        self.assertEqual(rejected["contract"], "sley2-entity-read-v2-rejected")
+        self.assertEqual(rejected["claim"], "independent-expected")
+        self.assertEqual(
+            scoped["rejected"] and [row["id"] for row in scoped["rejected"]],
+            ["req_missing_field", "req_duplicate_field", "fail_root_mismatch", "bound_k_exact", "seq_wrong_session"],
+        )
+        self.assertEqual(sorted(accepted["cases"].keys()), ["sig_multi", "ver_ws"])
+        self.assertEqual(len(rejected["cases"]), 5)
+        self.assertEqual(entity_read.check_accepted(scoped, accepted), [])
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        missing = _b1_case_by_id(scoped["rejected"], "req_missing_field")
+        duplicate = _b1_case_by_id(scoped["rejected"], "req_duplicate_field")
+        base = scoped["cases"]["ver_ws"]
+        missing_bytes = entity_read.build_rejected_bytes(scoped, base, missing["recipe"])
+        duplicate_bytes = entity_read.build_rejected_bytes(scoped, base, duplicate["recipe"])
+        self.assertEqual(
+            entity_read.validate_rejected(scoped, {"recipe": {"target": "request"}}, missing_bytes),
+            ("request_record", "SCB_FIELD_MISSING"),
+        )
+        self.assertEqual(
+            entity_read.validate_rejected(scoped, {"recipe": {"target": "request"}}, duplicate_bytes),
+            ("request_record", "SCB_FIELD_DUPLICATE"),
+        )
+        failure_row = _b1_case_by_id(scoped["rejected"], "fail_root_mismatch")
+        failure_bytes = entity_read.build_failure_wire(scoped, failure_row)
+        layer, _code = entity_read.validate_rejected(scoped, {"recipe": {"target": "failure"}}, failure_bytes)
+        self.assertEqual(layer, "failure_accepted")
+        relation_row = _b1_case_by_id(rejected["cases"], "bound_k_exact")
+        self.assertEqual(relation_row["max_objects"], 3)
+        sequence_row = _b1_case_by_id(rejected["cases"], "seq_wrong_session")
+        self.assertEqual(sequence_row["status"], "pending_runtime_comparison")
+
+    def test_accepted_inventories_are_exact(self) -> None:
+        scoped, accepted, _rejected = _b1_control()
+        self.assertEqual(entity_read.check_accepted(scoped, accepted), [])
+        with self.subTest(mutation="remove-ver_ws"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["cases"]["ver_ws"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:missing-expected", problems)
+        with self.subTest(mutation="clear-accepted-cases"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"] = {}
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:cases:inventory", problems)
+        with self.subTest(mutation="extra-accepted-case"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"]["extra_case"] = copy.deepcopy(mutated["cases"]["ver_ws"])
+            mutated["cases"]["extra_case"]["id"] = "extra_case"
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:cases:inventory", problems)
+        with self.subTest(mutation="remove-sig_multi-object"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["cases"]["sig_multi"]["objects"]["sig_p_low"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("sig_multi:objects:inventory", problems)
+        with self.subTest(mutation="extra-sig_multi-object"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"]["sig_multi"]["objects"]["extra_obj"] = copy.deepcopy(
+                mutated["cases"]["sig_multi"]["objects"]["sig_p_low"]
+            )
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("sig_multi:objects:inventory", problems)
+        with self.subTest(mutation="remove-hello"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["hellos"]["hello_v2_client"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:hellos:inventory", problems)
+        with self.subTest(mutation="extra-hello"):
+            mutated = copy.deepcopy(accepted)
+            mutated["hellos"]["extra_hello"] = copy.deepcopy(mutated["hellos"]["hello_v2_client"])
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:hellos:inventory", problems)
+        with self.subTest(mutation="remove-success-selection"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["selections"]["v2_select"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:selections:inventory", problems)
+        with self.subTest(mutation="extra-success-selection"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["extra_select"] = copy.deepcopy(mutated["selections"]["v2_select"])
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:selections:inventory", problems)
+        with self.subTest(mutation="remove-failed-selection"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["selections"]["v3_refuse"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:selections:inventory", problems)
+        with self.subTest(mutation="extra-failed-selection"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["extra_refuse"] = {"expected_failure": "selection"}
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("accepted:selections:inventory", problems)
+
+    def test_rejected_inventory_is_exact(self) -> None:
+        scoped, _accepted, rejected = _b1_control()
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        with self.subTest(mutation="empty"):
+            mutated = copy.deepcopy(rejected)
+            mutated["cases"] = []
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:cases:inventory", problems)
+        with self.subTest(mutation="drop-one"):
+            mutated = copy.deepcopy(rejected)
+            mutated["cases"] = [case for case in mutated["cases"] if case["id"] != "bound_k_exact"]
+            self.assertEqual(len(mutated["cases"]), 4)
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:cases:inventory", problems)
+        with self.subTest(mutation="duplicate-id"):
+            mutated = copy.deepcopy(rejected)
+            mutated["cases"].append(copy.deepcopy(_b1_case_by_id(mutated["cases"], "req_missing_field")))
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:cases:inventory", problems)
+        with self.subTest(mutation="extra-valid-row"):
+            mutated = copy.deepcopy(rejected)
+            extra = copy.deepcopy(_b1_case_by_id(mutated["cases"], "req_missing_field"))
+            extra["id"] = "req_missing_field_extra"
+            mutated["cases"].append(extra)
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:cases:inventory", problems)
+        with self.subTest(mutation="reorder"):
+            mutated = copy.deepcopy(rejected)
+            mutated["cases"][0], mutated["cases"][1] = mutated["cases"][1], mutated["cases"][0]
+            self.assertNotEqual(mutated["cases"][0]["id"], rejected["cases"][0]["id"])
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:cases:inventory", problems)
+        with self.subTest(mutation="duplicate-inputs-ids"):
+            mutated_inputs = copy.deepcopy(scoped)
+            duplicated = copy.deepcopy(mutated_inputs["rejected"][0])
+            mutated_inputs["rejected"].append(duplicated)
+            rebuilt_rejected = _b1_build_rejected(mutated_inputs)
+            problems = entity_read.check_rejected(mutated_inputs, rebuilt_rejected)
+            self.assertIn("inputs:rejected:ids", problems)
+
+    def test_all_success_and_object_fields_are_bound(self) -> None:
+        scoped, accepted, _rejected = _b1_control()
+        self.assertEqual(entity_read.check_accepted(scoped, accepted), [])
+        hex_fields = (
+            "request_body_hex",
+            "response_body_hex",
+            "request_wire_hex",
+            "response_wire_hex",
+            "request_preimage_hex",
+            "response_preimage_hex",
+            "request_frame_id",
+            "response_frame_id",
+        )
+        for field in hex_fields:
+            with self.subTest(case="ver_ws", path=field):
+                mutated = copy.deepcopy(accepted)
+                original = mutated["cases"]["ver_ws"][field]
+                mutated["cases"]["ver_ws"][field] = _b1_flip_hex(original)
+                self.assertNotEqual(mutated["cases"]["ver_ws"][field], original)
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn(f"ver_ws:{field}", problems)
+        for field in ("response_wire_len", "work", "count_k", "stored_b"):
+            with self.subTest(case="ver_ws", path=field):
+                mutated = copy.deepcopy(accepted)
+                mutated["cases"]["ver_ws"][field] += 1
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn(f"ver_ws:{field}", problems)
+        with self.subTest(case="ver_ws", path="id"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"]["ver_ws"]["id"] = "ver_ws_other"
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:id", problems)
+        for field in ("record_hex", "preimage_hex", "stored_hex", "object_id"):
+            with self.subTest(case="ver_ws", path=f"object:ws:{field}"):
+                mutated = copy.deepcopy(accepted)
+                original = mutated["cases"]["ver_ws"]["objects"]["ws"][field]
+                mutated["cases"]["ver_ws"]["objects"]["ws"][field] = _b1_flip_hex(original)
+                self.assertNotEqual(mutated["cases"]["ver_ws"]["objects"]["ws"][field], original)
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn(f"ver_ws:object:ws:{field}", problems)
+        for field in ("id", "request_preimage_hex", "response_preimage_hex", "response_wire_len"):
+            with self.subTest(case="ver_ws", path=f"remove-{field}"):
+                mutated = copy.deepcopy(accepted)
+                del mutated["cases"]["ver_ws"][field]
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn(f"ver_ws:{field}", problems)
+        with self.subTest(case="ver_ws", path="remove-object-record_hex"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["cases"]["ver_ws"]["objects"]["ws"]["record_hex"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:object:ws:record_hex", problems)
+        with self.subTest(case="ver_ws", path="extra-case-field"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"]["ver_ws"]["unexpected_field"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:fields", problems)
+        with self.subTest(case="ver_ws", path="extra-object-field"):
+            mutated = copy.deepcopy(accepted)
+            mutated["cases"]["ver_ws"]["objects"]["ws"]["unexpected_field"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:object:ws:fields", problems)
+        with self.subTest(case="ver_ws", path="count_k-bool"):
+            mutated = copy.deepcopy(accepted)
+            self.assertEqual(mutated["cases"]["ver_ws"]["count_k"], 1)
+            mutated["cases"]["ver_ws"]["count_k"] = True
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("ver_ws:count_k", problems)
+
+    def test_hello_and_selection_fields_are_bound(self) -> None:
+        scoped, accepted, _rejected = _b1_control()
+        self.assertEqual(entity_read.check_accepted(scoped, accepted), [])
+        with self.subTest(path="hello:hello_v2_client:body"):
+            mutated = copy.deepcopy(accepted)
+            original = mutated["hellos"]["hello_v2_client"]["body_hex"]
+            mutated["hellos"]["hello_v2_client"]["body_hex"] = _b1_flip_hex(original)
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("hello:hello_v2_client:body", problems)
+        with self.subTest(path="hello:hello_v2_client:fields"):
+            mutated = copy.deepcopy(accepted)
+            mutated["hellos"]["hello_v2_client"]["unexpected_field"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("hello:hello_v2_client:fields", problems)
+        with self.subTest(path="selection:v2_select:version"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["protocol_version"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:version", problems)
+        with self.subTest(path="selection:v2_select:methods"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["methods"] = [100]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:methods", problems)
+        with self.subTest(path="selection:v2_select:epoch"):
+            mutated = copy.deepcopy(accepted)
+            original = mutated["selections"]["v2_select"]["schema_epoch"]
+            mutated["selections"]["v2_select"]["schema_epoch"] = _b1_flip_hex(original)
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:epoch", problems)
+        for field in ("preimage_hex", "transcript_hex", "handshake_id"):
+            suffix = {"preimage_hex": "preimage", "transcript_hex": "transcript", "handshake_id": "handshake"}[field]
+            with self.subTest(path=f"selection:v2_select:{suffix}"):
+                mutated = copy.deepcopy(accepted)
+                mutated["selections"]["v2_select"][field] = _b1_flip_hex(mutated["selections"]["v2_select"][field])
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn(f"selection:v2_select:{suffix}", problems)
+        limit_keys = (
+            "max_frame_bytes",
+            "max_entities",
+            "max_edges",
+            "max_depth",
+            "max_response_bytes",
+            "max_work",
+            "max_inflight",
+            "max_sessions",
+        )
+        for key in limit_keys:
+            with self.subTest(path="selection:v2_select:limits", limit=key):
+                mutated = copy.deepcopy(accepted)
+                mutated["selections"]["v2_select"]["limits"][key] += 1
+                problems = entity_read.check_accepted(scoped, mutated)
+                self.assertIn("selection:v2_select:limits", problems)
+        with self.subTest(path="selection:v2_select:features"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["features"] ^= 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:features", problems)
+        with self.subTest(path="selection:v2_select:adapters"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["adapters"] = []
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:adapters", problems)
+        with self.subTest(path="selection:v2_select:effects"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["effects"] = []
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:effects", problems)
+        with self.subTest(path="selection:v2_select:remove-limits"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["selections"]["v2_select"]["limits"]
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:limits", problems)
+        with self.subTest(path="selection:v2_select:fields"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v2_select"]["unexpected_field"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v2_select:fields", problems)
+        with self.subTest(path="selection:v3_refuse:missing-expected-failure"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v3_refuse"]["expected_failure"] = "other"
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v3_refuse:missing-expected-failure", problems)
+        with self.subTest(path="selection:v3_refuse:fields"):
+            mutated = copy.deepcopy(accepted)
+            mutated["selections"]["v3_refuse"]["unexpected_field"] = 1
+            problems = entity_read.check_accepted(scoped, mutated)
+            self.assertIn("selection:v3_refuse:fields", problems)
+
+    def test_rejected_same_layer_bytes_are_reconstructed(self) -> None:
+        scoped, _accepted, rejected = _b1_control()
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        authored = next(row for row in scoped["rejected"] if row["id"] == "req_missing_field")
+        base = scoped["cases"][authored["base"]]
+        original_bytes = entity_read.build_rejected_bytes(scoped, base, authored["recipe"])
+        alternative_recipe = dict(authored["recipe"])
+        alternative_recipe["tag"] = 4
+        alternative_bytes = entity_read.build_rejected_bytes(scoped, base, alternative_recipe)
+        self.assertNotEqual(alternative_bytes, original_bytes)
+        self.assertEqual(
+            entity_read.validate_rejected(scoped, {"recipe": {"target": "request"}}, alternative_bytes),
+            ("request_record", "SCB_FIELD_MISSING"),
+        )
+        mutated = copy.deepcopy(rejected)
+        target = _b1_case_by_id(mutated["cases"], "req_missing_field")
+        target["input_hex"] = alternative_bytes.hex()
+        problems = entity_read.check_rejected(scoped, mutated)
+        self.assertIn("rejected:req_missing_field:input_hex", problems)
+
+    def test_rejected_expectation_metadata_cannot_authorize_itself(self) -> None:
+        scoped, _accepted, rejected = _b1_control()
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        with self.subTest(path="rejected:req_missing_field:expected_scb"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "req_missing_field")["expected_scb"] = None
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:req_missing_field:expected_scb", problems)
+        with self.subTest(path="rejected:req_missing_field:expected_code"):
+            mutated = copy.deepcopy(rejected)
+            target = _b1_case_by_id(mutated["cases"], "req_missing_field")
+            target["expected_code"] = 40009
+            target["expected_symbol"] = "PROTOCOL_LIMIT_EXCEEDED"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:req_missing_field:expected_code", problems)
+            self.assertIn("rejected:req_missing_field:expected_symbol", problems)
+        with self.subTest(path="rejected:req_missing_field:recipe"):
+            mutated = copy.deepcopy(rejected)
+            target = _b1_case_by_id(mutated["cases"], "req_missing_field")
+            altered = dict(target["recipe"])
+            altered["tag"] = 4
+            target["recipe"] = altered
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:req_missing_field:recipe", problems)
+        with self.subTest(path="rejected:req_missing_field:coherent-replacement"):
+            duplicate_authored = next(row for row in scoped["rejected"] if row["id"] == "req_duplicate_field")
+            base = scoped["cases"][duplicate_authored["base"]]
+            duplicate_bytes = entity_read.build_rejected_bytes(scoped, base, duplicate_authored["recipe"])
+            self.assertEqual(
+                entity_read.validate_rejected(scoped, {"recipe": {"target": "request"}}, duplicate_bytes),
+                ("request_record", "SCB_FIELD_DUPLICATE"),
+            )
+            mutated = copy.deepcopy(rejected)
+            target = _b1_case_by_id(mutated["cases"], "req_missing_field")
+            target["recipe"] = copy.deepcopy(duplicate_authored["recipe"])
+            target["input_hex"] = duplicate_bytes.hex()
+            target["expected_scb"] = duplicate_authored["expected_scb"]
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:req_missing_field:input_hex", problems)
+        with self.subTest(control="wrong-layer-still-refused"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "req_missing_field")["failing_layer"] = "response_record"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("req_missing_field:layer:request_record", problems)
+        with self.subTest(control="wrong-scb-still-refused"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "req_missing_field")["expected_scb"] = "SCB_FIELD_DUPLICATE"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("req_missing_field:scb:SCB_FIELD_DUPLICATE", problems)
+
+    def test_derived_and_pending_rows_remain_bound(self) -> None:
+        scoped, _accepted, rejected = _b1_control()
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        with self.subTest(path="bound_k_exact:k-relation"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "bound_k_exact")["max_objects"] = 999
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("bound_k_exact:k-relation", problems)
+        with self.subTest(path="rejected:bound_k_exact:note"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "bound_k_exact")["note"] = "changed note"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:bound_k_exact:note", problems)
+        with self.subTest(path="rejected:bound_k_exact:expected_symbol"):
+            mutated = copy.deepcopy(rejected)
+            target = _b1_case_by_id(mutated["cases"], "bound_k_exact")
+            target["expected_symbol"] = "PROTOCOL_PAYLOAD_INVALID"
+            target["expected_code"] = 40008
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:bound_k_exact:expected_symbol", problems)
+        with self.subTest(path="rejected:seq_wrong_session:title"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["title"] = "changed title"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:seq_wrong_session:title", problems)
+        with self.subTest(path="rejected:seq_wrong_session:steps"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["steps"][0]["action"] = "changed action"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:seq_wrong_session:steps", problems)
+        with self.subTest(path="rejected:seq_wrong_session:steps-code"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["steps"][0]["expected_code"] = 40008
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:seq_wrong_session:steps", problems)
+        with self.subTest(path="rejected:seq_wrong_session:observations"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["observations"] = ["changed"]
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:seq_wrong_session:observations", problems)
+        with self.subTest(path="rejected:seq_wrong_session:note"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["note"] = "changed note"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:seq_wrong_session:note", problems)
+        with self.subTest(path="seq_wrong_session:stateful-must-be-pending"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "seq_wrong_session")["status"] = "complete"
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("seq_wrong_session:stateful-must-be-pending", problems)
+        with self.subTest(control="fail_root_mismatch:failure-retryability"):
+            mutated = copy.deepcopy(rejected)
+            _b1_case_by_id(mutated["cases"], "fail_root_mismatch")["expected_retryability"] = 4
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("fail_root_mismatch:failure-retryability", problems)
+        with self.subTest(path="rejected:fail_root_mismatch:input_hex"):
+            full = load_authored_inputs()
+            substitute = next(row for row in full["rejected"] if row["id"] == "fail_limit")
+            substitute_wire = entity_read.build_failure_wire(scoped, substitute).hex()
+            mutated = copy.deepcopy(rejected)
+            target = _b1_case_by_id(mutated["cases"], "fail_root_mismatch")
+            target["input_hex"] = substitute_wire
+            target["code"] = substitute["code"]
+            target["symbol"] = substitute["symbol"]
+            target["expected_code"] = substitute["expected_code"]
+            target["expected_symbol"] = substitute["expected_symbol"]
+            target["expected_retryability"] = substitute["expected_retryability"]
+            problems = entity_read.check_rejected(scoped, mutated)
+            self.assertIn("rejected:fail_root_mismatch:input_hex", problems)
+
+    def test_document_contract_claim_and_extra_fields_are_bound(self) -> None:
+        scoped, accepted, rejected = _b1_control()
+        self.assertEqual(entity_read.check_accepted(scoped, accepted), [])
+        self.assertEqual(entity_read.check_rejected(scoped, rejected), [])
+        with self.subTest(path="accepted-contract"):
+            mutated = copy.deepcopy(accepted)
+            mutated["contract"] = "sley2-entity-read-v2-wrong"
+            self.assertIn("accepted-contract", entity_read.check_accepted(scoped, mutated))
+        with self.subTest(path="accepted-claim"):
+            mutated = copy.deepcopy(accepted)
+            mutated["claim"] = "wrong-claim"
+            self.assertIn("accepted-claim", entity_read.check_accepted(scoped, mutated))
+        with self.subTest(path="accepted-missing-contract"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["contract"]
+            self.assertIn("accepted-contract", entity_read.check_accepted(scoped, mutated))
+        with self.subTest(path="accepted-missing-claim"):
+            mutated = copy.deepcopy(accepted)
+            del mutated["claim"]
+            self.assertIn("accepted-claim", entity_read.check_accepted(scoped, mutated))
+        with self.subTest(path="accepted:fields"):
+            mutated = copy.deepcopy(accepted)
+            mutated["unexpected_top_level"] = 1
+            self.assertIn("accepted:fields", entity_read.check_accepted(scoped, mutated))
+        with self.subTest(path="rejected-contract"):
+            mutated = copy.deepcopy(rejected)
+            mutated["contract"] = "wrong-contract"
+            self.assertIn("rejected-contract", entity_read.check_rejected(scoped, mutated))
+        with self.subTest(path="rejected-claim"):
+            mutated = copy.deepcopy(rejected)
+            mutated["claim"] = "wrong-claim"
+            self.assertIn("rejected-claim", entity_read.check_rejected(scoped, mutated))
+        with self.subTest(path="rejected-missing-contract"):
+            mutated = copy.deepcopy(rejected)
+            del mutated["contract"]
+            self.assertIn("rejected-contract", entity_read.check_rejected(scoped, mutated))
+        with self.subTest(path="rejected-missing-claim"):
+            mutated = copy.deepcopy(rejected)
+            del mutated["claim"]
+            self.assertIn("rejected-claim", entity_read.check_rejected(scoped, mutated))
+        with self.subTest(path="rejected:fields"):
+            mutated = copy.deepcopy(rejected)
+            mutated["unexpected_top_level"] = 1
+            self.assertIn("rejected:fields", entity_read.check_rejected(scoped, mutated))
 
 
 if __name__ == "__main__":
