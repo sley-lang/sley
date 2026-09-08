@@ -4594,3 +4594,84 @@ fn repair_debit_phases_observe_budget_and_followup() {
         new_root
     );
 }
+
+#[test]
+fn repair_authenticated_hello2_decode_rejects_wire_violation() {
+    // R5 full-decoder companion to the header-only wire-version test: an
+    // authenticated Hello2 frame (real epoch/digest/prefix from the
+    // production envelope, valid Hello body) must still be rejected under
+    // expected 2 with the existing FrameInvalid code. The wire-1 controls
+    // prove the fixture pipeline is sound, so the primary assertion can
+    // fail only because baseline accepts the malformed Hello2.
+    let hello = Server::offered_hello_versioned().unwrap();
+    let body = hello.encode().unwrap();
+    let hello1_bytes = crate::encode_hello_frame(&hello).unwrap().bytes;
+    assert!(
+        matches!(
+            decode_frame_for_version(&hello1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION),
+            Ok((DecodedFrame::Hello(_), _))
+        ),
+        "real Hello1 decodes under expected 1"
+    );
+    assert_eq!(
+        decode_frame_for_version(&hello1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::Downgrade,
+        "Hello1 under expected 2 stays a downgrade"
+    );
+    // ProtocolFrame::payload serializes without header validation, so the
+    // malformed version rides a real production envelope untouched.
+    let hello2 = ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION_V2,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Hello,
+        method: 0,
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body,
+    };
+    let hello2_bytes = crate::encode_envelope(FrameKind::Hello, &hello2.payload().unwrap())
+        .unwrap()
+        .bytes;
+    assert_eq!(
+        decode_frame_for_version(&hello2_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::FrameInvalid,
+        "authenticated Hello2 is malformed even when expected"
+    );
+}
+
+#[test]
+fn repair_frame_metadata_body_ceiling_exact_and_one_over() {
+    // R3 metadata-only outer Bytes cap, distinct from the direct-writer
+    // and aggregate-serving tests: frame_total_len is the shared metadata
+    // path feeding preflight and the writer, so it admits exactly
+    // MAX_BYTE_PAYLOAD and refuses one byte over with LimitExceeded. No
+    // body allocation backs this fixture.
+    let ceiling = u64::try_from(MAX_BYTE_PAYLOAD).unwrap();
+    let metadata = |body_len: u64| crate::FrameSize {
+        version: PROTOCOL_VERSION_V2,
+        session: Some(SessionId::from_bytes([0x51; 32])),
+        request_id: 1,
+        kind_tag: FrameKind::Response.tag(),
+        method: ENTITY_SIGNATURE_TAG,
+        flags: 0,
+        bounds: BoundedContext {
+            applied_limits: LimitProfile::maximum(),
+            ..BoundedContext::none()
+        },
+        body_len,
+    };
+    assert!(
+        frame_total_len(&metadata(ceiling)).is_ok(),
+        "metadata exactly at the Bytes ceiling stays encodable"
+    );
+    assert_eq!(
+        frame_total_len(&metadata(ceiling + 1)).unwrap_err().code(),
+        ProtocolErrorCode::LimitExceeded,
+        "metadata one byte over the Bytes ceiling refuses"
+    );
+}
