@@ -89,13 +89,15 @@ def main() -> int:
         gen.parse_tables,
         spec + "\n" + v1_row + "\n",
     )
-    # A duplicate name inside the v1 section fails.
+    # A duplicate name inside the v1 section fails via the v1 uniqueness
+    # guard: the 604 row takes another live v1 name while tags, counts,
+    # row order, and both exact v2 additions stay valid.
     expect_fail(
         "duplicate-name",
         gen.parse_tables,
         spec.replace(
-            "| 306 | `entity.version` |",
-            "| 306 | `session.open` |",
+            "| 604 | `report` |",
+            "| 604 | `cancel` |",
             1,
         ),
     )
