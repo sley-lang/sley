@@ -1,10 +1,12 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 3 (2026-09-05); Council review
+Status: S20-430 contract draft, revision 4 (2026-09-08); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
-offer (section 8). The implementation is `crates/sley-cli`;
+offer (section 8); revision 4 re-pins SMP1 revision 11 and bridge revision 7
+(no behavior change; `scripts/check_cli_contract.py` asserts both pins
+against the composed status lines). The implementation is `crates/sley-cli`;
 implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
@@ -12,9 +14,9 @@ between standard input, standard output, and the deterministic S20-410
 server over one repository path, in either the canonical byte form or the
 S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
-(`docs/spec/SMP1.md` revision 10, S20-440 batch admission, S20-330
+(`docs/spec/SMP1.md` revision 11, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 6). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 7). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -214,6 +216,6 @@ release, or GA.
   byte-identical answers for the same request frames.
 - Every answer is flushed before the next frame is read (section 2), and
   the process boundary is covered by a test driving the real binary.
-- The revision pins are SMP1 revision 10 and bridge revision 6; the
+- The revision pins are SMP1 revision 11 and bridge revision 7; the
   `version` example shows the emitted lexicographic field order; the
   "deferred methods" wording is dropped (`is_deferred` exists nowhere).

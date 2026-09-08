@@ -147,6 +147,17 @@ def main() -> int:
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
 
+    # Own revision plus the composed authorities, each cross-checked against
+    # that document's status line so a stale pin fails the moment it moves.
+    own = re.search(r"^Status: S20-420 contract draft, revision (\d+)", spec, flags=re.M)
+    if own is None or int(own.group(1)) != 7:
+        problems.append("spec-revision")
+    smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
+    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
+    if smp1_status is None or int(smp1_status.group(1)) != 11:
+        problems.append("smp1-revision-pin")
+    if "`docs/spec/SMP1.md` (revision 11)" not in spec:
+        problems.append("smp1-pin-text")
     revision = re.search(r"revision (\d+)", spec)
     result = {
         "contract": "s20-420-smp1-json-bridge-v1",

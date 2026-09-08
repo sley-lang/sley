@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 6 (2026-09-05); Council review
+Status: S20-420 contract draft, revision 7 (2026-09-08); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -8,7 +8,12 @@ S20-430 endpoint; revision 4 follows SMP1 revision 6 by naming the `failed`
 response flag; revision 5 follows SMP1 revision 10 with the eighth limit
 field `max_sessions`; revision 6 closes the four review P0s (negative-zero
 normalization, the codec-owned hello header rule, declared precedence
-order, and integer field widths). The implementation is
+order, and integer field widths); revision 7 re-pins the composed SMP1
+revision 11 (the version-claim split the bridge vectors already carry: a
+claimed protocol version below the selected one is `PROTOCOL_DOWNGRADE`,
+above it `PROTOCOL_VERSION_UNSUPPORTED`; no bridge behavior change, and
+`scripts/check_smp1_json_bridge_contract.py` now asserts the pin against
+the SMP1 status line). The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
 summary.
 
@@ -16,7 +21,7 @@ The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
 without an SCB1 encoder can read and write frames; it owns no semantics,
 performs no validation beyond shape, and never participates in any program
-identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 10):
+identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 11):
 the frame, hello, selected profile, limit profile, bounded context,
 failure envelope, stream chunk, and method table are the bridge's only
 subjects. Owner bodies (queries, capsules, candidates, receipts, exchange

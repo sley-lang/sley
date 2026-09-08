@@ -902,7 +902,7 @@
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
     "method_table": "conformance/smp1-json-bridge/v1/methods.json",
@@ -949,7 +949,7 @@
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
     "rule_audit": "scripts/check_cli_rules.py",
