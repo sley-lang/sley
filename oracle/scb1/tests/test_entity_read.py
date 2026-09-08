@@ -965,5 +965,152 @@ class SignaturePriorCountCases(unittest.TestCase):
         self.assertEqual(entity_read.validate_rejected(inputs, authored, mutated_wire), ("count", None))
 
 
+class HelloIdentityEqualityCases(unittest.TestCase):
+    def test_epoch_equivalent_spellings_select_same_identity(self) -> None:
+        inputs = load_authored_inputs()
+        canonical = "ab" * 32
+        upper = "AB" * 32
+        spaced = " ".join(["AB"] * 32)
+        distinct = "cd" * 32
+        client_base = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+        server_base = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        client_base["schema_epochs"] = [canonical]
+        server_base["schema_epochs"] = [canonical]
+        entity_read.build_hello(client_base)
+        entity_read.build_hello(server_base)
+        self.assertEqual(entity_read.negotiate_versioned(client_base, server_base)["schema_epoch"], canonical)
+        for role in ("client", "server"):
+            base = client_base if role == "client" else server_base
+            for variant, spelling in (("upper", upper), ("spaced", spaced)):
+                with self.subTest(role=role, variant=variant):
+                    canonical_raw = entity_read.build_hello(base)
+                    canonical_fields = entity_read.parse_record(canonical_raw)
+                    canonical_list = entity_read.single_field(canonical_fields, 2)
+                    canonical_reader = entity_read.Reader(canonical_list)
+                    canonical_count = canonical_reader.uvar(64)
+                    canonical_entries = [canonical_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(canonical_count)]
+                    canonical_reader.finish()
+                    self.assertEqual(canonical_entries, [bytes.fromhex(canonical)])
+                    variant_offer = copy.deepcopy(base)
+                    variant_offer["schema_epochs"] = [spelling]
+                    variant_raw = entity_read.build_hello(variant_offer)
+                    variant_fields = entity_read.parse_record(variant_raw)
+                    variant_list = entity_read.single_field(variant_fields, 2)
+                    variant_reader = entity_read.Reader(variant_list)
+                    variant_count = variant_reader.uvar(64)
+                    variant_entries = [variant_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(variant_count)]
+                    variant_reader.finish()
+                    self.assertEqual(variant_entries, canonical_entries)
+                    client = copy.deepcopy(client_base)
+                    server = copy.deepcopy(server_base)
+                    if role == "client":
+                        client["schema_epochs"] = [spelling]
+                    else:
+                        server["schema_epochs"] = [spelling]
+                    self.assertEqual(entity_read.negotiate_versioned(client, server)["schema_epoch"], canonical)
+        with self.subTest(control="distinct_bytes"):
+            client = copy.deepcopy(client_base)
+            server = copy.deepcopy(server_base)
+            server["schema_epochs"] = [distinct]
+            with self.assertRaisesRegex(entity_read.CheckFailed, "selection"):
+                entity_read.negotiate_versioned(client, server)
+
+    def test_adapter_equivalent_spellings_intersect(self) -> None:
+        inputs = load_authored_inputs()
+        canonical = "ab" * 32
+        upper = "AB" * 32
+        spaced = " ".join(["AB"] * 32)
+        distinct = "cd" * 32
+        client_base = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+        server_base = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        client_base["adapters"] = [canonical]
+        server_base["adapters"] = [canonical]
+        entity_read.build_hello(client_base)
+        entity_read.build_hello(server_base)
+        self.assertEqual(entity_read.negotiate_versioned(client_base, server_base)["adapters"], [canonical])
+        for role in ("client", "server"):
+            base = client_base if role == "client" else server_base
+            for variant, spelling in (("upper", upper), ("spaced", spaced)):
+                with self.subTest(role=role, variant=variant):
+                    canonical_raw = entity_read.build_hello(base)
+                    canonical_fields = entity_read.parse_record(canonical_raw)
+                    canonical_list = entity_read.single_field(canonical_fields, 6)
+                    canonical_reader = entity_read.Reader(canonical_list)
+                    canonical_count = canonical_reader.uvar(64)
+                    canonical_entries = [canonical_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(canonical_count)]
+                    canonical_reader.finish()
+                    self.assertEqual(canonical_entries, [bytes.fromhex(canonical)])
+                    variant_offer = copy.deepcopy(base)
+                    variant_offer["adapters"] = [spelling]
+                    variant_raw = entity_read.build_hello(variant_offer)
+                    variant_fields = entity_read.parse_record(variant_raw)
+                    variant_list = entity_read.single_field(variant_fields, 6)
+                    variant_reader = entity_read.Reader(variant_list)
+                    variant_count = variant_reader.uvar(64)
+                    variant_entries = [variant_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(variant_count)]
+                    variant_reader.finish()
+                    self.assertEqual(variant_entries, canonical_entries)
+                    client = copy.deepcopy(client_base)
+                    server = copy.deepcopy(server_base)
+                    if role == "client":
+                        client["adapters"] = [spelling]
+                    else:
+                        server["adapters"] = [spelling]
+                    self.assertEqual(entity_read.negotiate_versioned(client, server)["adapters"], [canonical])
+        with self.subTest(control="distinct_bytes"):
+            client = copy.deepcopy(client_base)
+            server = copy.deepcopy(server_base)
+            server["adapters"] = [distinct]
+            self.assertEqual(entity_read.negotiate_versioned(client, server)["adapters"], [])
+
+    def test_effect_equivalent_spellings_intersect(self) -> None:
+        inputs = load_authored_inputs()
+        canonical = "ab" * 32
+        upper = "AB" * 32
+        spaced = " ".join(["AB"] * 32)
+        distinct = "cd" * 32
+        client_base = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+        server_base = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        client_base["effects"] = [canonical]
+        server_base["effects"] = [canonical]
+        entity_read.build_hello(client_base)
+        entity_read.build_hello(server_base)
+        self.assertEqual(entity_read.negotiate_versioned(client_base, server_base)["effects"], [canonical])
+        for role in ("client", "server"):
+            base = client_base if role == "client" else server_base
+            for variant, spelling in (("upper", upper), ("spaced", spaced)):
+                with self.subTest(role=role, variant=variant):
+                    canonical_raw = entity_read.build_hello(base)
+                    canonical_fields = entity_read.parse_record(canonical_raw)
+                    canonical_list = entity_read.single_field(canonical_fields, 7)
+                    canonical_reader = entity_read.Reader(canonical_list)
+                    canonical_count = canonical_reader.uvar(64)
+                    canonical_entries = [canonical_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(canonical_count)]
+                    canonical_reader.finish()
+                    self.assertEqual(canonical_entries, [bytes.fromhex(canonical)])
+                    variant_offer = copy.deepcopy(base)
+                    variant_offer["effects"] = [spelling]
+                    variant_raw = entity_read.build_hello(variant_offer)
+                    variant_fields = entity_read.parse_record(variant_raw)
+                    variant_list = entity_read.single_field(variant_fields, 7)
+                    variant_reader = entity_read.Reader(variant_list)
+                    variant_count = variant_reader.uvar(64)
+                    variant_entries = [variant_reader.sized(entity_read.MAX_STANDALONE_BYTES) for _ in range(variant_count)]
+                    variant_reader.finish()
+                    self.assertEqual(variant_entries, canonical_entries)
+                    client = copy.deepcopy(client_base)
+                    server = copy.deepcopy(server_base)
+                    if role == "client":
+                        client["effects"] = [spelling]
+                    else:
+                        server["effects"] = [spelling]
+                    self.assertEqual(entity_read.negotiate_versioned(client, server)["effects"], [canonical])
+        with self.subTest(control="distinct_bytes"):
+            client = copy.deepcopy(client_base)
+            server = copy.deepcopy(server_base)
+            server["effects"] = [distinct]
+            self.assertEqual(entity_read.negotiate_versioned(client, server)["effects"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
