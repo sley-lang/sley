@@ -392,3 +392,27 @@ prerequisites and frozen dependencies, and retain any failed rounds.
 Acceptance evidence and the adopting decision are appended only when they
 actually exist; current R2 and BOOTSTRAP_READY evidence is evaluated under
 the unchanged header before any construction begins.
+
+Adoption recorded 2026-09-08: RW080-ID-01 is adopted for the bounded
+identity/provenance clarification at candidate
+`377593636865a84e460639aebf6a0119071d0df4`, tree
+`539898a311e111741a7eaa2ff37ed32f96c209d6`. The preceding pending entry
+is retained as the pre-review history. Nabu architecture review (proposal
+author disclosed) and separate independent Vulcan review both returned PASS.
+Root verified the exact proposal, unchanged header/sections 1 and 4, and
+Tier 1 diff/profile/ABI/package checks. The full gate was not run.
+
+The private evidence bundle `sley2/at-mw-02` retains these records
+(name followed by SHA-256):
+
+- `rw080-identity-amendment-acceptance.json`: `06055210d3039e2bdb01e0ecf972edcbf8623699c6f4da9cf6be1914912a8f41`
+- `rw080-identity-amendment-nabu-review.json`: `0f781295531c6a03671a00976c2375c9cf75f991e077c0d26ea5dd8d1d4d8537`
+- `rw080-identity-amendment-vulcan-review.json`: `d284ac7e624eaccd2ed6db0a128e31875ead8fc150f3e3f237cf4f20b12be668`
+- `rw080-identity-amendment-text-comparison.json`: `ca9255c5889e538ab568dad66849ae4bdb934dede6ec2f36a511d3f380b7bf1e`
+- `b1-accepted-and-rw080-amendment-static-validation.json`: `ff605d19004b2e18f756c50bc5c8b3a8f3e1920f36a680b2eca46ab1abe75144`
+
+This adoption qualifies the contract clarification only. It is not premium
+`R2_ARCHITECTURE_PASS`, aggregate R2 READY or `BOOTSTRAP_READY`, and grants
+no retained construction permission. Changed contract bytes change the R2
+inventory; previous candidate-bound evidence is not silently reused. The
+unchanged header governs all subsequent construction.
