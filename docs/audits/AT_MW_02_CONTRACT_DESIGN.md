@@ -62,6 +62,23 @@ opaque intersections, while separately version-aware negotiation filters
 known v2 tags under a v1 selection. Tests must include those previously
 unknown numbers; ordinary method-vector checks alone would miss the change.
 
+## First independent review
+
+Candidate `7810f359dcc33a297350ea165e3ec58bedd60c70` received independent
+manual-role reviews using the canonical Nabu, Ariadne and Vulcan role
+instructions. Normal ForgeNode dispatch was queued behind a foreign live
+review and was canceled before a worker started; role lookup independently
+reported profile topology drift. These reviews do not certify the installed
+ForgeNode runtime registry. Complete private JSON receipts retain provenance.
+
+Nabu accepted the architecture: the inherited requirement bounds model
+context, not all host verification work. Ariadne confirmed declaration
+signature completeness. Ariadne and Vulcan required an explicit ordered
+reservation/debit table; Ariadne also required synchronization of the closed
+session method classification. The revised draft contains those corrections
+and adds budget-observation regression requirements. Corrective review is
+pending; no contract freeze follows solely from this first review.
+
 Baseline Tier 2 `cargo test -p sley-protocol` passed 44 tests, with two
 intentional fixture emitters ignored, zero failures and no warnings. The
 private revision receipt binds that pre-design baseline only. No runtime

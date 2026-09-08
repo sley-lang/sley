@@ -198,14 +198,6 @@ and the growing K/B bound before traversing its fields or copying bytes.
 The final work bound must fit both the request and the session budget as it
 stood immediately before this request's existing dispatch charge.
 
-An admitted failed request retains the existing one-unit dispatch charge and
-returns no object bytes. A successful new-method request charges exactly
-`work_units` in total: credit its already charged dispatch unit and bypass
-the existing generic additional body-byte charge. Reserve the remaining
-`work_units - 1` before output allocation. Unused reserved work after an
-encoding/frame failure is not refunded. These rules apply only to 306/307;
-all v1-method accounting remains unchanged.
-
 Compute exact SCB body length from borrowed fields with checked arithmetic
 before allocation. Require it not to exceed the request or negotiated
 response ceiling. Then compute the complete frame length, including the
@@ -213,6 +205,23 @@ existing envelope and prefix accounting, and require the selected frame
 ceiling. No object-sized output allocation occurs before its byte ceiling
 is established; no partial response is streamed. The inherited failure
 envelope floor must still fit when the successful body does not.
+
+The following phase/debit table is ordered and normative. Every successful
+new-method request charges exactly `work_units` in total; the generic
+successful-body byte charge is bypassed only for these two methods.
+
+| Phase | Work charged if the request fails here |
+|---|---|
+| Common admission before existing dispatch charge | existing v1 admission rules, unchanged |
+| Request/root/entity/kind validation; borrowed lookup and growing resource checks; signature relationships; final work check; exact body and frame size preflight, in that order | exactly the one admitted dispatch unit |
+| After every preceding check succeeds, reserve `work_units - 1`, then allocate and encode the response/frame | full `work_units`, including the already charged dispatch unit; no refund |
+
+No reservation may precede the signature relationship checks or exact body
+and frame size preflight. No output allocation may precede the reservation.
+An unexpected failure after reservation retains the complete debit and
+returns no object bytes. The deterministic budget state is observable
+through existing `session.budgets`; exhaustion never wraps or silently
+accepts a request. All v1-method accounting remains unchanged.
 
 BoundedContext reports `applied_limits` as the selected LimitProfile,
 `returned_bytes` as the exact response-body size, `returned_entities = K`,
@@ -236,6 +245,12 @@ SLEY2_TRIAL_RUNNER_V1's `ARM_AFFORDANCES` allowlist. Generate bridge metadata
 from the versioned contract; never add a bridge-private method. Existing root
 query v1 and capsule formats remain byte-identical.
 
+Synchronize SESSION_HANDLE_PROFILE_V1's closed method classification and
+`scripts/check_session_handle_profile.py` as a versioned extension: both new
+tags are head-bound only in protocol version 2. The version-1 classification
+and existing handle record bytes stay unchanged. Update reciprocal session
+and SMP1 revision references together.
+
 ## 7. Acceptance
 
 - Fixed accepted/rejected request and response vectors are reproduced by an
@@ -251,6 +266,9 @@ query v1 and capsule formats remain byte-identical.
   oversized Function/Parameter input and checked overflow refuse before
   result allocation. Instrument the owner boundary to prove no whole-root
   semantic extraction, cache construction, checkout or unbounded body copy.
+  For every failure phase in the debit table, observe `session.budgets`
+  and a subsequent request to prove identical debit and exhaustion behavior;
+  inject an encoding failure after reservation to prove no refund.
 - v1 negotiation, old frames, method offers and all existing byte vectors are
   unchanged; v2 mixed negotiation filters new methods on a v1 selection,
   and a v1 session rejects both new tags. Include legacy unknown-tag
