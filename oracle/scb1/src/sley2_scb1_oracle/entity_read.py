@@ -683,9 +683,15 @@ def build_limits(limits: Mapping[str, Any]) -> bytes:
 
 
 def validate_selected_limits(limits: Mapping[str, Any]) -> None:
-    values = [limits[key] for key in ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")]
-    for value, ceiling in zip(values, LIMIT_CEILINGS):
-        if value <= 0 or value > ceiling:
+    keys = ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")
+    values = [limits[key] for key in keys]
+    for key, value, ceiling in zip(keys, values, LIMIT_CEILINGS):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise CheckFailed("selected_limits", f"limit {key} must be an unsigned integer")
+        if key == "max_depth":
+            if value < 0 or value > ceiling:
+                raise CheckFailed("selected_limits", f"limit {value} outside [0, {ceiling}]")
+        elif value <= 0 or value > ceiling:
             raise CheckFailed("selected_limits", f"limit {value} outside (0, {ceiling}]")
 
 
@@ -878,27 +884,74 @@ def decode_failure(body: bytes) -> dict[str, Any]:
 
 
 
-def build_hello(hello: Mapping[str, Any]) -> bytes:
-    validate_selected_limits(hello["limits"])
-    versions = hello["protocol_versions"]
-    if not versions or any(b <= a for a, b in zip(versions, versions[1:])):
-        raise CheckFailed("hello", "versions must be strictly increasing")
-    methods = hello["methods"]
-    if not methods or any(b <= a for a, b in zip(methods, methods[1:])):
-        raise CheckFailed("hello", "methods must be strictly increasing")
-    if any(tag in RESERVED_TAGS for tag in methods):
+def _require_u32_list(values: Any, name: str) -> list[int]:
+    """Strict u32 offer list: nonempty, at most 4096, strictly increasing (Rust-exact)."""
+    if not isinstance(values, list):
+        raise CheckFailed("hello", f"{name} must be a list")
+    if not values or len(values) > 4096:
+        raise CheckFailed("hello", f"{name} must be nonempty with at most 4096 entries")
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise CheckFailed("hello", f"{name} elements must be u32")
+        if value < 0 or value > 0xFFFFFFFF:
+            raise CheckFailed("hello", f"{name} elements must be u32")
+    if any(b <= a for a, b in zip(values, values[1:])):
+        raise CheckFailed("hello", f"{name} must be strictly increasing")
+    return values
+
+
+def _require_identity_list(values: Any, name: str, *, allow_empty: bool, ordered: bool) -> list[bytes]:
+    """Strict 32-byte identity offer list: at most 4096 entries, no coercion."""
+    if not isinstance(values, list):
+        raise CheckFailed("hello", f"{name} must be a list")
+    if len(values) > 4096:
+        raise CheckFailed("hello", f"{name} must hold at most 4096 entries")
+    if not allow_empty and not values:
+        raise CheckFailed("hello", f"{name} must be nonempty")
+    items: list[bytes] = []
+    for value in values:
+        if not isinstance(value, str):
+            raise CheckFailed("hello", f"{name} elements must be 32-byte identities")
+        try:
+            raw = bytes.fromhex(value)
+        except ValueError as error:
+            raise CheckFailed("hello", f"{name} elements must be 32-byte identities") from error
+        if len(raw) != 32:
+            raise CheckFailed("hello", f"{name} elements must be 32-byte identities")
+        items.append(raw)
+    if ordered and any(b <= a for a, b in zip(items, items[1:])):
+        raise CheckFailed("hello", f"{name} must be strictly increasing")
+    return items
+
+
+def _validate_hello_offer(hello: Mapping[str, Any]) -> None:
+    """Shared offer validation matching production Hello::validate and LimitProfile::validate.
+
+    Raw schema-epoch preference is preserved: epochs stay unordered with
+    duplicates permitted. Structural defects raise CheckFailed.hello; limit
+    defects raise CheckFailed.selected_limits.
+    """
+    _require_u32_list(hello["protocol_versions"], "versions")
+    _require_u32_list(hello["methods"], "methods")
+    if any(tag in RESERVED_TAGS for tag in hello["methods"]):
         raise CheckFailed("hello", "reserved tag in offer")
-    if hello["features"] & ~FEATURE_MASK:
+    features = hello["features"]
+    if isinstance(features, bool) or not isinstance(features, int):
+        raise CheckFailed("hello", "features must be u32")
+    if features < 0 or features > 0xFFFFFFFF:
+        raise CheckFailed("hello", "features must be u32")
+    if features & ~FEATURE_MASK:
         raise CheckFailed("hello", "unknown feature bit")
-    for key in ("adapters", "effects"):
-        items = [bytes.fromhex(v) for v in hello[key]]
-        if any(b <= a for a, b in zip(items, items[1:])):
-            raise CheckFailed("hello", f"{key} must be strictly increasing")
-    epochs = [bytes.fromhex(v) for v in hello["schema_epochs"]]
-    if not epochs:
-        raise CheckFailed("hello", "epochs must be nonempty")
-    if len(set(epochs)) != len(epochs):
-        raise CheckFailed("hello", "epochs must be unique")
+    _require_identity_list(hello["schema_epochs"], "epochs", allow_empty=False, ordered=False)
+    _require_identity_list(hello["adapters"], "adapters", allow_empty=True, ordered=True)
+    _require_identity_list(hello["effects"], "effects", allow_empty=True, ordered=True)
+    validate_selected_limits(hello["limits"])
+
+
+def build_hello(hello: Mapping[str, Any]) -> bytes:
+    _validate_hello_offer(hello)
+    versions = hello["protocol_versions"]
+    methods = hello["methods"]
     return encode_record(
         [
             (1, encode_uvar(len(versions)) + b"".join(encode_sized(encode_uvar(v)) for v in versions)),
@@ -927,8 +980,8 @@ def build_selected(selection: Mapping[str, Any]) -> bytes:
 
 
 def negotiate_versioned(client: Mapping[str, Any], server: Mapping[str, Any]) -> dict[str, Any]:
-    validate_selected_limits(client["limits"])
-    validate_selected_limits(server["limits"])
+    _validate_hello_offer(client)
+    _validate_hello_offer(server)
     common_versions = [v for v in client["protocol_versions"] if v in server["protocol_versions"]]
     if not common_versions:
         raise CheckFailed("selection", "no common version")
@@ -1284,6 +1337,13 @@ def build_rejected_bytes(inputs: Mapping[str, Any], case: Mapping[str, Any], rec
     apply at the body level for request/response records and at the stored
     level for object records.
     """
+    target_selector = recipe.get("target", "response")
+    if target_selector not in ("request", "response"):
+        raise ValueError(f"unknown target selector: {target_selector!r}")
+    if "record" in recipe and recipe["record"] not in ("request", "response", "failure", "object", "entry", "bounds", "frame"):
+        raise ValueError(f"unknown record selector: {recipe['record']!r}")
+    if "level" in recipe and recipe["level"] not in ("wire", "payload", "body"):
+        raise ValueError(f"unknown level selector: {recipe['level']!r}")
     context = inputs["context"]
     kind = case.get("kind", "success")
     if kind == "success":
@@ -1655,6 +1715,14 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
         expected_work = compute_work(actual_k, derived_lookup_l(inputs), actual_b, int(base_case["request"]["max_response_bytes"]))
         if response["work"] != expected_work:
             raise CheckFailed("work", f"claimed {response['work']} != {expected_work}")
+        if bounds["returned_entities"] != len(response["entries"]):
+            raise CheckFailed("count", "bounds entity count mismatch")
+        if bounds["returned_bytes"] != len(frame["body"]):
+            raise CheckFailed("count", "bounds byte count mismatch")
+        if bounds["returned_edges"] != 0 or bounds["reached_depth"] != 0 or bounds["omitted"] != 0:
+            raise CheckFailed("count", "nonzero edge/depth/omitted")
+        if bounds["truncated"] or bounds["continuation"]:
+            raise CheckFailed("count", "truncated/continuation must be false")
         if base_case.get("signature") is not None:
             sig = base_case["signature"]
             expected_types = [encode_mutation_value("TypeExpr", inputs["signature_types"][ref]) for ref in sig["parameters"]]
@@ -1665,14 +1733,6 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
                 [bytes.fromhex(inputs["entities"][ref]["id"]) for ref in sig["parameters"]],
                 expected_types,
             )
-        if bounds["returned_entities"] != len(response["entries"]):
-            raise CheckFailed("count", "bounds entity count mismatch")
-        if bounds["returned_bytes"] != len(frame["body"]):
-            raise CheckFailed("count", "bounds byte count mismatch")
-        if bounds["returned_edges"] != 0 or bounds["reached_depth"] != 0 or bounds["omitted"] != 0:
-            raise CheckFailed("count", "nonzero edge/depth/omitted")
-        if bounds["truncated"] or bounds["continuation"]:
-            raise CheckFailed("count", "truncated/continuation must be false")
     except ScbError as error:
         return "semantic_decode", error.code
     except CheckFailed as error:
