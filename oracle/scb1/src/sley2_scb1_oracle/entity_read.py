@@ -885,7 +885,6 @@ def decode_failure(body: bytes) -> dict[str, Any]:
 
 
 def _require_u32_list(values: Any, name: str) -> list[int]:
-    """Strict u32 offer list: nonempty, at most 4096, strictly increasing (Rust-exact)."""
     if not isinstance(values, list):
         raise CheckFailed("hello", f"{name} must be a list")
     if not values or len(values) > 4096:
@@ -901,7 +900,6 @@ def _require_u32_list(values: Any, name: str) -> list[int]:
 
 
 def _require_identity_list(values: Any, name: str, *, allow_empty: bool, ordered: bool) -> list[bytes]:
-    """Strict 32-byte identity offer list: at most 4096 entries, no coercion."""
     if not isinstance(values, list):
         raise CheckFailed("hello", f"{name} must be a list")
     if len(values) > 4096:
@@ -924,13 +922,8 @@ def _require_identity_list(values: Any, name: str, *, allow_empty: bool, ordered
     return items
 
 
-def _validate_hello_offer(hello: Mapping[str, Any]) -> None:
-    """Shared offer validation matching production Hello::validate and LimitProfile::validate.
-
-    Raw schema-epoch preference is preserved: epochs stay unordered with
-    duplicates permitted. Structural defects raise CheckFailed.hello; limit
-    defects raise CheckFailed.selected_limits.
-    """
+def _validate_hello_offer(hello: Mapping[str, Any]) -> dict[str, list[bytes]]:
+    # Raw schema-epoch order/multiplicity preserved: unordered with duplicates allowed.
     _require_u32_list(hello["protocol_versions"], "versions")
     _require_u32_list(hello["methods"], "methods")
     if any(tag in RESERVED_TAGS for tag in hello["methods"]):
@@ -942,10 +935,11 @@ def _validate_hello_offer(hello: Mapping[str, Any]) -> None:
         raise CheckFailed("hello", "features must be u32")
     if features & ~FEATURE_MASK:
         raise CheckFailed("hello", "unknown feature bit")
-    _require_identity_list(hello["schema_epochs"], "epochs", allow_empty=False, ordered=False)
-    _require_identity_list(hello["adapters"], "adapters", allow_empty=True, ordered=True)
-    _require_identity_list(hello["effects"], "effects", allow_empty=True, ordered=True)
+    epochs = _require_identity_list(hello["schema_epochs"], "epochs", allow_empty=False, ordered=False)
+    adapters = _require_identity_list(hello["adapters"], "adapters", allow_empty=True, ordered=True)
+    effects = _require_identity_list(hello["effects"], "effects", allow_empty=True, ordered=True)
     validate_selected_limits(hello["limits"])
+    return {"schema_epochs": epochs, "adapters": adapters, "effects": effects}
 
 
 def build_hello(hello: Mapping[str, Any]) -> bytes:
@@ -980,17 +974,19 @@ def build_selected(selection: Mapping[str, Any]) -> bytes:
 
 
 def negotiate_versioned(client: Mapping[str, Any], server: Mapping[str, Any]) -> dict[str, Any]:
-    _validate_hello_offer(client)
-    _validate_hello_offer(server)
+    client_ids = _validate_hello_offer(client)
+    server_ids = _validate_hello_offer(server)
     common_versions = [v for v in client["protocol_versions"] if v in server["protocol_versions"]]
     if not common_versions:
         raise CheckFailed("selection", "no common version")
     version = max(common_versions)
     if version not in (1, PROTOCOL_VERSION_2):
         raise CheckFailed("selection", f"unsupported greatest-common version {version}")
-    epoch = next((e for e in server["schema_epochs"] if e in client["schema_epochs"]), None)
-    if epoch is None:
+    client_epoch_set = set(client_ids["schema_epochs"])
+    epoch_bytes = next((b for b in server_ids["schema_epochs"] if b in client_epoch_set), None)
+    if epoch_bytes is None:
         raise CheckFailed("selection", "no common epoch")
+    epoch = epoch_bytes.hex()
     methods = [m for m in client["methods"] if m in server["methods"]]
     if 100 not in methods:
         raise CheckFailed("selection", "session.open floor missing")
@@ -998,14 +994,16 @@ def negotiate_versioned(client: Mapping[str, Any], server: Mapping[str, Any]) ->
         methods = [m for m in methods if m not in (METHOD_ENTITY_VERSION, METHOD_ENTITY_SIGNATURE)]
     limit_keys = ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")
     limits = {key: min(client["limits"][key], server["limits"][key]) for key in limit_keys}
+    server_adapter_set = set(server_ids["adapters"])
+    server_effect_set = set(server_ids["effects"])
     return {
         "protocol_version": version,
         "schema_epoch": epoch,
         "limits": limits,
         "methods": methods,
         "features": client["features"] & server["features"],
-        "adapters": [a for a in client["adapters"] if a in server["adapters"]],
-        "effects": [e for e in client["effects"] if e in server["effects"]],
+        "adapters": [b.hex() for b in client_ids["adapters"] if b in server_adapter_set],
+        "effects": [b.hex() for b in client_ids["effects"] if b in server_effect_set],
     }
 
 
