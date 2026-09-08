@@ -73,11 +73,13 @@ const PROFILE_UNSUPPORTED: u128 = 26_000;
 // against the native enum in `lower_scaffold_vocabulary_matches_frozen_native`).
 const LEG_COUNT: u128 = 7;
 
-// Fixture-namespace entity identities (recorded in the manifest;
-// collision-free within this closure by construction; disjoint from
-// the §1.1 codec and §1.2 checker scaffold ranges by choice,
-// although each image admits independently).
-const FUNCTION: u8 = 202;
+// Fixture-namespace entity identities (recorded in the manifest).
+// Within this image the function, parameter, constant, block, and
+// operation identities are pairwise disjoint, so references resolve
+// to the intended table entries. These bytes are fixture-local and
+// freeze no production ABI; numeric reuse across independent
+// scaffold images is not an execution collision.
+const FUNCTION: u8 = 216;
 const MARKER_PARAM: u8 = 214;
 const WITNESS_PARAM: u8 = 215;
 const ENTRY_BLOCK: u8 = 230;
@@ -247,8 +249,10 @@ fn lower_scaffold() -> LowerScaffold {
     });
 
     // Operation identities run on their own sequential namespace (100+);
-    // block identities stay in the 230s/240s; constants in the 200s.
-    // Never mixed, never reused.
+    // block identities stay in the 230s/240s; constants in the 200s;
+    // params at 214/215; the function at 216. Pairwise disjoint
+    // within this image by construction (asserted by
+    // `lower_scaffold_fixture_identities_are_within_image_disjoint`).
     let mut builder = ScaffoldBuilder::new(function, marker_param);
     // Entry tests marker 0 (trivial accept); the chain then tests 1..=7
     // in order; the final else covers everything unknown, so chain 7
@@ -477,6 +481,31 @@ fn lower_scaffold_trivial_accept_and_unknown_marker() {
             }
         }
     }
+}
+
+#[test]
+fn lower_scaffold_fixture_identities_are_within_image_disjoint() {
+    // Fixture hygiene: every identity that must be unique within this
+    // assembled image is unique. Derived from the assembled fixture
+    // itself, not from a hand-maintained list (`entry` is the same
+    // graph object as `functions[0]`, so it is counted once).
+    // Independent scaffold images admit separately, so this asserts
+    // nothing about numeric reuse across images.
+    let scaffold = lower_scaffold();
+    let mut ids: Vec<EntityId> = Vec::new();
+    ids.extend(scaffold.functions.iter().map(|f| f.entity_id));
+    ids.extend(scaffold.parameters.iter().map(|p| p.entity_id));
+    ids.extend(scaffold.blocks.iter().map(|b| b.entity_id));
+    ids.extend(scaffold.operations.iter().map(|o| o.entity_id));
+    ids.extend(scaffold.constants.iter().map(|c| c.entity_id));
+    let mut sorted = ids.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(
+        ids.len(),
+        sorted.len(),
+        "fixture-local identities must be pairwise disjoint within this image"
+    );
 }
 
 #[test]

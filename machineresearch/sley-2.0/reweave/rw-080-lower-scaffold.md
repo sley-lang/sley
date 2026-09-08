@@ -8,7 +8,7 @@ follows. Independent acceptance (Nabu round-12, premium round 2, R2
 READY) remains pending; the real lowering plus package assembly arrive
 at the RW-110 gate. This file is the §3 construction manifest for the
 scaffold closure; behavior is proven by
-`crates/sley-vm/tests/rw080_lower_scaffold.rs` (3 tests green).
+`crates/sley-vm/tests/rw080_lower_scaffold.rs` (4 tests green).
 
 ## 1. Why this unit was runnable (selection)
 
@@ -103,9 +103,12 @@ touched, new files only.
 
 Seed assembler: `crates/sley-vm/tests/rw080_lower_scaffold.rs`
 `lower_scaffold()` (fixture-namespace identities `[byte; 32]`, the
-established C0 fixture convention; disjoint from the §1.1/§1.2
-scaffold ranges by choice although each image admits
-independently). Method: `seed-assembled` from explicit typed Rust
+established C0 fixture convention; function, parameter, constant,
+block, and operation identities are pairwise disjoint within this
+image, so references resolve to the intended table entries. These
+bytes are fixture-local and freeze no production ABI; numeric reuse
+across independent scaffold images is not an execution collision —
+each image admits independently). Method: `seed-assembled` from explicit typed Rust
 literals; no inference, no repair, no embedded answers beyond the
 cited bytes. Semantic owner: lowerer (§1.3). Dependencies: none
 executable (leaf scaffold; the driver will feed it checked closures
@@ -115,7 +118,7 @@ assembler; no Sley mutation yet; no prebaked image anywhere.
 
 | entity | id byte(s) | kind |
 |---|---|---|
-| lower function | 202 | FunctionGraph, params [214, 215], result UInt32, entry block 230 |
+| lower function | 216 | FunctionGraph, params [214, 215], result UInt32, entry block 230 |
 | marker param | 214 | Function param 0, UInt32 |
 | witness bytes param | 215 | Function param 1, Bytes (unread by design) |
 | entry chain block | 230 | tests marker 0 → accept 245 else 231 |
@@ -166,3 +169,11 @@ test limits (recorded in-fixture, not normative).
   §1.2 real checker produces checked inputs, or further explicit
   operator direction. This scaffold does not advance or retard the
   §1.1 program path.
+- F1 repair (post-review descendant of `a525f66`): independent
+  review found the fixture function identity (202) sharing a byte
+  with marker constant K2 (202). The function moved 202 → 216, an
+  otherwise unused fixture-local byte; marker values, block control
+  flow, constants, and vocabulary are untouched, and all externally
+  observed scaffold behavior is unchanged. A new in-fixture test asserts the
+  within-image identity sets are pairwise disjoint, so this class
+  of error cannot silently recur.
