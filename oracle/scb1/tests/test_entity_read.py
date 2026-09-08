@@ -13,7 +13,12 @@ Root execution contract (never executed by the author of this file):
 
 from __future__ import annotations
 
+import copy
+import json
 import unittest
+from pathlib import Path
+
+import blake3
 
 from sley2_scb1_oracle import entity_read
 from sley2_scb1_oracle.codec import encode_record, encode_sized, encode_uvar
@@ -244,13 +249,279 @@ class NegotiationCases(unittest.TestCase):
 
     def test_descriptor_pins_frozen(self) -> None:
         self.assertEqual(entity_read.PROTOCOL_FIELD_SCHEMA_HASH, "d36cce861ab70cbbd021ff3d8020e71eb9e9684773f82734b6f2aa484937df0e")
-        self.assertEqual(entity_read.PROTOCOL_DECODER_LIMITS_HASH, "212b293d90646621c2e83caf095c2a21b6864888a3cc9887b7f6ab81ab98fe7")
+        self.assertEqual(entity_read.PROTOCOL_DECODER_LIMITS_HASH, "212b293d90646621c2e83caf095c2a21b6864888a3cc98878b7f6ab81ab98fe7")
         self.assertEqual(len(entity_read.protocol_epoch_id()), 32)
 
     def test_retryability_mapping(self) -> None:
         self.assertEqual(entity_read.retryability("PROTOCOL_LIMIT_EXCEEDED"), 4)
         self.assertEqual(entity_read.retryability("PROTOCOL_PAYLOAD_INVALID"), 1)
         self.assertEqual(entity_read.retryability("QUERY_ROOT_MISMATCH"), 1)
+
+
+def load_authored_inputs():
+    path = Path(__file__).resolve().parents[3] / "conformance" / "entity-read" / "v2" / "inputs.json"
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def resplice_stored(stored, mutate):
+    preimage = stored[:-32]
+    cursor = entity_read.Reader(preimage)
+    cursor.take(8)
+    cursor.uvar(64)
+    cursor.uvar(32)
+    cursor.take(32)
+    record = cursor.sized(entity_read.MAX_STANDALONE_BYTES)
+    cursor.finish()
+    head = preimage[: len(preimage) - len(encode_sized(record))]
+    new_record = entity_read.encode_fields(mutate(entity_read.parse_record(record)))
+    new_preimage = head + encode_sized(new_record)
+    return new_preimage + blake3.blake3(entity_read.OBJECT_DOMAIN + new_preimage).digest()
+
+
+class AuthoredObjectConstructionCases(unittest.TestCase):
+    def test_all_authored_objects_build_and_round_trip(self) -> None:
+        inputs = load_authored_inputs()
+        epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+        self.assertEqual(len(inputs["entities"]), 25)
+        for ref, ent in inputs["entities"].items():
+            with self.subTest(ref=ref):
+                try:
+                    item = entity_read.build_object(ent, epoch)
+                except Exception as error:
+                    self.fail(f"build {ref}: {error!r}")
+                decoded = entity_read.check_stored_object(bytes.fromhex(item["stored_hex"]), ent["kind"], bytes.fromhex(ent["id"]), epoch)
+                self.assertEqual(decoded["kind"], ent["kind"])
+                self.assertEqual(decoded["entity_id"], bytes.fromhex(ent["id"]))
+
+
+class AuthoredSignatureSemanticCases(unittest.TestCase):
+    def test_zero_and_multi_signatures_valid_with_derived_lookup(self) -> None:
+        inputs = load_authored_inputs()
+        normalized = copy.deepcopy(inputs)
+        normalized["context"]["lookup_l"] = int(normalized["context"]["root_bindings"]).bit_length() + 1
+        self.assertEqual(normalized["context"]["lookup_l"], 10)
+        for case_id in ("sig_zero", "sig_multi"):
+            with self.subTest(case=case_id):
+                case = normalized["cases"][case_id]
+                built = entity_read.build_success_case(normalized, case)
+                response_body = bytes.fromhex(built["response_body_hex"])
+                response = entity_read.decode_response_body(response_body)
+                bounds = entity_read.decode_bounds(entity_read.build_bounds(normalized["selected_limits"], len(response_body), built["count_k"]))
+                entity_read.check_context(response, normalized["context"], bytes.fromhex(normalized["entities"][case["entity"]]["id"]))
+                entity_read.check_counts(response, built["count_k"], len(response_body), bounds)
+                entity_read.check_work(response, built["count_k"], int(normalized["context"]["lookup_l"]), built["stored_b"], int(case["request"]["max_response_bytes"]))
+                entries = [entity_read.decode_response_entry(raw) for raw in response["entries"]]
+                epoch = bytes.fromhex(normalized["context"]["content_epoch"])
+                bodies = [entity_read.check_stored_object(entry["stored"], entry["kind"], entry["entity"], epoch)["body"] for entry in entries]
+                sig = case["signature"]
+                expected_types = [entity_read.encode_mutation_value("TypeExpr", normalized["signature_types"][ref]) for ref in sig["parameters"]]
+                entity_read.check_signature(
+                    entries,
+                    bodies,
+                    bytes.fromhex(normalized["entities"][sig["function"]]["id"]),
+                    [bytes.fromhex(normalized["entities"][ref]["id"]) for ref in sig["parameters"]],
+                    expected_types,
+                )
+
+
+class WorkDerivationCases(unittest.TestCase):
+    def test_single_and_multi_work_uses_derived_lookup(self) -> None:
+        inputs = load_authored_inputs()
+        for case_id, want_k in (("ver_ws", 1), ("sig_multi", 3)):
+            with self.subTest(case=case_id):
+                case = inputs["cases"][case_id]
+                built = entity_read.build_success_case(inputs, case)
+                derived_l = int(inputs["context"]["root_bindings"]).bit_length() + 1
+                self.assertEqual(derived_l, 10)
+                self.assertEqual(built["count_k"], want_k)
+                expected = entity_read.compute_work(built["count_k"], derived_l, built["stored_b"], int(case["request"]["max_response_bytes"]))
+                self.assertEqual(built["work"], expected)
+
+    def test_redundant_lookup_and_count_mismatch_refused(self) -> None:
+        inputs = load_authored_inputs()
+        mismatched_l = copy.deepcopy(inputs)
+        mismatched_l["context"]["lookup_l"] = 7
+        with self.subTest(field="lookup_l"):
+            with self.assertRaises(entity_read.CheckFailed):
+                entity_read.build_success_case(mismatched_l, mismatched_l["cases"]["ver_ws"])
+        mismatched_count = copy.deepcopy(inputs)
+        mismatched_count["bindings"]["count"] = 255
+        with self.subTest(field="count"):
+            with self.assertRaises(entity_read.CheckFailed):
+                entity_read.build_success_case(mismatched_count, mismatched_count["cases"]["ver_ws"])
+
+    def test_declared_counts_charge(self) -> None:
+        for declared_n, want_l in ((0, 1), (1, 2), (255, 9), (256, 10)):
+            with self.subTest(n=declared_n):
+                derived = declared_n.bit_length() + 1
+                self.assertEqual(derived, want_l)
+                self.assertEqual(entity_read.compute_work(1, derived, 0, 0), 1 + derived)
+
+
+class RequestRecordLayerCases(unittest.TestCase):
+    def test_valid_request_control(self) -> None:
+        inputs = load_authored_inputs()
+        root = bytes.fromhex(inputs["context"]["root"])
+        entity = bytes.fromhex(inputs["entities"]["ws"]["id"])
+        body = entity_read.build_request_body(root, entity, 16, 200000, 5000000)
+        decoded = entity_read.decode_request_body(body, {"limits": inputs["selected_limits"]})
+        self.assertEqual(decoded["root"], root)
+        self.assertEqual(decoded["entity"], entity)
+        self.assertEqual((decoded["max_objects"], decoded["ceiling_m"], decoded["max_work"]), (16, 200000, 5000000))
+
+    def test_missing_field_reaches_record_layer(self) -> None:
+        inputs = load_authored_inputs()
+        authored = next(case for case in inputs["rejected"] if case["id"] == "req_missing_field")
+        recipe = dict(authored["recipe"])
+        recipe["level"] = "body"
+        data = entity_read.build_rejected_bytes(inputs, inputs["cases"]["ver_ws"], recipe)
+        layer, code = entity_read.validate_rejected(inputs, {"recipe": {"target": "request"}}, data)
+        self.assertEqual(layer, "request_record")
+        self.assertEqual(code, "SCB_FIELD_MISSING")
+
+    def test_duplicate_reaches_duplicate_not_order(self) -> None:
+        inputs = load_authored_inputs()
+        authored = next(case for case in inputs["rejected"] if case["id"] == "req_duplicate_field")
+        recipe = dict(authored["recipe"])
+        recipe["level"] = "body"
+        data = entity_read.build_rejected_bytes(inputs, inputs["cases"]["ver_ws"], recipe)
+        layer, code = entity_read.validate_rejected(inputs, {"recipe": {"target": "request"}}, data)
+        self.assertEqual((layer, code), ("request_record", "SCB_FIELD_DUPLICATE"))
+
+
+class FailureEnvelopeCases(unittest.TestCase):
+    def test_authored_failure_responses_reconstruct(self) -> None:
+        inputs = load_authored_inputs()
+        cases = [case for case in inputs["rejected"] if case.get("kind") == "failure_response"]
+        self.assertEqual(len(cases), 6)
+        for case in cases:
+            with self.subTest(id=case["id"]):
+                wire = entity_read.build_failure_wire(inputs, case)
+                layer, _code = entity_read.validate_rejected(inputs, {"recipe": {"target": "failure"}}, wire)
+                self.assertEqual(layer, "failure_accepted")
+                stored, _prefix = entity_read.split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
+                payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+                frame = entity_read.decode_frame_payload(payload)
+                failure = entity_read.decode_failure(frame["body"])
+                self.assertEqual(failure["code"], case["expected_code"])
+                self.assertEqual(failure["symbol"], case["expected_symbol"])
+                self.assertEqual(failure["retryability"], case["expected_retryability"])
+
+
+class SignatureMutationLayerCases(unittest.TestCase):
+    def test_mutations_preserve_prior_layers_then_reach_signature(self) -> None:
+        inputs = load_authored_inputs()
+        epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+        for case_id in ("sig_owner", "sig_role", "sig_ordinal", "sig_type"):
+            with self.subTest(id=case_id):
+                case = next(item for item in inputs["rejected"] if item["id"] == case_id)
+                base = inputs["cases"][case["base"]]
+                recipe = dict(case["recipe"])
+                recipe["level"] = "body"
+                data = entity_read.build_rejected_bytes(inputs, base, recipe)
+                stored, _prefix = entity_read.split_wire(data, int(inputs["selected_limits"]["max_frame_bytes"]))
+                payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+                frame = entity_read.decode_frame_payload(payload)
+                response = entity_read.decode_response_body(frame["body"])
+                entry = entity_read.decode_response_entry(response["entries"][int(case["recipe"].get("index", 0))])
+                _record, trailer = entity_read.decode_stored_envelope(entry["stored"], epoch)
+                self.assertNotEqual(entry["object_id"], trailer)
+                layer, _code = entity_read.validate_rejected(inputs, case, data)
+                self.assertEqual(layer, "signature")
+
+
+class HelloPreferenceCases(unittest.TestCase):
+    def test_sorted_hello_control(self) -> None:
+        inputs = load_authored_inputs()
+        client = inputs["hellos"]["hello_v2_client"]
+        server = inputs["hellos"]["hello_v1_server"]
+        entity_read.build_hello(client)
+        entity_read.build_hello(server)
+        selection = entity_read.negotiate_versioned(client, server)
+        self.assertEqual(selection["protocol_version"], 1)
+        self.assertNotIn(306, selection["methods"])
+        self.assertNotIn(307, selection["methods"])
+        self.assertIn(900, selection["methods"])
+
+    def test_descending_negotiation_selects_server_first_common(self) -> None:
+        inputs = load_authored_inputs()
+        client = inputs["hellos"]["hello_v2_client"]
+        server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        server["schema_epochs"] = ["d4" * 32, "c3" * 32]
+        selection = entity_read.negotiate_versioned(client, server)
+        self.assertEqual(selection["protocol_version"], 2)
+        self.assertEqual(selection["schema_epoch"], "d4" * 32)
+
+    def test_descending_epochs_build_valid(self) -> None:
+        inputs = load_authored_inputs()
+        server = copy.deepcopy(inputs["hellos"]["hello_v2_server"])
+        server["schema_epochs"] = ["d4" * 32, "c3" * 32]
+        entity_read.build_hello(server)
+
+    def test_invalid_limits_refused_by_build(self) -> None:
+        inputs = load_authored_inputs()
+        for name, key, value in (("zero_work", "max_work", 0), ("over_frame", "max_frame_bytes", 67108865)):
+            with self.subTest(offer=name):
+                offer = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                offer["limits"] = dict(offer["limits"])
+                offer["limits"][key] = value
+                with self.assertRaises(entity_read.CheckFailed):
+                    entity_read.build_hello(offer)
+
+    def test_invalid_limits_refused_by_negotiation(self) -> None:
+        inputs = load_authored_inputs()
+        server = inputs["hellos"]["hello_v2_server"]
+        for name, key, value in (("zero_work", "max_work", 0), ("over_frame", "max_frame_bytes", 67108865)):
+            with self.subTest(offer=name):
+                offer = copy.deepcopy(inputs["hellos"]["hello_v2_client"])
+                offer["limits"] = dict(offer["limits"])
+                offer["limits"][key] = value
+                with self.assertRaises(entity_read.CheckFailed):
+                    entity_read.negotiate_versioned(offer, server)
+
+
+class StoredMetadataExactnessCases(unittest.TestCase):
+    def test_valid_label_fingerprint_control(self) -> None:
+        inputs = load_authored_inputs()
+        epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+        ent = inputs["entities"]["ws"]
+        item = entity_read.build_object(ent, epoch)
+        stored = bytes.fromhex(item["stored_hex"])
+        decoded = entity_read.check_stored_object(stored, ent["kind"], bytes.fromhex(ent["id"]), epoch)
+        self.assertEqual(decoded["label"], "er2/k01/s00")
+        self.assertEqual(decoded["fingerprint"], bytes.fromhex(ent["fingerprint"]))
+        unbound = entity_read.decode_stored_unbound(stored, epoch)
+        self.assertEqual(unbound["entity_id"], bytes.fromhex(ent["id"]))
+        self.assertEqual(unbound["kind"], ent["kind"])
+
+    def test_label_trailing_bytes_refused_in_both_paths(self) -> None:
+        inputs = load_authored_inputs()
+        epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+        ent = inputs["entities"]["ws"]
+        stored = bytes.fromhex(entity_read.build_object(ent, epoch)["stored_hex"])
+
+        def append_label_byte(fields):
+            return [(tag, payload + b"\x00" if tag == 3 else payload) for tag, payload in fields]
+
+        mutated = resplice_stored(stored, append_label_byte)
+        with self.assertRaises(ScbError):
+            entity_read.check_stored_object(mutated, ent["kind"], bytes.fromhex(ent["id"]), epoch)
+        with self.assertRaises(ScbError):
+            entity_read.decode_stored_unbound(mutated, epoch)
+
+    def test_fingerprint_width_refused_in_both_paths(self) -> None:
+        inputs = load_authored_inputs()
+        epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+        ent = inputs["entities"]["ws"]
+        stored = bytes.fromhex(entity_read.build_object(ent, epoch)["stored_hex"])
+        for width, payload in ((31, lambda raw: raw[:31]), (33, lambda raw: raw + b"\x00")):
+            with self.subTest(width=width):
+                mutated = resplice_stored(stored, lambda fields, adjust=payload: [(tag, adjust(raw) if tag == 4 else raw) for tag, raw in fields])
+                with self.assertRaises(ScbError):
+                    entity_read.check_stored_object(mutated, ent["kind"], bytes.fromhex(ent["id"]), epoch)
+                with self.assertRaises(ScbError):
+                    entity_read.decode_stored_unbound(mutated, epoch)
 
 
 if __name__ == "__main__":
