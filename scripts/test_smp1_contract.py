@@ -184,6 +184,56 @@ class GeneratorTableCases(unittest.TestCase):
             GENERATOR.parse_tables(mutated)
 
 
+class CompositionAnchorCases(unittest.TestCase):
+    """A-ST-R2-02/N-STATIC-R2-03/VUL-P2S-R2-02: the current record and the
+    Status it binds to are line-anchored, not substrings."""
+
+    STATUS_LINE = "Status: S20-400 contract draft, revision 12"
+
+    def test_historical_prefixed_composition_refused(self):
+        self.assertEqual(SPEC_TEXT.count(CURRENT_COMPOSITION), 1)
+        mutated = SPEC_TEXT.replace(
+            CURRENT_COMPOSITION, "Historical note: " + CURRENT_COMPOSITION, 1
+        )
+        self.assertNotEqual(mutated, SPEC_TEXT)
+        code, payload = run_checker_with_spec(mutated)
+        self.assertEqual(payload.get("result"), "FAIL", "checker must refuse the drift")
+        self.assertNotEqual(code, 0, "checker must exit nonzero on the drift")
+        problems = payload.get("problems", [])
+        self.assertTrue(
+            any("composition" in problem or "reverse-pin" in problem for problem in problems),
+            f"refusal must come from the composition/pin guard, got: {problems}",
+        )
+
+    def test_historical_prefixed_status_refused(self):
+        self.assertEqual(SPEC_TEXT.count(self.STATUS_LINE), 1)
+        mutated = SPEC_TEXT.replace(
+            self.STATUS_LINE, "Historical note: " + self.STATUS_LINE, 1
+        )
+        self.assertNotEqual(mutated, SPEC_TEXT)
+        code, payload = run_checker_with_spec(mutated)
+        self.assertEqual(payload.get("result"), "FAIL", "checker must refuse the drift")
+        self.assertNotEqual(code, 0, "checker must exit nonzero on the drift")
+        problems = payload.get("problems", [])
+        self.assertTrue(
+            any("revision" in problem or "status" in problem for problem in problems),
+            f"refusal must come from the revision/status guard, got: {problems}",
+        )
+
+    def test_historical_references_outside_record_accepted(self):
+        shadow = (
+            "Historical note: an earlier draft pinned the bridge "
+            "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the CLI "
+            "`docs/spec/SLEY_CLI_V1.md` revision 5 in passing.\n"
+        )
+        self.assertIn(CURRENT_COMPOSITION, SPEC_TEXT)
+        mutated = shadow + SPEC_TEXT
+        self.assertNotEqual(mutated, SPEC_TEXT)
+        code, payload = run_checker_with_spec(mutated)
+        self.assertEqual(code, 0)
+        self.assertEqual(payload.get("result"), "PASS")
+
+
 class CurrentDeltaReviewCases(unittest.TestCase):
     """N-STATIC-01: the current revision review is bound, not historical."""
 
