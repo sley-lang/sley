@@ -1994,6 +1994,24 @@ verdict FAIL, 0 P0, 3 P1, 0 P2, 1 P3. Dispositions:
 - Nabu could not run the repository-exchange Python checker (needs the
   `uv run --project oracle/scb1` environment); it passes in that environment.
 
+Ariadne (canonical identity and contracts), round 1 on the same candidate,
+transcript `machineresearch/sley-2.0/reviews/arch-tighten-ariadne-2026-09-08.log`:
+ARIADNE_R1_RESULT_MARKER
+
+Integrator incident, recorded so no finding is misattributed: while Ariadne's
+round-1 review was running against the shared review worktree
+`~/cache/worktrees/sley2-review-arch-tighten` (pinned at 8ff792e9), the
+integrator checked that worktree out at the round-2 candidate d4a1e330 for
+about two minutes (03:52 to 03:54:54 local) before restoring 8ff792e9. The
+files that differed in that window are records and documentation (RESUME.md,
+the audit record, EXEC_PACKAGE_V2.md erratum E1, the status view, derived
+evidence, the review transcript), two scripts
+(build_anti_goal_conformance.py, check_remote_head.py) and two doc-comment
+or formatting-only Rust edits; no vector, contract preimage, or checker input
+the identity review cites changed. Any Ariadne finding that cites one of
+those files is checked against both commits before it is acted on. Round 2
+uses a separate worktree per candidate.
+
 Tier 1 on the candidate: TIER1_MARKER
 
 ## 6. Not claimed
