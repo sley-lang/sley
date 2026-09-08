@@ -54,6 +54,14 @@ slice; independent review uses a pinned detached tree.
 4. Assess the conservative fixed work formula and the failure precedence
    when signature structural inconsistency and budget exhaustion coexist.
 
+A bounded compatibility inspection found that current Hello validation
+accepts unknown numeric method tags and negotiation preserves their
+intersection. The initial draft would have tightened that behavior for
+306/307. The corrected draft explicitly preserves legacy helpers and their
+opaque intersections, while separately version-aware negotiation filters
+known v2 tags under a v1 selection. Tests must include those previously
+unknown numbers; ordinary method-vector checks alone would miss the change.
+
 Baseline Tier 2 `cargo test -p sley-protocol` passed 44 tests, with two
 intentional fixture emitters ignored, zero failures and no warnings. The
 private revision receipt binds that pre-design baseline only. No runtime

@@ -43,11 +43,21 @@ No additional persistent query identity or object format is introduced.
 
 Hello transport uses a version-1 hello frame so a v1 peer can read an offer.
 A v2 implementation may offer `[1, 2]`; version negotiation remains the
-greatest common offered version. New methods may appear in a hello only
-when its offered versions contain 2. The selected method set is the
-intersection filtered by methods defined for the selected version. Thus a
-v1 selection excludes 306 and 307 even when the v2 peer offers them.
-Reserved tags remain invalid offers in both versions.
+greatest common offered version. The version-aware negotiation entrypoint
+filters 306 and 307 from the intersection when the selected version is 1.
+It admits them for version 2 only when both hellos offer that version.
+It does not filter other opaque unknown numeric tags. Reserved tags remain
+invalid offers in both versions.
+
+Legacy Hello and negotiation entrypoints retain their existing treatment of
+unknown numeric tags, including 306 and 307 in a v1-only offer: they accept
+the shape and retain the numeric intersection. They do not thereby dispatch
+those methods. Preserve the legacy v1 method decoder and reject either tag
+on every v1 serving path, including an opaque negotiated intersection that
+contains it. The version-aware entrypoint's known-v2-tag filtering is a
+separately selected negotiation rule, not a change to the legacy helper.
+The caller must choose the same negotiation profile at both endpoints;
+the exact selected method set remains bound in the handshake transcript.
 
 An old implementation's inability to consume a v2 offer is not silent
 downgrade authority. A caller may explicitly initiate a fresh v1-only
@@ -243,7 +253,8 @@ query v1 and capsule formats remain byte-identical.
   semantic extraction, cache construction, checkout or unbounded body copy.
 - v1 negotiation, old frames, method offers and all existing byte vectors are
   unchanged; v2 mixed negotiation filters new methods on a v1 selection,
-  and a v1 session rejects both new tags.
+  and a v1 session rejects both new tags. Include legacy unknown-tag
+  intersections containing 306, 307 and an unrelated unknown number.
 - A real runner/stdio scripted EC1a edit performs body query, candidate
   creation and validation through ARM_AFFORDANCES without checkout,
   exchange export or fixture-side knowledge of the pre-edit body. Add a
