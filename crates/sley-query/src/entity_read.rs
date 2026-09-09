@@ -2133,4 +2133,107 @@ mod tests {
         let outcome = encode_entity_read_response(plan, fixture.session).unwrap();
         assert_eq!(outcome.body.capacity(), outcome.body.len());
     }
+
+    #[test]
+    fn non_selected_bodies_are_never_semantically_extracted() {
+        // I3b owner-boundary proof (spec sections 5 and 7): the owner
+        // touches only the selected indices by binary lookup. Every
+        // non-selected entry below carries a body that fails loudly if
+        // semantically extracted, plus one large decoy whose bytes must
+        // never enter accounting or the response copy. A valid target
+        // read therefore succeeds with scalars and bytes identical to
+        // the clean fixture; whole-root extraction or a root-wide cache
+        // build would trip the poison first.
+        let selected = ceilings();
+        let clean = eighteen_kind_fixture();
+        let target = request(5, clean.root);
+        let (clean_scalars, clean_outcome, _) =
+            roundtrip(EntityReadMethod::Signature, &clean, &target, &selected);
+        assert_eq!(clean_scalars.2, 2);
+
+        let mut poisoned = eighteen_kind_fixture();
+        rebuild(&mut poisoned, 9, parameter_body(99, 7));
+        rebuild(
+            &mut poisoned,
+            10,
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: Vec::new(),
+                parameters: vec![entity(90), entity(91)],
+                result_type: TypeExpr::Bool,
+                effects: empty_set(),
+                entry_block: entity(92),
+                blocks: vec![entity(92)],
+                contracts: empty_set(),
+                visibility: Visibility::Private,
+            }),
+        );
+        rebuild(&mut poisoned, 11, operation_body(93));
+        rebuild(
+            &mut poisoned,
+            12,
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: Vec::new(),
+                parameters: Vec::new(),
+                result_type: TypeExpr::Tuple(
+                    (0..20_000).map(|_| TypeExpr::Bool).collect(),
+                ),
+                effects: empty_set(),
+                entry_block: entity(94),
+                blocks: vec![entity(94)],
+                contracts: empty_set(),
+                visibility: Visibility::Private,
+            }),
+        );
+        let decoy_len = u64::try_from(
+            poisoned
+                .objects
+                .iter()
+                .find(|object| object.record().entity_id == entity(12))
+                .unwrap()
+                .stored_bytes()
+                .len(),
+        )
+        .unwrap();
+        assert!(
+            decoy_len > 10_000,
+            "decoy must dwarf the answer; got {decoy_len}"
+        );
+
+        let revision = view(&poisoned);
+        let (scalars, outcome, response) =
+            roundtrip(EntityReadMethod::Signature, &poisoned, &target, &selected);
+        assert_eq!(
+            scalars, clean_scalars,
+            "decoy bytes must not enter work accounting"
+        );
+        assert_eq!(
+            outcome.body, clean_outcome.body,
+            "decoy bytes must not enter the response copy"
+        );
+        assert_eq!(response.objects.len(), 2);
+        // No cache or shared state: a repeated preparation agrees exactly.
+        let again =
+            prepare_entity_read(EntityReadMethod::Signature, &revision, &target, &selected)
+                .unwrap();
+        assert_eq!(
+            (
+                again.work_units(),
+                again.body_len(),
+                again.object_count()
+            ),
+            scalars
+        );
+        // Sensitivity control: the poison is real; selecting a poisoned
+        // Function with a dangling parameter fails loudly.
+        assert_eq!(
+            prepare_entity_read(
+                EntityReadMethod::Signature,
+                &revision,
+                &request(10, poisoned.root),
+                &selected
+            )
+            .unwrap_err(),
+            EntityReadError::InternalInvariant
+        );
+    }
 }
