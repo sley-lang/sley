@@ -1,0 +1,140 @@
+{
+  "blocked_without_operator_approval": [
+    "merge",
+    "deploy",
+    "public_posting",
+    "provider_spend",
+    "runtime_mutation",
+    "trading",
+    "locked_canon_mutation"
+  ],
+  "created_at": "2026-09-09T13:51:14+00:00",
+  "evidence": [
+    {
+      "artifact": "",
+      "command": "",
+      "id": "targeted-tests",
+      "status": "not_run",
+      "summary": "Targeted validation for the changed surface."
+    },
+    {
+      "artifact": "",
+      "command": "",
+      "id": "offer-review",
+      "status": "not_run",
+      "summary": "P0 independent design review (contract/architecture/surface) before runtime changes."
+    },
+    {
+      "artifact": "",
+      "command": "",
+      "id": "runtime-targeted",
+      "status": "not_run",
+      "summary": "Runner/bridge/CLI runtime evidence for the offer and allowlist change."
+    },
+    {
+      "artifact": "",
+      "command": "",
+      "id": "static-targeted",
+      "status": "not_run",
+      "summary": "Spec/checker/table static evidence for the offer and allowlist change."
+    }
+  ],
+  "owner": "opencode-integrator",
+  "path_checks": [
+    {
+      "pattern": "crates/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "scripts/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "conformance/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "bench/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/spec/**",
+      "required_evidence": [
+        "offer-review",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/audits/**",
+      "required_evidence": [
+        "offer-review"
+      ]
+    },
+    {
+      "pattern": "machineresearch/sley-2.0/machine-summary.json",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "Makefile",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "import_posture": "capability-only; no third-party code copied",
+    "origin": "Greyforge thin-slice pilot inspired by external Code Factory patterns"
+  },
+  "summary": "ENTITY_READ_PROFILE_V2 reviewed contract 48070373; SMP1 rev 12 declares 306/307 unoffered; ARM_AFFORDANCES v1-pinned; unblocks AT-MW-02 I4b demos",
+  "tasks": [
+    {
+      "evidence_refs": [],
+      "id": "P0",
+      "status": "todo",
+      "title": "P0: offer design + independent review (Ariadne/Nabu/Vulcan) before runtime changes",
+      "updated_at": "2026-09-09T13:51:17+00:00"
+    },
+    {
+      "evidence_refs": [],
+      "id": "P1",
+      "status": "todo",
+      "title": "P1: declare 306 entity.version + 307 entity.signature in SMP1 v2 endpoint offer and SLEY_CLI_V1 surface",
+      "updated_at": "2026-09-09T13:51:17+00:00"
+    },
+    {
+      "evidence_refs": [],
+      "id": "P2",
+      "status": "todo",
+      "title": "P2: admit 306/307 in SLEY2_TRIAL_RUNNER_V1 ARM_AFFORDANCES allowlist, v1 pin behavior preserved",
+      "updated_at": "2026-09-09T13:51:17+00:00"
+    },
+    {
+      "evidence_refs": [],
+      "id": "P3",
+      "status": "todo",
+      "title": "P3: runner serving regressions + bridge/CLI table re-verification (v1 frozen, v2 additive)",
+      "updated_at": "2026-09-09T13:51:17+00:00"
+    },
+    {
+      "evidence_refs": [],
+      "id": "P4",
+      "status": "todo",
+      "title": "P4: unblock note to AT-MW-02 I4b demos; no I4b implementation in this slice",
+      "updated_at": "2026-09-09T13:51:17+00:00"
+    }
+  ],
+  "title": "Phase-3: v2 endpoint offer (306/307) + ARM allowlist/runner admission"
+}
