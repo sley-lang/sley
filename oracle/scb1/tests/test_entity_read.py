@@ -3279,5 +3279,839 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                 self.assertEqual(_b2_hello_matches(probs, mrow, mlayer, mcode), want)
 
 
+_B2_T4_MATRIX = (
+    ("hello_wire1_expected1", 1, 1, "accepted", None, None),
+    ("hello_wire1_expected2", 1, 2, "rejected", "frame_header", "PROTOCOL_DOWNGRADE"),
+    ("hello_wire2_expected1", 2, 1, "rejected", "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+    ("hello_wire2_expected2", 2, 2, "rejected", "frame_header", "PROTOCOL_FRAME_INVALID"),
+)
+
+
+def _b2_t4_carrier(testcase):
+    full_inputs = load_authored_inputs()
+    accepted = _b1_build_accepted(full_inputs)
+    testcase.assertEqual(set(accepted["hellos"].keys()), set(full_inputs["hellos"].keys()))
+    testcase.assertEqual(set(accepted["selections"].keys()), set(full_inputs["selection_scenarios"].keys()))
+    testcase.assertEqual(sorted(accepted["cases"].keys()), ["sig_multi", "ver_ws"])
+    control = []
+    entity_read.check_selection(full_inputs, accepted, control)
+    testcase.assertIsInstance(control, list)
+    for entry in control:
+        testcase.assertIsInstance(entry, str)
+    testcase.assertEqual(control, [])
+    return full_inputs, accepted
+
+
+def _b2_t4_authenticate(testcase, full_inputs, wire, *, version, session, request_id, kind, method, flags, body):
+    testcase.assertGreaterEqual(len(wire), 8)
+    testcase.assertEqual(int.from_bytes(wire[:8], "big"), len(wire) - 8)
+    max_frame = int(full_inputs["selected_limits"]["max_frame_bytes"])
+    stored, prefix = entity_read.split_wire(wire, max_frame)
+    testcase.assertEqual(prefix, wire[:8])
+    testcase.assertEqual(len(stored), int.from_bytes(prefix, "big"))
+    payload, trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+    frame = entity_read.decode_frame_payload(payload)
+    testcase.assertEqual(
+        (frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"]),
+        (version, session, request_id, kind, method, flags),
+    )
+    testcase.assertEqual(frame["body"], body)
+    return stored, payload, frame, trailer
+
+
+def _b2_t4_check_valid_hello_body(testcase, body, offer):
+    testcase.assertEqual(body, entity_read.build_hello(offer))
+    fields = entity_read.parse_record(body)
+    testcase.assertEqual(sorted(tag for tag, _ in fields), [1, 2, 3, 4, 5, 6, 7])
+
+
+def _b2_t4_check_zero_bounds(testcase, bounds):
+    bound_fields = entity_read.parse_record(bounds)
+    testcase.assertEqual(sorted(tag for tag, _ in bound_fields), [1, 2, 3, 4, 5, 6, 7, 8])
+    limits_raw = entity_read.single_field(bound_fields, 1)
+    limit_fields = entity_read.parse_record(limits_raw)
+    testcase.assertEqual(sorted(tag for tag, _ in limit_fields), [1, 2, 3, 4, 5, 6, 7, 8])
+    for tag, payload in limit_fields:
+        width = 32 if tag in _B2_U32_LIMIT_TAGS else 64
+        testcase.assertEqual(entity_read.decode_uvar_exact(payload, width), 0)
+    decoded = entity_read.decode_bounds(bounds)
+    testcase.assertEqual(
+        (
+            decoded["returned_bytes"],
+            decoded["returned_entities"],
+            decoded["returned_edges"],
+            decoded["reached_depth"],
+            decoded["omitted"],
+        ),
+        (0, 0, 0, 0, 0),
+    )
+    testcase.assertFalse(decoded["truncated"])
+    testcase.assertFalse(decoded["continuation"])
+
+
+def _b2_t4_valid_row(testcase, full_inputs, *, key, wire_version, expected_version, expect, expected_layer, expected_code, session=None, request_id=0, method=0, flags=0):
+    offer = full_inputs["hellos"]["hello_v2_client"]
+    body = entity_read.build_hello(offer)
+    _b2_t4_check_valid_hello_body(testcase, body, offer)
+    bounds = entity_read.zero_bounds()
+    _b2_t4_check_zero_bounds(testcase, bounds)
+    payload = entity_read.build_frame_payload(wire_version, session, request_id, 4, method, flags, bounds, body)
+    wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+    stored, _payload_bytes, _frame, trailer = _b2_t4_authenticate(
+        testcase,
+        full_inputs,
+        wire,
+        version=wire_version,
+        session=session,
+        request_id=request_id,
+        kind=4,
+        method=method,
+        flags=flags,
+        body=body,
+    )
+    testcase.assertEqual(stored[:-32], preimage)
+    testcase.assertEqual(stored[-32:], frame_id)
+    testcase.assertEqual(trailer, frame_id)
+    authored = {
+        "hello": "hello_v2_client",
+        "wire_version": wire_version,
+        "expected_version": expected_version,
+        "expect": expect,
+        "expected_layer": expected_layer,
+        "expected_code": expected_code,
+    }
+    supplied = {
+        **authored,
+        "body_hex": body.hex(),
+        "wire_hex": wire.hex(),
+        "preimage_hex": preimage.hex(),
+        "frame_id": frame_id.hex(),
+    }
+    testcase.assertEqual(
+        set(authored.keys()),
+        {"hello", "wire_version", "expected_version", "expect", "expected_layer", "expected_code"},
+    )
+    testcase.assertEqual(len(authored), 6)
+    testcase.assertEqual(len(supplied), 10)
+    testcase.assertEqual(supplied["body_hex"], body.hex())
+    testcase.assertEqual(supplied["wire_hex"], wire.hex())
+    testcase.assertEqual(supplied["preimage_hex"], preimage.hex())
+    testcase.assertEqual(supplied["frame_id"], frame_id.hex())
+    return authored, supplied, wire, preimage, frame_id, body, bounds
+
+
+def _b2_t4_singleton(testcase, full_inputs, accepted, key, authored, supplied):
+    local_inputs = copy.deepcopy(full_inputs)
+    local_inputs["frame_scenarios"] = {key: copy.deepcopy(authored)}
+    local_accepted = copy.deepcopy(accepted)
+    local_accepted["frame_scenarios"] = {key: copy.deepcopy(supplied)}
+    return local_inputs, local_accepted
+
+
+def _b2_t4_expect_inventory(testcase, problems):
+    testcase.assertIsInstance(problems, list)
+    for entry in problems:
+        testcase.assertIsInstance(entry, str)
+    testcase.assertIn("accepted:frame_scenarios:inventory", problems)
+
+
+class SuppliedHelloFrameCases(unittest.TestCase):
+    def test_authored_hello_four_scenarios_are_exact(self) -> None:
+        full_inputs, accepted = _b2_t4_carrier(self)
+        fresh = load_authored_inputs()
+        self.assertEqual(set(full_inputs["cases"].keys()), set(fresh["cases"].keys()))
+        self.assertEqual(set(full_inputs["hellos"].keys()), set(fresh["hellos"].keys()))
+        self.assertEqual(set(full_inputs["selection_scenarios"].keys()), set(fresh["selection_scenarios"].keys()))
+        self.assertEqual(set(full_inputs["hellos"].keys()), set(accepted["hellos"].keys()))
+        self.assertEqual(set(full_inputs["selection_scenarios"].keys()), set(accepted["selections"].keys()))
+        authored_rows = {}
+        supplied_rows = {}
+        for key, wire_version, expected_version, expect, expected_layer, expected_code in _B2_T4_MATRIX:
+            with self.subTest(row=key):
+                authored, supplied, wire, preimage, frame_id, body, bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key=key,
+                    wire_version=wire_version,
+                    expected_version=expected_version,
+                    expect=expect,
+                    expected_layer=expected_layer,
+                    expected_code=expected_code,
+                )
+                self.assertEqual(
+                    authored,
+                    {
+                        "hello": "hello_v2_client",
+                        "wire_version": wire_version,
+                        "expected_version": expected_version,
+                        "expect": expect,
+                        "expected_layer": expected_layer,
+                        "expected_code": expected_code,
+                    },
+                )
+                offer = full_inputs["hellos"]["hello_v2_client"]
+                self.assertEqual(supplied["body_hex"], entity_read.build_hello(offer).hex())
+                self.assertEqual(supplied["wire_hex"], wire.hex())
+                self.assertEqual(supplied["preimage_hex"], preimage.hex())
+                self.assertEqual(supplied["frame_id"], frame_id.hex())
+                authored_rows[key] = authored
+                supplied_rows[key] = supplied
+        self.assertEqual(
+            sorted(authored_rows.keys()),
+            ["hello_wire1_expected1", "hello_wire1_expected2", "hello_wire2_expected1", "hello_wire2_expected2"],
+        )
+        self.assertEqual(sorted(supplied_rows.keys()), sorted(authored_rows.keys()))
+        local_inputs = copy.deepcopy(full_inputs)
+        local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+        local_accepted = copy.deepcopy(accepted)
+        local_accepted["frame_scenarios"] = copy.deepcopy(supplied_rows)
+        hello_problems = []
+        entity_read.check_selection(local_inputs, local_accepted, hello_problems)
+        self.assertIsInstance(hello_problems, list)
+        for entry in hello_problems:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(hello_problems, [])
+
+    def test_supplied_hello_version_matrix_is_semantically_checked(self) -> None:
+        full_inputs, accepted = _b2_t4_carrier(self)
+        with self.subTest(row="hello_wire1_expected1-accepted-control"):
+            authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                self,
+                full_inputs,
+                key="hello_wire1_expected1",
+                wire_version=1,
+                expected_version=1,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(problems, [])
+        wrong_rows = (
+            ("hello_wire1_expected2", 1, 2, "PROTOCOL_DOWNGRADE"),
+            ("hello_wire2_expected1", 2, 1, "PROTOCOL_VERSION_UNSUPPORTED"),
+            ("hello_wire2_expected2", 2, 2, "PROTOCOL_FRAME_INVALID"),
+        )
+        for key, wire_version, expected_version, code in wrong_rows:
+            with self.subTest(row=key, variant="wrong-accepted-claim"):
+                authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key=key,
+                    wire_version=wire_version,
+                    expected_version=expected_version,
+                    expect="accepted",
+                    expected_layer=None,
+                    expected_code=None,
+                )
+                local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, key, authored, supplied)
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, key, "frame_header", code)
+        for key, wire_version, expected_version, code in wrong_rows:
+            with self.subTest(row=key, variant="correct-rejection-control"):
+                layer = "frame_header"
+                expect = "rejected"
+                authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key=key,
+                    wire_version=wire_version,
+                    expected_version=expected_version,
+                    expect=expect,
+                    expected_layer=layer,
+                    expected_code=code,
+                )
+                local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, key, authored, supplied)
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                self.assertIsInstance(problems, list)
+                for entry in problems:
+                    self.assertIsInstance(entry, str)
+                self.assertEqual(problems, [])
+
+    def test_supplied_hello_header_shape(self) -> None:
+        full_inputs, accepted = _b2_t4_carrier(self)
+        with self.subTest(variant="valid-control"):
+            authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                self,
+                full_inputs,
+                key="hello_wire1_expected1",
+                wire_version=1,
+                expected_version=1,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(problems, [])
+        session = bytes.fromhex(full_inputs["context"]["session"])
+        self.assertEqual(len(session), 32)
+        shape_rows = (
+            ("non-none-session", {"session": session}),
+            ("request-id-1", {"request_id": 1}),
+            ("method-306", {"method": 306}),
+            ("flags-1", {"flags": 1}),
+            ("flags-8", {"flags": 8}),
+        )
+        for name, overrides in shape_rows:
+            with self.subTest(variant=name):
+                authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key="hello_wire1_expected1",
+                    wire_version=1,
+                    expected_version=1,
+                    expect="accepted",
+                    expected_layer=None,
+                    expected_code=None,
+                    session=overrides.get("session"),
+                    request_id=overrides.get("request_id", 0),
+                    method=overrides.get("method", 0),
+                    flags=overrides.get("flags", 0),
+                )
+                local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_header", "PROTOCOL_FRAME_INVALID")
+        version_shape_rows = (
+            ("lower-version-plus-bad-shape", "hello_wire1_expected2", 1, 2, "PROTOCOL_DOWNGRADE"),
+            ("higher-version-plus-bad-shape", "hello_wire2_expected1", 2, 1, "PROTOCOL_VERSION_UNSUPPORTED"),
+        )
+        for name, key, wire_version, expected_version, expected_code in version_shape_rows:
+            with self.subTest(variant=name):
+                authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key=key,
+                    wire_version=wire_version,
+                    expected_version=expected_version,
+                    expect="accepted",
+                    expected_layer=None,
+                    expected_code=None,
+                    flags=8,
+                )
+                local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, key, authored, supplied)
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, key, "frame_header", expected_code)
+
+    def test_supplied_hello_body_and_bounds_are_decoded(self) -> None:
+        full_inputs, accepted = _b2_t4_carrier(self)
+        offer = full_inputs["hellos"]["hello_v2_client"]
+        valid_body = entity_read.build_hello(offer)
+        with self.subTest(variant="valid-control"):
+            authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                self,
+                full_inputs,
+                key="hello_wire1_expected1",
+                wire_version=1,
+                expected_version=1,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(problems, [])
+        with self.subTest(variant="empty-body-premise"):
+            empty_body = entity_read.encode_fields([])
+            self.assertNotEqual(empty_body, valid_body)
+            with self.assertRaisesRegex(ScbError, "SCB_FIELD_MISSING"):
+                entity_read.exact_fields(entity_read.parse_record(empty_body), [1, 2, 3, 4, 5, 6, 7])
+        with self.subTest(variant="empty-body"):
+            empty_body = entity_read.encode_fields([])
+            bounds = entity_read.zero_bounds()
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, empty_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=empty_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 1,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": empty_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "hello_body", "SCB_FIELD_MISSING")
+        with self.subTest(variant="truncated-body-premise"):
+            with self.assertRaisesRegex(ScbError, "SCB_LENGTH_OVERFLOW"):
+                entity_read.parse_record(b"\x80")
+        with self.subTest(variant="truncated-body"):
+            truncated_body = b"\x80"
+            self.assertNotEqual(truncated_body, valid_body)
+            with self.assertRaisesRegex(ScbError, "SCB_LENGTH_OVERFLOW"):
+                entity_read.Reader(truncated_body).uvar(64)
+            bounds = entity_read.zero_bounds()
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, truncated_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=truncated_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 1,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": truncated_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "hello_body", "SCB_LENGTH_OVERFLOW")
+        for missing in (1, 2, 3, 4, 5, 6, 7, 8):
+            with self.subTest(variant="missing-applied-tag", tag=missing):
+                limits_raw = encode_record([(tag, encode_uvar(0)) for tag in (1, 2, 3, 4, 5, 6, 7, 8) if tag != missing])
+                with self.assertRaisesRegex(ScbError, "SCB_FIELD_MISSING"):
+                    entity_read.exact_fields(entity_read.parse_record(limits_raw), [1, 2, 3, 4, 5, 6, 7, 8])
+                bounds = encode_record(
+                    [
+                        (1, limits_raw),
+                        (2, encode_uvar(0)),
+                        (3, encode_uvar(0)),
+                        (4, encode_uvar(0)),
+                        (5, encode_uvar(0)),
+                        (6, encode_uvar(0)),
+                        (7, encode_uvar(1)),
+                        (8, encode_uvar(1)),
+                    ]
+                )
+                payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, valid_body)
+                wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+                stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                    self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=valid_body
+                )
+                self.assertEqual(stored[:-32], preimage)
+                self.assertEqual(trailer, frame_id)
+                authored = {
+                    "hello": "hello_v2_client",
+                    "wire_version": 1,
+                    "expected_version": 1,
+                    "expect": "accepted",
+                    "expected_layer": None,
+                    "expected_code": None,
+                }
+                supplied = {
+                    **authored,
+                    "body_hex": valid_body.hex(),
+                    "wire_hex": wire.hex(),
+                    "preimage_hex": preimage.hex(),
+                    "frame_id": frame_id.hex(),
+                }
+                local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_bounds", "SCB_FIELD_MISSING")
+        with self.subTest(variant="truncated-applied-premise"):
+            with self.assertRaisesRegex(ScbError, "SCB_LENGTH_OVERFLOW"):
+                entity_read.decode_uvar_exact(b"\x80", 64)
+        with self.subTest(variant="truncated-applied-scalar"):
+            limits_raw = encode_record(
+                [(1, b"\x80")] + [(tag, encode_uvar(0)) for tag in (2, 3, 4, 5, 6, 7, 8)]
+            )
+            self.assertEqual(entity_read.single_field(entity_read.parse_record(limits_raw), 1), b"\x80")
+            with self.assertRaisesRegex(ScbError, "SCB_LENGTH_OVERFLOW"):
+                entity_read.decode_uvar_exact(entity_read.single_field(entity_read.parse_record(limits_raw), 1), 64)
+            bounds = encode_record(
+                [
+                    (1, limits_raw),
+                    (2, encode_uvar(0)),
+                    (3, encode_uvar(0)),
+                    (4, encode_uvar(0)),
+                    (5, encode_uvar(0)),
+                    (6, encode_uvar(0)),
+                    (7, encode_uvar(1)),
+                    (8, encode_uvar(1)),
+                ]
+            )
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, valid_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=valid_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 1,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": valid_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_bounds", "SCB_LENGTH_OVERFLOW")
+        with self.subTest(variant="u32-overflow-premise"):
+            wide = encode_uvar(2**32)
+            with self.assertRaisesRegex(ScbError, "SCB_INTEGER_OVERFLOW"):
+                entity_read.decode_uvar_exact(wide, 32)
+        with self.subTest(variant="u32-overflow-field-4"):
+            wide = encode_uvar(2**32)
+            limits_raw = encode_record(
+                [(1, encode_uvar(0)), (2, encode_uvar(0)), (3, encode_uvar(0)), (4, wide)]
+                + [(tag, encode_uvar(0)) for tag in (5, 6, 7, 8)]
+            )
+            with self.assertRaisesRegex(ScbError, "SCB_INTEGER_OVERFLOW"):
+                entity_read.decode_uvar_exact(entity_read.single_field(entity_read.parse_record(limits_raw), 4), 32)
+            bounds = encode_record(
+                [
+                    (1, limits_raw),
+                    (2, encode_uvar(0)),
+                    (3, encode_uvar(0)),
+                    (4, encode_uvar(0)),
+                    (5, encode_uvar(0)),
+                    (6, encode_uvar(0)),
+                    (7, encode_uvar(1)),
+                    (8, encode_uvar(1)),
+                ]
+            )
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, valid_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=valid_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 1,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": valid_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_bounds", "SCB_INTEGER_OVERFLOW")
+        zero_limits_raw = entity_read.build_limits(
+            {
+                "max_frame_bytes": 0,
+                "max_entities": 0,
+                "max_edges": 0,
+                "max_depth": 0,
+                "max_response_bytes": 0,
+                "max_work": 0,
+                "max_inflight": 0,
+                "max_sessions": 0,
+            }
+        )
+        for flag_tag in (7, 8):
+            for flag_value in (0, 3):
+                with self.subTest(variant="bad-outer-flag", tag=flag_tag, value=flag_value):
+                    fields = [(1, zero_limits_raw), (2, encode_uvar(0)), (3, encode_uvar(0)), (4, encode_uvar(0)), (5, encode_uvar(0)), (6, encode_uvar(0))]
+                    fields.append((7, encode_uvar(flag_value) if flag_tag == 7 else encode_uvar(1)))
+                    fields.append((8, encode_uvar(flag_value) if flag_tag == 8 else encode_uvar(1)))
+                    bounds = encode_record(fields)
+                    with self.assertRaisesRegex(ScbError, "SCB_UNION_INVALID"):
+                        entity_read.decode_bounds(bounds)
+                    payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, valid_body)
+                    wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+                    stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                        self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=valid_body
+                    )
+                    self.assertEqual(stored[:-32], preimage)
+                    self.assertEqual(trailer, frame_id)
+                    authored = {
+                        "hello": "hello_v2_client",
+                        "wire_version": 1,
+                        "expected_version": 1,
+                        "expect": "accepted",
+                        "expected_layer": None,
+                        "expected_code": None,
+                    }
+                    supplied = {
+                        **authored,
+                        "body_hex": valid_body.hex(),
+                        "wire_hex": wire.hex(),
+                        "preimage_hex": preimage.hex(),
+                        "frame_id": frame_id.hex(),
+                    }
+                    local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+                    problems = []
+                    entity_read.check_selection(local_inputs, local_accepted, problems)
+                    _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_bounds", "SCB_UNION_INVALID")
+        with self.subTest(variant="header-before-body"):
+            empty_body = entity_read.encode_fields([])
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 1, entity_read.zero_bounds(), empty_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=1, body=empty_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 1,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": empty_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_header", "PROTOCOL_FRAME_INVALID")
+        with self.subTest(variant="bounds-before-version"):
+            limits_raw = encode_record([(tag, encode_uvar(0)) for tag in (2, 3, 4, 5, 6, 7, 8)])
+            with self.assertRaisesRegex(ScbError, "SCB_FIELD_MISSING"):
+                entity_read.exact_fields(entity_read.parse_record(limits_raw), [1, 2, 3, 4, 5, 6, 7, 8])
+            bounds = encode_record(
+                [
+                    (1, limits_raw),
+                    (2, encode_uvar(0)),
+                    (3, encode_uvar(0)),
+                    (4, encode_uvar(0)),
+                    (5, encode_uvar(0)),
+                    (6, encode_uvar(0)),
+                    (7, encode_uvar(1)),
+                    (8, encode_uvar(1)),
+                ]
+            )
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, valid_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=valid_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            authored = {
+                "hello": "hello_v2_client",
+                "wire_version": 1,
+                "expected_version": 2,
+                "expect": "accepted",
+                "expected_layer": None,
+                "expected_code": None,
+            }
+            supplied = {
+                **authored,
+                "body_hex": valid_body.hex(),
+                "wire_hex": wire.hex(),
+                "preimage_hex": preimage.hex(),
+                "frame_id": frame_id.hex(),
+            }
+            local_inputs, local_accepted = _b2_t4_singleton(self, full_inputs, accepted, "hello_wire1_expected1", authored, supplied)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, "hello_wire1_expected1", "frame_bounds", "SCB_FIELD_MISSING")
+
+    def test_supplied_hello_scenario_inventory_and_components(self) -> None:
+        full_inputs, accepted = _b2_t4_carrier(self)
+        authored_rows = {}
+        supplied_rows = {}
+        for key, wire_version, expected_version, expect, expected_layer, expected_code in _B2_T4_MATRIX:
+            with self.subTest(row=key, variant="matrix-baseline"):
+                authored, supplied, _wire, _pre, _fid, _body, _bounds = _b2_t4_valid_row(
+                    self,
+                    full_inputs,
+                    key=key,
+                    wire_version=wire_version,
+                    expected_version=expected_version,
+                    expect=expect,
+                    expected_layer=expected_layer,
+                    expected_code=expected_code,
+                )
+                authored_rows[key] = authored
+                supplied_rows[key] = supplied
+        with self.subTest(variant="correct-matrix-control"):
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            local_accepted["frame_scenarios"] = copy.deepcopy(supplied_rows)
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(problems, [])
+        with self.subTest(variant="omit-one-scenario"):
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            mutated = copy.deepcopy(supplied_rows)
+            del mutated["hello_wire2_expected2"]
+            local_accepted["frame_scenarios"] = mutated
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_t4_expect_inventory(self, problems)
+        with self.subTest(variant="extra-scenario"):
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            mutated = copy.deepcopy(supplied_rows)
+            mutated["hello_extra"] = copy.deepcopy(supplied_rows["hello_wire1_expected1"])
+            local_accepted["frame_scenarios"] = mutated
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_t4_expect_inventory(self, problems)
+        target = "hello_wire1_expected1"
+        field_mutations = (
+            ("expected_version", 2),
+            ("expect", "rejected"),
+            ("expected_layer", "frame_header"),
+            ("expected_code", "PROTOCOL_FRAME_INVALID"),
+            ("hello", "hello_v2_server"),
+            ("wire_version", 2),
+        )
+        for field, value in field_mutations:
+            with self.subTest(variant="supplied-field", field=field):
+                local_inputs = copy.deepcopy(full_inputs)
+                local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+                local_accepted = copy.deepcopy(accepted)
+                mutated = copy.deepcopy(supplied_rows)
+                mutated[target][field] = value
+                local_accepted["frame_scenarios"] = mutated
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, target, "scenario_binding", field)
+        for field in ("body_hex", "preimage_hex", "frame_id"):
+            with self.subTest(variant="detached-component", field=field):
+                local_inputs = copy.deepcopy(full_inputs)
+                local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+                local_accepted = copy.deepcopy(accepted)
+                mutated = copy.deepcopy(supplied_rows)
+                mutated[target][field] = _b1_flip_hex(mutated[target][field])
+                self.assertNotEqual(mutated[target][field], supplied_rows[target][field])
+                local_accepted["frame_scenarios"] = mutated
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                _b2_hello_expect(self, problems, target, "component_binding", field)
+        with self.subTest(variant="bad-wire-header"):
+            _bad_authored, bad_supplied, _w, _p, _f, _b, _bo = _b2_t4_valid_row(
+                self,
+                full_inputs,
+                key=target,
+                wire_version=2,
+                expected_version=2,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            mutated = copy.deepcopy(supplied_rows)
+            mutated[target]["body_hex"] = bad_supplied["body_hex"]
+            mutated[target]["wire_hex"] = bad_supplied["wire_hex"]
+            mutated[target]["preimage_hex"] = bad_supplied["preimage_hex"]
+            mutated[target]["frame_id"] = bad_supplied["frame_id"]
+            local_accepted["frame_scenarios"] = mutated
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, target, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED")
+        with self.subTest(variant="bad-wire-content"):
+            _bad_authored, bad_supplied, _w, _p, _f, _b, _bo = _b2_t4_valid_row(
+                self,
+                full_inputs,
+                key=target,
+                wire_version=2,
+                expected_version=2,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            mutated = copy.deepcopy(supplied_rows)
+            mutated[target]["body_hex"] = bad_supplied["body_hex"]
+            mutated[target]["wire_hex"] = bad_supplied["wire_hex"]
+            mutated[target]["preimage_hex"] = bad_supplied["preimage_hex"]
+            mutated[target]["frame_id"] = bad_supplied["frame_id"]
+            local_accepted["frame_scenarios"] = mutated
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, target, "scenario_binding", "wire_hex")
+        with self.subTest(variant="different-valid-body"):
+            client_body = entity_read.build_hello(full_inputs["hellos"]["hello_v2_client"])
+            server_body = entity_read.build_hello(full_inputs["hellos"]["hello_v2_server"])
+            self.assertNotEqual(server_body, client_body)
+            server_fields = entity_read.parse_record(server_body)
+            self.assertEqual(sorted(tag for tag, _ in server_fields), [1, 2, 3, 4, 5, 6, 7])
+            bounds = entity_read.zero_bounds()
+            _b2_t4_check_zero_bounds(self, bounds)
+            payload = entity_read.build_frame_payload(1, None, 0, 4, 0, 0, bounds, server_body)
+            wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+            stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+                self, full_inputs, wire, version=1, session=None, request_id=0, kind=4, method=0, flags=0, body=server_body
+            )
+            self.assertEqual(stored[:-32], preimage)
+            self.assertEqual(trailer, frame_id)
+            local_inputs = copy.deepcopy(full_inputs)
+            local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+            local_accepted = copy.deepcopy(accepted)
+            mutated = copy.deepcopy(supplied_rows)
+            mutated[target]["body_hex"] = server_body.hex()
+            mutated[target]["wire_hex"] = wire.hex()
+            mutated[target]["preimage_hex"] = preimage.hex()
+            mutated[target]["frame_id"] = frame_id.hex()
+            self.assertEqual(mutated[target]["hello"], "hello_v2_client")
+            local_accepted["frame_scenarios"] = mutated
+            problems = []
+            entity_read.check_selection(local_inputs, local_accepted, problems)
+            _b2_hello_expect(self, problems, target, "scenario_binding", "hello")
+
+
 if __name__ == "__main__":
     unittest.main()
