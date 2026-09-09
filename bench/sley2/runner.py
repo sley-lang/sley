@@ -145,6 +145,10 @@ ARM_DENIED_METHODS = (
 CONTEXT_METHODS = frozenset({"capsule", "query.root", "query.continue", "query.restricted"})
 TRIAL_STATUSES = frozenset({"accepted", "rejected", "timeout", "harness_failure"})
 AGENT_REQUEST_FIELDS = frozenset({"method", "body", "cancel"})
+# The capable CLI profile every live runner path uses: the eighteen-name
+# allowlist needs the version 2 methods, so the offer, the serve process,
+# and the handshake probe all run version-aware.
+PROFILE_ARGS = ("--protocol-profile", "v2-capable")
 
 ZERO_LIMITS = {
     "max_depth": 0,
@@ -153,6 +157,7 @@ ZERO_LIMITS = {
     "max_frame_bytes": 0,
     "max_inflight": 0,
     "max_response_bytes": 0,
+    "max_sessions": 0,
     "max_work": 0,
 }
 ZERO_BOUNDS = {
@@ -287,14 +292,24 @@ class AccountingClock(Protocol):
 # ---------------------------------------------------------------------------
 
 
-def request_frame(method: str, body_hex: str, session: str | None, request_id: int, cancel: bool = False) -> dict[str, Any]:
+def request_frame(
+    method: str,
+    body_hex: str,
+    session: str | None,
+    request_id: int,
+    cancel: bool = False,
+    protocol_version: int = 1,
+) -> dict[str, Any]:
+    """One request frame object. The version defaults to 1 for unit-built
+    mock frames; every live trial passes its actual selected version
+    (`run_scripted_trial` requires it), so no run silently stamps 1."""
     return {
         "body": body_hex,
         "bounds": ZERO_BOUNDS,
         "flags": {"cancel": bool(cancel), "failed": False, "stream": False},
         "kind": "request",
         "method": method,
-        "protocol_version": 1,
+        "protocol_version": protocol_version,
         "request_id": request_id,
         "session": session,
     }
@@ -319,11 +334,18 @@ def _check_frame_shape(frame: Any) -> dict[str, Any]:
 class Endpoint:
     """One `sley serve --json` process; the runner's only external command."""
 
-    def __init__(self, sley: Path, repository: Path, report: Path, timeout_seconds: int):
+    def __init__(
+        self,
+        sley: Path,
+        repository: Path,
+        report: Path,
+        timeout_seconds: int,
+        extra_args: tuple[str, ...] = (),
+    ):
         self._timeout = timeout_seconds
         try:
             self._process = subprocess.Popen(
-                [str(sley), "serve", "--repository", str(repository), "--json", "--report", str(report)],
+                [str(sley), "serve", "--repository", str(repository), "--json", "--report", str(report), *extra_args],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -412,12 +434,16 @@ def _run_sley(sley: Path, arguments: list[str], stdin: bytes, timeout_seconds: i
 
 
 def endpoint_offer(sley: Path, timeout_seconds: int = 30) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
-    """The client hello frame, the affordances, and the endpoint version, all from the binary."""
+    """The client hello frame, the affordances, and the endpoint version, all from the binary.
 
-    hello_bytes = _run_sley(sley, ["hello"], b"", timeout_seconds)
+    The offer is the capable `[1,2]` hello: the eighteen-name allowlist
+    requires the version 2 methods, so a version 1 offer fails the
+    missing-check below by design (drift fails closed)."""
+
+    hello_bytes = _run_sley(sley, ["hello", *PROFILE_ARGS], b"", timeout_seconds)
     decoded = _run_sley(sley, ["frame", "decode"], hello_bytes, timeout_seconds)
-    hello_object = _run_sley(sley, ["hello", "--json"], b"", timeout_seconds)
-    version = _run_sley(sley, ["version"], b"", timeout_seconds)
+    hello_object = _run_sley(sley, ["hello", "--json", *PROFILE_ARGS], b"", timeout_seconds)
+    version = _run_sley(sley, ["version", *PROFILE_ARGS], b"", timeout_seconds)
     try:
         frame = _check_frame_shape(json.loads(decoded.decode("utf-8").strip()))
         offered = list(json.loads(hello_object)["methods"])
@@ -443,14 +469,20 @@ def arm_affordances_digest() -> str:
     return _canonical_sha256(list(ARM_AFFORDANCES))
 
 
-def probe_handshake(sley: Path, hello: Mapping[str, Any], scratch: Path, timeout_seconds: int = 30) -> str:
+def probe_handshake(
+    sley: Path,
+    hello: Mapping[str, Any],
+    scratch: Path,
+    timeout_seconds: int = 30,
+    serve_args: tuple[str, ...] = (),
+) -> str:
     """The deterministic handshake identity, read from a hello-only invocation's report."""
 
     report = scratch / "probe-report.json"
     repository = scratch / "probe-repo"
     _run_sley(
         sley,
-        ["serve", "--repository", str(repository), "--json", "--report", str(report)],
+        ["serve", "--repository", str(repository), "--json", "--report", str(report), *serve_args],
         canonical_json_bytes(dict(hello)) + b"\n",
         timeout_seconds,
     )
@@ -866,6 +898,7 @@ def run_scripted_trial(
     affordances: list[str],
     endpoint_version: Mapping[str, Any],
     handshake_id: str,
+    protocol_version: int,
     exchange_hex: str,
     fixture_digest: str,
     prompt_digest: str,
@@ -930,9 +963,17 @@ def run_scripted_trial(
             record("event" if reply["kind"] == "event" else "response", reply)
         return replies
 
-    def runner_request(method: str, body_hex: str) -> dict[str, Any]:
-        frame = request_frame(method, body_hex, state["session"], state["next_request"])
-        state["next_request"] += 1
+    def runner_request(method: str, body_hex: str, request_id: int | None = None) -> dict[str, Any]:
+        # The pre-session space carries identifier 0 only and shares no
+        # counter (SMP1 section 3): an explicit identifier bypasses the
+        # session counter, which starts at 1 for the first bound request.
+        if request_id is None:
+            request_id = state["next_request"]
+            state["next_request"] += 1
+        frame = request_frame(
+            method, body_hex, state["session"], request_id,
+            protocol_version=protocol_version,
+        )
         return transact(frame)[-1]
 
     def refuse(code: Sley2ErrorCode, detail: str) -> None:
@@ -968,7 +1009,10 @@ def run_scripted_trial(
             refuse(Sley2ErrorCode.FRAME_INVALID, "body")
         if state["session"] is None:
             refuse(Sley2ErrorCode.PRIVILEGED_CONTEXT, "no session")
-        frame = request_frame(method, body, state["session"], state["next_request"], cancel)
+        frame = request_frame(
+            method, body, state["session"], state["next_request"], cancel,
+            protocol_version=protocol_version,
+        )
         state["next_request"] += 1
         return [dict(reply) for reply in transact(frame)]
 
@@ -977,10 +1021,10 @@ def run_scripted_trial(
         greeting = transact(hello)
         if greeting[-1]["kind"] != "hello":
             _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "negotiation refused")
-        seeded = runner_request("exchange.import", exchange_hex)
+        seeded = runner_request("exchange.import", exchange_hex, 0)
         if seeded["flags"].get("failed"):
             _fail(Sley2ErrorCode.ENDPOINT_UNAVAILABLE, "exchange.import refused")
-        opened = runner_request("session.open", handshake_id)
+        opened = runner_request("session.open", handshake_id, 0)
         if opened["flags"].get("failed") or not isinstance(opened.get("body"), str) or HEX_64.fullmatch(opened["body"]) is None:
             _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "session.open refused")
         state["session"] = opened["body"]
@@ -1188,6 +1232,111 @@ def _git_head() -> str:
         return "0" * 40
 
 
+def _failure_code(body_hex: str) -> int:
+    """The failure code carried by a response body: field 1 of the SCB
+    failure record (record of 6, tag 1, sized uvarint). Fails closed on
+    any shape deviation rather than guessing."""
+    try:
+        body = bytes.fromhex(body_hex)
+    except ValueError as error:
+        raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure body hex") from error
+    values = list(body)
+    if len(values) < 4 or values[0] != 6 or values[1] != 1:
+        raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure record shape")
+    length = values[2]
+    if length >= 0x80 or len(values) < 3 + length:
+        raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure code length")
+    code, shift, index = 0, 0, 3
+    for _ in range(length):
+        byte = values[index]
+        index += 1
+        code |= (byte & 0x7F) << shift
+        shift += 7
+        if not byte & 0x80:
+            break
+    else:
+        raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure code uvarint")
+    return code
+
+def entity_read_round_trip(sley: Path, scratch: Path, timeout_seconds: int) -> dict[str, Any]:
+    """Live serving proof for the version 2 entity reads, plus the version 1
+    negative control. Seeds the repository, opens a session, and sends
+    `entity.version` with an empty body: under a version 2 selection the
+    method dispatches past the method layer (any failure but
+    method-unsupported or downgrade proves it); under a version 1
+    selection the frozen surface cannot even name the method, so the
+    endpoint answers its own rejection (`JSON_BRIDGE_METHOD_UNKNOWN`,
+    42003) and nothing reaches dispatch. Pre-session frames carry
+    identifier 0 (SMP1 section 3); the session-bound read carries 1. Not
+    a demonstration (that is AT-MW-02 I4b): the empty body cannot read
+    anything."""
+    vector = json.loads(EXCHANGE_FIXTURE.read_text(encoding="utf-8"))["vectors"][0]
+    exchange_hex = vector["exchange_hex"]
+    evidence: dict[str, Any] = {}
+    for name, offer_args, serve_args, version in (
+        ("v2", ("--protocol-profile", "v2-capable"), PROFILE_ARGS, 2),
+        ("v1", (), (), 1),
+    ):
+        evidence[name] = {}
+        hello_bytes = _run_sley(sley, ["hello", *offer_args], b"", timeout_seconds)
+        decoded = _run_sley(sley, ["frame", "decode"], hello_bytes, timeout_seconds)
+        hello_object = json.loads(decoded.decode("utf-8").strip())
+        repository = scratch / f"entity-read-{name}-repo"
+        endpoint = Endpoint(
+            sley, repository, scratch / f"entity-read-{name}-report.json",
+            timeout_seconds, serve_args,
+        )
+        try:
+            greeting = endpoint.send(hello_object)
+            if greeting[-1]["kind"] != "hello":
+                raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, f"{name} offer refused")
+            handshake = probe_handshake(sley, hello_object, scratch, timeout_seconds, serve_args)
+            seeded = endpoint.send(request_frame("exchange.import", exchange_hex, None, 0, protocol_version=version))[-1]
+            if seeded["kind"] != "response" or seeded["flags"].get("failed"):
+                raise Sley2RunnerError(Sley2ErrorCode.ENDPOINT_UNAVAILABLE, f"{name} seed refused")
+            opened = endpoint.send(request_frame("session.open", handshake, None, 0, protocol_version=version))[-1]
+            if opened["kind"] != "response" or opened["flags"].get("failed"):
+                raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, f"{name} open refused")
+            session = opened.get("body")
+            if not isinstance(session, str):
+                raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, f"{name} open body")
+            answer = endpoint.send(request_frame("entity.version", "", session, 1, protocol_version=version))[-1]
+            if answer["kind"] != "response":
+                raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read not answered")
+            if version == 1:
+                # Frozen surface: the rejection names no method, session, or
+                # request identifier, and carries the bridge's unknown-method
+                # code, proving 306 never reached dispatch.
+                if (
+                    answer.get("method") != ""
+                    or answer.get("session") is not None
+                    or answer.get("request_id") != 0
+                    or answer["flags"].get("failed")
+                ):
+                    raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read not rejected")
+                code = _failure_code(answer.get("body", ""))
+                evidence[name] = {"failure_code": code}
+                continue
+            if not answer["flags"].get("failed"):
+                raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read unexpectedly succeeded")
+            code = _failure_code(answer.get("body", ""))
+            evidence[name] = {"failure_code": code}
+        finally:
+            exit_status, _ = endpoint.close()
+            evidence[name]["endpoint_exit_status"] = exit_status
+    v2, v1 = evidence["v2"], evidence["v1"]
+    evidence["v2_dispatched"] = (
+        isinstance(v2.get("failure_code"), int)
+        and v2["failure_code"] not in (40004, 40007)
+        and v2.get("endpoint_exit_status") == 0
+    )
+    evidence["v1_still_gates"] = (
+        v1.get("failure_code") == 42003
+        and v1.get("endpoint_exit_status") == 0
+    )
+    return evidence
+
+
 def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
     clock = SystemClock()
     started = clock.now_utc()
@@ -1217,7 +1366,7 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
         digest = endpoint_sha256(sley)
         hello, affordances, version = endpoint_offer(sley, timeout_seconds)
         scratch = Path(tempfile.mkdtemp(prefix="probe-", dir=run_directory))
-        handshake = probe_handshake(sley, hello, scratch, timeout_seconds)
+        handshake = probe_handshake(sley, hello, scratch, timeout_seconds, PROFILE_ARGS)
         evidence.update(
             {
                 "endpoint_sha256": digest,
@@ -1247,12 +1396,13 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
             trial_id="smoke-trial-001",
             task_id=sorted(_task_ids(json.loads(CORPUS_PATH.read_text(encoding="utf-8"))))[0],
             seed=1,
-            endpoint_factory=lambda repository, report: Endpoint(sley, repository, report, timeout_seconds),
+            endpoint_factory=lambda repository, report: Endpoint(sley, repository, report, timeout_seconds, PROFILE_ARGS),
             endpoint_digest=digest,
             hello=hello,
             affordances=affordances,
             endpoint_version=version,
             handshake_id=handshake,
+            protocol_version=2,
             exchange_hex=exchange_hex,
             fixture_digest=exchange_digest,
             prompt_digest=_canonical_sha256({"scripted": [list(step) for step in ScriptedAgent.SCRIPT]}),
@@ -1274,12 +1424,13 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
             trial_id="smoke-trial-guard",
             task_id=sorted(_task_ids(json.loads(CORPUS_PATH.read_text(encoding="utf-8"))))[1],
             seed=1,
-            endpoint_factory=lambda repository, report: Endpoint(sley, repository, report, timeout_seconds),
+            endpoint_factory=lambda repository, report: Endpoint(sley, repository, report, timeout_seconds, PROFILE_ARGS),
             endpoint_digest=digest,
             hello=hello,
             affordances=affordances,
             endpoint_version=version,
             handshake_id=handshake,
+            protocol_version=2,
             exchange_hex=exchange_hex,
             fixture_digest=exchange_digest,
             prompt_digest=_canonical_sha256({"intruder": True}),
@@ -1289,6 +1440,10 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
         )
         evidence["guard"]["runner_field_refused"] = intrusion["failure_code"] == SYMBOLS[Sley2ErrorCode.PRIVILEGED_CONTEXT]
         evidence["guard_trial"] = {"status": intrusion["status"], "failure_code": intrusion["failure_code"], "trace_records": intrusion["trace_records"]}
+        round_trip = entity_read_round_trip(
+            sley, Path(tempfile.mkdtemp(prefix="entity-read-", dir=run_directory)), timeout_seconds
+        )
+        evidence["v2_entity_read_round_trip"] = round_trip
         checks = {
             "trial_completed": summary["outcome"] == "completed" and summary["status"] == "rejected",
             "endpoint_exit_zero": summary["endpoint_exit_status"] == 0,
@@ -1296,6 +1451,8 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
             "no_failed_answers": isinstance(summary["report"], dict) and summary["report"].get("failed_answers") == 0,
             "claims_two": len(verify_trial_claims(run_directory)) == 2,
             "guard_refused": bool(evidence["guard"]["runner_field_refused"]) and evidence["guard"]["leaky_handle_refused"],
+            "v2_entity_read_dispatched": bool(round_trip["v2_dispatched"]),
+            "v1_entity_read_still_gated": bool(round_trip["v1_still_gates"]),
         }
         evidence["checks"] = checks
         for name, passed in checks.items():

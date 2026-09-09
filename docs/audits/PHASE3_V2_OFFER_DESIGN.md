@@ -151,3 +151,34 @@ than dispatching. `Server::offered_hello_versioned` exists but is test-only.
   structured summary assertions (`check_cli_contract.py:160-168`
   expected map), folded into P1. Design gate complete:
   Ariadne PASS, Vulcan PASS, Nabu PASS.
+
+## Handoff to AT-MW-02 I4b (P4, 2026-09-09)
+
+I4b's dependency is satisfied: the v2 offer is live and the arm can
+name both methods. What I4b consumes:
+
+- Offer: `sley hello --protocol-profile v2-capable` (versions [1,2],
+  43 methods); `sley serve --protocol-profile v2-capable` negotiates
+  and serves version-aware; SLEY_CLI_V1 rev 6 specifies the surface.
+- Allowlist: `ARM_AFFORDANCES` holds eighteen names including
+  `entity.version` and `entity.signature`; claim digests bind the
+  per-trial snapshot (SLEY2_TRIAL_RUNNER_V1 rev 4).
+- Serving proof: live v2 round trip sends `entity.version` with an
+  empty body and gets 40008 past method resolution (smoke evidence
+  `v2_entity_read_dispatched`); the v1 surface cannot name 306
+  (42003 rejection, `v1_entity_read_still_gated`). Trials run
+  selection 2 end to end (seed, open, requests stamped 2).
+- Pre-session frames carry identifier 0; session-bound traffic starts
+  at 1 (`run_scripted_trial` enforces the version explicitly).
+
+Not claimed: I4b demonstrations themselves (no real entity read was
+performed; the round trip proves dispatch, not retrieval); S20-430
+rev-6 and S20-620 rev-4 Council contract reviews (machine-summary
+`current_delta_review` stays PENDING on both — the P0 rounds reviewed
+this design, not the contract deltas); smoke fully green
+(`no_failed_answers` still red on the pre-existing scripted
+`handle.expand` body `00`, which fails identically under v1 and needs
+a genuine expected-root body under S20-620 maintenance); the
+pre-existing `check_error_symbol_registration` drift (fails
+identically on the pristine base). Merge to main needs operator
+approval and is not taken here.

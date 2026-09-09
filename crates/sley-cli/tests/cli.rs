@@ -2,6 +2,7 @@
 //! observed through the CLI must equal a direct `Server` over the same
 //! repository, and every CLI failure must carry its exit status.
 
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -850,6 +851,64 @@ fn profile_frame_commands_enforce_the_expected_version() {
     );
     assert_eq!(status, 0);
     assert_eq!(stdout, format!("{hello_text}\n").into_bytes());
+}
+
+#[test]
+fn profile_serve_json_converts_post_hello_lines_under_the_selection() {
+    // A version 2-stamped open converts version-aware past the handshake;
+    // under the frozen version 1 conversion the same line is refused, so a
+    // passing open proves the selection drives JSON conversion.
+    let (_temp, path) = repository("cli-profile-json-open");
+    let repo = path.to_str().unwrap();
+    let server_hello = Server::offered_hello_versioned().unwrap();
+    let handshake = sley_protocol::negotiate_identity_versioned(&server_hello, &server_hello)
+        .unwrap()
+        .1;
+    let handshake_hex = handshake
+        .as_bytes()
+        .iter()
+        .fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        });
+    let (status, hello_out, _) = run(&["hello", "--protocol-profile", "v2-capable"], &[]);
+    assert_eq!(status, 0);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let hello_object: Value = serde_json::from_str(&hello_line).unwrap();
+    let bounds = hello_object["bounds"].clone();
+    let open = serde_json::json!({
+        "body": handshake_hex,
+        "bounds": bounds,
+        "flags": {"cancel": false, "failed": false, "stream": false},
+        "kind": "request",
+        "method": "session.open",
+        "protocol_version": 2,
+        "request_id": 0,
+        "session": null,
+    });
+    let input = format!("{hello_line}\n{open}\n");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+        ],
+        input.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let mut lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let answer: Value = serde_json::from_str(&lines.pop().unwrap()).unwrap();
+    assert_eq!(answer["kind"], "response");
+    assert_eq!(answer["flags"]["failed"], false);
+    assert_eq!(answer["body"].as_str().unwrap().len(), 64);
 }
 
 #[test]

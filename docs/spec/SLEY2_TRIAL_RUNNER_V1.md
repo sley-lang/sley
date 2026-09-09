@@ -247,7 +247,8 @@ provenance; publication; runtime, packaging, release, or GA.
   the endpoint is frozen by digest in the run manifest, its SHA-256 is in the
   trace header and every claim as `endpoint_sha256`, no other command is
   invoked for any purpose, and the endpoint is this arm's declared subject.
-- The client hello is `sley hello` decoded with `sley frame decode`. The
+- The client hello is `sley hello --protocol-profile v2-capable` decoded
+  with `sley frame decode`. The
   affordances are **not** that hello's `methods`: the endpoint offers all 41
   SMP1 methods, `exchange.export` among them, and an arm holding an
   entire-store dump is what master goal 20.10 forbids. The arm's affordances

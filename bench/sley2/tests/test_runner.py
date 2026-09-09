@@ -114,6 +114,7 @@ class Sley2RunnerTests(unittest.TestCase):
             affordances=["session.capabilities", "refs.list", "handle.expand", "session.budgets", "candidate.validate", "capsule", "exchange.import", "session.open", "session.close"],
             endpoint_version={"cli": "1"},
             handshake_id=digest(7),
+            protocol_version=1,
             exchange_hex="cafe",
             fixture_digest=digest(3),
             prompt_digest=digest(5),

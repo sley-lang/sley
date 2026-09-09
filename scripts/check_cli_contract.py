@@ -86,6 +86,8 @@ CRATE_MARKERS = (
     "Server::new_versioned(",
     "negotiate_versioned(",
     "hello_to_json_versioned(",
+    "frame_from_json_for_version(",
+    "frame_to_json_for_version(",
     "answer_batch(",
     "frame_from_json(",
     "frame_to_json(",

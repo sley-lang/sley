@@ -15,13 +15,14 @@ use std::path::PathBuf;
 use serde_json::{Map, Value};
 use sley_json_bridge::{
     BridgeError, JsonBridgeErrorCode, MAX_JSON_TEXT_BYTES, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON,
-    frame_from_json, frame_to_json, hello_to_json, hello_to_json_versioned,
+    frame_from_json, frame_from_json_for_version, frame_to_json, frame_to_json_for_version,
+    hello_to_json, hello_to_json_versioned,
 };
 use sley_protocol::{
     Answer, BoundedContext, DecodedFrame, EncodedFrame, FrameKind, Hello, MAX_FRAME_BYTES,
     PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode, ProtocolFailure,
-    ProtocolFrame, Server, decode_frame, encode_frame, encode_hello_frame, frame_length, negotiate,
-    negotiate_versioned,
+    ProtocolFrame, Server, decode_frame, decode_frame_for_version, encode_frame,
+    encode_hello_frame, frame_length, negotiate, negotiate_versioned,
 };
 
 /// The CLI contract name written by `sley version`.
@@ -513,11 +514,15 @@ fn frame_decode(
                 ));
             }
             Next::Frame(bytes) => {
-                let text = frame_to_json(&bytes).map_err(|error| {
+                let converted = match expected_version {
+                    None => frame_to_json(&bytes),
+                    Some(selected) => frame_to_json_for_version(&bytes, selected),
+                };
+                let text = converted.map_err(|error| {
                     CliFailure::with_cause(CliErrorCode::InputInvalid, error.symbol())
                 })?;
                 if let Some(want) = expected_version {
-                    let (is_hello, version) = converted_kind_and_version(&bytes)?;
+                    let (is_hello, version) = converted_kind_and_version(&bytes, expected_version)?;
                     enforce_expected_version(is_hello, version, want)?;
                 }
                 writeln!(stdout, "{text}").map_err(stream_failure)?;
@@ -534,7 +539,7 @@ fn frame_encode(
 ) -> Result<()> {
     let mut reader = BufReader::new(stdin);
     loop {
-        match read_line(&mut reader)? {
+        match read_line(&mut reader, expected_version)? {
             Next::End => return Ok(()),
             Next::Rejected(error) => {
                 return Err(CliFailure::with_cause(
@@ -544,7 +549,7 @@ fn frame_encode(
             }
             Next::Frame(bytes) => {
                 if let Some(want) = expected_version {
-                    let (is_hello, version) = converted_kind_and_version(&bytes)?;
+                    let (is_hello, version) = converted_kind_and_version(&bytes, expected_version)?;
                     enforce_expected_version(is_hello, version, want)?;
                 }
                 stdout.write_all(&bytes).map_err(stream_failure)?;
@@ -554,14 +559,36 @@ fn frame_encode(
     }
 }
 
-/// The kind and wire version of converted frame bytes: a hello travels at
-/// frame version 1; any other frame carries its own selected version.
-fn converted_kind_and_version(bytes: &[u8]) -> Result<(bool, u32)> {
-    match decode_frame(bytes, MAX_FRAME_BYTES).map_err(endpoint_failure)? {
-        (DecodedFrame::Hello(_), _) => Ok((true, PROTOCOL_VERSION)),
-        (DecodedFrame::Request(frame) | DecodedFrame::Response(frame), _) => {
+/// The kind and wire version of converted frame bytes. Hellos travel at
+/// frame version 1 under every expectation, so they are inspected legacy
+/// and the stateless rule (not the codec gate) judges them; any other
+/// frame inspects under the expected version, frozen 1 without a profile.
+/// A version-gate failure under an explicit expectation is the stateless
+/// mismatch, never an endpoint failure: converted bytes are well-formed
+/// by construction, so only the version can still disagree.
+fn converted_kind_and_version(bytes: &[u8], expected: Option<u32>) -> Result<(bool, u32)> {
+    if let Ok((DecodedFrame::Hello(_), _)) = decode_frame(bytes, MAX_FRAME_BYTES) {
+        return Ok((true, PROTOCOL_VERSION));
+    }
+    let want = expected.unwrap_or(PROTOCOL_VERSION);
+    match decode_frame_for_version(bytes, MAX_FRAME_BYTES, want) {
+        Ok((DecodedFrame::Hello(_), _)) => Ok((true, PROTOCOL_VERSION)),
+        Ok((DecodedFrame::Request(frame) | DecodedFrame::Response(frame), _)) => {
             Ok((false, frame.protocol_version))
         }
+        Err(error)
+            if expected.is_some()
+                && matches!(
+                    error.code(),
+                    ProtocolErrorCode::VersionUnsupported | ProtocolErrorCode::Downgrade
+                ) =>
+        {
+            Err(CliFailure::with_cause(
+                CliErrorCode::InputInvalid,
+                "VERSION_MISMATCH",
+            ))
+        }
+        Err(error) => Err(endpoint_failure(error)),
     }
 }
 
@@ -648,7 +675,7 @@ fn read_frame(input: &mut dyn Read, ceiling: u64) -> Result<Next> {
     Ok(Next::Frame(bytes))
 }
 
-fn read_line(reader: &mut BufReader<&mut dyn Read>) -> Result<Next> {
+fn read_line(reader: &mut BufReader<&mut dyn Read>, version: Option<u32>) -> Result<Next> {
     let mut line = Vec::new();
     let limit = u64::try_from(MAX_JSON_TEXT_BYTES + 2).unwrap_or(u64::MAX);
     let count = reader
@@ -667,7 +694,14 @@ fn read_line(reader: &mut BufReader<&mut dyn Read>) -> Result<Next> {
             JsonBridgeErrorCode::ShapeInvalid,
         )));
     };
-    Ok(match frame_from_json(&text) {
+    // Pre-handshake lines convert frozen version 1; past the handshake a
+    // capable endpoint converts under the actual selection, so a version 2
+    // request is encoded version-aware instead of refused.
+    let converted = match version {
+        None => frame_from_json(&text),
+        Some(selected) => frame_from_json_for_version(&text, selected),
+    };
+    Ok(match converted {
         Ok(encoded) => Next::Frame(encoded.bytes),
         Err(error) => Next::Rejected(error),
     })
@@ -675,14 +709,22 @@ fn read_line(reader: &mut BufReader<&mut dyn Read>) -> Result<Next> {
 
 enum Source<'a> {
     Bytes(&'a mut dyn Read),
-    Text(BufReader<&'a mut dyn Read>),
+    Text(BufReader<&'a mut dyn Read>, Option<u32>),
 }
 
 impl Source<'_> {
     fn next(&mut self, ceiling: u64) -> Result<Next> {
         match self {
             Source::Bytes(input) => read_frame(*input, ceiling),
-            Source::Text(reader) => read_line(reader),
+            Source::Text(reader, version) => read_line(reader, *version),
+        }
+    }
+
+    /// Pins the wire version for every later line: the selection once the
+    /// handshake binds it. Byte sources carry no conversion version.
+    fn set_version(&mut self, version: u32) {
+        if let Source::Text(_, slot) = self {
+            *slot = Some(version);
         }
     }
 }
@@ -857,9 +899,16 @@ fn write_frame(
     json: bool,
     frame: &EncodedFrame,
     report: &mut Report,
+    version: Option<u32>,
 ) -> Result<()> {
     if json {
-        let text = frame_to_json(&frame.bytes).map_err(|error| render_failure(&error))?;
+        // Answers render under the actual selection past the handshake;
+        // the endpoint's own failure responses travel at frame version 1.
+        let converted = match version {
+            None => frame_to_json(&frame.bytes),
+            Some(selected) => frame_to_json_for_version(&frame.bytes, selected),
+        };
+        let text = converted.map_err(|error| render_failure(&error))?;
         writeln!(stdout, "{text}").map_err(stream_failure)?;
     } else {
         stdout.write_all(&frame.bytes).map_err(stream_failure)?;
@@ -873,14 +922,15 @@ fn write_frame(
 }
 
 /// Writes one of the endpoint's own failure responses and counts it as a
-/// failed answer.
+/// failed answer. These travel at frame version 1 (contract section 2),
+/// so they always render legacy.
 fn write_rejection(
     stdout: &mut dyn Write,
     json: bool,
     failure: &ProtocolFailure,
     report: &mut Report,
 ) -> Result<()> {
-    write_frame(stdout, json, &failure_frame(failure)?, report)?;
+    write_frame(stdout, json, &failure_frame(failure)?, report, None)?;
     report.answers += 1;
     report.failed_answers += 1;
     *report.codes.entry(failure.code).or_default() += 1;
@@ -892,17 +942,25 @@ fn write_answer(
     json: bool,
     answer: &Answer,
     report: &mut Report,
+    version: Option<u32>,
 ) -> Result<()> {
     for event in &answer.events {
-        write_frame(stdout, json, event, report)?;
+        write_frame(stdout, json, event, report, version)?;
         report.events_written += 1;
     }
-    write_frame(stdout, json, &answer.frame, report)?;
+    write_frame(stdout, json, &answer.frame, report, version)?;
     report.answers += 1;
     if answer.failed {
         report.failed_answers += 1;
-        if let Ok((DecodedFrame::Response(frame), _)) =
-            decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES)
+        // Failed-answer codes decode under the answer's own version, like
+        // the render above; an undecodable body still counts the failure.
+        let decoded = match version {
+            None => decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES),
+            Some(selected) => {
+                decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, selected)
+            }
+        };
+        if let Ok((DecodedFrame::Response(frame), _)) = decoded
             && let Ok(failure) = ProtocolFailure::decode(&frame.body)
         {
             *report.codes.entry(failure.code).or_default() += 1;
@@ -922,7 +980,7 @@ fn serve_frames(
     let capable = profile == ProtocolProfile::V2Capable;
     let offered = offered_hello(profile)?;
     let mut source = if json {
-        Source::Text(BufReader::new(stdin))
+        Source::Text(BufReader::new(stdin), None)
     } else {
         Source::Bytes(stdin)
     };
@@ -968,14 +1026,26 @@ fn serve_frames(
     }
     .map_err(endpoint_failure)?;
     report.handshake_id = Some(hex(server.handshake_id().as_bytes()));
+    // Past the handshake every later line converts, and every answer
+    // renders, under the actual selection; the hello above already
+    // converted frozen version 1. Legacy runs stay versionless throughout.
+    let wire_version = if capable {
+        Some(server.profile().protocol_version)
+    } else {
+        None
+    };
     if capable {
         report.selected_protocol_version = Some(server.profile().protocol_version);
+    }
+    if let Some(selected) = wire_version {
+        source.set_version(selected);
     }
     write_frame(
         stdout,
         json,
         &encode_hello_frame(&offered).map_err(endpoint_failure)?,
         report,
+        wire_version,
     )?;
     let ceiling = server.profile().limits.max_frame_bytes;
 
@@ -1007,13 +1077,13 @@ fn serve_frames(
             pending.push(bytes);
         } else {
             let answer = server.answer(&bytes).map_err(endpoint_failure)?;
-            write_answer(stdout, json, &answer, report)?;
+            write_answer(stdout, json, &answer, report, wire_version)?;
         }
     }
     if !pending.is_empty() {
         let requests: Vec<&[u8]> = pending.iter().map(Vec::as_slice).collect();
         for answer in server.answer_batch(&requests).map_err(endpoint_failure)? {
-            write_answer(stdout, json, &answer, report)?;
+            write_answer(stdout, json, &answer, report, wire_version)?;
         }
     }
     Ok(())
