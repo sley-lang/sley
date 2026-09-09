@@ -2952,7 +2952,12 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                 self.assertLessEqual(len(entries), request_k)
                 self.assertLessEqual(supplied["work"], request_w)
                 self.assertLessEqual(request_w, int(local_inputs["selected_limits"]["max_work"]))
-                _wire2, _stored2, _payload2, resp_frame = _b2_valid_frame(local_inputs, supplied, "response")
+                response_stored = wire[8:]
+                self.assertEqual(len(response_stored), len(wire) - 8)
+                authenticated_payload, _trailer = entity_read.check_envelope(
+                    response_stored, entity_read.protocol_epoch_id()
+                )
+                resp_frame = entity_read.decode_frame_payload(authenticated_payload)
                 _b2_check_response_selected_limits(self, local_inputs, resp_frame)
                 self.assertEqual(entity_read.decode_bounds(resp_frame["bounds"])["returned_bytes"], len(body))
                 stored_len = len(wire) - 8
