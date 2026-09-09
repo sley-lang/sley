@@ -1830,8 +1830,7 @@ def _b2_raw_envelope(payload, *, magic, format_value, tag_value, epoch):
     return wire, preimage, trailer
 
 
-def _b2_matches(problems, case_id, side, layer, code):
-    prefix = f"{case_id}:semantic:{side}:{layer}"
+def _b2_prefix_matches(problems, prefix, code):
     if not isinstance(problems, list):
         return False
     for entry in problems:
@@ -1846,6 +1845,22 @@ def _b2_matches(problems, case_id, side, layer, code):
             if entry == target or entry.startswith(target + ":") or entry.startswith(target + " "):
                 return True
     return False
+
+
+def _b2_matches(problems, case_id, side, layer, code):
+    return _b2_prefix_matches(problems, f"{case_id}:semantic:{side}:{layer}", code)
+
+
+def _b2_hello_matches(problems, row_id, layer, code):
+    return _b2_prefix_matches(problems, f"hello_frame:{row_id}:{layer}", code)
+
+
+def _b2_hello_expect(testcase, problems, row_id, layer, code):
+    testcase.assertIsInstance(problems, list)
+    for entry in problems:
+        testcase.assertIsInstance(entry, str)
+    target = f"hello_frame:{row_id}:{layer}:{code}"
+    testcase.assertTrue(_b2_hello_matches(problems, row_id, layer, code), f"missing {target} in {problems!r}")
 
 
 def _b2_expect(testcase, inputs, case, supplied, side, layer, code):
@@ -1925,6 +1940,146 @@ def _b2_supplied_with_response_body(inputs, built, frame, mutated_body, *, updat
     supplied["response_frame_id"] = frame_id.hex()
     supplied["response_wire_len"] = len(wire)
     return supplied
+
+
+def _b2_uvar_len(value):
+    assert isinstance(value, int) and value >= 0
+    return max(1, (int(value).bit_length() + 6) // 7)
+
+
+def _b2_sig_base(testcase):
+    inputs, case, built = _b2_load("sig_multi")
+    problems = []
+    entity_read.semantic_check(inputs, case, built, problems)
+    testcase.assertEqual(problems, [])
+    _wire, _stored, _payload, frame = _b2_valid_frame(inputs, built, "response")
+    response = entity_read.decode_response_body(frame["body"])
+    raw_entries = list(response["entries"])
+    entries = [entity_read.decode_response_entry(raw) for raw in raw_entries]
+    testcase.assertEqual(len(entries), 3)
+    stored_b = sum(len(entry["stored"]) for entry in entries)
+    testcase.assertEqual(stored_b, built["stored_b"])
+    testcase.assertEqual(stored_b, 935)
+    lookup_l = entity_read.derived_lookup_l(inputs)
+    testcase.assertEqual((int(inputs["context"]["root_bindings"]), lookup_l), (256, 10))
+    actual_a = 1 + len(entries) * lookup_l + 2 * stored_b
+    testcase.assertEqual(actual_a, 1901)
+    testcase.assertEqual(built["count_k"], 3)
+    epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+    for entry in entries:
+        checked = entity_read.check_stored_object(entry["stored"], entry["kind"], entry["entity"], epoch)
+        testcase.assertEqual(entry["object_id"], checked["object_id"])
+    return inputs, case, built, frame, response, raw_entries, entries, stored_b, lookup_l, actual_a
+
+
+def _b2_assemble_sig(testcase, inputs, case, template_built, entry_blobs, *, request_m, request_k, request_w, selected_overrides=None, response_work=None):
+    local_inputs = copy.deepcopy(inputs)
+    if selected_overrides:
+        for key, value in selected_overrides.items():
+            local_inputs["selected_limits"][key] = value
+    selected = {key: int(local_inputs["selected_limits"][key]) for key in _B2_LIMIT_KEYS}
+    entity_read.validate_selected_limits(selected)
+    local_case = copy.deepcopy(case)
+    local_case["request"] = dict(case["request"])
+    local_case["request"]["max_objects"] = request_k
+    local_case["request"]["max_response_bytes"] = request_m
+    local_case["request"]["max_work"] = request_w
+    local_inputs["cases"][local_case["id"]] = copy.deepcopy(local_case)
+    context = local_inputs["context"]
+    root = bytes.fromhex(context["root"])
+    entity_id = bytes.fromhex(local_inputs["entities"][local_case["entity"]]["id"])
+    request_body = entity_read.build_request_body(root, entity_id, request_k, request_m, request_w)
+    decoded_request = entity_read.decode_request_body(request_body, {"limits": selected})
+    testcase.assertEqual((decoded_request["root"], decoded_request["entity"]), (root, entity_id))
+    testcase.assertEqual(
+        (decoded_request["max_objects"], decoded_request["ceiling_m"], decoded_request["max_work"]),
+        (request_k, request_m, request_w),
+    )
+    testcase.assertLessEqual(len(request_body), request_m)
+    decoded_entries = [entity_read.decode_response_entry(raw) for raw in entry_blobs]
+    actual_k = len(entry_blobs)
+    actual_b = sum(len(entry["stored"]) for entry in decoded_entries)
+    lookup_l = entity_read.derived_lookup_l(local_inputs)
+    actual_a = 1 + actual_k * lookup_l + 2 * actual_b
+    work = actual_a + request_m if response_work is None else response_work
+    testcase.assertLessEqual(work, entity_read.U64_MAX)
+    response_body = entity_read.build_response_body(
+        bytes.fromhex(context["workspace"]),
+        root,
+        bytes.fromhex(context["content_epoch"]),
+        bytes.fromhex(context["session"]),
+        entity_id,
+        list(entry_blobs),
+        work,
+    )
+    response_bounds = entity_read.build_bounds(selected, len(response_body), actual_k)
+    session = bytes.fromhex(context["session"])
+    request_id = int(local_case["request"]["request_id"])
+    method = int(local_case["method"])
+    request_payload = entity_read.build_frame_payload(2, session, request_id, 1, method, 0, entity_read.zero_bounds(), request_body)
+    response_payload = entity_read.build_frame_payload(2, session, request_id, 2, method, 0, response_bounds, response_body)
+    protocol_epoch = entity_read.protocol_epoch_id()
+    request_wire, request_preimage, request_frame_id = entity_read.build_envelope(protocol_epoch, request_payload)
+    response_wire, response_preimage, response_frame_id = entity_read.build_envelope(protocol_epoch, response_payload)
+    testcase.assertEqual(int.from_bytes(response_wire[:8], "big"), len(response_wire) - 8)
+    supplied = {
+        "request_body_hex": request_body.hex(),
+        "response_body_hex": response_body.hex(),
+        "request_wire_hex": request_wire.hex(),
+        "request_preimage_hex": request_preimage.hex(),
+        "request_frame_id": request_frame_id.hex(),
+        "response_wire_hex": response_wire.hex(),
+        "response_preimage_hex": response_preimage.hex(),
+        "response_frame_id": response_frame_id.hex(),
+        "response_wire_len": len(response_wire),
+        "work": work,
+        "count_k": actual_k,
+        "stored_b": actual_b,
+        "objects": copy.deepcopy(template_built["objects"]),
+    }
+    return local_inputs, local_case, supplied, request_body, response_body, response_wire
+
+
+def _b2_hello_frame_row(testcase, scoped, accepted, *, wire_version, expected_version, expect, expected_layer, expected_code, mutate_flags=None, mutate_body_empty=False):
+    offer = scoped["hellos"]["hello_v2_client"]
+    hello_body = entity_read.build_hello(offer)
+    body_fields = entity_read.parse_record(hello_body)
+    testcase.assertEqual(sorted(tag for tag, _ in body_fields), [1, 2, 3, 4, 5, 6, 7])
+    flags = 0 if mutate_flags is None else mutate_flags
+    body = hello_body if not mutate_body_empty else entity_read.encode_fields([])
+    if mutate_body_empty:
+        testcase.assertNotEqual(body, hello_body)
+    payload = entity_read.build_frame_payload(wire_version, None, 0, 4, 0, flags, entity_read.zero_bounds(), body)
+    wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+    stored, _prefix = entity_read.split_wire(wire, int(scoped["selected_limits"]["max_frame_bytes"]))
+    checked_payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+    frame = entity_read.decode_frame_payload(checked_payload)
+    testcase.assertEqual(
+        (frame["version"], frame["session"], frame["request_id"], frame["kind"], frame["method"], frame["flags"]),
+        (wire_version, None, 0, 4, 0, flags),
+    )
+    testcase.assertEqual(frame["body"], body)
+    row_id = f"hello_local_wire{wire_version}_expected{expected_version}"
+    authored_row = {
+        "hello": "hello_v2_client",
+        "wire_version": wire_version,
+        "expected_version": expected_version,
+        "expect": expect,
+        "expected_layer": expected_layer,
+        "expected_code": expected_code,
+    }
+    supplied_row = {
+        **authored_row,
+        "body_hex": body.hex(),
+        "wire_hex": wire.hex(),
+        "preimage_hex": preimage.hex(),
+        "frame_id": frame_id.hex(),
+    }
+    local_inputs = copy.deepcopy(scoped)
+    local_inputs["frame_scenarios"] = {row_id: copy.deepcopy(authored_row)}
+    local_accepted = copy.deepcopy(accepted)
+    local_accepted["frame_scenarios"] = {row_id: copy.deepcopy(supplied_row)}
+    return row_id, local_inputs, local_accepted
 
 
 class SuppliedEntityFrameCases(unittest.TestCase):
@@ -2569,6 +2724,554 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                 self.assertEqual(entity_read.validate_rejected(s_inputs, authored, mutated_wire), ("signature", None))
                 supplied = _b2_supplied_with_response_body(s_inputs, s_built, s_frame, mutated_body)
                 _b2_expect(self, s_inputs, s_case, supplied, "response", "signature", None)
+
+
+    def test_response_actual_counts_and_required_k(self) -> None:
+        inputs, case, built, frame, response, raw_entries, entries, stored_b, lookup_l, actual_a = _b2_sig_base(self)
+        self.assertEqual((len(entries), stored_b, lookup_l, actual_a), (3, 935, 10, 1901))
+        self.assertEqual(built["work"], actual_a + int(case["request"]["max_response_bytes"]))
+        bound_fields = entity_read.parse_record(frame["bounds"])
+        actual_bytes = len(frame["body"])
+        counter_rows = (
+            ("returned_bytes", 2, encode_uvar(actual_bytes + 1)),
+            ("returned_entities", 3, encode_uvar(len(entries) + 1)),
+            ("returned_edges", 4, encode_uvar(1)),
+            ("reached_depth", 5, encode_uvar(1)),
+            ("omitted", 6, encode_uvar(1)),
+            ("truncated", 7, encode_uvar(2)),
+            ("continuation", 8, encode_uvar(2)),
+        )
+        for name, tag, raw in counter_rows:
+            with self.subTest(variant=f"counter-{name}"):
+                mutated_bounds = entity_read.encode_fields([(t, raw if t == tag else p) for t, p in bound_fields])
+                mutated_payload = entity_read.build_frame_payload(
+                    frame["version"],
+                    frame["session"],
+                    frame["request_id"],
+                    frame["kind"],
+                    frame["method"],
+                    frame["flags"],
+                    mutated_bounds,
+                    frame["body"],
+                )
+                mutated_frame = entity_read.decode_frame_payload(mutated_payload)
+                self.assertEqual(mutated_frame["body"], frame["body"])
+                self.assertNotEqual(mutated_frame["bounds"], frame["bounds"])
+                mutated_counts = entity_read.decode_bounds(mutated_frame["bounds"])
+                if tag == 2:
+                    self.assertEqual(mutated_counts["returned_bytes"], actual_bytes + 1)
+                elif tag == 3:
+                    self.assertEqual(mutated_counts["returned_entities"], len(entries) + 1)
+                elif tag in (4, 5, 6):
+                    key = {4: "returned_edges", 5: "reached_depth", 6: "omitted"}[tag]
+                    self.assertEqual(mutated_counts[key], 1)
+                else:
+                    key = {7: "truncated", 8: "continuation"}[tag]
+                    self.assertTrue(mutated_counts[key])
+                supplied = _b2_supplied_with_payload(built, "response", mutated_payload)
+                self.assertEqual(supplied["response_body_hex"], built["response_body_hex"])
+                self.assertEqual(supplied["work"], built["work"])
+                _b2_expect(self, inputs, case, supplied, "response", "count", None)
+        with self.subTest(variant="required-k-missing-parameter"):
+            self.assertEqual([ref for ref in case["objects"]], ["sig_f", "sig_p_high", "sig_p_low"])
+            self.assertEqual(case["signature"]["parameters"], ["sig_p_high", "sig_p_low"])
+            kept = [raw_entries[0], raw_entries[1]]
+            kept_entries = [entity_read.decode_response_entry(raw) for raw in kept]
+            epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+            for entry in kept_entries:
+                checked = entity_read.check_stored_object(entry["stored"], entry["kind"], entry["entity"], epoch)
+                self.assertEqual(entry["object_id"], checked["object_id"])
+            kept_b = sum(len(entry["stored"]) for entry in kept_entries)
+            self.assertEqual(kept_b, stored_b - len(entries[2]["stored"]))
+            request_m = int(case["request"]["max_response_bytes"])
+            kept_a = 1 + 2 * lookup_l + 2 * kept_b
+            kept_work = kept_a + request_m
+            local_inputs, local_case, supplied, _req_body, kept_body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                kept,
+                request_m=request_m,
+                request_k=int(case["request"]["max_objects"]),
+                request_w=int(case["request"]["max_work"]),
+            )
+            self.assertEqual(supplied["count_k"], 2)
+            self.assertEqual(supplied["stored_b"], kept_b)
+            self.assertEqual(supplied["work"], kept_work)
+            actual_count = len(entity_read.decode_response_body(bytes.fromhex(supplied["response_body_hex"]))["entries"])
+            self.assertEqual(actual_count, 2)
+            self.assertEqual(len(local_case["objects"]), 3)
+            _b2_expect(self, local_inputs, local_case, supplied, "response", "count", None)
+        with self.subTest(variant="wrong-owner-wrong-count"):
+            authored = next(item for item in inputs["rejected"] if item["id"] == "sig_owner")
+            base = inputs["cases"][authored["base"]]
+            self.assertEqual(base["id"], "sig_multi")
+            owner_wire = entity_read.build_rejected_bytes(inputs, base, authored["recipe"])
+            max_frame = _b2_max_frame(inputs)
+            owner_stored, _prefix = entity_read.split_wire(owner_wire, max_frame)
+            owner_payload, _trailer = entity_read.check_envelope(owner_stored, entity_read.protocol_epoch_id())
+            owner_frame = entity_read.decode_frame_payload(owner_payload)
+            owner_response = entity_read.decode_response_body(owner_frame["body"])
+            owner_entries = [entity_read.decode_response_entry(raw) for raw in owner_response["entries"]]
+            owner_epoch = bytes.fromhex(inputs["context"]["content_epoch"])
+            for entry in owner_entries:
+                checked = entity_read.check_stored_object(entry["stored"], entry["kind"], entry["entity"], owner_epoch)
+                self.assertEqual(entry["object_id"], checked["object_id"])
+            requested = bytes.fromhex(inputs["entities"][base["entity"]]["id"])
+            entity_read.check_context(owner_response, inputs["context"], requested)
+            owner_k = len(owner_entries)
+            owner_b = sum(len(entry["stored"]) for entry in owner_entries)
+            owner_l = entity_read.derived_lookup_l(inputs)
+            self.assertEqual(
+                owner_response["work"], 1 + owner_k * owner_l + 2 * owner_b + int(base["request"]["max_response_bytes"])
+            )
+            owner_bounds = entity_read.decode_bounds(owner_frame["bounds"])
+            self.assertEqual((owner_bounds["returned_entities"], owner_bounds["returned_bytes"]), (owner_k, len(owner_frame["body"])))
+            self.assertEqual(entity_read.validate_rejected(inputs, authored, owner_wire), ("signature", None))
+            owner_fields = entity_read.parse_record(owner_frame["bounds"])
+            mutated_bounds = entity_read.encode_fields([(t, encode_uvar(owner_k + 1) if t == 3 else p) for t, p in owner_fields])
+            mutated_payload = entity_read.build_frame_payload(
+                owner_frame["version"],
+                owner_frame["session"],
+                owner_frame["request_id"],
+                owner_frame["kind"],
+                owner_frame["method"],
+                owner_frame["flags"],
+                mutated_bounds,
+                owner_frame["body"],
+            )
+            mutated_frame = entity_read.decode_frame_payload(mutated_payload)
+            self.assertEqual(mutated_frame["body"], owner_frame["body"])
+            self.assertEqual(entity_read.decode_response_body(mutated_frame["body"])["work"], owner_response["work"])
+            owner_wire2, owner_pre2, owner_fid2 = entity_read.build_envelope(entity_read.protocol_epoch_id(), mutated_payload)
+            supplied = copy.deepcopy(built)
+            supplied["response_body_hex"] = owner_frame["body"].hex()
+            body_fields = entity_read.parse_record(owner_frame["body"])
+            supplied["work"] = entity_read.decode_uvar_exact(entity_read.single_field(body_fields, 8), 64)
+            supplied["response_wire_hex"] = owner_wire2.hex()
+            supplied["response_preimage_hex"] = owner_pre2.hex()
+            supplied["response_frame_id"] = owner_fid2.hex()
+            supplied["response_wire_len"] = len(owner_wire2)
+            supplied["count_k"] = owner_k
+            supplied["stored_b"] = owner_b
+            _b2_expect(self, inputs, case, supplied, "response", "count", None)
+
+    def test_detached_components_match_actual_wire(self) -> None:
+        inputs, case, built, frame, response, raw_entries, entries, stored_b, lookup_l, actual_a = _b2_sig_base(self)
+        _wire, _stored, _payload, req_frame = _b2_valid_frame(inputs, built, "request")
+        self.assertEqual((req_frame["version"], frame["version"]), (2, 2))
+        hex_targets = (
+            "request_body_hex",
+            "request_preimage_hex",
+            "request_frame_id",
+            "response_body_hex",
+            "response_preimage_hex",
+            "response_frame_id",
+        )
+        for key in hex_targets:
+            with self.subTest(variant=f"detached-{key}"):
+                original = built[key]
+                flipped = ("0" if original[0] != "0" else "1") + original[1:]
+                self.assertNotEqual(flipped, original)
+                supplied = copy.deepcopy(built)
+                supplied[key] = flipped
+                _b2_valid_frame(inputs, supplied, "request")
+                _b2_valid_frame(inputs, supplied, "response")
+                side = "request" if key.startswith("request_") else "response"
+                _b2_expect(self, inputs, case, supplied, side, "component_binding", key)
+        int_targets = (
+            ("response_wire_len", built["response_wire_len"] + 1),
+            ("count_k", built["count_k"] + 1),
+            ("stored_b", built["stored_b"] + 1),
+            ("work", built["work"] + 1),
+        )
+        for key, mutated in int_targets:
+            with self.subTest(variant=f"detached-{key}"):
+                supplied = copy.deepcopy(built)
+                supplied[key] = mutated
+                _b2_valid_frame(inputs, supplied, "request")
+                _b2_valid_frame(inputs, supplied, "response")
+                _b2_expect(self, inputs, case, supplied, "response", "component_binding", key)
+
+    def test_actual_ingress_and_outgoing_sizes_are_distinct(self) -> None:
+        inputs, case, built, frame, response, raw_entries, entries, stored_b, lookup_l, actual_a = _b2_sig_base(self)
+        request_m = int(case["request"]["max_response_bytes"])
+        request_k = int(case["request"]["max_objects"])
+        request_w = int(case["request"]["max_work"])
+        _seed_inputs, _seed_case, seed_supplied, _req_body, seed_body, _seed_wire = _b2_assemble_sig(
+            self,
+            inputs,
+            case,
+            built,
+            raw_entries,
+            request_m=request_m,
+            request_k=request_k,
+            request_w=request_w,
+            selected_overrides={"max_frame_bytes": 4096},
+        )
+        seed_wire = bytes.fromhex(seed_supplied["response_wire_hex"])
+        full_size = len(seed_wire)
+        self.assertEqual(seed_body, bytes.fromhex(built["response_body_hex"]))
+        self.assertEqual(seed_supplied["work"], built["work"])
+        for cap in (4096, full_size, full_size - 1, full_size - 8, full_size - 9):
+            self.assertEqual(_b2_uvar_len(cap), 2)
+        self.assertLessEqual(128, full_size - 9)
+        self.assertLess(full_size, 16384)
+        self.assertEqual(full_size, 1559)
+        self.assertEqual(int.from_bytes(seed_wire[:8], "big"), full_size - 8)
+        self.assertEqual(int.from_bytes(seed_wire[:8], "big"), 1551)
+        request_envelope_len = len(bytes.fromhex(seed_supplied["request_wire_hex"])) - 8
+        self.assertLessEqual(request_envelope_len, full_size - 9)
+        rows = (
+            ("exact", full_size, "control"),
+            ("one-below", full_size - 1, "outgoing_wire_ceiling"),
+            ("ingress-exact", full_size - 8, "outgoing_wire_ceiling"),
+            ("ingress-below", full_size - 9, "wire_ceiling"),
+        )
+        for name, cap, outcome in rows:
+            with self.subTest(variant=name):
+                local_inputs, local_case, supplied, _req, body, wire = _b2_assemble_sig(
+                    self,
+                    inputs,
+                    case,
+                    built,
+                    raw_entries,
+                    request_m=request_m,
+                    request_k=request_k,
+                    request_w=request_w,
+                    selected_overrides={"max_frame_bytes": cap},
+                )
+                self.assertEqual(local_case["request"], case["request"])
+                self.assertEqual(int(local_inputs["selected_limits"]["max_frame_bytes"]), cap)
+                self.assertEqual(body, seed_body)
+                self.assertEqual(len(wire), full_size)
+                self.assertEqual(int.from_bytes(wire[:8], "big"), full_size - 8)
+                self.assertLessEqual(len(body), request_m)
+                self.assertLessEqual(request_m, int(local_inputs["selected_limits"]["max_response_bytes"]))
+                self.assertLessEqual(len(entries), request_k)
+                self.assertLessEqual(supplied["work"], request_w)
+                self.assertLessEqual(request_w, int(local_inputs["selected_limits"]["max_work"]))
+                _wire2, _stored2, _payload2, resp_frame = _b2_valid_frame(local_inputs, supplied, "response")
+                _b2_check_response_selected_limits(self, local_inputs, resp_frame)
+                self.assertEqual(entity_read.decode_bounds(resp_frame["bounds"])["returned_bytes"], len(body))
+                stored_len = len(wire) - 8
+                if outcome == "control":
+                    stored, _prefix = entity_read.split_wire(wire, cap)
+                    self.assertEqual(len(stored), stored_len)
+                    check_problems = []
+                    entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+                    self.assertEqual(check_problems, [])
+                elif outcome == "outgoing_wire_ceiling":
+                    stored, _prefix = entity_read.split_wire(wire, cap)
+                    self.assertEqual(len(stored), stored_len)
+                    _b2_expect(self, local_inputs, local_case, supplied, "response", "outgoing_wire_ceiling", None)
+                else:
+                    with self.assertRaisesRegex(entity_read.CheckFailed, "wire_ceiling"):
+                        entity_read.split_wire(wire, cap)
+                    _b2_expect(self, local_inputs, local_case, supplied, "response", "wire_ceiling", None)
+
+    def test_actual_response_resource_bounds(self) -> None:
+        inputs, case, built, frame, response, raw_entries, entries, stored_b, lookup_l, actual_a = _b2_sig_base(self)
+        ordinary_m = int(case["request"]["max_response_bytes"])
+        ordinary_k = int(case["request"]["max_objects"])
+        ordinary_w = int(case["request"]["max_work"])
+        with self.subTest(variant="k-exact-control"):
+            local_inputs, local_case, supplied, _req, body, _wire = _b2_assemble_sig(
+                self, inputs, case, built, raw_entries, request_m=ordinary_m, request_k=3, request_w=ordinary_w
+            )
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        with self.subTest(variant="k-exact-cobound-control"):
+            local_inputs, local_case, supplied, _req, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=ordinary_m,
+                request_k=3,
+                request_w=ordinary_w,
+                selected_overrides={"max_entities": 3},
+            )
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        for name, req_k, sel_entities in (("k-below-request", 2, None), ("k-cobound", 2, 2)):
+            with self.subTest(variant=name):
+                overrides = None if sel_entities is None else {"max_entities": sel_entities}
+                local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                    self,
+                    inputs,
+                    case,
+                    built,
+                    raw_entries,
+                    request_m=ordinary_m,
+                    request_k=req_k,
+                    request_w=ordinary_w,
+                    selected_overrides=overrides,
+                )
+                admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+                self.assertEqual(admitted["max_objects"], req_k)
+                _w, _s, _p, resp_frame = _b2_valid_frame(local_inputs, supplied, "response")
+                self.assertEqual(entity_read.decode_bounds(resp_frame["bounds"])["returned_entities"], 3)
+                _b2_expect(self, local_inputs, local_case, supplied, "response", "response_range", None)
+        template_body = entity_read.build_response_body(
+            bytes.fromhex(inputs["context"]["workspace"]),
+            bytes.fromhex(inputs["context"]["root"]),
+            bytes.fromhex(inputs["context"]["content_epoch"]),
+            bytes.fromhex(inputs["context"]["session"]),
+            bytes.fromhex(inputs["entities"][case["entity"]]["id"]),
+            list(raw_entries),
+            0,
+        )
+        template_d = len(template_body) - 1
+        self.assertEqual(template_d, 1352)
+        candidates = []
+        for width in range(1, 11):
+            cand_m = template_d + width
+            cand_w = actual_a + cand_m
+            if cand_m <= 0 or cand_w > entity_read.U64_MAX:
+                continue
+            if _b2_uvar_len(cand_w) != width:
+                continue
+            candidates.append((width, cand_m, cand_w))
+        self.assertTrue(candidates)
+        width, exact_m, exact_w = candidates[0]
+        self.assertEqual((width, exact_m, exact_w), (2, 1354, 3255))
+        self.assertEqual(_b2_uvar_len(exact_w - 1), width)
+        with self.subTest(variant="m-exact-control"):
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self, inputs, case, built, raw_entries, request_m=exact_m, request_k=ordinary_k, request_w=ordinary_w
+            )
+            self.assertEqual(len(body), exact_m)
+            self.assertEqual(supplied["work"], exact_w)
+            decoded_req = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual(decoded_req["ceiling_m"], exact_m)
+            decoded_resp = entity_read.decode_response_body(body)
+            self.assertEqual((len(decoded_resp["entries"]), decoded_resp["work"]), (3, exact_w))
+            _w, _s, _p, resp_frame = _b2_valid_frame(local_inputs, supplied, "response")
+            _b2_check_response_selected_limits(self, local_inputs, resp_frame)
+            self.assertEqual(entity_read.decode_bounds(resp_frame["bounds"])["returned_bytes"], exact_m)
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        with self.subTest(variant="m-one-below"):
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=exact_m - 1,
+                request_k=ordinary_k,
+                request_w=ordinary_w,
+                response_work=exact_w - 1,
+            )
+            self.assertEqual(len(body), exact_m)
+            self.assertEqual(supplied["work"], exact_w - 1)
+            self.assertEqual(len(body), (exact_m - 1) + 1)
+            admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual(admitted["ceiling_m"], exact_m - 1)
+            _w, _s, _p, resp_frame = _b2_valid_frame(local_inputs, supplied, "response")
+            self.assertEqual(entity_read.decode_bounds(resp_frame["bounds"])["returned_bytes"], exact_m)
+            _b2_expect(self, local_inputs, local_case, supplied, "response", "response_range", None)
+        with self.subTest(variant="m-cobound-control"):
+            local_inputs, local_case, supplied, _req, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=exact_m,
+                request_k=ordinary_k,
+                request_w=ordinary_w,
+                selected_overrides={"max_response_bytes": exact_m},
+            )
+            self.assertEqual(len(body), exact_m)
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        with self.subTest(variant="m-cobound-one-below"):
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=exact_m - 1,
+                request_k=ordinary_k,
+                request_w=ordinary_w,
+                selected_overrides={"max_response_bytes": exact_m - 1},
+                response_work=exact_w - 1,
+            )
+            self.assertEqual(len(body), exact_m)
+            admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual(admitted["ceiling_m"], exact_m - 1)
+            _b2_expect(self, local_inputs, local_case, supplied, "response", "response_range", None)
+        fixed_m = 200000
+        fixed_w = actual_a + fixed_m
+        self.assertEqual(_b2_uvar_len(fixed_w), 3)
+        with self.subTest(variant="w-exact-control"):
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self, inputs, case, built, raw_entries, request_m=fixed_m, request_k=ordinary_k, request_w=fixed_w
+            )
+            admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual((admitted["ceiling_m"], admitted["max_work"]), (fixed_m, fixed_w))
+            self.assertLessEqual(len(body), fixed_m)
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        with self.subTest(variant="w-one-below-request"):
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self, inputs, case, built, raw_entries, request_m=fixed_m, request_k=ordinary_k, request_w=fixed_w - 1
+            )
+            admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual(admitted["max_work"], fixed_w - 1)
+            self.assertEqual(supplied["work"], fixed_w)
+            _b2_expect(self, local_inputs, local_case, supplied, "response", "response_range", None)
+        with self.subTest(variant="w-cobound-control"):
+            self.assertGreater(fixed_w, 0)
+            self.assertLessEqual(fixed_w, entity_read.LIMIT_CEILINGS[5])
+            local_inputs, local_case, supplied, _req, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=fixed_m,
+                request_k=ordinary_k,
+                request_w=fixed_w,
+                selected_overrides={"max_work": fixed_w},
+            )
+            check_problems = []
+            entity_read.semantic_check(local_inputs, local_case, supplied, check_problems)
+            self.assertEqual(check_problems, [])
+        with self.subTest(variant="w-cobound-one-below"):
+            self.assertGreater(fixed_w - 1, 0)
+            self.assertLessEqual(fixed_w - 1, entity_read.LIMIT_CEILINGS[5])
+            local_inputs, local_case, supplied, req_body, body, _wire = _b2_assemble_sig(
+                self,
+                inputs,
+                case,
+                built,
+                raw_entries,
+                request_m=fixed_m,
+                request_k=ordinary_k,
+                request_w=fixed_w - 1,
+                selected_overrides={"max_work": fixed_w - 1},
+            )
+            admitted = entity_read.decode_request_body(req_body, {"limits": dict(local_inputs["selected_limits"])})
+            self.assertEqual(admitted["max_work"], fixed_w - 1)
+            _b2_expect(self, local_inputs, local_case, supplied, "response", "response_range", None)
+
+    def test_actual_layer_precedence_controls(self) -> None:
+        inputs, case, built = _b2_load("sig_multi")
+        check_problems = []
+        entity_read.semantic_check(inputs, case, built, check_problems)
+        self.assertEqual(check_problems, [])
+        _wire, _stored, _payload, frame = _b2_valid_frame(inputs, built, "response")
+        self.assertEqual((frame["version"], frame["kind"], frame["flags"]), (2, 2, 0))
+        with self.subTest(variant="prefix-before-digest"):
+            wire = bytes.fromhex(built["response_wire_hex"])
+            preimage = bytes.fromhex(built["response_preimage_hex"])
+            trailer = bytes.fromhex(built["response_frame_id"])
+            self.assertEqual(int.from_bytes(wire[:8], "big"), len(preimage) + len(trailer))
+            bad_trailer = trailer[:-1] + bytes([trailer[-1] ^ 0x01])
+            self.assertNotEqual(blake3.blake3(entity_read.FRAME_DOMAIN + preimage).digest(), bad_trailer)
+            bad_wire = wire[:7] + preimage + bad_trailer
+            supplied = _b2_supplied_wire_only(built, "response", bad_wire)
+            _b2_expect(self, inputs, case, supplied, "response", "wire_prefix", None)
+        with self.subTest(variant="bounds-before-version"):
+            bound_fields = entity_read.parse_record(frame["bounds"])
+            mutated_bounds = entity_read.encode_fields([(t, p) for t, p in bound_fields if t != 1])
+            mutated_payload = entity_read.build_frame_payload(
+                1,
+                frame["session"],
+                frame["request_id"],
+                frame["kind"],
+                frame["method"],
+                frame["flags"],
+                mutated_bounds,
+                frame["body"],
+            )
+            supplied = _b2_supplied_with_payload(built, "response", mutated_payload)
+            _b2_expect(self, inputs, case, supplied, "response", "frame_bounds", "SCB_FIELD_MISSING")
+        for name, version, code in (
+            ("downgrade-before-flag", 1, "PROTOCOL_DOWNGRADE"),
+            ("unsupported-before-flag", 3, "PROTOCOL_VERSION_UNSUPPORTED"),
+        ):
+            with self.subTest(variant=name):
+                mutated_payload = entity_read.build_frame_payload(
+                    version,
+                    frame["session"],
+                    frame["request_id"],
+                    frame["kind"],
+                    frame["method"],
+                    8,
+                    frame["bounds"],
+                    frame["body"],
+                )
+                mutated_frame = entity_read.decode_frame_payload(mutated_payload)
+                self.assertEqual((mutated_frame["version"], mutated_frame["flags"]), (version, 8))
+                supplied = _b2_supplied_with_payload(built, "response", mutated_payload)
+                _b2_expect(self, inputs, case, supplied, "response", "frame_header", code)
+        with self.subTest(variant="hello-valid-control"):
+            scoped = _b1_scoped_inputs()
+            accepted = _b1_build_accepted(scoped)
+            control_problems = []
+            entity_read.check_selection(scoped, accepted, control_problems)
+            self.assertEqual(control_problems, [])
+            row_id, local_inputs, local_accepted = _b2_hello_frame_row(
+                self,
+                scoped,
+                accepted,
+                wire_version=1,
+                expected_version=1,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+            )
+            hello_problems = []
+            entity_read.check_selection(local_inputs, local_accepted, hello_problems)
+            self.assertIsInstance(hello_problems, list)
+            for entry in hello_problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(hello_problems, [])
+            self.assertFalse(_b2_hello_matches(hello_problems, row_id, "frame_header", "PROTOCOL_FRAME_INVALID"))
+        with self.subTest(variant="hello-header-before-body"):
+            scoped = _b1_scoped_inputs()
+            accepted = _b1_build_accepted(scoped)
+            control_problems = []
+            entity_read.check_selection(scoped, accepted, control_problems)
+            self.assertEqual(control_problems, [])
+            row_id, local_inputs, local_accepted = _b2_hello_frame_row(
+                self,
+                scoped,
+                accepted,
+                wire_version=1,
+                expected_version=1,
+                expect="accepted",
+                expected_layer=None,
+                expected_code=None,
+                mutate_flags=1,
+                mutate_body_empty=True,
+            )
+            hello_problems = []
+            entity_read.check_selection(local_inputs, local_accepted, hello_problems)
+            _b2_hello_expect(self, hello_problems, row_id, "frame_header", "PROTOCOL_FRAME_INVALID")
+        hello_mechanics = (
+            ("correct", ["hello_frame:row1:frame_header:PROTOCOL_FRAME_INVALID"], "row1", "frame_header", "PROTOCOL_FRAME_INVALID", True),
+            ("correct-detail", ["hello_frame:row1:frame_header:PROTOCOL_FRAME_INVALID: extra"], "row1", "frame_header", "PROTOCOL_FRAME_INVALID", True),
+            ("wrong-row", ["hello_frame:row2:frame_header:PROTOCOL_FRAME_INVALID"], "row1", "frame_header", "PROTOCOL_FRAME_INVALID", False),
+            ("wrong-layer", ["hello_frame:row1:frame_bounds:PROTOCOL_FRAME_INVALID"], "row1", "frame_header", "PROTOCOL_FRAME_INVALID", False),
+            ("none-correct", ["hello_frame:row1:wire_prefix: mismatch"], "row1", "wire_prefix", None, True),
+            ("nonstring", [None], "row1", "frame_header", "PROTOCOL_FRAME_INVALID", False),
+        )
+        for name, probs, mrow, mlayer, mcode, want in hello_mechanics:
+            with self.subTest(mechanics=name):
+                self.assertEqual(_b2_hello_matches(probs, mrow, mlayer, mcode), want)
 
 
 if __name__ == "__main__":
