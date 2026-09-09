@@ -3988,6 +3988,30 @@ class SuppliedHelloFrameCases(unittest.TestCase):
             for entry in problems:
                 self.assertIsInstance(entry, str)
             self.assertEqual(problems, [])
+        for field in ("expected_layer", "expected_code"):
+            with self.subTest(variant="supplied-absent-field", field=field):
+                local_inputs = copy.deepcopy(full_inputs)
+                local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
+                local_accepted = copy.deepcopy(accepted)
+                mutated = copy.deepcopy(supplied_rows)
+                self.assertIn(field, authored_rows["hello_wire1_expected1"])
+                self.assertIsNone(authored_rows["hello_wire1_expected1"][field])
+                self.assertIn(field, mutated["hello_wire1_expected1"])
+                del mutated["hello_wire1_expected1"][field]
+                self.assertNotIn(field, mutated["hello_wire1_expected1"])
+                for other in ("hello", "wire_version", "expected_version", "expect", "body_hex", "wire_hex", "preimage_hex", "frame_id"):
+                    self.assertEqual(mutated["hello_wire1_expected1"][other], supplied_rows["hello_wire1_expected1"][other])
+                local_accepted["frame_scenarios"] = mutated
+                problems = []
+                entity_read.check_selection(local_inputs, local_accepted, problems)
+                self.assertIsInstance(problems, list)
+                for entry in problems:
+                    self.assertIsInstance(entry, str)
+                with self.subTest(variant="supplied-absent-field", field=field, absence="no-frame-header"):
+                    self.assertFalse(_b2_hello_matches(problems, "hello_wire1_expected1", "frame_header", None))
+                with self.subTest(variant="supplied-absent-field", field=field, absence="no-hello-body"):
+                    self.assertFalse(_b2_hello_matches(problems, "hello_wire1_expected1", "hello_body", None))
+                _b2_hello_expect(self, problems, "hello_wire1_expected1", "scenario_binding", field)
         with self.subTest(variant="omit-one-scenario"):
             local_inputs = copy.deepcopy(full_inputs)
             local_inputs["frame_scenarios"] = copy.deepcopy(authored_rows)
