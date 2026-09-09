@@ -4024,6 +4024,12 @@ class SuppliedHelloFrameCases(unittest.TestCase):
                 local_accepted["frame_scenarios"] = mutated
                 problems = []
                 entity_read.check_selection(local_inputs, local_accepted, problems)
+                if field == "expected_version":
+                    self.assertIsInstance(problems, list)
+                    for entry in problems:
+                        self.assertIsInstance(entry, str)
+                    with self.subTest(variant="supplied-field", field=field, absence="no-frame-header"):
+                        self.assertFalse(_b2_hello_matches(problems, target, "frame_header", None))
                 _b2_hello_expect(self, problems, target, "scenario_binding", field)
         for field in ("body_hex", "preimage_hex", "frame_id"):
             with self.subTest(variant="detached-component", field=field):
@@ -4110,6 +4116,13 @@ class SuppliedHelloFrameCases(unittest.TestCase):
             local_accepted["frame_scenarios"] = mutated
             problems = []
             entity_read.check_selection(local_inputs, local_accepted, problems)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            with self.subTest(variant="different-valid-body", absence="no-hello-body"):
+                self.assertFalse(_b2_hello_matches(problems, target, "hello_body", None))
+            with self.subTest(variant="different-valid-body", absence="no-frame-header"):
+                self.assertFalse(_b2_hello_matches(problems, target, "frame_header", None))
             _b2_hello_expect(self, problems, target, "scenario_binding", "hello")
 
 
