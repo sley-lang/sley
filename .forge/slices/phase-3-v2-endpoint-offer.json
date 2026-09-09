@@ -19,10 +19,11 @@
     },
     {
       "artifact": "",
-      "command": "",
+      "command": "forge handoff ariadne/nabu/vulcan P0 design review rounds 1-5",
       "id": "offer-review",
-      "status": "not_run",
-      "summary": "P0 independent design review (contract/architecture/surface) before runtime changes."
+      "status": "pass",
+      "summary": "Ariadne PASS round 5, Vulcan PASS round 4, Nabu PASS round 2; 12 findings across 5 rounds all incorporated; design REVIEWED_DESIGN",
+      "updated_at": "2026-09-09T14:52:29+00:00"
     },
     {
       "artifact": "",
@@ -101,18 +102,20 @@
   "summary": "ENTITY_READ_PROFILE_V2 reviewed contract 48070373; SMP1 rev 12 declares 306/307 unoffered; ARM_AFFORDANCES v1-pinned; unblocks AT-MW-02 I4b demos",
   "tasks": [
     {
-      "evidence_refs": [],
+      "evidence_refs": [
+        "offer-review"
+      ],
       "id": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "P0: offer design + independent review (Ariadne/Nabu/Vulcan) before runtime changes",
-      "updated_at": "2026-09-09T13:51:17+00:00"
+      "updated_at": "2026-09-09T14:52:29+00:00"
     },
     {
       "evidence_refs": [],
       "id": "P1",
-      "status": "todo",
+      "status": "doing",
       "title": "P1: declare 306 entity.version + 307 entity.signature in SMP1 v2 endpoint offer and SLEY_CLI_V1 surface",
-      "updated_at": "2026-09-09T13:51:17+00:00"
+      "updated_at": "2026-09-09T14:52:29+00:00"
     },
     {
       "evidence_refs": [],
