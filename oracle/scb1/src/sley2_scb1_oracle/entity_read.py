@@ -1898,6 +1898,8 @@ def _admit_frame_header(frame: Mapping[str, Any]) -> None:
         raise CheckFailed("frame_header", "PROTOCOL_DOWNGRADE")
     if frame["version"] > PROTOCOL_VERSION_2:
         raise CheckFailed("frame_header", "PROTOCOL_VERSION_UNSUPPORTED")
+    if frame["kind"] == 4 and frame["version"] != 1:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
     if frame["flags"] & ~0x7:
         raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
     if frame["flags"] & 0x4 and frame["kind"] not in (2, 3):
