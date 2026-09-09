@@ -141,6 +141,7 @@ conformance:
 	uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py
 	uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py
+	uv run --project oracle/scb1 --frozen python scripts/check_entity_read_vectors.py
 	uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py
 	uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json
 	python3 scripts/check_bootstrap_capability.py
