@@ -27,18 +27,18 @@
     },
     {
       "artifact": "",
-      "command": "cargo test -p sley-cli -p sley-json-bridge",
+      "command": "cargo test -p sley-cli -p sley-json-bridge; pytest bench/sley2/tests/test_runner.py bench/accounting/tests/test_report.py",
       "id": "runtime-targeted",
       "status": "pass",
-      "summary": "cli 16 pass (10 legacy byte-identical + 6 profile), bridge 11 pass; clippy and fmt clean",
+      "summary": "P1: cli 16 pass (10 legacy byte-identical + 6 profile), bridge 11 pass; clippy and fmt clean. P2: runner 15 + accounting 8 pass; snapshot digest identical on default path",
       "updated_at": "2026-09-09T15:05:43+00:00"
     },
     {
       "artifact": "",
-      "command": "check_cli_contract + check_cli_rules + check_smp1_contract + test_smp1_contract + test_current_contract_review + bridge tables v1/v2 --check + required index",
+      "command": "check_cli_contract + check_cli_rules + check_smp1_contract + test_smp1_contract + test_current_contract_review + bridge tables v1/v2 --check + required index + check_sley2_trial_runner",
       "id": "static-targeted",
       "status": "pass",
-      "summary": "all PASS; note: check_error_symbol_registration FAILs identically on pristine base (pre-existing drift, out of scope)",
+      "summary": "all PASS (P1 and P2 incl. runner rev-4 checker); note: check_error_symbol_registration FAILs identically on pristine base (pre-existing drift, out of scope)",
       "updated_at": "2026-09-09T15:05:43+00:00"
     }
   ],
@@ -123,18 +123,21 @@
       "updated_at": "2026-09-09T15:05:43+00:00"
     },
     {
-      "evidence_refs": [],
+      "evidence_refs": [
+        "runtime-targeted",
+        "static-targeted"
+      ],
       "id": "P2",
-      "status": "doing",
+      "status": "done",
       "title": "P2: admit 306/307 in SLEY2_TRIAL_RUNNER_V1 ARM_AFFORDANCES allowlist, v1 pin behavior preserved",
-      "updated_at": "2026-09-09T15:05:43+00:00"
+      "updated_at": "2026-09-09T15:08:10+00:00"
     },
     {
       "evidence_refs": [],
       "id": "P3",
-      "status": "todo",
+      "status": "doing",
       "title": "P3: runner v2 path (profile serve + selected-version stamping), positive-admission coverage, live 306/307 round trip, table re-verification",
-      "updated_at": "2026-09-09T13:51:17+00:00"
+      "updated_at": "2026-09-09T15:08:10+00:00"
     },
     {
       "evidence_refs": [],

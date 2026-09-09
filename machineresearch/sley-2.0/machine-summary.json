@@ -2724,8 +2724,8 @@
   },
   "sley2_trial_runner": {
     "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
-    "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 3,
+ "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+ "contract_revision": 4,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",

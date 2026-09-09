@@ -421,7 +421,7 @@ class ArmAffordanceTests(unittest.TestCase):
 
     def test_allowlist_and_denylist_together_cover_the_smp1_table(self):
         table = json.loads(
-            (Path(__file__).resolve().parents[3] / "conformance/smp1-json-bridge/v1/methods.json").read_text()
+            (Path(__file__).resolve().parents[3] / "conformance/smp1-json-bridge/v2/methods.json").read_text()
         )
         entries = table["methods"] if isinstance(table, dict) else table
         names = {entry["name"] if isinstance(entry, dict) else entry for entry in entries}
@@ -429,6 +429,18 @@ class ArmAffordanceTests(unittest.TestCase):
         # A method the table gains must be placed deliberately on one side.
         self.assertEqual(names - covered, set(), "SMP1 method neither allowed nor denied")
         self.assertEqual(covered - names, set(), "allowlist names a method SMP1 does not have")
+        # Positive admission: the two version 2 entity reads are allowed,
+        # not denied, and absent from the version 1 table.
+        v1_table = json.loads(
+            (Path(__file__).resolve().parents[3] / "conformance/smp1-json-bridge/v1/methods.json").read_text()
+        )
+        v1_entries = v1_table["methods"] if isinstance(v1_table, dict) else v1_table
+        v1_names = {entry["name"] if isinstance(entry, dict) else entry for entry in v1_entries}
+        for name in ("entity.version", "entity.signature"):
+            self.assertIn(name, runner.ARM_AFFORDANCES)
+            self.assertNotIn(name, runner.ARM_DENIED_METHODS)
+            self.assertIn(name, names)
+            self.assertNotIn(name, v1_names)
 
     def test_the_digest_is_a_control_that_moves_when_the_allowlist_does(self):
         before = runner.arm_affordances_digest()

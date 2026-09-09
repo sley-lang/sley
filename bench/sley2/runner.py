@@ -100,6 +100,8 @@ ARM_AFFORDANCES = (
     "candidate.validate",
     "capsule",
     "compare",
+    "entity.signature",
+    "entity.version",
     "handle.expand",
     "query.continue",
     "query.restricted",
@@ -873,6 +875,11 @@ def run_scripted_trial(
 ) -> dict[str, Any]:
     """Run one trial: seed, open, hand the agent its handle, trace, claim."""
 
+    # One immutable snapshot binds the whole trial: the guard, the handle,
+    # and the claim digest below all use this tuple, so a caller that
+    # mutates its list mid-trial cannot split exercised admission from the
+    # claimed digest.
+    admitted = tuple(affordances)
     manifest = _read_manifest_exact(run_directory)
     run_manifest_digest = manifest_digest(manifest)
     arm_directory = _arm_directory(run_directory)
@@ -955,7 +962,7 @@ def run_scripted_trial(
         method = request.get("method")
         body = request.get("body", "")
         cancel = bool(request.get("cancel", False))
-        if method not in affordances:
+        if method not in admitted:
             refuse(Sley2ErrorCode.FRAME_INVALID, f"method {method!r}")
         if not isinstance(body, str) or len(body) % 2 or any(ch not in "0123456789abcdef" for ch in body):
             refuse(Sley2ErrorCode.FRAME_INVALID, "body")
@@ -977,7 +984,7 @@ def run_scripted_trial(
         if opened["flags"].get("failed") or not isinstance(opened.get("body"), str) or HEX_64.fullmatch(opened["body"]) is None:
             _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "session.open refused")
         state["session"] = opened["body"]
-        handle = EndpointHandle(guarded_exchange, affordances)
+        handle = EndpointHandle(guarded_exchange, admitted)
         if handle_surface(handle) != HANDLE_SURFACE:
             _fail(Sley2ErrorCode.PRIVILEGED_CONTEXT, "handle surface")
         # The declared surface is not the whole reachable surface: a bound
@@ -1055,7 +1062,7 @@ def run_scripted_trial(
     metrics["accepted_change_tokens"] = None
     claim = {
         "accounting_verification_status": VERIFICATION_STATUS,
-        "arm_affordances_digest": arm_affordances_digest(),
+        "arm_affordances_digest": _canonical_sha256(list(admitted)),
         "arm_id": ARM,
         "contract": CLAIM_CONTRACT,
         "endpoint_sha256": endpoint_digest,

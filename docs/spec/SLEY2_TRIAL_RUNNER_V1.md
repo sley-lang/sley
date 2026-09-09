@@ -1,10 +1,13 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 3 (2026-09-04); Council review
+Status: S20-620 contract draft, revision 4 (2026-09-09); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
 with the cooperative-adapter trust boundary the round showed it to be.
+Revision 4 admits `entity.version` and `entity.signature` to
+`ARM_AFFORDANCES` (eighteen names) and binds the claim digest to the
+per-trial immutable snapshot; the two names require a version 2 offer.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
@@ -250,7 +253,11 @@ provenance; publication; runtime, packaging, release, or GA.
   entire-store dump is what master goal 20.10 forbids. The arm's affordances
   are the frozen `ARM_AFFORDANCES` allowlist, and `arm_affordances_digest` is a
   run control carried in every claim, so a run that widened the arm's reach is
-  visible in the record rather than inferred from the binary. A name the
+  visible in the record rather than inferred from the binary. The allowlist
+  holds eighteen names: the sixteen version 1 methods plus `entity.version`
+  and `entity.signature`. Those two require a version 2 endpoint offer
+  (SLEY_CLI_V1 section 9 profile): under a version 1 offer the handshake
+  fails exactly as for any unoffered name. A name the
   allowlist claims that the endpoint does not offer is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
@@ -260,7 +267,10 @@ provenance; publication; runtime, packaging, release, or GA.
   with `SLEY2_SMOKE_NO_TASK_ATTEMPTED`; a capsule round trip joins the
   script once a request builder is reachable through the endpoint.
 - A claim carries `arm_affordances_digest`, the canonical digest of the
-  allowlist the trial ran under.
+  allowlist the trial ran under: the trial snapshots its affordance list
+  once into an immutable tuple before execution, and the guard, the
+  handle, and the claim digest all use that snapshot, so a mutated input
+  list cannot split exercised admission from the claimed digest.
 - A claim's `handshake_id`, `report_digest`, `model_output_digest`, and
   `oracle_report_digest` may be null only for timeouts and harness
   failures; `trace_record_count` is at least two (header and footer).
