@@ -2315,6 +2315,9 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                 ("kind-5", {"kind": 5}, "PROTOCOL_FRAME_INVALID"),
                 ("version-1-flag-8", {"version": 1, "flags": 8}, "PROTOCOL_DOWNGRADE"),
                 ("version-3-flag-8", {"version": 3, "flags": 8}, "PROTOCOL_VERSION_UNSUPPORTED"),
+                ("kind-4", {"kind": 4}, "PROTOCOL_FRAME_INVALID"),
+                ("kind-4-version-1", {"version": 1, "kind": 4}, "PROTOCOL_DOWNGRADE"),
+                ("kind-4-version-3", {"version": 3, "kind": 4}, "PROTOCOL_VERSION_UNSUPPORTED"),
             ]
             if side == "request":
                 rows.append(("flag-4", {"flags": 4}, "PROTOCOL_FRAME_INVALID"))
