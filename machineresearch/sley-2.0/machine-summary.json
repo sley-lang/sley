@@ -49,14 +49,14 @@
     "canonical_spec": {
       "path": "/home/greyforge/machineresearch/Sley2.0mastergoal.md",
       "name": "Sley 2.0 Machine Genesis master goal",
-      "sha256": "e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9",
+      "sha256": "077913685537541154a6da758fd64a9997d9e023952ba03e28527a5bfd74aace",
       "in_repo_dossier": "machineresearch/sley-2.0/",
       "override_env": "SLEY2_MASTER_GOAL"
     },
     "reweave_master": {
       "path": "/home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md",
       "revision": "REWEAVE-1.0",
-      "sha256": "61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63",
+      "sha256": "9cb4e7f4e6ed2dd4262404015a4bf4b6ed142b07318f36668141d36c1e2e1d6a",
       "adoption": "docs/adr/ADR-0049-reweave-scope-adoption.md",
       "override_env": "SLEY2_REWEAVE_MASTER"
     },
@@ -123,7 +123,7 @@
       "repository": "origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror",
       "state": "main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision"
     },
-    "last_updated_utc": "2026-09-08T11:15:00Z"
+    "last_updated_utc": "2026-09-09T13:58:26Z"
   },
   "publication_authorized": false,
   "scb1": {

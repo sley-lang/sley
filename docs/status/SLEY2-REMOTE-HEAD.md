@@ -10,8 +10,8 @@ Active REWEAVE / campaign lanes:
 - arch-tighten: arch/tighten-r1 (owner architecture-tightening campaign (integrator); closed 2026-09-08; merged to main by fast-forward at d2ba96c2; open item AT-MW-02 owned by S20-410)
 - lane3 RW-080: lane3/rw080-lower-scaffold-f1, lane3/rw080-f6f7-vm, lane3/rw080-checker-scaffold (owner RW-080 codec construction (Ariadne lane); provisional slices 1 to 7 on main under the 2026-09-07 operator override; BLOCKED, not authority)
 - lane2 S20-770: lane2/s20770-council-rereview-r1, lane2/s20770-acceptance-closeout-r1 (owner required-contract index (Ariadne package); Council re-review in progress; not merged)
-Current canonical Sley 2.0 spec path: `/home/greyforge/machineresearch/Sley2.0mastergoal.md` (sha256 `e26eed88167a3ef47472e3b2eea13b7d42c4bdb1befc3cbeca16c28501a350b9`; in-repo dossier `machineresearch/sley-2.0/`)
-Current REWEAVE master path: `/home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md` (sha256 `61d20471906b00fab05a9e0f174ad9c616e734a5f38fd590ed44af2533535a63`; adopted by `docs/adr/ADR-0049-reweave-scope-adoption.md`)
+Current canonical Sley 2.0 spec path: `/home/greyforge/machineresearch/Sley2.0mastergoal.md` (sha256 `077913685537541154a6da758fd64a9997d9e023952ba03e28527a5bfd74aace`; in-repo dossier `machineresearch/sley-2.0/`)
+Current REWEAVE master path: `/home/greyforge/machineresearch/SLEY_2X_REWEAVE_MASTER_SPEC_V1.md` (sha256 `9cb4e7f4e6ed2dd4262404015a4bf4b6ed142b07318f36668141d36c1e2e1d6a`; adopted by `docs/adr/ADR-0049-reweave-scope-adoption.md`)
 Current schema epoch: `ae5b235713b46c04f73c1decd0fb0bb57c5557d0fe89dae7ddac4a7dba25564e` (SSMC1 epoch 1 (bootstrap SchemaEpochId))
 Current host ABI: HOST_ABI_V2 (`sley2-host-abi-2`, digest `bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5`)
 Current execution-package version: EXEC_PACKAGE_V2 (`sley2-exec-package-2`, digest `f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94`)
@@ -29,6 +29,6 @@ Known blocked gates:
 - Operator gates: narrowed schema-epoch decision, succession trials, root license text, second-host attestation, release decision; publication_authorized false
 - Open 2.0 requirement gap AT-MW-02: master 8.2 GetEntityVersion/GetSignature have no SMP1 method; owned by S20-410 under an SMP1 revision
 Remote: origin = private working repository under the same GitHub organization (URL in git remote -v; the name carries the clean-room sentinel substring and is not spelled here); mirror = the public sanitized mirror (main, arch/tighten-r1 and the lane branches pushed to the private origin on 2026-09-08 (AT-RF-01 resolved by operator instruction); the public mirror keeps its unrelated sanitized history and is refreshed only by the mirror pipeline under a publication decision)
-Last updated UTC: 2026-09-08T11:15:00Z
+Last updated UTC: 2026-09-09T13:58:26Z
 
 Verification at render time: PASS
