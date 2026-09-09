@@ -982,6 +982,100 @@ def build_hello(hello: Mapping[str, Any]) -> bytes:
     )
 
 
+def _decode_hello_u32_list(payload: bytes) -> list[int]:
+    reader = Reader(payload)
+    count = reader.uvar(64)
+    if count > 4096:
+        raise ScbError("SCB_RESOURCE_LIMIT")
+    values: list[int] = []
+    for _ in range(count):
+        element = reader.sized(MAX_STANDALONE_BYTES)
+        values.append(decode_uvar_exact(element, 32))
+    reader.finish()
+    return values
+
+
+def _decode_hello_identity_list(payload: bytes) -> list[bytes]:
+    reader = Reader(payload)
+    count = reader.uvar(64)
+    if count > 4096:
+        raise ScbError("SCB_RESOURCE_LIMIT")
+    items: list[bytes] = []
+    for _ in range(count):
+        element = reader.sized(MAX_STANDALONE_BYTES)
+        items.append(decode_fixed32(element))
+    reader.finish()
+    return items
+
+
+def _decode_supplied_hello(body: bytes) -> dict[str, Any]:
+    fields = parse_record(body)
+    exact_fields(fields, [1, 2, 3, 4, 5, 6, 7])
+    versions = _decode_hello_u32_list(single_field(fields, 1))
+    epoch_raws = _decode_hello_identity_list(single_field(fields, 2))
+    limits = decode_limit_profile(single_field(fields, 3))
+    methods = _decode_hello_u32_list(single_field(fields, 4))
+    features = decode_uvar_exact(single_field(fields, 5), 32)
+    adapter_raws = _decode_hello_identity_list(single_field(fields, 6))
+    effect_raws = _decode_hello_identity_list(single_field(fields, 7))
+    hello = {
+        "protocol_versions": versions,
+        "schema_epochs": [b.hex() for b in epoch_raws],
+        "limits": limits,
+        "methods": methods,
+        "features": features,
+        "adapters": [b.hex() for b in adapter_raws],
+        "effects": [b.hex() for b in effect_raws],
+    }
+    try:
+        decoded_ids = _validate_hello_offer(hello)
+    except CheckFailed as error:
+        raise CheckFailed("hello_body", error.detail) from error
+    return {"hello": hello, "epochs": decoded_ids["schema_epochs"]}
+
+
+def _admit_hello_frame(frame: Mapping[str, Any], expected_version: Any) -> None:
+    if isinstance(expected_version, bool) or not isinstance(expected_version, int):
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    version = frame["version"]
+    if version < expected_version:
+        raise CheckFailed("frame_header", "PROTOCOL_DOWNGRADE")
+    if version > expected_version:
+        raise CheckFailed("frame_header", "PROTOCOL_VERSION_UNSUPPORTED")
+    if version != 1:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["kind"] != 4:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["session"] is not None:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["request_id"] != 0:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["method"] != 0:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["flags"] != 0:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+
+
+def _reconstruct_hello_row(inputs: Mapping[str, Any], authored_row: Mapping[str, Any]) -> tuple[bytes, bytes, bytes, bytes] | None:
+    try:
+        hellos = inputs.get("hellos")
+        if not isinstance(hellos, Mapping):
+            return None
+        offer = hellos.get(authored_row.get("hello"))
+        if not isinstance(offer, Mapping):
+            return None
+        body = build_hello(offer)
+        wire_version = authored_row.get("wire_version")
+        if isinstance(wire_version, bool) or not isinstance(wire_version, int):
+            return None
+        bounds = zero_bounds()
+        payload = build_frame_payload(wire_version, None, 0, 4, 0, 0, bounds, body)
+        wire, preimage, frame_id = build_envelope(protocol_epoch_id(), payload)
+        return body, wire, preimage, frame_id
+    except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 def build_selected(selection: Mapping[str, Any]) -> bytes:
     return encode_record(
         [
@@ -2190,6 +2284,155 @@ def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Ma
             problems.append(f"{case_id}:semantic:response:component_binding:{key}")
 
 
+_FRAME_SCENARIO_AUTHORED = frozenset({"hello", "wire_version", "expected_version", "expect", "expected_layer", "expected_code"})
+_FRAME_SCENARIO_EXTRA = frozenset({"body_hex", "wire_hex", "preimage_hex", "frame_id"})
+
+
+def _check_single_hello_row(inputs: Mapping[str, Any], row_id: str, authored_row: Mapping[str, Any], supplied_row: Mapping[str, Any], problems: list[str]) -> None:
+    for field in ("hello", "wire_version", "expected_version", "expect", "expected_layer", "expected_code"):
+        try:
+            same = _same_value(authored_row.get(field), supplied_row.get(field))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            same = False
+        if not same:
+            problems.append(f"hello_frame:{row_id}:scenario_binding:{field}")
+    try:
+        supplied_keys = set(supplied_row.keys())
+    except (ValueError, KeyError, TypeError, AttributeError):
+        problems.append(f"hello_frame:{row_id}:scenario_binding:fields")
+        return
+    expected_keys = set(_FRAME_SCENARIO_AUTHORED) | set(_FRAME_SCENARIO_EXTRA)
+    if supplied_keys != expected_keys:
+        for extra in sorted(supplied_keys - expected_keys, key=str):
+            problems.append(f"hello_frame:{row_id}:scenario_binding:{extra}")
+    authored_expected = authored_row.get("expected_version")
+    wire: bytes | None = None
+    stored: bytes | None = None
+    frame: dict[str, Any] | None = None
+    semantic: tuple[str, str] | None = None
+    hello_valid = False
+    try:
+        raw_hex = supplied_row.get("wire_hex")
+        if not isinstance(raw_hex, str):
+            raise CheckFailed("wire_prefix", "missing wire hex")
+        try:
+            wire = bytes.fromhex(raw_hex)
+        except ValueError as error:
+            raise CheckFailed("wire_prefix", "wire hex decode failed") from error
+        selected = inputs.get("selected_limits") if isinstance(inputs, Mapping) else None
+        ceiling = selected.get("max_frame_bytes") if isinstance(selected, Mapping) else None
+        if isinstance(ceiling, bool) or not isinstance(ceiling, int):
+            raise CheckFailed("wire_prefix", "malformed supplied record")
+        try:
+            stored, _prefix = split_wire(wire, ceiling)
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        try:
+            payload, trailer = check_envelope(stored, protocol_epoch_id())
+        except ScbError as error:
+            raise CheckFailed("frame_envelope", error.code) from error
+        try:
+            frame = decode_frame_payload(payload)
+        except ScbError as error:
+            raise CheckFailed("frame_payload", error.code) from error
+        if frame["kind"] not in (1, 2, 3, 4):
+            raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+        try:
+            decode_bounds(frame["bounds"])
+        except ScbError as error:
+            raise CheckFailed("frame_bounds", error.code) from error
+        try:
+            _admit_hello_frame(frame, authored_expected)
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        try:
+            _decode_supplied_hello(frame["body"])
+        except ScbError as error:
+            raise CheckFailed("hello_body", error.code) from error
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        hello_valid = True
+    except CheckFailed as error:
+        semantic = (error.layer, error.detail)
+    except (KeyError, TypeError, AttributeError, ValueError):
+        semantic = ("wire_prefix", "malformed supplied record")
+    authored_expect = authored_row.get("expect")
+    authored_layer = authored_row.get("expected_layer")
+    authored_code = authored_row.get("expected_code")
+    if semantic is not None:
+        if authored_expect == "accepted":
+            problems.append(f"hello_frame:{row_id}:{semantic[0]}:{semantic[1]}")
+        elif authored_expect == "rejected":
+            if semantic[0] == authored_layer and _same_value(semantic[1], authored_code):
+                pass
+            else:
+                problems.append(f"hello_frame:{row_id}:{semantic[0]}:{semantic[1]}")
+        else:
+            problems.append(f"hello_frame:{row_id}:scenario_binding:expect")
+    else:
+        if authored_expect == "rejected":
+            problems.append(f"hello_frame:{row_id}:scenario_binding:expect")
+        elif authored_expect != "accepted":
+            problems.append(f"hello_frame:{row_id}:scenario_binding:expect")
+    reconstructed = _reconstruct_hello_row(inputs, authored_row)
+    if reconstructed is None:
+        return
+    expected_body, expected_wire, expected_preimage, expected_frame_id = reconstructed
+    for field, expected_value in (
+        ("body_hex", expected_body.hex()),
+        ("wire_hex", expected_wire.hex()),
+        ("preimage_hex", expected_preimage.hex()),
+        ("frame_id", expected_frame_id.hex()),
+    ):
+        try:
+            same = _same_value(supplied_row.get(field), expected_value)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            same = False
+        if not same:
+            problems.append(f"hello_frame:{row_id}:scenario_binding:{field}")
+    if wire is not None and stored is not None and frame is not None:
+        actual_body = frame["body"]
+        actual_preimage = stored[:-32]
+        actual_trailer = stored[-32:]
+        for field, actual_value in (
+            ("body_hex", actual_body.hex()),
+            ("preimage_hex", actual_preimage.hex()),
+            ("frame_id", actual_trailer.hex()),
+        ):
+            try:
+                same = _same_value(supplied_row.get(field), actual_value)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                same = False
+            if not same:
+                problems.append(f"hello_frame:{row_id}:component_binding:{field}")
+        if hello_valid and actual_body != expected_body:
+            problems.append(f"hello_frame:{row_id}:scenario_binding:hello")
+
+
+def _check_frame_scenarios(inputs: Mapping[str, Any], accepted: Mapping[str, Any], problems: list[str]) -> None:
+    authored_has = isinstance(inputs, Mapping) and "frame_scenarios" in inputs
+    supplied_has = isinstance(accepted, Mapping) and "frame_scenarios" in accepted
+    if not authored_has and not supplied_has:
+        return
+    authored = inputs.get("frame_scenarios") if isinstance(inputs, Mapping) else None
+    supplied = accepted.get("frame_scenarios") if isinstance(accepted, Mapping) else None
+    if not isinstance(authored, Mapping) or not isinstance(supplied, Mapping):
+        problems.append("accepted:frame_scenarios:inventory")
+        return
+    if set(supplied.keys()) != set(authored.keys()):
+        problems.append("accepted:frame_scenarios:inventory")
+    for row_id in sorted(set(authored.keys()) & set(supplied.keys()), key=str):
+        authored_row = authored.get(row_id)
+        supplied_row = supplied.get(row_id)
+        if not isinstance(row_id, str) or not isinstance(authored_row, Mapping) or not isinstance(supplied_row, Mapping):
+            problems.append(f"hello_frame:{row_id}:scenario_binding:fields")
+            continue
+        if set(authored_row.keys()) != set(_FRAME_SCENARIO_AUTHORED):
+            problems.append(f"hello_frame:{row_id}:scenario_binding:fields")
+            continue
+        _check_single_hello_row(inputs, row_id, authored_row, supplied_row, problems)
+
+
 def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], problems: list[str]) -> None:
     raw_hellos = inputs.get("hellos", {})
     authored_hellos = raw_hellos if isinstance(raw_hellos, Mapping) else {}
@@ -2283,6 +2526,7 @@ def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], prob
             problems.append(f"selection:{name}:adapters")
         if not _same_value(selection["effects"], candidate.get("effects")):
             problems.append(f"selection:{name}:effects")
+    _check_frame_scenarios(inputs, accepted, problems)
 
 
 _REJECTED_CONTRACT = "sley2-entity-read-v2-rejected"
