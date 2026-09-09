@@ -2291,7 +2291,7 @@ _FRAME_SCENARIO_EXTRA = frozenset({"body_hex", "wire_hex", "preimage_hex", "fram
 def _check_single_hello_row(inputs: Mapping[str, Any], row_id: str, authored_row: Mapping[str, Any], supplied_row: Mapping[str, Any], problems: list[str]) -> None:
     for field in ("hello", "wire_version", "expected_version", "expect", "expected_layer", "expected_code"):
         try:
-            same = _same_value(authored_row.get(field), supplied_row.get(field))
+            same = field in supplied_row and _same_value(authored_row.get(field), supplied_row.get(field))
         except (ValueError, KeyError, TypeError, AttributeError):
             same = False
         if not same:
