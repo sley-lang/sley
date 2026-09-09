@@ -1182,10 +1182,6 @@ def _b1_build_accepted(scoped):
         "selections": selections,
     }
     if "frame_scenarios" in scoped:
-        # Additive S4-TI1 compatibility only: when the supplied input mapping
-        # carries the authored frame matrix, stage its supplied rows from the
-        # test-owned literal metadata with the low-level encoders, never the
-        # production scenario emitter. Inert while tracked inputs omit it.
         matrix = {}
         offer = scoped["hellos"]["hello_v2_client"]
         for key, wire_version, expected_version, expect, expected_layer, expected_code in _B2_T4_MATRIX:
