@@ -1960,7 +1960,7 @@ def _bind_request_body(inputs: Mapping[str, Any], case: Mapping[str, Any], decod
             raise CheckFailed("request_binding", key)
 
 
-def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], supplied: Mapping[str, Any], side: str) -> None:
+def _decode_actual_frame(inputs: Mapping[str, Any], supplied: Mapping[str, Any], side: str) -> dict[str, Any]:
     raw = supplied.get(f"{side}_wire_hex") if isinstance(supplied, Mapping) else None
     if not isinstance(raw, str):
         raise CheckFailed("wire_prefix", "missing wire hex")
@@ -1970,7 +1970,7 @@ def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], sup
         raise CheckFailed("wire_prefix", "wire hex decode failed") from error
     stored, _prefix = split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
     try:
-        payload, _trailer = check_envelope(stored, protocol_epoch_id())
+        payload, trailer = check_envelope(stored, protocol_epoch_id())
     except ScbError as error:
         raise CheckFailed("frame_envelope", error.code) from error
     try:
@@ -1981,6 +1981,21 @@ def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], sup
         bounds = decode_bounds(frame["bounds"])
     except ScbError as error:
         raise CheckFailed("frame_bounds", error.code) from error
+    return {
+        "wire": wire,
+        "stored": stored,
+        "preimage": stored[:-32],
+        "trailer": trailer,
+        "payload": payload,
+        "frame": frame,
+        "bounds": bounds,
+    }
+
+
+def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], supplied: Mapping[str, Any], side: str) -> dict[str, Any]:
+    admitted = _decode_actual_frame(inputs, supplied, side)
+    frame = admitted["frame"]
+    bounds = admitted["bounds"]
     _admit_frame_header(frame)
     _bind_frame(inputs, case, frame, side)
     if side == "request":
@@ -1988,52 +2003,191 @@ def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], sup
         _bind_request_body(inputs, case, _decode_supplied_request(inputs, frame["body"]))
     else:
         _check_response_applied_limits(bounds, inputs["selected_limits"])
+    return admitted
+
+
+def _required_response_k(case: Mapping[str, Any]) -> int:
+    signature = case.get("signature")
+    if isinstance(signature, Mapping) and isinstance(signature.get("parameters"), list):
+        return 1 + len(signature["parameters"])
+    objects = case.get("objects")
+    if isinstance(objects, list):
+        return len(objects)
+    raise CheckFailed("count", "missing authored order")
+
+
+def _check_actual_counts(response: Mapping[str, Any], bounds: Mapping[str, Any], body_len: int, required_k: int) -> None:
+    actual_k = len(response["entries"])
+    if actual_k != required_k:
+        raise CheckFailed("count", "entry count mismatch")
+    if bounds["returned_entities"] != actual_k:
+        raise CheckFailed("count", "bounds entity count mismatch")
+    if bounds["returned_bytes"] != body_len:
+        raise CheckFailed("count", "bounds byte count mismatch")
+    if bounds["returned_edges"] != 0 or bounds["reached_depth"] != 0 or bounds["omitted"] != 0:
+        raise CheckFailed("count", "nonzero edge/depth/omitted")
+    if bounds["truncated"] or bounds["continuation"]:
+        raise CheckFailed("count", "truncated/continuation must be false")
+
+
+def _authenticate_actual_entries(entry_blobs: list[bytes], content_epoch: bytes) -> tuple[list[dict[str, Any]], list[bytes], int]:
+    metas: list[dict[str, Any]] = []
+    bodies: list[bytes] = []
+    total_b = 0
+    for raw in entry_blobs:
+        try:
+            entry = decode_response_entry(raw)
+        except ScbError as error:
+            raise CheckFailed("object_envelope", error.code) from error
+        try:
+            object_record, _trailer = decode_stored_envelope(entry["stored"], content_epoch)
+        except ScbError as error:
+            raise CheckFailed("object_envelope", error.code) from error
+        try:
+            stored = decode_stored_record(object_record)
+        except ScbError as error:
+            raise CheckFailed("object_record", error.code) from error
+        stored["object_id"] = entry["stored"][-32:]
+        if entry["entity"] != stored["entity_id"] or entry["kind"] != stored["kind"] or entry["object_id"] != stored["object_id"]:
+            raise CheckFailed("entry_binding", "entry claim disagrees with stored object")
+        metas.append(entry)
+        bodies.append(stored["body"])
+        total_b += len(entry["stored"])
+    return metas, bodies, total_b
+
+
+def _check_actual_resources(actual_k: int, body_len: int, actual_w: int, case: Mapping[str, Any], selected: Mapping[str, Any]) -> None:
+    request = case["request"]
+    if actual_k > int(request["max_objects"]) or actual_k > int(selected["max_entities"]):
+        raise CheckFailed("response_range", "max_objects")
+    if body_len > int(request["max_response_bytes"]) or body_len > int(selected["max_response_bytes"]):
+        raise CheckFailed("response_range", "max_response_bytes")
+    if actual_w > int(request["max_work"]) or actual_w > int(selected["max_work"]):
+        raise CheckFailed("response_range", "max_work")
+
+
+def _check_outgoing_ceiling(actual_wire: bytes, selected: Mapping[str, Any]) -> None:
+    if len(actual_wire) > int(selected["max_frame_bytes"]):
+        raise CheckFailed("outgoing_wire_ceiling", "full wire exceeds selected ceiling")
 
 
 def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Mapping[str, Any], problems: list[str]) -> None:
     case_id = case.get("id", "?") if isinstance(case, Mapping) else "?"
-    response_admitted = True
+    request_admitted: dict[str, Any] | None = None
+    response_admitted: dict[str, Any] | None = None
+    response_failed = False
     for side in ("request", "response"):
         try:
-            _admit_supplied_side(inputs, case, built, side)
+            admitted = _admit_supplied_side(inputs, case, built, side)
+            if side == "request":
+                request_admitted = admitted
+            else:
+                response_admitted = admitted
         except CheckFailed as error:
             problems.append(f"{case_id}:semantic:{side}:{error.layer}:{error.detail}")
             if side == "response":
-                response_admitted = False
+                response_failed = True
         except (KeyError, TypeError, AttributeError):
             problems.append(f"{case_id}:semantic:{side}:wire_prefix:malformed supplied record")
             if side == "response":
-                response_admitted = False
-    if not response_admitted:
+                response_failed = True
+    if response_failed or response_admitted is None:
         return
-    if not isinstance(built, Mapping) or not isinstance(built.get("response_body_hex"), str):
-        return
-    context = inputs["context"]
     try:
-        response = decode_response_body(bytes.fromhex(built["response_body_hex"]))
-        bounds = decode_bounds(
-            build_bounds(inputs["selected_limits"], len(bytes.fromhex(built["response_body_hex"])), built["count_k"])
-        )
-        check_context(response, context, bytes.fromhex(inputs["entities"][case["entity"]]["id"]))
-        check_counts(response, built["count_k"], len(bytes.fromhex(built["response_body_hex"])), bounds)
-        check_work(response, built["count_k"], derived_lookup_l(inputs), built["stored_b"], int(case["request"]["max_response_bytes"]))
-        entries = [decode_response_entry(raw) for raw in response["entries"]]
-        bodies: list[bytes] = []
-        for entry in entries:
-            decoded = check_stored_object(entry["stored"], entry["kind"], entry["entity"], bytes.fromhex(context["content_epoch"]))
-            bodies.append(decoded["body"])
+        context = inputs["context"]
+        content_epoch = bytes.fromhex(context["content_epoch"])
+        requested = bytes.fromhex(inputs["entities"][case["entity"]]["id"])
+        actual_body = response_admitted["frame"]["body"]
+        actual_bounds = response_admitted["bounds"]
+        actual_wire = response_admitted["wire"]
+        try:
+            response = decode_response_body(actual_body)
+        except ScbError as error:
+            raise CheckFailed("response_record", error.code) from error
+        try:
+            check_context(response, context, requested)
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        required_k = _required_response_k(case)
+        try:
+            _check_actual_counts(response, actual_bounds, len(actual_body), required_k)
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        metas, bodies, actual_b = _authenticate_actual_entries(response["entries"], content_epoch)
+        actual_k = len(metas)
+        try:
+            lookup_l = derived_lookup_l(inputs)
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
+        try:
+            check_work(response, actual_k, lookup_l, actual_b, int(case["request"]["max_response_bytes"]))
+        except CheckFailed as error:
+            raise CheckFailed(error.layer, error.detail) from error
         if case.get("signature") is not None:
-            sig = case["signature"]
-            expected_types = [encode_mutation_value("TypeExpr", inputs["signature_types"][ref]) for ref in sig["parameters"]]
-            check_signature(
-                entries,
-                bodies,
-                bytes.fromhex(inputs["entities"][sig["function"]]["id"]),
-                [bytes.fromhex(inputs["entities"][ref]["id"]) for ref in sig["parameters"]],
-                expected_types,
-            )
-    except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError) as error:
-        problems.append(f"{case.get('id', '?') if isinstance(case, Mapping) else '?'}:semantic:{error}")
+            signature = case["signature"]
+            expected_types = [encode_mutation_value("TypeExpr", inputs["signature_types"][ref]) for ref in signature["parameters"]]
+            function_id = bytes.fromhex(inputs["entities"][signature["function"]]["id"])
+            parameter_ids = [bytes.fromhex(inputs["entities"][ref]["id"]) for ref in signature["parameters"]]
+            try:
+                check_signature(metas, bodies, function_id, parameter_ids, expected_types)
+            except CheckFailed as error:
+                raise CheckFailed(error.layer, error.detail) from error
+            except ScbError as error:
+                raise CheckFailed("signature", error.code) from error
+        _check_actual_resources(actual_k, len(actual_body), response["work"], case, inputs["selected_limits"])
+        _check_outgoing_ceiling(actual_wire, inputs["selected_limits"])
+    except CheckFailed as error:
+        problems.append(f"{case_id}:semantic:response:{error.layer}:{error.detail}")
+        return
+    except (KeyError, TypeError, AttributeError, ValueError):
+        problems.append(f"{case_id}:semantic:response:wire_prefix:malformed supplied record")
+        return
+    if not isinstance(built, Mapping):
+        problems.append(f"{case_id}:semantic:response:component_binding:record")
+        return
+    if request_admitted is not None:
+        request_frame = request_admitted["frame"]
+        for key, actual_bytes in (
+            ("request_body_hex", request_frame["body"]),
+            ("request_preimage_hex", request_admitted["preimage"]),
+            ("request_frame_id", request_admitted["trailer"]),
+        ):
+            candidate = built.get(key)
+            if not isinstance(candidate, str):
+                problems.append(f"{case_id}:semantic:request:component_binding:{key}")
+                continue
+            try:
+                candidate_bytes = bytes.fromhex(candidate)
+            except ValueError:
+                problems.append(f"{case_id}:semantic:request:component_binding:{key}")
+                continue
+            if candidate_bytes != actual_bytes:
+                problems.append(f"{case_id}:semantic:request:component_binding:{key}")
+    for key, actual_bytes in (
+        ("response_body_hex", actual_body),
+        ("response_preimage_hex", response_admitted["preimage"]),
+        ("response_frame_id", response_admitted["trailer"]),
+    ):
+        candidate = built.get(key)
+        if not isinstance(candidate, str):
+            problems.append(f"{case_id}:semantic:response:component_binding:{key}")
+            continue
+        try:
+            candidate_bytes = bytes.fromhex(candidate)
+        except ValueError:
+            problems.append(f"{case_id}:semantic:response:component_binding:{key}")
+            continue
+        if candidate_bytes != actual_bytes:
+            problems.append(f"{case_id}:semantic:response:component_binding:{key}")
+    for key, actual_value in (
+        ("response_wire_len", len(actual_wire)),
+        ("count_k", actual_k),
+        ("stored_b", actual_b),
+        ("work", response["work"]),
+    ):
+        candidate = built.get(key)
+        if isinstance(candidate, bool) or not isinstance(candidate, int) or candidate != actual_value:
+            problems.append(f"{case_id}:semantic:response:component_binding:{key}")
 
 
 def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], problems: list[str]) -> None:
