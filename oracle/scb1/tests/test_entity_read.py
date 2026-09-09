@@ -3223,14 +3223,14 @@ class SuppliedEntityFrameCases(unittest.TestCase):
                 supplied = _b2_supplied_with_payload(built, "response", mutated_payload)
                 _b2_expect(self, inputs, case, supplied, "response", "frame_header", code)
         with self.subTest(variant="hello-valid-control"):
-            scoped = _b1_scoped_inputs()
-            accepted = _b1_build_accepted(scoped)
+            full_inputs = load_authored_inputs()
+            accepted = _b1_build_accepted(full_inputs)
             control_problems = []
-            entity_read.check_selection(scoped, accepted, control_problems)
+            entity_read.check_selection(full_inputs, accepted, control_problems)
             self.assertEqual(control_problems, [])
             row_id, local_inputs, local_accepted = _b2_hello_frame_row(
                 self,
-                scoped,
+                full_inputs,
                 accepted,
                 wire_version=1,
                 expected_version=1,
@@ -3246,14 +3246,14 @@ class SuppliedEntityFrameCases(unittest.TestCase):
             self.assertEqual(hello_problems, [])
             self.assertFalse(_b2_hello_matches(hello_problems, row_id, "frame_header", "PROTOCOL_FRAME_INVALID"))
         with self.subTest(variant="hello-header-before-body"):
-            scoped = _b1_scoped_inputs()
-            accepted = _b1_build_accepted(scoped)
+            full_inputs = load_authored_inputs()
+            accepted = _b1_build_accepted(full_inputs)
             control_problems = []
-            entity_read.check_selection(scoped, accepted, control_problems)
+            entity_read.check_selection(full_inputs, accepted, control_problems)
             self.assertEqual(control_problems, [])
             row_id, local_inputs, local_accepted = _b2_hello_frame_row(
                 self,
-                scoped,
+                full_inputs,
                 accepted,
                 wire_version=1,
                 expected_version=1,
