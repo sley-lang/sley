@@ -4729,6 +4729,194 @@ class B2OuterIntegrationCases(unittest.TestCase):
             for entry in problems:
                 self.assertIsInstance(entry, str)
             _b2_hello_expect(self, problems, target, "scenario_binding", "test_extra")
+        with self.subTest(variant="normal-missing-authored-section"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            del mutated_inputs["frame_scenarios"]
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            self.assertEqual(set(mutated_accepted["cases"].keys()), set(local_accepted["cases"].keys()))
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-nonmapping-authored-section"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            mutated_inputs["frame_scenarios"] = ["hello_wire1_expected1"]
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            self.assertEqual(set(mutated_accepted["cases"].keys()), set(local_accepted["cases"].keys()))
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-both-empty-mappings"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            mutated_inputs["frame_scenarios"] = {}
+            mutated_accepted["frame_scenarios"] = {}
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            direct: list[str] = []
+            entity_read.check_selection(mutated_inputs, mutated_accepted, direct)
+            self.assertIsInstance(direct, list)
+            for entry in direct:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(direct, [])
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-matching-removed-row"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            del mutated_inputs["frame_scenarios"]["hello_wire2_expected2"]
+            del mutated_accepted["frame_scenarios"]["hello_wire2_expected2"]
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            self.assertEqual(set(mutated_accepted["cases"].keys()), set(local_accepted["cases"].keys()))
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-matching-added-row"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            mutated_inputs["frame_scenarios"]["extra_scenario"] = copy.deepcopy(
+                local_inputs["frame_scenarios"][target]
+            )
+            mutated_accepted["frame_scenarios"]["extra_scenario"] = copy.deepcopy(
+                local_accepted["frame_scenarios"][target]
+            )
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            self.assertEqual(set(mutated_accepted["cases"].keys()), set(local_accepted["cases"].keys()))
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-matching-valid-altered-metadata"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            for mapping in (
+                mutated_inputs["frame_scenarios"][target],
+                mutated_accepted["frame_scenarios"][target],
+            ):
+                mapping["expected_version"] = 2
+                mapping["expect"] = "rejected"
+                mapping["expected_layer"] = "frame_header"
+                mapping["expected_code"] = "PROTOCOL_DOWNGRADE"
+            self.assertEqual(
+                mutated_accepted["frame_scenarios"][target]["wire_hex"],
+                local_accepted["frame_scenarios"][target]["wire_hex"],
+            )
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            direct = []
+            entity_read.check_selection(mutated_inputs, mutated_accepted, direct)
+            self.assertIsInstance(direct, list)
+            for entry in direct:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(direct, [])
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
+        with self.subTest(variant="normal-matching-bool-as-int-metadata"):
+            mutated_inputs = copy.deepcopy(local_inputs)
+            mutated_accepted = copy.deepcopy(local_accepted)
+            mutated_inputs["frame_scenarios"][target]["expected_version"] = True
+            mutated_accepted["frame_scenarios"][target]["expected_version"] = True
+            self.assertIs(type(mutated_inputs["frame_scenarios"][target]["expected_version"]), bool)
+            self.assertIs(type(mutated_accepted["frame_scenarios"][target]["expected_version"]), bool)
+            self.assertEqual(
+                mutated_accepted["frame_scenarios"][target]["wire_hex"],
+                local_accepted["frame_scenarios"][target]["wire_hex"],
+            )
+            mutated_accepted["manifest"] = {
+                "inputs_sha256": hashlib.sha256(json.dumps(mutated_inputs, sort_keys=True).encode()).hexdigest()
+            }
+            self.assertEqual(len(mutated_inputs["cases"]), 23)
+            self.assertEqual(len(mutated_inputs["hellos"]), 5)
+            self.assertEqual(len(mutated_inputs["selection_scenarios"]), 3)
+            self.assertEqual(len(mutated_inputs["rejected"]), 91)
+            problems = entity_read.check_accepted(mutated_inputs, mutated_accepted)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+            for marker in ("accepted:fields", "manifest:inputs-sha256"):
+                self.assertFalse(
+                    any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+                )
+            self.assertFalse(any("missing-expected" in entry or ":rebuild:" in entry for entry in problems))
         self.assertEqual(local_inputs, before_inputs)
 
     def test_refresh_stages_complete_matrix_and_selfchecks(self) -> None:
@@ -4773,6 +4961,18 @@ class B2OuterIntegrationCases(unittest.TestCase):
             inputs_path = staging / "inputs.json"
             inputs_path.write_text(json.dumps(local_inputs, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             out = staging / "refresh-out"
+            head_completed = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                timeout=30,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            head_raw = head_completed.stdout.strip()
+            self.assertEqual(len(head_raw), 40)
+            self.assertTrue(all(char in "0123456789abcdef" for char in head_raw))
+            expected_head = head_raw
             result = entity_read.refresh(inputs_path, out, repo_root)
             self.assertIsInstance(result, dict)
             self.assertEqual(set(result.keys()), {"accepted", "rejected", "sums"})
@@ -4787,6 +4987,30 @@ class B2OuterIntegrationCases(unittest.TestCase):
             self.assertEqual(sums_path.name, "SHA256SUMS")
             staged_accepted = json.loads(accepted_path.read_text(encoding="utf-8"))
             staged_rejected = json.loads(rejected_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                set(staged_accepted.keys()),
+                {"contract", "claim", "manifest", "cases", "hellos", "selections", "frame_scenarios"},
+            )
+            self.assertEqual(
+                set(staged_accepted["manifest"].keys()),
+                {
+                    "inputs_sha256",
+                    "schema_sha256",
+                    "encoder_sha256",
+                    "encoder_module",
+                    "source_schema_blake3",
+                    "protocol_epoch",
+                    "inputs_authored_at_revision",
+                    "refresh_head_revision",
+                },
+            )
+            self.assertEqual(
+                set(staged_rejected.keys()), {"contract", "claim", "manifest", "cases"}
+            )
+            self.assertEqual(
+                set(staged_rejected["manifest"].keys()),
+                {"inputs_sha256", "protocol_epoch", "refresh_head_revision"},
+            )
             self.assertEqual(staged_accepted["contract"], "sley2-entity-read-v2")
             self.assertEqual(staged_accepted["claim"], "independent-expected")
             self.assertEqual(staged_accepted["cases"], local_accepted["cases"])
@@ -4818,7 +5042,7 @@ class B2OuterIntegrationCases(unittest.TestCase):
             )
             self.assertEqual(
                 staged_accepted["manifest"]["refresh_head_revision"],
-                entity_read.git_head_revision(repo_root),
+                expected_head,
             )
             self.assertEqual(staged_rejected["contract"], "sley2-entity-read-v2-rejected")
             self.assertEqual(staged_rejected["claim"], "independent-expected")
@@ -4836,7 +5060,7 @@ class B2OuterIntegrationCases(unittest.TestCase):
             )
             self.assertEqual(
                 staged_rejected["manifest"]["refresh_head_revision"],
-                entity_read.git_head_revision(repo_root),
+                expected_head,
             )
             self.assertEqual(
                 sums_path.read_text(encoding="utf-8"),
