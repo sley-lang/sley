@@ -1862,7 +1862,7 @@ def validate_rejected(inputs: Mapping[str, Any], case: Mapping[str, Any], data: 
 
 _ACCEPTED_CONTRACT = "sley2-entity-read-v2"
 _ACCEPTED_CLAIM = "independent-expected"
-_ACCEPTED_TOP_FIELDS = frozenset({"contract", "claim", "manifest", "cases", "hellos", "selections"})
+_ACCEPTED_TOP_FIELDS = frozenset({"contract", "claim", "manifest", "cases", "hellos", "selections", "frame_scenarios"})
 _CASE_SCALAR_FIELDS = (
     "request_body_hex",
     "response_body_hex",
@@ -1909,6 +1909,49 @@ def _same_value(first: Any, second: Any) -> bool:
     return type(first) is type(second) and first == second
 
 
+_CANONICAL_FRAME_SCENARIOS = {
+    "hello_wire1_expected1": {
+        "hello": "hello_v2_client",
+        "wire_version": 1,
+        "expected_version": 1,
+        "expect": "accepted",
+        "expected_layer": None,
+        "expected_code": None,
+    },
+    "hello_wire1_expected2": {
+        "hello": "hello_v2_client",
+        "wire_version": 1,
+        "expected_version": 2,
+        "expect": "rejected",
+        "expected_layer": "frame_header",
+        "expected_code": "PROTOCOL_DOWNGRADE",
+    },
+    "hello_wire2_expected1": {
+        "hello": "hello_v2_client",
+        "wire_version": 2,
+        "expected_version": 1,
+        "expect": "rejected",
+        "expected_layer": "frame_header",
+        "expected_code": "PROTOCOL_VERSION_UNSUPPORTED",
+    },
+    "hello_wire2_expected2": {
+        "hello": "hello_v2_client",
+        "wire_version": 2,
+        "expected_version": 2,
+        "expect": "rejected",
+        "expected_layer": "frame_header",
+        "expected_code": "PROTOCOL_FRAME_INVALID",
+    },
+}
+
+
+def _authored_frame_matrix_is_canonical(inputs: Any) -> bool:
+    authored = inputs.get("frame_scenarios") if isinstance(inputs, Mapping) else None
+    if not isinstance(authored, Mapping):
+        return False
+    return _same_value(authored, _CANONICAL_FRAME_SCENARIOS)
+
+
 def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> list[str]:
     problems: list[str] = []
     if not isinstance(accepted, Mapping):
@@ -1924,6 +1967,8 @@ def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> li
         manifest = {}
     if manifest.get("inputs_sha256") != hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest():
         problems.append("manifest:inputs-sha256")
+    if not _authored_frame_matrix_is_canonical(inputs):
+        problems.append("accepted:frame_scenarios:inventory")
     raw_cases = inputs.get("cases", {})
     inputs_cases = raw_cases if isinstance(raw_cases, Mapping) else {}
     supplied_cases = accepted.get("cases")
@@ -1980,7 +2025,7 @@ def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> li
                 for field in _OBJECT_FIELDS:
                     if not _same_value(built["objects"][ref][field], candidate.get(field)):
                         problems.append(f"{case_id}:object:{ref}:{field}")
-        semantic_check(inputs, case, built, problems)
+        semantic_check(inputs, case, supplied, problems)
     check_selection(inputs, accepted, problems)
     return problems
 
@@ -2955,6 +3000,8 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
     and the source revision; no self-hash, no commit cycle.
     """
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
+    if not _authored_frame_matrix_is_canonical(inputs):
+        raise ValueError("refresh refuses incomplete authored matrix: accepted:frame_scenarios:inventory")
     resolved_out = output_dir.resolve()
     generated_dir = (repo_root / "conformance" / "entity-read").resolve()
     if resolved_out == generated_dir or generated_dir in resolved_out.parents:

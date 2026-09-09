@@ -466,6 +466,12 @@
     "v2_select": {"client": "hello_v2_client", "server": "hello_v2_server", "expect": "ok", "note": "[1,2] with [1,2] selects 2 with its distinct version/method set."},
     "v3_refuse": {"client": "hello_v3_client", "server": "hello_v3_server", "expect": "fail", "expected_layer": "selection", "note": "Unsupported greatest-common version 3 is refused with VersionUnsupported, no fallback to 1."}
   },
+  "frame_scenarios": {
+    "hello_wire1_expected1": {"hello": "hello_v2_client", "wire_version": 1, "expected_version": 1, "expect": "accepted", "expected_layer": null, "expected_code": null},
+    "hello_wire1_expected2": {"hello": "hello_v2_client", "wire_version": 1, "expected_version": 2, "expect": "rejected", "expected_layer": "frame_header", "expected_code": "PROTOCOL_DOWNGRADE"},
+    "hello_wire2_expected1": {"hello": "hello_v2_client", "wire_version": 2, "expected_version": 1, "expect": "rejected", "expected_layer": "frame_header", "expected_code": "PROTOCOL_VERSION_UNSUPPORTED"},
+    "hello_wire2_expected2": {"hello": "hello_v2_client", "wire_version": 2, "expected_version": 2, "expect": "rejected", "expected_layer": "frame_header", "expected_code": "PROTOCOL_FRAME_INVALID"}
+  },
   "rejected": [
     {"id": "req_missing_field", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "drop_field", "tag": 5}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_MISSING"},
     {"id": "req_unknown_field", "base": "ver_ws", "recipe": {"target": "request", "record": "request", "op": "add_field", "tag": 9, "payload_hex": ""}, "failing_layer": "request_record", "expected_symbol": "PROTOCOL_PAYLOAD_INVALID", "expected_code": 40008, "expected_scb": "SCB_FIELD_UNKNOWN"},
