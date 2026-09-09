@@ -21,6 +21,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -4275,6 +4278,36 @@ def _b2_complete_rejected(testcase):
     return full_inputs, rejected
 
 
+def _b2_rejected_for_inputs(testcase, full_inputs):
+    authored_rows = full_inputs["rejected"]
+    testcase.assertEqual(len(authored_rows), 91)
+    cases = []
+    for authored in authored_rows:
+        row = copy.deepcopy(authored)
+        if "kind" not in row:
+            base = full_inputs["cases"][row["base"]]
+            row["input_hex"] = entity_read.build_rejected_bytes(full_inputs, base, row["recipe"]).hex()
+        else:
+            testcase.assertIn(row["kind"], _B2_COMPLETE_REJECTED_KINDS)
+            if row["kind"] in ("failure_response", "failure_wire"):
+                row["input_hex"] = entity_read.build_failure_wire(full_inputs, row).hex()
+            elif row["kind"] == "relation":
+                row = entity_read.derive_relation(full_inputs, row)
+        cases.append(row)
+    testcase.assertEqual([row["id"] for row in cases], [row["id"] for row in authored_rows])
+    testcase.assertEqual(len(cases), 91)
+    for row in cases:
+        if row.get("kind") == "runtime_sequence":
+            testcase.assertEqual(row["status"], "pending_runtime_comparison")
+    inputs_sha = hashlib.sha256(json.dumps(full_inputs, sort_keys=True).encode()).hexdigest()
+    return {
+        "contract": "sley2-entity-read-v2-rejected",
+        "claim": "independent-expected",
+        "manifest": {"inputs_sha256": inputs_sha},
+        "cases": cases,
+    }
+
+
 def _b2_complete_local_matrix(testcase):
     full_inputs, accepted = _b2_complete_accepted(testcase)
     local_inputs = copy.deepcopy(full_inputs)
@@ -4530,6 +4563,499 @@ class B2OuterIntegrationCases(unittest.TestCase):
         for entry in problems:
             self.assertIsInstance(entry, str)
         self.assertEqual(problems, [])
+
+    def test_outer_hello_wire_reaches_semantics_and_content_comparison(self) -> None:
+        local_inputs, local_accepted = _b2_complete_local_matrix(self)
+        self.assertEqual(len(local_accepted["cases"]), 23)
+        self.assertEqual(set(local_accepted["cases"].keys()), set(local_inputs["cases"].keys()))
+        self.assertEqual(
+            sorted(local_inputs["frame_scenarios"].keys()),
+            ["hello_wire1_expected1", "hello_wire1_expected2", "hello_wire2_expected1", "hello_wire2_expected2"],
+        )
+        hello_control: list[str] = []
+        entity_read.check_selection(local_inputs, local_accepted, hello_control)
+        self.assertIsInstance(hello_control, list)
+        for entry in hello_control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(hello_control, [])
+        control = entity_read.check_accepted(local_inputs, local_accepted)
+        self.assertIsInstance(control, list)
+        for entry in control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(control, [])
+        target = "hello_wire1_expected1"
+        authored_row = local_inputs["frame_scenarios"][target]
+        self.assertEqual(authored_row["wire_version"], 1)
+        self.assertEqual(authored_row["expected_version"], 1)
+        self.assertEqual(local_accepted["frame_scenarios"][target]["expected_version"], 1)
+        offer = local_inputs["hellos"]["hello_v2_client"]
+        body = entity_read.build_hello(offer)
+        _b2_t4_check_valid_hello_body(self, body, offer)
+        bounds = entity_read.zero_bounds()
+        _b2_t4_check_zero_bounds(self, bounds)
+        payload = entity_read.build_frame_payload(2, None, 0, 4, 0, 0, bounds, body)
+        wire, preimage, frame_id = entity_read.build_envelope(entity_read.protocol_epoch_id(), payload)
+        stored, _payload_bytes, frame, trailer = _b2_t4_authenticate(
+            self, local_inputs, wire, version=2, session=None, request_id=0, kind=4, method=0, flags=0, body=body
+        )
+        self.assertEqual(stored[:-32], preimage)
+        self.assertEqual(stored[-32:], frame_id)
+        self.assertEqual(trailer, frame_id)
+        mutated_accepted = copy.deepcopy(local_accepted)
+        mutated_row = mutated_accepted["frame_scenarios"][target]
+        for field in ("hello", "wire_version", "expected_version", "expect", "expected_layer", "expected_code"):
+            self.assertEqual(mutated_row[field], authored_row[field])
+        mutated_row["body_hex"] = body.hex()
+        mutated_row["wire_hex"] = wire.hex()
+        mutated_row["preimage_hex"] = preimage.hex()
+        mutated_row["frame_id"] = frame_id.hex()
+        self.assertEqual(mutated_row["expected_version"], 1)
+        direct: list[str] = []
+        entity_read.check_selection(local_inputs, mutated_accepted, direct)
+        self.assertIsInstance(direct, list)
+        for entry in direct:
+            self.assertIsInstance(entry, str)
+        self.assertTrue(
+            _b2_hello_matches(direct, target, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+            f"missing hello_frame:{target}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {direct!r}",
+        )
+        problems = entity_read.check_accepted(local_inputs, mutated_accepted)
+        self.assertIsInstance(problems, list)
+        for entry in problems:
+            self.assertIsInstance(entry, str)
+        with self.subTest(check="semantics"):
+            self.assertTrue(
+                _b2_hello_matches(problems, target, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+                f"missing hello_frame:{target}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {problems!r}",
+            )
+        with self.subTest(check="content"):
+            self.assertTrue(
+                _b2_hello_matches(problems, target, "scenario_binding", "wire_hex"),
+                f"missing hello_frame:{target}:scenario_binding:wire_hex in {problems!r}",
+            )
+        for marker in ("accepted:fields", "manifest:inputs-sha256", "accepted:frame_scenarios:inventory"):
+            self.assertFalse(
+                any(entry == marker or entry.startswith(marker + ":") for entry in problems), marker
+            )
+
+    def test_outer_frame_scenario_inventory_and_components(self) -> None:
+        local_inputs, local_accepted = _b2_complete_local_matrix(self)
+        self.assertEqual(len(local_accepted["cases"]), 23)
+        self.assertEqual(set(local_accepted["cases"].keys()), set(local_inputs["cases"].keys()))
+        self.assertEqual(set(local_inputs["hellos"].keys()), set(local_accepted["hellos"].keys()))
+        self.assertEqual(len(local_inputs["hellos"]), 5)
+        self.assertEqual(set(local_inputs["selection_scenarios"].keys()), set(local_accepted["selections"].keys()))
+        self.assertEqual(len(local_inputs["selection_scenarios"]), 3)
+        self.assertEqual(
+            sorted(local_inputs["frame_scenarios"].keys()),
+            ["hello_wire1_expected1", "hello_wire1_expected2", "hello_wire2_expected1", "hello_wire2_expected2"],
+        )
+        before_inputs = copy.deepcopy(local_inputs)
+        hello_control: list[str] = []
+        entity_read.check_selection(local_inputs, local_accepted, hello_control)
+        self.assertIsInstance(hello_control, list)
+        for entry in hello_control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(hello_control, [])
+        control = entity_read.check_accepted(local_inputs, local_accepted)
+        self.assertIsInstance(control, list)
+        for entry in control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(control, [])
+        target = "hello_wire1_expected1"
+        with self.subTest(variant="omit-one-scenario"):
+            mutated = copy.deepcopy(local_accepted)
+            del mutated["frame_scenarios"]["hello_wire2_expected2"]
+            problems = entity_read.check_accepted(local_inputs, mutated)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+        with self.subTest(variant="extra-scenario"):
+            mutated = copy.deepcopy(local_accepted)
+            mutated["frame_scenarios"]["extra_scenario"] = copy.deepcopy(
+                local_accepted["frame_scenarios"][target]
+            )
+            problems = entity_read.check_accepted(local_inputs, mutated)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+        with self.subTest(variant="omit-whole-section"):
+            mutated = copy.deepcopy(local_accepted)
+            del mutated["frame_scenarios"]
+            problems = entity_read.check_accepted(local_inputs, mutated)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_t4_expect_inventory(self, problems)
+        for field in ("body_hex", "preimage_hex", "frame_id"):
+            with self.subTest(variant="detached-component", field=field):
+                mutated = copy.deepcopy(local_accepted)
+                mutated["frame_scenarios"][target][field] = _b1_flip_hex(
+                    mutated["frame_scenarios"][target][field]
+                )
+                self.assertNotEqual(
+                    mutated["frame_scenarios"][target][field],
+                    local_accepted["frame_scenarios"][target][field],
+                )
+                self.assertEqual(
+                    mutated["frame_scenarios"][target]["wire_hex"],
+                    local_accepted["frame_scenarios"][target]["wire_hex"],
+                )
+                problems = entity_read.check_accepted(local_inputs, mutated)
+                self.assertIsInstance(problems, list)
+                for entry in problems:
+                    self.assertIsInstance(entry, str)
+                with self.subTest(variant="detached-component", field=field, binding="component"):
+                    self.assertTrue(
+                        _b2_hello_matches(problems, target, "component_binding", field),
+                        f"missing hello_frame:{target}:component_binding:{field} in {problems!r}",
+                    )
+                with self.subTest(variant="detached-component", field=field, binding="scenario"):
+                    self.assertTrue(
+                        _b2_hello_matches(problems, target, "scenario_binding", field),
+                        f"missing hello_frame:{target}:scenario_binding:{field} in {problems!r}",
+                    )
+                with self.subTest(variant="detached-component", field=field, absence="no-frame-header"):
+                    self.assertFalse(_b2_hello_matches(problems, target, "frame_header", None))
+                with self.subTest(variant="detached-component", field=field, absence="no-hello-body"):
+                    self.assertFalse(_b2_hello_matches(problems, target, "hello_body", None))
+        with self.subTest(variant="extra-supplied-field"):
+            mutated = copy.deepcopy(local_accepted)
+            mutated["frame_scenarios"][target]["test_extra"] = "extra"
+            problems = entity_read.check_accepted(local_inputs, mutated)
+            self.assertIsInstance(problems, list)
+            for entry in problems:
+                self.assertIsInstance(entry, str)
+            _b2_hello_expect(self, problems, target, "scenario_binding", "test_extra")
+        self.assertEqual(local_inputs, before_inputs)
+
+    def test_refresh_stages_complete_matrix_and_selfchecks(self) -> None:
+        local_inputs, local_accepted = _b2_complete_local_matrix(self)
+        local_rejected = _b2_rejected_for_inputs(self, local_inputs)
+        self.assertEqual(len(local_accepted["cases"]), 23)
+        self.assertEqual(set(local_accepted["cases"].keys()), set(local_inputs["cases"].keys()))
+        self.assertEqual(len(local_inputs["hellos"]), 5)
+        self.assertEqual(len(local_inputs["selection_scenarios"]), 3)
+        self.assertEqual(len(local_rejected["cases"]), 91)
+        self.assertEqual(
+            sorted(local_inputs["frame_scenarios"].keys()),
+            ["hello_wire1_expected1", "hello_wire1_expected2", "hello_wire2_expected1", "hello_wire2_expected2"],
+        )
+        before_inputs = copy.deepcopy(local_inputs)
+        hello_control: list[str] = []
+        entity_read.check_selection(local_inputs, local_accepted, hello_control)
+        self.assertIsInstance(hello_control, list)
+        for entry in hello_control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(hello_control, [])
+        accepted_control = entity_read.check_accepted(local_inputs, local_accepted)
+        self.assertIsInstance(accepted_control, list)
+        for entry in accepted_control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(accepted_control, [])
+        rejected_control = entity_read.check_rejected(local_inputs, local_rejected)
+        self.assertIsInstance(rejected_control, list)
+        for entry in rejected_control:
+            self.assertIsInstance(entry, str)
+        self.assertEqual(rejected_control, [])
+        repo_root = Path(__file__).resolve().parents[3]
+        corpus_dir = (repo_root / "conformance" / "entity-read").resolve()
+        expected_inputs_sha = hashlib.sha256(json.dumps(local_inputs, sort_keys=True).encode()).hexdigest()
+        self.assertEqual(local_accepted["manifest"]["inputs_sha256"], expected_inputs_sha)
+        self.assertEqual(local_rejected["manifest"]["inputs_sha256"], expected_inputs_sha)
+        with tempfile.TemporaryDirectory() as tmp:
+            staging = Path(tmp).resolve()
+            self.assertNotIn(repo_root.resolve(), (staging, *staging.parents))
+            self.assertNotEqual(staging, corpus_dir)
+            self.assertNotIn(corpus_dir, staging.parents)
+            inputs_path = staging / "inputs.json"
+            inputs_path.write_text(json.dumps(local_inputs, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            out = staging / "refresh-out"
+            result = entity_read.refresh(inputs_path, out, repo_root)
+            self.assertIsInstance(result, dict)
+            self.assertEqual(set(result.keys()), {"accepted", "rejected", "sums"})
+            accepted_path = Path(result["accepted"])
+            rejected_path = Path(result["rejected"])
+            sums_path = Path(result["sums"])
+            self.assertEqual(accepted_path.resolve().parent, out.resolve())
+            self.assertEqual(accepted_path.name, "accepted.json")
+            self.assertEqual(rejected_path.resolve().parent, out.resolve())
+            self.assertEqual(rejected_path.name, "rejected.json")
+            self.assertEqual(sums_path.resolve().parent, out.resolve())
+            self.assertEqual(sums_path.name, "SHA256SUMS")
+            staged_accepted = json.loads(accepted_path.read_text(encoding="utf-8"))
+            staged_rejected = json.loads(rejected_path.read_text(encoding="utf-8"))
+            self.assertEqual(staged_accepted["contract"], "sley2-entity-read-v2")
+            self.assertEqual(staged_accepted["claim"], "independent-expected")
+            self.assertEqual(staged_accepted["cases"], local_accepted["cases"])
+            self.assertEqual(staged_accepted["hellos"], local_accepted["hellos"])
+            self.assertEqual(staged_accepted["selections"], local_accepted["selections"])
+            self.assertIn("frame_scenarios", staged_accepted)
+            self.assertEqual(staged_accepted["frame_scenarios"], local_accepted["frame_scenarios"])
+            self.assertEqual(staged_accepted["manifest"]["inputs_sha256"], expected_inputs_sha)
+            schema_path = repo_root / "docs" / "spec" / "SSMC1_EPOCH1_SCHEMA.txt"
+            encoder_path = Path(entity_read.__file__).resolve()
+            self.assertEqual(
+                staged_accepted["manifest"]["schema_sha256"],
+                hashlib.sha256(schema_path.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                staged_accepted["manifest"]["encoder_sha256"],
+                hashlib.sha256(encoder_path.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(staged_accepted["manifest"]["encoder_module"], "sley2_scb1_oracle.entity_read")
+            self.assertEqual(
+                staged_accepted["manifest"]["source_schema_blake3"], entity_read.SOURCE_SCHEMA_BLAKE3
+            )
+            self.assertEqual(
+                staged_accepted["manifest"]["protocol_epoch"], entity_read.protocol_epoch_id().hex()
+            )
+            self.assertEqual(
+                staged_accepted["manifest"]["inputs_authored_at_revision"],
+                local_inputs["provenance"]["authored_at_revision"],
+            )
+            self.assertEqual(
+                staged_accepted["manifest"]["refresh_head_revision"],
+                entity_read.git_head_revision(repo_root),
+            )
+            self.assertEqual(staged_rejected["contract"], "sley2-entity-read-v2-rejected")
+            self.assertEqual(staged_rejected["claim"], "independent-expected")
+            self.assertEqual(staged_rejected["cases"], local_rejected["cases"])
+            self.assertEqual(
+                [row["id"] for row in staged_rejected["cases"]],
+                [row["id"] for row in local_inputs["rejected"]],
+            )
+            for row in staged_rejected["cases"]:
+                if row.get("kind") == "runtime_sequence":
+                    self.assertEqual(row["status"], "pending_runtime_comparison")
+            self.assertEqual(staged_rejected["manifest"]["inputs_sha256"], expected_inputs_sha)
+            self.assertEqual(
+                staged_rejected["manifest"]["protocol_epoch"], entity_read.protocol_epoch_id().hex()
+            )
+            self.assertEqual(
+                staged_rejected["manifest"]["refresh_head_revision"],
+                entity_read.git_head_revision(repo_root),
+            )
+            self.assertEqual(
+                sums_path.read_text(encoding="utf-8"),
+                f"{hashlib.sha256(accepted_path.read_bytes()).hexdigest()}  accepted.json\n"
+                f"{hashlib.sha256(rejected_path.read_bytes()).hexdigest()}  rejected.json\n",
+            )
+            staged_problems = entity_read.check_accepted(
+                local_inputs, staged_accepted
+            ) + entity_read.check_rejected(local_inputs, staged_rejected)
+            self.assertIsInstance(staged_problems, list)
+            for entry in staged_problems:
+                self.assertIsInstance(entry, str)
+            self.assertEqual(staged_problems, [])
+        self.assertEqual(local_inputs, before_inputs)
+
+    def test_normal_checker_explicit_paths_observes_supplied_mutations(self) -> None:
+        local_inputs, local_accepted = _b2_complete_local_matrix(self)
+        local_rejected = _b2_rejected_for_inputs(self, local_inputs)
+        self.assertEqual(len(local_accepted["cases"]), 23)
+        self.assertEqual(len(local_inputs["hellos"]), 5)
+        self.assertEqual(len(local_inputs["selection_scenarios"]), 3)
+        self.assertEqual(len(local_rejected["cases"]), 91)
+        self.assertEqual(
+            sorted(local_inputs["frame_scenarios"].keys()),
+            ["hello_wire1_expected1", "hello_wire1_expected2", "hello_wire2_expected1", "hello_wire2_expected2"],
+        )
+        self.assertEqual(entity_read.check_accepted(local_inputs, local_accepted), [])
+        self.assertEqual(entity_read.check_rejected(local_inputs, local_rejected), [])
+        repo_root = Path(__file__).resolve().parents[3]
+        script = repo_root / "scripts" / "check_entity_read_vectors.py"
+        self.assertTrue(script.is_file())
+        max_frame = int(local_inputs["selected_limits"]["max_frame_bytes"])
+        case = local_inputs["cases"]["ver_ws"]
+        built = local_accepted["cases"]["ver_ws"]
+        mutants = {}
+        for side in ("request", "response"):
+            wire = bytes.fromhex(built[f"{side}_wire_hex"])
+            stored, _prefix = entity_read.split_wire(wire, max_frame)
+            payload, _trailer = entity_read.check_envelope(stored, entity_read.protocol_epoch_id())
+            frame = entity_read.decode_frame_payload(payload)
+            self.assertEqual(frame["version"], 2)
+            mutated_payload = entity_read.build_frame_payload(
+                3,
+                frame["session"],
+                frame["request_id"],
+                frame["kind"],
+                frame["method"],
+                frame["flags"],
+                frame["bounds"],
+                frame["body"],
+            )
+            mutated = _b2_supplied_with_payload(built, side, mutated_payload)
+            fresh_wire = bytes.fromhex(mutated[f"{side}_wire_hex"])
+            fresh_stored, _fresh_prefix = entity_read.split_wire(fresh_wire, max_frame)
+            self.assertEqual(fresh_stored[:-32], bytes.fromhex(mutated[f"{side}_preimage_hex"]))
+            self.assertEqual(fresh_stored[-32:], bytes.fromhex(mutated[f"{side}_frame_id"]))
+            self.assertEqual(mutated[f"{side}_body_hex"], built[f"{side}_body_hex"])
+            direct: list[str] = []
+            entity_read.semantic_check(local_inputs, case, mutated, direct)
+            self.assertTrue(
+                _b2_matches(direct, "ver_ws", side, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+                f"missing ver_ws:semantic:{side}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {direct!r}",
+            )
+            mutated_accepted = copy.deepcopy(local_accepted)
+            mutated_accepted["cases"]["ver_ws"] = mutated
+            mutants[side] = mutated_accepted
+        hello_target = "hello_wire1_expected1"
+        offer = local_inputs["hellos"]["hello_v2_client"]
+        hello_body = entity_read.build_hello(offer)
+        _b2_t4_check_valid_hello_body(self, hello_body, offer)
+        hello_payload = entity_read.build_frame_payload(
+            2, None, 0, 4, 0, 0, entity_read.zero_bounds(), hello_body
+        )
+        hello_wire, hello_preimage, hello_frame_id = entity_read.build_envelope(
+            entity_read.protocol_epoch_id(), hello_payload
+        )
+        hello_stored, _hello_prefix = entity_read.split_wire(hello_wire, max_frame)
+        self.assertEqual(hello_stored[:-32], hello_preimage)
+        self.assertEqual(hello_stored[-32:], hello_frame_id)
+        hello_mutated = copy.deepcopy(local_accepted)
+        hello_mutated["frame_scenarios"][hello_target] = {
+            **local_inputs["frame_scenarios"][hello_target],
+            "body_hex": hello_body.hex(),
+            "wire_hex": hello_wire.hex(),
+            "preimage_hex": hello_preimage.hex(),
+            "frame_id": hello_frame_id.hex(),
+        }
+        self.assertEqual(hello_mutated["frame_scenarios"][hello_target]["expected_version"], 1)
+        hello_direct: list[str] = []
+        entity_read.check_selection(local_inputs, hello_mutated, hello_direct)
+        self.assertIsInstance(hello_direct, list)
+        for entry in hello_direct:
+            self.assertIsInstance(entry, str)
+        self.assertTrue(
+            _b2_hello_matches(hello_direct, hello_target, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+            f"missing hello_frame:{hello_target}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {hello_direct!r}",
+        )
+        mutants["hello"] = hello_mutated
+        with tempfile.TemporaryDirectory() as tmp:
+            staging = Path(tmp).resolve()
+            self.assertNotIn(repo_root.resolve(), (staging, *staging.parents))
+            inputs_path = staging / "inputs.json"
+            accepted_path = staging / "accepted.json"
+            rejected_path = staging / "rejected.json"
+            inputs_path.write_text(json.dumps(local_inputs, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            accepted_path.write_text(
+                json.dumps(local_accepted, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            rejected_path.write_text(
+                json.dumps(local_rejected, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            fixed_inputs_sha = hashlib.sha256(inputs_path.read_bytes()).hexdigest()
+            fixed_rejected_sha = hashlib.sha256(rejected_path.read_bytes()).hexdigest()
+
+            def _run_checker():
+                return subprocess.run(
+                    [
+                        sys.executable,
+                        str(script),
+                        "--inputs",
+                        str(inputs_path),
+                        "--accepted",
+                        str(accepted_path),
+                        "--rejected",
+                        str(rejected_path),
+                    ],
+                    timeout=120,
+                    capture_output=True,
+                    text=True,
+                )
+
+            def _file_shas():
+                return {
+                    name: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for name, path in (
+                        ("inputs", inputs_path),
+                        ("accepted", accepted_path),
+                        ("rejected", rejected_path),
+                    )
+                }
+
+            before = _file_shas()
+            completed = _run_checker()
+            self.assertEqual(_file_shas(), before)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["result"], "PASS")
+            self.assertEqual(payload["problems"], [])
+            self.assertEqual(payload["cases"], 23)
+            self.assertEqual(payload["rejections"], 91)
+            for side in ("request", "response"):
+                with self.subTest(mutant=side):
+                    accepted_path.write_text(
+                        json.dumps(mutants[side], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                    )
+                    before = _file_shas()
+                    completed = _run_checker()
+                    self.assertEqual(_file_shas(), before)
+                    self.assertEqual(completed.returncode, 1, completed.stderr)
+                    payload = json.loads(completed.stdout)
+                    self.assertEqual(payload["result"], "FAIL")
+                    problems = payload["problems"]
+                    self.assertIsInstance(problems, list)
+                    for entry in problems:
+                        self.assertIsInstance(entry, str)
+                    with self.subTest(mutant=side, check="content"):
+                        self.assertIn(f"ver_ws:{side}_wire_hex", problems)
+                    with self.subTest(mutant=side, check="semantics"):
+                        self.assertTrue(
+                            _b2_matches(problems, "ver_ws", side, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+                            f"missing ver_ws:semantic:{side}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {problems!r}",
+                        )
+                    for marker in (
+                        "unreadable-input",
+                        "accepted:fields",
+                        "manifest:inputs-sha256",
+                        "ver_ws:rebuild",
+                        "ver_ws:missing-expected",
+                    ):
+                        self.assertFalse(
+                            any(entry == marker or entry.startswith(marker + ":") for entry in problems),
+                            marker,
+                        )
+            with self.subTest(mutant="hello"):
+                accepted_path.write_text(
+                    json.dumps(mutants["hello"], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+                )
+                before = _file_shas()
+                completed = _run_checker()
+                self.assertEqual(_file_shas(), before)
+                self.assertEqual(completed.returncode, 1, completed.stderr)
+                payload = json.loads(completed.stdout)
+                self.assertEqual(payload["result"], "FAIL")
+                problems = payload["problems"]
+                self.assertIsInstance(problems, list)
+                for entry in problems:
+                    self.assertIsInstance(entry, str)
+                with self.subTest(mutant="hello", check="content"):
+                    self.assertTrue(
+                        _b2_hello_matches(problems, hello_target, "scenario_binding", "wire_hex"),
+                        f"missing hello_frame:{hello_target}:scenario_binding:wire_hex in {problems!r}",
+                    )
+                with self.subTest(mutant="hello", check="semantics"):
+                    self.assertTrue(
+                        _b2_hello_matches(problems, hello_target, "frame_header", "PROTOCOL_VERSION_UNSUPPORTED"),
+                        f"missing hello_frame:{hello_target}:frame_header:PROTOCOL_VERSION_UNSUPPORTED in {problems!r}",
+                    )
+                for marker in (
+                    "unreadable-input",
+                    "accepted:fields",
+                    "manifest:inputs-sha256",
+                    "accepted:frame_scenarios:inventory",
+                ):
+                    self.assertFalse(
+                        any(entry == marker or entry.startswith(marker + ":") for entry in problems),
+                        marker,
+                    )
+            self.assertEqual(hashlib.sha256(inputs_path.read_bytes()).hexdigest(), fixed_inputs_sha)
+            self.assertEqual(hashlib.sha256(rejected_path.read_bytes()).hexdigest(), fixed_rejected_sha)
 
 
 if __name__ == "__main__":
