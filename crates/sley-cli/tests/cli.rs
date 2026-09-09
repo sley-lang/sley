@@ -912,6 +912,41 @@ fn profile_serve_json_converts_post_hello_lines_under_the_selection() {
 }
 
 #[test]
+fn profile_frame_commands_report_version_mismatch_for_non_hello_frames() {
+    // A version 1 request frame under expected 2, and its JSON text under
+    // expected 2, must both fail CLI_INPUT_INVALID with VERSION_MISMATCH,
+    // never with the codec's own version-gate code.
+    let v1_request = request(None, 0, Method::SessionOpen, 0, Vec::new());
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        &v1_request,
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    let v1_text = frame_to_json(&v1_request).unwrap();
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        v1_text.as_bytes(),
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+}
+
+#[test]
 fn profile_flag_misuse_is_a_usage_failure() {
     // --expected-version without the profile.
     let (status, _, _) = run(&["frame", "decode", "--expected-version", "1"], &[]);

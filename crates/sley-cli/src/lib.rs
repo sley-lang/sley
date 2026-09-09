@@ -519,7 +519,10 @@ fn frame_decode(
                     Some(selected) => frame_to_json_for_version(&bytes, selected),
                 };
                 let text = converted.map_err(|error| {
-                    CliFailure::with_cause(CliErrorCode::InputInvalid, error.symbol())
+                    CliFailure::with_cause(
+                        CliErrorCode::InputInvalid,
+                        conversion_cause(expected_version, error.symbol()),
+                    )
                 })?;
                 if let Some(want) = expected_version {
                     let (is_hello, version) = converted_kind_and_version(&bytes, expected_version)?;
@@ -544,7 +547,7 @@ fn frame_encode(
             Next::Rejected(error) => {
                 return Err(CliFailure::with_cause(
                     CliErrorCode::InputInvalid,
-                    error.symbol(),
+                    conversion_cause(expected_version, error.symbol()),
                 ));
             }
             Next::Frame(bytes) => {
@@ -608,6 +611,22 @@ fn enforce_expected_version(is_hello: bool, version: u32, expected: u32) -> Resu
             CliErrorCode::InputInvalid,
             "VERSION_MISMATCH",
         ))
+    }
+}
+
+/// The conversion-time half of the stateless version rule: when a frame
+/// fails version-aware conversion at the codec's own version gate, the
+/// failure is the expected-version mismatch, never an endpoint failure.
+/// Shape and naming failures keep their own codes; only the two
+/// version-gate codes remap, and only under an explicit expectation.
+fn conversion_cause(expected: Option<u32>, symbol: &str) -> &str {
+    if expected.is_some()
+        && (symbol == ProtocolErrorCode::VersionUnsupported.as_str()
+            || symbol == ProtocolErrorCode::Downgrade.as_str())
+    {
+        "VERSION_MISMATCH"
+    } else {
+        symbol
     }
 }
 
