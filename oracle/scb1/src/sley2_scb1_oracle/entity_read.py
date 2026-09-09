@@ -3043,6 +3043,24 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
             "transcript_hex": transcript.hex(),
             "handshake_id": handshake_id(client_body, server_body, preimage).hex(),
         }
+    frame_scenarios: dict[str, Any] = {}
+    for row_id, authored_row in inputs["frame_scenarios"].items():
+        reconstructed = _reconstruct_hello_row(inputs, authored_row)
+        if reconstructed is None:
+            raise ValueError(f"refresh cannot reconstruct required frame scenario: {row_id}")
+        body, wire, preimage, frame_id = reconstructed
+        frame_scenarios[row_id] = {
+            "hello": authored_row["hello"],
+            "wire_version": authored_row["wire_version"],
+            "expected_version": authored_row["expected_version"],
+            "expect": authored_row["expect"],
+            "expected_layer": authored_row["expected_layer"],
+            "expected_code": authored_row["expected_code"],
+            "body_hex": body.hex(),
+            "wire_hex": wire.hex(),
+            "preimage_hex": preimage.hex(),
+            "frame_id": frame_id.hex(),
+        }
     accepted = {
         "contract": "sley2-entity-read-v2",
         "claim": "independent-expected",
@@ -3059,6 +3077,7 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
         "cases": accepted_cases,
         "hellos": hellos,
         "selections": selections,
+        "frame_scenarios": frame_scenarios,
     }
     rejected_cases: list[dict[str, Any]] = []
     protocol_epoch_check = protocol_epoch_id().hex()
