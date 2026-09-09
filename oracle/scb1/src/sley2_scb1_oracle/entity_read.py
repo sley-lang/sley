@@ -714,6 +714,28 @@ def zero_bounds() -> bytes:
     return build_bounds({key: 0 for key in ("max_frame_bytes", "max_entities", "max_edges", "max_depth", "max_response_bytes", "max_work", "max_inflight", "max_sessions")}, 0, 0)
 
 
+LIMIT_KEYS = (
+    "max_frame_bytes",
+    "max_entities",
+    "max_edges",
+    "max_depth",
+    "max_response_bytes",
+    "max_work",
+    "max_inflight",
+    "max_sessions",
+)
+U32_LIMIT_TAGS = frozenset({4, 7, 8})
+
+
+def decode_limit_profile(raw: bytes) -> dict[str, int]:
+    fields = parse_record(raw)
+    exact_fields(fields, [1, 2, 3, 4, 5, 6, 7, 8])
+    profile: dict[str, int] = {}
+    for tag, payload in fields:
+        profile[LIMIT_KEYS[tag - 1]] = decode_uvar_exact(payload, 32 if tag in U32_LIMIT_TAGS else 64)
+    return profile
+
+
 def decode_bounds(bounds: bytes) -> dict[str, Any]:
     fields = parse_record(bounds)
     exact_fields(fields, [1, 2, 3, 4, 5, 6, 7, 8])
@@ -722,6 +744,7 @@ def decode_bounds(bounds: bytes) -> dict[str, Any]:
     if truncated not in (1, 2) or continuation not in (1, 2):
         raise ScbError("SCB_UNION_INVALID")
     return {
+        "applied_limits": decode_limit_profile(single_field(fields, 1)),
         "returned_bytes": decode_uvar_exact(single_field(fields, 2), 64),
         "returned_entities": decode_uvar_exact(single_field(fields, 3), 64),
         "returned_edges": decode_uvar_exact(single_field(fields, 4), 64),
@@ -1868,7 +1891,121 @@ def check_accepted(inputs: Mapping[str, Any], accepted: Mapping[str, Any]) -> li
     return problems
 
 
+def _admit_frame_header(frame: Mapping[str, Any]) -> None:
+    if frame["kind"] not in (1, 2, 3, 4):
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["version"] < PROTOCOL_VERSION_2:
+        raise CheckFailed("frame_header", "PROTOCOL_DOWNGRADE")
+    if frame["version"] > PROTOCOL_VERSION_2:
+        raise CheckFailed("frame_header", "PROTOCOL_VERSION_UNSUPPORTED")
+    if frame["flags"] & ~0x7:
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+    if frame["flags"] & 0x4 and frame["kind"] not in (2, 3):
+        raise CheckFailed("frame_header", "PROTOCOL_FRAME_INVALID")
+
+
+def _bind_frame(inputs: Mapping[str, Any], case: Mapping[str, Any], frame: Mapping[str, Any], side: str) -> None:
+    if frame["session"] != bytes.fromhex(inputs["context"]["session"]):
+        raise CheckFailed("frame_binding", "session")
+    if frame["request_id"] != int(case["request"]["request_id"]):
+        raise CheckFailed("frame_binding", "request_id")
+    if frame["kind"] != (1 if side == "request" else 2):
+        raise CheckFailed("frame_binding", "kind")
+    if frame["method"] != int(case["method"]):
+        raise CheckFailed("frame_binding", "method")
+    if frame["flags"] != 0:
+        raise CheckFailed("frame_binding", "flags")
+
+
+def _check_request_bounds(bounds: Mapping[str, Any]) -> None:
+    for key in LIMIT_KEYS:
+        if bounds["applied_limits"][key] != 0:
+            raise CheckFailed("request_bounds", key)
+    for key in ("returned_bytes", "returned_entities", "returned_edges", "reached_depth", "omitted"):
+        if bounds[key] != 0:
+            raise CheckFailed("request_bounds", key)
+    if bounds["truncated"]:
+        raise CheckFailed("request_bounds", "truncated")
+    if bounds["continuation"]:
+        raise CheckFailed("request_bounds", "continuation")
+
+
+def _check_response_applied_limits(bounds: Mapping[str, Any], selected: Mapping[str, Any]) -> None:
+    for key in LIMIT_KEYS:
+        if bounds["applied_limits"][key] != int(selected[key]):
+            raise CheckFailed("applied_limits", key)
+
+
+def _decode_supplied_request(inputs: Mapping[str, Any], body: bytes) -> dict[str, Any]:
+    try:
+        return decode_request_body(body, {"limits": inputs["selected_limits"]})
+    except ScbError as error:
+        raise CheckFailed("request_record", error.code) from error
+
+
+def _bind_request_body(inputs: Mapping[str, Any], case: Mapping[str, Any], decoded: Mapping[str, Any]) -> None:
+    if decoded["root"] != bytes.fromhex(inputs["context"]["root"]):
+        raise CheckFailed("request_binding", "root")
+    if decoded["entity"] != bytes.fromhex(inputs["entities"][case["entity"]]["id"]):
+        raise CheckFailed("request_binding", "entity")
+    authored = (
+        ("max_objects", decoded["max_objects"], int(case["request"]["max_objects"])),
+        ("max_response_bytes", decoded["ceiling_m"], int(case["request"]["max_response_bytes"])),
+        ("max_work", decoded["max_work"], int(case["request"]["max_work"])),
+    )
+    for key, actual, want in authored:
+        if actual != want:
+            raise CheckFailed("request_binding", key)
+
+
+def _admit_supplied_side(inputs: Mapping[str, Any], case: Mapping[str, Any], supplied: Mapping[str, Any], side: str) -> None:
+    raw = supplied.get(f"{side}_wire_hex") if isinstance(supplied, Mapping) else None
+    if not isinstance(raw, str):
+        raise CheckFailed("wire_prefix", "missing wire hex")
+    try:
+        wire = bytes.fromhex(raw)
+    except ValueError as error:
+        raise CheckFailed("wire_prefix", "wire hex decode failed") from error
+    stored, _prefix = split_wire(wire, int(inputs["selected_limits"]["max_frame_bytes"]))
+    try:
+        payload, _trailer = check_envelope(stored, protocol_epoch_id())
+    except ScbError as error:
+        raise CheckFailed("frame_envelope", error.code) from error
+    try:
+        frame = decode_frame_payload(payload)
+    except ScbError as error:
+        raise CheckFailed("frame_payload", error.code) from error
+    try:
+        bounds = decode_bounds(frame["bounds"])
+    except ScbError as error:
+        raise CheckFailed("frame_bounds", error.code) from error
+    _admit_frame_header(frame)
+    _bind_frame(inputs, case, frame, side)
+    if side == "request":
+        _check_request_bounds(bounds)
+        _bind_request_body(inputs, case, _decode_supplied_request(inputs, frame["body"]))
+    else:
+        _check_response_applied_limits(bounds, inputs["selected_limits"])
+
+
 def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Mapping[str, Any], problems: list[str]) -> None:
+    case_id = case.get("id", "?") if isinstance(case, Mapping) else "?"
+    response_admitted = True
+    for side in ("request", "response"):
+        try:
+            _admit_supplied_side(inputs, case, built, side)
+        except CheckFailed as error:
+            problems.append(f"{case_id}:semantic:{side}:{error.layer}:{error.detail}")
+            if side == "response":
+                response_admitted = False
+        except (KeyError, TypeError, AttributeError):
+            problems.append(f"{case_id}:semantic:{side}:wire_prefix:malformed supplied record")
+            if side == "response":
+                response_admitted = False
+    if not response_admitted:
+        return
+    if not isinstance(built, Mapping) or not isinstance(built.get("response_body_hex"), str):
+        return
     context = inputs["context"]
     try:
         response = decode_response_body(bytes.fromhex(built["response_body_hex"]))
@@ -1893,8 +2030,8 @@ def semantic_check(inputs: Mapping[str, Any], case: Mapping[str, Any], built: Ma
                 [bytes.fromhex(inputs["entities"][ref]["id"]) for ref in sig["parameters"]],
                 expected_types,
             )
-    except (ScbError, CheckFailed, ValueError) as error:
-        problems.append(f"{case.get('id', '?')}:semantic:{error}")
+    except (ScbError, CheckFailed, ValueError, KeyError, TypeError, AttributeError) as error:
+        problems.append(f"{case.get('id', '?') if isinstance(case, Mapping) else '?'}:semantic:{error}")
 
 
 def check_selection(inputs: Mapping[str, Any], accepted: Mapping[str, Any], problems: list[str]) -> None:
