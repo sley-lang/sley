@@ -1,6 +1,6 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 5 with
+Status: proposed; the S20-430 contract is a draft at revision 6 with
 Council review pending; implemented at `crates/sley-cli` (2026-09-03)
 with endpoint tests over a trusted genesis repository and the mechanical
 rule audit in `make quick`. Revision 5 record (2026-09-08): command
@@ -8,8 +8,13 @@ defaults, version/report shapes, and legacy behavior are unchanged; the
 prospective `--protocol-profile v2-capable` / `--expected-version`
 surface with additive `sley2-cli-v2` / `sley2-cli-report-v2` contracts is
 declared pending, not implemented; capable CLI runtime is phase 3.
+Revision 6 record (2026-09-09): the section 9 version-aware surface is
+implemented (profile flag, expected-version frame rule, capable
+metadata/report, version-aware serve through `Server::new_versioned`)
+with legacy defaults, v1 shapes, and legacy behavior unchanged;
+the capable CLI runtime is implemented in revision 6 under the phase-3 slice.
 
-Date: 2026-09-03; revision 5 record 2026-09-08
+Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09
 
 ## Context
 

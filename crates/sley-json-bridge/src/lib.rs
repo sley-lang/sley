@@ -17,9 +17,9 @@ use sley_id::{ProtocolHandshakeId, SchemaEpochId};
 use sley_protocol::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_CHECKSUM,
     FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FLAG_STREAM, FrameKind, Hello,
-    LimitProfile, MAX_FRAME_BYTES, Method, ProtocolError, ProtocolFailure, ProtocolFrame,
-    Retryability, SelectedProfile, SessionId, StreamChunk, decode_frame, encode_frame,
-    encode_hello_frame,
+    LimitProfile, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION_V2, ProtocolError, ProtocolFailure,
+    ProtocolFrame, Retryability, SelectedProfile, SessionId, StreamChunk, decode_frame,
+    encode_frame, encode_hello_frame,
 };
 
 /// Largest JSON text the bridge parses (contract section 3).
@@ -33,6 +33,13 @@ pub const MAX_JSON_NUMBER: u64 = (1 << 53) - 1;
 /// `conformance/smp1-json-bridge/v1/methods.json`.
 pub const METHOD_TABLE_JSON: &str =
     include_str!("../../../conformance/smp1-json-bridge/v1/methods.json");
+/// The generated version 2 method table, embedded verbatim from
+/// `conformance/smp1-json-bridge/v2/methods.json`: the version 1 table
+/// plus exactly `entity.version` (306) and `entity.signature` (307).
+/// Additive export for the capable CLI profile; the default table above
+/// is unchanged.
+pub const METHOD_TABLE_V2_JSON: &str =
+    include_str!("../../../conformance/smp1-json-bridge/v2/methods.json");
 
 // ---------------------------------------------------------------------------
 // Failures
@@ -643,6 +650,24 @@ fn method_names(tags: &[u32]) -> Result<Value> {
         .map(Value::Array)
 }
 
+/// Resolves a frozen method name under protocol version 2: the version 1
+/// table plus exactly `entity.version` (306) and `entity.signature` (307).
+fn method_name_versioned(tag: u32) -> Result<&'static str> {
+    if tag == NO_METHOD {
+        return Ok("");
+    }
+    Method::from_tag_versioned(tag, PROTOCOL_VERSION_V2)
+        .map(Method::name)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
+}
+
+fn method_names_versioned(tags: &[u32]) -> Result<Value> {
+    tags.iter()
+        .map(|tag| method_name_versioned(*tag).map(|name| Value::String(name.to_string())))
+        .collect::<Result<Vec<_>>>()
+        .map(Value::Array)
+}
+
 fn method_tags_from_value(value: &Value) -> Result<Vec<u32>> {
     list_field(value)?
         .iter()
@@ -780,6 +805,17 @@ pub fn frame_from_json(text: &str) -> Result<EncodedFrame> {
 // ---------------------------------------------------------------------------
 
 fn hello_value(hello: &Hello) -> Result<Value> {
+    hello_value_with(hello, false)
+}
+
+/// Renders the `Hello` object with version 2 method naming: the version 1
+/// names plus exactly `entity.version` and `entity.signature`. Every other
+/// field renders exactly as the version 1 object.
+fn hello_value_versioned(hello: &Hello) -> Result<Value> {
+    hello_value_with(hello, true)
+}
+
+fn hello_value_with(hello: &Hello, versioned: bool) -> Result<Value> {
     let mut map = Map::new();
     insert(
         &mut map,
@@ -804,7 +840,11 @@ fn hello_value(hello: &Hello) -> Result<Value> {
         ),
     );
     insert(&mut map, "limits", limits_value(&hello.limits));
-    insert(&mut map, "methods", method_names(&hello.methods)?);
+    if versioned {
+        insert(&mut map, "methods", method_names_versioned(&hello.methods)?);
+    } else {
+        insert(&mut map, "methods", method_names(&hello.methods)?);
+    }
     insert(
         &mut map,
         "features",
@@ -823,6 +863,17 @@ fn hello_value(hello: &Hello) -> Result<Value> {
 pub fn hello_to_json(hello: &Hello) -> Result<String> {
     hello.validate()?;
     Ok(render(&hello_value(hello)?))
+}
+
+/// Renders a validated version-aware hello as the `Hello` object, naming
+/// the version 2 methods the frozen version 1 rendering rejects.
+///
+/// # Errors
+///
+/// Returns the codec's validation failure or a bridge naming failure.
+pub fn hello_to_json_versioned(hello: &Hello) -> Result<String> {
+    hello.validate()?;
+    Ok(render(&hello_value_versioned(hello)?))
 }
 
 /// Parses the `Hello` object into a validated hello.

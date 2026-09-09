@@ -28,7 +28,7 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
-SPEC_REVISION = 5
+SPEC_REVISION = 6
 SMP1_REVISION = 12
 BRIDGE_REVISION = 8
 
@@ -53,12 +53,13 @@ SPEC_MARKERS = (
     "`scripts/check_cli_rules.py` fails closed",
     "## 6. Required evidence",
     "## 7. Explicit exclusions",
-    "## 9. Prospective version-aware surface",
+    "## 9. Version-aware surface",
     "--protocol-profile v2-capable",
     "--expected-version 1|2",
     "`sley2-cli-v2`",
     "`sley2-cli-report-v2`",
     "no `--protocol-version` alias",
+    "VERSION_MISMATCH",
 )
 ADR_MARKERS = (
     "# ADR-0035: the CLI as a transport endpoint with no semantics",
@@ -69,15 +70,28 @@ ADR_MARKERS = (
     "5. **Four codes, four exit statuses.**",
     "6. **Mechanical rule audit.**",
     "7. **Staging.**",
+    "Revision 6 record (2026-09-09)",
+    "the capable CLI runtime is implemented in revision 6 under the phase-3 slice",
 )
-WORK_PACKAGE_MARKERS = ("`docs/spec/SLEY_CLI_V1.md`", "ADR-0035")
+WORK_PACKAGE_MARKERS = (
+    "`docs/spec/SLEY_CLI_V1.md`",
+    "ADR-0035",
+    "(revision 6, 2026-09-09, ADR-0035, Council reviews pending)",
+    "capable CLI runtime implemented under the phase-3 slice",
+)
 CRATE_MARKERS = (
     "fn serve(",
     "Server::offered_hello(",
+    "Server::offered_hello_versioned(",
+    "Server::new_versioned(",
+    "negotiate_versioned(",
+    "hello_to_json_versioned(",
     "answer_batch(",
     "frame_from_json(",
     "frame_to_json(",
     '"sley2-cli-report-v1"',
+    '"sley2-cli-report-v2"',
+    '"--protocol-profile"',
     "Self::HandshakeRequired => 43_003,",
 )
 
@@ -164,6 +178,7 @@ def main() -> int:
         "rule_audit": "scripts/check_cli_rules.py",
         "new_stable_error_codes": len(CODES),
         "semantic_authority": "SERVER_ONLY",
+        "offered_hello": "Server::offered_hello (legacy) and Server::offered_hello_versioned (capable)",
         "implementation_complete": status == COMPLETE_STATUS,
     }
     for key, value in expected.items():
@@ -189,9 +204,9 @@ def main() -> int:
 
     # Own revision plus the composed authorities, each cross-checked against
     # that document's status line so a stale pin fails the moment it moves.
-    # Future capable behavior is declared pending in section 9, never
-    # detected as implemented by prose presence: the crate assertions below
-    # stay legacy-only.
+    # The section 9 capable surface is implemented: the crate assertions
+    # include capable-runtime markers, and the legacy markers still pin the
+    # frozen default path.
     own = re.search(r"^Status: S20-430 contract draft, revision (\d+)", spec, flags=re.M)
     if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")

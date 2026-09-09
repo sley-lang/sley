@@ -27,17 +27,19 @@
     },
     {
       "artifact": "",
-      "command": "",
+      "command": "cargo test -p sley-cli -p sley-json-bridge",
       "id": "runtime-targeted",
-      "status": "not_run",
-      "summary": "Runner/bridge/CLI runtime evidence for the offer and allowlist change."
+      "status": "pass",
+      "summary": "cli 16 pass (10 legacy byte-identical + 6 profile), bridge 11 pass; clippy and fmt clean",
+      "updated_at": "2026-09-09T15:05:43+00:00"
     },
     {
       "artifact": "",
-      "command": "",
+      "command": "check_cli_contract + check_cli_rules + check_smp1_contract + test_smp1_contract + test_current_contract_review + bridge tables v1/v2 --check + required index",
       "id": "static-targeted",
-      "status": "not_run",
-      "summary": "Spec/checker/table static evidence for the offer and allowlist change."
+      "status": "pass",
+      "summary": "all PASS; note: check_error_symbol_registration FAILs identically on pristine base (pre-existing drift, out of scope)",
+      "updated_at": "2026-09-09T15:05:43+00:00"
     }
   ],
   "owner": "opencode-integrator",
@@ -111,24 +113,27 @@
       "updated_at": "2026-09-09T14:52:29+00:00"
     },
     {
-      "evidence_refs": [],
+      "evidence_refs": [
+        "static-targeted",
+        "runtime-targeted"
+      ],
       "id": "P1",
-      "status": "doing",
-      "title": "P1: declare 306 entity.version + 307 entity.signature in SMP1 v2 endpoint offer and SLEY_CLI_V1 surface",
-      "updated_at": "2026-09-09T14:52:29+00:00"
+      "status": "done",
+      "title": "P1: implement SLEY_CLI_V1 section 9 profile surface (rev 6) with version-aware serve; SMP1 stays rev 12 with composition-only CLI pin move",
+      "updated_at": "2026-09-09T15:05:43+00:00"
     },
     {
       "evidence_refs": [],
       "id": "P2",
-      "status": "todo",
+      "status": "doing",
       "title": "P2: admit 306/307 in SLEY2_TRIAL_RUNNER_V1 ARM_AFFORDANCES allowlist, v1 pin behavior preserved",
-      "updated_at": "2026-09-09T13:51:17+00:00"
+      "updated_at": "2026-09-09T15:05:43+00:00"
     },
     {
       "evidence_refs": [],
       "id": "P3",
       "status": "todo",
-      "title": "P3: runner serving regressions + bridge/CLI table re-verification (v1 frozen, v2 additive)",
+      "title": "P3: runner v2 path (profile serve + selected-version stamping), positive-admission coverage, live 306/307 round trip, table re-verification",
       "updated_at": "2026-09-09T13:51:17+00:00"
     },
     {

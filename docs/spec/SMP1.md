@@ -19,7 +19,7 @@ the JSON bridge from this contract (revision 7, closeout
 (revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
 Current composition (revision 12): the S20-420 bridge contract
 `docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the S20-430 CLI contract
-`docs/spec/SLEY_CLI_V1.md` revision 5.
+`docs/spec/SLEY_CLI_V1.md` revision 6.
 Further implementation state is tracked in the machine summary.
 
 SMP1 is the primary programming interface of Sley 2. It transports the

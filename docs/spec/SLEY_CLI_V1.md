@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 5 (2026-09-08); Council review
+Status: S20-430 contract draft, revision 6 (2026-09-09); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -8,10 +8,12 @@ offer (section 8); revision 4 re-pins SMP1 revision 11 and bridge revision 7
 (no behavior change; `scripts/check_cli_contract.py` asserts both pins
 against the composed status lines); revision 5 re-pins SMP1 revision 12
 and bridge revision 8 and declares the prospective version-aware surface
-(section 9). Command defaults, version/report shapes, and legacy behavior
-are unchanged; capable CLI runtime is phase 3, declared pending, not
-implemented. The revision 4 history is retained as history and does not
-review revision 5; its new-delta review is pending. The implementation is
+(section 9); revision 6 implements the section 9 surface (profile flag,
+expected-version frame rule, capable metadata/report, version-aware serve)
+and synchronizes the CLI revision pins. Command defaults, version/report
+v1 shapes, and legacy behavior are unchanged. The revision 5 history is
+retained as history and does not review revision 6; its new-delta review
+is pending. The implementation is
 `crates/sley-cli`; implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
@@ -28,19 +30,29 @@ the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 ## 1. Commands
 
 ```text
-sley serve --repository <path> [--json] [--batch] [--report <path>]
-sley frame decode                       # stdin: frames as bytes; stdout: one Frame object per line
-sley frame encode                       # stdin: one Frame object per line; stdout: frames as bytes
-sley methods                            # stdout: the generated method table
-sley hello [--json]                     # stdout: the hello this endpoint offers, as a hello frame
+sley serve --repository <path> [--json] [--batch] [--report <path>] [--protocol-profile v2-capable]
+sley frame decode [--protocol-profile v2-capable --expected-version 1|2]
+                                        # stdin: frames as bytes; stdout: one Frame object per line
+sley frame encode [--protocol-profile v2-capable --expected-version 1|2]
+                                        # stdin: one Frame object per line; stdout: frames as bytes
+sley methods [--protocol-profile v2-capable]
+                                        # stdout: the generated method table (version 2 table under the profile)
+sley hello [--json] [--protocol-profile v2-capable]
+                                        # stdout: the hello this endpoint offers, as a hello frame
                                         # (under --json: the same Hello object, rendered as JSON)
-sley version                            # stdout: {"cli":"1","contract":"sley2-cli-v1","protocol_version":1}
+sley version [--protocol-profile v2-capable]
+                                        # stdout: {"cli":"1","contract":"sley2-cli-v1","protocol_version":1}
+                                        # (under the profile: {"cli":"1","contract":"sley2-cli-v2",
+                                        #  "protocol_profile":"v2-capable","protocol_versions":[1,2]})
 ```
 
 Arguments are exact: an unknown command, a repeated or unknown option, or
 a missing value is `CLI_USAGE_INVALID`. There are no abbreviations, no
 environment variables, no configuration files, and no prose output on any
-stream.
+stream. `--protocol-profile` takes exactly `v2-capable`; any other value
+is `CLI_USAGE_INVALID`. On the frame commands the profile requires
+`--expected-version 1|2` and `--expected-version` requires the profile;
+`--expected-version` on any other command is `CLI_USAGE_INVALID`.
 
 ## 2. `serve`
 
@@ -92,6 +104,17 @@ answered with a response frame carrying the bridge's own code and symbol
 (request identifier zero, no session) and reading continues. End of input
 ends the invocation; the endpoint never waits for a close.
 
+Under `--protocol-profile v2-capable` the endpoint offers
+`Server::offered_hello_versioned` (protocol versions 1 and 2 with the
+version 2 method table), derives the selection with the frozen
+version-aware negotiation, and answers through `Server::new_versioned`,
+so decoding, dispatch, and response framing all follow the selection;
+a legacy client hello still negotiates version 1 and the version 2
+methods stay undispatched on that selection. A negotiation failure is
+answered exactly as above, and the rejection frame travels at frame
+version 1: without a selection no version is negotiated, and a
+version 1 peer reads it.
+
 ## 3. Report
 
 With `--report <path>` the endpoint writes, at exit, one JSON object
@@ -117,6 +140,29 @@ Report {
 The report counts and copies; it interprets nothing. `codes` is keyed by
 the numeric code of every failed answer's `ProtocolFailure` body; `cause`
 carries the underlying codec or bridge symbol when a CLI failure wraps one.
+
+Under `--protocol-profile v2-capable` the report is the additive contract
+`sley2-cli-report-v2`: the section 3 counters and errors unchanged, plus
+`protocol_profile` (`v2-capable`) and `selected_protocol_version`
+(`null` before a successful negotiation, otherwise the actual 1 or 2):
+
+```text
+Report {
+  "contract": "sley2-cli-report-v2",
+  "command": "serve",
+  "mode": "bytes" | "json",
+  "batch": bool,
+  "handshake_id": hex[64] | null,
+  "frames_read": integer, "frames_written": integer,
+  "events_written": integer,
+  "answers": integer, "failed_answers": integer,
+  "codes": { "<numeric>": integer, ... },
+  "cli_failure": null | { "code": integer, "symbol": string, "cause": string | null },
+  "exit_code": integer,
+  "protocol_profile": "v2-capable",
+  "selected_protocol_version": 1 | 2 | null
+}
+```
 
 ## 4. Exit status and stable failures
 
@@ -173,6 +219,12 @@ error.
   unfragmented and exit statuses propagate; the flush-per-answer
   obligation of section 2 holds on every write path.
 - `scripts/check_cli_rules.py` in `make quick`.
+- Capable-profile tests over the same trusted repository: the `[1,2]`
+  offer carrying exactly the version 2 methods, the capable metadata and
+  report contracts, a version-aware serve reporting the actual selected
+  version (2 for a version-aware client hello, 1 for a legacy one), and
+  the expected-version frame rule with its rejections (hello under
+  expected 2, mixed versions, missing or detached flags).
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan
   reviews with every report-grade finding closed.
 
@@ -232,7 +284,23 @@ release, or GA.
   version/report shapes, and legacy behavior are unchanged; capable
   runtime is phase 3.
 
-## 9. Prospective version-aware surface (phase 3, declared pending)
+### Revision 6 (2026-09-09)
+
+- Section 9 is implemented: `--protocol-profile v2-capable` on `hello`,
+  `methods`, `version`, `serve`, `frame encode`, and `frame decode`;
+  `--expected-version 1|2` on the frame commands with exact wire
+  semantics; the additive `sley2-cli-v2` metadata and
+  `sley2-cli-report-v2` report; and the version-aware serve path
+  (`Server::offered_hello_versioned`, version-aware negotiation,
+  `Server::new_versioned`). Command defaults, version/report v1 shapes,
+  and legacy behavior are unchanged, and every legacy byte vector still
+  passes unmodified.
+- The revision pins stay SMP1 revision 12 and bridge revision 8: no
+  normative protocol or bridge change was needed, so SMP1 keeps revision
+  12 with a composition-only CLI pin move, and the bridge keeps revision
+  8 (the version 2 table artifact it already specifies).
+
+## 9. Version-aware surface (phase 3, implemented in revision 6)
 
 The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
 `methods`, `version`, `serve`, `frame encode`, and `frame decode`. The
@@ -241,7 +309,9 @@ standalone frame commands (`frame encode`, `frame decode`) additionally
 require `--expected-version 1|2` with exact wire semantics: Hello uses
 expected 1, and every post-Hello frame uses the actual selected version
 (1 or 2). Expected 2 with Hello 1 is rejected; stateless frame commands
-never silently transition versions or accept mixed streams. Duplicate,
+never silently transition versions or accept mixed streams. A version
+mismatch is `CLI_INPUT_INVALID` with cause VERSION_MISMATCH (a cause
+word, not a registered symbol). Duplicate,
 missing, or unsupported flags, `--expected-version` without the profile,
 and `--expected-version` on other commands are rejected under the
 existing section 4 categories. There is no `--protocol-version` alias:
@@ -260,6 +330,7 @@ Default metadata and reports retain the exact version 1 contracts and
 bytes. The profile-aware entrypoint keeps existing `ServeOptions` source
 compatibility with `serve` as the legacy wrapper.
 
-This surface is declared, not implemented: the endpoint, crate, rule audit,
-and vectors in this revision stay version 1-only, and prose presence here
-is never detected as implemented behavior.
+This surface is implemented in revision 6: the endpoint, crate, rule
+audit, and vectors above cover the capable path, and prose presence here
+is now backed by the capable-runtime markers in
+`scripts/check_cli_contract.py`. The version 1 default stays frozen.
