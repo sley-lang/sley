@@ -9,7 +9,7 @@ version-negotiated, request/response, cancellation-aware, machine-code
 first, transport-neutral above framing, prose only as debug metadata) are
 carried forward and made exact. Implementation state: S20-410 implements
 the frame and the deterministic server under this draft (thirty-seven
-non-reserved version-1 methods dispatched — the frozen version-1
+non-reserved version-1 methods dispatched, which is the frozen version-1
 implementation state, closeout
 `docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`), S20-440 freezes the
 cancellation, streaming, and budget rules carried in section 7 and
@@ -56,7 +56,9 @@ without changing any version 1 row, byte, or helper. Document revision
 (a draft number of this file) and negotiated protocol version (the wire
 selection 1 or 2) are distinct: revision 12 still serves version 1
 exactly as before. Revision 12 is a static delta only: the version 1
-implementations remain in place, capable bridge/CLI runtime is phase 3,
+implementations remain in place, capable bridge/CLI runtime is phase 3
+(implemented in CLI revision 6; phase names the rollout stage, not the
+contract revision),
 and the revision 11 review history is retained as history. Those reviews
 do not review revision 12; its new-delta review is pending.
 

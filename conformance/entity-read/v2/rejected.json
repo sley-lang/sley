@@ -1288,9 +1288,9 @@
       "steps": [
         {
           "action": "entity.version under a v1-only selection with a bad session",
-          "expected_code": null,
-          "expected_symbol": null,
-          "note": "Session admission precedes method negotiation; exact precedence is runtime-compared."
+          "expected_code": 40007,
+          "expected_symbol": "PROTOCOL_METHOD_UNSUPPORTED",
+          "note": "Method-tag validity precedes session routing and admission: entity.version under a v1-only selection with a bad session answers PROTOCOL_METHOD_UNSUPPORTED (contract SMP1 sections 2 and 9; server test version_one_selection_refuses_version_two_methods_at_tag_validity). The row stays a runtime-sequence obligation for live-session confirmation."
         }
       ],
       "title": "Unnegotiated method combined with a bad session"
@@ -1377,7 +1377,7 @@
   "claim": "independent-expected",
   "contract": "sley2-entity-read-v2-rejected",
   "manifest": {
-    "inputs_sha256": "724240c5bcd679d91eac6aab2aaa9f110a585d7b6dd1a0d6ba0091bb742a7bb9",
+    "inputs_sha256": "d63e4cc342253722837a86d0f0b294711a2aabf1b0a0b0dce2290a671783717e",
     "protocol_epoch": "37522d2cf9f8b19b291e3436f2faea3e7e7a503d4f46f33202c79dae7be3615c",
     "refresh_head_revision": "01cc239ebc28cd6f6516f42dc6475deb18fd5dc8"
   }

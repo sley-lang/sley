@@ -230,7 +230,11 @@ dispatch, and framing even under an above-1 opaque selection.
   `inputs.json` carrying the completed comparison notes;
   `version_one_response_body_is_not_canonical` pins the third row's fixed
   outcome (`resp_version_1` decodes `NotCanonical`, which keeps no owner
-  code, so the vector pins the layer). `scripts/check_entity_read_vectors.py`
+  code, so the vector pins the layer). The `seq_unnegotiated_precedence`
+  runtime-sequence row now states the proven precedence (method-tag
+  validity before session routing and admission, `METHOD_UNSUPPORTED`
+  40007) while staying a runtime-sequence obligation for live-session
+  confirmation, as the oracle requires. `scripts/check_entity_read_vectors.py`
   is green (23 cases, 91 rejections), and the staged refresh derivation
   reproduces the corpus exactly.
 
