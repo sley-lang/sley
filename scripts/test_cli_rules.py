@@ -58,6 +58,10 @@ class TruthDerivationControl(unittest.TestCase):
         self.assertIn("entity.signature", NAMES)
         self.assertEqual((len(TAGS), len(NAMES)), (43, 43))
 
+    def test_refactored_protocol_source_fails_as_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            CHECKER.derive_method_truth("no method table here")
+
     def test_real_source_passes(self) -> None:
         problems, counters = audit(REAL_SOURCE)
         self.assertEqual(problems, [])

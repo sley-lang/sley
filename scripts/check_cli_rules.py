@@ -45,9 +45,17 @@ def derive_method_truth(protocol_text: str) -> tuple[tuple[int, ...], tuple[str,
             r"pub const (ENTITY_\w+_TAG): u32 = (\d+);", protocol_text
         )
     }
-    tag_block = protocol_text.split("pub const fn tag(self) -> u32", 1)[1].split(
-        "pub const fn name(self)", 1
-    )[0]
+    tag_block: str
+    name_block: str
+    try:
+        tag_block = protocol_text.split("pub const fn tag(self) -> u32", 1)[1].split(
+            "pub const fn name(self)", 1
+        )[0]
+        name_block = protocol_text.split("pub const fn name(self)", 1)[1].split(
+            "pub const fn family(self)", 1
+        )[0]
+    except IndexError as error:
+        raise ValueError("method table regions not found") from error
     tags: set[int] = set()
     for _variant, raw in re.findall(r"Self::(\w+) => ([A-Z0-9_]+),", tag_block):
         if raw.isdigit():
@@ -56,9 +64,6 @@ def derive_method_truth(protocol_text: str) -> tuple[tuple[int, ...], tuple[str,
             tags.add(constants[raw])
         else:
             raise ValueError(f"unresolvable method tag: {raw}")
-    name_block = protocol_text.split("pub const fn name(self)", 1)[1].split(
-        "pub const fn family(self)", 1
-    )[0]
     names = re.findall(r'Self::\w+ => "([\w.]+)",', name_block)
     if not tags or not names:
         raise ValueError("method table derivation is empty")

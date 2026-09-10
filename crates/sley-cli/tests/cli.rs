@@ -1430,3 +1430,39 @@ fn capable_code_counts_sum_to_failed_answers_under_both_selections() {
     );
     assert_eq!(codes.keys().next().unwrap(), "40007");
 }
+
+#[test]
+fn frame_command_detached_flag_pairs_name_their_cause() {
+    // Vulcan R6-P2-5: a detached `--expected-version` names
+    // `--expected-version`, and a detached capable profile names
+    // `--protocol-profile`; both fail CLI_USAGE_INVALID with exit 2.
+    let (status, _, stderr) = run(&["frame", "decode", "--expected-version", "2"], &[]);
+    assert_eq!(status, 2);
+    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(failure["code"], 43000);
+    assert_eq!(failure["cause"], "--expected-version");
+    let (status, _, stderr) = run(
+        &["frame", "decode", "--protocol-profile", "v2-capable"],
+        &[],
+    );
+    assert_eq!(status, 2);
+    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(failure["code"], 43000);
+    assert_eq!(failure["cause"], "--protocol-profile");
+}
+
+#[test]
+fn frame_decode_keeps_partial_stdout_before_failure() {
+    // Vulcan R6-P3-3: the frame commands stream converted lines, so a
+    // failure after partial output leaves the converted prefix behind.
+    let frame = request(None, 0, Method::SessionOpen, 0, vec![1, 2, 3]);
+    let mut input = frame.clone();
+    input.extend_from_slice(b"junk");
+    let (status, stdout, _) = run(&["frame", "decode"], &input);
+    assert_eq!(status, 3);
+    assert_eq!(split_frames(&frame).len(), 1);
+    let text = String::from_utf8(stdout).unwrap();
+    assert_eq!(text.lines().count(), 1);
+    let converted: Value = serde_json::from_str(text.trim()).unwrap();
+    assert_eq!(converted["kind"], "request");
+}
