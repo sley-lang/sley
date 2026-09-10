@@ -68,9 +68,15 @@ soon as a lane returns.
 Revision 12 record (2026-09-08): the frozen version 1 method table is
 unchanged; the two S20-310 entity-read tags (306, 307) are additive
 protocol version 2 metadata with body definitions linked to
-`docs/spec/ENTITY_READ_PROFILE_V2.md`, current composition pins at bridge
-revision 8 and CLI revision 5, and capable runtime as phase 3. No decision
+`docs/spec/ENTITY_READ_PROFILE_V2.md`, composition pins at bridge
+revision 8 and CLI revision 5 as the historical composition at initial
+revision-12 publication, and capable runtime as phase 3. No decision
 above is altered except for the stated ENTITY_READ version 2 exception.
+
+Revision 12 update (2026-09-10): the live reciprocal CLI pin is revision 6
+(`docs/spec/SLEY_CLI_V1.md` revision 6 implements the capable runtime the
+phase-3 composition needs); the revision 5 pin above stays as the dated
+historical record.
 
 ## Consequences
 

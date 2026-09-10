@@ -1152,10 +1152,20 @@ impl ProtocolFrame {
     /// section 2): below the selection is a downgrade attempt, above it
     /// names a version the selection does not know.
     ///
+    /// The selection itself is gated first: only versions 1 and 2 are
+    /// defined on the explicit path (contract `docs/spec/SMP1.md`
+    /// section 2, like [`Method::from_tag_versioned`] and
+    /// [`negotiate_versioned`]), so any other expected version is
+    /// `PROTOCOL_VERSION_UNSUPPORTED` regardless of the frame's claim.
+    /// The wire surface is closed by this entrypoint, not by callers.
+    ///
     /// # Errors
     ///
     /// Returns the exact validation failure; never a partial judgment.
     pub fn validate_for_version(&self, expected_version: u32) -> Result<()> {
+        if expected_version != PROTOCOL_VERSION && expected_version != PROTOCOL_VERSION_V2 {
+            return fail(ProtocolErrorCode::VersionUnsupported);
+        }
         if self.protocol_version < expected_version {
             return fail(ProtocolErrorCode::Downgrade);
         }
@@ -1237,7 +1247,9 @@ pub fn encode_frame(frame: &ProtocolFrame) -> Result<EncodedFrame> {
 }
 
 /// Encodes a request, response, or event frame under an explicitly
-/// selected protocol version.
+/// selected protocol version. Only versions 1 and 2 are defined: any
+/// other selection fails `PROTOCOL_VERSION_UNSUPPORTED` before anything
+/// is emitted (contract `docs/spec/SMP1.md` section 2).
 ///
 /// # Errors
 ///
@@ -3164,7 +3176,16 @@ mod tests {
         let downgrade = encode_frame_for_version(&v1_claim, PROTOCOL_VERSION)
             .unwrap()
             .bytes;
-        let upgraded = encode_frame_for_version(&v3_claim, 3).unwrap().bytes;
+        // An undefined selection emits nothing: the v3-claiming wire bytes
+        // below are minted past validation on purpose, so the decode side
+        // keeps its negative vector while the encode side stays fail-closed.
+        assert_eq!(
+            encode_frame_for_version(&v3_claim, 3).unwrap_err().code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        let upgraded = encode_envelope(v3_claim.kind, &v3_claim.payload().unwrap())
+            .unwrap()
+            .bytes;
         let rejects: Vec<(&str, Vec<u8>, ProtocolErrorCode)> = vec![
             ("v1-frame-on-v2", downgrade, ProtocolErrorCode::Downgrade),
             (
@@ -3313,7 +3334,7 @@ mod tests {
             decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, 3)
                 .unwrap_err()
                 .code(),
-            ProtocolErrorCode::Downgrade
+            ProtocolErrorCode::VersionUnsupported
         );
         let v1_frame = ProtocolFrame {
             protocol_version: PROTOCOL_VERSION,
@@ -3336,5 +3357,155 @@ mod tests {
         let frames = stream_response_for_version(&v1_frame, MAX_FRAME_BYTES, false, PROTOCOL_VERSION)
             .unwrap_err();
         assert_eq!(frames.code(), ProtocolErrorCode::FrameInvalid);
+    }
+
+    #[test]
+    fn versioned_frame_codec_gates_undefined_selections_fail_closed() {
+        // Only versions 1 and 2 are defined on the explicit path (contract
+        // SMP1 section 2): every other selection fails
+        // `PROTOCOL_VERSION_UNSUPPORTED` on encode and on decode,
+        // regardless of the frame's own claim, while the {1, 2} domain
+        // keeps its exact claim split and frozen v1 behavior is unchanged.
+        let base = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: Some(session(0x71)),
+            request_id: 11,
+            kind: FrameKind::Request,
+            method: 300,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: vec![9, 9, 9],
+        };
+        let wire = |claimed: u32| {
+            let frame = ProtocolFrame {
+                protocol_version: claimed,
+                ..base.clone()
+            };
+            encode_envelope(frame.kind, &frame.payload().unwrap())
+                .unwrap()
+                .bytes
+        };
+        // Encode: the defined domain round-trips, everything else refuses.
+        for claimed in [0, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, 3] {
+            let frame = ProtocolFrame {
+                protocol_version: claimed,
+                ..base.clone()
+            };
+            for expected in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2] {
+                let outcome = encode_frame_for_version(&frame, expected);
+                if claimed == expected {
+                    outcome.unwrap();
+                } else if claimed < expected {
+                    assert_eq!(outcome.unwrap_err().code(), ProtocolErrorCode::Downgrade);
+                } else {
+                    assert_eq!(
+                        outcome.unwrap_err().code(),
+                        ProtocolErrorCode::VersionUnsupported
+                    );
+                }
+            }
+            for expected in [0, 3, u32::MAX] {
+                assert_eq!(
+                    encode_frame_for_version(&frame, expected).unwrap_err().code(),
+                    ProtocolErrorCode::VersionUnsupported,
+                    "encode claimed {claimed} under undefined selection {expected}"
+                );
+            }
+        }
+        // Decode: envelope integrity precedes the selection domain, and the
+        // domain precedes every claim and shape judgment.
+        for claimed in [0, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, 3] {
+            let bytes = wire(claimed);
+            for expected in [0, 3, u32::MAX] {
+                assert_eq!(
+                    decode_frame_for_version(&bytes, MAX_FRAME_BYTES, expected)
+                        .unwrap_err()
+                        .code(),
+                    ProtocolErrorCode::VersionUnsupported,
+                    "decode claimed {claimed} under undefined selection {expected}"
+                );
+            }
+            let code = decode_frame_for_version(&bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION);
+            match code {
+                Ok(_) => assert_eq!(claimed, PROTOCOL_VERSION),
+                Err(error) => assert_eq!(
+                    error.code(),
+                    if claimed < PROTOCOL_VERSION {
+                        ProtocolErrorCode::Downgrade
+                    } else {
+                        ProtocolErrorCode::VersionUnsupported
+                    },
+                    "decode claimed {claimed} under v1"
+                ),
+            }
+            match decode_frame_for_version(&bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2) {
+                Ok(_) => assert_eq!(claimed, PROTOCOL_VERSION_V2),
+                Err(error) => assert_eq!(
+                    error.code(),
+                    if claimed < PROTOCOL_VERSION_V2 {
+                        ProtocolErrorCode::Downgrade
+                    } else {
+                        ProtocolErrorCode::VersionUnsupported
+                    },
+                    "decode claimed {claimed} under v2"
+                ),
+            }
+        }
+        let v1_bytes = wire(PROTOCOL_VERSION);
+        let v2_bytes = wire(PROTOCOL_VERSION_V2);
+        decode_frame_for_version(&v1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap();
+        decode_frame_for_version(&v2_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2).unwrap();
+        assert_eq!(
+            decode_frame_for_version(&v2_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        assert_eq!(
+            decode_frame_for_version(&v1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::Downgrade
+        );
+        // A corrupted envelope still fails frame-invalid before the
+        // undefined selection is even reached.
+        let mut corrupt = v2_bytes.clone();
+        let magic_at = LENGTH_PREFIX;
+        corrupt[magic_at] ^= 0xff;
+        assert_eq!(
+            decode_frame_for_version(&corrupt, MAX_FRAME_BYTES, 3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        // A v3 claim with bad flags under a defined selection still reports
+        // the version split first, pinning claim-before-shape ordering.
+        let bad_flags = ProtocolFrame {
+            protocol_version: 3,
+            flags: 0xffff,
+            ..base.clone()
+        };
+        let bad_bytes = encode_envelope(bad_flags.kind, &bad_flags.payload().unwrap())
+            .unwrap()
+            .bytes;
+        assert_eq!(
+            decode_frame_for_version(&bad_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        // A hello decoded under an undefined selection reports the domain,
+        // not the downgrade its wire-1 claim would earn under version 2.
+        let hello_bytes = encode_hello_frame(&v2_client_hello()).unwrap().bytes;
+        assert_eq!(
+            decode_frame_for_version(&hello_bytes, MAX_FRAME_BYTES, 3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        // Frozen v1 behavior is unchanged end to end.
+        let legacy = encode_frame(&base).unwrap();
+        let (decoded, _) = decode_frame(&legacy.bytes, MAX_FRAME_BYTES).unwrap();
+        assert_eq!(decoded, DecodedFrame::Request(base));
     }
 }

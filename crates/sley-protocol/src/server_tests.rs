@@ -3014,6 +3014,36 @@ fn legacy_server_with_v2_selection_keeps_v1_framing() {
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::VersionUnsupported.numeric()
     );
+    // A version 1 frame decodes on the legacy path but meets the above-1
+    // opaque selection at the dispatch claim check: the legacy server with
+    // a version 2 selection is unserviceable in both directions (contract
+    // SMP1 section 2), v1 answering `PROTOCOL_DOWNGRADE`.
+    let v1_frame = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Request,
+            method: Method::SessionOpen.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: vec![0; 32],
+        },
+        PROTOCOL_VERSION,
+    )
+    .unwrap()
+    .bytes;
+    let answer = server.answer(&v1_frame).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame(&answer.frame.bytes, MAX_FRAME_BYTES).unwrap()
+    else {
+        panic!("response frame");
+    };
+    assert_eq!(
+        ProtocolFailure::decode(&frame.body).unwrap().code,
+        ProtocolErrorCode::Downgrade.numeric()
+    );
 }
 
 #[test]
@@ -3086,21 +3116,26 @@ fn versioned_session_open_binds_and_claims_split() {
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::Downgrade.numeric()
     );
-    let v3_open = encode_frame_for_version(
-        &ProtocolFrame {
-            protocol_version: 3,
-            session: None,
-            request_id: 0,
-            kind: FrameKind::Request,
-            method: Method::SessionOpen.tag(),
-            flags: 0,
-            bounds: BoundedContext::none(),
-            body: harness.server.handshake_id().as_bytes().to_vec(),
-        },
-        3,
-    )
-    .unwrap()
-    .bytes;
+    // An undefined selection emits nothing, so the v3-claiming wire bytes
+    // are minted past validation on purpose: the server must still refuse
+    // them `PROTOCOL_VERSION_UNSUPPORTED` when they arrive on the wire.
+    let v3_claim = ProtocolFrame {
+        protocol_version: 3,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::SessionOpen.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: harness.server.handshake_id().as_bytes().to_vec(),
+    };
+    assert_eq!(
+        encode_frame_for_version(&v3_claim, 3).unwrap_err().code(),
+        ProtocolErrorCode::VersionUnsupported
+    );
+    let v3_open = crate::encode_envelope(v3_claim.kind, &v3_claim.payload().unwrap())
+        .unwrap()
+        .bytes;
     let answer = harness.server.answer(&v3_open).unwrap();
     assert!(answer.failed);
     let (DecodedFrame::Response(frame), _) =
@@ -3254,6 +3289,105 @@ fn entity_read_failure_precedence_is_exact() {
         ProtocolFailure::decode(&frame.body).unwrap().symbol,
         "SESSION_UNKNOWN"
     );
+}
+
+#[test]
+fn version_one_selection_refuses_version_two_methods_at_tag_validity() {
+    use crate::Retryability;
+    // A version-aware server holding a version 1 selection refuses the two
+    // version-2 tags and an opaque unknown tag at method-tag validity,
+    // before session routing (contract SMP1 sections 2 and 9): the
+    // envelope is `PROTOCOL_METHOD_UNSUPPORTED`, never retried, with empty
+    // details and no dispatch charge, even for an unknown session.
+    let methods = vec![100, 300, ENTITY_VERSION_TAG, ENTITY_SIGNATURE_TAG, 999];
+    let mut one = vhello(methods.clone(), 4);
+    one.protocol_versions = vec![PROTOCOL_VERSION];
+    let mut server_one = vhello(methods, 8);
+    server_one.protocol_versions = vec![PROTOCOL_VERSION];
+    let (temp, _transactions, _) = genesis("v1-selection-gate", executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(&repository, &one, &server_one).unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION);
+    assert!(!server.profile().methods.contains(&ENTITY_VERSION_TAG));
+    assert!(!server.profile().methods.contains(&ENTITY_SIGNATURE_TAG));
+    // The opaque tag survives negotiation untouched (legacy treatment) but
+    // still never dispatches on a v1 serving path.
+    assert!(server.profile().methods.contains(&999));
+    let open = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Request,
+            method: Method::SessionOpen.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: server.handshake_id().as_bytes().to_vec(),
+        },
+        PROTOCOL_VERSION,
+    )
+    .unwrap()
+    .bytes;
+    let opened = server.answer(&open).unwrap();
+    assert!(!opened.failed);
+    let (DecodedFrame::Response(open_frame), _) =
+        decode_frame_for_version(&opened.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap()
+    else {
+        panic!("session open response");
+    };
+    let session = SessionId::from_bytes(open_frame.body.as_slice().try_into().unwrap());
+    let send = |server: &mut Server, tag: u32, session: Option<SessionId>, request_id: u64| {
+        let bytes = encode_frame_for_version(
+            &ProtocolFrame {
+                protocol_version: PROTOCOL_VERSION,
+                session,
+                request_id,
+                kind: FrameKind::Request,
+                method: tag,
+                flags: 0,
+                bounds: BoundedContext::none(),
+                body: Vec::new(),
+            },
+            PROTOCOL_VERSION,
+        )
+        .unwrap()
+        .bytes;
+        let answer = server.answer(&bytes).unwrap();
+        assert!(answer.failed, "{tag} unexpectedly succeeded");
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION)
+                .unwrap()
+        else {
+            panic!("response frame");
+        };
+        assert_eq!(frame.protocol_version, PROTOCOL_VERSION);
+        ProtocolFailure::decode(&frame.body).unwrap()
+    };
+    let mut next_request = 1;
+    for tag in [ENTITY_VERSION_TAG, ENTITY_SIGNATURE_TAG, 999] {
+        let before = server.remaining_budget(session);
+        let failure = send(&mut server, tag, Some(session), next_request);
+        next_request += 1;
+        assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
+        assert_eq!(
+            failure.symbol,
+            ProtocolErrorCode::MethodUnsupported.as_str()
+        );
+        assert_eq!(failure.retryability, Retryability::Never);
+        assert!(failure.details.is_empty());
+        assert_eq!(server.remaining_budget(session), before);
+        // Tag validity precedes session routing: an unknown session meets
+        // the same refusal, not `SESSION_UNKNOWN`.
+        let unknown = send(
+            &mut server,
+            tag,
+            Some(SessionId::from_bytes([0x99; 32])),
+            next_request,
+        );
+        next_request += 1;
+        assert_eq!(unknown.code, ProtocolErrorCode::MethodUnsupported.numeric());
+        assert!(unknown.details.is_empty());
+    }
 }
 
 #[test]

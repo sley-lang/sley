@@ -615,9 +615,9 @@
     "encoder_module": "sley2_scb1_oracle.entity_read",
     "encoder_sha256": "658c513086a439313142b2fc31cbafbfb97257ad19e7b567e6de89868de38a0b",
     "inputs_authored_at_revision": "f5b6a3557595e9461669cec5957bf3f52967fb9e",
-    "inputs_sha256": "d639755519f0cacd36675be76e460fcb31c7ef1ee8d314404bba3838660db58e",
+    "inputs_sha256": "d63e4cc342253722837a86d0f0b294711a2aabf1b0a0b0dce2290a671783717e",
     "protocol_epoch": "37522d2cf9f8b19b291e3436f2faea3e7e7a503d4f46f33202c79dae7be3615c",
-    "refresh_head_revision": "3df8914de5d0ee67f4db2e03329a194a6ec8aa00",
+    "refresh_head_revision": "01cc239ebc28cd6f6516f42dc6475deb18fd5dc8",
     "schema_sha256": "8dbf14458d69482692464e00745f8f11a17007fa1e140ec040e92c7fd43f9c50",
     "source_schema_blake3": "1983bc8d6ad9ac3cb5390853f43959cf2c3dc0ae8e0ca18ca8264ca4960133ae"
   },
