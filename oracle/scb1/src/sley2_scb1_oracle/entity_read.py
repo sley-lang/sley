@@ -37,7 +37,6 @@ import argparse
 import hashlib
 import json
 import struct
-import subprocess
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -2981,14 +2980,47 @@ def check_fill_recipe(inputs: Mapping[str, Any], case: Mapping[str, Any], proble
 
 
 def git_head_revision(repo_root: Path) -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return completed.stdout.strip()
+    """Read the current HEAD revision without spawning any process.
+
+    The oracle records provenance metadata during an explicit refresh, and
+    S20-130 forbids it any implementation dependency, including a git
+    executable. This resolves the git directory (including worktree pointer
+    files), then the HEAD ref through the loose ref file or packed-refs,
+    reporting exactly what `git rev-parse HEAD` would. It raises when the
+    revision is unresolvable, mirroring the old `check=True` failure.
+    """
+    git_path = repo_root / ".git"
+    if git_path.is_file():
+        pointer = git_path.read_text(encoding="utf-8").strip()
+        if not pointer.startswith("gitdir:"):
+            raise ValueError(f"unrecognized .git pointer: {pointer!r}")
+        git_dir = Path(pointer[len("gitdir:"):].strip())
+        if not git_dir.is_absolute():
+            git_dir = (git_path.parent / git_dir).resolve()
+    else:
+        git_dir = git_path
+    head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    if head.startswith("ref:"):
+        ref = head[len("ref:"):].strip()
+        loose = git_dir / ref
+        if loose.is_file():
+            head = loose.read_text(encoding="utf-8").strip()
+        else:
+            packed = git_dir / "packed-refs"
+            resolved = None
+            for line in packed.read_text(encoding="utf-8").splitlines():
+                if not line or line.startswith("#") or line.startswith("^"):
+                    continue
+                sha, _, name = line.partition(" ")
+                if name.strip() == ref:
+                    resolved = sha.strip()
+                    break
+            if resolved is None:
+                raise ValueError(f"HEAD ref {ref!r} resolves to no revision")
+            head = resolved
+    if len(head) != 40 or any(char not in "0123456789abcdefABCDEF" for char in head):
+        raise ValueError(f"HEAD revision is not a commit id: {head!r}")
+    return head
 
 
 def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, str]:
