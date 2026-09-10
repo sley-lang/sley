@@ -1996,7 +1996,10 @@ pub(crate) mod tests {
         ExpectedIdentityAbsent, ImportedCandidate, MutationClass, MutationOperation,
         MutationPayload, PreconditionPayload, PreimageRequirement, build_candidate,
         build_entity_object, full_validation_profile_id, import_entity_object,
-        value::{EntityBodyValue, EntityIdSet, NamespaceBody},
+        value::{
+            BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody, OperationBody,
+            ParameterBody,
+        },
     };
     use sley_policy::{
         AcceptedPolicyRoot, CandidateValidationLimits, PolicyResourceCeilings, PolicyRootBuilder,
@@ -3245,6 +3248,255 @@ pub(crate) mod tests {
             println!("EXCHANGE_REJECT|{id}|{}|{}", error.code(), hex(&bytes));
         }
         assert!(!never.exists());
+    }
+
+    /// One AT-MW-02 I4b demonstration repository: genesis only, branch
+    /// `main` at genesis. Holds a Namespace plus one complete Boolean
+    /// function unit (Function, two Bool Parameters, Block, one Boolean
+    /// Operation under a Return terminator) and a policy granting the demo
+    /// principal `ReplaceEntityVersion`. Variants differ in workspace
+    /// (hence every derived identity), base opcode, and operand order, so
+    /// a hardcoded edit substitute cannot validate on both.
+    struct I4bDemoSource {
+        temp: TempDir,
+        root: PathBuf,
+        epoch: SchemaEpochId,
+        genesis: TransactionId,
+        namespace: EntityId,
+        function: EntityId,
+        param0: EntityId,
+        param1: EntityId,
+        block: EntityId,
+        operation: EntityId,
+        principal: PrincipalId,
+    }
+
+    impl I4bDemoSource {
+        #[allow(clippy::too_many_lines)]
+        fn build(
+            label: &str,
+            workspace_byte: u8,
+            nonce_byte: u8,
+            base_opcode: sley_ssmc::Opcode,
+            swap_operands: bool,
+        ) -> Self {
+            let temp = TempDir::new(label);
+            let root = temp.child("source");
+            fs::create_dir(&root).unwrap();
+            let transactions = TransactionRepository::new(&root);
+            let branches = BranchRepository::new(&root);
+            let workspace_id = fixed(workspace_byte, WorkspaceId::from_bytes);
+            let principal_id = fixed(2, PrincipalId::from_bytes);
+            let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+            let namespace = EntityId::derive(workspace_id, nonce, 3, 0);
+            let function = EntityId::derive(workspace_id, nonce, 5, 0);
+            let param0 = EntityId::derive(workspace_id, nonce, 6, 0);
+            let param1 = EntityId::derive(workspace_id, nonce, 6, 1);
+            let block = EntityId::derive(workspace_id, nonce, 7, 0);
+            let operation = EntityId::derive(workspace_id, nonce, 8, 0);
+            let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+                1_000, 1_000, 1_000, 100, 100, 100,
+            ))
+            .mutation_class(MutationClass::ReplaceEntityVersion)
+            .build()
+            .unwrap();
+            let policy = PolicyRootBuilder::new(workspace_id)
+                .principal_grant(principal_id, grant)
+                .build(&policy_registry().unwrap())
+                .unwrap();
+            let epoch = state_epoch_id().unwrap();
+            let record = |entity_id, body| EntityObjectRecord {
+                entity_id,
+                body,
+                label: None,
+                semantic_fingerprint: None,
+            };
+            let (first, second) = if swap_operands {
+                (param1, param0)
+            } else {
+                (param0, param1)
+            };
+            let records = [
+                record(
+                    namespace,
+                    EntityBodyValue::Namespace(NamespaceBody {
+                        parent: None,
+                        members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    }),
+                ),
+                record(
+                    function,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: Vec::new(),
+                        parameters: vec![param0, param1],
+                        result_type: sley_ssmc::TypeExpr::Bool,
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: sley_ssmc::Visibility::Private,
+                    }),
+                ),
+                record(
+                    param0,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: sley_ssmc::ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: sley_ssmc::TypeExpr::Bool,
+                    }),
+                ),
+                record(
+                    param1,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: sley_ssmc::ParameterRole::Function,
+                        ordinal: 1,
+                        value_type: sley_ssmc::TypeExpr::Bool,
+                    }),
+                ),
+                record(
+                    block,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: Vec::new(),
+                        operations: vec![operation],
+                        terminator: sley_ssmc::Terminator::Return(sley_ssmc::ReturnTerminator {
+                            value: sley_ssmc::ValueRef::OperationResult(
+                                sley_ssmc::OperationResultRef {
+                                    operation,
+                                    result_index: 0,
+                                },
+                            ),
+                        }),
+                        reachability: sley_ssmc::Reachability::Required,
+                    }),
+                ),
+                record(
+                    operation,
+                    EntityBodyValue::Operation(OperationBody {
+                        block,
+                        ordinal: 0,
+                        opcode: base_opcode.tag(),
+                        operands: vec![
+                            sley_ssmc::ValueRef::Parameter(first),
+                            sley_ssmc::ValueRef::Parameter(second),
+                        ],
+                        result_types: vec![sley_ssmc::TypeExpr::Bool],
+                        immediate: sley_ssmc::Immediate::None,
+                    }),
+                ),
+            ];
+            let store = ObjectStore::new(&root);
+            let mut bindings = Vec::with_capacity(records.len());
+            let mut objects = Vec::with_capacity(records.len());
+            for entry in &records {
+                let object = build_entity_object(epoch, entry).unwrap();
+                store
+                    .put(object.object_id(), object.stored_bytes(), &verifier(epoch))
+                    .unwrap();
+                bindings.push((entry.entity_id, object.object_id()));
+                objects.push(object);
+            }
+            // Genesis inventory zips pairwise with the state's canonical
+            // (entity-sorted) bindings, so sort both the same way first.
+            let mut order: Vec<usize> = (0..bindings.len()).collect();
+            order.sort_by_key(|index| bindings[*index].0);
+            let bindings: Vec<_> = order.iter().map(|index| bindings[*index]).collect();
+            let objects: Vec<_> = order.iter().map(|index| objects[*index].clone()).collect();
+            let anchors = [20_u8, 21_u8].map(|byte| {
+                let object = build_entity_object(
+                    epoch,
+                    &record(fixed(byte, EntityId::from_bytes), namespace_body()),
+                )
+                .unwrap();
+                store
+                    .put(object.object_id(), object.stored_bytes(), &verifier(epoch))
+                    .unwrap();
+                object.object_id()
+            });
+            let mut state =
+                StateRootBuilder::new(workspace_id, anchors[0], anchors[1], policy.root());
+            for (entity_id, object_id) in &bindings {
+                state = state.entity_binding(*entity_id, *object_id);
+            }
+            let base_state = state.build(&state_registry().unwrap()).unwrap();
+            let genesis = transactions
+                .initialize_trusted_genesis(TrustedGenesisInput::new(
+                    &base_state,
+                    &policy,
+                    &objects,
+                    &[],
+                ))
+                .unwrap()
+                .transaction_id();
+            branches.create_branch("main", genesis).unwrap();
+            Self {
+                temp,
+                root,
+                epoch,
+                genesis,
+                namespace,
+                function,
+                param0,
+                param1,
+                block,
+                operation,
+                principal: principal_id,
+            }
+        }
+
+        fn export(&self) -> AcceptedRepositoryExchange {
+            export_repository_exchange(&self.root, &verifier(self.epoch)).unwrap()
+        }
+
+        fn target(&self, name: &str) -> PathBuf {
+            self.temp.child(name)
+        }
+    }
+
+    #[test]
+    #[ignore = "explicit AT-MW-02 I4b demonstration fixture emitter"]
+    fn emit_i4b_demo_exchange_for_fixture_refresh() {
+        for (variant, workspace_byte, nonce_byte, opcode, swap) in [
+            ("a", 7_u8, 40_u8, sley_ssmc::Opcode::BoolAnd, false),
+            ("b", 8_u8, 41_u8, sley_ssmc::Opcode::BoolOr, true),
+        ] {
+            let source = I4bDemoSource::build(
+                &format!("i4b-demo-{variant}"),
+                workspace_byte,
+                nonce_byte,
+                opcode,
+                swap,
+            );
+            let exchange = source.export();
+            assert_eq!(exchange.branches.len(), 1);
+            assert_eq!(exchange.accepted_head.transaction_id, source.genesis);
+            let verify = verifier(source.epoch);
+            let target = source.target("import-check");
+            let report =
+                import_repository_exchange(&target, &exchange.stored_bytes, &verify).unwrap();
+            assert_eq!(report.branches, 1);
+            let resolved = BranchRepository::new(&target)
+                .resolve_branch(b"main")
+                .unwrap();
+            assert_eq!(resolved.revision.transaction_id(), source.genesis);
+            let hex_id = |id: &[u8; 32]| hex(id);
+            println!(
+                "I4B_DEMO_VECTOR|{variant}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                hex(&exchange.stored_bytes),
+                hex_id(source.operation.as_bytes()),
+                hex_id(source.function.as_bytes()),
+                hex_id(source.param0.as_bytes()),
+                hex_id(source.param1.as_bytes()),
+                hex_id(source.block.as_bytes()),
+                hex_id(source.namespace.as_bytes()),
+                hex_id(source.principal.as_bytes()),
+                hex_id(source.genesis.as_bytes()),
+                hex(exchange.accepted_head.receipt_id.as_bytes()),
+                hex(resolved.revision.state_root().root.as_bytes()),
+            );
+        }
     }
 
     #[test]
