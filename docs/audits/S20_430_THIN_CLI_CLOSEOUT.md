@@ -159,9 +159,7 @@ the revision 6 Council round (Ariadne FAIL P1, Nabu FAIL P2, Vulcan FAIL
   stated in section 3), detached-flag causes, partial-stdout behavior,
   and the `Command`/report shape compat note are stated and tested.
 
-Validation on this tree: `cargo test -p sley-cli` (25 tests: the 23 above
-plus the detached-flag cause and partial-stdout tests restored after a
-truncation mishap dropped them before the first lane commit),
+Validation on this tree (sibling lane repair/cli-r6-council, this commit): `cargo test -p sley-cli` (25 tests: 18 pre-existing plus 7 new revision-6 tests, 4 rejection-stamping plus code-counts plus detached-cause plus partial-stdout, alongside the hardened legacy-hello test),
 `scripts/check_cli_contract.py`, `scripts/check_cli_rules.py`,
 `scripts/test_cli_rules.py` (10 cases, including the derivation-failure
 self-test), and `scripts/test_cli_contract.py` (7 cases) all pass;
