@@ -191,3 +191,48 @@ identity. The release demo fixture and the server tests carry the selector;
 `execute_selects_the_cache_profile_from_limits_field_six` covers both
 profiles and both rejections. Council review of revisions 7 and 8 stays
 pending with the S20-400 queue.
+
+## Revision 12 addendum: versioned server and selection-domain gate (2026-09-10)
+
+SMP1 revision 12 is a static delta (two additive version-2 methods, no
+version 1 change), and this addendum records the versioned-server evidence
+the revision 12 Council round asked for. `Server::new_versioned` derives
+its selection with `negotiate_versioned` (versions 1 and 2 only) and answers
+at the selected version; the legacy constructor keeps legacy decoding,
+dispatch, and framing even under an above-1 opaque selection.
+
+- `ProtocolFrame::validate_for_version` gates the selection itself first:
+  any expected version outside {1, 2} answers
+  `PROTOCOL_VERSION_UNSUPPORTED` on encode and on decode, so
+  `encode_frame_for_version` and `decode_frame_for_version` close the wire
+  surface instead of leaving it to callers (contract SMP1 section 2).
+- `versioned_frame_codec_gates_undefined_selections_fail_closed` pins the
+  full domain matrix (encode and decode over claimed {0, 1, 2, 3} against
+  selections {0, 1, 2, 3, u32::MAX}), the below/above claim split inside
+  the domain, envelope-before-domain-before-claim failure ordering, the
+  hello-under-undefined-selection rule, and frozen v1 byte behavior.
+- `version_one_selection_refuses_version_two_methods_at_tag_validity`
+  sends 306, 307, and opaque 999 to a version-aware server holding a
+  version 1 selection: every refusal is `PROTOCOL_METHOD_UNSUPPORTED` with
+  `NEVER` retryability and empty details at method-tag validity, before
+  session routing (an unknown session meets the same refusal, not
+  `SESSION_UNKNOWN`), with no dispatch charge and a version 1 response
+  frame (contract SMP1 sections 2, 4, and 9).
+- `legacy_server_with_v2_selection_keeps_v1_framing` now pins both
+  directions of the unserviceable legacy selection: version 2 frames are
+  `PROTOCOL_VERSION_UNSUPPORTED` at decode, version 1 frames answer
+  `PROTOCOL_DOWNGRADE` at the dispatch claim check (contract SMP1
+  section 2).
+- `conformance/entity-read/v2/rejected.json` pins the fixed frame-version
+  codes the corpus authors had left null pending Rust comparison:
+  `frame_v1_method` is `PROTOCOL_DOWNGRADE` (40004) and `frame_v3_claim` is
+  `PROTOCOL_VERSION_UNSUPPORTED` (40000), with the authored rows in
+  `inputs.json` carrying the completed comparison notes;
+  `version_one_response_body_is_not_canonical` pins the third row's fixed
+  outcome (`resp_version_1` decodes `NotCanonical`, which keeps no owner
+  code, so the vector pins the layer). `scripts/check_entity_read_vectors.py`
+  is green (23 cases, 91 rejections), and the staged refresh derivation
+  reproduces the corpus exactly.
+
+Council review of revision 12 stays with the S20-400 queue; this addendum
+changes no version 1 row, byte, or helper.

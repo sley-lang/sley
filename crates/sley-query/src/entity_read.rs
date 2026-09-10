@@ -1870,6 +1870,38 @@ mod tests {
     }
 
     #[test]
+    fn version_one_response_body_is_not_canonical() {
+        // Vector `resp_version_1` in `conformance/entity-read/v2/rejected.json`:
+        // a response record naming version 1 under the version 2 decoder is
+        // `NotCanonical`, which keeps no owner code, so the vector pins the
+        // `response_record` layer rather than a code.
+        let fixture = eighteen_kind_fixture();
+        let selected = ceilings();
+        let request = request(9, fixture.root);
+        let revision = view(&fixture);
+        let plan = prepare_entity_read(EntityReadMethod::Version, &revision, &request, &selected)
+            .unwrap();
+        let work = plan.work_units();
+        let object = &fixture.objects[8];
+        let valid = manual_response_body(
+            &fixture,
+            fixture.session,
+            entity(9),
+            &[(entity(9), 9, object)],
+            work,
+        );
+        // Field 1 is the sized response version: record-of-8, tag 1,
+        // length 1, value 2.
+        assert_eq!(&valid[0..4], &[8, 1, 1, 2]);
+        let mut versioned_down = valid.clone();
+        versioned_down[3] = 1;
+        assert_eq!(
+            decode_entity_read_response(&versioned_down),
+            Err(EntityReadError::NotCanonical)
+        );
+    }
+
+    #[test]
     fn inner_length_defects_are_not_canonical() {
         let fixture = eighteen_kind_fixture();
         let object = &fixture.objects[8];

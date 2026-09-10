@@ -9,14 +9,15 @@ version-negotiated, request/response, cancellation-aware, machine-code
 first, transport-neutral above framing, prose only as debug metadata) are
 carried forward and made exact. Implementation state: S20-410 implements
 the frame and the deterministic server under this draft (thirty-seven
-non-reserved methods dispatched, closeout
+non-reserved version-1 methods dispatched — the frozen version-1
+implementation state, closeout
 `docs/audits/S20_410_SMP1_FRAME_CLOSEOUT.md`), S20-440 freezes the
 cancellation, streaming, and budget rules carried in section 7 and
 appendix B (closeout
 `docs/audits/S20_440_SMP1_CANCEL_STREAM_CLOSEOUT.md`), S20-420 generates
-the JSON bridge from this contract (revision 7, closeout
+the JSON bridge from this contract (frozen-record revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
-(revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
+(frozen-record revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
 Current composition (revision 12): the S20-420 bridge contract
 `docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the S20-430 CLI contract
 `docs/spec/SLEY_CLI_V1.md` revision 6.
@@ -207,7 +208,12 @@ negotiation helpers retain their existing behavior, including retaining
 unknown numeric tags such as 306 and 307 in a version-1-only offer
 intersection without thereby dispatching them. Old method, codec, and
 server entrypoints stay version-1-only; version-aware entrypoints select
-the expected version explicitly. A `session.open` whose identity
+the expected version explicitly. A legacy server keeps legacy decoding,
+dispatch, and framing even when an opaque negotiation selects above 1:
+version 2 frames are `PROTOCOL_VERSION_UNSUPPORTED` at decode while
+version 1 frames meet the selection at the dispatch claim check and answer
+`PROTOCOL_DOWNGRADE`, so such a server is unserviceable in both directions
+and never silently serves either version. A `session.open` whose identity
 is not the re-derived one is `PROTOCOL_DOWNGRADE` (threat T45).
 Tampering with either hello is the same failure: each side binds its true
 hello, so any tamper makes the two transcripts differ and the two
@@ -221,7 +227,12 @@ frame above it names a version the selection does not know and answers
 `PROTOCOL_VERSION_UNSUPPORTED`. The codec applies the same split at
 decode against the implementation version, so the rule holds on wire
 input before dispatch ever runs; the selection-level split in
-`SelectedProfile::check_claim` agrees with it. A `SchemaEpochId` is a 32-byte identity
+`SelectedProfile::check_claim` agrees with it. The explicit frame
+entrypoints (`encode_frame_for_version`, `decode_frame_for_version`,
+`ProtocolFrame::validate_for_version`) admit only selections 1 and 2,
+like `negotiate_versioned`: any other expected version answers
+`PROTOCOL_VERSION_UNSUPPORTED` before any claim judgment, so the wire
+surface is closed by the entrypoints, not by callers. A `SchemaEpochId` is a 32-byte identity
 with no order, so there is no "lower epoch": a body naming any epoch
 outside the selection fails at the method layer. No silent downgrade
 exists: the selection is explicit and digested over both hellos, and the
@@ -353,7 +364,11 @@ through 5, which this contract links to instead of restating.
 
 A reserved method, or any tag outside this table, fails
 `PROTOCOL_METHOD_UNSUPPORTED` with the versioned reason; it never succeeds
-generically. The reason names the seam that owns the tag:
+generically. A tag the table admits but the selection does not (306 or 307
+under a version 1 selection) fails `PROTOCOL_METHOD_UNSUPPORTED` with
+`NEVER` retryability and empty details at method-tag validity, before
+session routing (precedence in section 9), and costs no dispatch unit: the
+versioned reason names a reserved seam only. The reason names the seam that owns the tag:
 `SMP1-RESERVED-S20-370` for the protected-move seam,
 `SMP1-RESERVED-S20-620` for the diagnostics and test-selection seam, so a
 client can tell the two apart. A reserved-method failure is retryable
