@@ -66,7 +66,7 @@ CLAIM_CONTRACT = "sley2.sley2-trial-digest-claim.v1"
 TRACE_DOMAIN = TRACE_CONTRACT.encode("utf-8") + b"\0"
 CLAIM_DOMAIN = CLAIM_CONTRACT.encode("utf-8") + b"\0"
 EXCHANGE_FIXTURE = ROOT / "conformance/repository-exchange/v1/accepted.json"
-METHOD_TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
+METHOD_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
 PLAN_PATH = ROOT / "bench/benchmark-plan.json"
 CORPUS_PATH = ROOT / "bench/corpus/v1/tasks.json"
 DEFAULT_SLEY = ROOT / "target/debug/sley"
@@ -88,7 +88,7 @@ ORACLE_OWNED_METRICS = (
     "invalid_committed_states",
 )
 # The methods this arm's agent may name, frozen here rather than taken from
-# whatever the endpoint happens to offer. The endpoint's own hello lists all 41
+# whatever the endpoint happens to offer. The endpoint's own hello lists all 43
 # SMP1 methods, including exchange.export, which is an entire-store dump that
 # master goal 20.10 forbids an arm from having. The allowlist is a run control:
 # its digest is recorded in the claim, so a run that widened it is visible.
@@ -117,16 +117,16 @@ ARM_AFFORDANCES = (
 # to an agent that is being measured on reading context and proposing a change.
 ARM_DENIED_METHODS = (
     "branch.advance",
-    "diagnostics",
     "branch.create",
     "cancel",
     "checkout",
     "commit",
+    "diagnostics",
     "exchange.export",
     "exchange.import",
+    "execute",
     "gc.collect",
     "gc.dry_run",
-    "execute",
     "merge.commit",
     "merge.judge",
     "receipt.read",
@@ -298,15 +298,22 @@ def request_frame(
     session: str | None,
     request_id: int,
     cancel: bool = False,
-    protocol_version: int = 1,
+    *,
+    protocol_version: int,
 ) -> dict[str, Any]:
-    """One request frame object. The version defaults to 1 for unit-built
-    mock frames; every live trial passes its actual selected version
-    (`run_scripted_trial` requires it), so no run silently stamps 1."""
+    """One request frame object. The version is a required keyword: every
+    trial stamps the selected version 2 (`run_scripted_trial` requires
+    it), so no run silently stamps 1 and no caller inherits a default."""
+    if isinstance(protocol_version, bool) or not isinstance(protocol_version, int):
+        _fail(Sley2ErrorCode.FRAME_INVALID, "protocol version")
+        raise AssertionError("unreachable")
+    if not isinstance(cancel, bool):
+        _fail(Sley2ErrorCode.FRAME_INVALID, "cancel")
+        raise AssertionError("unreachable")
     return {
         "body": body_hex,
         "bounds": ZERO_BOUNDS,
-        "flags": {"cancel": bool(cancel), "failed": False, "stream": False},
+        "flags": {"cancel": cancel, "failed": False, "stream": False},
         "kind": "request",
         "method": method,
         "protocol_version": protocol_version,
@@ -629,8 +636,9 @@ def derive_trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
         entities += int(bounds.get("returned_entities", 0))
         relationships += int(bounds.get("returned_edges", 0))
         # Every body the agent received is context it read, whatever the method:
-        # refs.list, handle.expand, candidate.inspect, compare, revision.read,
-        # execute, report and diagnostics are context exactly as capsules are.
+        # refs.list, handle.expand, candidate.inspect, compare, and
+        # revision.read are context exactly as capsules are; denied methods
+        # never reach the agent, so their bodies are never counted.
         # Counting only capsule and query.* understated the arm under test,
         # which master goal 21.6 forbids. capsule_bytes keeps the narrower
         # measure so the two are comparable rather than conflated.
@@ -754,6 +762,12 @@ def _validate_claim(record: Mapping[str, Any], manifest: Mapping[str, Any]) -> N
             _fail(Sley2ErrorCode.CLAIM_INVALID, field)
     for field in ("endpoint_sha256", "trace_head_digest", "fixture_digest", "exchange_digest", "prompt_digest"):
         _require_hex64(record[field], field)
+    # The allowlist digest is a run control, not a decoration: it must be
+    # a well-formed digest of exactly the frozen allowlist (contract
+    # section 9), so a claim widened past the arm's surface never verifies.
+    _require_hex64(record["arm_affordances_digest"], "arm_affordances_digest")
+    if record["arm_affordances_digest"] != arm_affordances_digest():
+        _fail(Sley2ErrorCode.CLAIM_INVALID, "arm_affordances_digest")
     if isinstance(record["trace_record_count"], bool) or not isinstance(record["trace_record_count"], int) or record["trace_record_count"] < 2:
         _fail(Sley2ErrorCode.CLAIM_INVALID, "trace_record_count")
     for field in ("handshake_id", "report_digest", "model_output_digest", "oracle_report_digest"):
@@ -913,6 +927,17 @@ def run_scripted_trial(
     # mutates its list mid-trial cannot split exercised admission from the
     # claimed digest.
     admitted = tuple(affordances)
+    # The snapshot is bound to the frozen allowlist, not merely carried:
+    # a trial that does not run the eighteen-name surface stops here, so
+    # drift in either direction fails closed (contract section 9).
+    if _canonical_sha256(list(admitted)) != arm_affordances_digest():
+        _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "allowlist digest")
+    # The frozen allowlist requires a version 2 offer, so every trial
+    # stamps 2: a legacy stamp under the eighteen-name digest cannot
+    # complete, and the endpoint's own selection record checks the stamp
+    # below (contract sections 1 and 9).
+    if protocol_version != 2:
+        _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "protocol version")
     manifest = _read_manifest_exact(run_directory)
     run_manifest_digest = manifest_digest(manifest)
     arm_directory = _arm_directory(run_directory)
@@ -930,6 +955,7 @@ def run_scripted_trial(
             "fixture_digest": fixture_digest,
             "handshake_id": handshake_id,
             "kind": "header",
+            "protocol_version": protocol_version,
             "run_manifest_digest": run_manifest_digest,
             "seed": seed,
             "task_id": task_id,
@@ -1002,7 +1028,9 @@ def run_scripted_trial(
             refuse(Sley2ErrorCode.PRIVILEGED_CONTEXT, "agent request names a runner field")
         method = request.get("method")
         body = request.get("body", "")
-        cancel = bool(request.get("cancel", False))
+        cancel = request.get("cancel", False)
+        if not isinstance(cancel, bool):
+            refuse(Sley2ErrorCode.FRAME_INVALID, "cancel")
         if method not in admitted:
             refuse(Sley2ErrorCode.FRAME_INVALID, f"method {method!r}")
         if not isinstance(body, str) or len(body) % 2 or any(ch not in "0123456789abcdef" for ch in body):
@@ -1061,6 +1089,14 @@ def run_scripted_trial(
         report_object = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         report_object = None
+    # The stamp is bound to the negotiated selection through the
+    # endpoint's own record: a trial whose frames were stamped anything
+    # but the reported selection fails closed here, not somewhere
+    # downstream under a mislabeled code (contract section 1).
+    selected = report_object.get("selected_protocol_version") if isinstance(report_object, dict) else None
+    if selected != protocol_version and outcome == "completed":
+        outcome = "harness_failure"
+        failure_code = SYMBOLS[Sley2ErrorCode.FRAME_INVALID]
     append_trace_record(
         trace,
         {
@@ -1158,10 +1194,21 @@ class ScriptedAgent:
 
     SCRIPT = (("session.capabilities", ""), ("refs.list", "10"), ("handle.expand", "00"), ("session.budgets", ""))
 
+    def __init__(self, expand_body: str = "00") -> None:
+        # The expand body names handle 0 under the head root the smoke
+        # discovers through a throwaway serve (contract section 5): the
+        # default keeps the historical shape for offline tests whose fake
+        # endpoint answers regardless of the body.
+        self._script = (("session.capabilities", ""), ("refs.list", "10"), ("handle.expand", expand_body), ("session.budgets", ""))
+
+    @property
+    def script(self) -> tuple:
+        return self._script
+
     def run(self, handle: EndpointHandle) -> Mapping[str, Any]:
         transcript = []
         offered = handle.affordances()
-        for method, body in self.SCRIPT:
+        for method, body in self._script:
             if method not in offered:
                 _fail(Sley2ErrorCode.FRAME_INVALID, method)
             transcript.append(handle.exchange({"method": method, "body": body}))
@@ -1258,6 +1305,109 @@ def _failure_code(body_hex: str) -> int:
         raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure code uvarint")
     return code
 
+def v2_dispatched(v2: Mapping[str, Any]) -> bool:
+    """Allowlist predicate for the live dispatch proof (contract section 5):
+    the version 2 arm must answer the empty-body entity.version with exactly
+    the body-layer refusal (40008), proving the request dispatched past the
+    method layer. Any other code (method-unsupported, downgrade, the
+    bridge's own mapping, a generic shape code) or a nonzero exit proves
+    nothing and answers False: the predicate fails closed."""
+    return v2.get("failure_code") == 40008 and v2.get("endpoint_exit_status") == 0
+
+
+def _scb_uvar(data: bytes, offset: int) -> tuple[int, int]:
+    """One LEB128 unsigned varint with its end offset; fails closed."""
+    value = shift = 0
+    while True:
+        if offset >= len(data) or shift >= 64:
+            _fail(Sley2ErrorCode.FRAME_INVALID, "uvarint")
+        byte = data[offset]
+        offset += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, offset
+        shift += 7
+
+
+def _scb_record_fields(data: bytes, expected: int) -> list[bytes]:
+    """The sized field payloads of one ordered SCB record in tag order;
+    fails closed on any shape deviation."""
+    count, offset = _scb_uvar(data, 0)
+    if count != expected:
+        _fail(Sley2ErrorCode.FRAME_INVALID, "record arity")
+    fields: list[bytes] = []
+    for tag in range(1, expected + 1):
+        seen, offset = _scb_uvar(data, offset)
+        if seen != tag:
+            _fail(Sley2ErrorCode.FRAME_INVALID, "record tag")
+        length, offset = _scb_uvar(data, offset)
+        if offset + length > len(data):
+            _fail(Sley2ErrorCode.FRAME_INVALID, "record length")
+        fields.append(data[offset : offset + length])
+        offset += length
+    if offset != len(data):
+        _fail(Sley2ErrorCode.FRAME_INVALID, "record trailing")
+    return fields
+
+
+def discover_expand_body(
+    sley: Path,
+    scratch: Path,
+    timeout_seconds: int,
+    exchange_hex: str,
+    accepted_head_tx: str,
+) -> str:
+    """The handle.expand body the scripted trial uses: handle 0 under the
+    head root, discovered through a throwaway serve rather than hardcoded
+    or read from repository files. Seeds a disposable repository, opens a
+    session, reads the fixture-pinned accepted head's revision summary for
+    its state root, and trial-expands handle 0 under it; any step failing
+    stops the smoke loudly instead of scripting a malformed body. Returns
+    the hex body (uvar handle 0 followed by the 32-byte root)."""
+    try:
+        head_tx = bytes.fromhex(accepted_head_tx)
+    except ValueError as error:
+        raise Sley2RunnerError(Sley2ErrorCode.MANIFEST_INVALID, "accepted head") from error
+    if len(head_tx) != 32:
+        _fail(Sley2ErrorCode.MANIFEST_INVALID, "accepted head")
+    hello, _, _ = endpoint_offer(sley, timeout_seconds)
+    handshake = probe_handshake(sley, hello, scratch, timeout_seconds, PROFILE_ARGS)
+    repository = scratch / "expand-discovery-repo"
+    endpoint = Endpoint(
+        sley, repository, scratch / "expand-discovery-report.json",
+        timeout_seconds, PROFILE_ARGS,
+    )
+    try:
+        greeting = endpoint.send(hello)
+        if greeting[-1]["kind"] != "hello":
+            raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, "discovery offer refused")
+        seeded = endpoint.send(request_frame("exchange.import", exchange_hex, None, 0, protocol_version=2))[-1]
+        if seeded["kind"] != "response" or seeded["flags"].get("failed"):
+            raise Sley2RunnerError(Sley2ErrorCode.ENDPOINT_UNAVAILABLE, "discovery seed refused")
+        opened = endpoint.send(request_frame("session.open", handshake, None, 0, protocol_version=2))[-1]
+        if opened["kind"] != "response" or opened["flags"].get("failed"):
+            raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, "discovery open refused")
+        session = opened.get("body")
+        if not isinstance(session, str):
+            raise Sley2RunnerError(Sley2ErrorCode.HANDSHAKE_FAILED, "discovery open body")
+        summary = endpoint.send(request_frame("revision.read", head_tx.hex(), session, 1, protocol_version=2))[-1]
+        if summary["kind"] != "response" or summary["flags"].get("failed"):
+            raise Sley2RunnerError(Sley2ErrorCode.ENDPOINT_UNAVAILABLE, "discovery revision refused")
+        try:
+            fields = _scb_record_fields(bytes.fromhex(summary.get("body", "")), 8)
+        except ValueError as error:
+            raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "discovery summary hex") from error
+        if len(fields[1]) != 32:
+            raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "discovery state root")
+        body = "00" + fields[1].hex()
+        trial = endpoint.send(request_frame("handle.expand", body, session, 2, protocol_version=2))[-1]
+        if trial["kind"] != "response" or trial["flags"].get("failed"):
+            raise Sley2RunnerError(Sley2ErrorCode.ENDPOINT_UNAVAILABLE, "discovery expand refused")
+        return body
+    finally:
+        endpoint.close()
+
+
 def entity_read_round_trip(sley: Path, scratch: Path, timeout_seconds: int) -> dict[str, Any]:
     """Live serving proof for the version 2 entity reads, plus the version 1
     negative control. Seeds the repository, opens a session, and sends
@@ -1319,17 +1469,22 @@ def entity_read_round_trip(sley: Path, scratch: Path, timeout_seconds: int) -> d
                 continue
             if not answer["flags"].get("failed"):
                 raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read unexpectedly succeeded")
+            # The answer must echo the session-bound request it answers;
+            # a rejection that names no method, session, or identifier is
+            # the endpoint's own, not a dispatch past the method layer.
+            if (
+                answer.get("method") != "entity.version"
+                or answer.get("session") != session
+                or answer.get("request_id") != 1
+            ):
+                raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read not dispatched")
             code = _failure_code(answer.get("body", ""))
             evidence[name] = {"failure_code": code}
         finally:
             exit_status, _ = endpoint.close()
             evidence[name]["endpoint_exit_status"] = exit_status
     v2, v1 = evidence["v2"], evidence["v1"]
-    evidence["v2_dispatched"] = (
-        isinstance(v2.get("failure_code"), int)
-        and v2["failure_code"] not in (40004, 40007)
-        and v2.get("endpoint_exit_status") == 0
-    )
+    evidence["v2_dispatched"] = v2_dispatched(v2)
     evidence["v1_still_gates"] = (
         v1.get("failure_code") == 42003
         and v1.get("endpoint_exit_status") == 0
@@ -1367,6 +1522,15 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
         hello, affordances, version = endpoint_offer(sley, timeout_seconds)
         scratch = Path(tempfile.mkdtemp(prefix="probe-", dir=run_directory))
         handshake = probe_handshake(sley, hello, scratch, timeout_seconds, PROFILE_ARGS)
+        # The scripted expand body names handle 0 under the head root the
+        # smoke discovers from the fixture-pinned accepted head: a fixed
+        # historical body cannot satisfy the expected-root rule, so the
+        # smoke learns a valid one instead of scripting a refusal.
+        expand_body = discover_expand_body(
+            sley, scratch, timeout_seconds, exchange_hex,
+            vector.get("accepted_head_transaction_id_hex", ""),
+        )
+        agent = ScriptedAgent(expand_body)
         evidence.update(
             {
                 "endpoint_sha256": digest,
@@ -1405,8 +1569,8 @@ def smoke(sley: Path, evidence_directory: Path, timeout_seconds: int) -> int:
             protocol_version=2,
             exchange_hex=exchange_hex,
             fixture_digest=exchange_digest,
-            prompt_digest=_canonical_sha256({"scripted": [list(step) for step in ScriptedAgent.SCRIPT]}),
-            agent=ScriptedAgent(),
+            prompt_digest=_canonical_sha256({"scripted": [list(step) for step in agent.script]}),
+            agent=agent,
             oracle=ScriptedOracle(),
             clock=clock,
         )
