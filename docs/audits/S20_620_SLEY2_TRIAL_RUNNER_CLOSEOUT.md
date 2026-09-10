@@ -1,5 +1,13 @@
 # S20-620 Sley 2 Trial Runner Closeout
 
+## Revision 4 status (2026-09-10)
+
+The package now implements contract revision 4 (frozen eighteen-name
+allowlist with the entity reads, snapshot-bound claim digest, required
+version 2 stamping, version 2 table digest); 23 offline tests; smoke 8/8
+green with zero failed answers. The revision 2 record below is retained as
+history. Details: Revision 4 attestation.
+
 Status: **implemented under the draft Sley 2 Trial Runner v1 contract (revision 2); Council reviews pending, so the package is not complete; no model ran and no real trial exists; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
@@ -109,3 +117,60 @@ intentionally fail closed.
 ## Independent review
 
 Pending. Sessions and verdicts are recorded here when they land.
+
+## Revision 4 attestation: allowlist binding and review-round repairs (2026-09-10)
+
+Revision 4 admits `entity.version` and `entity.signature` to the frozen
+eighteen-name allowlist and binds the claim digest to the per-trial
+immutable snapshot; this attestation records the review-round repairs for
+the revision 4 Council round (Ariadne FAIL 4×P1, Nabu FAIL 5×P1, Vulcan
+FAIL 4×P1, no P0) without touching the S20-610 manifest format, the claim
+field set, or the trial's stage boundaries:
+
+- The run manifest's `tool_description_digests.sley_2_0` binds the version
+  2 method table (`conformance/smp1-json-bridge/v2/methods.json`, 43
+  methods); the version 1 table artifact is byte-untouched.
+- The trial snapshot is bound to the frozen allowlist before execution
+  (any other list is `SLEY2_TRIAL_HANDSHAKE_FAILED`, order-sensitive) and
+  claim validation requires a well-formed digest equal to the frozen one,
+  so the digest is a run control rather than a decoration.
+- Every trial stamps the selected version 2 (required keyword, no
+  default); the stamp is recorded in the trace header and checked after
+  the trial against the endpoint report's `selected_protocol_version`, and
+  a mismatch is a harness failure. A legacy stamp under the eighteen-name
+  digest cannot complete.
+- The live dispatch proof is an allowlist on the observed body-layer
+  refusal (40008) with a zero exit and session-bound echo checks, not a
+  denylist; the version 1 control still gates with the bridge's
+  unknown-method code.
+- The scripted smoke discovers its `handle.expand` body (handle 0 under
+  the head root from the fixture-pinned accepted head through a throwaway
+  serve) instead of scripting a malformed body: the smoke is green 8/8
+  with zero failed answers, both claims carrying the frozen allowlist
+  digest, over the `sley` binary built from this tree (which since the CLI
+  merge carries the failed-bit rejections the version 1 control requires)
+  and the frozen S20-540 exchange fixture. Runner rev-4 contract evidence
+  only; not a release qualification (`full_s20_620_complete` stays false
+  and the evidence remains under the gitignored runtime directory).
+- `scripts/check_sley2_trial_runner.py` pins the capable profile, the
+  eighteen-name spec order, the snapshot-to-allowlist binding markers,
+  the version 2 table path, and the required version keyword; 23 offline
+  tests cover the frozen profile, the negative bindings, positive entity
+  admission through the handle, the version 1 offer refusal, the
+  predicate boundary, the non-boolean cancel refusal, and the v1 rejection
+  shape.
+
+Validation on this tree: 23 offline tests,
+`scripts/check_sley2_trial_runner.py`, and `make sley2-runner-smoke`
+(8/8) all pass. Council re-review of revision 4 stays with the S20-620
+queue.
+
+## Cross-lane note: rejection failed-bit alignment (2026-09-10)
+
+Integration against the repaired capable runtime showed the version 1
+control asserting the pre-repair rejection shape without the failed bit:
+the capable endpoint now sets the bit on its own rejections (SMP1 section
+6, repaired under S20-430 revision 6), so the control asserts the
+endpoint's own rejection shape with the bit set (`v1_rejection_shape`,
+unit-pinned). No contract change: the control still gates on the bridge's
+unknown-method code with no method, session, or identifier.

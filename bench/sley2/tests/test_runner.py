@@ -79,7 +79,7 @@ class FakeEndpoint:
         return [response]
 
     def close(self) -> tuple[int, str]:
-        self.report.write_text(json.dumps({"answers": len(self.frames) - 1, "failed_answers": 0}, sort_keys=True), encoding="utf-8")
+        self.report.write_text(json.dumps({"answers": len(self.frames) - 1, "failed_answers": 0, "selected_protocol_version": 2}, sort_keys=True), encoding="utf-8")
         return 0, ""
 
 
@@ -100,7 +100,7 @@ class Sley2RunnerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def trial(self, trial_id: str, task_index: int, agent, seed: int = 1):
+    def trial(self, trial_id: str, task_index: int, agent, seed: int = 1, affordances=None, protocol_version: int = 2, endpoint_factory=None):
         corpus = json.loads((Path(__file__).resolve().parents[3] / "bench/corpus/v1/tasks.json").read_text())
         task_id = sorted(task["id"] for task in corpus["tasks"])[task_index]
         return run_scripted_trial(
@@ -108,13 +108,13 @@ class Sley2RunnerTests(unittest.TestCase):
             trial_id=trial_id,
             task_id=task_id,
             seed=seed,
-            endpoint_factory=FakeEndpoint,
+            endpoint_factory=endpoint_factory or FakeEndpoint,
             endpoint_digest=digest(9),
-            hello={"body": "00", "bounds": request_frame("x", "", None, 0)["bounds"], "flags": {"cancel": False, "failed": False, "stream": False}, "kind": "hello", "method": "", "protocol_version": 1, "request_id": 0, "session": None},
-            affordances=["session.capabilities", "refs.list", "handle.expand", "session.budgets", "candidate.validate", "capsule", "exchange.import", "session.open", "session.close"],
+            hello={"body": "00", "bounds": request_frame("x", "", None, 0, protocol_version=2)["bounds"], "flags": {"cancel": False, "failed": False, "stream": False}, "kind": "hello", "method": "", "protocol_version": 1, "request_id": 0, "session": None},
+            affordances=list(affordances) if affordances is not None else list(runner.ARM_AFFORDANCES),
             endpoint_version={"cli": "1"},
             handshake_id=digest(7),
-            protocol_version=1,
+            protocol_version=protocol_version,
             exchange_hex="cafe",
             fixture_digest=digest(3),
             prompt_digest=digest(5),
@@ -126,7 +126,7 @@ class Sley2RunnerTests(unittest.TestCase):
     def test_trace_chain_is_complete_and_tamper_evident(self) -> None:
         trace = Trace(self.run, "t1", self.manifest_digest)
         append_trace_record(trace, {"kind": "header", "trial_id": "t1"})
-        frame = request_frame("refs.list", "10", "ab" * 32, 1)
+        frame = request_frame("refs.list", "10", "ab" * 32, 1, protocol_version=2)
         append_trace_record(trace, {"direction": "request", "frame": frame, "frame_sha256": hashlib.sha256(canonical_json_bytes(frame)).hexdigest(), "kind": "frame", "seq": 0})
         append_trace_record(trace, {"frames_recorded": 1, "kind": "footer", "outcome": "completed"})
         trace.close()
@@ -154,14 +154,14 @@ class Sley2RunnerTests(unittest.TestCase):
     def test_metrics_derive_only_from_frame_records(self) -> None:
         session = "ab" * 32
         frames = [
-            ("request", request_frame("exchange.import", "cafe", None, 1)),
-            ("request", request_frame("capsule", "", session, 2)),
-            ("event", {**request_frame("capsule", "aa" * 10, session, 2), "kind": "event"}),
-            ("response", {**request_frame("capsule", "bb" * 6, session, 2), "kind": "response", "bounds": {**request_frame("x", "", None, 0)["bounds"], "returned_entities": 5, "returned_edges": "7"}}),
-            ("request", request_frame("candidate.validate", "", session, 3)),
-            ("response", {**request_frame("candidate.validate", "", session, 3), "kind": "response", "flags": {"cancel": False, "failed": True, "stream": False}}),
-            ("request", request_frame("candidate.validate", "", session, 4)),
-            ("response", {**request_frame("candidate.validate", "", session, 4), "kind": "response"}),
+            ("request", request_frame("exchange.import", "cafe", None, 1, protocol_version=2)),
+            ("request", request_frame("capsule", "", session, 2, protocol_version=2)),
+            ("event", {**request_frame("capsule", "aa" * 10, session, 2, protocol_version=2), "kind": "event"}),
+            ("response", {**request_frame("capsule", "bb" * 6, session, 2, protocol_version=2), "kind": "response", "bounds": {**request_frame("x", "", None, 0, protocol_version=2)["bounds"], "returned_entities": 5, "returned_edges": "7"}}),
+            ("request", request_frame("candidate.validate", "", session, 3, protocol_version=2)),
+            ("response", {**request_frame("candidate.validate", "", session, 3, protocol_version=2), "kind": "response", "flags": {"cancel": False, "failed": True, "stream": False}}),
+            ("request", request_frame("candidate.validate", "", session, 4, protocol_version=2)),
+            ("response", {**request_frame("candidate.validate", "", session, 4, protocol_version=2), "kind": "response"}),
         ]
         records = [{"kind": "header"}]
         for seq, (direction, frame) in enumerate(frames):
@@ -300,7 +300,7 @@ class Sley2RunnerTests(unittest.TestCase):
         base["metrics"].update({"attempted_tasks": 1, "strict_accepted_correctness": False, "accepted_change_tokens": None})
         append_trial_claim(self.run, base)
         self.assertTrue(claims_path.exists())
-        for field, value in (("arm_id", "raw_files"), ("status", "accepted"), ("timeout", True), ("trace_record_count", 1), ("handshake_id", "zz")):
+        for field, value in (("arm_id", "raw_files"), ("status", "accepted"), ("timeout", True), ("trace_record_count", 1), ("handshake_id", "zz"), ("arm_affordances_digest", "0" * 64), ("arm_affordances_digest", runner._canonical_sha256([*runner.ARM_AFFORDANCES, "exchange.export"]))):
             bad = dict(base, trial_id="claim-2", seed=2)
             bad[field] = value
             with self.assertRaises(Sley2RunnerError, msg=field) as error:
@@ -316,6 +316,141 @@ class Sley2RunnerTests(unittest.TestCase):
             verify_trial_claims(self.run)
         self.assertEqual(broken.exception.code, Sley2ErrorCode.CLAIM_INVALID)
         self.assertEqual(manifest_digest(self.manifest), self.manifest_digest)
+
+    def test_trial_with_unfrozen_allowlist_fails_closed(self) -> None:
+        """The trial snapshot is bound to the frozen allowlist (contract
+        section 9): a widened, narrowed, or reordered list stops the trial
+        at the gate instead of running under a decorative digest."""
+        widened = [*runner.ARM_AFFORDANCES, "exchange.export"]
+        narrowed = [name for name in runner.ARM_AFFORDANCES if name != "entity.version"]
+        reordered = list(reversed(runner.ARM_AFFORDANCES))
+        for index, affordances in enumerate((widened, narrowed, reordered)):
+            with self.assertRaises(Sley2RunnerError, msg=f"case-{index}") as error:
+                self.trial(f"allowlist-{index}", 0, ScriptedAgent(), affordances=affordances)
+            self.assertEqual(error.exception.code, Sley2ErrorCode.HANDSHAKE_FAILED, f"case-{index}")
+            self.assertIn("allowlist", error.exception.detail, f"case-{index}")
+
+    def test_trial_with_legacy_stamp_fails_closed(self) -> None:
+        """Every trial stamps the selected version 2: a legacy stamp under
+        the eighteen-name digest cannot complete (contract section 1)."""
+        with self.assertRaises(Sley2RunnerError) as error:
+            self.trial("legacy-stamp", 0, ScriptedAgent(), protocol_version=1)
+        self.assertEqual(error.exception.code, Sley2ErrorCode.HANDSHAKE_FAILED)
+
+    def test_trial_with_mismatched_selection_fails_closed(self) -> None:
+        """The stamp is bound to the negotiated selection through the
+        endpoint's own report: a trial stamped 2 that selected 1 is a
+        harness failure, not a completed trial (contract section 1)."""
+
+        class DowngradedEndpoint(FakeEndpoint):
+            def close(self) -> tuple[int, str]:
+                self.report.write_text(json.dumps({"answers": len(self.frames) - 1, "failed_answers": 0, "selected_protocol_version": 1}, sort_keys=True), encoding="utf-8")
+                return 0, ""
+
+        summary = self.trial("selection-split", 0, ScriptedAgent(), endpoint_factory=DowngradedEndpoint)
+        self.assertEqual(summary["status"], "harness_failure")
+        self.assertEqual(summary["failure_code"], "SLEY2_TRIAL_FRAME_INVALID")
+
+    def test_agent_may_call_entity_methods_through_the_handle(self) -> None:
+        """Positive admission: the two version 2 entity reads pass the
+        guard and are answered when the agent names them (contract
+        section 9 allows them; the offline endpoint answers them)."""
+
+        class EntityCaller:
+            def run(self, handle: EndpointHandle):
+                seen = []
+                for method in ("entity.version", "entity.signature"):
+                    replies = handle.exchange({"method": method, "body": ""})
+                    self_called = replies[-1]
+                    assert self_called["flags"]["failed"] is False
+                    assert self_called["method"] == method
+                    seen.append(method)
+                return {"called": seen}
+
+        summary = self.trial("entity-admit", 0, EntityCaller())
+        self.assertEqual((summary["outcome"], summary["status"]), ("completed", "rejected"))
+        records = verify_trace(Path(summary["trace_path"]), self.manifest_digest)
+        methods = [r["frame"]["method"] for r in records if r.get("kind") == "frame" and r["direction"] == "request"]
+        self.assertIn("entity.version", methods)
+        self.assertIn("entity.signature", methods)
+
+    def test_endpoint_offer_refuses_v1_offer_naming_entity_methods(self) -> None:
+        """A version 1 offer fails the missing-check by design: the two
+        entity names the offer lacks are named in the refusal (contract
+        section 9), so drift fails closed rather than shrinking the arm."""
+        sixteen = [name for name in runner.ARM_AFFORDANCES if not name.startswith("entity.")]
+        assert len(sixteen) == 16
+        stub = Path(self.temp.name) / "stub-sley"
+        stub.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, sys\n"
+            f"METHODS = {sixteen!r}\n"
+            "HELLO = {\"body\": \"00\", \"bounds\": {}, \"flags\": {\"cancel\": False, \"failed\": False, \"stream\": False}, \"kind\": \"hello\", \"method\": \"\", \"methods\": METHODS, \"protocol_version\": 1, \"request_id\": 0, \"session\": None}\n"
+            "args = sys.argv[1:]\n"
+            "if args[0] == \"hello\" and \"--json\" in args:\n"
+            "    print(json.dumps(HELLO))\n"
+            "elif args[0] == \"hello\":\n"
+            "    sys.stdout.buffer.write(b\"stub-hello-bytes\")\n"
+            "elif args[:2] == [\"frame\", \"decode\"]:\n"
+            "    sys.stdin.buffer.read()\n"
+            "    print(json.dumps(HELLO))\n"
+            "elif args[0] == \"version\":\n"
+            "    print(json.dumps({\"cli\": \"stub\"}))\n"
+            "else:\n"
+            "    raise SystemExit(3)\n",
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        with self.assertRaises(Sley2RunnerError) as error:
+            runner.endpoint_offer(stub)
+        self.assertEqual(error.exception.code, Sley2ErrorCode.HANDSHAKE_FAILED)
+        self.assertIn("entity.version", error.exception.detail)
+        self.assertIn("entity.signature", error.exception.detail)
+
+    def test_v2_dispatched_predicate_fails_closed(self) -> None:
+        """The dispatch proof is an allowlist on the observed body-layer
+        code: only 40008 with a zero exit proves dispatch past the method
+        layer (contract section 5)."""
+        good = {"failure_code": 40008, "endpoint_exit_status": 0}
+        self.assertTrue(runner.v2_dispatched(good))
+        for bad in (
+            {"failure_code": 40007, "endpoint_exit_status": 0},
+            {"failure_code": 40004, "endpoint_exit_status": 0},
+            {"failure_code": 42003, "endpoint_exit_status": 0},
+            {"failure_code": 40008, "endpoint_exit_status": 1},
+            {"failure_code": "40008", "endpoint_exit_status": 0},
+            {"endpoint_exit_status": 0},
+            {},
+        ):
+            self.assertFalse(runner.v2_dispatched(bad), bad)
+
+    def test_v1_rejection_shape_requires_the_failed_bit(self) -> None:
+        """The v1 control shape is the endpoint's own rejection: no method,
+        session, or identifier, failed bit set (SMP1 section 6). The
+        pre-repair shape without the bit, and any server-shaped answer,
+        are not the control."""
+        shape = {"method": "", "session": None, "request_id": 0, "flags": {"failed": True}}
+        self.assertTrue(runner.v1_rejection_shape(shape))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "flags": {"failed": False}}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "method": "entity.version"}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "session": "ab" * 32}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "request_id": 1}))
+
+    def test_non_boolean_cancel_is_refused_not_coerced(self) -> None:
+        """A non-boolean cancel flag is an invalid frame, not a truthy one:
+        the constructor and the guard both refuse it (contract section 2)."""
+        with self.assertRaises(Sley2RunnerError) as error:
+            request_frame("refs.list", "10", "ab" * 32, 1, "yes", protocol_version=2)
+        self.assertEqual(error.exception.code, Sley2ErrorCode.FRAME_INVALID)
+
+        class CancelIntruder:
+            def run(self, handle: EndpointHandle):
+                handle.exchange({"method": "refs.list", "body": "10", "cancel": 1})
+                return {}
+
+        summary = self.trial("cancel-coerce", 0, CancelIntruder())
+        self.assertEqual(summary["status"], "harness_failure")
+        self.assertEqual(summary["failure_code"], "SLEY2_TRIAL_FRAME_INVALID")
 
 
 if __name__ == "__main__":
@@ -407,7 +542,7 @@ class MetricSourceTests(unittest.TestCase):
 class ArmAffordanceTests(unittest.TestCase):
     """The arm's reach is frozen here, not taken from the endpoint's offer.
 
-    The endpoint's hello lists all 41 SMP1 methods including exchange.export,
+    The endpoint's hello lists all 43 SMP1 methods including exchange.export,
     an entire-store dump master goal 20.10 forbids an arm from holding.
     Raised by ariadne.
     """

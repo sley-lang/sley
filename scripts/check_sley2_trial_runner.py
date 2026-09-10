@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -112,6 +113,36 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _runner_profile(tree: ast.Module) -> tuple[list, list]:
+    """The frozen allowlist and capable profile args from the runner AST."""
+    allowlist: list | None = None
+    profile_args: list | None = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if node.targets[0].id == "ARM_AFFORDANCES":
+                allowlist = list(ast.literal_eval(node.value))
+            elif node.targets[0].id == "PROFILE_ARGS":
+                profile_args = list(ast.literal_eval(node.value))
+    if allowlist is None or profile_args is None:
+        raise ValueError("ARM_AFFORDANCES or PROFILE_ARGS missing")
+    if not all(isinstance(name, str) for name in allowlist):
+        raise ValueError("ARM_AFFORDANCES not frozen names")
+    return allowlist, profile_args
+
+
+def _spec_allowlist(spec: str) -> list | None:
+    """The eighteen-name frozen order from contract section 9."""
+    anchor = spec.find("holds eighteen names")
+    if anchor < 0:
+        return None
+    region = spec[anchor : anchor + 2000]
+    end = region.find("Those two entity names")
+    if end < 0:
+        return None
+    names = re.findall(r"`([\w.]+)`", region[:end])
+    return names or None
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -201,6 +232,43 @@ def main() -> int:
         for _, symbol in CODES:
             if symbol not in runner:
                 problems.append(f"runner-code:{symbol}")
+        # The revision 4 delta pins: the capable profile, the frozen
+        # eighteen-name allowlist in spec order, the per-trial snapshot
+        # bound to the frozen digest, the version 2 method-table digest,
+        # and the required version keyword.
+        try:
+            tree = ast.parse(runner)
+        except SyntaxError as error:
+            problems.append(f"runner-unparsable:{error}")
+            tree = None
+        if tree is not None:
+            try:
+                allowlist, profile_args = _runner_profile(tree)
+            except ValueError as error:
+                problems.append(f"runner-profile:{error}")
+            else:
+                if tuple(profile_args) != ("--protocol-profile", "v2-capable"):
+                    problems.append(f"runner-profile-args:{profile_args}")
+                specified = _spec_allowlist(spec)
+                if specified is None:
+                    problems.append("spec-allowlist:missing")
+                elif tuple(allowlist) != tuple(specified):
+                    problems.append("allowlist-spec-order:drift")
+                if len(allowlist) != 18:
+                    problems.append(f"allowlist-count:{len(allowlist)}")
+        for marker in (
+            "admitted = tuple(affordances)",
+            "_canonical_sha256(list(admitted)) != arm_affordances_digest()",
+            "protocol_version != 2",
+            "conformance/smp1-json-bridge/v2/methods.json",
+            "selected_protocol_version",
+            "def v2_dispatched",
+            "def v1_rejection_shape",
+        ):
+            if marker not in runner:
+                problems.append(f"runner-marker:{marker}")
+        if "protocol_version: int =" in runner:
+            problems.append("runner-marker:version-default")
         if not TESTS.exists():
             problems.append("runner-tests:missing")
         else:

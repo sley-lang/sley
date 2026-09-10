@@ -31,9 +31,9 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
 ## 1. Endpoint driving
 
 - One trial is one `sley serve --repository <disposable> --json --report
-  <path>` process in per-frame mode, or, when the trial selects protocol
-  version 2, one `sley serve --repository <disposable> --json --report
-  <path> --protocol-profile v2-capable` process. The runner writes one
+  <path> --protocol-profile v2-capable` process in per-frame mode. The
+  frozen eighteen-name allowlist requires a version 2 offer, so version 1
+  trials do not run under this contract. The runner writes one
   `Frame` line per request and reads event and response lines until the
   response naming that request identifier arrives. The runner never speaks
   bytes, never builds a frame from anything but the endpoint's own outputs
@@ -41,15 +41,19 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
 - The trial's handshake identity is read from the report of a preceding
   probe invocation of the same endpoint that receives only the client
   hello; the identity is deterministic, so the trial invocation opens its
-  session with it. The probe and the trial serve under the same profile:
-  a version 2 trial's probe passes `--protocol-profile v2-capable` too.
-- The client hello is the endpoint's own offer (`sley hello`, decoded with
-  `sley frame decode`), or the capable offer (`sley hello
-  --protocol-profile v2-capable`) when the trial selects version 2, so the
-  negotiated profile is the full offer.
-- Every frame the runner writes carries the trial's selected protocol
-  version exactly; pre-session frames (seed import, session open) carry
-  request identifier 0, and session-bound traffic starts at identifier 1.
+  session with it. The probe and the trial serve under the same profile.
+- The client hello is the endpoint's capable offer (`sley hello
+  --protocol-profile v2-capable`), so the negotiated profile is the full
+  offer.
+- Every post-hello frame the runner writes carries the trial's selected
+  protocol version (2) exactly; the client hello is the endpoint's own
+  offer at wire version 1. Pre-session frames (seed import, session open)
+  carry request identifier 0, and session-bound traffic starts at
+  identifier 1. The stamped version is recorded in the trace header, and
+  after the trial it is checked against the endpoint report's
+  `selected_protocol_version`: a mismatch is a harness failure, and the
+  observed selection arrives in the endpoint report copied verbatim into
+  the trace footer.
 - The disposable repository is seeded through the endpoint by
   `exchange.import` of the arm fixture's exchange bytes; the runner writes
   no repository file itself and reads none. The runner then opens the
@@ -106,9 +110,11 @@ adapter also wasted its turn.
 
 `context_bytes` counts every body the agent received. Counting only `capsule`
 and `query.*` understated the arm under test, because `refs.list`,
-`handle.expand`, `candidate.inspect`, `compare`, `revision.read`, `execute`,
-`report` and `diagnostics` bodies are context the agent read exactly as a
-capsule is, and master goal 21.6 forbids unreported extra context.
+`handle.expand`, `candidate.inspect`, `compare`, and `revision.read` bodies
+are context the agent read exactly as a capsule is, and master goal 21.6
+forbids unreported extra context. Denied methods (`execute`, `report`,
+`diagnostics`, and the rest of the denylist) never reach the agent, so
+their bodies are never counted.
 
 `derive_context_breakdown` records how that total divides (`capsule_bytes` and
 `non_capsule_context_bytes`) in this work package's own evidence. It is
@@ -149,7 +155,8 @@ digest.
 
 ```text
 header  { kind: "header", trial_id, run_manifest_digest, task_id, seed,
-          fixture_digest, endpoint_sha256, endpoint_version, handshake_id }
+          fixture_digest, endpoint_sha256, endpoint_version, handshake_id,
+          protocol_version }
 guard_refusal { kind: "guard_refusal", seq, code, detail }
 frame   { kind: "frame", seq, direction: "request"|"response"|"event",
           frame: Frame, frame_sha256 }
@@ -160,6 +167,11 @@ footer  { kind: "footer", frames_recorded, report: Report (the endpoint's
 
 The trace is complete: no frame is omitted, reordered, or rewritten; a
 runner failure appends the footer with its code and closes the trace.
+`verify_trace` checks canonical bytes, chain, and record order only, never
+artifact truth: semantic rules (for example, that a `guard_refusal` record
+means the footer outcome is a harness failure) are enforced by
+`run_scripted_trial` and covered by the intruder smoke trial, not by the
+verifier.
 Trace-derived quantities are computed only from frame records:
 
 | Metric | Derivation |
@@ -204,9 +216,19 @@ intruding trial (an agent naming a session field, refused as
 `SLEY2_TRIAL_PRIVILEGED_CONTEXT`) over the frozen S20-540 exchange fixture
 in a private run directory, verifies both trace chains, the handle
 surface, and both claims, and writes evidence under
-`evidence/runtime/s20-620-sley2-smoke/`. `scripts/check_sley2_trial_runner.py`
-in `make quick` audits the contract markers, the runner's dependency
-surface (the `sley` binary and the S20-610 module only; no kernel crate,
+`evidence/runtime/s20-620-sley2-smoke/`. The `handle.expand` body names
+handle 0 under the head root the smoke discovers from the fixture-pinned
+accepted head through a throwaway serve, so the scripted trial exercises a
+successful expand rather than a malformed body. The live entity-read round
+trip proves dispatch past the method layer under version 2 by the observed
+body-layer refusal (40008) with a zero exit, and the version 1 control
+still gates with the bridge's unknown-method code; the dispatch predicate
+is an allowlist on that observed code, not a denylist. The run manifest's
+`tool_description_digests.sley_2_0` binds the version 2 method table the
+arm runs under. `scripts/check_sley2_trial_runner.py`
+in `make quick` audits the contract markers, the capable profile, the
+frozen allowlist in spec order, the snapshot-to-allowlist binding, the
+runner's dependency surface (the `sley` binary and the S20-610 module only; no kernel crate,
 no repository file access, no provider client), the exact two-operation
 endpoint handle, and the offline tests.
 
@@ -262,7 +284,10 @@ provenance; publication; runtime, packaging, release, or GA.
   entire-store dump is what master goal 20.10 forbids. The arm's affordances
   are the frozen `ARM_AFFORDANCES` allowlist, and `arm_affordances_digest` is a
   run control carried in every claim, so a run that widened the arm's reach is
-  visible in the record rather than inferred from the binary. The allowlist
+  visible in the record rather than inferred from the binary. The trial binds
+  its snapshot to the frozen allowlist before execution (any other list is
+  `SLEY2_TRIAL_HANDSHAKE_FAILED`) and claim validation requires the digest to
+  equal it, so a widened claim never verifies. The allowlist
   holds eighteen names in this frozen order, and the claim digest is
   order-sensitive: `candidate.append`, `candidate.create`,
   `candidate.discard`, `candidate.inspect`, `candidate.validate`, `capsule`,
