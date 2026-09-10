@@ -1,10 +1,11 @@
 # AT-MW-02 I4b response-derived edit demonstrations
 
-Status: IMPLEMENTED_SELF_VERIFIED, 2026-09-10; implementation owner:
-Muse Spark (OpenCode). Lane branch `feat/at-mw-02-entity-reads` in
-worktree `/home/greyforge/worktrees/sley2/at-mw-02`. This record ends
-when independent review (Nabu re-review per RESUME.md item 0) accepts or
-rejects the demonstrations; it is not an AT-MW-02 closure claim.
+Status: REVIEW_ACCEPTED_CLOSED, 2026-09-10. Nabu re-reviewed pushed lane
+commit `aedc443a` and returned `PASS` with zero findings
+(`AT_MW_02_NABU_REREVIEW_JSON` in
+`machineresearch/sley-2.0/council-queue/atmw02-nabu-rereview.log`;
+verdict `atmw02-nabu-rereview`). RESUME.md item 0 is closed on this
+verdict. Implementation owner: Muse Spark (OpenCode).
 
 ## Prerequisite
 

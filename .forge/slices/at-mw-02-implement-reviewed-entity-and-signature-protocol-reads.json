@@ -140,6 +140,14 @@
       "status": "pass",
       "summary": "sley-repo suite green (367 pass, emitter stays ignored); lane-to-lane phase-3 merge 7f120a5 operator-approved 2026-09-10.",
       "updated_at": "2026-09-10T00:00:00+00:00"
+    },
+    {
+      "artifact": "/home/greyforge/machineresearch/sley-2.0/council-queue/atmw02-nabu-rereview.log",
+      "command": "forge handoff --timeout 3000 nabu \"$(cat atmw02-nabu-rereview-request.txt)\"",
+      "id": "nabu-rereview",
+      "status": "pass",
+      "summary": "Nabu re-reviewed pushed aedc443: PASS, zero findings (architecture high confidence); 306/307 satisfy master 8.2, bounded-context accounting honest, frozen v1 unwidened. Verdict AT_MW_02_NABU_REREVIEW_JSON.",
+      "updated_at": "2026-09-10T04:17:43+00:00"
     }
   ],
   "owner": "muse-1.3-go",
@@ -275,7 +283,8 @@
       "evidence_refs": [
         "i4b-demos",
         "i4b-fixtures",
-        "i4b-owner-suite"
+        "i4b-owner-suite",
+        "nabu-rereview"
       ],
       "id": "I4b",
       "status": "done",

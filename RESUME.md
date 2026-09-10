@@ -45,13 +45,16 @@ locator). Closeout block: audit record section 7.
 
 ## To resume
 
-0. **First bounded slice, if authorized: AT-MW-02.** The only item the
-   independent reviewers left open. Nabu's repair statement: a versioned SMP1
-   method or query-profile successor returning exact root-bound,
-   session-safe entity bytes (the master's required `GetEntityVersion` and
-   `GetSignature`), with limits, vectors, independent oracle reproduction,
-   end-to-end mutation validation, and the contract index synchronized;
-   frozen v1 not widened. Owner: S20-410 (with S20-310 query profile).
+0. **CLOSED 2026-09-10: AT-MW-02.** Nabu re-reviewed the pushed lane
+   commit `aedc443a` and returned `PASS` with zero findings at every
+   level (`AT_MW_02_NABU_REREVIEW_JSON`, council log
+   `atmw02-nabu-rereview.log`, verdict `atmw02-nabu-rereview`): methods
+   306/307 satisfy master 8.2 with exact root/session binding and the
+   stated work formula, bounded-context accounting is honest, frozen v1
+   is unwidened. Lane work: I1/I2/I3/I3b/I4, phase-3 v2 offer merged
+   lane-to-lane as `7f120a5`, I4b demonstrations VALID
+   (`docs/audits/AT_MW_02_I4B_DEMONSTRATIONS.md`). Owner: S20-410
+   (with S20-310 query profile).
 1. **RW-080 lane:** rebase the next summary or manifest edit on merged
    `main`; register the five `PACKAGE_*` error symbols in ERROR_CODES_V1 and
    exercise `PACKAGE_SECTION_DIGEST_MISMATCH` (Tier 1 red until then); the
