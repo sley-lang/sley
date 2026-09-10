@@ -76,7 +76,7 @@ ADR_MARKERS = (
 WORK_PACKAGE_MARKERS = (
     "`docs/spec/SLEY_CLI_V1.md`",
     "ADR-0035",
-    "(revision 6, 2026-09-09, ADR-0035, Council reviews pending)",
+    "(revision 6, 2026-09-09, ADR-0035, new-delta review PASS",
     "capable CLI runtime implemented under the phase-3 slice",
 )
 CRATE_MARKERS = (

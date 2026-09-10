@@ -1077,9 +1077,9 @@
     "contract_revision": 6,
     "current_delta_review": {
       "contract_revision": 6,
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "PASS",
+      "nabu": "PASS",
+      "vulcan": "PASS"
     },
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
@@ -1104,9 +1104,9 @@
       "prose_output"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_7_P1_7_P2_3_P3",
-    "nabu_architecture_review": "FAIL_1_P0_7_P1_5_P2_4_P3",
-    "vulcan_surface_review": "FAIL_1_P0_5_P1_4_P2_2_P3",
+    "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_2_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -1590,9 +1590,9 @@
     "contract_revision": 12,
     "current_delta_review": {
       "contract_revision": 12,
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "PASS",
+      "nabu": "PASS",
+      "vulcan": "PASS"
     },
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
@@ -1608,9 +1608,9 @@
       400
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_3_P0_12_P1_9_P2_4_P3",
-    "nabu_architecture_review": "FAIL_2_P0_9_P1_12_P2_7_P3",
-    "vulcan_surface_review": "FAIL_3_P0_8_P1_10_P2_3_P3",
+    "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "contract_complete": false,
     "implementation_package": "S20-410",
     "implementation": "crates/sley-protocol",
@@ -2740,9 +2740,9 @@
     "provider_or_model_execution": false,
     "actual_trials": 0,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_5_P0_8_P1_6_P2_4_P3",
-    "nabu_architecture_review": "FAIL_3_P0_12_P1_7_P2_4_P3",
-    "vulcan_surface_review": "FAIL_4_P0_6_P1_9_P2_5_P3",
+    "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
