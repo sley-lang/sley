@@ -98,7 +98,7 @@ class BridgeValidBaseline(unittest.TestCase):
 class CliValidBaseline(unittest.TestCase):
     def test_valid_baseline_accepted(self):
         section = json.loads(SUMMARY_TEXT)["cli"]
-        self.assertEqual(section["contract_revision"], 5)
+        self.assertEqual(section["contract_revision"], 6)
         code, payload = run_checker_with_summary(CLI_CHECKER, SUMMARY_TEXT)
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("result"), "PASS")
@@ -176,7 +176,7 @@ class CliTerminalAcceptance(unittest.TestCase):
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = CLI_CHECKER.COMPLETE_STATUS
         section["implementation_complete"] = True
-        pass_current_review(section, 5)
+        pass_current_review(section, 6)
         self.assertEqual(section["status"], "S20_430_COMPLETE")
         self.assertTrue(section["implementation_complete"])
         for key, value in preserved.items():

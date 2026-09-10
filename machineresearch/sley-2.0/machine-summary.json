@@ -1074,9 +1074,9 @@
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 5,
+    "contract_revision": 6,
     "current_delta_review": {
-      "contract_revision": 5,
+      "contract_revision": 6,
       "ariadne": "PENDING",
       "nabu": "PENDING",
       "vulcan": "PENDING"
@@ -1116,7 +1116,7 @@
       "crates/sley-protocol/src/server.rs"
     ],
     "binary": "sley",
-    "offered_hello": "Server::offered_hello",
+    "offered_hello": "Server::offered_hello (legacy) and Server::offered_hello_versioned (capable)",
     "closeout": "docs/audits/S20_430_THIN_CLI_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": [
@@ -2724,8 +2724,8 @@
   },
   "sley2_trial_runner": {
     "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
-    "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 3,
+ "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+ "contract_revision": 4,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",

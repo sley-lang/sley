@@ -17,8 +17,9 @@ use sley_id::{ProtocolHandshakeId, SchemaEpochId};
 use sley_protocol::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_CHECKSUM,
     FEATURE_JSON_BRIDGE, FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FLAG_STREAM, FrameKind, Hello,
-    LimitProfile, MAX_FRAME_BYTES, Method, ProtocolError, ProtocolFailure, ProtocolFrame,
-    Retryability, SelectedProfile, SessionId, StreamChunk, decode_frame, encode_frame,
+    LimitProfile, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError,
+    ProtocolFailure, ProtocolFrame, Retryability, SelectedProfile, SessionId, StreamChunk,
+    decode_frame, decode_frame_for_version, encode_frame, encode_frame_for_version,
     encode_hello_frame,
 };
 
@@ -33,6 +34,13 @@ pub const MAX_JSON_NUMBER: u64 = (1 << 53) - 1;
 /// `conformance/smp1-json-bridge/v1/methods.json`.
 pub const METHOD_TABLE_JSON: &str =
     include_str!("../../../conformance/smp1-json-bridge/v1/methods.json");
+/// The generated version 2 method table, embedded verbatim from
+/// `conformance/smp1-json-bridge/v2/methods.json`: the version 1 table
+/// plus exactly `entity.version` (306) and `entity.signature` (307).
+/// Additive export for the capable CLI profile; the default table above
+/// is unchanged.
+pub const METHOD_TABLE_V2_JSON: &str =
+    include_str!("../../../conformance/smp1-json-bridge/v2/methods.json");
 
 // ---------------------------------------------------------------------------
 // Failures
@@ -232,6 +240,24 @@ fn method_tag(name: &str) -> Result<u32> {
     method_by_name(name)
         .map(Method::tag)
         .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
+}
+
+/// Resolves a frozen method name under an explicitly selected protocol
+/// version: the version 1 table plus exactly `entity.version` (306) and
+/// `entity.signature` (307) under version 2.
+fn method_tag_for_version(name: &str, version: u32) -> Result<u32> {
+    if name.is_empty() {
+        return Ok(NO_METHOD);
+    }
+    if version == PROTOCOL_VERSION_V2 {
+        return Method::V2_ALL
+            .iter()
+            .copied()
+            .find(|method| method.name() == name)
+            .map(Method::tag)
+            .ok_or(BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown));
+    }
+    method_tag(name)
 }
 
 // ---------------------------------------------------------------------------
@@ -643,6 +669,24 @@ fn method_names(tags: &[u32]) -> Result<Value> {
         .map(Value::Array)
 }
 
+/// Resolves a frozen method name under protocol version 2: the version 1
+/// table plus exactly `entity.version` (306) and `entity.signature` (307).
+fn method_name_versioned(tag: u32) -> Result<&'static str> {
+    if tag == NO_METHOD {
+        return Ok("");
+    }
+    Method::from_tag_versioned(tag, PROTOCOL_VERSION_V2)
+        .map(Method::name)
+        .map_err(|_| BridgeError::Bridge(JsonBridgeErrorCode::MethodUnknown))
+}
+
+fn method_names_versioned(tags: &[u32]) -> Result<Value> {
+    tags.iter()
+        .map(|tag| method_name_versioned(*tag).map(|name| Value::String(name.to_string())))
+        .collect::<Result<Vec<_>>>()
+        .map(Value::Array)
+}
+
 fn method_tags_from_value(value: &Value) -> Result<Vec<u32>> {
     list_field(value)?
         .iter()
@@ -661,7 +705,28 @@ fn method_tags_from_value(value: &Value) -> Result<Vec<u32>> {
 /// Returns `JSON_BRIDGE_METHOD_UNKNOWN` for a method tag outside the table
 /// and `JSON_BRIDGE_SHAPE_INVALID` for flag bits the bridge cannot name.
 pub fn frame_value(frame: &ProtocolFrame) -> Result<Value> {
-    let method = method_name(frame.method)?;
+    frame_value_with(frame, false)
+}
+
+/// Renders the `Frame` object naming methods under protocol version 2:
+/// the version 1 names plus exactly `entity.version` (306) and
+/// `entity.signature` (307). Every other field renders exactly as the
+/// version 1 object.
+///
+/// # Errors
+///
+/// Returns a bridge naming failure for a method tag outside the version 2
+/// table.
+pub fn frame_value_for_version(frame: &ProtocolFrame, version: u32) -> Result<Value> {
+    frame_value_with(frame, version > sley_protocol::PROTOCOL_VERSION)
+}
+
+fn frame_value_with(frame: &ProtocolFrame, versioned: bool) -> Result<Value> {
+    let method = if versioned {
+        method_name_versioned(frame.method)?
+    } else {
+        method_name(frame.method)?
+    };
     let mut map = Map::new();
     insert(
         &mut map,
@@ -698,6 +763,21 @@ pub fn frame_value(frame: &ProtocolFrame) -> Result<Value> {
 ///
 /// Returns the bridge's shape and encoding codes in contract precedence.
 pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
+    frame_from_value_with(value, PROTOCOL_VERSION)
+}
+
+/// Parses the `Frame` object resolving method names under an explicitly
+/// selected protocol version. Additive export for version-aware
+/// endpoints; the default above stays frozen version 1.
+///
+/// # Errors
+///
+/// Returns the bridge's shape and encoding codes in contract precedence.
+pub fn frame_from_value_for_version(value: &Value, version: u32) -> Result<ProtocolFrame> {
+    frame_from_value_with(value, version)
+}
+
+fn frame_from_value_with(value: &Value, version: u32) -> Result<ProtocolFrame> {
     let map = object(value, &FRAME_FIELDS, &["session"])?;
     let protocol_version = u32_field(&map["protocol_version"])?;
     let session = match &map["session"] {
@@ -707,7 +787,7 @@ pub fn frame_from_value(value: &Value) -> Result<ProtocolFrame> {
     let request_id = u64_field(&map["request_id"])?;
     let kind = kind_from_value(&map["kind"])?;
     let name = string_field(&map["method"])?;
-    let method = method_tag(name)?;
+    let method = method_tag_for_version(name, version)?;
     let flags = bits_from_value(&map["flags"], &FLAG_FIELDS, &FLAG_MASKS)?;
     let bounds = bounds_from_value(&map["bounds"])?;
     let body = hex_field(&map["body"])?;
@@ -759,6 +839,35 @@ pub fn frame_to_json(bytes: &[u8]) -> Result<String> {
     Ok(render(&frame_value(&frame)?))
 }
 
+/// Renders a frame decoded under an explicitly selected protocol version.
+/// Additive export for version-aware endpoints; the default above stays
+/// frozen version 1.
+///
+/// # Errors
+///
+/// Returns the codec's `PROTOCOL_*` code verbatim, or a bridge code when the
+/// decoded frame cannot be named.
+pub fn frame_to_json_for_version(bytes: &[u8], version: u32) -> Result<String> {
+    frame_to_json_with(bytes, version)
+}
+
+fn frame_to_json_with(bytes: &[u8], version: u32) -> Result<String> {
+    // Hellos travel at frame version 1 under every expectation: they
+    // decode legacy, the stateless rule judges them, and their rendering
+    // names no methods, so the expectation never touches them.
+    if let Ok((DecodedFrame::Hello(_), _)) = decode_frame(bytes, MAX_FRAME_BYTES) {
+        return frame_to_json(bytes);
+    }
+    let (decoded, _) = decode_frame_for_version(bytes, MAX_FRAME_BYTES, version)?;
+    let frame = match decoded {
+        // Unreachable: hello bytes decode legacy above. Fall back to the
+        // legacy render rather than panicking if that ever changes.
+        DecodedFrame::Hello(_) => return frame_to_json(bytes),
+        DecodedFrame::Request(frame) | DecodedFrame::Response(frame) => frame,
+    };
+    Ok(render(&frame_value_for_version(&frame, version)?))
+}
+
 /// Parses the `Frame` object and encodes it with the frozen codec; the
 /// returned bytes are the only canonical form.
 ///
@@ -775,11 +884,40 @@ pub fn frame_from_json(text: &str) -> Result<EncodedFrame> {
     }
 }
 
+/// Parses the `Frame` object and encodes it under an explicitly selected
+/// protocol version; a hello still encodes version-independently. Additive
+/// export for version-aware endpoints; the default above stays frozen
+/// version 1.
+///
+/// # Errors
+///
+/// Returns `JSON_BRIDGE_RESOURCE_LIMIT`, then the shape and encoding codes,
+/// then the codec's `PROTOCOL_*` code verbatim.
+pub fn frame_from_json_for_version(text: &str, version: u32) -> Result<EncodedFrame> {
+    let frame = frame_from_value_for_version(&parse(text)?, version)?;
+    if frame.kind == FrameKind::Hello {
+        Ok(encode_hello_frame(&Hello::decode(&frame.body)?)?)
+    } else {
+        Ok(encode_frame_for_version(&frame, version)?)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Hello and selected profile
 // ---------------------------------------------------------------------------
 
 fn hello_value(hello: &Hello) -> Result<Value> {
+    hello_value_with(hello, false)
+}
+
+/// Renders the `Hello` object with version 2 method naming: the version 1
+/// names plus exactly `entity.version` and `entity.signature`. Every other
+/// field renders exactly as the version 1 object.
+fn hello_value_versioned(hello: &Hello) -> Result<Value> {
+    hello_value_with(hello, true)
+}
+
+fn hello_value_with(hello: &Hello, versioned: bool) -> Result<Value> {
     let mut map = Map::new();
     insert(
         &mut map,
@@ -804,7 +942,11 @@ fn hello_value(hello: &Hello) -> Result<Value> {
         ),
     );
     insert(&mut map, "limits", limits_value(&hello.limits));
-    insert(&mut map, "methods", method_names(&hello.methods)?);
+    if versioned {
+        insert(&mut map, "methods", method_names_versioned(&hello.methods)?);
+    } else {
+        insert(&mut map, "methods", method_names(&hello.methods)?);
+    }
     insert(
         &mut map,
         "features",
@@ -823,6 +965,17 @@ fn hello_value(hello: &Hello) -> Result<Value> {
 pub fn hello_to_json(hello: &Hello) -> Result<String> {
     hello.validate()?;
     Ok(render(&hello_value(hello)?))
+}
+
+/// Renders a validated version-aware hello as the `Hello` object, naming
+/// the version 2 methods the frozen version 1 rendering rejects.
+///
+/// # Errors
+///
+/// Returns the codec's validation failure or a bridge naming failure.
+pub fn hello_to_json_versioned(hello: &Hello) -> Result<String> {
+    hello.validate()?;
+    Ok(render(&hello_value_versioned(hello)?))
 }
 
 /// Parses the `Hello` object into a validated hello.

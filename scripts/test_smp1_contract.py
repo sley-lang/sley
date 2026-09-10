@@ -111,7 +111,7 @@ class ReversePinCases(unittest.TestCase):
     """VUL-P2S-03/N-STATIC-02: historical prose must not satisfy current pins."""
 
     BRIDGE_PIN = "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8"
-    CLI_PIN = "`docs/spec/SLEY_CLI_V1.md` revision 5"
+    CLI_PIN = "`docs/spec/SLEY_CLI_V1.md` revision 6"
 
     def test_historical_shadow_does_not_satisfy_current_pin(self):
         self.assertIn(CURRENT_COMPOSITION, SPEC_TEXT)
@@ -120,7 +120,7 @@ class ReversePinCases(unittest.TestCase):
         shadow = (
             "Historical note: an earlier draft pinned the bridge "
             "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the CLI "
-            "`docs/spec/SLEY_CLI_V1.md` revision 5 in passing.\n"
+            "`docs/spec/SLEY_CLI_V1.md` revision 6 in passing.\n"
         )
         head, sep, tail = SPEC_TEXT.partition(CURRENT_COMPOSITION)
         self.assertEqual(sep, CURRENT_COMPOSITION)
@@ -131,7 +131,7 @@ class ReversePinCases(unittest.TestCase):
             "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 7",
         ).replace(
             self.CLI_PIN,
-            "`docs/spec/SLEY_CLI_V1.md` revision 4",
+            "`docs/spec/SLEY_CLI_V1.md` revision 5",
         )
         self.assertNotEqual(stale, paragraph)
         mutated = head + shadow + CURRENT_COMPOSITION + stale + tail[paragraph_end:]
@@ -224,7 +224,7 @@ class CompositionAnchorCases(unittest.TestCase):
         shadow = (
             "Historical note: an earlier draft pinned the bridge "
             "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the CLI "
-            "`docs/spec/SLEY_CLI_V1.md` revision 5 in passing.\n"
+            "`docs/spec/SLEY_CLI_V1.md` revision 6 in passing.\n"
         )
         self.assertIn(CURRENT_COMPOSITION, SPEC_TEXT)
         mutated = shadow + SPEC_TEXT

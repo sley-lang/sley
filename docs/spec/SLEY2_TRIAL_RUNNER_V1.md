@@ -1,10 +1,13 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 3 (2026-09-04); Council review
+Status: S20-620 contract draft, revision 4 (2026-09-09); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
 with the cooperative-adapter trust boundary the round showed it to be.
+Revision 4 admits `entity.version` and `entity.signature` to
+`ARM_AFFORDANCES` (eighteen names) and binds the claim digest to the
+per-trial immutable snapshot; the two names require a version 2 offer.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
@@ -28,17 +31,25 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
 ## 1. Endpoint driving
 
 - One trial is one `sley serve --repository <disposable> --json --report
-  <path>` process in per-frame mode. The runner writes one `Frame` line per
-  request and reads event and response lines until the response naming
-  that request identifier arrives. The runner never speaks bytes, never
-  builds a frame from anything but the endpoint's own outputs and the
-  fixture, and computes no protocol digest.
+  <path>` process in per-frame mode, or, when the trial selects protocol
+  version 2, one `sley serve --repository <disposable> --json --report
+  <path> --protocol-profile v2-capable` process. The runner writes one
+  `Frame` line per request and reads event and response lines until the
+  response naming that request identifier arrives. The runner never speaks
+  bytes, never builds a frame from anything but the endpoint's own outputs
+  and the fixture, and computes no protocol digest.
 - The trial's handshake identity is read from the report of a preceding
   probe invocation of the same endpoint that receives only the client
   hello; the identity is deterministic, so the trial invocation opens its
-  session with it.
+  session with it. The probe and the trial serve under the same profile:
+  a version 2 trial's probe passes `--protocol-profile v2-capable` too.
 - The client hello is the endpoint's own offer (`sley hello`, decoded with
-  `sley frame decode`), so the negotiated profile is the full offer.
+  `sley frame decode`), or the capable offer (`sley hello
+  --protocol-profile v2-capable`) when the trial selects version 2, so the
+  negotiated profile is the full offer.
+- Every frame the runner writes carries the trial's selected protocol
+  version exactly; pre-session frames (seed import, session open) carry
+  request identifier 0, and session-bound traffic starts at identifier 1.
 - The disposable repository is seeded through the endpoint by
   `exchange.import` of the arm fixture's exchange bytes; the runner writes
   no repository file itself and reads none. The runner then opens the
@@ -244,13 +255,24 @@ provenance; publication; runtime, packaging, release, or GA.
   the endpoint is frozen by digest in the run manifest, its SHA-256 is in the
   trace header and every claim as `endpoint_sha256`, no other command is
   invoked for any purpose, and the endpoint is this arm's declared subject.
-- The client hello is `sley hello` decoded with `sley frame decode`. The
-  affordances are **not** that hello's `methods`: the endpoint offers all 41
+- The client hello is `sley hello --protocol-profile v2-capable` decoded
+  with `sley frame decode`. The
+  affordances are **not** that hello's `methods`: the endpoint offers all 43
   SMP1 methods, `exchange.export` among them, and an arm holding an
   entire-store dump is what master goal 20.10 forbids. The arm's affordances
   are the frozen `ARM_AFFORDANCES` allowlist, and `arm_affordances_digest` is a
   run control carried in every claim, so a run that widened the arm's reach is
-  visible in the record rather than inferred from the binary. A name the
+  visible in the record rather than inferred from the binary. The allowlist
+  holds eighteen names in this frozen order, and the claim digest is
+  order-sensitive: `candidate.append`, `candidate.create`,
+  `candidate.discard`, `candidate.inspect`, `candidate.validate`, `capsule`,
+  `compare`, `entity.signature`, `entity.version`, `handle.expand`,
+  `query.continue`, `query.restricted`, `query.root`, `refs.list`,
+  `refs.resolve`, `revision.read`, `session.budgets`,
+  `session.capabilities`. Those two entity names require a version 2
+  endpoint offer
+  (SLEY_CLI_V1 section 9 profile): under a version 1 offer the handshake
+  fails exactly as for any unoffered name. A name the
   allowlist claims that the endpoint does not offer is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
@@ -260,7 +282,10 @@ provenance; publication; runtime, packaging, release, or GA.
   with `SLEY2_SMOKE_NO_TASK_ATTEMPTED`; a capsule round trip joins the
   script once a request builder is reachable through the endpoint.
 - A claim carries `arm_affordances_digest`, the canonical digest of the
-  allowlist the trial ran under.
+  allowlist the trial ran under: the trial snapshots its affordance list
+  once into an immutable tuple before execution, and the guard, the
+  handle, and the claim digest all use that snapshot, so a mutated input
+  list cannot split exercised admission from the claimed digest.
 - A claim's `handshake_id`, `report_digest`, `model_output_digest`, and
   `oracle_report_digest` may be null only for timeouts and harness
   failures; `trace_record_count` is at least two (header and footer).

@@ -2,13 +2,16 @@
 //! observed through the CLI must equal a direct `Server` over the same
 //! repository, and every CLI failure must carry its exit status.
 
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use serde_json::Value;
 use sley_id::SessionId;
-use sley_json_bridge::{METHOD_TABLE_JSON, frame_from_json, frame_to_json, hello_to_json};
+use sley_json_bridge::{
+    METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, frame_from_json, frame_to_json, hello_to_json,
+};
 use sley_protocol::{
     BoundedContext, DecodedFrame, FrameKind, Hello, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION,
     ProtocolFailure, ProtocolFrame, Server, decode_frame, encode_frame, encode_hello_frame,
@@ -672,7 +675,13 @@ fn methods_hello_and_version_expose_the_offer_without_judgment() {
         "{\"cli\":\"1\",\"contract\":\"sley2-cli-v1\",\"protocol_version\":1}\n"
     );
     let parsed = sley_cli::parse(&["hello".to_string(), "--json".to_string()]).unwrap();
-    assert_eq!(parsed, sley_cli::Command::Hello { json: true });
+    assert_eq!(
+        parsed,
+        sley_cli::Command::Hello {
+            json: true,
+            profile: sley_cli::ProtocolProfile::Legacy,
+        }
+    );
     for code in sley_cli::CliErrorCode::ALL {
         assert_eq!(
             code.numeric() - 43_000 + 2,
@@ -680,4 +689,301 @@ fn methods_hello_and_version_expose_the_offer_without_judgment() {
         );
         assert!(code.as_str().starts_with("CLI_"));
     }
+}
+
+fn offered_v2() -> Hello {
+    Server::offered_hello_versioned().unwrap()
+}
+
+#[test]
+fn profile_hello_offers_both_versions_with_the_v2_methods() {
+    let (status, stdout, stderr) = run(
+        &["hello", "--json", "--protocol-profile", "v2-capable"],
+        &[],
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let object: Value = serde_json::from_str(&String::from_utf8(stdout).unwrap()).unwrap();
+    assert_eq!(object["protocol_versions"], Value::from(vec![1, 2]));
+    let methods: Vec<&str> = object["methods"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|name| name.as_str().unwrap())
+        .collect();
+    assert!(methods.contains(&"entity.version"));
+    assert!(methods.contains(&"entity.signature"));
+    assert_eq!(methods.len(), 39);
+
+    let (status, stdout, _) = run(&["hello", "--protocol-profile", "v2-capable"], &[]);
+    assert_eq!(status, 0);
+    match decode_frame(&stdout, MAX_FRAME_BYTES).unwrap().0 {
+        DecodedFrame::Hello(hello) => {
+            assert_eq!(hello.methods.len(), 39);
+            assert!(hello.methods.contains(&306));
+            assert!(hello.methods.contains(&307));
+        }
+        _ => panic!("profile hello is not a hello frame"),
+    }
+}
+
+#[test]
+fn profile_methods_prints_the_v2_table_verbatim() {
+    let (status, stdout, stderr) = run(&["methods", "--protocol-profile", "v2-capable"], &[]);
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(String::from_utf8(stdout).unwrap(), METHOD_TABLE_V2_JSON);
+    assert!(METHOD_TABLE_V2_JSON.contains("entity.version"));
+    assert!(METHOD_TABLE_V2_JSON.contains("entity.signature"));
+}
+
+#[test]
+fn profile_version_reports_the_capable_contract() {
+    let (status, stdout, stderr) = run(&["version", "--protocol-profile", "v2-capable"], &[]);
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(
+        String::from_utf8(stdout).unwrap(),
+        "{\"cli\":\"1\",\"contract\":\"sley2-cli-v2\",\"protocol_profile\":\"v2-capable\",\"protocol_versions\":[1,2]}\n"
+    );
+}
+
+#[test]
+fn profile_serve_reports_the_actual_selected_version() {
+    let (_temp, path) = repository("cli-profile-serve");
+    let repo = path.to_str().unwrap();
+    let report = path
+        .parent()
+        .unwrap()
+        .join("profile-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    // A version-aware client hello negotiates version 2 under the profile.
+    let input = encode_hello_frame(&offered_v2()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--report",
+            &report,
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0], input);
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v2");
+    assert_eq!(report["protocol_profile"], "v2-capable");
+    assert_eq!(report["selected_protocol_version"], 2);
+
+    // A legacy client hello against the capable server still selects 1.
+    let legacy = encode_hello_frame(&offered()).unwrap().bytes;
+    let (status, _, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+        ],
+        &legacy,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+}
+
+#[test]
+fn profile_frame_commands_enforce_the_expected_version() {
+    let hello_bytes = encode_hello_frame(&offered()).unwrap().bytes;
+    let hello_text = frame_to_json(&hello_bytes).unwrap();
+    // A hello converts under expected 1 and is rejected under expected 2.
+    let (status, stdout, _) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "1",
+        ],
+        hello_text.as_bytes(),
+    );
+    assert_eq!(status, 0);
+    assert_eq!(stdout, hello_bytes);
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        hello_text.as_bytes(),
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        &hello_bytes,
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    let (status, stdout, _) = run(
+        &[
+            "frame",
+            "decode",
+            "--expected-version",
+            "1",
+            "--protocol-profile",
+            "v2-capable",
+        ],
+        &hello_bytes,
+    );
+    assert_eq!(status, 0);
+    assert_eq!(stdout, format!("{hello_text}\n").into_bytes());
+}
+
+#[test]
+fn profile_serve_json_converts_post_hello_lines_under_the_selection() {
+    // A version 2-stamped open converts version-aware past the handshake;
+    // under the frozen version 1 conversion the same line is refused, so a
+    // passing open proves the selection drives JSON conversion.
+    let (_temp, path) = repository("cli-profile-json-open");
+    let repo = path.to_str().unwrap();
+    let server_hello = Server::offered_hello_versioned().unwrap();
+    let handshake = sley_protocol::negotiate_identity_versioned(&server_hello, &server_hello)
+        .unwrap()
+        .1;
+    let handshake_hex = handshake
+        .as_bytes()
+        .iter()
+        .fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        });
+    let (status, hello_out, _) = run(&["hello", "--protocol-profile", "v2-capable"], &[]);
+    assert_eq!(status, 0);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let hello_object: Value = serde_json::from_str(&hello_line).unwrap();
+    let bounds = hello_object["bounds"].clone();
+    let open = serde_json::json!({
+        "body": handshake_hex,
+        "bounds": bounds,
+        "flags": {"cancel": false, "failed": false, "stream": false},
+        "kind": "request",
+        "method": "session.open",
+        "protocol_version": 2,
+        "request_id": 0,
+        "session": null,
+    });
+    let input = format!("{hello_line}\n{open}\n");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+        ],
+        input.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let mut lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let answer: Value = serde_json::from_str(&lines.pop().unwrap()).unwrap();
+    assert_eq!(answer["kind"], "response");
+    assert_eq!(answer["flags"]["failed"], false);
+    assert_eq!(answer["body"].as_str().unwrap().len(), 64);
+}
+
+#[test]
+fn profile_frame_commands_report_version_mismatch_for_non_hello_frames() {
+    // A version 1 request frame under expected 2, and its JSON text under
+    // expected 2, must both fail CLI_INPUT_INVALID with VERSION_MISMATCH,
+    // never with the codec's own version-gate code.
+    let v1_request = request(None, 0, Method::SessionOpen, 0, Vec::new());
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        &v1_request,
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    let v1_text = frame_to_json(&v1_request).unwrap();
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        v1_text.as_bytes(),
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+}
+
+#[test]
+fn profile_flag_misuse_is_a_usage_failure() {
+    // --expected-version without the profile.
+    let (status, _, _) = run(&["frame", "decode", "--expected-version", "1"], &[]);
+    assert_eq!(status, 2);
+    // The profile without --expected-version on a frame command.
+    let (status, _, _) = run(
+        &["frame", "encode", "--protocol-profile", "v2-capable"],
+        &[],
+    );
+    assert_eq!(status, 2);
+    // --expected-version on a non-frame command.
+    let (status, _, _) = run(&["hello", "--expected-version", "1"], &[]);
+    assert_eq!(status, 2);
+    // Unsupported values and repeats.
+    let (status, _, _) = run(&["hello", "--protocol-profile", "v3"], &[]);
+    assert_eq!(status, 2);
+    let (status, _, _) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "3",
+        ],
+        &[],
+    );
+    assert_eq!(status, 2);
+    let (status, _, _) = run(
+        &[
+            "hello",
+            "--protocol-profile",
+            "v2-capable",
+            "--protocol-profile",
+            "v2-capable",
+        ],
+        &[],
+    );
+    assert_eq!(status, 2);
 }
