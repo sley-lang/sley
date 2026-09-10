@@ -127,3 +127,43 @@ four closed P0s.
 ## Independent review
 
 Pending. Sessions and verdicts are recorded here when they land.
+
+## Revision 6 attestation: capable runtime and review-round repairs (2026-09-10)
+
+Revision 6 implements the section 9 version-aware surface
+(`--protocol-profile v2-capable` on `hello`, `methods`, `version`,
+`serve`, `frame encode`, and `frame decode`; `sley2-cli-report-v2` with
+the actual `selected_protocol_version`) and repairs the three findings of
+the revision 6 Council round (Ariadne FAIL P1, Nabu FAIL P2, Vulcan FAIL
+3×P1) without touching version 1 defaults or legacy byte vectors:
+
+- Post-handshake bridge rejections are stamped at the selected version
+  (`failure_frame`/`write_rejection` carry the selection; only
+  pre-selection rejections stay version 1) and set the failed bit (SMP1
+  section 6); pinned by selection-2, selection-1, legacy-profile, and
+  failed-negotiation serve tests, including a multi-frame mixed-stream
+  round trip through the frame commands.
+- `scripts/check_cli_rules.py` derives its tag arms and name literals
+  from the frozen `Method` table (306/307, `entity.*`, and every bare
+  method name audited by construction) and counts both frame-encoder
+  spellings; `scripts/test_cli_rules.py` and
+  `scripts/test_cli_contract.py` pin the audit and the
+  current-delta-review record gate with mutations and negatives.
+- The legacy-hello serve test asserts the actual selection (1), the
+  report-v2 contract, a successful version 1 open, and the refused 306;
+  the capable identity derivation (version-aware, filtering 306/307 on
+  version 1 selections) is stated in contract section 9 with both
+  identities pinned.
+- Report accounting (`codes` sum to `failed_answers` for ordinary
+  failures under both selections, with the stream-terminal exception
+  stated in section 3), detached-flag causes, partial-stdout behavior,
+  and the `Command`/report shape compat note are stated and tested.
+
+Validation on this tree (sibling lane repair/cli-r6-council, this commit): `cargo test -p sley-cli` (25 tests: 18 pre-existing plus 7 new revision-6 tests, 4 rejection-stamping plus code-counts plus detached-cause plus partial-stdout, alongside the hardened legacy-hello test),
+`scripts/check_cli_contract.py`, `scripts/check_cli_rules.py`,
+`scripts/test_cli_rules.py` (10 cases, including the derivation-failure
+self-test), and `scripts/test_cli_contract.py` (7 cases) all pass;
+the pre-existing `check_error_symbol_registration` FAIL (unregistered
+`sley-vm` `PACKAGE_*` symbols) is untouched by this delta and stays with
+the registry owner. Council re-review of revision 6 stays with the S20-430
+queue.

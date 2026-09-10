@@ -779,19 +779,93 @@ fn profile_serve_reports_the_actual_selected_version() {
     assert_eq!(report["protocol_profile"], "v2-capable");
     assert_eq!(report["selected_protocol_version"], 2);
 
-    // A legacy client hello against the capable server still selects 1.
+    // A legacy client hello against the capable server still selects 1,
+    // opens a version 1 session, and is refused the version 2 methods:
+    // exit 0 alone would also satisfy a NO_COMMON_PROFILE rejection, so
+    // the selection, the open, and the 306 refusal are all asserted.
+    let legacy_report = path
+        .parent()
+        .unwrap()
+        .join("profile-legacy-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
     let legacy = encode_hello_frame(&offered()).unwrap().bytes;
-    let (status, _, stderr) = run(
+    let open_body = {
+        // The capable server re-derives with version-aware negotiation
+        // (contract section 9): for a legacy client the derivation agrees
+        // with the legacy one, while a client offering 306/307 that selects
+        // version 1 gets the filtered-methods identity. Both are pinned.
+        let (_, legacy_identity) = negotiate_identity(&offered(), &offered_v2()).unwrap();
+        let (_, capable_identity) =
+            sley_protocol::negotiate_identity_versioned(&offered(), &offered_v2()).unwrap();
+        assert_eq!(legacy_identity, capable_identity);
+        let mut offering = offered();
+        offering.protocol_versions = vec![PROTOCOL_VERSION];
+        offering.methods.push(306);
+        offering.methods.push(307);
+        offering.methods.sort_unstable();
+        let (_, legacy_filtered) = negotiate_identity(&offering, &offered_v2()).unwrap();
+        let (_, capable_filtered) =
+            sley_protocol::negotiate_identity_versioned(&offering, &offered_v2()).unwrap();
+        assert_ne!(legacy_filtered, capable_filtered);
+        capable_identity.as_bytes().to_vec()
+    };
+    let open = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::SessionOpen.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: open_body,
+    })
+    .unwrap()
+    .bytes;
+    let probe_306 = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::EntityVersion.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: Vec::new(),
+    })
+    .unwrap()
+    .bytes;
+    let mut legacy_input = legacy.clone();
+    legacy_input.extend_from_slice(&open);
+    legacy_input.extend_from_slice(&probe_306);
+    let (status, stdout, stderr) = run(
         &[
             "serve",
             "--repository",
             repo,
             "--protocol-profile",
             "v2-capable",
+            "--report",
+            &legacy_report,
         ],
-        &legacy,
+        &legacy_input,
     );
     assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 3);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&legacy_report).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v2");
+    assert_eq!(report["protocol_profile"], "v2-capable");
+    assert_eq!(report["selected_protocol_version"], 1);
+    let opened = response(&frames[1]);
+    assert_eq!(opened.protocol_version, PROTOCOL_VERSION);
+    assert_eq!(opened.body.len(), 32);
+    let refused = response(&frames[2]);
+    assert_eq!(refused.protocol_version, PROTOCOL_VERSION);
+    let failure = ProtocolFailure::decode(&refused.body).unwrap();
+    assert_eq!(failure.code, 40007);
+    assert_eq!(report["failed_answers"], 1);
 }
 
 #[test]
@@ -986,4 +1060,409 @@ fn profile_flag_misuse_is_a_usage_failure() {
         &[],
     );
     assert_eq!(status, 2);
+}
+
+#[test]
+fn capable_post_handshake_rejection_stamped_at_v2_selection() {
+    // Ariadne P1-1 / Nabu P2 / Vulcan R6-P1-2: a bridge rejection past the
+    // handshake travels at the selected version, so the post-hello stream
+    // stays single-version under a version 2 selection.
+    let (_temp, path) = repository("cli-reject-v2");
+    let repo = path.to_str().unwrap();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("reject-v2-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let (_, hello_out, _) = run(&["hello", "--protocol-profile", "v2-capable"], &[]);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let input = format!("{hello_line}\nnot a frame\n");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+            "--report",
+            &report_path,
+        ],
+        input.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let rejection: Value = serde_json::from_str(&lines[1]).unwrap();
+    assert_eq!(rejection["kind"], "response");
+    assert_eq!(rejection["protocol_version"], 2);
+    assert_eq!(rejection["flags"]["failed"], true);
+    // The rejection line converts back under expected 2: no mixed stream.
+    // (Under the old version-1 stamping this leg fails VERSION_MISMATCH.)
+    let (status, encoded, stderr) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        format!("{}\n", lines[1]).as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let (status, decoded, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        &encoded,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let back: Value = serde_json::from_str(&String::from_utf8(decoded).unwrap()).unwrap();
+    assert_eq!(back["protocol_version"], 2);
+    assert_eq!(back["flags"]["failed"], true);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["selected_protocol_version"], 2);
+    assert_eq!(report["failed_answers"], 1);
+    let codes = report["codes"].as_object().unwrap();
+    assert_eq!(codes.len(), 1);
+    assert_eq!(
+        codes
+            .values()
+            .map(|value| value.as_u64().unwrap())
+            .sum::<u64>(),
+        1
+    );
+}
+
+#[test]
+fn capable_post_handshake_rejection_stamped_at_v1_selection() {
+    // A version 1 selection stamps its post-handshake rejections at
+    // version 1: the rule follows the selection, never a v1 default.
+    let (_temp, path) = repository("cli-reject-v1");
+    let repo = path.to_str().unwrap();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("reject-v1-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let (_, hello_out, _) = run(&["hello"], &[]);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let input = format!("{hello_line}\nnot a frame\n");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+            "--report",
+            &report_path,
+        ],
+        input.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let rejection: Value = serde_json::from_str(&lines[1]).unwrap();
+    assert_eq!(rejection["kind"], "response");
+    assert_eq!(rejection["protocol_version"], 1);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["selected_protocol_version"], 1);
+    assert_eq!(report["failed_answers"], 1);
+}
+
+#[test]
+fn legacy_post_handshake_rejection_renders_legacy() {
+    // The legacy profile keeps versionless framing: its post-handshake
+    // rejections still travel at frame version 1.
+    let (_temp, path) = repository("cli-reject-legacy");
+    let repo = path.to_str().unwrap();
+    let (_, hello_out, _) = run(&["hello"], &[]);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let input = format!("{hello_line}\nnot a frame\n");
+    let (status, stdout, stderr) =
+        run(&["serve", "--repository", repo, "--json"], input.as_bytes());
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let rejection: Value = serde_json::from_str(&lines[1]).unwrap();
+    assert_eq!(rejection["kind"], "response");
+    assert_eq!(rejection["protocol_version"], 1);
+}
+
+#[test]
+fn failed_negotiation_rejection_stays_version_one() {
+    // Without a selection no version is negotiated: the negotiation
+    // failure answers at frame version 1 and the report selects nothing.
+    let (_temp, path) = repository("cli-reject-handshake");
+    let repo = path.to_str().unwrap();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("reject-handshake-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let mut impossible = offered_v2();
+    impossible.protocol_versions = vec![9];
+    let hello_line = frame_to_json(&encode_hello_frame(&impossible).unwrap().bytes).unwrap();
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+            "--report",
+            &report_path,
+        ],
+        format!("{hello_line}\n").as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 1);
+    let rejection: Value = serde_json::from_str(&lines[0]).unwrap();
+    assert_eq!(rejection["kind"], "response");
+    assert_eq!(rejection["protocol_version"], 1);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["selected_protocol_version"], Value::Null);
+    assert_eq!(report["failed_answers"], 1);
+}
+
+#[test]
+fn capable_code_counts_sum_to_failed_answers_under_both_selections() {
+    // Vulcan R6-P2-2: every failed answer whose terminal body decodes as a
+    // failure contributes its code, so ordinary refusals satisfy
+    // sum(codes) == failed_answers under selection 2 (a dispatched refusal,
+    // 40008) and selection 1 (a tag-validity refusal, 40007). The version 2
+    // probe is session-bound, so the test drives one live capable serve
+    // interactively, the way the S20-620 runner consumes it.
+    use std::io::{BufRead, BufReader};
+
+    let (_temp, path) = repository("cli-codes-v2");
+    let repo = path.to_str().unwrap().to_string();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("codes-v2-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let (_, hello_out, _) = run(&["hello", "--protocol-profile", "v2-capable"], &[]);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let bounds: Value = serde_json::from_str::<Value>(&hello_line).unwrap()["bounds"].clone();
+    let (_, server_id) =
+        sley_protocol::negotiate_identity_versioned(&offered_v2(), &offered_v2()).unwrap();
+    let server_hex = server_id
+        .as_bytes()
+        .iter()
+        .fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        });
+    let frame_object = |method: &str, body: &str, version: u32, id: u64, session: Value| {
+        serde_json::json!({
+            "body": body,
+            "bounds": bounds,
+            "flags": {"cancel": false, "failed": false, "stream": false},
+            "kind": "request",
+            "method": method,
+            "protocol_version": version,
+            "request_id": id,
+            "session": session,
+        })
+    };
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .args([
+            "serve",
+            "--repository",
+            &repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--json",
+            "--report",
+            &report_path,
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let open_line = frame_object("session.open", &server_hex, 2, 0, Value::Null);
+    stdin
+        .write_all(format!("{hello_line}\n{open_line}\n").as_bytes())
+        .unwrap();
+    stdin.flush().unwrap();
+    let _greeting = lines.next().unwrap().unwrap();
+    let opened: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+    assert_eq!(opened["flags"]["failed"], false);
+    // `entity.version` with an empty body dispatches past the method layer
+    // and fails closed on the body: the counted code is the dispatch proof.
+    let probe = frame_object("entity.version", "", 2, 1, opened["body"].clone());
+    stdin.write_all(format!("{probe}\n").as_bytes()).unwrap();
+    stdin.flush().unwrap();
+    let refused: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+    assert_eq!(refused["flags"]["failed"], true);
+    assert_eq!(refused["protocol_version"], 2);
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["selected_protocol_version"], 2);
+    assert_eq!(report["failed_answers"], 1);
+    let codes = report["codes"].as_object().unwrap();
+    assert_eq!(codes.len(), 1);
+    assert_eq!(
+        codes
+            .values()
+            .map(|value| value.as_u64().unwrap())
+            .sum::<u64>(),
+        1
+    );
+    assert_eq!(codes.keys().next().unwrap(), "40008");
+
+    // Selection 1 over the same profile: 306 refuses at tag validity, so a
+    // sessionless probe in one shot suffices.
+    let (_temp, path) = repository("cli-codes-v1");
+    let repo = path.to_str().unwrap();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("codes-v1-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let legacy = encode_hello_frame(&offered()).unwrap().bytes;
+    let (_, legacy_id) =
+        sley_protocol::negotiate_identity_versioned(&offered(), &offered_v2()).unwrap();
+    let open = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::SessionOpen.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: legacy_id.as_bytes().to_vec(),
+    })
+    .unwrap()
+    .bytes;
+    let probe = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::EntityVersion.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: Vec::new(),
+    })
+    .unwrap()
+    .bytes;
+    let mut input = legacy;
+    input.extend_from_slice(&open);
+    input.extend_from_slice(&probe);
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v2-capable",
+            "--report",
+            &report_path,
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 3);
+    let refused = response(&frames[2]);
+    let failure = ProtocolFailure::decode(&refused.body).unwrap();
+    assert_eq!(failure.code, 40007);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["selected_protocol_version"], 1);
+    assert_eq!(report["failed_answers"], 1);
+    let codes = report["codes"].as_object().unwrap();
+    assert_eq!(codes.len(), 1);
+    assert_eq!(
+        codes
+            .values()
+            .map(|value| value.as_u64().unwrap())
+            .sum::<u64>(),
+        1
+    );
+    assert_eq!(codes.keys().next().unwrap(), "40007");
+}
+
+#[test]
+fn frame_command_detached_flag_pairs_name_their_cause() {
+    // Vulcan R6-P2-5: a detached `--expected-version` names
+    // `--expected-version`, and a detached capable profile names
+    // `--protocol-profile`; both fail CLI_USAGE_INVALID with exit 2.
+    let (status, _, stderr) = run(&["frame", "decode", "--expected-version", "2"], &[]);
+    assert_eq!(status, 2);
+    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(failure["code"], 43000);
+    assert_eq!(failure["cause"], "--expected-version");
+    let (status, _, stderr) = run(
+        &["frame", "decode", "--protocol-profile", "v2-capable"],
+        &[],
+    );
+    assert_eq!(status, 2);
+    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(failure["code"], 43000);
+    assert_eq!(failure["cause"], "--protocol-profile");
+}
+
+#[test]
+fn frame_decode_keeps_partial_stdout_before_failure() {
+    // Vulcan R6-P3-3: the frame commands stream converted lines, so a
+    // failure after partial output leaves the converted prefix behind.
+    let frame = request(None, 0, Method::SessionOpen, 0, vec![1, 2, 3]);
+    let mut input = frame.clone();
+    input.extend_from_slice(b"junk");
+    let (status, stdout, _) = run(&["frame", "decode"], &input);
+    assert_eq!(status, 3);
+    assert_eq!(split_frames(&frame).len(), 1);
+    let text = String::from_utf8(stdout).unwrap();
+    assert_eq!(text.lines().count(), 1);
+    let converted: Value = serde_json::from_str(text.trim()).unwrap();
+    assert_eq!(converted["kind"], "request");
 }
