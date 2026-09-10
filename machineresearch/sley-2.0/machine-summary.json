@@ -2724,8 +2724,8 @@
   },
   "sley2_trial_runner": {
     "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
- "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
- "contract_revision": 4,
+    "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",
@@ -3167,7 +3167,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 221,
-    "open_reviews": 67,
+    "open_reviews": 61,
     "deferred_reviews": 10,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -3216,7 +3216,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "10 review lanes are deferred and unavailable",
-      "67 review obligations are open",
+      "61 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
