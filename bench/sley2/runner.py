@@ -1192,13 +1192,11 @@ def run_scripted_trial(
 class ScriptedAgent:
     """Asks the repository four bounded questions through the handle; attempts no task."""
 
-    SCRIPT = (("session.capabilities", ""), ("refs.list", "10"), ("handle.expand", "00"), ("session.budgets", ""))
-
     def __init__(self, expand_body: str = "00") -> None:
         # The expand body names handle 0 under the head root the smoke
-        # discovers through a throwaway serve (contract section 5): the
-        # default keeps the historical shape for offline tests whose fake
-        # endpoint answers regardless of the body.
+        # discovers through a throwaway serve (contract section 5); the
+        # "00" default is for offline tests whose fake endpoint answers
+        # regardless of the body.
         self._script = (("session.capabilities", ""), ("refs.list", "10"), ("handle.expand", expand_body), ("session.budgets", ""))
 
     @property
@@ -1424,14 +1422,13 @@ def entity_read_round_trip(sley: Path, scratch: Path, timeout_seconds: int) -> d
     """Live serving proof for the version 2 entity reads, plus the version 1
     negative control. Seeds the repository, opens a session, and sends
     `entity.version` with an empty body: under a version 2 selection the
-    method dispatches past the method layer (any failure but
-    method-unsupported or downgrade proves it); under a version 1
-    selection the frozen surface cannot even name the method, so the
-    endpoint answers its own rejection (`JSON_BRIDGE_METHOD_UNKNOWN`,
-    42003) and nothing reaches dispatch. Pre-session frames carry
-    identifier 0 (SMP1 section 3); the session-bound read carries 1. Not
-    a demonstration (that is AT-MW-02 I4b): the empty body cannot read
-    anything."""
+    method dispatches past the method layer, proving it with the body-layer
+    refusal (40008); under a version 1 selection the frozen surface cannot
+    even name the method, so the endpoint answers its own rejection
+    (`JSON_BRIDGE_METHOD_UNKNOWN`, 42003) and nothing reaches dispatch.
+    Pre-session frames carry identifier 0 (SMP1 section 3); the session-bound
+    read carries 1. Not a demonstration (that is AT-MW-02 I4b): the empty
+    body cannot read anything."""
     vector = json.loads(EXCHANGE_FIXTURE.read_text(encoding="utf-8"))["vectors"][0]
     exchange_hex = vector["exchange_hex"]
     evidence: dict[str, Any] = {}

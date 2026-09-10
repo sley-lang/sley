@@ -167,6 +167,11 @@ footer  { kind: "footer", frames_recorded, report: Report (the endpoint's
 
 The trace is complete: no frame is omitted, reordered, or rewritten; a
 runner failure appends the footer with its code and closes the trace.
+`verify_trace` checks canonical bytes, chain, and record order only, never
+artifact truth: semantic rules (for example, that a `guard_refusal` record
+means the footer outcome is a harness failure) are enforced by
+`run_scripted_trial` and covered by the intruder smoke trial, not by the
+verifier.
 Trace-derived quantities are computed only from frame records:
 
 | Metric | Derivation |

@@ -1,5 +1,13 @@
 # S20-620 Sley 2 Trial Runner Closeout
 
+## Revision 4 status (2026-09-10)
+
+The package now implements contract revision 4 (frozen eighteen-name
+allowlist with the entity reads, snapshot-bound claim digest, required
+version 2 stamping, version 2 table digest); 23 offline tests; smoke 8/8
+green with zero failed answers. The revision 2 record below is retained as
+history. Details: Revision 4 attestation.
+
 Status: **implemented under the draft Sley 2 Trial Runner v1 contract (revision 2); Council reviews pending, so the package is not complete; no model ran and no real trial exists; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
@@ -139,18 +147,20 @@ field set, or the trial's stage boundaries:
   the head root from the fixture-pinned accepted head through a throwaway
   serve) instead of scripting a malformed body: the smoke is green 8/8
   with zero failed answers, both claims carrying the frozen allowlist
-  digest, over the real `sley` binary and the frozen S20-540 exchange
-  fixture. Runner rev-4 contract evidence only; not a release
-  qualification (`full_s20_620_complete` stays false and the evidence
-  remains under the gitignored runtime directory).
+  digest, over the `sley` binary built from this tree (which since the CLI
+  merge carries the failed-bit rejections the version 1 control requires)
+  and the frozen S20-540 exchange fixture. Runner rev-4 contract evidence
+  only; not a release qualification (`full_s20_620_complete` stays false
+  and the evidence remains under the gitignored runtime directory).
 - `scripts/check_sley2_trial_runner.py` pins the capable profile, the
   eighteen-name spec order, the snapshot-to-allowlist binding markers,
-  the version 2 table path, and the required version keyword; 22 offline
+  the version 2 table path, and the required version keyword; 23 offline
   tests cover the frozen profile, the negative bindings, positive entity
   admission through the handle, the version 1 offer refusal, the
-  predicate boundary, and the non-boolean cancel refusal.
+  predicate boundary, the non-boolean cancel refusal, and the v1 rejection
+  shape.
 
-Validation on this tree: 22 offline tests,
+Validation on this tree: 23 offline tests,
 `scripts/check_sley2_trial_runner.py`, and `make sley2-runner-smoke`
 (8/8) all pass. Council re-review of revision 4 stays with the S20-620
 queue.
