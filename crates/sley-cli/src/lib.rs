@@ -19,12 +19,11 @@ use sley_json_bridge::{
     hello_to_json, hello_to_json_versioned,
 };
 use sley_protocol::{
-    Answer, BoundedContext, DecodedFrame, EncodedFrame, FrameKind, Hello, MAX_FRAME_BYTES,
-    PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode, ProtocolFailure,
-    ProtocolFrame, Server, decode_frame, decode_frame_for_version, encode_frame,
-    encode_hello_frame, frame_length, negotiate, negotiate_versioned,
+    Answer, BoundedContext, DecodedFrame, EncodedFrame, FLAG_FAILED, FrameKind, Hello,
+    MAX_FRAME_BYTES, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode,
+    ProtocolFailure, ProtocolFrame, Server, decode_frame, decode_frame_for_version,
+    encode_frame_for_version, encode_hello_frame, frame_length, negotiate, negotiate_versioned,
 };
-
 /// The CLI contract name written by `sley version`.
 pub const CLI_CONTRACT: &str = "sley2-cli-v1";
 /// The CLI version written by `sley version`.
@@ -898,19 +897,26 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /// The one frame the endpoint builds itself: a failure response with no
-/// session and request identifier zero (contract section 2).
-fn failure_frame(failure: &ProtocolFailure) -> Result<EncodedFrame> {
+/// session and request identifier zero (contract section 2, SMP1 section 6:
+/// a response frame carrying a failure envelope sets the failed bit).
+/// Before a selection exists it travels at frame version 1; past the
+/// handshake it is stamped at the selected version, so a capable stream
+/// never mixes versions.
+fn failure_frame(failure: &ProtocolFailure, version: Option<u32>) -> Result<EncodedFrame> {
+    let selected = version.unwrap_or(PROTOCOL_VERSION);
     let frame = ProtocolFrame {
-        protocol_version: PROTOCOL_VERSION,
+        protocol_version: selected,
         session: None,
         request_id: 0,
         kind: FrameKind::Response,
         method: 0,
-        flags: 0,
+        flags: FLAG_FAILED,
         bounds: BoundedContext::none(),
         body: failure.encode().map_err(endpoint_failure)?,
     };
-    encode_frame(&frame).map_err(endpoint_failure)
+    // `encode_frame` is `encode_frame_for_version` at version 1, so one
+    // call site covers both selections with identical bytes.
+    encode_frame_for_version(&frame, selected).map_err(endpoint_failure)
 }
 
 fn write_frame(
@@ -922,7 +928,8 @@ fn write_frame(
 ) -> Result<()> {
     if json {
         // Answers render under the actual selection past the handshake;
-        // the endpoint's own failure responses travel at frame version 1.
+        // the endpoint's own failure responses travel at frame version 1
+        // only before a selection exists (no version is negotiated yet).
         let converted = match version {
             None => frame_to_json(&frame.bytes),
             Some(selected) => frame_to_json_for_version(&frame.bytes, selected),
@@ -941,15 +948,23 @@ fn write_frame(
 }
 
 /// Writes one of the endpoint's own failure responses and counts it as a
-/// failed answer. These travel at frame version 1 (contract section 2),
-/// so they always render legacy.
+/// failed answer. Before a selection exists these travel at frame version 1
+/// (contract section 2) and always render legacy; past the handshake they
+/// travel and render at the selected version.
 fn write_rejection(
     stdout: &mut dyn Write,
     json: bool,
     failure: &ProtocolFailure,
     report: &mut Report,
+    version: Option<u32>,
 ) -> Result<()> {
-    write_frame(stdout, json, &failure_frame(failure)?, report, None)?;
+    write_frame(
+        stdout,
+        json,
+        &failure_frame(failure, version)?,
+        report,
+        version,
+    )?;
     report.answers += 1;
     report.failed_answers += 1;
     *report.codes.entry(failure.code).or_default() += 1;
@@ -1035,6 +1050,7 @@ fn serve_frames(
                 json,
                 &ProtocolFailure::protocol(error.code()),
                 report,
+                None,
             );
         }
     }
@@ -1085,7 +1101,7 @@ fn serve_frames(
             }
             Next::Rejected(error) => {
                 report.frames_read += 1;
-                write_rejection(stdout, json, &error.envelope(), report)?;
+                write_rejection(stdout, json, &error.envelope(), report, wire_version)?;
                 if error == BridgeError::Bridge(JsonBridgeErrorCode::ResourceLimit) {
                     break;
                 }

@@ -101,7 +101,11 @@ without reading the body. A short read inside a frame is
 (terminated by `\n`), converts it with `frame_from_json`, and writes one
 `Frame` object per line with `frame_to_json`; a line the bridge rejects is
 answered with a response frame carrying the bridge's own code and symbol
-(request identifier zero, no session) and reading continues. End of input
+(request identifier zero, no session) and reading continues. Before a
+selection exists the rejection travels at frame version 1; past the
+handshake it is stamped at the selected version (1 or 2) and rendered
+under it, so a capable stream never mixes versions, and the response frame
+sets the failed bit (SMP1 section 6). End of input
 ends the invocation; the endpoint never waits for a close.
 
 Under `--protocol-profile v2-capable` the endpoint offers
@@ -138,8 +142,14 @@ Report {
 ```
 
 The report counts and copies; it interprets nothing. `codes` is keyed by
-the numeric code of every failed answer's `ProtocolFailure` body; `cause`
-carries the underlying codec or bridge symbol when a CLI failure wraps one.
+the numeric code of a failed answer's `ProtocolFailure` body whenever the
+terminal body decodes as one under the selection, so for ordinary failures
+the code counts sum to `failed_answers` under both selections; a failed
+answer whose terminal body does not decode as a failure (a failed stream's
+empty terminal frame, or an undecodable answer) still increments
+`failed_answers` without contributing a code. `cause`
+carries the underlying codec or bridge symbol, or the bare offending word
+for usage and handshake-shape failures, when a CLI failure wraps one.
 
 Under `--protocol-profile v2-capable` the report is the additive contract
 `sley2-cli-report-v2`: the section 3 counters and errors unchanged, plus
@@ -193,13 +203,21 @@ error.
   `sley_vm`, `sley_state_root`, `sley_store`, `sley_adapter`,
   `sley_schema`, `sley_scb1`) outside its tests;
 - the CLI source constructs no `ProtocolFailure {` literal, no owner
-  record, and no `ProtocolFrame {` literal other than the handshake
-  failure frame, and calls `encode_frame` only there;
+  record, and no `ProtocolFrame {` literal other than the endpoint's own
+  failure frame, and calls the frame encoder (`encode_frame` or
+  `encode_frame_for_version`) only there;
 - the CLI source contains no `fn validate`, `fn judge`, `fn check_`, no
   method-name or method-tag match arms, and no text output that is not a
-  frame, a report, or the version object;
+  frame, a report, or the version object; the tag arms are derived from
+  every frozen `Method` tag (306 and 307 included) and the name literals
+  from every dotted family (including `entity.`) and every bare method
+  name, so no operation escapes the audit;
 - the CLI source never names `FEATURE_JSON_BRIDGE`: the offer carries no
   transport feature (section 2).
+- `scripts/test_cli_rules.py` pins the audit itself with 306/307 match-arm,
+  `entity.*` and bare-name literal, and second-encode-call mutations;
+  `scripts/test_cli_contract.py` pins the current-delta-review record gate
+  with stale-revision, missing-record, and frozen-with-pending negatives.
 
 ## 6. Required evidence
 
@@ -222,9 +240,13 @@ error.
 - Capable-profile tests over the same trusted repository: the `[1,2]`
   offer carrying exactly the version 2 methods, the capable metadata and
   report contracts, a version-aware serve reporting the actual selected
-  version (2 for a version-aware client hello, 1 for a legacy one), and
+  version (2 for a version-aware client hello, 1 for a legacy one, with a
+  successful version 1 open and a refused 306), post-handshake rejections
+  stamped at the selection with multi-frame mixed-stream evidence, the
+  code counts summing to `failed_answers` under both selections, and
   the expected-version frame rule with its rejections (hello under
-  expected 2, mixed versions, missing or detached flags).
+  expected 2, mixed versions, missing or detached flags with their
+  section 9 causes, partial stdout before a frame-command failure).
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan
   reviews with every report-grade finding closed.
 
@@ -305,6 +327,11 @@ release, or GA.
 The capable endpoint adopts `--protocol-profile v2-capable` for `hello`,
 `methods`, `version`, `serve`, `frame encode`, and `frame decode`. The
 profile enables the `[1,2]` offer; it never forces selection 2. The
+capable server re-derives the handshake identity with version-aware
+negotiation: under a version 1 selection the offered version-2 tags filter
+out of the selection, so a client offering 306 or 307 that selects version
+1 holds a different identity than the legacy derivation over the same
+hellos, while a legacy client agrees with it. The
 standalone frame commands (`frame encode`, `frame decode`) additionally
 require `--expected-version 1|2` with exact wire semantics: Hello uses
 expected 1, and every post-Hello frame uses the actual selected version
@@ -314,10 +341,17 @@ mismatch is `CLI_INPUT_INVALID` with cause VERSION_MISMATCH (a cause
 word, not a registered symbol). Duplicate,
 missing, or unsupported flags, `--expected-version` without the profile,
 and `--expected-version` on other commands are rejected under the
-existing section 4 categories. There is no `--protocol-version` alias:
+existing section 4 categories. A detached `--expected-version` without the
+profile fails `CLI_USAGE_INVALID` with cause `--expected-version`, and a
+detached `--protocol-profile v2-capable` without `--expected-version` on a
+frame command fails `CLI_USAGE_INVALID` with cause `--protocol-profile`.
+There is no `--protocol-version` alias:
 the generator's exact-table selector
 (`scripts/generate_smp1_json_bridge_table.py --protocol-version`) is a
-separate internal tool.
+separate internal tool. The frame commands stream converted lines as they
+read them: a failure after partial output leaves the converted prefix on
+standard output and reports the failure on standard error with the
+section 4 exit status.
 
 Capable metadata is the additive contract `sley2-cli-v2` carrying
 `protocol_profile` (`v2-capable`) and the offered `protocol_versions`
@@ -328,7 +362,10 @@ adding `protocol_profile` (`v2-capable`) and `selected_protocol_version`
 (`null` before successful negotiation, otherwise the actual 1 or 2).
 Default metadata and reports retain the exact version 1 contracts and
 bytes. The profile-aware entrypoint keeps existing `ServeOptions` source
-compatibility with `serve` as the legacy wrapper.
+compatibility with `serve` as the legacy wrapper; the `Command` variants
+additionally carry the profile (the frame commands carry the expected
+version too), and the report gains `protocol_profile` and
+`selected_protocol_version` (section 3).
 
 This surface is implemented in revision 6: the endpoint, crate, rule
 audit, and vectors above cover the capable path, and prose presence here
