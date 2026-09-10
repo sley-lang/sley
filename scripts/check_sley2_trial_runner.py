@@ -262,6 +262,8 @@ def main() -> int:
             "protocol_version != 2",
             "conformance/smp1-json-bridge/v2/methods.json",
             "selected_protocol_version",
+            "def v2_dispatched",
+            "def v1_rejection_shape",
         ):
             if marker not in runner:
                 problems.append(f"runner-marker:{marker}")

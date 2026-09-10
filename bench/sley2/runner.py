@@ -1305,6 +1305,18 @@ def _failure_code(body_hex: str) -> int:
         raise Sley2RunnerError(Sley2ErrorCode.FRAME_INVALID, "failure code uvarint")
     return code
 
+def v1_rejection_shape(answer: Mapping[str, Any]) -> bool:
+    """Control shape predicate: the frozen v1 surface answers 306 with the
+    endpoint's own rejection, which names no method, session, or request
+    identifier and sets the failed bit (SMP1 section 6)."""
+    return (
+        answer.get("method") == ""
+        and answer.get("session") is None
+        and answer.get("request_id") == 0
+        and bool(answer.get("flags", {}).get("failed"))
+    )
+
+
 def v2_dispatched(v2: Mapping[str, Any]) -> bool:
     """Allowlist predicate for the live dispatch proof (contract section 5):
     the version 2 arm must answer the empty-body entity.version with exactly
@@ -1455,14 +1467,10 @@ def entity_read_round_trip(sley: Path, scratch: Path, timeout_seconds: int) -> d
                 raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read not answered")
             if version == 1:
                 # Frozen surface: the rejection names no method, session, or
-                # request identifier, and carries the bridge's unknown-method
-                # code, proving 306 never reached dispatch.
-                if (
-                    answer.get("method") != ""
-                    or answer.get("session") is not None
-                    or answer.get("request_id") != 0
-                    or answer["flags"].get("failed")
-                ):
+                # request identifier, carries the bridge's unknown-method
+                # code, and sets the failed bit (SMP1 section 6), proving
+                # 306 never reached dispatch.
+                if not v1_rejection_shape(answer):
                     raise Sley2RunnerError(Sley2ErrorCode.INTERNAL_INVARIANT, f"{name} entity read not rejected")
                 code = _failure_code(answer.get("body", ""))
                 evidence[name] = {"failure_code": code}

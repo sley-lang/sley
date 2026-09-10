@@ -424,6 +424,18 @@ class Sley2RunnerTests(unittest.TestCase):
         ):
             self.assertFalse(runner.v2_dispatched(bad), bad)
 
+    def test_v1_rejection_shape_requires_the_failed_bit(self) -> None:
+        """The v1 control shape is the endpoint's own rejection: no method,
+        session, or identifier, failed bit set (SMP1 section 6). The
+        pre-repair shape without the bit, and any server-shaped answer,
+        are not the control."""
+        shape = {"method": "", "session": None, "request_id": 0, "flags": {"failed": True}}
+        self.assertTrue(runner.v1_rejection_shape(shape))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "flags": {"failed": False}}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "method": "entity.version"}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "session": "ab" * 32}))
+        self.assertFalse(runner.v1_rejection_shape({**shape, "request_id": 1}))
+
     def test_non_boolean_cancel_is_refused_not_coerced(self) -> None:
         """A non-boolean cancel flag is an invalid frame, not a truthy one:
         the constructor and the guard both refuse it (contract section 2)."""

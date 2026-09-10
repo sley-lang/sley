@@ -154,3 +154,13 @@ Validation on this tree: 22 offline tests,
 `scripts/check_sley2_trial_runner.py`, and `make sley2-runner-smoke`
 (8/8) all pass. Council re-review of revision 4 stays with the S20-620
 queue.
+
+## Cross-lane note: rejection failed-bit alignment (2026-09-10)
+
+Integration against the repaired capable runtime showed the version 1
+control asserting the pre-repair rejection shape without the failed bit:
+the capable endpoint now sets the bit on its own rejections (SMP1 section
+6, repaired under S20-430 revision 6), so the control asserts the
+endpoint's own rejection shape with the bit set (`v1_rejection_shape`,
+unit-pinned). No contract change: the control still gates on the bridge's
+unknown-method code with no method, session, or identifier.

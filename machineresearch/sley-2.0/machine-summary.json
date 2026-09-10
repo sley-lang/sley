@@ -2750,7 +2750,7 @@
       "bench/sley2/handle.py",
       "bench/sley2/tests/test_runner.py"
     ],
-    "offline_tests": 22,
+    "offline_tests": 23,
     "smoke_target": "make sley2-runner-smoke",
     "smoke_evidence": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
     "smoke_scope": "SCRIPTED_AGENT_OVER_EXCHANGE_FIXTURE_NO_MODEL_NO_TASK",
