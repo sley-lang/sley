@@ -7,10 +7,11 @@
 //! whole-root extraction, and owns no session admission or transport debit.
 
 use sley_id::SessionId;
+use sley_mutate::{value::EntityBodyValue, EntityObject};
 use sley_query::{
-    EntityReadCeilings, EntityReadError, EntityReadMethod, EntityReadOutcome, EntityReadPlan,
-    EntityReadRequest, EntityReadRevision, decode_entity_read_request,
-    encode_entity_read_response, prepare_entity_read,
+    decode_entity_read_request, encode_entity_read_response, prepare_entity_read, EntityReadBody,
+    EntityReadCeilings, EntityReadError, EntityReadMethod, EntityReadObject, EntityReadOutcome,
+    EntityReadPlan, EntityReadRequest, EntityReadRevision,
 };
 use sley_txn::VerifiedRevision;
 
@@ -21,28 +22,61 @@ fn view(revision: &VerifiedRevision) -> EntityReadRevision<'_> {
         root: revision.state_root().root,
         epoch: record.schema_epoch_id,
         bindings: &record.entity_bindings,
-        objects: revision.objects(),
         tombstones: revision.tombstoned_entities(),
+    }
+}
+
+/// Projects one stored object onto the query-owned narrow view.
+///
+/// Only the identity, kind tag, object identity, epoch, stored bytes, and
+/// the Function/Parameter relationship facts cross the owner boundary;
+/// every other body crosses as an opaque tag. The projection borrows the
+/// verified revision, so the owner touches only the selected indices and
+/// no whole-root view is ever built.
+fn view_object(object: &EntityObject) -> EntityReadObject<'_> {
+    let record = object.record();
+    let body = match &record.body {
+        EntityBodyValue::Function(function) => EntityReadBody::Function {
+            parameters: &function.parameters,
+        },
+        EntityBodyValue::Parameter(parameter) => EntityReadBody::Parameter {
+            owner: parameter.owner,
+            role: parameter.role,
+            ordinal: parameter.ordinal,
+        },
+        other => EntityReadBody::Other {
+            kind: other.kind_tag(),
+        },
+    };
+    EntityReadObject {
+        entity: record.entity_id,
+        kind: record.body.kind_tag(),
+        object_id: object.object_id(),
+        epoch: object.schema_epoch_id(),
+        stored_bytes: object.stored_bytes(),
+        body,
     }
 }
 
 /// Decodes the request and runs the ordered owner checks against one
 /// verified revision, without allocating object-sized output.
 ///
-/// The returned plan borrows the revision; it carries the copied revision
-/// view, request, and ceilings, and only it can drive encoding.
+/// The returned plan owns its captured inputs and selected objects; only
+/// it can drive encoding.
 ///
 /// # Errors
 ///
 /// Returns the first failing contract check.
-pub fn prepare_verified_entity_read<'rev>(
-    revision: &'rev VerifiedRevision,
+pub fn prepare_verified_entity_read(
+    revision: &VerifiedRevision,
     method: EntityReadMethod,
     request_bytes: &[u8],
     selected: &EntityReadCeilings,
-) -> Result<(EntityReadRequest, EntityReadPlan<'rev>), EntityReadError> {
+) -> Result<(EntityReadRequest, EntityReadPlan), EntityReadError> {
     let request = decode_entity_read_request(request_bytes)?;
-    let plan = prepare_entity_read(method, &view(revision), &request, selected)?;
+    let objects = revision.objects();
+    let object_at = |index: usize| objects.get(index).map(view_object);
+    let plan = prepare_entity_read(method, &view(revision), &request, selected, &object_at)?;
     Ok((request, plan))
 }
 
@@ -53,7 +87,7 @@ pub fn prepare_verified_entity_read<'rev>(
 /// Returns `InternalInvariant` when the written bytes drift from the
 /// preflight length.
 pub fn encode_verified_entity_read_response(
-    plan: EntityReadPlan<'_>,
+    plan: EntityReadPlan,
     session: SessionId,
 ) -> Result<EntityReadOutcome, EntityReadError> {
     encode_entity_read_response(plan, session)
@@ -204,5 +238,144 @@ mod tests {
             genesis("entity-read-epoch", executable_bodies(), &[]);
         let revision = transactions.verified_revision(genesis_id).unwrap();
         assert_eq!(revision.state_root().record.schema_epoch_id, epoch());
+    }
+
+    #[test]
+    fn projection_exposes_function_parameter_and_opaque_views() {
+        use sley_mutate::value::{FunctionBody, ParameterBody};
+        use sley_mutate::{build_entity_object, EntityObjectRecord};
+        use sley_query::EntityReadBody;
+        use sley_ssmc::{ParameterRole, TypeExpr, Visibility};
+
+        use crate::test_support::set;
+        let empty = set(&[]);
+        let function = build_entity_object(
+            epoch(),
+            &EntityObjectRecord {
+                entity_id: id(40),
+                body: EntityBodyValue::Function(FunctionBody {
+                    type_parameters: Vec::new(),
+                    parameters: vec![id(41), id(42)],
+                    result_type: TypeExpr::Bool,
+                    effects: empty.clone(),
+                    entry_block: id(44),
+                    blocks: vec![id(44)],
+                    contracts: empty.clone(),
+                    visibility: Visibility::Private,
+                }),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let view = view_object(&function);
+        assert_eq!(view.entity, id(40));
+        assert_eq!(view.kind, 5);
+        assert_eq!(view.object_id, function.object_id());
+        assert_eq!(view.epoch, epoch());
+        assert_eq!(view.stored_bytes, function.stored_bytes());
+        match view.body {
+            EntityReadBody::Function { parameters } => {
+                assert_eq!(parameters, &[id(41), id(42)]);
+            }
+            other => panic!("function projected as {other:?}"),
+        }
+
+        let parameter = build_entity_object(
+            epoch(),
+            &EntityObjectRecord {
+                entity_id: id(41),
+                body: EntityBodyValue::Parameter(ParameterBody {
+                    owner: id(40),
+                    role: ParameterRole::Function,
+                    ordinal: 0,
+                    value_type: TypeExpr::Bool,
+                }),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let view = view_object(&parameter);
+        assert_eq!(view.kind, 6);
+        match view.body {
+            EntityReadBody::Parameter {
+                owner,
+                role,
+                ordinal,
+            } => {
+                assert_eq!(owner, id(40));
+                assert_eq!(role, ParameterRole::Function);
+                assert_eq!(ordinal, 0);
+            }
+            other => panic!("parameter projected as {other:?}"),
+        }
+
+        let namespace = build_entity_object(
+            epoch(),
+            &EntityObjectRecord {
+                entity_id: id(3),
+                body: crate::test_support::namespace_body(),
+                label: None,
+                semantic_fingerprint: None,
+            },
+        )
+        .unwrap();
+        let view = view_object(&namespace);
+        assert_eq!(view.kind, 3);
+        match view.body {
+            EntityReadBody::Other { kind } => assert_eq!(kind, 3),
+            other => panic!("namespace projected as {other:?}"),
+        }
+    }
+
+    #[test]
+    fn projection_covers_every_body_variant_without_interpretation() {
+        use sley_mutate::{build_entity_object, EntityObjectRecord};
+        use sley_query::EntityReadBody;
+        for (byte, body) in crate::complete_root::tests::complete_bodies() {
+            let expected_kind = body.kind_tag();
+            let object = build_entity_object(
+                epoch(),
+                &EntityObjectRecord {
+                    entity_id: id(byte),
+                    body: body.clone(),
+                    label: None,
+                    semantic_fingerprint: None,
+                },
+            )
+            .unwrap();
+            let view = view_object(&object);
+            assert_eq!(view.entity, id(byte), "byte {byte} identity");
+            assert_eq!(view.kind, expected_kind, "byte {byte} tag");
+            assert_eq!(view.object_id, object.object_id(), "byte {byte} object id");
+            assert_eq!(view.epoch, epoch(), "byte {byte} epoch");
+            assert_eq!(
+                view.stored_bytes,
+                object.stored_bytes(),
+                "byte {byte} bytes"
+            );
+            match (&object.record().body, view.body) {
+                (EntityBodyValue::Function(expected), EntityReadBody::Function { parameters }) => {
+                    assert_eq!(parameters, expected.parameters, "byte {byte} parameters");
+                }
+                (
+                    EntityBodyValue::Parameter(expected),
+                    EntityReadBody::Parameter {
+                        owner,
+                        role,
+                        ordinal,
+                    },
+                ) => {
+                    assert_eq!(owner, expected.owner, "byte {byte} owner");
+                    assert_eq!(role, expected.role, "byte {byte} role");
+                    assert_eq!(ordinal, expected.ordinal, "byte {byte} ordinal");
+                }
+                (_, EntityReadBody::Other { kind }) => {
+                    assert_eq!(kind, expected_kind, "byte {byte} opaque tag");
+                }
+                (_, other) => panic!("byte {byte} projected as {other:?}"),
+            }
+        }
     }
 }
