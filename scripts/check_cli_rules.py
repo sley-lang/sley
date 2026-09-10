@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/sley-cli"
 MANIFEST = CRATE / "Cargo.toml"
+PROTOCOL = ROOT / "crates/sley-protocol/src/lib.rs"
 ALLOWED_DEPENDENCIES = {"sley-protocol", "sley-json-bridge", "serde_json"}
 ALLOWED_DEV_DEPENDENCIES = {"sley-repo", "sley-id", "sley-scb1", "sley-protocol", "sley-json-bridge", "serde_json"}
 KERNEL_CRATES = (
@@ -28,14 +29,92 @@ KERNEL_CRATES = (
     "sley_schema",
     "sley_scb1",
 )
-JUDGMENT_PATTERNS = (
-    re.compile(r"\bfn validate"),
-    re.compile(r"\bfn judge"),
-    re.compile(r"\bfn check_"),
-    re.compile(r"Method::[A-Z][A-Za-z]+\s*(\||=>)"),
-    re.compile(r"\b(100|101|102|103|104|20\d|21[0-4]|30[0-5]|40[0-4]|50[0-4]|60[0-4])\s*=>"),
-)
-METHOD_NAME = re.compile(r'"(session\.|workspace\.|refs\.|revision\.|branch\.|merge\.|exchange\.|gc\.|query\.|candidate\.|receipt\.|ref\.|tests\.)[a-z._]*"')
+
+
+def derive_method_truth(protocol_text: str) -> tuple[tuple[int, ...], tuple[str, ...]]:
+    """The structured source of operation truth: the frozen `Method` table.
+
+    Numeric tags come from the `tag()` arms (named constants resolved from
+    the same file) and dotted names from the `name()` arms, so 306/307,
+    `entity.*`, and every bare method name are audited by construction and
+    no future method can escape by landing outside a hand-written range.
+    """
+    constants = {
+        name: int(value)
+        for name, value in re.findall(
+            r"pub const (ENTITY_\w+_TAG): u32 = (\d+);", protocol_text
+        )
+    }
+    tag_block = protocol_text.split("pub const fn tag(self) -> u32", 1)[1].split(
+        "pub const fn name(self)", 1
+    )[0]
+    tags: set[int] = set()
+    for _variant, raw in re.findall(r"Self::(\w+) => ([A-Z0-9_]+),", tag_block):
+        if raw.isdigit():
+            tags.add(int(raw))
+        elif raw in constants:
+            tags.add(constants[raw])
+        else:
+            raise ValueError(f"unresolvable method tag: {raw}")
+    name_block = protocol_text.split("pub const fn name(self)", 1)[1].split(
+        "pub const fn family(self)", 1
+    )[0]
+    names = re.findall(r'Self::\w+ => "([\w.]+)",', name_block)
+    if not tags or not names:
+        raise ValueError("method table derivation is empty")
+    return tuple(sorted(tags)), tuple(sorted(names))
+
+
+def judgment_patterns(tags: tuple[int, ...]) -> tuple:
+    """Match-arm sentinels for every frozen tag; longest numerals first so
+    a three-digit tag never hides behind its prefix."""
+    alternation = "|".join(sorted((str(tag) for tag in tags), key=lambda item: (-len(item), item)))
+    return (
+        re.compile(r"\bfn validate"),
+        re.compile(r"\bfn judge"),
+        re.compile(r"\bfn check_"),
+        re.compile(r"Method::[A-Z][A-Za-z]+\s*(\||=>)"),
+        re.compile(rf"\b({alternation})\s*=>"),
+    )
+
+
+def method_name_pattern(names: tuple[str, ...]) -> "re.Pattern[str]":
+    """String-literal sentinels: dotted families by prefix, bare method
+    names as exact literals."""
+    dotted = sorted({name.split(".", 1)[0] for name in names if "." in name})
+    bare = sorted({name for name in names if "." not in name})
+    families = "|".join(dotted)
+    literals = "|".join(re.escape(name) for name in bare)
+    return re.compile(rf'"((?:{families})\.[a-z._]*|{literals})"')
+
+
+ENCODE_CALL = re.compile(r"\bencode_frame(?:_for_version)?\(")
+
+
+def audit_production_source(
+    display: str,
+    production: str,
+    patterns: tuple,
+    name_pattern: "re.Pattern[str]",
+    problems: list,
+    counters: dict,
+) -> None:
+    for crate in KERNEL_CRATES:
+        if re.search(rf"\b{crate}\b", production):
+            problems.append(f"kernel-crate:{display}:{crate}")
+    if "ProtocolFailure {" in production:
+        problems.append(f"failure-literal:{display}")
+    counters["frame_literals"] += production.count("ProtocolFrame {")
+    counters["encode_calls"] += len(ENCODE_CALL.findall(production))
+    for pattern in patterns:
+        if pattern.search(production):
+            problems.append(f"judgment:{display}:{pattern.pattern}")
+    if name_pattern.search(production):
+        problems.append(f"method-name:{display}")
+    # The offer carries no transport feature (contract section 2): the
+    # endpoint must never name the JSON bridge feature bit.
+    if "FEATURE_JSON_BRIDGE" in production:
+        problems.append(f"transport-feature:{display}")
 
 
 def section(manifest: str, name: str) -> set[str]:
@@ -64,39 +143,32 @@ def main() -> int:
     sources = sorted(CRATE.glob("src/**/*.rs"))
     if not sources:
         problems.append("no-sources")
-    frame_literals = 0
-    encode_calls = 0
+    try:
+        tags, names = derive_method_truth(PROTOCOL.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(json.dumps({"contract": "s20-430-cli-rule-audit-v1", "result": "FAIL", "problems": [f"method-truth:{error}"]}, sort_keys=True))
+        return 1
+    patterns = judgment_patterns(tags)
+    name_pattern = method_name_pattern(names)
+    counters = {"frame_literals": 0, "encode_calls": 0}
     for path in sources:
         text = path.read_text(encoding="utf-8")
         # Tests live under `mod tests` or a `tests` directory and may use fixtures.
         production = text.split("#[cfg(test)]", 1)[0]
-        for crate in KERNEL_CRATES:
-            if re.search(rf"\b{crate}\b", production):
-                problems.append(f"kernel-crate:{path.name}:{crate}")
-        if "ProtocolFailure {" in production:
-            problems.append(f"failure-literal:{path.name}")
-        frame_literals += production.count("ProtocolFrame {")
-        encode_calls += len(re.findall(r"\bencode_frame\(", production))
-        for pattern in JUDGMENT_PATTERNS:
-            if pattern.search(production):
-                problems.append(f"judgment:{path.name}:{pattern.pattern}")
-        if METHOD_NAME.search(production):
-            problems.append(f"method-name:{path.name}")
-        # The offer carries no transport feature (contract section 2): the
-        # endpoint must never name the JSON bridge feature bit.
-        if "FEATURE_JSON_BRIDGE" in production:
-            problems.append(f"transport-feature:{path.name}")
-    if frame_literals > 1:
-        problems.append(f"frame-literals:{frame_literals}")
-    if encode_calls > 1:
-        problems.append(f"encode-frame-calls:{encode_calls}")
+        audit_production_source(path.name, production, patterns, name_pattern, problems, counters)
+    if counters["frame_literals"] > 1:
+        problems.append(f"frame-literals:{counters['frame_literals']}")
+    if counters["encode_calls"] > 1:
+        problems.append(f"encode-frame-calls:{counters['encode_calls']}")
 
     result = {
         "contract": "s20-430-cli-rule-audit-v1",
         "crate": "present",
         "dependencies": sorted(dependencies),
-        "frame_literals": frame_literals,
-        "encode_frame_calls": encode_calls,
+        "method_tags_audited": len(tags),
+        "method_names_audited": len(names),
+        "frame_literals": counters["frame_literals"],
+        "encode_frame_calls": counters["encode_calls"],
         "problems": problems,
         "result": "PASS" if not problems else "FAIL",
     }
