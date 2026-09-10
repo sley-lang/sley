@@ -159,9 +159,12 @@ the revision 6 Council round (Ariadne FAIL P1, Nabu FAIL P2, Vulcan FAIL
   stated in section 3), detached-flag causes, partial-stdout behavior,
   and the `Command`/report shape compat note are stated and tested.
 
-Validation on this tree: `cargo test -p sley-cli` (23 tests),
+Validation on this tree: `cargo test -p sley-cli` (25 tests: the 23 above
+plus the detached-flag cause and partial-stdout tests restored after a
+truncation mishap dropped them before the first lane commit),
 `scripts/check_cli_contract.py`, `scripts/check_cli_rules.py`,
-`scripts/test_cli_rules.py`, and `scripts/test_cli_contract.py` all pass;
+`scripts/test_cli_rules.py` (10 cases, including the derivation-failure
+self-test), and `scripts/test_cli_contract.py` (7 cases) all pass;
 the pre-existing `check_error_symbol_registration` FAIL (unregistered
 `sley-vm` `PACKAGE_*` symbols) is untouched by this delta and stays with
 the registry owner. Council re-review of revision 6 stays with the S20-430
