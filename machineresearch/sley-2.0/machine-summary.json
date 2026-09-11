@@ -3163,7 +3163,8 @@
     "attested_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
     "p1_open_count": 0,
     "p1_open": [],
-    "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3"
+    "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review_revision_5": "PASS_0_P0_0_P1_0_P2_0_P3"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -3222,7 +3223,7 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 261,
+    "obligations": 262,
     "open_reviews": 101,
     "deferred_reviews": 0,
     "unclassified_dispositions": 2,

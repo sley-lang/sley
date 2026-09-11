@@ -37,7 +37,7 @@
     "p4": 0
   },
   "deferred_reviews": [],
-  "obligation_count": 261,
+  "obligation_count": 262,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2024,6 +2024,18 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
+      "field": "vulcan_surface_review_revision_5",
+      "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [],
+      "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_0_P0_3_P1_6_P2_2_P3",
       "field": "ariadne_contract_review",
       "package_status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
@@ -3729,7 +3741,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "a1d24130948c0e46253111362e00b9354ba388b5b95e89d0e9528084cf7e37f2",
+  "obligations_digest": "339c3c7487f349aa4cbd8360ae001667cd32cee12a786354b79ed09af6bf8873",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4769,7 +4781,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "2794b8614f118b5f8cf5b152a02388df55691660c6f35643cd1342b6e8581e59",
+  "register_digest": "179088aa607e67ab43e9cfa5201ed41837907ecbdc4c5f0ad31cb0ccc1aacade",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
@@ -4782,7 +4794,7 @@
   "states": {
     "HISTORICAL_ROUND": 28,
     "OTHER": 2,
-    "PASS": 130,
+    "PASS": 131,
     "PENDING": 101
   },
   "superseded_rounds": [
