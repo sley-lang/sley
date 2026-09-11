@@ -241,8 +241,11 @@ def main() -> int:
                 problems.append("spdx:created")
             # The namespace binds the inventory and the candidate (contract
             # section 3): two candidates sharing a lock set are different
-            # documents with different namespaces.
-            if INVENTORY.exists() and CANDIDATE.exists():
+            # documents with different namespaces. A missing binding input
+            # is reported, never silently skipped.
+            if not INVENTORY.exists() or not CANDIDATE.exists():
+                problems.append("spdx:namespace-unbound")
+            else:
                 inventory_digest = hashlib.sha256(INVENTORY.read_bytes()).hexdigest()
                 candidate = json.loads(read(CANDIDATE))
                 expected = (
@@ -301,9 +304,25 @@ def main() -> int:
                     ),
                     None,
                 )
-                subject = statement.get("subject", [{}])[0].get("digest", {}).get("sha256")
-                if root != subject:
-                    problems.append("provenance:subject-mismatch")
+            subject = statement.get("subject", [{}])[0].get("digest", {}).get("sha256")
+            if root != subject:
+                problems.append("provenance:subject-mismatch")
+            external = (
+                statement.get("predicate", {})
+                .get("buildDefinition", {})
+                .get("externalParameters", {})
+            )
+            if external.get("working_tree_clean") is not True:
+                problems.append("provenance:dirty-candidate")
+            repro_path = ROOT / "evidence/release/reproducibility-report.json"
+            if repro_path.exists():
+                repro = json.loads(read(repro_path))
+                attested = {
+                    attestation.get("artifact_sha256")
+                    for attestation in repro.get("attestations", [])
+                }
+                if subject not in attested:
+                    problems.append("provenance:subject-attestation-mismatch")
 
         for argv, label in (
             (["scripts/build_standards_sbom.py", "--check"], "sbom"),

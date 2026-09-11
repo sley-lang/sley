@@ -133,7 +133,7 @@ expected = {
 for key, value in expected.items():
     if slice_status.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
-if slice_status.get("vulcan_review") != "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING":
+if slice_status.get("vulcan_review") != "PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW":
     problems.append("machine-summary-vulcan-review-drift")
 expected_lanes = [
     "E1 constant reference under the extended profile",

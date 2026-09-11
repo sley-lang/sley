@@ -265,12 +265,13 @@ def build_entries(sources: dict) -> list[dict]:
             note="the independent security review is Vulcan's and the lane is unavailable (the "
             "finding register records the deferred dispositions). Its input is measured: of the "
             f"{threats['threat_count']} registered threats, "
-            f"{threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} have a located and "
-            f"exercised failure code, {threats['states'].get('PLANNED_EVIDENCE_PRESENT', 0)} carry "
+            f"{threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} have a located "
+            f"control that a test or corpus exercises, {threats['states'].get('PLANNED_EVIDENCE_PRESENT', 0)} carry "
             f"their planned evidence directory, and "
             f"{len(threats['p0_p1_without_located_symbol'])} P0 or P1 threats have no located "
             "symbol and form the review's work list "
-            "(evidence/security/threat-coverage-report.json)",
+            "(evidence/security/threat-coverage-report.json; a located symbol proves the "
+            "named control exists, not that the threat is mitigated)",
         ),
         entry(
             "succession benchmark methodology",

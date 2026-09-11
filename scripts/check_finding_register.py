@@ -156,7 +156,7 @@ def main() -> int:
         ("adr", "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md"),
         ("checker", "scripts/check_finding_register.py"),
         ("register", "evidence/review/finding-register.json"),
-        ("contract_revision", 2),
+        ("contract_revision", 3),
         ("new_stable_error_codes", 4),
         ("new_error_code_range", "75000 through 75003"),
         ("ga_claimed", False),

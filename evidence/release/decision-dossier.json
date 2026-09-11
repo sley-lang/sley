@@ -2,15 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "62 review obligations are open",
-    "9 review lanes are deferred and unavailable",
+    "7 review lanes are deferred and unavailable",
+    "88 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "7397e2a70802231c3ed3d0900f19343305db8a96ede4c18e6310208645482a4d",
+  "dossier_digest": "9546d287dab95cdb81667b307c15d42fdc3d0b940a8763c6067b51596be976ad",
   "entries": [
     {
       "evidence": [
@@ -146,7 +146,7 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 283,
+        "python_tests": 287,
         "rust_ignored_emitters": 16,
         "rust_unit_tests": 1390
       }
@@ -191,7 +191,7 @@
     {
       "evidence": [],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located and exercised failure code, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json)",
+      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located control that a test or corpus exercises, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
       "state": "GATED",
       "value": null
     },
@@ -338,23 +338,23 @@
           "p3": 0,
           "p4": 0
         },
-        "deferred_reviews": 9,
-        "obligations": 239,
-        "open_reviews": 62,
+        "deferred_reviews": 7,
+        "obligations": 254,
+        "open_reviews": 88,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 95,
-          "P1": 108,
-          "P2": 112,
-          "P3": 106,
+          "P0": 61,
+          "P1": 99,
+          "P2": 106,
+          "P3": 102,
           "P4": 8
         },
         "states": {
-          "DEFERRED": 9,
-          "HISTORICAL_ROUND": 42,
-          "OTHER": 3,
-          "PASS": 123,
-          "PENDING": 62
+          "DEFERRED": 7,
+          "HISTORICAL_ROUND": 28,
+          "OTHER": 2,
+          "PASS": 129,
+          "PENDING": 88
         }
       }
     },
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "315aae4f5522c6cf81224f97bcaafe90c6bdb5d2746f8b25e91ccea942014c36",
+  "entries_digest": "00321eae4750539ae9c557d5cbd49f92561a1b5e43b999f9f316cb13a7665335",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

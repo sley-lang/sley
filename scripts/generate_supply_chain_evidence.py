@@ -47,6 +47,15 @@ SECRET_PATTERNS = {
     "GITHUB_TOKEN": re.compile(rb"(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{40,255})"),
     "SLACK_TOKEN": re.compile(rb"xox[baprs]-[A-Za-z0-9-]{20,}"),
     "OPENAI_KEY": re.compile(rb"sk-[A-Za-z0-9]{20,}"),
+    "OPENAI_PROJECT_KEY": re.compile(rb"sk-proj-[A-Za-z0-9_-]{20,}"),
+    "ANTHROPIC_KEY": re.compile(rb"sk-ant-[A-Za-z0-9_-]{20,}"),
+    "XAI_KEY": re.compile(rb"xai-[A-Za-z0-9]{20,}"),
+    "HUGGINGFACE_TOKEN": re.compile(rb"hf_[A-Za-z0-9]{20,}"),
+    "PYPI_TOKEN": re.compile(rb"pypi-[A-Za-z0-9_-]{40,}"),
+    "NPM_TOKEN": re.compile(rb"npm_[A-Za-z0-9]{20,}"),
+    "DISCORD_BOT_TOKEN": re.compile(rb"[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27}"),
+    "GCP_SERVICE_ACCOUNT": re.compile(rb'"type"\s*:\s*"service_account"'),
+    "JWT_TOKEN": re.compile(rb"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
     "STRIPE_LIVE_KEY": re.compile(rb"(?:sk|rk)_live_[A-Za-z0-9]{20,}"),
     "GOOGLE_API_KEY": re.compile(rb"AIza[0-9A-Za-z_-]{35}"),
     "URL_CREDENTIAL": re.compile(rb"https?://[^/\s:@]{1,128}:[^/\s@]{1,256}@"),
@@ -240,7 +249,28 @@ def license_text_files() -> list[str]:
 
 
 def candidate_files() -> list[Path]:
-    raw = run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+    """Tracked candidate files only, so the recorded manifest is commit-bound.
+
+    Untracked working-tree files are scanned for secrets separately (they
+    can carry credentials too) but never enter the recorded manifest: a
+    manifest covering untracked state is not reproducible from the commit
+    and drifts on any clean checkout.
+    """
+    raw = run(["git", "ls-files", "--cached", "-z"])
+    paths = []
+    for value in raw.split(b"\0"):
+        if not value:
+            continue
+        relative = Path(os.fsdecode(value))
+        if relative in OUTPUT_PATHS:
+            continue
+        paths.append(relative)
+    return sorted(paths, key=lambda path: path.as_posix().encode("utf-8"))
+
+
+def untracked_files() -> list[Path]:
+    """Non-ignored untracked files: secret-scanned, never manifested."""
+    raw = run(["git", "ls-files", "--others", "--exclude-standard", "-z"])
     paths = []
     for value in raw.split(b"\0"):
         if not value:
@@ -283,6 +313,30 @@ def current_candidate_scan() -> tuple[list[dict[str, str]], list[str], int, int,
         for pattern in scan_blob(data):
             findings.append({"pattern": pattern, "path": relative.as_posix(), "scope": "candidate"})
     return findings, blockers, count, byte_count, manifest.hexdigest()
+
+
+def untracked_candidate_scan() -> tuple[list[dict[str, str]], list[str], int, int]:
+    """Secret-scan non-ignored untracked files without manifesting them."""
+    findings: list[dict[str, str]] = []
+    blockers: list[str] = []
+    count = 0
+    byte_count = 0
+    for relative in untracked_files():
+        path = ROOT / relative
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+            blockers.append(f"untracked-nonregular:{relative.as_posix()}")
+            continue
+        size = path.stat().st_size
+        if size > MAX_SCANNED_BLOB_BYTES:
+            blockers.append(f"untracked-oversize:{relative.as_posix()}:{size}")
+            continue
+        data = path.read_bytes()
+        count += 1
+        byte_count += len(data)
+        for pattern in scan_blob(data):
+            findings.append({"pattern": pattern, "path": relative.as_posix(), "scope": "untracked"})
+    return findings, blockers, count, byte_count
 
 
 def history_objects() -> tuple[list[str], dict[str, list[str]]]:
@@ -357,6 +411,15 @@ def build_outputs() -> dict[Path, bytes]:
     }
     missing_ignores = sorted(REQUIRED_IGNORE_PATTERNS - ignore_lines)
     blockers.extend(f"secret-ignore-pattern:missing:{pattern}" for pattern in missing_ignores)
+    for sentinel in (".env", "id_rsa.pem", "credentials/x", "secrets/x", ".aws/x", ".gnupg/x"):
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", sentinel],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if ignored.returncode != 0:
+            blockers.append(f"secret-ignore-pattern:ineffective:{sentinel}")
     inventory = {
         "blockers": sorted(set(blockers)),
         "cargo_lock_sha256": sha256((ROOT / "Cargo.lock").read_bytes()),
@@ -382,12 +445,15 @@ def build_outputs() -> dict[Path, bytes]:
     current_findings, current_blockers, current_files, current_bytes, candidate_digest = (
         current_candidate_scan()
     )
+    untracked_findings, untracked_blockers, untracked_file_count, untracked_byte_count = (
+        untracked_candidate_scan()
+    )
     history_findings, history_blockers, history_blobs, history_bytes = history_scan()
     secret_findings = sorted(
-        current_findings + history_findings,
+        current_findings + untracked_findings + history_findings,
         key=lambda item: (item["scope"], item["path"], item["pattern"], item.get("blob_oid", "")),
     )
-    secret_blockers = sorted(set(current_blockers + history_blockers))
+    secret_blockers = sorted(set(current_blockers + untracked_blockers + history_blockers))
     if secret_findings:
         secret_blockers.append("high-confidence-secret-findings-require-disposition")
     secret_scan = {
@@ -404,11 +470,14 @@ def build_outputs() -> dict[Path, bytes]:
             "high-confidence patterns only; no entropy or semantic credential validation",
             "history is frozen through the pre-audit anchor; later release audit must re-anchor",
             "generated T52/T54 reports are excluded from their own candidate scan",
+            "the recorded manifest covers tracked files only and is reproducible from the commit; untracked files are scanned for secrets and counted separately, never manifested",
             "no ignored local files, reflogs, remotes, provider stores, or external secret managers scanned",
         ],
         "matched_secret_values_emitted": False,
         "patterns": sorted(SECRET_PATTERNS),
         "result": "BLOCKED" if secret_blockers else "PASS_NO_HIGH_CONFIDENCE_FINDINGS",
+        "untracked_bytes_scanned": untracked_byte_count,
+        "untracked_files_scanned": untracked_file_count,
     }
     return {
         INVENTORY_PATH: canonical_json(inventory),

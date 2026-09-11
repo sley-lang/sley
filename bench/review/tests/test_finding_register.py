@@ -50,6 +50,17 @@ class ClassificationTests(unittest.TestCase):
         )
         self.assertEqual(register.severities_of("FAIL_2_P0_8_P1_9_P2_8_P3"), ["P0", "P1", "P2", "P3"])
 
+    def test_zero_counts_carry_no_severity(self) -> None:
+        self.assertEqual(
+            register.severities_of("PASS_0_P0_0_P1_0_P2_0_P3"), []
+        )
+        self.assertEqual(
+            register.severities_of("FAIL_0_P0_5_P1_4_P2_4_P3"), ["P1", "P2", "P3"]
+        )
+        self.assertEqual(
+            register.severities_of("REVISE_0_P0_2_P1_3_P2_3_P3"), ["P1", "P2", "P3"]
+        )
+
     def test_reviewer_tokens(self) -> None:
         self.assertEqual(register.reviewer_of("nabu_architecture_review"), "nabu")
         self.assertEqual(register.reviewer_of("vulcan_surface_review"), "vulcan")
@@ -93,7 +104,28 @@ class ClassificationTests(unittest.TestCase):
             )
         )
         self.assertTrue(
+            register.supersedes("ariadne_review", "ariadne_contract_review_revision_1")
+        )
+        self.assertTrue(
+            register.supersedes(
+                "ariadne_profile_final_review", "ariadne_initial_review"
+            )
+        )
+        # Two unmarked rounds never fold across cores: an older general
+        # PASS cannot close a newer qualified FAIL without round evidence.
+        self.assertFalse(
             register.supersedes("ariadne_review", "ariadne_operation_analysis_review")
+        )
+        # A scoped PASS never folds a round from another subject.
+        self.assertFalse(
+            register.supersedes(
+                "vulcan_entity_read_review", "vulcan_surface_review_revision_1"
+            )
+        )
+        self.assertTrue(
+            register.supersedes(
+                "vulcan_entity_read_review", "vulcan_entity_read_review_revision_1"
+            )
         )
         # A slice PASS never closes the overall FAIL it belongs to.
         self.assertFalse(

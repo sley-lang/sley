@@ -30,13 +30,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 2
+CONTRACT_REVISION = 3
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
 # one of these words.
 SKIP_FIELD = re.compile(
-    r"reviewer_role|reviews$|_session_id$|_at$|_by$|_id$|_timestamp$|_note$"
+    r"(^|_)reviewer_role$|reviews$|_session_id$|_at$|_by$|_id$|_timestamp$|_note$"
 )
 # Values that are ISO-8601 instants or Council session identifiers
 # (forge-<lane>-s20-<slice>-<instant>-<nonce>) rather than dispositions.
@@ -125,6 +125,11 @@ def field_early(field: str) -> bool:
     return any(token in ROUND_EARLY or token.isdigit() for token in field.split("_"))
 
 
+def field_late(field: str) -> bool:
+    """Whether a field names a later review round."""
+    return any(token in ROUND_LATE for token in field.split("_"))
+
+
 def supersedes(pass_field: str, fail_field: str) -> bool:
     """Whether a PASS review closes an earlier FAIL/REVISE round.
 
@@ -135,7 +140,11 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
     compatible: a scoped PASS (entity-read core) never folds a round from
     another subject (root-query core), so a future root-query REVISE cannot
     be marked historical by an entity-read PASS. The unmarked general PASS
-    (empty core) still folds every round of its lane.
+    (empty core) still folds every round of its lane. A cross-core fold
+    further needs round evidence that the PASS is not older than the FAIL:
+    the FAIL carries an early round token or the PASS carries a late one.
+    Two unmarked rounds never fold across cores, so an older general PASS
+    cannot close a newer qualified FAIL.
     """
     if pass_field == fail_field:
         return False
@@ -144,13 +153,28 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
     if not (pass_core <= fail_core or fail_core <= pass_core):
         return False
     if fail_core > pass_core:
-        return True
+        return field_early(fail_field) or field_late(pass_field)
     return field_early(fail_field) and not field_early(pass_field)
 
 
 def severities_of(disposition: str) -> list[str]:
-    """Distinct severity tokens a disposition names outside negations."""
-    return sorted(set(SEVERITY.findall(NEGATION.sub("", disposition))))
+    """Distinct severity tokens a disposition names outside negations.
+
+    Count-prefixed encodings name a zero count explicitly (`FAIL_0_P0`,
+    `PASS_0_P0_0_P1_0_P2_0_P3`): a severity token immediately preceded by
+    the count `0` is an absence claim, never a mention. A token without a
+    zero count, including a trailing bare token, is a mention.
+    """
+    text = NEGATION.sub("", disposition)
+    tokens = re.split(r"_", text)
+    mentions: set[str] = set()
+    for index, token in enumerate(tokens):
+        if not SEVERITY.fullmatch(token):
+            continue
+        if index > 0 and tokens[index - 1] == "0":
+            continue
+        mentions.add(token)
+    return sorted(mentions)
 
 
 def classify_token(disposition: str) -> str:
@@ -176,7 +200,7 @@ def classify_token(disposition: str) -> str:
     return "OTHER"
 
 
-def is_obligation(section: str, field: str, value: object) -> bool:
+def is_obligation(section: str, field: str, value: object, parent: str = "") -> bool:
     if not isinstance(value, str) or not value:
         return False
     # The finding register's own verdict is the review's output, not an input
@@ -187,7 +211,14 @@ def is_obligation(section: str, field: str, value: object) -> bool:
     if section == "finding_register" and field == "independent_review":
         return False
     if "review" not in field and "disposition" not in field:
-        return False
+        # Lane-keyed leaves under a review/disposition record (for example
+        # current_delta_review.ariadne) are obligations too: skipping them
+        # once read a package fully closed while its delta review was
+        # PENDING in every lane (contract section 1).
+        if field not in REVIEWERS:
+            return False
+        if "review" not in parent and "disposition" not in parent:
+            return False
     if SKIP_FIELD.search(field):
         return False
     return not INSTANT.match(value) and not SESSION.match(value)
@@ -206,20 +237,25 @@ def collect(summary: dict) -> list[dict]:
     """Every review obligation of the summary, ascending by section and field."""
     obligations: list[dict] = []
 
-    def walk(node: object, path: str, status: str | None) -> None:
+    def walk(node: object, path: str, status: str | None, parent: str = "") -> None:
         if isinstance(node, dict):
             own_status = node.get("status") if isinstance(node.get("status"), str) else status
             for field, value in node.items():
                 child = f"{path}.{field}" if path else field
-                if is_obligation(path or "(root)", field, value):
+                if is_obligation(path or "(root)", field, value, parent):
                     assert isinstance(value, str)
+                    record_field = (
+                        f"{parent}.{field}"
+                        if field in REVIEWERS and "review" not in field
+                        else field
+                    )
                     obligations.append(
                         {
                             "section": path or "(root)",
-                            "field": field,
+                            "field": record_field,
                             "disposition": value,
                             "state": classify_token(value),
-                            "reviewer": reviewer_of(field),
+                            "reviewer": reviewer_of(record_field),
                             "severities": severities_of(value),
                             "declares_closed_findings": "CLOSED" in value,
                             "declares_no_open_p0_p1_p2": "NO_OPEN_P0_P1_P2" in value,
@@ -227,10 +263,10 @@ def collect(summary: dict) -> list[dict]:
                             "superseded_by": None,
                         }
                     )
-                walk(value, child, own_status)
+                walk(value, child, own_status, field)
         elif isinstance(node, list):
             for index, value in enumerate(node):
-                walk(value, f"{path}[{index}]", status)
+                walk(value, f"{path}[{index}]", status, parent)
 
     walk(summary, "", None)
     obligations.sort(key=lambda item: (item["section"], item["field"]))

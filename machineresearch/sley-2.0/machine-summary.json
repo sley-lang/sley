@@ -2242,7 +2242,7 @@
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
     "validated_execution_input_hashes_asserted": true,
     "observation_id_rederived": true,
-    "vulcan_review": "S20_700FUZZ_FIX_LANDED_REREVIEW_PENDING",
+    "vulcan_review": "PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2870,7 +2870,7 @@
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 499,
     "history_bytes_scanned": 4082788,
-    "secret_patterns": 8,
+    "secret_patterns": 17,
     "secret_findings": 0,
     "matched_secret_values_emitted": false,
     "candidate_scan_recomputed_by_generator": true,
@@ -2878,8 +2878,10 @@
     "standards_sbom": false,
     "release_provenance": false,
     "release_candidate_history_reanchored": false,
-    "final_argus_disposition": "DEFERRED_FORGE_OAUTH_401",
-    "final_vulcan_disposition": "DEFERRED_FORGE_OAUTH_401",
+    "final_argus_disposition": "REVISE_0_P0_0_P1_4_P2_2_P3",
+    "final_argus_disposition_note": "REVISE via forge-council argus/claude-code 2026-09-11 on cb841a6 (drain, first review): T54 untracked-state manifest plus working-tree candidate set, provenance build-description mismatch, secret-pattern gaps; all addressed in the round-5 repairs; transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-cb841a6.md",
+    "final_vulcan_disposition": "REVISE_0_P0_2_P1_3_P2_4_P3",
+    "final_vulcan_disposition_note": "REVISE via forge-council vulcan/claude-code 2026-09-11 on cb841a6 (drain, first review): provenance clean-rule plus attestation agreement, T54 untracked manifest, pattern gaps, --check ahead-state, history magnitude, pattern positive controls, compressed-content limitation, SPDX absent-skip, audit-doc staleness, ignore-guard negation, finding-key trust, em-dashes; all addressed in the round-5 repairs; transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-cb841a6.md",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
       "evidence/release/sbom/cyclonedx-1.6.json",
@@ -3155,7 +3157,11 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
-    "attested_commit": "84bfa9c9c5d9fc3d8589b1972774430347877e68"
+    "attested_commit": "84bfa9c9c5d9fc3d8589b1972774430347877e68",
+    "p1_open_count": 1,
+    "p1_open": [
+      "stale 84bfa9c9 reproducibility attestation under the section 2 freshness rule (operator-constrained; carried explicitly in the ariadne and nabu PASS verdicts; enforced by check_reproducibility_and_independent_conformance)"
+    ]
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -3206,15 +3212,15 @@
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/FINDING_REGISTER_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 239,
-    "open_reviews": 62,
-    "deferred_reviews": 9,
-    "unclassified_dispositions": 3,
+    "obligations": 254,
+    "open_reviews": 88,
+    "deferred_reviews": 7,
+    "unclassified_dispositions": 2,
     "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
@@ -3228,7 +3234,8 @@
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "FAIL_2_P0_5_P1_4_P2_4_P3",
     "nabu_architecture_review": "FAIL_2_P0_5_P1_6_P2_4_P3",
-    "vulcan_surface_review": "PENDING",
+    "vulcan_surface_review": "REVISE_0_P0_2_P1_1_P2_3_P3",
+    "vulcan_surface_review_note": "REVISE via forge-council vulcan/claude-code 2026-09-11 on cb841a6 (drain, first review): temporal-fold direction blindness, delta-review collection gap, s20_360 open-count staleness, zero-count severity inflation, carried-P1 clearance evasion, mid-string completion imprecision, OTHER-record head, reviewer_role anchor; all addressed in the round-5 repairs; transcript evidence/review/verdicts/finding_register/vulcan_surface_review-cb841a6.md",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -3260,8 +3267,8 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "62 review obligations are open",
-      "9 review lanes are deferred and unavailable",
+      "7 review lanes are deferred and unavailable",
+      "88 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -3466,17 +3473,18 @@
   "threat_coverage": {
     "report": "evidence/security/threat-coverage-report.json",
     "source": "docs/THREAT_REGISTER.md",
-    "threat_count": 55,
+    "threat_count": 56,
     "states": {
-      "PLANNED_EVIDENCE_PRESENT": 6,
-      "STRUCTURAL_CONTROL_RECORDED": 4,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 45
+      "PLANNED_EVIDENCE_PRESENT": 9,
+      "STRUCTURAL_CONTROL_RECORDED": 3,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 44
     },
     "p0_p1_without_located_symbol": 0,
     "unlocated_with_realized_family": 0,
     "unlocated_with_no_family_symbol": 0,
-    "independent_security_review": "PENDING",
-    "interpretation": "a located symbol is not a mitigation claim. Every one of the fifty-five threats is now classified: forty-five have a located control that a test or corpus exercises, four are structural controls with no symbol to find (T28 symlink confinement, T29 host isolation, T33 encoded determinism, T50 Git independence), and six rest on the register's own planned evidence path. Nothing is unlocated. Whether each located control actually mitigates its threat is the independent security review's judgment, which has not run.",
+    "independent_security_review": "REVISE_0_P0_0_P1_5_P2_5_P3",
+    "independent_security_review_note": "REVISE via forge-council vulcan/claude-code 2026-09-11 on cb841a6 (drain retry; first hermes dispatch void without verdict): summary numbers plus T07/T20/T42/T41/T35/T56 addendum accuracy repaired in the round-5 repairs; classify() exercise definition, GC guard reachability, and sequence-row precision queued; transcript evidence/review/verdicts/threat_coverage/independent_security_review-cb841a6.md",
+    "interpretation": "a located symbol is not a mitigation claim. Every one of the fifty-six threats is now classified: forty-four have a located control that a test or corpus exercises, three are structural controls with no symbol to find (T28 symlink confinement, T29 host isolation, T50 Git independence), and nine rest on the register's own planned evidence path. Nothing is unlocated. Whether each located control actually mitigates its threat is the independent security review's judgment, which has not run.",
     "realized_codes_recorded": 25
   },
   "anti_goal_conformance": {
@@ -3560,7 +3568,8 @@
       "S20-770 registry drift over every crate"
     ],
     "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
-    "independent_review": "PENDING",
+    "independent_review": "REVISE_0_P0_3_P1_2_P2_3_P3",
+    "independent_review_note": "REVISE via forge-council nabu/claude-code 2026-09-11 on cb841a6 (drain retry; first hermes dispatch void on working directory): invariant-check coverage gaps across candidate-result, error-symbol, declared-limits, lint, required-index gates (3 P1, 2 P2, 3 P3, 1 P4); queued per owner lane, no repair in this round; transcript evidence/review/verdicts/invariant_audit/independent_review-cb841a6.md",
     "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one",
     "oracle_independence_finding": "the S20-130 independence scan read oracle/scb1/src only, while thirteen of the nineteen independent oracles live under scripts/, so the check vouched for twelve files it never read. The property held, but nothing verified it; both the checker and the conformance report now scan every oracle the coverage map names, and the report labels the runner that actually runs",
     "oracle_sources_scanned": 22,

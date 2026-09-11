@@ -67,7 +67,7 @@ assertion that they are untested.
 | T53 | release artifact substitution | P1 | release | `RELEASE_ARTIFACT_MISMATCH` | manifest/hash verification | `evidence/security/T53/` |
 | T54 | secret committed in fixtures | P1 | release | `RELEASE_SECRET_FINDING` | bounded high-confidence candidate/history scan present; release re-anchor, wider privacy review, and independent disposition pending | `evidence/security/T54/` |
 | T55 | benchmark contamination/cherry-pick | P1 | sley-bench | `BENCH_CONTROL_VIOLATION` | manifest denominator/control audit | `evidence/security/T55/` |
-| T56 | live session name used by a non-opening caller | P1 | sley-protocol | `SESSION_UNKNOWN` for foreign-instance names | twin-instance inequality and restart-unknown matrix; peer isolation is a transport obligation on the S20-420/430 boundary | `evidence/security/T56/` |
+| T56 | live session name used by a non-opening caller | P1 | sley-protocol | `SESSION_UNKNOWN` | twin-instance inequality and restart-unknown matrix over foreign-instance names; peer isolation is a transport obligation on the S20-420/430 boundary | `evidence/security/T56/` |
 
 P0/P1 evidence requires independent Vulcan disposition. A green test without a
 fault-seeding or assertion-effectiveness check remains an open release finding.
@@ -85,7 +85,12 @@ security review still judges whether the control is sufficient.
 
 | ID | Expected code | Realized code | Enforced in | Exercised by |
 |---|---|---|---|---|
-| T07 | `ID_DUPLICATE_ENTITY` | `CANDIDATE_IDENTITY_COLLISION` | `crates/sley-policy/src/candidate_validation.rs` phase 4, live-binding branch | `tombstones_graph_errors_and_missing_references_are_distinct` |
+| T07 | `ID_DUPLICATE_ENTITY` | `CANDIDATE_IDENTITY_COLLISION` | `crates/sley-policy/src/candidate_validation.rs` phase 4, live-binding branch | `tombstones_graph_errors_and_missing_references_are_distinct` seeds the tombstone case only; the live-binding collision branch has no fault-seeded test (open) |
+| T08 | `ID_REUSE_FORBIDDEN` | `CANDIDATE_IDENTITY_COLLISION` | the same phase 4 check, tombstone branch (`context.tombstones.binary_search`) | the same test, tombstone case |
+| T20 | `SCHEMA_SELF_MODIFICATION` | `POLICY_ISOLATION_SCHEMA_EPOCH_CHANGED` (the expected symbol is dead: never returned) | `crates/sley-policy/src/lib.rs` isolation judgment | the candidate validation isolation tests |
+| T35 | `CACHE_BINDING_MISMATCH` | rebuild-first `CacheAdmission` with `ContextMismatch`/`RootMismatch`/`DigestMismatch`/`ContentMismatch` | `crates/sley-query/src/snapshot.rs` snapshot admission | the snapshot admission unit tests |
+| T41 | `PACK_INVALID` | `PackErrorCode` family (located only as a substring of `EXCHANGE_PACK_INVALID`) | `crates/sley-repo` pack importer | the `repository_pack_importer` fuzz target |
+| T42 | `PACK_DECOMPRESSION_LIMIT` | `PACK_COMPRESSION_UNSUPPORTED`, refusing all compressed packs (the expected symbol is reserved, never emitted) | `crates/sley-repo/src/lib.rs` pack import | the pack import unit tests |
 | T08 | `ID_REUSE_FORBIDDEN` | `CANDIDATE_IDENTITY_COLLISION` | the same phase 4 check, tombstone branch (`context.tombstones.binary_search`) | the same test, tombstone case |
 | T35 | `CACHE_BINDING_MISMATCH` | `VM_LOWER_CACHE_KEY_UNSUPPORTED` plus the binding itself | `crates/sley-vm/src/lib.rs` `cache_key_preimage`, which binds schema epoch, field-schema hash, decoder-limits hash, state root, entry function, and profile so a different binding cannot collide | the extended vectors, whose cache keys the independent oracle re-derives |
 | T50 | `REPO_EXTERNAL_METADATA_FORBIDDEN` | structural: no kernel crate references Git, and `STATE_ROOT_V1.md` excludes ref names, ancestry, timestamps, paths, locks, caches, and Git metadata from the root | `docs/spec/REPOSITORY_MODEL_V1.md` and the state-root binding | the clone-equivalence corpus, which reproduces roots outside the producing repository |

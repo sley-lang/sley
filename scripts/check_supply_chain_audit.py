@@ -156,6 +156,9 @@ def check_secret_scan(scan: dict[str, Any]) -> None:
         fail("secret scan contains unresolved blockers or findings")
     if scan.get("matched_secret_values_emitted") is not False:
         fail("secret scan must never emit matched secret values")
+    for entry in scan.get("findings", []):
+        if set(entry) - {"pattern", "path", "scope", "blob_oid"}:
+            fail("secret-scan finding carries unexpected keys")
     for field in ("candidate_files_scanned", "candidate_bytes_scanned", "history_blobs_scanned", "history_bytes_scanned"):
         if not isinstance(scan.get(field), int) or scan[field] <= 0:
             fail(f"secret-scan coverage counter is invalid: {field}")
@@ -167,6 +170,18 @@ def check_secret_scan(scan: dict[str, Any]) -> None:
     }
     if not REQUIRED_IGNORES.issubset(ignore_lines):
         fail("required secret-bearing ignore patterns are missing")
+    # Line presence is not enough: a nested .gitignore negation or
+    # .git/info/exclude entry could re-include a guarded path, so assert
+    # the effective ignore status of sentinel paths.
+    for sentinel in (".env", "id_rsa.pem", "credentials/x", "secrets/x", ".aws/x", ".gnupg/x"):
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", sentinel],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if ignored.returncode != 0:
+            fail(f"secret-bearing sentinel not ignored: {sentinel}")
 
 
 def check_machine_summary(summary: dict[str, Any]) -> None:
@@ -189,7 +204,7 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 499,
         "history_bytes_scanned": 4_082_788,
-        "secret_patterns": 8,
+        "secret_patterns": 17,
         "secret_findings": 0,
         "matched_secret_values_emitted": False,
         "candidate_scan_recomputed_by_generator": True,
@@ -197,8 +212,8 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "standards_sbom": False,
         "release_provenance": False,
         "release_candidate_history_reanchored": False,
-        "final_argus_disposition": "DEFERRED_FORGE_OAUTH_401",
-        "final_vulcan_disposition": "DEFERRED_FORGE_OAUTH_401",
+        "final_argus_disposition": "REVISE_0_P0_0_P1_4_P2_2_P3",
+        "final_vulcan_disposition": "REVISE_0_P0_2_P1_3_P2_4_P3",
         "publication_authorized": False,
     }
     for field, expected_value in expected.items():

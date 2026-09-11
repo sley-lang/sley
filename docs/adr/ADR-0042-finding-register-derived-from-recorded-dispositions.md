@@ -1,7 +1,9 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 2 with Council
-review pending; register mechanics implemented (2026-09-05) with the
+Status: proposed; the S20-740 contract is a draft at revision 3 with Council
+review pending; register mechanics implemented (2026-09-05, revised
+2026-09-11 with enforced round ordering, lane-core compatibility, and
+lane-leaf collection) with the
 independent review still pending and `release-check` fail-closed
 
 Date: 2026-09-03

@@ -22,7 +22,8 @@
         "externalParameters": {
           "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
           "commit": "5b70052d48da298329512bf45c0020e30460d33c",
-          "make_target": "release-candidate-smoke"
+          "make_target": "build_release_candidate.py --allow-dirty (outside make release-candidate-smoke)",
+          "working_tree_clean": false
         },
         "internalParameters": {
           "artifact_size_bytes": 2130840,
@@ -109,5 +110,5 @@
       }
     ]
   },
-  "statement_digest": "98889217506a69d3b7a55098993e132fcdc6ae339724aae3ee28eb3af02e7d02"
+  "statement_digest": "e4ed960f187aaa1037798018f07f13e4be4ba2202a4c30b61739a29585c3b591"
 }

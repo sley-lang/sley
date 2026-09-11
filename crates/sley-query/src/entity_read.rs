@@ -2319,6 +2319,49 @@ mod tests {
         assert_eq!(covered, 4, "owner_case rows");
     }
 
+    /// Successful boundary request: exact ceilings serve with recomputed
+    /// work (`k_exact` additionally reproduces the base bytes, since its
+    /// ceilings leave the work unchanged).
+    fn assert_bound_serves(
+        id: &str,
+        relation: &str,
+        result: Result<EntityReadPlan, EntityReadError>,
+        base: &serde_json::Value,
+        row: &serde_json::Value,
+        session: SessionId,
+    ) {
+        let plan = result.unwrap_or_else(|error| panic!("{id}: serve: {error:?}"));
+        let outcome = encode_entity_read_response(plan, session).unwrap();
+        if relation == "k_exact" {
+            let expected = hex_bytes(base["response_body_hex"].as_str().unwrap());
+            assert_eq!(outcome.body, expected, "{id}: boundary bytes");
+            assert_eq!(
+                outcome.work_units,
+                base["work"].as_u64().unwrap(),
+                "{id}: boundary work"
+            );
+        } else if relation == "work_exact" {
+            assert_eq!(
+                outcome.work_units,
+                row["claimed_work"].as_u64().unwrap(),
+                "{id}: claimed work"
+            );
+        } else {
+            let stored_b = case_stored_bytes(base);
+            let count_k = base["count_k"].as_u64().unwrap();
+            assert_eq!(
+                outcome.work_units,
+                corpus_work(count_k, stored_b, row["ceiling_m"].as_u64().unwrap()),
+                "{id}: recomputed work"
+            );
+        }
+        assert_eq!(
+            outcome.returned_entities,
+            base["count_k"].as_u64().unwrap(),
+            "{id}: object count"
+        );
+    }
+
     /// Relation boundaries around one accepted base case: exact ceilings
     /// serve with recomputed work, one-below ceilings refuse.
     ///
@@ -2395,36 +2438,7 @@ mod tests {
             .and_then(capture_entity_read_selection);
             match relation {
                 "k_exact" | "bytes_exact" | "work_exact" => {
-                    let plan = result.unwrap_or_else(|error| panic!("{id}: serve: {error:?}"));
-                    let outcome = encode_entity_read_response(plan, session).unwrap();
-                    if relation == "k_exact" {
-                        let expected = hex_bytes(base["response_body_hex"].as_str().unwrap());
-                        assert_eq!(outcome.body, expected, "{id}: boundary bytes");
-                        assert_eq!(
-                            outcome.work_units,
-                            base["work"].as_u64().unwrap(),
-                            "{id}: boundary work"
-                        );
-                    } else if relation == "work_exact" {
-                        assert_eq!(
-                            outcome.work_units,
-                            row["claimed_work"].as_u64().unwrap(),
-                            "{id}: claimed work"
-                        );
-                    } else {
-                        let stored_b = case_stored_bytes(base);
-                        let count_k = base["count_k"].as_u64().unwrap();
-                        assert_eq!(
-                            outcome.work_units,
-                            corpus_work(count_k, stored_b, row["ceiling_m"].as_u64().unwrap()),
-                            "{id}: recomputed work"
-                        );
-                    }
-                    assert_eq!(
-                        outcome.returned_entities,
-                        base["count_k"].as_u64().unwrap(),
-                        "{id}: object count"
-                    );
+                    assert_bound_serves(id, relation, result, base, row, session);
                 }
                 "k_one_below" | "bytes_one_below" | "work_one_below" => {
                     assert_budget_refusal(id, &result);

@@ -167,7 +167,7 @@ unchanged inputs rewrite byte-identical files.
 
 The candidate evidence record lives under untracked `evidence/runtime/`, so a
 local candidate build legitimately leaves the tracked documents describing the
-previous candidate. `--check` detects exactly that state — the evidence
+previous candidate. `--check` detects exactly that state - the evidence
 loads, and its commit and artifact digest disagree with the tracked
 documents — reports `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result
 `PASS`, and names `make release-candidate-smoke` as the reconciling command.

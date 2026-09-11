@@ -156,6 +156,7 @@ def build_statement() -> dict:
             "the CycloneDX root component digest differs from the candidate evidence digest; "
             "rebuild the SBOM documents",
         )
+    clean = bool(candidate.get("working_tree_clean"))
     return {
         "_type": STATEMENT_TYPE,
         "subject": [
@@ -171,7 +172,12 @@ def build_statement() -> dict:
                 "externalParameters": {
                     "commit": candidate["commit"],
                     "artifact_name": candidate["artifact_name"],
-                    "make_target": "release-candidate-smoke",
+                    "make_target": (
+                        "release-candidate-smoke"
+                        if clean
+                        else "build_release_candidate.py --allow-dirty (outside make release-candidate-smoke)"
+                    ),
+                    "working_tree_clean": clean,
                 },
                 "internalParameters": {
                     "cargo": candidate["toolchain"]["cargo"],
@@ -245,6 +251,35 @@ def local_build_ahead() -> bool:
     return recorded != (candidate["commit"], candidate["artifact_sha256"])
 
 
+def validate_tracked() -> list[str]:
+    """Internal consistency of the tracked statement, checked even when a
+    local build is ahead (a skipped verification must not read PASS over
+    an unchecked document)."""
+    problems: list[str] = []
+    try:
+        document = json.loads(PROVENANCE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"unreadable: {error}"]
+    if document.get("contract") != FILE_CONTRACT:
+        problems.append("contract")
+    statement = document.get("statement", {})
+    try:
+        subjects = statement["subject"]
+        predicate = statement["predicate"]
+        external = predicate["buildDefinition"]["externalParameters"]
+        subjects[0]["digest"]["sha256"]
+        external["commit"]
+        external["artifact_name"]
+        external["make_target"]
+        external["working_tree_clean"]
+    except (KeyError, IndexError, TypeError):
+        problems.append("statement-shape")
+    else:
+        if document.get("statement_digest") != digest_of(statement):
+            problems.append("statement-digest")
+    return problems
+
+
 def build_file() -> dict:
     statement = build_statement()
     return {
@@ -267,11 +302,25 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.check and local_build_ahead():
+            invalid = validate_tracked()
+            if invalid:
+                print(
+                    canonical(
+                        {
+                            "mode": "check",
+                            "result": "FAIL",
+                            "state": "LOCAL_BUILD_AHEAD_TRACKED_INVALID",
+                            "problems": invalid,
+                        }
+                    ),
+                    end="",
+                )
+                return 1
             print(
                 canonical(
                     {
                         "mode": "check",
-                        "result": "PASS",
+                        "result": "AHEAD_TRACKED_VALIDATED",
                         "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
                         "detail": "a local candidate build replaced the untracked evidence this "
                         "statement describes; make release-candidate-smoke reconciles them",

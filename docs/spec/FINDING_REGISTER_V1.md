@@ -1,6 +1,6 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 2 (2026-09-05); Council review
+Status: S20-740 contract draft, revision 3 (2026-09-11); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
@@ -34,7 +34,10 @@ and does not change any package's status. The review remains Vulcan's, and
 
 `machineresearch/sley-2.0/machine-summary.json` is the only source: it is the
 tracked record every package updates. The register walks it and collects every
-string field whose name contains `review` or `disposition`, except
+string field whose name contains `review` or `disposition`, plus every
+lane-named string leaf (`ariadne`, `nabu`, `vulcan`, `merlin`, `codex`)
+directly under a `review`/`disposition` record such as
+`current_delta_review`, except
 
 - fields naming a role, session, actor, or instant, by anchored suffix:
   `reviewer_role`, `*_session_id`, `*_at`, `*_by`, `*_id`, `*_timestamp`,
@@ -91,9 +94,13 @@ builder and this section names every entry, so no alias is ever silent):
   general or later review: an `initial`/`first`/`revision-N` round folds into
   the `final` or unmarked review, and a qualified subject round folds into
   the strictly less qualified review. A slice `PASS` never closes the
-  overall `FAIL` it belongs to. Round ordering follows the field-name
+  overall `FAIL` it belongs to, and a scoped `PASS` never closes a round
+  from another subject. Round ordering follows the field-name
   convention (`initial` before `final`, revision numbers ascending) and is
-  not separately enforced;
+  enforced: a cross-core fold needs round evidence (an early token on the
+  round or a late token on the `PASS`), so an older general `PASS` never
+  closes a newer qualified `FAIL`, and two unmarked rounds never fold
+  across cores;
 - `OTHER` otherwise, which the register surfaces rather than silently
   normalizing.
 
@@ -105,8 +112,10 @@ stays open.
 `severities` strips every `NO_OPEN_P0...` and `NO_NEW_P0...` negation group
 before scanning, then deduplicates: `PASS_NO_OPEN_P0_P1_P2` carries no
 severity tokens, while `PASS_PRIOR_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4`
-carries `P2, P3`. The list is distinct tokens per obligation, not a finding
-count, and a negated token is an absence claim, never a mention.
+carries `P2, P3`. Count-prefixed encodings name zero counts explicitly, and
+a zero count is an absence claim like a negation: `FAIL_0_P0` names no `P0`
+mention, and an all-zero `PASS_0_P0_0_P1_0_P2_0_P3` carries none at all. The list is distinct tokens per obligation, not a finding
+count, and a negated or zero-count token is an absence claim, never a mention.
 
 `declares_closed_findings` is true when the disposition names `CLOSED`;
 `declares_no_open_p0_p1_p2` is true when it names `NO_OPEN_P0_P1_P2`.
@@ -210,6 +219,15 @@ fails the gate.
 - No GA claim, release decision, or publication.
 
 ## 7. Clarifications
+
+Revision 3 (2026-09-11) enforces the round ordering section 7 already
+required: a cross-core fold needs round evidence, so the older general
+`PASS`es no longer close the newer qualified `FAIL`s they predate (the
+live cases were six S20-360/S20-390 rounds reading closed), lane-named
+leaves under `review`/`disposition` records are collected as obligations
+(the live case was five `current_delta_review` records reading invisible),
+and supersession requires lane-core compatibility so a scoped `PASS` can
+never fold a foreign round.
 
 Revision 2 (2026-09-05) answers the Council reviews of the revision-1 draft:
 a `FAIL`/`REVISE` round needs a same-lane superseding `PASS` (Ariadne P0-1,
