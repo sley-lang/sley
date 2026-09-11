@@ -25,6 +25,7 @@ for marker in [
     "Hello::decode(candidate)",
     "check_negotiated_hello(hello)",
     "negotiate_identity(hello, &server)",
+    "server.validate().expect(\"server fixture must stay valid\")",
     "re-encoding a decoded frame drifted",
     "handshake identity drifted",
     "ProtocolErrorCode::ALL.contains(&error.code())",
@@ -54,6 +55,8 @@ for marker in [
     '"SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY"',
     "MAX_PAYLOAD_LEN = 65_536",
     "SELECTOR_COUNT = 4",
+    "CRASH_REGRESSION",
+    "S20_700_SMP1_001",
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")

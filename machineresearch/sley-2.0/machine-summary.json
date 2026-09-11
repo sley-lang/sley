@@ -2486,7 +2486,8 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
   "s20_700_context_capsule_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_320_FULL_CONTEXT_CAPSULE_BUILDER_ONLY",
@@ -2606,7 +2607,7 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "generated_seed_count": 728,
+    "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet"
   },
   "s20_700_smp1_json_bridge_persistent_fuzz_slice": {
@@ -2980,9 +2981,9 @@
     "persistent_fuzz_harness": true,
     "full_s20_350_complete": true,
     "full_s20_700_complete": false,
-    "selector_count": 2,
+    "selector_count": 3,
     "max_candidate_bytes": 1048576,
-    "generated_seed_count": 26,
+    "generated_seed_count": 32,
     "accepted_candidate_vectors": 1,
     "rejected_candidate_vectors": 14,
     "runtime_evidence": "evidence/runtime/s20-350-mutation-candidate-libfuzzer/evidence.json",

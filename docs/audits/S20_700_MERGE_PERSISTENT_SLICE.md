@@ -21,10 +21,16 @@ The libFuzzer target has three deterministic input lanes:
   common ancestor is the first entry of ours that theirs contains, or that
   no entry is shared.
 
-Inputs are bounded to 65,536 payload bytes. An accepted conflict must
+Inputs are bounded to 65,536 payload bytes, so the decoder's
+`ResourceLimit` arm (past 64 MiB inputs) is unreachable under this
+harness. An accepted conflict must
 round-trip byte for byte, bind the exact derived identity, carry at least
 one entry, and re-encode from its decoded form to the same record. A
-rejected input must carry one of the fourteen frozen `MERGE_*` codes.
+rejected input must carry one of the five decoder-emittable `MERGE_*`
+codes (`ConflictFormatInvalid`, `ConflictDigestMismatch`,
+`ConflictCanonicalOrder`, `ConflictVersionUnsupported`,
+`ResourceLimit`); the other nine frozen codes belong to the judgment,
+workspace, epoch, and policy paths the decoder lane never reaches.
 
 The deterministic corpus comes from `conformance/merge/v1/accepted.json`
 (every conflict vector's stored bytes) and `rejected.json`, plus
@@ -42,10 +48,10 @@ its high bit and an entity slot (`4`, `6`, `16`, `18`, `19`) plus a mutation
 valid base root. Both sides stay encodable by construction; projectability
 is left to the judgment, so scripts also reach the extraction-failure path.
 
-Every script must judge deterministically to a well-formed outcome — a
+Every script must judge deterministically to a well-formed outcome (a
 merged root that repeats its root, entity set, and override report, or a
-conflict that repeats its bytes and round-trips through the strict decoder
-— or to a failure carrying one of the fourteen frozen `MERGE_*` codes. A
+conflict that repeats its bytes and round-trips through the strict decoder)
+or to a failure carrying one of the fourteen frozen `MERGE_*` codes. A
 panic, a divergent repeat, or an undiagnosed error is a crash.
 
 Seeds are deterministic scripts (every single-mutation script on each side
@@ -91,14 +97,14 @@ qualification default itself has no recorded proof on this host (the
 evidence `toolchain_versions` field captures exactly what ran).
 Re-review of the slice's Vulcan verdict is queued, not assumed.
 
-## Rounds 7c-7i (REQ-06 re-review wave)
+## Rounds 7c-7j (REQ-06 re-review wave)
 
 Crash minimization uses `-minimize_crash=1` with exact artifacts (the
 round-7 `-merge=1` primitive could not minimize a crasher); the coverage
 floor measures on-disk corpus files plus 256 mutations; coverage gates
 strictly on inline counters with monotonic `ft` (no silent fallback);
 the owner gate counts the rlibs cargo linked (fingerprint-authoritative,
-`rlib_linkage` recorded) with a newest-per-crate fallback; warnings are
+`rlib_linkage` recorded, fail-closed with no mtime fallback); warnings are
 captured from the full streams against an explicit allowlist; builds
 refuse ambient `RUSTFLAGS`; prior crashers re-execute every smoke
 (crash-to-regression); per-input `-timeout=30` and `-rss_limit_mb=2048`

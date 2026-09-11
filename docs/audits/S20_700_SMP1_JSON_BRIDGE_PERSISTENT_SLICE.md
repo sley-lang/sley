@@ -72,14 +72,14 @@ qualification default itself has no recorded proof on this host (the
 evidence `toolchain_versions` field captures exactly what ran).
 Re-review of the slice's Vulcan verdict is queued, not assumed.
 
-## Rounds 7c-7i (REQ-06 re-review wave)
+## Rounds 7c-7j (REQ-06 re-review wave)
 
 Crash minimization uses `-minimize_crash=1` with exact artifacts (the
 round-7 `-merge=1` primitive could not minimize a crasher); the coverage
 floor measures on-disk corpus files plus 256 mutations; coverage gates
 strictly on inline counters with monotonic `ft` (no silent fallback);
 the owner gate counts the rlibs cargo linked (fingerprint-authoritative,
-`rlib_linkage` recorded) with a newest-per-crate fallback; warnings are
+`rlib_linkage` recorded, fail-closed with no mtime fallback); warnings are
 captured from the full streams against an explicit allowlist; builds
 refuse ambient `RUSTFLAGS`; prior crashers re-execute every smoke
 (crash-to-regression); per-input `-timeout=30` and `-rss_limit_mb=2048`

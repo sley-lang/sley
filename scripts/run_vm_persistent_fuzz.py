@@ -222,10 +222,6 @@ def main() -> int:
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
         )
-        and not any(
-            record.get("still_crashes", False)
-            for record in evidence["retested_prior_crashes"]
-        )
         and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"

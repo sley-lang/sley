@@ -57,23 +57,24 @@ locally PASS with executed >= floor, inline 8-bit counters observed,
 zero crash artifacts, and nonzero owner-rlib `sancov` counts; the durable
 record is `machine-summary.json` `last_local_proof` (runtime
 `evidence.json` files are gitignored by design). The decoder is safe
-Rust, so no ASan is instrumented; the oracle and seed neighbourhood are
-unchanged (bounded smoke, not a probe). The pinned qualification
+Rust, so no ASan is instrumented. The pinned qualification
 toolchain is unchanged (`clang-18`, pinned libfuzzer path,
 `nightly-2026-02-27`); the local proof ran under documented
 `SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A` overrides, and the pinned
 qualification default itself has no recorded proof on this host (the
 evidence `toolchain_versions` field captures exactly what ran).
+Slice oracles were strengthened in round 7h (engine-invariant asserts
+on both arms); seed neighbourhood work remains deferred target work.
 Re-review of the slice's Vulcan verdict is queued, not assumed.
 
-## Rounds 7c-7i (REQ-06 re-review wave)
+## Rounds 7c-7j (REQ-06 re-review wave)
 
 Crash minimization uses `-minimize_crash=1` with exact artifacts (the
 round-7 `-merge=1` primitive could not minimize a crasher); the coverage
 floor measures on-disk corpus files plus 256 mutations; coverage gates
 strictly on inline counters with monotonic `ft` (no silent fallback);
 the owner gate counts the rlibs cargo linked (fingerprint-authoritative,
-`rlib_linkage` recorded) with a newest-per-crate fallback; warnings are
+`rlib_linkage` recorded, fail-closed with no mtime fallback); warnings are
 captured from the full streams against an explicit allowlist; builds
 refuse ambient `RUSTFLAGS`; prior crashers re-execute every smoke
 (crash-to-regression); per-input `-timeout=30` and `-rss_limit_mb=2048`

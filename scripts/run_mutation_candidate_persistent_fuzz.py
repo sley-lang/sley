@@ -36,7 +36,7 @@ MAX_CANDIDATE_BYTES = 1_048_576
 MAX_INPUT_LEN = MAX_CANDIDATE_BYTES + 1
 SMOKE_RUNS = 512
 SMOKE_TIMEOUT_SECONDS = 60
-SELECTOR_COUNT = 2
+SELECTOR_COUNT = 3
 
 
 def main() -> int:
@@ -214,10 +214,6 @@ def main() -> int:
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
         )
-        and not any(
-            record.get("still_crashes", False)
-            for record in evidence["retested_prior_crashes"]
-        )
         and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"
@@ -255,6 +251,10 @@ def generate_seed_corpus() -> tuple[int, int]:
     seeds = [
         b"\x00" + bytes.fromhex(vector["expected_stored_hex"]),
         b"\x01" + bytes.fromhex(vector["expected_record_hex"]),
+        # Lane 2 (build-to-import) needs the accepted record by
+        # construction: without a valid-record seed the lane only ever
+        # sees junk rejected at the first decode byte.
+        b"\x02" + bytes.fromhex(vector["expected_record_hex"]),
     ]
     seeds.extend(
         b"\x00" + bytes.fromhex(item["input_hex"])

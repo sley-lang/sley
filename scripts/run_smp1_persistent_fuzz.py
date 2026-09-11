@@ -22,6 +22,7 @@ TARGET_DIR = RUNTIME / "target"
 FUZZER = TARGET_DIR / "release/smp1_frame_decoder"
 FIXTURE = ROOT / "conformance/smp1/v1/accepted.json"
 REJECTED = ROOT / "conformance/smp1/v1/rejected.json"
+CRASH_REGRESSION = ROOT / "fuzz/regressions/S20_700_SMP1_001.json"
 CLANG = "clang-18"
 RUST_TOOLCHAIN = "nightly-2026-02-27"
 LIBFUZZER = Path("/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a")
@@ -218,10 +219,6 @@ def main() -> int:
         and evidence["executed_runs"] >= runs_floor
         and evidence["coverage_ok"]
         and not evidence["new_crash_artifacts"]
-        and not any(
-            record.get("still_crashes", False)
-            for record in evidence["retested_prior_crashes"]
-        )
         and not any(
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
@@ -656,6 +653,14 @@ def generate_seed_corpus() -> tuple[int, int]:
     for first in frames[:4]:
         for second in frames[:4]:
             payloads.append(first + second)
+    # Filed crash regressions replay every smoke: the minimized input that
+    # exposed the dead-Ok-arm fixture bug stays in the deterministic
+    # corpus, so a refactored oracle that drops it fails loudly instead
+    # of silently losing the coverage.
+    regression = json.loads(CRASH_REGRESSION.read_text(encoding="utf-8"))
+    if regression.get("finding_id") != "S20-700-SMP1-001":
+        raise SystemExit("SMP1 crash regression fixture drifted")
+    payloads.append(bytes.fromhex(regression["input_hex"]))
 
     seeds = [bytes([selector]) + payload for selector in range(SELECTOR_COUNT) for payload in payloads]
     unique_seeds = list(dict.fromkeys(seeds))

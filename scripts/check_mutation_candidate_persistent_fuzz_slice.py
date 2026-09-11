@@ -56,6 +56,8 @@ for marker in [
     'vector["expected_stored_hex"]',
     'vector["expected_record_hex"]',
     "output_tail(error.stdout)",
+    "SELECTOR_COUNT = 3",
+    'b"\\x02" + bytes.fromhex(vector["expected_record_hex"])',
 ]:
     if marker not in runner:
         problems.append(f"runner-missing:{marker}")

@@ -25,6 +25,8 @@ for marker in [
     "build_root_query_request(&input, query.clone(), limits, allow, after)",
     "execute_root_query(&input, &request)",
     "RootQueryErrorCode::ALL.contains(&error.code())",
+    "engine invariant fired while building a request",
+    "engine invariant fired while executing a request",
     "root query drifted between runs",
     "truncated without continuation",
     "pages do not union to the total",
@@ -109,6 +111,8 @@ if slice_status.get("query_classes") != 19:
     problems.append("machine-summary-query-class-drift")
 if slice_status.get("seed_source") != "conformance/root-backed-query/v1/accepted.json":
     problems.append("machine-summary-seed-source-drift")
+if slice_status.get("seed_derivation") != "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes":
+    problems.append("machine-summary-seed-derivation-drift")
 
 audit = AUDIT.read_text(encoding="utf-8") if AUDIT.is_file() else ""
 for marker in ["make root-query-persistent-fuzz-smoke", "continuation walk"]:

@@ -242,10 +242,6 @@ def main() -> int:
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
         )
-        and not any(
-            record.get("still_crashes", False)
-            for record in evidence["retested_prior_crashes"]
-        )
         and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"
@@ -746,9 +742,13 @@ def encode_request(request: dict, flags: int) -> bytes:
             raise SystemExit(
                 "dependency-root list exceeds the target's count%3 fact lane"
             )
+        # One byte per root: the target reads a single byte and repeats
+        # it 32 times, so emitting thirty-two would misalign every lane
+        # by thirty-one bytes per root (benign today only because the
+        # reader ignores trailing bytes).
         out += bytes([len(roots)])
         for root in roots:
-            out += bytes([id_byte(root)]) * 32
+            out += bytes([id_byte(root)])
     return out + bytes([flags])
 
 

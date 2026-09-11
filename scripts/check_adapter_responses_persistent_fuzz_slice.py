@@ -28,6 +28,8 @@ for marker in [
     "a rejected adapter response mutated fixture state",
     "generic replay did not preserve the stored adapter response",
     "adapter transcript did not bind StateRoot",
+    "engine invariant fired as a normal rejection",
+    "a must-reject boundary mutation was accepted",
     "KIND_COUNT: u8 = 8",
     "RESPONSE_SCHEMA_COUNT: u8 = 6",
     "MUTATION_COUNT: u8 = 26",
