@@ -37,7 +37,7 @@
     "p4": 0
   },
   "deferred_reviews": [],
-  "obligation_count": 267,
+  "obligation_count": 269,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2903,6 +2903,20 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_0_P0_0_P1_0_P2_5_P3",
+      "field": "vulcan_review_revision_2",
+      "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
+      "reviewer": "vulcan",
+      "section": "s20_700_query_persistent_fuzz_slice",
+      "severities": [
+        "P3"
+      ],
+      "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_1_P0_4_P1_6_P2_2_P3",
       "field": "ariadne_contract_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
@@ -3006,6 +3020,20 @@
         "P3"
       ],
       "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS_0_P0_0_P1_0_P2_4_P3",
+      "field": "vulcan_review_revision_2",
+      "package_status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
+      "reviewer": "vulcan",
+      "section": "s20_700_schema_persistent_fuzz_slice",
+      "severities": [
+        "P3"
+      ],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -3809,7 +3837,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "2b87a898185807408b2040ec18a55d436437dc5c36ba638f3fa030d0a9115f7f",
+  "obligations_digest": "afbf7de7f8c6f5b271c25bc3e370d602d2e7efe5caa5b5eac23453c5665eae34",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4854,20 +4882,20 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "f99e2575670ac4f8c972dc403435627d018d2e1cc11f1493ba0873a2c2d84a1c",
+  "register_digest": "69877b0647c5af9a1474af485b08a005c7f03047c3999a6f9621d15ba0afacdd",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
     "P1": 109,
     "P2": 123,
-    "P3": 121,
+    "P3": 123,
     "P4": 9
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 28,
     "OTHER": 3,
-    "PASS": 135,
+    "PASS": 137,
     "PENDING": 101
   },
   "superseded_rounds": [

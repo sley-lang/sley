@@ -1947,34 +1947,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 1127,
-      "corpus_file_count": 1281,
+      "corpus_file_count": 1287,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1440,
-        "ft_done": 614,
-        "ft_inited": 613,
+        "ft_done": 637,
+        "ft_inited": 614,
         "new_events": true,
-        "seed": 4103664828
+        "seed": 1128473738
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2014,22 +2003,11 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 259,
       "corpus_file_count": 284,
@@ -2041,7 +2019,7 @@
         "ft_done": 510,
         "ft_inited": 510,
         "new_events": false,
-        "seed": 4032265505
+        "seed": 1057644185
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2059,7 +2037,8 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3"
   },
   "s20_700_pack_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_170_PACK_IMPORTER_ONLY",
@@ -2084,34 +2063,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 320,
-      "corpus_file_count": 384,
+      "corpus_file_count": 389,
       "runs_requested": 640,
-      "runs_floor": 640,
-      "executed_runs": 640,
+      "runs_floor": 645,
+      "executed_runs": 645,
       "coverage": {
         "counters": 8106,
-        "ft_done": 3015,
-        "ft_inited": 3014,
+        "ft_done": 3016,
+        "ft_inited": 3015,
         "new_events": true,
-        "seed": 4080185367
+        "seed": 1105064616
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2150,34 +2118,23 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 518,
-      "corpus_file_count": 553,
+      "corpus_file_count": 557,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
         "counters": 40576,
         "ft_done": 7993,
-        "ft_inited": 7989,
-        "new_events": true,
-        "seed": 4243194188
+        "ft_inited": 7993,
+        "new_events": false,
+        "seed": 1265355403
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2216,34 +2173,23 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 491,
-      "corpus_file_count": 891,
+      "corpus_file_count": 915,
       "runs_requested": 512,
-      "runs_floor": 1147,
-      "executed_runs": 1147,
+      "runs_floor": 1171,
+      "executed_runs": 1171,
       "coverage": {
         "counters": 7189,
-        "ft_done": 6314,
-        "ft_inited": 6226,
+        "ft_done": 6381,
+        "ft_inited": 6314,
         "new_events": true,
-        "seed": 4153268431
+        "seed": 1177413351
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2282,34 +2228,23 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 322,
-      "corpus_file_count": 355,
+      "corpus_file_count": 360,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 4141,
-        "ft_done": 1870,
-        "ft_inited": 1859,
+        "ft_done": 1878,
+        "ft_inited": 1870,
         "new_events": true,
-        "seed": 21456855
+        "seed": 1337846867
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2348,34 +2283,23 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 319,
-      "corpus_file_count": 425,
+      "corpus_file_count": 432,
       "runs_requested": 638,
-      "runs_floor": 681,
-      "executed_runs": 681,
+      "runs_floor": 688,
+      "executed_runs": 688,
       "coverage": {
         "counters": 3544,
-        "ft_done": 1520,
-        "ft_inited": 1516,
+        "ft_done": 1521,
+        "ft_inited": 1520,
         "new_events": true,
-        "seed": 4267520388
+        "seed": 1289462584
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2410,34 +2334,23 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 47,
-      "corpus_file_count": 174,
+      "corpus_file_count": 182,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 36084,
-        "ft_done": 4336,
-        "ft_inited": 4329,
+        "ft_done": 4337,
+        "ft_inited": 4336,
         "new_events": true,
-        "seed": 224810927
+        "seed": 1548666169
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2475,34 +2388,23 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 480,
-      "corpus_file_count": 542,
+      "corpus_file_count": 553,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
         "counters": 1229,
-        "ft_done": 1209,
-        "ft_inited": 1199,
+        "ft_done": 1221,
+        "ft_inited": 1209,
         "new_events": true,
-        "seed": 4177257191
+        "seed": 1201091463
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2540,34 +2442,23 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 971,
-      "corpus_file_count": 1461,
+      "corpus_file_count": 1489,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 11281,
-        "ft_done": 7588,
-        "ft_inited": 7410,
+        "ft_done": 7637,
+        "ft_inited": 7588,
         "new_events": true,
-        "seed": 4292368406
+        "seed": 1314109262
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2605,34 +2496,23 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 971,
-      "corpus_file_count": 1442,
+      "corpus_file_count": 1471,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 11749,
-        "ft_done": 7670,
-        "ft_inited": 7531,
+        "ft_done": 7714,
+        "ft_inited": 7670,
         "new_events": true,
-        "seed": 4202027658
+        "seed": 1225518492
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2671,34 +2551,23 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 712,
-      "corpus_file_count": 799,
+      "corpus_file_count": 805,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4380,
-        "ft_done": 3061,
-        "ft_inited": 2798,
+        "ft_done": 3196,
+        "ft_inited": 3061,
         "new_events": true,
-        "seed": 45408399
+        "seed": 1361704938
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2740,34 +2609,23 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 643,
-      "corpus_file_count": 789,
+      "corpus_file_count": 802,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 7081,
-        "ft_done": 4382,
-        "ft_inited": 4368,
+        "ft_done": 4423,
+        "ft_inited": 4383,
         "new_events": true,
-        "seed": 69818797
+        "seed": 1385905942
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2819,54 +2677,43 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": {
         "graph-cfg": 396,
         "type-checker": 385
       },
       "corpus_file_count": {
-        "graph-cfg": 581,
-        "type-checker": 585
+        "graph-cfg": 594,
+        "type-checker": 596
       },
       "runs_requested": 792,
       "runs_floor": {
-        "graph-cfg": 841,
-        "type-checker": 841
+        "graph-cfg": 852,
+        "type-checker": 852
       },
       "executed_runs": {
-        "graph-cfg": 841,
-        "type-checker": 841
+        "graph-cfg": 852,
+        "type-checker": 852
       },
       "coverage": {
         "graph-cfg": {
           "counters": 6002,
-          "ft_done": 3479,
-          "ft_inited": 3439,
+          "ft_done": 3507,
+          "ft_inited": 3479,
           "new_events": true,
-          "seed": 125379345
+          "seed": 1434779977
         },
         "type-checker": {
           "counters": 3753,
-          "ft_done": 5168,
-          "ft_inited": 5136,
+          "ft_done": 5238,
+          "ft_inited": 5168,
           "new_events": true,
-          "seed": 125285100
+          "seed": 1434678446
         }
       },
       "coverage_ok": {
@@ -2915,34 +2762,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 525,
-      "corpus_file_count": 542,
+      "corpus_file_count": 545,
       "runs_requested": 1050,
       "runs_floor": 1050,
       "executed_runs": 1050,
       "coverage": {
         "counters": 3263,
-        "ft_done": 955,
-        "ft_inited": 955,
+        "ft_done": 956,
+        "ft_inited": 956,
         "new_events": false,
-        "seed": 4056270958
+        "seed": 1081457509
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2960,7 +2796,8 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3"
   },
   "s20_700_vm_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
@@ -3007,34 +2844,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 788,
-      "corpus_file_count": 947,
+      "corpus_file_count": 951,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
         "counters": 18668,
-        "ft_done": 10525,
-        "ft_inited": 10519,
+        "ft_done": 10533,
+        "ft_inited": 10526,
         "new_events": true,
-        "seed": 199775107
+        "seed": 1523682979
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3085,34 +2911,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 821,
-      "corpus_file_count": 971,
+      "corpus_file_count": 977,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 7028,
-        "ft_done": 3410,
-        "ft_inited": 3406,
+        "ft_done": 3424,
+        "ft_inited": 3410,
         "new_events": true,
-        "seed": 4128876521
+        "seed": 1152908308
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3155,34 +2970,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "9ec3ac3fd1f8642d8b8c908c227e64b08eb6c335",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "800f7c702abab5f5a3bea933c2e10324556cd266",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_350_mutation_candidate_persistent_fuzz/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_adapter_responses_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_context_capsule_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_root_query_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_semantic_delta_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md",
-        "?? evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/vulcan_review-38fc94a0dc5a.md"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 26,
-      "corpus_file_count": 157,
+      "corpus_file_count": 165,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 17701,
-        "ft_done": 2785,
+        "ft_done": 2808,
         "ft_inited": 2785,
-        "new_events": false,
-        "seed": 100394007
+        "new_events": true,
+        "seed": 1409941595
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -4144,7 +3948,7 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 267,
+    "obligations": 269,
     "open_reviews": 101,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
