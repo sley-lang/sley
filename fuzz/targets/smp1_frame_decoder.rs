@@ -126,12 +126,13 @@ fn check_hello(candidate: &[u8]) {
 /// Negotiation oracle shared by the bare-record lane (check_hello) and the
 /// framed lane (check_frame): fixture hello frames decode to Hello records
 /// through decode_frame, so this is where negotiation genuinely executes.
-/// A decoded hello that fails validation negotiates to PayloadInvalid
-/// (Hello::validate), not NoCommonProfile; the doc sentence in negotiate()
-/// claiming otherwise is an owner-lane divergence (S20-410 packet), so the
-/// oracle accepts both and the packet decides the contract.
+/// A decoded-but-invalid client hello negotiates to PayloadInvalid, which
+/// is accepted; but a broken server fixture must fail loudly instead of
+/// silently killing the Ok arm again (S20-700-SMP1-001), so the fixture
+/// validates on every call.
 fn check_negotiated_hello(hello: &Hello) {
     let server = server_hello();
+    server.validate().expect("server fixture must stay valid");
     match negotiate_identity(hello, &server) {
         Ok((selected, id)) => {
             assert_eq!(

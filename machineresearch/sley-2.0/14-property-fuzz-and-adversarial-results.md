@@ -57,7 +57,9 @@ Current landed slices:
   bytes drive the production proposal-only raw record and stored-envelope APIs.
   Successful record decodes must re-encode byte-identically; successful imports
   must rebuild to the identical record, preimage, candidate ID, and stored
-  bytes. The target grants no validation authority or mutation path.
+  bytes; a build-to-import lane constructs valid imports from decoded records
+  so import land is reached by construction, not only by the fixed digest
+  input. The target grants no validation authority or mutation path.
 - Candidate-result persistent libFuzzer target: all sixteen canonical terminal
   decisions plus four corruption mutations seed the production result importer.
   Successful imports must repeat identically, rederive their exact digest,
