@@ -2924,8 +2924,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "ac4ce59a85c21e0c7310485bf178444cc2c026a423e339735a3dae1d095f870b",
-    "candidate_artifact_size_bytes": 2131797,
+    "candidate_artifact_sha256": "ce87e6ccaec8cc30b613f92f8f0c9ded59333ac7608c204c1f16fb851f3dad55",
+    "candidate_artifact_size_bytes": 2131792,
     "candidate_member_count": 14,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -2933,14 +2933,14 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "86e093209a92e3656f5731535b072132c4de881bcd17cacffc33acd231222624",
-    "candidate_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+    "candidate_manifest_digest": "b004b02f882b0da67fe66109ceccfaa2fc10257710472b5e09ab9d67c27c108b",
+    "candidate_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+    "candidate_evidence_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_0_P1_2_P2_3_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_3_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_5_P2_3_P3"
@@ -3160,7 +3160,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
-    "attested_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+    "attested_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
     "p1_open_count": 0,
     "p1_open": [],
     "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3"
