@@ -1983,7 +1983,7 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_6_P3"
+    "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS"
   },
   "s20_700_schema_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
@@ -2564,23 +2564,23 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "e7ad2ddff63d70c96b1d3c9690026529d2368393",
+      "source_commit": "6750700ae465d8046195d4b380a76c73e8c5f576",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
-      "corpus_count": 716,
-      "corpus_file_count": 870,
+      "corpus_count": 713,
+      "corpus_file_count": 875,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4436,
-        "ft_done": 3513,
-        "ft_inited": 3486,
+        "ft_done": 3534,
+        "ft_inited": 3513,
         "new_events": true,
-        "seed": 757626363
+        "seed": 1710141340
       },
       "coverage_ok": true,
       "crash_artifacts": [
@@ -3983,7 +3983,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 270,
-    "open_reviews": 95,
+    "open_reviews": 94,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4032,7 +4032,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "95 review obligations are open",
+      "94 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

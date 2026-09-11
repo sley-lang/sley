@@ -1,0 +1,38 @@
+# Vulcan second review — s20_700_scb1_persistent_fuzz_slice
+
+VERDICT block follows. Read-only; nothing written.
+
+```
+VERDICT: PASS
+SECTION: s20_700_scb1_persistent_fuzz_slice
+FIELD: vulcan_review
+SCOPE_SHA: b64ab9e53e81a55b7e59bdd174c8dcbe302b51e3
+DISPOSITION: PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS
+```
+
+**Verified at this SHA** (full read of target, runner, checker, `fuzz/Cargo.toml`, `sley-scb1` encode/decode surface, on-disk `evidence.json`, register, and the `2a82181..HEAD` diff):
+
+- Lane 22 present: `fuzz/targets/scb1_decoder.rs:55,60-81`, `SELECTOR_COUNT = 23` in target (`:12`), runner (`:37`), checker (`:40,:90`), register (`machine-summary.json:1937`). Seed count 1127 = 23 x 49 matches `corpus_count`.
+- First-review P3s closed in the runner: strict coverage gate `counters > 0 && ft_done >= ft_inited > 0` (`:194-201`); linked-rlib identity via `--message-format=json` replay with no mtime fallback, fail-closed on `cargo-json-failed` and `nm-missing` (`:435-520`, proof `rlib_linkage: cargo-json`, `libsley_scb1-8c944427…` = newest of three coexisting variants on disk); `-timeout=30 -rss_limit_mb=2048` (`:170-171`); `RUSTFLAGS`/`CARGO_ENCODED_RUSTFLAGS` poisoning refused at `toolchain_problems` (`:616-621`); `[profile.release] overflow-checks/debug-assertions` in `fuzz/Cargo.toml:115-117`, effective because `fuzz/` is its own `[workspace]` (`:7`) and the build emitted no profile-ignored warning; warnings captured from full streams before truncation (`:531-545`); prior-crash retest in an isolated dir, still-crashing priors fail the run (`:286-336`, `:238-241`).
+- Provenance now harness-emitted: on-disk `evidence/runtime/s20-700-scb1-libfuzzer/evidence.json` agrees field-for-field with `last_local_proof` (`source_commit e7ad2dd`, dirty files = the two untracked `.forge/slices` json, counters 1440, ft 641→648, seed 770733040, executed 2156 of floor 2156, corpus 1304 files, owner sancov 54 of 1279, zero crash artifacts, zero unexpected warnings, `result PASS`). `e7ad2dd..HEAD` touches only `machine-summary.json` and `evidence/security/T54/secret-scan.json`, so the proof binds to the governed tree at HEAD.
+- Checker: all 10 target, 26 wrapper, 3 Makefile, 3 register, 3 doc markers verified present by inspection (PASS).
+
+**FINDINGS:**
+
+[P3] [implementation] `fuzz/targets/scb1_decoder.rs:73-80` - lane 22 asserts acceptance, not value equality. `decode_payload_exact` returns `()`, so the oracle is "encoder output is consumed exactly by the decoder", which checks framing/canonical-length agreement but not that the decoded value equals the encoded one. The public value reader (`crates/sley-scb1/src/lib.rs:603-668`: `read_uvar`, `read_sint64`, `read_bool`, `read_bytes`) makes `assert_eq!(reader.read_uvar(64)?, value)` a two-line addition per pair. This is the residual of the first-review P2: a mutation-reachable encoder/decoder agreement oracle now exists (the P2's "no reachable behavioural oracle" state is gone), but it is weaker than both the proposed remediation and the lane's own doc comment.
+
+[P3] [implementation] `fuzz/targets/scb1_decoder.rs:64-72` - the scalar sub-lanes derive their value from `payload[0]` only, so uvar/sint constructions cover 256 values each and only 1- and 2-byte varints. 3..10-byte varints, `u64::MAX`, `2^63`, `i64::MIN/MAX`, and the ZigZag sign boundary are never constructed; the remaining payload bytes reach only the bytes sub-lane. Derive `u64`/`i64` from up to 8 payload bytes (`u64::from_le_bytes` over a zero-padded window) so the fuzzer controls the full width.
+
+[P3] [contract] `fuzz/targets/scb1_decoder.rs:60-62` - the doc comment states lane 22 makes "the stated re-encode oracle" reachable. It does not: nothing is re-encoded or compared, and the standalone envelope round-trip (`:87-98`, the oracle named at `14-property-fuzz-and-adversarial-results.md:20-24`) remains reachable only for digest-valid seeds. Reword to "encoder/decoder agreement lane" so the comment matches the assertion. Adversarial weight of the envelope gap is bounded: the accepted envelope domain under the two fixture contracts is three canonical payloads regardless of who computes the digest.
+
+[P3] [contract] `scripts/check_scb1_persistent_fuzz_slice.py:35-72` - unchanged from first review: substring presence only, never reads `evidence.json` or validates `last_local_proof.result`/`source_commit`. Recorded deferral ("checker-reads-evidence elevation"); the `make scb1-persistent-fuzz-smoke` lane as a whole is executable-gated, so this is checker depth, not a proof gap.
+
+[P4] [implementation] `scripts/run_scb1_persistent_fuzz.py:649-650` - unchanged: `bytes.fromhex(None)` raises `TypeError` on a vector lacking both `expected_hex` and `input_hex`, giving a traceback instead of a BLOCKED record. All 49 current vectors carry one.
+
+[P4] [implementation] `scripts/run_scb1_persistent_fuzz.py:155-163` - `--manual` still omits `-len_control=0`, `-timeout=30`, `-rss_limit_mb=2048`, so manual campaigns run a different schedule and have no per-input timeout or RSS bound.
+
+[P4] [record] `machineresearch/sley-2.0/machine-summary.json:1930-1986` - the slice record carries no `vulcan_review` field at either `2a82181` or HEAD; the first-review REVISE was filed only under `evidence/review/verdicts/` and never registered. Every sibling slice record carries the field. Set it on close.
+
+[P4] [record] `machineresearch/sley-2.0/14-property-fuzz-and-adversarial-results.md:20-24` - lane 22 is not described in any tracked doc; the results paragraph still names only the envelope re-encode assertion. Accurate as written, but incomplete for the 23-selector target. `docs/audits/` has no `S20_700_SCB1_PERSISTENT_SLICE.md` while every sibling slice has one.
+
+**SUMMARY:** The verdict can close to PASS. Every first-review harness P3 is repaired and verifiable at HEAD: the coverage gate now requires a real INITED/DONE feature trajectory, the owner-rlib gate inspects the rlib cargo actually linked and fails closed on any provenance failure, overflow and debug assertions are live in the fuzz profile, libFuzzer has per-input timeout and RSS bounds, shell `RUSTFLAGS` poisoning is refused at startup, and the provenance in the register is harness-emitted and identical to the on-disk evidence, with the two untracked `.forge/slices` files honestly recorded rather than attested away. The proof is a clean PASS with 852 mutated executions past the 1304-file corpus, five NEW coverage events, zero crash artifacts, zero unexpected warnings, and 54 owner-library sancov symbols in the linked rlib. The first-review P2 is closed at P2 grade: the slice now has a mutation-reachable encoder-to-decoder agreement oracle across uvar, sint, bool, and bytes, so it is no longer a pure no-panic smoke plus one fixed-point check. What remains is downgraded to P3 hardening: the new lane asserts acceptance rather than value equality despite a public value reader making equality a trivial addition, its scalar domain is one byte wide, and its comment overstates it as the re-encode oracle. Neither invalidates the proof or the decoder claims. Assumptions: `python3` and `nm` execution were permission-gated in this session, so checker PASS is by static verification of all 45 markers against the files at HEAD, and the linked rlib's symbol count is taken from the harness record rather than re-derived; no fuzz run was performed here; the proof's `source_commit` is `e7ad2dd`, one records-only commit behind HEAD, and is accepted as binding because the HEAD diff touches no governed harness file; the on-disk `evidence.json` is gitignored and was compared to the register by inspection. No files were written.
