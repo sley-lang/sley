@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:5fbadf2dab2b1b67b4ff73ac3bd03a9b1c3fb04d56541b58d3d265c28c69a385:8ee23a8de3f52cdab54f20be0286cceda2f4fc0f3aea2a18fd886bcdb3f96f63",
+  "documentNamespace": "urn:sley2:spdx:21879a02534f46fa3f98a64ddd1668b9cf724a82ef75253869b09506437dfad5:8ee23a8de3f52cdab54f20be0286cceda2f4fc0f3aea2a18fd886bcdb3f96f63",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "The Sley 2 workspace packages declare a proprietary license reference. The exact root license text, copyright holder, term, and notice language await an operator decision (S20-710), so no license text is asserted here.",
@@ -1544,6 +1544,11 @@
       "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
       "relationshipType": "DEPENDS_ON",
       "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",

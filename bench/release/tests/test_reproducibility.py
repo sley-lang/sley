@@ -282,6 +282,32 @@ class IndependentConformanceTests(unittest.TestCase):
                 error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
             )
 
+    def test_a_version_without_a_manifest_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text('{"contract": "x"}', encoding="utf-8")
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(
+                error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
+            )
+
+    def test_conflicting_duplicate_manifest_lines_fail_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text('{"contract": "x"}', encoding="utf-8")
+            digest = hashlib.sha256(b'{"contract": "x"}').hexdigest()
+            (directory / "v1/SHA256SUMS").write_text(
+                f"{digest}  accepted.json\n{'e' * 64}  accepted.json\n", encoding="utf-8"
+            )
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.SUMS_MISMATCH)
+
     def test_a_corpus_pin_outside_coverage_fails_closed(self) -> None:
         pinned = dict(conformance.CORPUS_VERSION)
         conformance.CORPUS_VERSION["brand-new"] = "v1"

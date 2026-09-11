@@ -128,6 +128,7 @@ report = {
   "work_package": "S20-730",
   "make_target": "conformance",
   "fixture_directories": integer,
+  "tracked_corpus_directories": integer,
   "independently_checked": integer,
   "native_only": [directory, ...],
   "fixtures": [fixture, ...] sorted by directory,
@@ -144,7 +145,7 @@ fixture = {
   "sums_consistent": true,
   "contract": string | null,
   "claim": string | null,
-  "shape": { file: { list-valued key: length } },
+  "shape": { file: { list-valued key: length, mapping key: size } },
   "coverage": { "kind": "independent_oracle", "depth": "semantic" | "codec_and_identity", "runner": string, "command": string }
             | { "kind": "native_only", "note": string },
   "tracked_versions": ["v1", "v2", ...],
@@ -154,6 +155,9 @@ fixture = {
 
 The report also carries `coverage_depths`, the ascending directories at each
 depth, so the depth distribution is readable without walking the fixtures.
+`fixture_directories` counts families; `tracked_corpus_directories` counts
+every tracked `v<N>` corpus across families, so the enumeration is auditable
+from the report alone.
 
 Rules:
 
@@ -313,8 +317,8 @@ Revision 3 records why `COMPLETE` keeps its no-native-only rule while the
 depth axis exists: independent semantic judgment of every family was never
 the bar, because the oracle must not become a second semantic kernel
 (section 4, master goal 6.5); the bar is independent checking at a declared
-depth, and the report's `coverage_depths` stop a codec-only family from
-reading as semantically judged one. It also records why freshness is an
+  depth, and the report's `coverage_depths` stop a codec-only family from
+  reading as a semantically judged one. It also records why freshness is an
 artifact-surface diff rather than a commit count: a count bound would be
 arbitrary, while a changed surface file means the attested artifact is
 provably not what this tree builds.
@@ -326,10 +330,13 @@ the first and only corpus. It records the vector emission direction for the
 same family: hand-authored semantic inputs (`inputs.json`, carrying the
 authored frame-scenario inventory) flow into the oracle refresh, which
 derives `accepted.json` and `rejected.json` plus the manifest; the Python
-vector checker consumes all three. There is no automated Rust consumer of
-these vectors by design: S20-130 independence forbids the Rust
-implementation from depending on oracle outputs, so the Rust entity-read
-tests prove the same properties from hand-built fixtures instead. It
+vector checker consumes all three, and the Rust owner test
+`accepted_corpus_vectors_match_owner_and_encoder` reproduces every accepted
+vector's response bytes, work charge, and object count from the same frozen
+files through `include_str!`, the same pattern the scb1 and mutation corpora
+already use. Reading frozen committed vectors in tests is not an S20-130
+dependence: independence forbids the oracle from depending on the Rust
+implementation, not the reverse. It
 records why tracked siblings carry no depth: a sibling corpus (today
 `bootstrap-profile`, `exec-package`, `host-abi`, and `smp1-json-bridge` at
 `v2`) is digested, summed, and declared so it can never be a silent gap,

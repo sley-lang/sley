@@ -5288,5 +5288,54 @@ class B2OuterIntegrationCases(unittest.TestCase):
             self.assertEqual(hashlib.sha256(rejected_path.read_bytes()).hexdigest(), fixed_rejected_sha)
 
 
+class HeadResolutionCases(unittest.TestCase):
+    """Pure-Python HEAD resolution: loose, packed, worktree, commondir."""
+
+    SHA = "c5973c90180d03402f0d2e5d2d91e941ef5dc58d"
+
+    def test_direct_loose_ref_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            git = root / ".git"
+            (git / "refs" / "heads").mkdir(parents=True)
+            (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+            (git / "refs" / "heads" / "main").write_text(self.SHA + "\n", encoding="utf-8")
+            self.assertEqual(entity_read.git_head_revision(root), self.SHA)
+
+    def test_linked_worktree_resolves_through_commondir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            worktree_git = root / "worktree-gitdir"
+            common = root / "common"
+            (common / "refs" / "heads").mkdir(parents=True)
+            (worktree_git).mkdir(parents=True)
+            (root / ".git").write_text("gitdir: worktree-gitdir\n", encoding="utf-8")
+            (worktree_git / "HEAD").write_text("ref: refs/heads/branch\n", encoding="utf-8")
+            (worktree_git / "commondir").write_text("../common\n", encoding="utf-8")
+            (common / "refs" / "heads" / "branch").write_text(self.SHA + "\n", encoding="utf-8")
+            self.assertEqual(entity_read.git_head_revision(root), self.SHA)
+
+    def test_packed_refs_fallback_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            git = root / ".git"
+            git.mkdir(parents=True)
+            (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+            (git / "packed-refs").write_text(
+                f"# pack-refs with: peeled fully-peeled sorted\n{self.SHA} refs/heads/main\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(entity_read.git_head_revision(root), self.SHA)
+
+    def test_unresolvable_ref_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            git = root / ".git"
+            git.mkdir(parents=True)
+            (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                entity_read.git_head_revision(root)
+
+
 if __name__ == "__main__":
     unittest.main()

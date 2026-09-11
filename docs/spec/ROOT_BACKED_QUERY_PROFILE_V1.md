@@ -1,9 +1,13 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 3 (2026-09-05); implemented
+Status: S20-310 full contract draft, revision 4 (2026-09-11); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
-and the package is not complete. Revision 3 binds input binding to the
+and the package is not complete. Revision 4 composes the entity-read
+surface (section 11): the S20-310 methods 306/307 stay governed by
+`docs/spec/ENTITY_READ_PROFILE_V2.md`, whose owner, adapter, corpus, and
+vector line are listed as profile surface without changing the
+nineteen-class contract. Revision 3 binds input binding to the
 committed root: `verify()` recomputes the `StateRoot` digest from the nine
 `STATE_ROOT_V1` fields (adding `interpretation_flags` to the input), so no
 caller-declared answer-bearing fact survives a mismatch. Revision 2 adds
@@ -419,3 +423,20 @@ This contract does not claim:
 - fingerprint recomputation (only the stored field-4 claim is returned);
 - any authority beyond read-only derived query evidence;
 - runtime, benchmark, packaging, release, or GA.
+
+## 11. Entity-read composition
+
+The S20-310 entity-read methods (`entity.version` 306,
+`entity.signature` 307) are governed by
+`docs/spec/ENTITY_READ_PROFILE_V2.md`, composed here rather than
+re-specified: the owner (`crates/sley-query/src/entity_read.rs`), the
+verified-repository adapter (`crates/sley-repo/src/entity_read.rs`), the
+corpus (`conformance/entity-read/v2` with its `SHA256SUMS`), and the
+`make conformance` entity-read vector line belong to this profile's
+S20-310 surface. The owner reuses this profile's stable codes
+(`QUERY_UNRESOLVED_ENTITY` 31004, `QUERY_INTERNAL_INVARIANT` 31007,
+`QUERY_ROOT_MISMATCH` 31008, `QUERY_CLASS_NOT_APPLICABLE` 31010) with
+owner-numeric identity, so no new error numbers are allocated. The
+nineteen-class contract, paging rules, and exclusion list above are
+unchanged; entity-read verdicts are recorded on entity-read-scoped review
+fields and never supersede the root-query lane dispositions of section 9.

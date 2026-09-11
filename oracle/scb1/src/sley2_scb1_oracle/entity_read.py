@@ -2999,25 +2999,40 @@ def git_head_revision(repo_root: Path) -> str:
             git_dir = (git_path.parent / git_dir).resolve()
     else:
         git_dir = git_path
+    # A linked worktree keeps branch refs in the common directory: resolve
+    # loose refs and packed-refs there when the worktree gitdir lacks them.
+    commondir_path = git_dir / "commondir"
+    if commondir_path.is_file():
+        common_dir = Path(commondir_path.read_text(encoding="utf-8").strip())
+        if not common_dir.is_absolute():
+            common_dir = (git_dir / common_dir).resolve()
+    else:
+        common_dir = git_dir
     head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
     if head.startswith("ref:"):
         ref = head[len("ref:"):].strip()
-        loose = git_dir / ref
-        if loose.is_file():
-            head = loose.read_text(encoding="utf-8").strip()
-        else:
-            packed = git_dir / "packed-refs"
-            resolved = None
-            for line in packed.read_text(encoding="utf-8").splitlines():
-                if not line or line.startswith("#") or line.startswith("^"):
+        head = None
+        for candidate_dir in (git_dir, common_dir):
+            loose = candidate_dir / ref
+            if loose.is_file():
+                head = loose.read_text(encoding="utf-8").strip()
+                break
+        if head is None:
+            for candidate_dir in (git_dir, common_dir):
+                packed = candidate_dir / "packed-refs"
+                if not packed.is_file():
                     continue
-                sha, _, name = line.partition(" ")
-                if name.strip() == ref:
-                    resolved = sha.strip()
+                for line in packed.read_text(encoding="utf-8").splitlines():
+                    if not line or line.startswith("#") or line.startswith("^"):
+                        continue
+                    sha, _, name = line.partition(" ")
+                    if name.strip() == ref:
+                        head = sha.strip()
+                        break
+                if head is not None:
                     break
-            if resolved is None:
-                raise ValueError(f"HEAD ref {ref!r} resolves to no revision")
-            head = resolved
+        if head is None:
+            raise ValueError(f"HEAD ref {ref!r} resolves to no revision")
     if len(head) != 40 or any(char not in "0123456789abcdefABCDEF" for char in head):
         raise ValueError(f"HEAD revision is not a commit id: {head!r}")
     return head
@@ -3030,6 +3045,11 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
     repository's immutable generated corpus directory. Never invokes Rust,
     never reads emitted results. Records input / schema / encoder hashes
     and the source revision; no self-hash, no commit cycle.
+
+    The recorded encoder_sha256 is an informational audit trail naming the
+    exact oracle source that derived the vectors. It is not enforced by
+    check_accepted: any oracle edit advances the hash, and the corpus is
+    re-minted by refresh plus promote at that point.
     """
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
     if not _authored_frame_matrix_is_canonical(inputs):

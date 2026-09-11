@@ -183,10 +183,23 @@ def conformance_recipe() -> str:
 
 
 def fixture_shape(value: object) -> dict:
-    """The list-valued keys of one fixture, so vector counts are recorded."""
+    """The list-valued keys of one fixture, so vector counts are recorded.
+
+    Mappings keyed by identifier (accepted cases keyed by case id) carry no
+    list to count, so mapping sizes are recorded alongside: the accepted
+    case count is machine-recorded, not just asserted by the checker.
+    """
     if not isinstance(value, dict):
         return {"root": len(value) if isinstance(value, list) else 0}
-    return {key: len(item) for key, item in sorted(value.items()) if isinstance(item, list)}
+    shape = {key: len(item) for key, item in sorted(value.items()) if isinstance(item, list)}
+    shape.update(
+        {
+            key: len(item)
+            for key, item in sorted(value.items())
+            if isinstance(item, dict) and key != "manifest"
+        }
+    )
+    return shape
 
 
 def read_sums(path: Path) -> dict[str, str]:
@@ -199,7 +212,13 @@ def read_sums(path: Path) -> dict[str, str]:
             raise ConformanceError(
                 ConformanceErrorCode.SUMS_MISMATCH, f"{display(path)}: malformed line"
             )
-        entries[parts[1].lstrip("*")] = parts[0]
+        name = parts[1].lstrip("*")
+        if name in entries and entries[name] != parts[0]:
+            raise ConformanceError(
+                ConformanceErrorCode.SUMS_MISMATCH,
+                f"{display(path)}: conflicting digests for {name}",
+            )
+        entries[name] = parts[0]
     return entries
 
 
@@ -221,14 +240,17 @@ def runner_label(command: str) -> str:
     """Name the runner that actually runs, not the package that runs most of them.
 
     Twelve oracles live under `scripts/`; a vector checker that decodes with
-    the oracle package (imports `sley2_scb1_oracle`) is still oracle logic,
-    so it carries the oracle label even when invoked as a script.
+    the oracle package (an import of `sley2_scb1_oracle`, not a mere
+    substring mention) is still oracle logic, so it carries the oracle
+    label even when invoked as a script.
     """
     if "sley2-scb1-oracle" in command:
         return "oracle/scb1 (Python, S20-130 independent)"
     match = re.search(r"scripts/(check_[a-z0-9_]+\.py)", command)
-    if match and "sley2_scb1_oracle" in (ROOT / "scripts" / match.group(1)).read_text(
-        encoding="utf-8"
+    if match and re.search(
+        r"^\s*(import|from)\s+sley2_scb1_oracle",
+        (ROOT / "scripts" / match.group(1)).read_text(encoding="utf-8"),
+        re.MULTILINE,
     ):
         return "oracle/scb1 (Python, S20-130 independent)"
     return "scripts/ (Python, S20-130 independent)"
@@ -308,8 +330,20 @@ def family_record(directory: Path, recipe: str) -> dict:
             ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no {version} directory"
         )
     versions = sorted(
-        path.name for path in directory.iterdir() if path.is_dir() and path.name.startswith("v")
+        path.name
+        for path in directory.iterdir()
+        if path.is_dir() and re.fullmatch(r"v\d+", path.name)
     )
+    unexpected = sorted(
+        path.name
+        for path in directory.iterdir()
+        if path.is_dir() and not re.fullmatch(r"v\d+", path.name)
+    )
+    if unexpected:
+        raise ConformanceError(
+            ConformanceErrorCode.FIXTURE_UNREADABLE,
+            f"{name} has non-version directories: {', '.join(unexpected)}",
+        )
     if not versions:
         raise ConformanceError(
             ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no versioned corpus"
@@ -419,6 +453,7 @@ def build_report() -> dict:
         "work_package": "S20-730",
         "make_target": "conformance",
         "fixture_directories": len(families),
+        "tracked_corpus_directories": sum(len(family["tracked_versions"]) for family in families),
         "independently_checked": len(families) - len(native_only),
         "native_only": native_only,
         "coverage_depths": {depth: sorted(directories) for depth, directories in depths.items()},

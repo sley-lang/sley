@@ -17,6 +17,10 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 ENGINE = ROOT / "crates/sley-query/src/root_query.rs"
 REPOSITORY = ROOT / "crates/sley-repo/src/root_query.rs"
+ENTITY_READ_OWNER = ROOT / "crates/sley-query/src/entity_read.rs"
+ENTITY_READ_ADAPTER = ROOT / "crates/sley-repo/src/entity_read.rs"
+ENTITY_READ_SPEC = ROOT / "docs/spec/ENTITY_READ_PROFILE_V2.md"
+ENTITY_READ_CORPUS = ROOT / "conformance/entity-read/v2"
 ID_CRATE = ROOT / "crates/sley-id/src/lib.rs"
 FIXTURE_DIR = ROOT / "conformance/root-backed-query"
 
@@ -51,6 +55,7 @@ SPEC_MARKERS = (
     '"SLEYRQR1"',
     "## 7. Repository surface",
     "## 10. Explicit exclusions",
+    "## 11. Entity-read composition",
 )
 RESTRICTED_MARKERS = (
     "Status: S20-310 restricted epoch-1 normative specification.",
@@ -77,6 +82,19 @@ ENGINE_MARKERS = (
 )
 REPOSITORY_MARKERS = ("pub fn run_root_query", "complete_root_snapshot(")
 ID_MARKERS = ('b"sley2.root-query.v1"', "digest_type!(RootQueryId, Domain::RootQuery);")
+ENTITY_READ_SPEC_MARKERS = (
+    "Owner: S20-310 query semantics, S20-410 protocol integration.",
+    "S20-310 owns membership, signature selection and query-owner failures.",
+)
+ENTITY_READ_OWNER_MARKERS = (
+    "pub fn prepare_entity_read",
+    "pub fn capture_entity_read_selection",
+    "pub struct EntityReadSelection",
+)
+ENTITY_READ_ADAPTER_MARKERS = (
+    "pub fn prepare_verified_entity_read",
+    "fn adapter_view_at",
+)
 
 
 def read(path: Path) -> str:
@@ -88,6 +106,15 @@ def main() -> int:
     for path in (SPEC, RESTRICTED_SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES, ID_CRATE):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
+    for path in (
+        ENTITY_READ_SPEC,
+        ENTITY_READ_OWNER,
+        ENTITY_READ_ADAPTER,
+        ENTITY_READ_CORPUS / "accepted.json",
+        ENTITY_READ_CORPUS / "SHA256SUMS",
+    ):
+        if not path.exists():
+            problems.append(f"entity-read-missing:{path.relative_to(ROOT)}")
     if problems:
         print(json.dumps({"problems": problems, "result": "FAIL"}, indent=2))
         return 1
@@ -165,6 +192,18 @@ def main() -> int:
         for marker in ID_MARKERS:
             if marker not in identifiers:
                 problems.append(f"id-marker:{marker}")
+        entity_read_spec = read(ENTITY_READ_SPEC) if ENTITY_READ_SPEC.exists() else ""
+        for marker in ENTITY_READ_SPEC_MARKERS:
+            if marker not in entity_read_spec:
+                problems.append(f"entity-read-spec-marker:{marker}")
+        owner = read(ENTITY_READ_OWNER) if ENTITY_READ_OWNER.exists() else ""
+        for marker in ENTITY_READ_OWNER_MARKERS:
+            if marker not in owner:
+                problems.append(f"entity-read-owner-marker:{marker}")
+        adapter = read(ENTITY_READ_ADAPTER) if ENTITY_READ_ADAPTER.exists() else ""
+        for marker in ENTITY_READ_ADAPTER_MARKERS:
+            if marker not in adapter:
+                problems.append(f"entity-read-adapter-marker:{marker}")
         if status in (REVIEW_PENDING_STATUS, COMPLETE_STATUS):
             if not (FIXTURE_DIR / "v1/accepted.json").exists():
                 problems.append("fixture:missing")

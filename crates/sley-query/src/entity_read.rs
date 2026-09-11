@@ -1385,6 +1385,32 @@ mod tests {
     }
 
     #[test]
+    fn admit_orders_zero_ceiling_before_over_selected_ceiling() {
+        let fixture = eighteen_kind_fixture();
+        let selected = ceilings();
+        // A zero object ceiling and an over-selected response ceiling
+        // compete: the zero check runs first (NotCanonical, not BudgetExceeded).
+        let mut zero = request(1, fixture.root);
+        zero.max_objects = 0;
+        zero.max_response_bytes = selected.max_response_bytes + 1;
+        assert_eq!(
+            fixture
+                .prepare(EntityReadMethod::Version, &zero, &selected)
+                .unwrap_err(),
+            EntityReadError::NotCanonical
+        );
+        // An over-selected response ceiling alone is BudgetExceeded.
+        let mut over = request(1, fixture.root);
+        over.max_response_bytes = selected.max_response_bytes + 1;
+        assert_eq!(
+            fixture
+                .prepare(EntityReadMethod::Version, &over, &selected)
+                .unwrap_err(),
+            EntityReadError::BudgetExceeded
+        );
+    }
+
+    #[test]
     fn version_returns_exact_stored_object_for_all_eighteen_kinds() {
         let fixture = eighteen_kind_fixture();
         let selected = ceilings();
@@ -1839,6 +1865,267 @@ mod tests {
         let response = decode_entity_read_response(&outcome.body).unwrap();
         assert_eq!(response.objects.len(), 1);
         assert_eq!(response.objects[0].stored_bytes, slot.stored);
+    }
+
+    /// Every accepted vector of the independent entity-read corpus is
+    /// reproduced by the owner and the encoder: request bytes decode,
+    /// selection resolves, capture copies, and the emitted body plus the
+    /// work charge equal the recorded vector.
+    ///
+    /// The corpus is read-only test data (the same `include_str!` pattern
+    /// the scb1 and mutation corpora use): no oracle code runs here, so
+    /// S20-130 independence is untouched. Rejected vectors stay with the
+    /// oracle checker plus the hand-built failure tests; only success
+    /// vectors have owner-comparable bytes.
+    #[test]
+    fn accepted_corpus_vectors_match_owner_and_encoder() {
+        let accepted: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/accepted.json"
+        ))
+        .unwrap();
+        let inputs: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/inputs.json"
+        ))
+        .unwrap();
+        let cases = accepted["cases"].as_object().unwrap();
+        assert_eq!(cases.len(), 23, "accepted corpus case count");
+        let (workspace, root, epoch, session, selected) = corpus_context(&inputs);
+        let entities = inputs["entities"].as_object().unwrap();
+        let authored = inputs["cases"].as_object().unwrap();
+        for (id, case) in cases {
+            let method = match authored[id]["method"].as_u64().unwrap() {
+                306 => EntityReadMethod::Version,
+                307 => EntityReadMethod::Signature,
+                tag => panic!("{id}: unknown method tag {tag}"),
+            };
+            let request_bytes = hex_bytes(case["request_body_hex"].as_str().unwrap());
+            let request = decode_entity_read_request(&request_bytes)
+                .unwrap_or_else(|error| panic!("{id}: request decode: {error:?}"));
+            let buffers = assemble_corpus_buffers(id, case, entities);
+            let (views, mut bindings) = build_corpus_views(id, entities, &buffers, epoch);
+            pad_corpus_bindings(id, &mut bindings);
+            bindings.sort();
+            let mut ordered: Vec<Option<EntityReadObject<'_>>> = vec![None; bindings.len()];
+            for view in views {
+                let position = bindings
+                    .binary_search_by_key(&view.entity, |(entity, _)| *entity)
+                    .unwrap_or_else(|_| panic!("{id}: view entity missing from bindings"));
+                assert!(
+                    ordered[position].is_none(),
+                    "{id}: duplicate binding for view entity"
+                );
+                ordered[position] = Some(view);
+            }
+            let revision = EntityReadRevision {
+                workspace,
+                root,
+                epoch,
+                bindings: bindings.as_slice(),
+                tombstones: &[],
+            };
+            let selection = prepare_entity_read(
+                method,
+                &revision,
+                &request,
+                &selected,
+                &ordered,
+                corpus_view_at,
+            )
+            .unwrap_or_else(|error| panic!("{id}: prepare: {error:?}"));
+            let plan = capture_entity_read_selection(selection).unwrap();
+            let outcome = encode_entity_read_response(plan, session).unwrap();
+            let expected_body = hex_bytes(case["response_body_hex"].as_str().unwrap());
+            assert_eq!(outcome.body, expected_body, "{id}: response bytes");
+            assert_eq!(
+                outcome.work_units,
+                case["work"].as_u64().unwrap(),
+                "{id}: work charge"
+            );
+            assert_eq!(
+                outcome.returned_entities,
+                case["count_k"].as_u64().unwrap(),
+                "{id}: object count"
+            );
+        }
+    }
+
+    /// One corpus case's owned side buffers: stored bytes, parameter lists,
+    /// and the raw row index. Views borrow these, so they are built before
+    /// any view exists.
+    struct CorpusBuffers {
+        stored: Vec<Vec<u8>>,
+        parameters: Vec<Vec<EntityId>>,
+        raws: Vec<CorpusRaw>,
+    }
+
+    struct CorpusRaw {
+        name: String,
+        entity: EntityId,
+        kind: u64,
+        object_id: ObjectId,
+        stored_index: usize,
+        parameter_index: Option<usize>,
+    }
+
+    fn assemble_corpus_buffers(
+        _id: &str,
+        case: &serde_json::Value,
+        entities: &serde_json::Map<String, serde_json::Value>,
+    ) -> CorpusBuffers {
+        let mut buffers = CorpusBuffers {
+            stored: Vec::new(),
+            parameters: Vec::new(),
+            raws: Vec::new(),
+        };
+        for (name, object) in case["objects"].as_object().unwrap() {
+            let entity = EntityId::from_bytes(hex32(entities[name]["id"].as_str().unwrap()));
+            let object_id = ObjectId::from_bytes(hex32(object["object_id"].as_str().unwrap()));
+            buffers
+                .stored
+                .push(hex_bytes(object["stored_hex"].as_str().unwrap()));
+            let stored_index = buffers.stored.len() - 1;
+            let kind = entities[name]["kind"].as_u64().unwrap();
+            let parameter_index = if kind == 5 {
+                let parameters: Vec<EntityId> = entities[name]["body"]["parameters"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|value| EntityId::from_bytes(hex32(value.as_str().unwrap())))
+                    .collect();
+                buffers.parameters.push(parameters);
+                Some(buffers.parameters.len() - 1)
+            } else {
+                None
+            };
+            buffers.raws.push(CorpusRaw {
+                name: name.clone(),
+                entity,
+                kind,
+                object_id,
+                stored_index,
+                parameter_index,
+            });
+        }
+        buffers
+    }
+
+    /// Borrowed narrow views plus their bindings for one corpus case.
+    fn build_corpus_views<'b>(
+        id: &str,
+        entities: &serde_json::Map<String, serde_json::Value>,
+        buffers: &'b CorpusBuffers,
+        epoch: SchemaEpochId,
+    ) -> (Vec<EntityReadObject<'b>>, Vec<(EntityId, ObjectId)>) {
+        let mut views: Vec<EntityReadObject<'b>> = Vec::new();
+        let mut bindings: Vec<(EntityId, ObjectId)> = Vec::new();
+        for raw in &buffers.raws {
+            let body = match raw.kind {
+                5 => EntityReadBody::Function {
+                    parameters: buffers.parameters[raw.parameter_index.unwrap()].as_slice(),
+                },
+                6 => {
+                    let facts = &entities[raw.name.as_str()]["body"];
+                    EntityReadBody::Parameter {
+                        owner: EntityId::from_bytes(hex32(facts["owner"].as_str().unwrap())),
+                        role: match facts["role"].as_str().unwrap() {
+                            "Function" => ParameterRole::Function,
+                            "Block" => ParameterRole::Block,
+                            role => panic!("{id}: unknown parameter role {role}"),
+                        },
+                        ordinal: u32::try_from(facts["ordinal"].as_u64().unwrap()).unwrap(),
+                    }
+                }
+                kind => EntityReadBody::Other {
+                    kind: u16::try_from(kind).unwrap(),
+                },
+            };
+            bindings.push((raw.entity, raw.object_id));
+            views.push(EntityReadObject {
+                entity: raw.entity,
+                kind: u16::try_from(raw.kind).unwrap(),
+                object_id: raw.object_id,
+                epoch,
+                stored_bytes: buffers.stored[raw.stored_index].as_slice(),
+                body,
+            });
+        }
+        (views, bindings)
+    }
+
+    /// Workspace, root, epoch, session, and ceilings from the corpus context.
+    fn corpus_context(
+        inputs: &serde_json::Value,
+    ) -> (
+        WorkspaceId,
+        StateRoot,
+        SchemaEpochId,
+        SessionId,
+        EntityReadCeilings,
+    ) {
+        let context = &inputs["context"];
+        let limits = &inputs["selected_limits"];
+        (
+            WorkspaceId::from_bytes(hex32(context["workspace"].as_str().unwrap())),
+            StateRoot::from_bytes(hex32(context["root"].as_str().unwrap())),
+            SchemaEpochId::from_bytes(hex32(context["content_epoch"].as_str().unwrap())),
+            SessionId::from_bytes(hex32(context["session"].as_str().unwrap())),
+            EntityReadCeilings {
+                max_entities: limits["max_entities"].as_u64().unwrap(),
+                max_response_bytes: limits["max_response_bytes"].as_u64().unwrap(),
+                max_work: limits["max_work"].as_u64().unwrap(),
+                budget_before_dispatch: limits["max_work"].as_u64().unwrap(),
+            },
+        )
+    }
+
+    /// Pad case bindings to the corpus-declared synthetic root size so L
+    /// matches the recorded work. Filler identities sort after every
+    /// authored entity and are never selected: the owner touches selected
+    /// indices only.
+    fn pad_corpus_bindings(id: &str, bindings: &mut Vec<(EntityId, ObjectId)>) {
+        let mut filler = bindings.len();
+        while bindings.len() < 256 {
+            let mut bytes = [0u8; 32];
+            bytes[0] = 0x80;
+            bytes[1] = u8::try_from(filler).unwrap();
+            bindings.push((EntityId::from_bytes(bytes), ObjectId::from_bytes([0u8; 32])));
+            filler += 1;
+        }
+        assert_eq!(bindings.len(), 256, "{id}: synthetic root size");
+    }
+
+    /// Test lookup over aligned optional views, matching the production
+    /// caller shape (context passed by value, views borrowed from
+    /// test-owned buffers, never re-resolved).
+    fn corpus_view_at<'a>(
+        ordered: &Vec<Option<EntityReadObject<'a>>>,
+        index: usize,
+    ) -> Option<EntityReadObject<'a>> {
+        ordered.get(index).copied().flatten()
+    }
+
+    /// Corpus helper: exactly 32 raw bytes from 64 lowercase hex digits.
+    fn hex32(text: &str) -> [u8; 32] {
+        assert_eq!(text.len(), 64, "expected 32-byte hex");
+        let raw = hex_bytes(text);
+        raw.try_into().unwrap()
+    }
+
+    /// Corpus helper: raw bytes from even-length lowercase hex.
+    fn hex_bytes(text: &str) -> Vec<u8> {
+        assert!(text.len().is_multiple_of(2), "hex length must be even");
+        let digits = text.as_bytes();
+        digits
+            .chunks_exact(2)
+            .map(|pair| {
+                let value = |character: u8| match character {
+                    b'0'..=b'9' => u32::from(character - b'0'),
+                    b'a'..=b'f' => u32::from(character - b'a') + 10,
+                    other => panic!("non-hex digit {other}"),
+                };
+                u8::try_from(value(pair[0]) * 16 + value(pair[1])).unwrap()
+            })
+            .collect()
     }
 
     #[test]

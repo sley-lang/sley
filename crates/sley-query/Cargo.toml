@@ -15,3 +15,6 @@ sley-state-root = { path = "../sley-state-root" }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_json = "=1.0.145"

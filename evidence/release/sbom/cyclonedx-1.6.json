@@ -1972,6 +1972,7 @@
     },
     {
       "dependsOn": [
+        "pkg:cargo/serde_json@1.0.145",
         "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
@@ -2135,7 +2136,7 @@
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "5fbadf2dab2b1b67b4ff73ac3bd03a9b1c3fb04d56541b58d3d265c28c69a385"
+        "value": "21879a02534f46fa3f98a64ddd1668b9cf724a82ef75253869b09506437dfad5"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -2164,7 +2165,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:284fbdd3-843d-8686-8d1b-91cc42b14977",
+  "serialNumber": "urn:uuid:9b1ad343-5bf7-8ebb-8f40-43105105c924",
   "specVersion": "1.6",
   "version": 1
 }

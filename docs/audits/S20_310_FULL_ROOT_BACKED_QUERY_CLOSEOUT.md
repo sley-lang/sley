@@ -120,8 +120,9 @@ The implementation provides:
   the S20-250, S20-510, S20-520, and S20-300 reviews and land as contract
   revisions; the campaign record lists the open questions, above all
   whether the nineteen classes are the right enumeration.
-- No consumer of a root-backed response exists yet; the full S20-320
-  capsule wraps it next.
+- The S20-320 capsule consumes the root-backed response: a context capsule
+  builds only from a `RootQueryRequest` and the `RootQueryResponse`
+  produced for it (`crates/sley-query/src/context_capsule.rs`).
 - Strict pedantic clippy debt in older `sley-repo` exchange and GC test
   modules is pre-existing; the new paths lint clean under `--no-deps`.
 
@@ -145,4 +146,12 @@ because this is a subsystem handoff, not a release boundary; `make v2` and
 
 ## Independent review
 
-Pending. Sessions and verdicts are recorded here when they land.
+Three Council rounds have landed on the nineteen-class contract (FAIL
+rounds with P0s recorded in the finding register under
+`root_backed_query_profile`; several P1s remain open and unrepaired).
+The AT-MW-02 entity-read surface (`crates/sley-query/src/entity_read.rs`,
+`crates/sley-repo/src/entity_read.rs`, `conformance/entity-read/v2`) is
+reviewed under REQ-04/REQ-05 against `docs/spec/ENTITY_READ_PROFILE_V2.md`;
+its verdicts are recorded on entity-read-scoped fields and never supersede
+the root-query lane dispositions. Sessions and verdicts are recorded here
+when they land.
