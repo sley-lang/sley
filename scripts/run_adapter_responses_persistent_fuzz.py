@@ -187,6 +187,10 @@ def main() -> int:
         and ft_done > 0
     )
     evidence["crash_artifacts"] = crash_artifact_names(ARTIFACTS)
+    prior_set = set(prior_crashes)
+    evidence["new_crash_artifacts"] = [
+        name for name in evidence["crash_artifacts"] if name not in prior_set
+    ]
     evidence["retested_prior_crashes"] = retest_prior_crashes(
         fuzzer_bin=str(FUZZER),
         artifacts_dir=ARTIFACTS,
@@ -212,7 +216,11 @@ def main() -> int:
         fuzz["returncode"] == 0
         and evidence["executed_runs"] >= runs_floor
         and evidence["coverage_ok"]
-        and not evidence["crash_artifacts"]
+        and not evidence["new_crash_artifacts"]
+        and not any(
+            record.get("still_crashes", False)
+            for record in evidence["retested_prior_crashes"]
+        )
         and not any(
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
@@ -225,8 +233,9 @@ def main() -> int:
         evidence.setdefault("problems", []).append(
             f"executed {evidence['executed_runs']} of floor {runs_floor} "
             f"(coverage={evidence['coverage']}, "
-            f"crashes={evidence['crash_artifacts']}, warnings={evidence['unexpected_warnings']})"
-        )
+            f"new_crashes={evidence['new_crash_artifacts']} "
+            f"still_crashing={[r['artifact'] for r in evidence['retested_prior_crashes'] if r.get('still_crashes')]} "
+            f"warnings={evidence['unexpected_warnings']})"        )
     write_evidence(evidence)
     return 0 if evidence["result"] == "PASS" else 1
 
@@ -466,8 +475,8 @@ def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[
     cargo itself (--message-format=json over the exact build argv, fresh
     and fast), so the gate counts what the binary linked, never a stale
     rlib that happens to share the persistent target dir. When the cargo
-    query fails, the gate falls back to the newest rlib per crate and
-    says so in the linkage method.
+    query fails, the gate counts nothing (method cargo-json-failed) and
+    fails closed instead of passing on unknown provenance.
     """
     rlibs, method = linked_sley_rlibs(build_record)
     nm = shutil.which("llvm-nm") or shutil.which("nm")
@@ -537,16 +546,10 @@ def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
                             rlibs.append(Path(filename))
                 if rlibs:
                     return sorted(set(rlibs)), "cargo-json"
-    newest: dict[str, tuple[float, Path]] = {}
-    for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
-        try:
-            mtime = rlib.stat().st_mtime
-        except OSError:
-            continue
-        crate = rlib.name.split("-")[0]
-        if crate not in newest or mtime > newest[crate][0]:
-            newest[crate] = (mtime, rlib)
-    return [path for _, path in sorted(newest.values())], "mtime-fallback"
+    # No mtime fallback by design: newest-per-crate globbing can count a
+    # stale rlib that shares the persistent target dir, so a failed cargo
+    # query fails the gate instead of passing on unknown provenance.
+    return [], "cargo-json-failed"
 # Without a sanitizer runtime libFuzzer prints three WARNING lines on
 # every run. They are expected for sancov-only builds; anything else
 # WARNING-shaped is recorded and fails the run.

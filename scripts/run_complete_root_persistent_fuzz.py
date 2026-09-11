@@ -208,6 +208,10 @@ def main() -> int:
         and ft_done > 0
     )
     evidence["crash_artifacts"] = crash_artifact_names(ARTIFACTS)
+    prior_set = set(prior_crashes)
+    evidence["new_crash_artifacts"] = [
+        name for name in evidence["crash_artifacts"] if name not in prior_set
+    ]
     evidence["retested_prior_crashes"] = retest_prior_crashes(
         fuzzer_bin=str(FUZZER),
         artifacts_dir=ARTIFACTS,
@@ -233,7 +237,11 @@ def main() -> int:
         fuzz["returncode"] == 0
         and evidence["executed_runs"] >= runs_floor
         and evidence["coverage_ok"]
-        and not evidence["crash_artifacts"]
+        and not evidence["new_crash_artifacts"]
+        and not any(
+            record.get("still_crashes", False)
+            for record in evidence["retested_prior_crashes"]
+        )
         and not any(
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
@@ -246,8 +254,9 @@ def main() -> int:
         evidence.setdefault("problems", []).append(
             f"executed {evidence['executed_runs']} of floor {runs_floor} "
             f"(coverage={evidence['coverage']}, "
-            f"crashes={evidence['crash_artifacts']}, warnings={evidence['unexpected_warnings']})"
-        )
+            f"new_crashes={evidence['new_crash_artifacts']} "
+            f"still_crashing={[r['artifact'] for r in evidence['retested_prior_crashes'] if r.get('still_crashes')]} "
+            f"warnings={evidence['unexpected_warnings']})"        )
     EVIDENCE.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
     print(json.dumps(evidence, indent=2, sort_keys=True))
     return 0 if evidence["result"] == "PASS" else 1
@@ -435,8 +444,8 @@ def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[
     cargo itself (--message-format=json over the exact build argv, fresh
     and fast), so the gate counts what the binary linked, never a stale
     rlib that happens to share the persistent target dir. When the cargo
-    query fails, the gate falls back to the newest rlib per crate and
-    says so in the linkage method.
+    query fails, the gate counts nothing (method cargo-json-failed) and
+    fails closed instead of passing on unknown provenance.
     """
     rlibs, method = linked_sley_rlibs(build_record)
     nm = shutil.which("llvm-nm") or shutil.which("nm")
@@ -506,16 +515,10 @@ def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
                             rlibs.append(Path(filename))
                 if rlibs:
                     return sorted(set(rlibs)), "cargo-json"
-    newest: dict[str, tuple[float, Path]] = {}
-    for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
-        try:
-            mtime = rlib.stat().st_mtime
-        except OSError:
-            continue
-        crate = rlib.name.split("-")[0]
-        if crate not in newest or mtime > newest[crate][0]:
-            newest[crate] = (mtime, rlib)
-    return [path for _, path in sorted(newest.values())], "mtime-fallback"
+    # No mtime fallback by design: newest-per-crate globbing can count a
+    # stale rlib that shares the persistent target dir, so a failed cargo
+    # query fails the gate instead of passing on unknown provenance.
+    return [], "cargo-json-failed"
 # Without a sanitizer runtime libFuzzer prints three WARNING lines on
 # every run. They are expected for sancov-only builds; anything else
 # WARNING-shaped is recorded and fails the run.
@@ -730,17 +733,23 @@ def encode_request(request: dict, flags: int) -> bytes:
     out = bytes([len(entities)])
     for entity in entities:
         out += encode_entity(entity)
-    out += bytes([flags])
+    # Fact bytes precede the flags byte: the target reads flags from the
+    # LAST input byte and the fact sets from the reader offset after the
+    # entities, so appending facts after flags misaligns every lane.
     if flags & 16:
         out += encode_ids(request["facts"]["bound_entities"])
     if flags & 4:
         out += encode_ids(request["facts"]["entry_points"])
     if flags & 8:
         roots = request["facts"]["dependency_roots"]
-        out += bytes([len(roots) % 3])
-        for root in roots[: len(roots) % 3]:
+        if len(roots) >= 3:
+            raise SystemExit(
+                "dependency-root list exceeds the target's count%3 fact lane"
+            )
+        out += bytes([len(roots)])
+        for root in roots:
             out += bytes([id_byte(root)]) * 32
-    return out
+    return out + bytes([flags])
 
 
 def generate_seed_corpus() -> tuple[int, int]:
@@ -757,7 +766,17 @@ def generate_seed_corpus() -> tuple[int, int]:
     for request in requests:
         for base in range(FLAG_BASES):
             for lane in FACT_LANES:
-                payloads.append(encode_request(request, base + lane))
+                flags = base + lane
+                seed = encode_request(request, flags)
+                # Fail-closed layout self-check: the flags byte closes the
+                # seed (the target reads input[last]), and a fact lane must
+                # add fact bytes past the no-facts rendering, or the lane
+                # silently tests the wrong input.
+                assert seed[-1] == flags, "flags byte must close the seed"
+                if lane:
+                    bare = encode_request(request, base)
+                    assert len(seed) > len(bare), "fact lane added no fact bytes"
+                payloads.append(seed)
     canonical = payloads[0]
     payloads.extend([canonical + b"\x00", b"\x00", b"\x01\x00\x00\x00"])
     for seed in range(128):

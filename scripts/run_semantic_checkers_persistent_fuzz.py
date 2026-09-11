@@ -224,6 +224,11 @@ def main() -> int:
             and ft_done > 0
         )
         evidence["targets"][name]["crash_artifacts"] = crash_artifact_names(target["artifacts"])
+        prior_set = set(prior_crashes[name])
+        evidence["targets"][name]["new_crash_artifacts"] = [
+            artifact for artifact in evidence["targets"][name]["crash_artifacts"]
+            if artifact not in prior_set
+        ]
         evidence["targets"][name]["minimized_crashes"] = (
             minimize_crashes(
                 fuzzer_bin=str(TARGET_DIR / "release" / str(target["binary"])),
@@ -531,8 +536,8 @@ def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[
     cargo itself (--message-format=json over the exact build argv, fresh
     and fast), so the gate counts what the binary linked, never a stale
     rlib that happens to share the persistent target dir. When the cargo
-    query fails, the gate falls back to the newest rlib per crate and
-    says so in the linkage method.
+    query fails, the gate counts nothing (method cargo-json-failed) and
+    fails closed instead of passing on unknown provenance.
     """
     rlibs, method = linked_sley_rlibs(build_record)
     nm = shutil.which("llvm-nm") or shutil.which("nm")
@@ -602,16 +607,10 @@ def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
                             rlibs.append(Path(filename))
                 if rlibs:
                     return sorted(set(rlibs)), "cargo-json"
-    newest: dict[str, tuple[float, Path]] = {}
-    for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
-        try:
-            mtime = rlib.stat().st_mtime
-        except OSError:
-            continue
-        crate = rlib.name.split("-")[0]
-        if crate not in newest or mtime > newest[crate][0]:
-            newest[crate] = (mtime, rlib)
-    return [path for _, path in sorted(newest.values())], "mtime-fallback"
+    # No mtime fallback by design: newest-per-crate globbing can count a
+    # stale rlib that shares the persistent target dir, so a failed cargo
+    # query fails the gate instead of passing on unknown provenance.
+    return [], "cargo-json-failed"
 # Without a sanitizer runtime libFuzzer prints three WARNING lines on
 # every run. They are expected for sancov-only builds; anything else
 # WARNING-shaped is recorded and fails the run.

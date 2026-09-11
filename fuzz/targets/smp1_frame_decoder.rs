@@ -56,7 +56,11 @@ fn server_hello() -> Hello {
             max_inflight: 2,
             max_sessions: 8,
         },
-        methods: Method::ALL.iter().map(|method| method.tag()).collect(),
+        methods: Method::ALL
+            .iter()
+            .filter(|method| !method.is_reserved())
+            .map(|method| method.tag())
+            .collect(),
         features: 1,
         adapters: vec![[0xA2; 32]],
         effects: vec![],
