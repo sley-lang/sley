@@ -1948,17 +1948,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 1078,
-      "corpus_file_count": 1162,
+      "corpus_file_count": 1207,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1115,
-        "ft_done": 523,
-        "ft_inited": 506,
+        "ft_done": 564,
+        "ft_inited": 560,
         "new_events": true
       },
       "coverage_ok": true,
@@ -1966,9 +1970,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 52,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_schema_persistent_fuzz_slice": {
@@ -1992,17 +2000,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 259,
-      "corpus_file_count": 270,
+      "corpus_file_count": 275,
       "runs_requested": 510,
-      "runs_floor": 526,
-      "executed_runs": 526,
+      "runs_floor": 531,
+      "executed_runs": 531,
       "coverage": {
         "counters": 2309,
-        "ft_done": 478,
-        "ft_inited": 477,
+        "ft_done": 483,
+        "ft_inited": 481,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2010,9 +2022,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 35,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_pack_persistent_fuzz_slice": {
@@ -2039,17 +2055,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 320,
-      "corpus_file_count": 354,
+      "corpus_file_count": 377,
       "runs_requested": 640,
       "runs_floor": 640,
       "executed_runs": 640,
       "coverage": {
         "counters": 6805,
-        "ft_done": 2679,
-        "ft_inited": 2661,
+        "ft_done": 2739,
+        "ft_inited": 2722,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2057,9 +2077,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 147,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_exchange_persistent_fuzz_slice": {
@@ -2082,17 +2106,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 518,
-      "corpus_file_count": 543,
+      "corpus_file_count": 547,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
         "counters": 36762,
-        "ft_done": 7402,
-        "ft_inited": 7401,
+        "ft_done": 7409,
+        "ft_inited": 7402,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2100,9 +2128,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 147,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2125,17 +2157,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 195,
-      "corpus_file_count": 431,
+      "corpus_file_count": 522,
       "runs_requested": 512,
-      "runs_floor": 687,
-      "executed_runs": 687,
+      "runs_floor": 778,
+      "executed_runs": 778,
       "coverage": {
         "counters": 6254,
-        "ft_done": 5296,
-        "ft_inited": 5118,
+        "ft_done": 5674,
+        "ft_inited": 5569,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2143,9 +2179,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 113,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_semantic_delta_persistent_fuzz_slice": {
@@ -2167,17 +2207,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 322,
-      "corpus_file_count": 347,
+      "corpus_file_count": 350,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 3427,
-        "ft_done": 1606,
-        "ft_inited": 1604,
+        "ft_done": 1629,
+        "ft_inited": 1606,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2185,9 +2229,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 147,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2210,17 +2258,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 319,
-      "corpus_file_count": 398,
+      "corpus_file_count": 404,
       "runs_requested": 638,
-      "runs_floor": 654,
-      "executed_runs": 654,
+      "runs_floor": 660,
+      "executed_runs": 660,
       "coverage": {
         "counters": 2868,
-        "ft_done": 1344,
-        "ft_inited": 1338,
+        "ft_done": 1357,
+        "ft_inited": 1344,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2228,9 +2280,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 147,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_merge_judgment_fuzz_slice": {
@@ -2249,17 +2305,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 47,
-      "corpus_file_count": 123,
+      "corpus_file_count": 151,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 31356,
-        "ft_done": 3915,
-        "ft_inited": 3694,
+        "ft_done": 3957,
+        "ft_inited": 3915,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2267,9 +2327,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 147,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -2291,17 +2355,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 480,
-      "corpus_file_count": 523,
+      "corpus_file_count": 532,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
         "counters": 1025,
-        "ft_done": 1096,
-        "ft_inited": 1081,
+        "ft_done": 1100,
+        "ft_inited": 1096,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2309,9 +2377,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 113,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_root_query_persistent_fuzz_slice": {
@@ -2333,17 +2405,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 971,
-      "corpus_file_count": 1288,
+      "corpus_file_count": 1347,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 9834,
-        "ft_done": 6654,
-        "ft_inited": 6356,
+        "ft_done": 6817,
+        "ft_inited": 6654,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2351,9 +2427,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 113,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_context_capsule_persistent_fuzz_slice": {
@@ -2375,17 +2455,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 971,
-      "corpus_file_count": 1291,
+      "corpus_file_count": 1345,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 10243,
-        "ft_done": 6856,
-        "ft_inited": 6599,
+        "ft_done": 7032,
+        "ft_inited": 6856,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2393,9 +2477,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 113,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -2418,17 +2506,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 728,
-      "corpus_file_count": 760,
+      "corpus_file_count": 772,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 3662,
-        "ft_done": 2185,
-        "ft_inited": 1963,
+        "ft_done": 2198,
+        "ft_inited": 2185,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2436,9 +2528,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 121,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
     "generated_seed_count": 728,
     "lane_3_seeds": "multi-frame concatenated pairs + prefix-stripped hello bodies (harness-side; fixtures untouched)"
@@ -2464,17 +2560,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 643,
-      "corpus_file_count": 728,
+      "corpus_file_count": 750,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 6043,
-        "ft_done": 4058,
-        "ft_inited": 4004,
+        "ft_done": 4223,
+        "ft_inited": 4059,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2482,9 +2582,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 50,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
@@ -2520,36 +2624,40 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": {
         "graph-cfg": 396,
         "type-checker": 385
       },
       "corpus_file_count": {
-        "graph-cfg": 510,
-        "type-checker": 522
+        "graph-cfg": 534,
+        "type-checker": 542
       },
       "runs_requested": 792,
       "runs_floor": {
-        "graph-cfg": 792,
-        "type-checker": 792
+        "graph-cfg": 798,
+        "type-checker": 798
       },
       "executed_runs": {
-        "graph-cfg": 792,
-        "type-checker": 792
+        "graph-cfg": 798,
+        "type-checker": 798
       },
       "coverage": {
         "graph-cfg": {
           "counters": 5342,
-          "ft_done": 2966,
-          "ft_inited": 2881,
+          "ft_done": 3061,
+          "ft_inited": 2966,
           "new_events": true
         },
         "type-checker": {
           "counters": 3343,
-          "ft_done": 4716,
-          "ft_inited": 4639,
+          "ft_done": 4802,
+          "ft_inited": 4716,
           "new_events": true
         }
       },
@@ -2561,9 +2669,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 115,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_query_persistent_fuzz_slice": {
@@ -2592,27 +2704,35 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 525,
-      "corpus_file_count": 539,
+      "corpus_file_count": 540,
       "runs_requested": 1050,
       "runs_floor": 1050,
       "executed_runs": 1050,
       "coverage": {
         "counters": 2870,
-        "ft_done": 919,
+        "ft_done": 921,
         "ft_inited": 919,
-        "new_events": false
+        "new_events": true
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 113,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_vm_persistent_fuzz_slice": {
@@ -2661,17 +2781,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 788,
-      "corpus_file_count": 899,
+      "corpus_file_count": 918,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
         "counters": 16649,
-        "ft_done": 9605,
-        "ft_inited": 9573,
+        "ft_done": 9735,
+        "ft_inited": 9606,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2679,9 +2803,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 122,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
@@ -2716,17 +2844,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 821,
-      "corpus_file_count": 909,
+      "corpus_file_count": 945,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 6366,
-        "ft_done": 3173,
-        "ft_inited": 3126,
+        "ft_done": 3243,
+        "ft_inited": 3199,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2734,9 +2866,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 36,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_350_mutation_candidate_persistent_fuzz": {
@@ -2763,17 +2899,21 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
-      "source_tree_clean": true,
+      "source_commit": "d0cb30d9d49b0b9ed9712cea307e75b2a6ec57fc",
+      "source_tree_clean_except_retained_slices": true,
+      "worktree_dirty_files": [
+        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+      ],
       "corpus_count": 26,
-      "corpus_file_count": 93,
+      "corpus_file_count": 108,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 16755,
-        "ft_done": 2596,
-        "ft_inited": 2561,
+        "ft_done": 2654,
+        "ft_inited": 2596,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2781,9 +2921,13 @@
       "unexpected_warnings": [],
       "owner_lib_sancov_total": 1254,
       "owner_lib_sancov": 108,
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     }
   },
   "s20_360_candidate_validation": {
