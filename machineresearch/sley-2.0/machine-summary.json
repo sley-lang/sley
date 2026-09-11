@@ -1948,16 +1948,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 1078,
-      "corpus_file_count": 1143,
+      "corpus_file_count": 1162,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1115,
-        "ft_done": 506,
-        "ft_inited": 479,
+        "ft_done": 523,
+        "ft_inited": 506,
         "new_events": true
       },
       "coverage_ok": true,
@@ -1991,16 +1992,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 259,
-      "corpus_file_count": 268,
+      "corpus_file_count": 270,
       "runs_requested": 510,
-      "runs_floor": 524,
-      "executed_runs": 524,
+      "runs_floor": 526,
+      "executed_runs": 526,
       "coverage": {
         "counters": 2309,
-        "ft_done": 477,
-        "ft_inited": 475,
+        "ft_done": 478,
+        "ft_inited": 477,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2037,16 +2039,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 320,
-      "corpus_file_count": 349,
+      "corpus_file_count": 354,
       "runs_requested": 640,
       "runs_floor": 640,
       "executed_runs": 640,
       "coverage": {
         "counters": 6805,
-        "ft_done": 2661,
-        "ft_inited": 2647,
+        "ft_done": 2679,
+        "ft_inited": 2661,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2079,16 +2082,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 518,
-      "corpus_file_count": 538,
+      "corpus_file_count": 543,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
         "counters": 36762,
-        "ft_done": 7401,
-        "ft_inited": 7358,
+        "ft_done": 7402,
+        "ft_inited": 7401,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2121,16 +2125,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 195,
-      "corpus_file_count": 382,
+      "corpus_file_count": 431,
       "runs_requested": 512,
-      "runs_floor": 638,
-      "executed_runs": 638,
+      "runs_floor": 687,
+      "executed_runs": 687,
       "coverage": {
         "counters": 6254,
-        "ft_done": 5118,
-        "ft_inited": 4865,
+        "ft_done": 5296,
+        "ft_inited": 5118,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2162,16 +2167,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 322,
-      "corpus_file_count": 341,
+      "corpus_file_count": 347,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 3427,
-        "ft_done": 1604,
-        "ft_inited": 1587,
+        "ft_done": 1606,
+        "ft_inited": 1604,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2204,16 +2210,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 319,
-      "corpus_file_count": 389,
+      "corpus_file_count": 398,
       "runs_requested": 638,
-      "runs_floor": 645,
-      "executed_runs": 645,
+      "runs_floor": 654,
+      "executed_runs": 654,
       "coverage": {
         "counters": 2868,
-        "ft_done": 1338,
-        "ft_inited": 1324,
+        "ft_done": 1344,
+        "ft_inited": 1338,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2242,16 +2249,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 47,
-      "corpus_file_count": 82,
+      "corpus_file_count": 123,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 31356,
-        "ft_done": 3694,
-        "ft_inited": 3590,
+        "ft_done": 3915,
+        "ft_inited": 3694,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2283,16 +2291,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 480,
-      "corpus_file_count": 510,
+      "corpus_file_count": 523,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
         "counters": 1025,
-        "ft_done": 1081,
-        "ft_inited": 1040,
+        "ft_done": 1096,
+        "ft_inited": 1081,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2324,16 +2333,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 971,
-      "corpus_file_count": 1218,
+      "corpus_file_count": 1288,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 9834,
-        "ft_done": 6356,
-        "ft_inited": 6069,
+        "ft_done": 6654,
+        "ft_inited": 6356,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2365,16 +2375,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 971,
-      "corpus_file_count": 1223,
+      "corpus_file_count": 1291,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 10243,
-        "ft_done": 6599,
-        "ft_inited": 6141,
+        "ft_done": 6856,
+        "ft_inited": 6599,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2407,16 +2418,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 728,
-      "corpus_file_count": 752,
+      "corpus_file_count": 760,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 3662,
-        "ft_done": 1963,
-        "ft_inited": 1960,
+        "ft_done": 2185,
+        "ft_inited": 1963,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2452,16 +2464,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "unrecorded-dirty-tree (re-mint pending clean commit)",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 643,
-      "corpus_file_count": 704,
+      "corpus_file_count": 728,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 6043,
-        "ft_done": 4005,
-        "ft_inited": 3951,
+        "ft_done": 4058,
+        "ft_inited": 4004,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2507,14 +2520,15 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8c729a199edf844ae289ddea0065ee110bd941e1",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": {
         "graph-cfg": 396,
         "type-checker": 385
       },
       "corpus_file_count": {
-        "graph-cfg": 478,
-        "type-checker": 492
+        "graph-cfg": 510,
+        "type-checker": 522
       },
       "runs_requested": 792,
       "runs_floor": {
@@ -2528,14 +2542,14 @@
       "coverage": {
         "graph-cfg": {
           "counters": 5342,
-          "ft_done": 2881,
-          "ft_inited": 2746,
+          "ft_done": 2966,
+          "ft_inited": 2881,
           "new_events": true
         },
         "type-checker": {
           "counters": 3343,
-          "ft_done": 4639,
-          "ft_inited": 4538,
+          "ft_done": 4716,
+          "ft_inited": 4639,
           "new_events": true
         }
       },
@@ -2578,17 +2592,18 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8c729a199edf844ae289ddea0065ee110bd941e1",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 525,
-      "corpus_file_count": 537,
+      "corpus_file_count": 539,
       "runs_requested": 1050,
       "runs_floor": 1050,
       "executed_runs": 1050,
       "coverage": {
         "counters": 2870,
         "ft_done": 919,
-        "ft_inited": 916,
-        "new_events": true
+        "ft_inited": 919,
+        "new_events": false
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2646,16 +2661,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8c729a199edf844ae289ddea0065ee110bd941e1",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 788,
-      "corpus_file_count": 876,
+      "corpus_file_count": 899,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
         "counters": 16649,
-        "ft_done": 9574,
-        "ft_inited": 9539,
+        "ft_done": 9605,
+        "ft_inited": 9573,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2700,16 +2716,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8c729a199edf844ae289ddea0065ee110bd941e1",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 821,
-      "corpus_file_count": 888,
+      "corpus_file_count": 909,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 6366,
-        "ft_done": 3126,
-        "ft_inited": 3071,
+        "ft_done": 3173,
+        "ft_inited": 3126,
         "new_events": true
       },
       "coverage_ok": true,
@@ -2746,16 +2763,17 @@
     "harness_repair_round": "7d",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8c729a199edf844ae289ddea0065ee110bd941e1",
+      "source_commit": "8d6664e167dd71c99a9309079805a91baefb1f69",
+      "source_tree_clean": true,
       "corpus_count": 26,
-      "corpus_file_count": 67,
+      "corpus_file_count": 93,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 16755,
-        "ft_done": 2561,
-        "ft_inited": 2449,
+        "ft_done": 2596,
+        "ft_inited": 2561,
         "new_events": true
       },
       "coverage_ok": true,
