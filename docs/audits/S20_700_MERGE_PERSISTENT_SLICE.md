@@ -68,17 +68,23 @@ python3 scripts/run_merge_persistent_fuzz.py --manual
 
 The REQ-06 REVISE findings against this slice's harness are repaired in
 the runner: `--locked` builds, workspace-wide owner-lib coverage via
-`-Zhost-config` + target rustflags (the old bin-only flag left zero
-`sancov` symbols in owner rlibs; the gate now fails closed on zero),
-runs-must-cover-corpus enforcement with `SMOKE_RUNS` at twice the corpus,
-persistent corpus directories with stale-seed sync, crash minimization
-via `-merge=1`, executed/coverage/crash evidence gates, a dedicated build
-timeout, and append-only artifacts. The slice proved locally PASS with
-executed == requested >= corpus, coverage feedback observed, zero crash
-artifacts, and nonzero owner-lib `sancov` counts; the durable record is
-`machine-summary.json` `last_local_proof` (runtime `evidence.json` files
-are gitignored by design). The pinned qualification toolchain is
-unchanged (`clang-18`, pinned libfuzzer path, `nightly-2026-02-27`); the
-local proof ran under documented `SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A`
-overrides. Re-review of the slice's Vulcan verdict is queued, not
-assumed.
+`-Zhost-config` + target rustflags with trace-compares/pc-table (the old
+bin-only flag left zero `sancov` symbols in owner rlibs; the gate now
+fails closed on zero family-wide symbols and zero symbols in the slice's
+owner rlib), an on-disk coverage floor (corpus files plus 256 guaranteed
+mutations, replacing seed-count enforcement, which decayed as libFuzzer
+added inputs), persistent corpus directories with stale-seed sync, crash
+minimization via `-minimize_crash=1` with exact artifacts (round-7c fixed
+the `-merge=1` primitive, which merges corpora and cannot minimize a
+crasher), executed/inline-counter-coverage/crash evidence gates, a
+dedicated build timeout, and append-only artifacts. The slice proved
+locally PASS with executed >= floor, inline 8-bit counters observed,
+zero crash artifacts, and nonzero owner-rlib `sancov` counts; the durable
+record is `machine-summary.json` `last_local_proof` (runtime
+`evidence.json` files are gitignored by design). The decoder is safe
+Rust, so no ASan is instrumented; the oracle and seed neighbourhood are
+unchanged (bounded smoke, not a probe). The pinned qualification
+toolchain is unchanged (`clang-18`, pinned libfuzzer path,
+`nightly-2026-02-27`); the local proof ran under documented
+`SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A` overrides. Re-review of the
+slice's Vulcan verdict is queued, not assumed.

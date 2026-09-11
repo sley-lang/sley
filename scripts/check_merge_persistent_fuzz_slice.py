@@ -66,6 +66,11 @@ for marker in [
     "owner_lib_sancov_symbols",
     "corpus_persistent",
     "SLEY_FUZZ_CC",
+    "minimize_crash",
+    "OWNER_RLIB",
+    "corpus_file_count",
+    "coverage_counters",
+    "trace-compares",
     "must cover the corpus",
 ]:
     if marker not in wrapper:

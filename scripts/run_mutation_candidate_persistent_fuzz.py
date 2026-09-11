@@ -31,6 +31,7 @@ LIBFUZZER = Path("/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86
 CC = os.environ.get("SLEY_FUZZ_CC", CLANG)
 FUZZER_RT = Path(os.environ.get("SLEY_FUZZ_LIBFUZZER_A", str(LIBFUZZER)))
 BUILD_TIMEOUT_SECONDS = 1200
+OWNER_RLIB = "libsley_mutate-"
 MAX_CANDIDATE_BYTES = 1_048_576
 MAX_INPUT_LEN = MAX_CANDIDATE_BYTES + 1
 SMOKE_RUNS = 512
@@ -52,11 +53,13 @@ def main() -> int:
     RUNTIME.mkdir(parents=True, exist_ok=True)
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     corpus_count, stale_seeds_removed = generate_seed_corpus()
-    # A run shorter than the corpus replays its prefix instead of smoking it:
-    # libFuzzer works through the seed files first, so lanes past the cutoff
-    # would never execute yet still report PASS.
-    if not args.manual and args.runs < corpus_count:
-        parser.error(f"--runs ({args.runs}) must cover the corpus ({corpus_count})")
+    # The coverage floor is measured on the on-disk corpus files, not the
+    # generated seed count: libFuzzer adds inputs every run, so a floor on
+    # seeds alone decays back to seed replay. The run must cover the corpus,
+    # so the floor guarantees the whole on-disk corpus plus headroom for
+    # genuine mutation on every smoke, including explicit small --runs.
+    corpus_file_count = sum(1 for entry in CORPUS.iterdir() if entry.is_file())
+    runs_floor = max(args.runs, corpus_file_count + 256)
     evidence: dict[str, object] = {
         "contract": "s20-350-mutation-candidate-persistent-libfuzzer-v1",
         "scope": "PROPOSAL_ONLY_CANDIDATE_RECORD_AND_ENVELOPE",
@@ -107,7 +110,7 @@ def main() -> int:
             "--config",
             "host.rustflags=[]",
             "--config",
-            "target.x86_64-unknown-linux-gnu.rustflags=[\"-Cpasses=sancov-module\", \"-Cllvm-args=-sanitizer-coverage-level=4\", \"-Cllvm-args=-sanitizer-coverage-inline-8bit-counters\"]",
+            "target.x86_64-unknown-linux-gnu.rustflags=[\"-Cpasses=sancov-module\", \"-Cllvm-args=-sanitizer-coverage-level=4\", \"-Cllvm-args=-sanitizer-coverage-inline-8bit-counters\", \"-Cllvm-args=-sanitizer-coverage-trace-compares\", \"-Cllvm-args=-sanitizer-coverage-pc-table\"]",
             "--",
             "-Cpasses=sancov-module",
             "-Cllvm-args=-sanitizer-coverage-level=4",
@@ -127,10 +130,17 @@ def main() -> int:
 
     evidence["owner_lib_sancov_symbols"] = owner_lib_sancov_symbols()
     evidence["owner_lib_sancov_total"] = sum(evidence["owner_lib_sancov_symbols"].values())
-    if evidence["owner_lib_sancov_total"] == 0:
+    evidence["owner_lib_sancov"] = sum(
+        count
+        for name, count in evidence["owner_lib_sancov_symbols"].items()
+        if name.startswith(OWNER_RLIB)
+    )
+    if evidence["owner_lib_sancov_total"] == 0 or evidence["owner_lib_sancov"] == 0:
         evidence["result"] = "FAIL"
         evidence["duration_seconds"] = round(time.monotonic() - started, 3)
-        evidence.setdefault("problems", []).append("owner-lib-sancov-missing")
+        evidence.setdefault("problems", []).append(
+            f"owner-lib-sancov-missing:{OWNER_RLIB}"
+        )
         write_evidence(evidence)
         return 1
 
@@ -139,18 +149,26 @@ def main() -> int:
         print(" ".join(command))
         return subprocess.call(command, cwd=ROOT)
 
-    fuzz = run(fuzzer_command(runs=args.runs), timeout=args.timeout)
+    fuzz = run(fuzzer_command(runs=runs_floor), timeout=args.timeout)
     evidence["commands"].append(fuzz)
     evidence["libfuzzer_output_tail"] = (fuzz["stderr"] + fuzz["stdout"])[-4000:]
     evidence["duration_seconds"] = round(time.monotonic() - started, 3)
+    fuzz_output = str(fuzz["stderr"] + fuzz["stdout"])
     evidence["executed_runs"] = parse_executed_units(str(fuzz["stderr"]))
-    evidence["coverage_feedback_observed"] = "ft:" in str(fuzz["stderr"] + fuzz["stdout"])
+    evidence["runs_floor"] = runs_floor
+    evidence["corpus_file_count"] = corpus_file_count
+    evidence["coverage"] = parse_coverage(fuzz_output)
+    coverage_counters = evidence["coverage"]["counters"]
+    evidence["coverage_ok"] = (
+        coverage_counters > 0
+        if isinstance(coverage_counters, int)
+        else ("ft:" in fuzz_output)
+    )
     evidence["crash_artifacts"] = crash_artifact_names(ARTIFACTS)
     evidence["minimized_crashes"] = (
         minimize_crashes(
             fuzzer_bin=str(FUZZER),
             artifacts_dir=ARTIFACTS,
-            corpus_dir=CORPUS,
             minimized_dir=RUNTIME / "minimized",
             timeout_seconds=args.timeout,
         )
@@ -159,16 +177,16 @@ def main() -> int:
     )
     if (
         fuzz["returncode"] == 0
-        and evidence["executed_runs"] >= corpus_count
-        and evidence["coverage_feedback_observed"]
+        and evidence["executed_runs"] >= runs_floor
+        and evidence["coverage_ok"]
         and not evidence["crash_artifacts"]
     ):
         evidence["result"] = "PASS"
     else:
         evidence["result"] = "FAIL"
         evidence.setdefault("problems", []).append(
-            f"executed {evidence['executed_runs']} of {corpus_count} corpus seeds "
-            f"(coverage_feedback={evidence['coverage_feedback_observed']}, "
+            f"executed {evidence['executed_runs']} of floor {runs_floor} "
+            f"(coverage={evidence['coverage']}, "
             f"crashes={evidence['crash_artifacts']})"
         )
     write_evidence(evidence)
@@ -249,23 +267,37 @@ def minimize_crashes(
     *,
     fuzzer_bin: str,
     artifacts_dir: Path,
-    corpus_dir: Path,
     minimized_dir: Path,
     timeout_seconds: int,
 ) -> list[dict[str, object]]:
-    """Minimize each crasher via libFuzzer -merge=1.
+    """Minimize each crasher with libFuzzer -minimize_crash=1.
 
-    The minimized input lands under ARTIFACTS/minimized-* next to the
-    original. Filing it under fuzz/regressions/ stays an explicit owner
-    step, never an automatic commit from a smoke run.
+    Repair round 7c: -merge=1 merges corpus directories and its
+    crash-resistant driver skips crashing inputs, so it cannot minimize
+    a crasher; -minimize_crash=1 shrinks the single crashing input and
+    writes the exact minimized artifact. Filing the minimized input
+    under fuzz/regressions/ stays an explicit owner step, never an
+    automatic commit from a smoke run.
     """
     minimized_dir.mkdir(parents=True, exist_ok=True)
     out: list[dict[str, object]] = []
     for name in crash_artifact_names(artifacts_dir):
         source = artifacts_dir / name
+        record: dict[str, object] = {
+            "artifact": name,
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "size_bytes": source.stat().st_size,
+        }
+        exact = minimized_dir / f"minimized-{name}"
         try:
             completed = subprocess.run(
-                [fuzzer_bin, "-merge=1", str(minimized_dir), str(corpus_dir), str(source)],
+                [
+                    fuzzer_bin,
+                    "-minimize_crash=1",
+                    "-runs=1000000",
+                    f"-exact_artifact_path={exact}",
+                    str(source),
+                ],
                 cwd=ROOT,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -273,25 +305,42 @@ def minimize_crashes(
                 timeout=timeout_seconds,
                 check=False,
             )
-            record: dict[str, object] = {
-                "artifact": name,
-                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                "size_bytes": source.stat().st_size,
-                "merge_returncode": completed.returncode,
-                "merge_tail": (completed.stderr + completed.stdout)[-2000:],
-            }
-            minimized = [p for p in sorted(minimized_dir.iterdir()) if p.is_file()]
-            if minimized:
-                smallest = min(minimized, key=lambda p: p.stat().st_size)
-                record["minimized_sha256"] = hashlib.sha256(smallest.read_bytes()).hexdigest()
-                record["minimized_size_bytes"] = smallest.stat().st_size
+            record["minimize_returncode"] = completed.returncode
+            record["minimize_tail"] = (completed.stderr + completed.stdout)[-2000:]
+            if exact.is_file():
+                record["minimized_sha256"] = hashlib.sha256(exact.read_bytes()).hexdigest()
+                record["minimized_size_bytes"] = exact.stat().st_size
                 (artifacts_dir / f"minimized-{record['minimized_sha256']}").write_bytes(
-                    smallest.read_bytes()
+                    exact.read_bytes()
                 )
-            out.append(record)
         except (OSError, subprocess.TimeoutExpired) as error:
-            out.append({"artifact": name, "minimize_error": str(error)[:500]})
+            record["minimize_error"] = str(error)[:500]
+        out.append(record)
     return out
+
+
+def parse_coverage(output: str) -> dict[str, object]:
+    """Coverage signals from libFuzzer output (repair round 7c).
+
+    The hard proof is the inline 8-bit counter total from the Loaded
+    line; ft at INITED/DONE and NEW events corroborate. When startup
+    lines are truncated from the tail, counters is None and the caller
+    falls back to ft presence.
+    """
+    import re
+
+    counters: int | None = None
+    match = re.search(r"Loaded \d+ modules\s+\(([\d,]+) inline 8-bit counters\)", output)
+    if match:
+        counters = int(match.group(1).replace(",", ""))
+    inited = re.search(r"#\d+\s+INITED\b[^\n]*ft:\s*(\d+)", output)
+    done = re.search(r"#\d+\s+DONE\b[^\n]*ft:\s*(\d+)", output)
+    return {
+        "counters": counters,
+        "ft_inited": int(inited.group(1)) if inited else None,
+        "ft_done": int(done.group(1)) if done else None,
+        "new_events": bool(re.search(r"#\d+\s+NEW\b", output)),
+    }
 
 
 def parse_executed_units(stderr: str) -> int:

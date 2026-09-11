@@ -50,7 +50,7 @@ for marker in [
     '"full_s20_700_complete": False',
     '"SCHEMA_BOOTSTRAP_DECODER_ONLY"',
     'MAX_LEN = 2048',
-    'EXPECTED_SEED_COUNT = 255',
+    'EXPECTED_SEED_COUNT = 259',
     "output_tail(error.stdout)",
 ]:
     if marker not in wrapper:
@@ -67,6 +67,11 @@ for marker in [
     "owner_lib_sancov_symbols",
     "corpus_persistent",
     "SLEY_FUZZ_CC",
+    "minimize_crash",
+    "OWNER_RLIB",
+    "corpus_file_count",
+    "coverage_counters",
+    "trace-compares",
     "must cover the corpus",
 ]:
     if marker not in wrapper:
@@ -96,7 +101,7 @@ if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
 if slice_status.get("max_input_bytes") != 2048:
     problems.append("machine-summary-max-input-bytes-drift")
-if slice_status.get("generated_seed_count") != 255:
+if slice_status.get("generated_seed_count") != 259:
     problems.append("machine-summary-generated-seed-count-drift")
 if slice_status.get("seed_source") != "conformance/schema-epoch/v1/bootstrap.json":
     problems.append("machine-summary-seed-source-drift")

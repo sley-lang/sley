@@ -1945,16 +1945,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 1078,
+      "corpus_file_count": 1119,
       "runs_requested": 2156,
+      "runs_floor": 2156,
       "executed_runs": 2156,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": null,
+        "ft_done": 508,
+        "ft_inited": 485,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 59,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_schema_persistent_fuzz_slice": {
@@ -1965,7 +1976,7 @@
     "persistent_fuzz_harness": true,
     "full_s20_700_complete": false,
     "max_input_bytes": 2048,
-    "generated_seed_count": 255,
+    "generated_seed_count": 259,
     "seed_source": "conformance/schema-epoch/v1/bootstrap.json",
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-schema-bootstrap-libfuzzer/corpus",
     "runtime_evidence": "evidence/runtime/s20-700-schema-bootstrap-libfuzzer/evidence.json",
@@ -1975,16 +1986,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
-      "corpus_count": 255,
+      "corpus_count": 259,
+      "corpus_file_count": 264,
       "runs_requested": 510,
-      "executed_runs": 510,
-      "coverage_feedback_observed": true,
+      "runs_floor": 520,
+      "executed_runs": 520,
+      "coverage": {
+        "counters": 2370,
+        "ft_done": 485,
+        "ft_inited": 484,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 40,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_pack_persistent_fuzz_slice": {
@@ -2008,16 +2030,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 320,
+      "corpus_file_count": 334,
       "runs_requested": 640,
+      "runs_floor": 640,
       "executed_runs": 640,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 7627,
+        "ft_done": 2880,
+        "ft_inited": 2819,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 170,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_exchange_persistent_fuzz_slice": {
@@ -2037,16 +2070,27 @@
     "failed_preflight_target_writes": 0,
     "vulcan_review": "PASS_IMPLEMENTATION",
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 518,
+      "corpus_file_count": 531,
       "runs_requested": 1036,
+      "runs_floor": 1036,
       "executed_runs": 1036,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 42598,
+        "ft_done": 8056,
+        "ft_inited": 8053,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 170,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2066,16 +2110,27 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md",
     "max_set_members": 24,
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 195,
+      "corpus_file_count": 348,
       "runs_requested": 512,
-      "executed_runs": 512,
-      "coverage_feedback_observed": true,
+      "runs_floor": 604,
+      "executed_runs": 604,
+      "coverage": {
+        "counters": null,
+        "ft_done": 7232,
+        "ft_inited": null,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 130,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_semantic_delta_persistent_fuzz_slice": {
@@ -2094,16 +2149,27 @@
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_1_P1_2_P2_3_P3",
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 322,
+      "corpus_file_count": 334,
       "runs_requested": 644,
+      "runs_floor": 644,
       "executed_runs": 644,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 3731,
+        "ft_done": 1668,
+        "ft_inited": 1632,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 170,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2123,16 +2189,27 @@
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_1_P1_2_P2_3_P3",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 319,
+      "corpus_file_count": 371,
       "runs_requested": 638,
+      "runs_floor": 638,
       "executed_runs": 638,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 3218,
+        "ft_done": 1484,
+        "ft_inited": 1456,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 170,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_merge_judgment_fuzz_slice": {
@@ -2148,16 +2225,27 @@
     "runtime_evidence": "evidence/runtime/s20-700-merge-judgment-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_merge_judgment_fuzz.py --manual",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 47,
+      "corpus_file_count": 71,
       "runs_requested": 512,
+      "runs_floor": 512,
       "executed_runs": 512,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 34262,
+        "ft_done": 3989,
+        "ft_inited": 3868,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 170,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -2176,16 +2264,27 @@
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_1_P1_0_P2_5_P3",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 480,
+      "corpus_file_count": 501,
       "runs_requested": 960,
+      "runs_floor": 960,
       "executed_runs": 960,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 1223,
+        "ft_done": 1080,
+        "ft_inited": 1069,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 130,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_root_query_persistent_fuzz_slice": {
@@ -2204,16 +2303,27 @@
     "continuation_walk": true,
     "vulcan_review": "REVISE_0_P0_1_P1_3_P2_4_P3",
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 971,
+      "corpus_file_count": 1130,
       "runs_requested": 1942,
+      "runs_floor": 1942,
       "executed_runs": 1942,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": null,
+        "ft_done": 9416,
+        "ft_inited": null,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 130,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_context_capsule_persistent_fuzz_slice": {
@@ -2232,16 +2342,27 @@
     "continuation_walk": true,
     "vulcan_review": "REVISE_0_P0_0_P1_2_P2_5_P3",
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 971,
+      "corpus_file_count": 1132,
       "runs_requested": 1942,
+      "runs_floor": 1942,
       "executed_runs": 1942,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": null,
+        "ft_done": 9508,
+        "ft_inited": null,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 130,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -2261,16 +2382,27 @@
     "vulcan_review": "REVISE_0_P0_1_P1_4_P2_3_P3",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true,
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 728,
+      "corpus_file_count": 739,
       "runs_requested": 1456,
+      "runs_floor": 1456,
       "executed_runs": 1456,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 4242,
+        "ft_done": 2080,
+        "ft_inited": 2064,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 144,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     },
     "generated_seed_count": 728,
     "lane_3_seeds": "multi-frame concatenated pairs + prefix-stripped hello bodies (harness-side; fixtures untouched)"
@@ -2293,16 +2425,27 @@
     "record_lane": true,
     "vulcan_review": "REVISE_0_P0_1_P1_3_P2_6_P3",
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 643,
+      "corpus_file_count": 683,
       "runs_requested": 1286,
+      "runs_floor": 1286,
       "executed_runs": 1286,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 6301,
+        "ft_done": 3982,
+        "ft_inited": 3930,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 59,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
@@ -2335,28 +2478,50 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": {
         "graph-cfg": 396,
         "type-checker": 385
       },
+      "corpus_file_count": {
+        "graph-cfg": 447,
+        "type-checker": 455
+      },
       "runs_requested": 792,
+      "runs_floor": {
+        "graph-cfg": 792,
+        "type-checker": 792
+      },
       "executed_runs": {
         "graph-cfg": 792,
         "type-checker": 792
       },
-      "coverage_feedback_observed": {
+      "coverage": {
+        "graph-cfg": {
+          "counters": null,
+          "ft_done": 2746,
+          "ft_inited": null,
+          "new_events": true
+        },
+        "type-checker": {
+          "counters": null,
+          "ft_done": 4538,
+          "ft_inited": null,
+          "new_events": true
+        }
+      },
+      "coverage_ok": {
         "graph-cfg": true,
         "type-checker": true
       },
-      "crash_artifacts": {
-        "graph-cfg": [],
-        "type-checker": []
-      },
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 131,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_query_persistent_fuzz_slice": {
@@ -2382,16 +2547,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 525,
+      "corpus_file_count": 531,
       "runs_requested": 1050,
+      "runs_floor": 1050,
       "executed_runs": 1050,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 3510,
+        "ft_done": 1127,
+        "ft_inited": 1105,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 130,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_vm_persistent_fuzz_slice": {
@@ -2437,16 +2613,27 @@
       "E7a contract assertion over a Bool predicate",
       "E8 bridge adapter_invoke over frozen rows with tamper/budget sublane"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 788,
+      "corpus_file_count": 859,
       "runs_requested": 1576,
+      "runs_floor": 1576,
       "executed_runs": 1576,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 20711,
+        "ft_done": 11353,
+        "ft_inited": 11269,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 139,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
@@ -2478,16 +2665,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 821,
+      "corpus_file_count": 863,
       "runs_requested": 1642,
+      "runs_floor": 1642,
       "executed_runs": 1642,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": null,
+        "ft_done": 4352,
+        "ft_inited": 4275,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 41,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_350_mutation_candidate_persistent_fuzz": {
@@ -2511,16 +2709,27 @@
     "deferred_surfaces": [
       "merge engine"
     ],
-    "harness_repair_round": 7,
+    "harness_repair_round": "7c",
     "last_local_proof": {
       "result": "PASS",
       "corpus_count": 26,
+      "corpus_file_count": 42,
       "runs_requested": 512,
+      "runs_floor": 512,
       "executed_runs": 512,
-      "coverage_feedback_observed": true,
+      "coverage": {
+        "counters": 19275,
+        "ft_done": 2624,
+        "ft_inited": 2169,
+        "new_events": true
+      },
+      "coverage_ok": true,
       "crash_artifacts": [],
-      "owner_lib_sancov_total": 198,
-      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+      "owner_lib_sancov_total": 1452,
+      "owner_lib_sancov": 124,
+      "cc": "clang",
+      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged"
     }
   },
   "s20_360_candidate_validation": {
