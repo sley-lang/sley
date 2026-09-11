@@ -84,7 +84,7 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "626eff17f19094660103e738ef194c204fed07f128a74cb5a5738280f08f997b"
+              "sha256": "a0db7adb75570a3759cf9518eceab3d4cd0f24bb9bc85c1ca2d6370f468a4293"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
@@ -110,5 +110,5 @@
       }
     ]
   },
-  "statement_digest": "e4ed960f187aaa1037798018f07f13e4be4ba2202a4c30b61739a29585c3b591"
+  "statement_digest": "36db73a3ffa997cab42c4032c96a9126b1dbf19f4f60684f982bc97095240257"
 }
