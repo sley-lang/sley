@@ -46,7 +46,7 @@
           },
           {
             "digest": {
-              "sha256": "c9a397364d2a243a73d484f75487ff08404213f8fce1c24eaf8d416753fdc49c"
+              "sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc"
             },
             "name": "Cargo.lock"
           },
@@ -58,19 +58,19 @@
           },
           {
             "digest": {
-              "sha256": "21879a02534f46fa3f98a64ddd1668b9cf724a82ef75253869b09506437dfad5"
+              "sha256": "bab48d8d63cf1d3b64b7d6c4d45307e1e72d520ea2f7b4ddc8d65a99cf36b3e5"
             },
             "name": "evidence/security/T52/pre-release-inventory.json"
           },
           {
             "digest": {
-              "sha256": "4b347af9147b70e304160106dd27e8e44314d648ffde42517ab3b827d93dc701"
+              "sha256": "94d5ac017b9bacfcc022821dbdb758c7286823e318029b449461f386995f86c7"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "10456fda6661fee40af6340a61e1421c1b84431b1090829011ddf383aaddb3c2"
+              "sha256": "296ac863e6218a4871d1ee04ed695125b02d0ee6a3da8cd85f7449288dc3fbc2"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -89,7 +89,7 @@
           },
           {
             "digest": {
-              "sha256": "f1c6d9746c0f7e3a6c83e12249b4989a6e462e83916ed2f3905cb1fc9c7b9b81"
+              "sha256": "64572a64bc1f36242004bc0d0a6b656b38e170755652d77b2bb722dee19705e9"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
@@ -109,5 +109,5 @@
       }
     ]
   },
-  "statement_digest": "091b409b46df25984bd9d59c6a9c6a8ac09cc163357ce266fd56610435959c02"
+  "statement_digest": "98889217506a69d3b7a55098993e132fcdc6ae339724aae3ee28eb3af02e7d02"
 }

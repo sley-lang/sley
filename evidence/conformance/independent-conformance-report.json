@@ -455,22 +455,22 @@
         {
           "bytes": 238,
           "name": "SHA256SUMS",
-          "sha256": "5cc5b8001fe141997dbf307cf7bcceba9145abca3b9d189712c0a286c17e90cf"
+          "sha256": "51577deaf287ad2b2b5d8dc88dc5b82f8273f801abdf0328465a4663fd1f8706"
         },
         {
           "bytes": 190716,
           "name": "accepted.json",
-          "sha256": "6dfa79a4c142dc60ffb3ced5888bf11a0d084aafb3df39422cf7d8ca247ab19d"
+          "sha256": "6a23fe63ddaa179003222c2084162918079acd78d4aa6721e39627cb146875b3"
         },
         {
-          "bytes": 58405,
+          "bytes": 59007,
           "name": "inputs.json",
-          "sha256": "fa85d63ba3888c144d02b6ef680b92d7b1ccf0694133ae364076027ac6b0b30c"
+          "sha256": "395456f215eb588f4dc672c844db8dcce345bad6fb3fde2cafd02844f529decf"
         },
         {
-          "bytes": 125202,
+          "bytes": 125828,
           "name": "rejected.json",
-          "sha256": "78bfb8acf46f220c2a15f80df7fe8d3deed43ef3c7eabc6cdb70dc6b63a86c51"
+          "sha256": "6cc6186c4fd087cab1e0fd146847943865fe6aec9a73b50c08d4a5b48fbcb97c"
         }
       ],
       "shape": {
@@ -1382,7 +1382,7 @@
     "problems": [],
     "python_sources": 28
   },
-  "report_digest": "8ba405835773c0f6aed63df703af1b846941fba043823e4dd5fa35feaf3a8061",
+  "report_digest": "b86031b033056be19145aeaf10937847047f8eede50c8175a8b8aca20232da3c",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "tracked_corpus_directories": 29,
   "work_package": "S20-730"

@@ -23,6 +23,7 @@ sley-txn = { path = "../sley-txn" }
 sley-vm = { path = "../sley-vm" }
 
 [dev-dependencies]
+serde_json = "=1.0.145"
 sley-repo = { path = "../sley-repo", features = ["test-support"] }
 sley-ssmc = { path = "../sley-ssmc" }
 

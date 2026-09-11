@@ -223,7 +223,13 @@ S20-310 full reserves numeric codes 31008 through 31010 for the exact
 `QUERY_CLASS_NOT_APPLICABLE` failures of `ROOT_BACKED_QUERY_PROFILE_V1.md`.
 They cover the input binding between an arm-2 snapshot, verified bodies,
 bindings, and root facts, typed continuation cursors, and the class-kind
-applicability table of the nineteen root-backed classes. Codes 31000 through
+applicability table of the nineteen root-backed classes. The entity-read
+owner reuses 31004 (`QUERY_UNRESOLVED_ENTITY`), 31007
+(`QUERY_INTERNAL_INVARIANT`), 31008 (`QUERY_ROOT_MISMATCH`), and 31010
+(`QUERY_CLASS_NOT_APPLICABLE`) with owner-numeric identity under
+`ENTITY_READ_PROFILE_V2.md`, composed into the S20-310 surface by
+`ROOT_BACKED_QUERY_PROFILE_V1.md` section 11; no new error numbers are
+allocated. Codes 31000 through
 31007 keep their restricted meanings unchanged. The contract is a draft with
 Council review pending and reserves, rather than freezes, these codes.
 

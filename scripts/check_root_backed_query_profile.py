@@ -211,6 +211,9 @@ def main() -> int:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
+            for key in ("ariadne_entity_read_review", "nabu_entity_read_review", "vulcan_entity_read_review"):
+                if not str(section.get(key, "")).startswith("PASS"):
+                    problems.append(f"completion-without-entity-read-review:{key}")
 
     revision = re.search(r"revision (\d+)", spec)
     result = {

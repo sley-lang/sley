@@ -23,6 +23,7 @@ sley-txn = { path = "../sley-txn" }
 test-support = []
 
 [dev-dependencies]
+serde_json = "=1.0.145"
 sley-check = { path = "../sley-check" }
 sley-txn = { path = "../sley-txn", features = ["s20-530-test-hooks"] }
 sley-vm = { path = "../sley-vm" }

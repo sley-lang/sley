@@ -1901,21 +1901,9 @@ mod tests {
             let request_bytes = hex_bytes(case["request_body_hex"].as_str().unwrap());
             let request = decode_entity_read_request(&request_bytes)
                 .unwrap_or_else(|error| panic!("{id}: request decode: {error:?}"));
-            let buffers = assemble_corpus_buffers(id, case, entities);
-            let (views, mut bindings) = build_corpus_views(id, entities, &buffers, epoch);
-            pad_corpus_bindings(id, &mut bindings);
-            bindings.sort();
-            let mut ordered: Vec<Option<EntityReadObject<'_>>> = vec![None; bindings.len()];
-            for view in views {
-                let position = bindings
-                    .binary_search_by_key(&view.entity, |(entity, _)| *entity)
-                    .unwrap_or_else(|_| panic!("{id}: view entity missing from bindings"));
-                assert!(
-                    ordered[position].is_none(),
-                    "{id}: duplicate binding for view entity"
-                );
-                ordered[position] = Some(view);
-            }
+            let state = CorpusState::assemble(case, entities);
+            let (views, bindings) = state.views(id, epoch);
+            let (ordered, bindings) = align_corpus_views(id, views, bindings, true);
             let revision = EntityReadRevision {
                 workspace,
                 root,
@@ -1958,6 +1946,35 @@ mod tests {
         raws: Vec<CorpusRaw>,
     }
 
+    /// Owned buffers for one corpus case plus the entities map they were
+    /// built from. View construction borrows the buffers, so it runs
+    /// through this handle after assembly.
+    struct CorpusState<'e> {
+        buffers: CorpusBuffers,
+        entities: &'e serde_json::Map<String, serde_json::Value>,
+    }
+
+    impl<'e> CorpusState<'e> {
+        fn assemble(
+            case: &serde_json::Value,
+            entities: &'e serde_json::Map<String, serde_json::Value>,
+        ) -> Self {
+            Self {
+                buffers: assemble_corpus_buffers(case, entities),
+                entities,
+            }
+        }
+
+        /// Borrowed narrow views plus their bindings for the case.
+        fn views(
+            &self,
+            id: &str,
+            epoch: SchemaEpochId,
+        ) -> (Vec<EntityReadObject<'_>>, Vec<(EntityId, ObjectId)>) {
+            build_corpus_views(id, &self.buffers, self.entities, epoch)
+        }
+    }
+
     struct CorpusRaw {
         name: String,
         entity: EntityId,
@@ -1968,7 +1985,6 @@ mod tests {
     }
 
     fn assemble_corpus_buffers(
-        _id: &str,
         case: &serde_json::Value,
         entities: &serde_json::Map<String, serde_json::Value>,
     ) -> CorpusBuffers {
@@ -2012,8 +2028,8 @@ mod tests {
     /// Borrowed narrow views plus their bindings for one corpus case.
     fn build_corpus_views<'b>(
         id: &str,
-        entities: &serde_json::Map<String, serde_json::Value>,
         buffers: &'b CorpusBuffers,
+        entities: &serde_json::Map<String, serde_json::Value>,
         epoch: SchemaEpochId,
     ) -> (Vec<EntityReadObject<'b>>, Vec<(EntityId, ObjectId)>) {
         let mut views: Vec<EntityReadObject<'b>> = Vec::new();
@@ -2094,6 +2110,36 @@ mod tests {
         assert_eq!(bindings.len(), 256, "{id}: synthetic root size");
     }
 
+    /// Align borrowed views with sorted bindings, padding to the synthetic
+    /// root first. Strict mode panics on a view without a binding (corpus
+    /// integrity); lenient mode drops it to synthesize a missing-binding
+    /// seam the owner must refuse.
+    fn align_corpus_views<'b>(
+        id: &str,
+        views: Vec<EntityReadObject<'b>>,
+        mut bindings: Vec<(EntityId, ObjectId)>,
+        strict: bool,
+    ) -> (Vec<Option<EntityReadObject<'b>>>, Vec<(EntityId, ObjectId)>) {
+        pad_corpus_bindings(id, &mut bindings);
+        bindings.sort();
+        let mut ordered: Vec<Option<EntityReadObject<'b>>> = vec![None; bindings.len()];
+        for view in views {
+            match bindings.binary_search_by_key(&view.entity, |(entity, _)| *entity) {
+                Ok(position) => {
+                    assert!(
+                        ordered[position].is_none(),
+                        "{id}: duplicate binding for view entity"
+                    );
+                    ordered[position] = Some(view);
+                }
+                Err(_) => {
+                    assert!(!strict, "{id}: view entity missing from bindings");
+                }
+            }
+        }
+        (ordered, bindings)
+    }
+
     /// Test lookup over aligned optional views, matching the production
     /// caller shape (context passed by value, views borrowed from
     /// test-owned buffers, never re-resolved).
@@ -2126,6 +2172,396 @@ mod tests {
                 u8::try_from(value(pair[0]) * 16 + value(pair[1])).unwrap()
             })
             .collect()
+    }
+
+    /// Rejected corpus documents: the frozen rejection rows plus the inputs
+    /// (entities, context, ceilings) and accepted cases they reference.
+    fn rejected_documents() -> (serde_json::Value, serde_json::Value, serde_json::Value) {
+        let rejected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/rejected.json"
+        ))
+        .unwrap();
+        let accepted: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/accepted.json"
+        ))
+        .unwrap();
+        let inputs: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/inputs.json"
+        ))
+        .unwrap();
+        (rejected, accepted, inputs)
+    }
+
+    /// Owner-visible refusal for one rejected row: the stable owner numeric
+    /// code when the failure carries one, else the transport-neutral
+    /// variant the protocol maps to its code (mapping pinned by the
+    /// protocol server tests, not here).
+    fn assert_owner_refusal(
+        id: &str,
+        result: &Result<EntityReadPlan, EntityReadError>,
+        expected_code: u32,
+    ) {
+        match result {
+            Ok(_) => panic!("{id}: expected refusal"),
+            Err(error) => assert_eq!(
+                error.owner_numeric(),
+                Some(expected_code),
+                "{id}: stable owner code"
+            ),
+        }
+    }
+
+    /// Budget refusal: the variant the protocol maps to
+    /// `PROTOCOL_LIMIT_EXCEEDED`.
+    fn assert_budget_refusal(id: &str, result: &Result<EntityReadPlan, EntityReadError>) {
+        match result {
+            Ok(_) => panic!("{id}: expected budget refusal"),
+            Err(error) => assert_eq!(*error, EntityReadError::BudgetExceeded, "{id}: variant"),
+        }
+    }
+
+    /// Corpus work formula with the declared synthetic root (L=10 at N=256).
+    fn corpus_work(count_k: u64, stored_b: u64, ceiling_m: u64) -> u64 {
+        1 + count_k * 10 + 2 * stored_b + ceiling_m
+    }
+
+    /// Sum of one accepted case's stored object bytes.
+    fn case_stored_bytes(case: &serde_json::Value) -> u64 {
+        u64::try_from(
+            case["objects"]
+                .as_object()
+                .unwrap()
+                .values()
+                .map(|object| object["stored_hex"].as_str().unwrap().len() / 2)
+                .sum::<usize>(),
+        )
+        .unwrap()
+    }
+
+    /// Owner seams refuse with their stable owner codes.
+    #[test]
+    fn rejected_owner_cases_refuse_with_stable_codes() {
+        let (rejected, accepted, inputs) = rejected_documents();
+        let (workspace, root, epoch, _, selected) = corpus_context(&inputs);
+        let entities = inputs["entities"].as_object().unwrap();
+        let context_root = hex32(inputs["context"]["root"].as_str().unwrap());
+        assert_eq!(root, StateRoot::from_bytes(context_root));
+        let rows = rejected["cases"].as_array().unwrap();
+        let mut covered = 0;
+        for row in rows {
+            if row.get("kind").and_then(|value| value.as_str()) != Some("owner_case") {
+                continue;
+            }
+            covered += 1;
+            let id = row["id"].as_str().unwrap();
+            let spec = &row["request"];
+            let method = match row["method"].as_u64().unwrap() {
+                306 => EntityReadMethod::Version,
+                307 => EntityReadMethod::Signature,
+                tag => panic!("{id}: unknown method tag {tag}"),
+            };
+            let entity = if let Some(entity_ref) = spec.get("entity_ref").and_then(|v| v.as_str()) {
+                EntityId::from_bytes(hex32(entities[entity_ref]["id"].as_str().unwrap()))
+            } else {
+                EntityId::from_bytes(hex32(spec["entity_hex"].as_str().unwrap()))
+            };
+            let expected_root = if spec["root_hex"].as_str().unwrap() == "context" {
+                root
+            } else {
+                StateRoot::from_bytes(hex32(spec["root_hex"].as_str().unwrap()))
+            };
+            let request = EntityReadRequest {
+                expected_root,
+                entity,
+                max_objects: spec["max_objects"].as_u64().unwrap(),
+                max_response_bytes: spec["ceiling_m"].as_u64().unwrap(),
+                max_work: spec["max_work"].as_u64().unwrap(),
+            };
+            // State per seam: the accepted case holding the entity, minus
+            // the missing parameter binding for the invariant seam.
+            let (base_id, drop_param) = match id {
+                "owner_wrong_root" | "owner_absent" => ("ver_ws", None),
+                "owner_wrong_kind" => ("ver_const", None),
+                "owner_missing_param" => ("sig_multi", Some("sig_p_low")),
+                seam => panic!("{id}: unknown owner seam {seam}"),
+            };
+            let base = &accepted["cases"][base_id];
+            let state = CorpusState::assemble(base, entities);
+            let (views, mut bindings) = state.views(base_id, epoch);
+            if let Some(drop) = drop_param {
+                let drop_entity =
+                    EntityId::from_bytes(hex32(entities[drop]["id"].as_str().unwrap()));
+                bindings.retain(|(entity, _)| *entity != drop_entity);
+            }
+            let (ordered, bindings) = align_corpus_views(id, views, bindings, false);
+            let revision = EntityReadRevision {
+                workspace,
+                root,
+                epoch,
+                bindings: bindings.as_slice(),
+                tombstones: &[],
+            };
+            let result = prepare_entity_read(
+                method,
+                &revision,
+                &request,
+                &selected,
+                &ordered,
+                corpus_view_at,
+            )
+            .and_then(capture_entity_read_selection);
+            assert_owner_refusal(
+                id,
+                &result,
+                u32::try_from(row["expected_code"].as_u64().unwrap()).unwrap(),
+            );
+        }
+        assert_eq!(covered, 4, "owner_case rows");
+    }
+
+    /// Relation boundaries around one accepted base case: exact ceilings
+    /// serve with recomputed work, one-below ceilings refuse.
+    ///
+    /// Wire rows (`wire_exact`, `wire_below`) are frame-preflight layer and
+    /// stay with the protocol server tests; every `work_preflight` row runs
+    /// here. The `bytes_one_below` boundary is the rebuilt refusal ceiling
+    /// (605 for `ver_ws`), not the naive body length minus one.
+    #[test]
+    fn rejected_relation_bounds_refuse_or_serve() {
+        let (rejected, accepted, inputs) = rejected_documents();
+        let (workspace, root, epoch, session, selected) = corpus_context(&inputs);
+        let entities = inputs["entities"].as_object().unwrap();
+        let rejected_rows = rejected["cases"].as_array().unwrap();
+        let mut covered = 0;
+        for row in rejected_rows {
+            if row.get("kind").and_then(|value| value.as_str()) != Some("relation") {
+                continue;
+            }
+            let relation = row["relation"].as_str().unwrap();
+            if !matches!(
+                relation,
+                "k_exact" | "k_one_below" | "bytes_exact" | "bytes_one_below"
+            ) {
+                continue;
+            }
+            covered += 1;
+            let id = row["id"].as_str().unwrap();
+            let base_id = row["base"].as_str().unwrap();
+            let base = &accepted["cases"][base_id];
+            let method = match base_id.split('_').next().unwrap() {
+                "ver" => EntityReadMethod::Version,
+                "sig" => EntityReadMethod::Signature,
+                prefix => panic!("{id}: unknown base prefix {prefix}"),
+            };
+            let mut request =
+                decode_entity_read_request(&hex_bytes(base["request_body_hex"].as_str().unwrap()))
+                    .unwrap_or_else(|error| panic!("{id}: base request decode: {error:?}"));
+            match relation {
+                "k_exact" | "k_one_below" => {
+                    request.max_objects = row["max_objects"].as_u64().unwrap();
+                }
+                "bytes_exact" | "bytes_one_below" => {
+                    request.max_response_bytes = row["ceiling_m"].as_u64().unwrap();
+                }
+                name => panic!("{id}: unexpected bound relation {name}"),
+            }
+            let state = CorpusState::assemble(base, entities);
+            let (views, bindings) = state.views(base_id, epoch);
+            let (ordered, bindings) = align_corpus_views(base_id, views, bindings, true);
+            let revision = EntityReadRevision {
+                workspace,
+                root,
+                epoch,
+                bindings: bindings.as_slice(),
+                tombstones: &[],
+            };
+            let result = prepare_entity_read(
+                method,
+                &revision,
+                &request,
+                &selected,
+                &ordered,
+                corpus_view_at,
+            )
+            .and_then(capture_entity_read_selection);
+            match relation {
+                "k_exact" | "bytes_exact" => {
+                    let plan = result.unwrap_or_else(|error| panic!("{id}: serve: {error:?}"));
+                    let outcome = encode_entity_read_response(plan, session).unwrap();
+                    if relation == "k_exact" {
+                        let expected = hex_bytes(base["response_body_hex"].as_str().unwrap());
+                        assert_eq!(outcome.body, expected, "{id}: boundary bytes");
+                        assert_eq!(
+                            outcome.work_units,
+                            base["work"].as_u64().unwrap(),
+                            "{id}: boundary work"
+                        );
+                    } else {
+                        let stored_b = case_stored_bytes(base);
+                        let count_k = base["count_k"].as_u64().unwrap();
+                        assert_eq!(
+                            outcome.work_units,
+                            corpus_work(count_k, stored_b, row["ceiling_m"].as_u64().unwrap()),
+                            "{id}: recomputed work"
+                        );
+                    }
+                    assert_eq!(
+                        outcome.returned_entities,
+                        base["count_k"].as_u64().unwrap(),
+                        "{id}: object count"
+                    );
+                }
+                "k_one_below" | "bytes_one_below" => assert_budget_refusal(id, &result),
+                name => panic!("{id}: unexpected bound relation {name}"),
+            }
+        }
+        assert_eq!(covered, 4, "k/bytes exact and one-below rows");
+    }
+
+    /// Relation work values recompute through the owner selection, and
+    /// checked arithmetic overflows refuse instead of wrapping.
+    #[test]
+    fn rejected_relation_work_recomputes() {
+        let (rejected, accepted, inputs) = rejected_documents();
+        let (workspace, root, epoch, _, selected) = corpus_context(&inputs);
+        let entities = inputs["entities"].as_object().unwrap();
+        let base = &accepted["cases"]["ver_ws"];
+        let state = CorpusState::assemble(base, entities);
+        let (views, bindings) = state.views("ver_ws", epoch);
+        let (ordered, bindings) = align_corpus_views("ver_ws", views, bindings, true);
+        let revision = EntityReadRevision {
+            workspace,
+            root,
+            epoch,
+            bindings: bindings.as_slice(),
+            tombstones: &[],
+        };
+        let base_request =
+            decode_entity_read_request(&hex_bytes(base["request_body_hex"].as_str().unwrap()))
+                .unwrap();
+        let select = |request: &EntityReadRequest| {
+            prepare_entity_read(
+                EntityReadMethod::Version,
+                &revision,
+                request,
+                &selected,
+                &ordered,
+                corpus_view_at,
+            )
+        };
+        let rows = rejected["cases"].as_array().unwrap();
+        let mut covered = 0;
+        for row in rows {
+            let id = row["id"].as_str().unwrap();
+            let Some(relation) = row.get("relation").and_then(|value| value.as_str()) else {
+                continue;
+            };
+            match relation {
+                "work_recompute_m" => {
+                    for (ceiling_key, work_key) in
+                        [("ceiling_m", "work_first"), ("ceiling_m_next", "work_next")]
+                    {
+                        let mut request = base_request;
+                        request.max_response_bytes = row[ceiling_key].as_u64().unwrap();
+                        let selection = select(&request).unwrap();
+                        assert_eq!(
+                            selection.work_units(),
+                            row[work_key].as_u64().unwrap(),
+                            "{id}: recomputed work"
+                        );
+                    }
+                    covered += 1;
+                }
+                "uvar_threshold" => {
+                    for (ceiling_key, work_key) in [
+                        ("ceiling_m_small", "work_small"),
+                        ("ceiling_m_large", "work_large"),
+                    ] {
+                        let mut request = base_request;
+                        request.max_response_bytes = row[ceiling_key].as_u64().unwrap();
+                        let selection = select(&request).unwrap();
+                        assert_eq!(
+                            selection.work_units(),
+                            row[work_key].as_u64().unwrap(),
+                            "{id}: threshold work"
+                        );
+                    }
+                    covered += 1;
+                }
+                "checked_overflow" => {
+                    let huge = EntityReadCeilings {
+                        max_entities: u64::MAX,
+                        max_response_bytes: u64::MAX,
+                        max_work: u64::MAX,
+                        budget_before_dispatch: u64::MAX,
+                    };
+                    let mut over = base_request;
+                    over.max_response_bytes = u64::MAX;
+                    over.max_objects = u64::MAX;
+                    over.max_work = u64::MAX;
+                    assert_eq!(
+                        prepare_entity_read(
+                            EntityReadMethod::Version,
+                            &revision,
+                            &over,
+                            &huge,
+                            &ordered,
+                            corpus_view_at,
+                        )
+                        .unwrap_err(),
+                        EntityReadError::BudgetExceeded,
+                        "{id}: checked overflow"
+                    );
+                    covered += 1;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(covered, 3, "work relation rows");
+    }
+
+    #[test]
+    fn tombstoned_parameter_refuses_as_invariant() {
+        let mut fixture = signature_fixture();
+        fixture.tombstones = vec![entity(41)];
+        assert_eq!(
+            fixture
+                .prepare(
+                    EntityReadMethod::Signature,
+                    &request(40, fixture.root),
+                    &ceilings()
+                )
+                .unwrap_err(),
+            EntityReadError::InternalInvariant
+        );
+    }
+
+    #[test]
+    fn duplicate_parameter_identity_refuses_on_ordinal() {
+        let fixture = assemble(
+            &[40, 41],
+            &[5, 6],
+            &[
+                FixtureBody::Function {
+                    parameters: vec![entity(41), entity(41)],
+                },
+                FixtureBody::Parameter {
+                    owner: 40,
+                    ordinal: 0,
+                    role: ParameterRole::Function,
+                },
+            ],
+        );
+        assert_eq!(
+            fixture
+                .prepare(
+                    EntityReadMethod::Signature,
+                    &request(40, fixture.root),
+                    &ceilings()
+                )
+                .unwrap_err(),
+            EntityReadError::InternalInvariant
+        );
     }
 
     #[test]

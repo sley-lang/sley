@@ -199,6 +199,9 @@ fit before traversing its ordered parameter list. If that list's count plus
 one exceeds `max_objects`, refuse before allocating the parameter result
 list. Resolve each selected Parameter by borrowed lookup; check its length
 and the growing K/B bound before traversing its fields or copying bytes.
+The checks interleave per parameter in that order: a relationship defect at
+parameter i surfaces as `QUERY_INTERNAL_INVARIANT` before a budget
+exhaustion at parameter i+1 would surface as `PROTOCOL_LIMIT_EXCEEDED`.
 The final work bound must fit both the request and the session budget as it
 stood immediately before this request's existing dispatch charge.
 
@@ -260,6 +263,23 @@ and SMP1 revision references together.
 - Fixed accepted/rejected request and response vectors are reproduced by an
   independent Python encoder/decoder using the existing canonical object
   oracle. Compare raw bytes, ObjectIds, frame identities and stable failures.
+  The 23 accepted vectors are additionally reproduced by the Rust owner
+  and encoder (`accepted_corpus_vectors_match_owner_and_encoder`) and the
+  25 stored objects through the production adapter projection; the
+  owner-layer rejection rows by the owner refusal tests and the 16
+  request-shape wires by the protocol corpus replay test.
+- Runtime-sequence obligations (`pending_runtime_comparison`) are discharged
+  by live-session server tests, mapped here so the count is auditable:
+  `seq_wrong_session`, `seq_closed_session`, `seq_renewed_session`, and
+  `seq_epoch_mismatch` by `entity_read_session_lifecycle_binds_one_snapshot`;
+  `seq_root_advanced` by `entity_read_head_advance_fails_before_body_decode`;
+  `seq_request_id_conflict` by `entity_read_failure_precedence_is_exact`;
+  `seq_unnegotiated_precedence` by `repair_exhausted_budget_precedes_unoffered_method`;
+  `seq_work_exhausted_precedence` by `repair_session_budget_method_order_and_debit`;
+  `seq_debit_phases` by `repair_debit_phases_observe_budget_and_followup`
+  with `entity_read_budget_debit_table_is_exact`; `seq_inflight_terminal`
+  by `repair_stale_refusal_then_renew_and_read_at_inflight_one`. The owner-case preconditions and fill
+  recipes are oracle-registry checks, not byte coverage.
 - All eighteen supported entity kinds return their exact stored object.
   Signature cases include zero/multiple ordered parameters, nontrivial type
   expressions, generics, declared effects/contracts and a wrong-kind target.

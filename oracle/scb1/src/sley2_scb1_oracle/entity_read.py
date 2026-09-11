@@ -34,6 +34,7 @@ Root execution contract (this file is never executed by its author):
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import struct
@@ -344,6 +345,29 @@ def compute_work(count_k: int, lookup_l: int, stored_b: int, ceiling_m: int) -> 
     step = checked_add(1, checked_mul(count_k, lookup_l))
     step = checked_add(step, checked_mul(2, stored_b))
     return checked_add(step, ceiling_m)
+
+
+def refusal_ceiling_m(inputs: Mapping[str, Any], base_id: str) -> int:
+    """Largest max_response_bytes that still refuses the base case.
+
+    The body carries the work charge, which itself scales with the
+    ceiling, so body(M) <= M can hold below the naive body_len - 1
+    (a narrower work uvar shortens the body). Rebuild at each candidate
+    ceiling and take the largest refusal; build_success_case raises
+    CheckFailed exactly when the rebuilt body exceeds the ceiling.
+    """
+    base_case = inputs["cases"][base_id]
+    body_len = len(bytes.fromhex(build_success_case(inputs, base_case)["response_body_hex"]))
+    ceiling = body_len - 1
+    while ceiling > 0:
+        probe = copy.deepcopy(base_case)
+        probe["request"] = dict(base_case["request"], max_response_bytes=ceiling)
+        try:
+            build_success_case(inputs, probe)
+        except CheckFailed:
+            return ceiling
+        ceiling -= 1
+    raise CheckFailed("work", f"{base_id}: no refusal boundary above zero")
 
 
 def derived_lookup_l(inputs: Mapping[str, Any]) -> int:
@@ -2846,7 +2870,7 @@ def derive_relation(inputs: Mapping[str, Any], case: dict[str, Any]) -> dict[str
     elif relation == "bytes_exact":
         case["ceiling_m"] = body_len
     elif relation == "bytes_one_below":
-        case["ceiling_m"] = body_len - 1
+        case["ceiling_m"] = refusal_ceiling_m(inputs, case["base"])
     elif relation == "wire_exact":
         case["wire_len"] = base["response_wire_len"]
     elif relation == "wire_one_below":
@@ -2900,8 +2924,7 @@ def check_relation(inputs: Mapping[str, Any], case: Mapping[str, Any], problems:
             if case["ceiling_m"] != len(bytes.fromhex(base["response_body_hex"])):
                 problems.append(f"{case['id']}:bytes-relation")
         elif case["relation"] == "bytes_one_below":
-            base = build_success_case(inputs, inputs["cases"][case["base"]])
-            if case["ceiling_m"] != len(bytes.fromhex(base["response_body_hex"])) - 1:
+            if case["ceiling_m"] != refusal_ceiling_m(inputs, case["base"]):
                 problems.append(f"{case['id']}:bytes-relation")
         elif case["relation"] == "wire_exact":
             base = build_success_case(inputs, inputs["cases"][case["base"]])

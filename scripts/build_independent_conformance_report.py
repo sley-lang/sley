@@ -263,6 +263,11 @@ def version_record(versioned: Path, name: str) -> dict:
     contract: str | None = None
     claim: str | None = None
     for path in sorted(versioned.iterdir()):
+        if path.is_dir():
+            raise ConformanceError(
+                ConformanceErrorCode.FIXTURE_UNREADABLE,
+                f"{display(path)}: nested entries are not corpora",
+            )
         if not path.is_file():
             continue
         data = path.read_bytes()
@@ -339,10 +344,13 @@ def family_record(directory: Path, recipe: str) -> dict:
         for path in directory.iterdir()
         if path.is_dir() and not re.fullmatch(r"v\d+", path.name)
     )
-    if unexpected:
+    strays = sorted(
+        path.name for path in directory.iterdir() if not path.is_dir()
+    )
+    if unexpected or strays:
         raise ConformanceError(
             ConformanceErrorCode.FIXTURE_UNREADABLE,
-            f"{name} has non-version directories: {', '.join(unexpected)}",
+            f"{name} has non-corpus entries: {', '.join(unexpected + strays)}",
         )
     if not versions:
         raise ConformanceError(

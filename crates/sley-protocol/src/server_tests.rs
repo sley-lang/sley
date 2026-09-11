@@ -2905,6 +2905,92 @@ impl VServer {
     }
 }
 
+/// Corpus request-shape wires refuse with their recorded codes.
+///
+/// The 16 `request_record`/`request_range` rejection rows carry full on-wire
+/// frames. The test decodes each wire with the production frame decoder,
+/// re-issues its method tag and body on a live v2 session negotiated down
+/// to the corpus ceilings (minima win, so the recorded over-selected
+/// ceilings refuse exactly as authored), and compares the refusal symbol.
+/// Malformed records refuse before admission; over-selected ceilings
+/// refuse at admission. Owner-layer rows stay in sley-query; relation,
+/// sequence, and server-path rows stay with their owners.
+#[test]
+fn corpus_request_shape_wires_refuse_with_recorded_codes() {
+    let methods = v2_methods();
+    let client_hello = Hello {
+        protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2],
+        schema_epochs: vec![epoch(0x11)],
+        limits: LimitProfile {
+            max_frame_bytes: 8_388_608,
+            max_entities: 1_024,
+            max_edges: 10_000,
+            max_depth: 64,
+            max_response_bytes: 4_194_304,
+            max_work: 10_000_000,
+            max_inflight: 16,
+            max_sessions: 16,
+        },
+        methods: methods.clone(),
+        features: 1,
+        adapters: vec![],
+        effects: vec![],
+    };
+    let mut harness = VServer::with_hellos(
+        "corpus-shape-wires",
+        executable_bodies(),
+        &[],
+        &client_hello,
+        &vhello(methods, 8),
+    );
+    let rejected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/entity-read/v2/rejected.json"
+    ))
+    .unwrap();
+    let mut covered = 0;
+    for row in rejected["cases"].as_array().unwrap() {
+        let layer = row.get("failing_layer").and_then(|value| value.as_str());
+        if !matches!(layer, Some("request_record" | "request_range")) {
+            continue;
+        }
+        covered += 1;
+        let id = row["id"].as_str().unwrap();
+        let wire = corpus_hex(row["input_hex"].as_str().unwrap());
+        let decoded = decode_frame_for_version(&wire, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap_or_else(|error| panic!("{id}: wire decode: {error:?}"));
+        let (DecodedFrame::Request(frame), _) = decoded else {
+            panic!("{id}: not a request frame")
+        };
+        assert!(
+            frame.method == ENTITY_VERSION_TAG || frame.method == ENTITY_SIGNATURE_TAG,
+            "{id}: entity-read method"
+        );
+        let failure = harness.refuse(frame.method, frame.body);
+        assert_eq!(
+            failure.symbol,
+            row["expected_symbol"].as_str().unwrap(),
+            "{id}: refusal symbol"
+        );
+    }
+    assert_eq!(covered, 16, "request_record plus request_range rows");
+}
+
+/// Corpus helper: raw bytes from even-length lowercase hex.
+fn corpus_hex(text: &str) -> Vec<u8> {
+    assert!(text.len().is_multiple_of(2), "hex length must be even");
+    text.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let value = |character: u8| match character {
+                b'0'..=b'9' => u32::from(character - b'0'),
+                b'a'..=b'f' => u32::from(character - b'a') + 10,
+                other => panic!("non-hex digit {other}"),
+            };
+            u8::try_from(value(pair[0]) * 16 + value(pair[1])).unwrap()
+        })
+        .collect()
+}
+
 /// A function whose declared parameter order is nonmonotonic in raw
 /// identity order, with varied parameter types, effects, and contracts.
 fn nonmonotonic_bodies() -> Vec<(u8, sley_mutate::value::EntityBodyValue)> {

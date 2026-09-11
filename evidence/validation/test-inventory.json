@@ -3,128 +3,182 @@
     {
       "family": "bootstrap-capability",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "bootstrap-profile",
       "rejections": 0,
-      "vectors": 20
+      "vectors": 20,
+      "version": "v1"
+    },
+    {
+      "family": "bootstrap-profile",
+      "rejections": 0,
+      "vectors": 20,
+      "version": "v2"
     },
     {
       "family": "candidate-result",
       "rejections": 4,
-      "vectors": 16
+      "vectors": 16,
+      "version": "v1"
     },
     {
       "family": "complete-entity-impact",
       "rejections": 19,
-      "vectors": 2
+      "vectors": 2,
+      "version": "v1"
     },
     {
       "family": "complete-root-index-snapshot",
       "rejections": 6,
-      "vectors": 1
+      "vectors": 1,
+      "version": "v1"
     },
     {
       "family": "context-capsule",
       "rejections": 0,
-      "vectors": 24
+      "vectors": 24,
+      "version": "v1"
+    },
+    {
+      "family": "entity-read",
+      "rejections": 91,
+      "vectors": 23,
+      "version": "v2"
     },
     {
       "family": "exec-package",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
+    },
+    {
+      "family": "exec-package",
+      "rejections": 0,
+      "vectors": 0,
+      "version": "v2"
     },
     {
       "family": "host-abi",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
+    },
+    {
+      "family": "host-abi",
+      "rejections": 0,
+      "vectors": 0,
+      "version": "v2"
     },
     {
       "family": "merge",
       "rejections": 4,
-      "vectors": 19
+      "vectors": 19,
+      "version": "v1"
     },
     {
       "family": "mutation-candidate",
       "rejections": 18,
-      "vectors": 45
+      "vectors": 45,
+      "version": "v1"
     },
     {
       "family": "mutation-value",
       "rejections": 18,
-      "vectors": 126
+      "vectors": 126,
+      "version": "v1"
     },
     {
       "family": "raw-hash",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "release-demo",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "repository-exchange",
       "rejections": 6,
-      "vectors": 1
+      "vectors": 1,
+      "version": "v1"
     },
     {
       "family": "repository-pack",
       "rejections": 10,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "root-backed-query",
       "rejections": 8,
-      "vectors": 23
+      "vectors": 23,
+      "version": "v1"
     },
     {
       "family": "scb1",
       "rejections": 26,
-      "vectors": 23
+      "vectors": 23,
+      "version": "v1"
     },
     {
       "family": "schema-epoch",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "semantic-comparison",
       "rejections": 5,
-      "vectors": 9
+      "vectors": 9,
+      "version": "v1"
     },
     {
       "family": "smp1",
       "rejections": 4,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "smp1-json-bridge",
       "rejections": 36,
-      "vectors": 46
+      "vectors": 46,
+      "version": "v1"
+    },
+    {
+      "family": "smp1-json-bridge",
+      "rejections": 0,
+      "vectors": 43,
+      "version": "v2"
     },
     {
       "family": "state-root",
       "rejections": 0,
-      "vectors": 0
+      "vectors": 0,
+      "version": "v1"
     },
     {
       "family": "transaction-receipt",
       "rejections": 10,
-      "vectors": 3
+      "vectors": 3,
+      "version": "v1"
     },
     {
       "family": "vm-extended",
       "rejections": 5,
-      "vectors": 29
+      "vectors": 29,
+      "version": "v1"
     }
   ],
-  "conformance_rejections": 179,
-  "conformance_vectors": 387,
+  "conformance_rejections": 270,
+  "conformance_vectors": 473,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "2aacedc8cd055fc22bd9dec5ebbd48c463bd3d66d3dadedf02d6e2af7702e3fa",
+  "inventory_digest": "4650340dfc06943c53a54cb89e86538696fadf665e06e2e254844de59c4fb341",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -175,7 +229,7 @@
     {
       "directory": "bench/release/tests",
       "files": 3,
-      "tests": 64
+      "tests": 67
     },
     {
       "directory": "bench/review/tests",
@@ -193,7 +247,7 @@
       "tests": 120
     }
   ],
-  "python_tests": 271,
+  "python_tests": 274,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -238,17 +292,17 @@
     {
       "crate": "sley-protocol",
       "ignored": 3,
-      "tests": 84
+      "tests": 85
     },
     {
       "crate": "sley-query",
       "ignored": 4,
-      "tests": 98
+      "tests": 103
     },
     {
       "crate": "sley-repo",
       "ignored": 4,
-      "tests": 388
+      "tests": 389
     },
     {
       "crate": "sley-scb1",
@@ -287,7 +341,7 @@
     }
   ],
   "rust_ignored_emitters": 16,
-  "rust_unit_tests": 1380,
+  "rust_unit_tests": 1387,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

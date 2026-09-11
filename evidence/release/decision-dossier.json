@@ -2,7 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "67 review obligations are open",
+    "65 review obligations are open",
     "9 review lanes are deferred and unavailable",
     "no succession trial has been executed",
     "only one host has attested the candidate",
@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "780533e0b493c50453b0de6870c823b32dea9d4cc33002f7f791bad206957c45",
+  "dossier_digest": "1fb57e0075a5d0bcf7cdf05b03f78b75bef5757b073ad64282585010aa2ff6c8",
   "entries": [
     {
       "evidence": [
@@ -136,8 +136,8 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 179,
-        "conformance_vectors": 387,
+        "conformance_rejections": 270,
+        "conformance_vectors": 473,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
           "manifest_harness_deps": [],
@@ -146,9 +146,9 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 271,
+        "python_tests": 274,
         "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1380
+        "rust_unit_tests": 1387
       }
     },
     {
@@ -339,22 +339,22 @@
           "p4": 0
         },
         "deferred_reviews": 9,
-        "obligations": 231,
-        "open_reviews": 67,
+        "obligations": 235,
+        "open_reviews": 65,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 91,
-          "P1": 103,
-          "P2": 106,
-          "P3": 96,
-          "P4": 3
+          "P0": 96,
+          "P1": 108,
+          "P2": 112,
+          "P3": 103,
+          "P4": 4
         },
         "states": {
           "DEFERRED": 9,
-          "HISTORICAL_ROUND": 36,
+          "HISTORICAL_ROUND": 40,
           "OTHER": 3,
-          "PASS": 116,
-          "PENDING": 67
+          "PASS": 118,
+          "PENDING": 65
         }
       }
     },
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "1232e84a37ef4fba303b2f99f283f1a04cda36ea205e897c6dd0509cfcae0001",
+  "entries_digest": "783019384160ddcc840780fc892af173260b50b252a1371e8d77bb2547af0b99",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

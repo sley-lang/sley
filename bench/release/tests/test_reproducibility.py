@@ -341,6 +341,50 @@ class IndependentConformanceTests(unittest.TestCase):
             self.assertEqual(sibling["coverage"]["kind"], "tracked_sibling")
             self.assertEqual(sibling["coverage"]["pinned_version"], "v1")
 
+    def test_tracked_corpus_directories_bind_version_enumeration(self) -> None:
+        report = conformance.build_report()
+        counted = sum(len(family["tracked_versions"]) for family in report["fixtures"])
+        self.assertEqual(report["tracked_corpus_directories"], counted)
+        on_disk = sum(
+            len([path for path in (ROOT / "conformance" / family["directory"].split("/")[1]).iterdir() if path.is_dir()])
+            for family in report["fixtures"]
+        )
+        self.assertEqual(report["tracked_corpus_directories"], on_disk)
+
+    def test_a_non_version_family_entry_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text('{"contract": "x"}', encoding="utf-8")
+            digest = hashlib.sha256(b'{"contract": "x"}').hexdigest()
+            (directory / "v1/SHA256SUMS").write_text(
+                f"{digest}  accepted.json\n", encoding="utf-8"
+            )
+            (directory / "notes").mkdir(parents=True)
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(
+                error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
+            )
+
+    def test_a_nested_version_entry_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            (directory / "v1").mkdir(parents=True)
+            (directory / "v1/accepted.json").write_text('{"contract": "x"}', encoding="utf-8")
+            digest = hashlib.sha256(b'{"contract": "x"}').hexdigest()
+            (directory / "v1/SHA256SUMS").write_text(
+                f"{digest}  accepted.json\n", encoding="utf-8"
+            )
+            (directory / "v1/archive").mkdir(parents=True)
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(
+                error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
+            )
+
 
 class CoverageDepthTests(unittest.TestCase):
     def test_every_independent_family_declares_a_valid_depth(self) -> None:

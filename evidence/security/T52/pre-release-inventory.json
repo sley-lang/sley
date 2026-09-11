@@ -2,7 +2,7 @@
   "blockers": [
     "workspace-license-text:missing-operator-approved-root-license"
   ],
-  "cargo_lock_sha256": "c9a397364d2a243a73d484f75487ff08404213f8fce1c24eaf8d416753fdc49c",
+  "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
   "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
@@ -1012,6 +1012,10 @@
     },
     {
       "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/serde_json@1.0.145"
+    },
+    {
+      "from": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true"
     },
     {
@@ -1093,6 +1097,10 @@
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/blake3@1.8.2"
+    },
+    {
+      "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/serde_json@1.0.145"
     },
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",

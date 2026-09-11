@@ -89,25 +89,36 @@ def python_counts() -> list[dict]:
 def conformance_counts() -> list[dict]:
     families: list[dict] = []
     for family in sorted(path for path in CONFORMANCE.iterdir() if path.is_dir()):
-        version = family / "v1"
-        if not version.is_dir():
-            continue
-        vectors = 0
-        rejections = 0
-        for source in sorted(version.glob("*.json")):
-            value = json.loads(source.read_text(encoding="utf-8"))
-            if not isinstance(value, dict):
-                continue
-            for key, item in value.items():
-                if not isinstance(item, list):
+        for version in sorted(path for path in family.iterdir() if path.is_dir()):
+            vectors = 0
+            rejections = 0
+            for source in sorted(version.glob("*.json")):
+                value = json.loads(source.read_text(encoding="utf-8"))
+                if not isinstance(value, dict):
                     continue
-                if key in ("mutations",) or "reject" in source.stem:
-                    rejections += len(item)
-                elif key.endswith("vectors") or key in ("methods", "vectors"):
-                    vectors += len(item)
-        families.append(
-            {"family": family.name, "vectors": vectors, "rejections": rejections}
-        )
+                for key, item in value.items():
+                    if isinstance(item, list):
+                        if key in ("mutations",) or "reject" in source.stem:
+                            rejections += len(item)
+                        elif key.endswith("vectors") or key in ("methods", "vectors"):
+                            vectors += len(item)
+                    elif (
+                        isinstance(item, dict)
+                        and key == "cases"
+                        and "inputs" not in source.stem
+                    ):
+                        # Identifier-keyed case maps (entity-read accepted):
+                        # each case is one vector. Authored input matrices
+                        # are not vectors.
+                        vectors += len(item)
+            families.append(
+                {
+                    "family": family.name,
+                    "version": version.name,
+                    "vectors": vectors,
+                    "rejections": rejections,
+                }
+            )
     return families
 
 

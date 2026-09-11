@@ -1039,16 +1039,18 @@
       "failing_layer": "work_preflight",
       "id": "bound_bytes_exact",
       "kind": "relation",
+      "note": "Admissible boundary: ceiling_m equals the base body length, so the request serves; expected_code names the companion refusal family, not this row's outcome.",
       "relation": "bytes_exact"
     },
     {
       "base": "ver_ws",
-      "ceiling_m": 606,
+      "ceiling_m": 605,
       "expected_code": 40009,
       "expected_symbol": "PROTOCOL_LIMIT_EXCEEDED",
       "failing_layer": "work_preflight",
       "id": "bound_bytes_below",
       "kind": "relation",
+      "note": "Largest refusing ceiling 605: the work charge shrinks with M, so M=606 still serves a 606-byte body; derived by rebuilding at each ceiling, not body_len-1.",
       "relation": "bytes_one_below"
     },
     {
@@ -1081,6 +1083,7 @@
       "failing_layer": "work_preflight",
       "id": "bound_work_exact",
       "kind": "relation",
+      "note": "Admissible boundary: the recomputed work fits, so the request serves with exactly the claimed work; expected_code names the companion refusal family, not this row's outcome.",
       "relation": "work_exact"
     },
     {
@@ -1092,6 +1095,7 @@
       "failing_layer": "work_preflight",
       "id": "bound_work_below",
       "kind": "relation",
+      "note": "One below the recomputed work: a max_work ceiling of claimed_work refuses.",
       "relation": "work_one_below"
     },
     {
@@ -1248,7 +1252,7 @@
           "action": "advance the head then entity.version with the stale expected root",
           "expected_code": 33002,
           "expected_symbol": "SESSION_ROOT_ADVANCED",
-          "note": "Session admission precedes body decode: a root-advanced session answers SESSION_ROOT_ADVANCED (ENTITY_READ_PROFILE_V2 section 4; server test head_advance_refuses_stale_session_before_body_decode). The owner-level QUERY_ROOT_MISMATCH applies only after admission on a live session."
+          "note": "Session admission precedes body decode: a root-advanced session answers SESSION_ROOT_ADVANCED (ENTITY_READ_PROFILE_V2 section 4; server test entity_read_head_advance_fails_before_body_decode). The owner-level QUERY_ROOT_MISMATCH applies only after admission on a live session."
         },
         {
           "action": "session.renew then retry with the live root",
@@ -1378,8 +1382,8 @@
   "claim": "independent-expected",
   "contract": "sley2-entity-read-v2-rejected",
   "manifest": {
-    "inputs_sha256": "938385a54fd0b51d338fcc61695aa48e3183f370156ba7664dce5f1415bf48f1",
+    "inputs_sha256": "b4d6e26d684d2a62f1355c54354132990b06a86c483c610531cf3986003adcbc",
     "protocol_epoch": "37522d2cf9f8b19b291e3436f2faea3e7e7a503d4f46f33202c79dae7be3615c",
-    "refresh_head_revision": "0bcc9c646f110e2e433e8fe3e9b913d49d84c531"
+    "refresh_head_revision": "9ae09a142830a4857c553bad27433143999e6864"
   }
 }

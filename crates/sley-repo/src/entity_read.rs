@@ -155,8 +155,7 @@ mod tests {
             .unwrap();
             assert_eq!(request.entity, entity);
             let plan = sley_query::capture_entity_read_selection(selection).unwrap();
-            let outcome =
-                encode_verified_entity_read_response(plan, session).unwrap();
+            let outcome = encode_verified_entity_read_response(plan, session).unwrap();
             assert_eq!(outcome.returned_entities, 1);
             let response = decode_entity_read_response(&outcome.body).unwrap();
             assert_eq!(response.root, root);
@@ -394,5 +393,130 @@ mod tests {
                 (_, other) => panic!("byte {byte} projected as {other:?}"),
             }
         }
+    }
+
+    /// Every corpus stored object imports through the production
+    /// projection with its recorded identity, tag, epoch, bytes, and
+    /// relationship facts. The owner-layer corpus test hand-builds views;
+    /// this test proves the adapter projection the owner actually reads
+    /// reproduces the same facts from the same frozen bytes.
+    #[test]
+    fn projection_reproduces_every_corpus_stored_object() {
+        use sley_id::{ObjectId, SchemaEpochId};
+        use sley_query::EntityReadBody;
+        use sley_ssmc::ParameterRole;
+
+        let accepted: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/accepted.json"
+        ))
+        .unwrap();
+        let inputs: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/entity-read/v2/inputs.json"
+        ))
+        .unwrap();
+        let epoch = SchemaEpochId::from_bytes(corpus_hex32(
+            inputs["context"]["content_epoch"].as_str().unwrap(),
+        ));
+        let entities = inputs["entities"].as_object().unwrap();
+        let mut count = 0;
+        for (id, case) in accepted["cases"].as_object().unwrap() {
+            for (name, object) in case["objects"].as_object().unwrap() {
+                count += 1;
+                let stored = corpus_hex_bytes(object["stored_hex"].as_str().unwrap());
+                let imported = sley_mutate::import_entity_object(epoch, &stored)
+                    .unwrap_or_else(|error| panic!("{id}/{name}: import: {error:?}"));
+                let view = view_object(&imported);
+                let expected_entity = EntityId::from_bytes(corpus_hex32(
+                    entities[name]["id"].as_str().unwrap(),
+                ));
+                let expected_kind =
+                    u16::try_from(entities[name]["kind"].as_u64().unwrap()).unwrap();
+                assert_eq!(view.entity, expected_entity, "{id}/{name}: identity");
+                assert_eq!(view.kind, expected_kind, "{id}/{name}: tag");
+                assert_eq!(
+                    view.object_id,
+                    ObjectId::from_bytes(corpus_hex32(object["object_id"].as_str().unwrap())),
+                    "{id}/{name}: object id"
+                );
+                assert_eq!(view.epoch, epoch, "{id}/{name}: epoch");
+                assert_eq!(view.stored_bytes, stored.as_slice(), "{id}/{name}: bytes");
+                match expected_kind {
+                    5 => match view.body {
+                        EntityReadBody::Function { parameters } => {
+                            let expected: Vec<EntityId> = entities[name]["body"]["parameters"]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|value| {
+                                    EntityId::from_bytes(corpus_hex32(value.as_str().unwrap()))
+                                })
+                                .collect();
+                            assert_eq!(parameters, expected.as_slice(), "{id}/{name}: params");
+                        }
+                        other => panic!("{id}/{name}: function projected as {other:?}"),
+                    },
+                    6 => match view.body {
+                        EntityReadBody::Parameter {
+                            owner,
+                            role,
+                            ordinal,
+                        } => {
+                            let facts = &entities[name]["body"];
+                            assert_eq!(
+                                owner,
+                                EntityId::from_bytes(corpus_hex32(
+                                    facts["owner"].as_str().unwrap()
+                                )),
+                                "{id}/{name}: owner"
+                            );
+                            assert_eq!(
+                                role,
+                                match facts["role"].as_str().unwrap() {
+                                    "Function" => ParameterRole::Function,
+                                    "Block" => ParameterRole::Block,
+                                    role => panic!("{id}/{name}: role {role}"),
+                                },
+                                "{id}/{name}: role"
+                            );
+                            assert_eq!(
+                                ordinal,
+                                u32::try_from(facts["ordinal"].as_u64().unwrap()).unwrap(),
+                                "{id}/{name}: ordinal"
+                            );
+                        }
+                        other => panic!("{id}/{name}: parameter projected as {other:?}"),
+                    },
+                    kind => match view.body {
+                        EntityReadBody::Other { kind: tag } => {
+                            assert_eq!(tag, kind, "{id}/{name}: opaque tag");
+                        }
+                        other => panic!("{id}/{name}: projected as {other:?}"),
+                    },
+                }
+            }
+        }
+        assert_eq!(count, 25, "corpus stored objects");
+    }
+
+    /// Corpus helper: exactly 32 raw bytes from 64 lowercase hex digits.
+    fn corpus_hex32(text: &str) -> [u8; 32] {
+        assert_eq!(text.len(), 64, "expected 32-byte hex");
+        corpus_hex_bytes(text).try_into().unwrap()
+    }
+
+    /// Corpus helper: raw bytes from even-length lowercase hex.
+    fn corpus_hex_bytes(text: &str) -> Vec<u8> {
+        assert!(text.len().is_multiple_of(2), "hex length must be even");
+        text.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let value = |character: u8| match character {
+                    b'0'..=b'9' => u32::from(character - b'0'),
+                    b'a'..=b'f' => u32::from(character - b'a') + 10,
+                    other => panic!("non-hex digit {other}"),
+                };
+                u8::try_from(value(pair[0]) * 16 + value(pair[1])).unwrap()
+            })
+            .collect()
     }
 }

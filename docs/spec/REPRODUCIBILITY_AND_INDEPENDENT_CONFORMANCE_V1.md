@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 5 (2026-09-11); Council review
+Status: S20-730 contract draft, revision 6 (2026-09-11); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -14,7 +14,11 @@ entity-read checker joins the semantic depth. Revision 5 enumerates every
 tracked corpus version (section 3): a family may carry several `v<N>`
 corpora, and the report digests, sums, and declares each one, claiming
 depth only for the pinned version; a tracked version without a manifest or
-a pin outside the coverage map fails closed. The mechanics are `scripts/build_reproducibility_report.py` and
+a pin outside the coverage map fails closed. Revision 6 tightens the
+version rules (section 3): version directories match `^v\d+$` with any
+other family-root directory failing closed, conflicting duplicate manifest
+lines are `CONFORMANCE_SUMS_MISMATCH`, shapes record mapping sizes, and the
+report carries an auditable `tracked_corpus_directories` count. The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -168,7 +172,9 @@ Rules:
   `CORPUS_VERSION` map (default `v1`); today every family pins `v1` except
   `entity-read`, whose S20-310 vectors pin `v2` (section 10); a pin naming a
   family outside the coverage map is `CONFORMANCE_ORACLE_DRIFT`;
-- a family may carry several tracked corpus versions (`conformance/<name>/v<N>/`);
+- a family may carry several tracked corpus versions (`conformance/<name>/v<N>/`,
+  `N` digits; any other family-root directory is
+  `CONFORMANCE_FIXTURE_UNREADABLE`);
   the report records every one of them in `tracked_versions`, with a
   digested, summed, and declared record per version; depth is claimed only
   for the pinned version, and siblings carry `tracked_sibling` coverage that
@@ -179,7 +185,8 @@ Rules:
   `make conformance` recipe; a command absent from the recipe is
   `CONFORMANCE_ORACLE_DRIFT`;
 - a `SHA256SUMS` file must name every JSON file of its version directory
-  with the correct digest (`CONFORMANCE_SUMS_MISMATCH`); every tracked
+  with the correct digest (`CONFORMANCE_SUMS_MISMATCH`, including
+  conflicting duplicate lines for one file); every tracked
   version directory carries one, so a version without a manifest is
   `CONFORMANCE_FIXTURE_UNREADABLE`, never a silent gap;
 - an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`;
@@ -233,7 +240,7 @@ kernel (master goal section 6.5).
   cache keys and request identities from frozen preimages.
 - `native_only`: the family is exercised only through Rust code or through
   the packaged binary; it counts against the independent PASS. No family is
-  native-only at revision 5.
+  native-only at revision 6.
 
 ## 5.1 Second-host runbook
 
@@ -288,13 +295,16 @@ implementation status the checker verifies both reports exist with their
 contract tags, that the independent conformance report passes `--check`,
 that every independent family carries a declared `semantic` or
 `codec_and_identity` depth and the report's depth roll-up matches, that the
-reproducibility report's digest recomputes and every attestation passes the
-section 1 shape, that every attested commit is an ancestor of the filing
-`HEAD` with no artifact-surface file changed since and the attested
-toolchain current, that the
-reproducibility report has at least one attestation and claims
-neither GA nor publication, that the unit tests pass, and that
-`release-check` and `v2` stay `NOT_IMPLEMENTED`.
+  reproducibility report's digest recomputes and every attestation passes the
+  section 1 shape, that every attested commit is an ancestor of the filing
+  `HEAD` with no artifact-surface file changed since and the attested
+  toolchain current, that the
+  reproducibility report has at least one attestation and claims
+  neither GA nor publication, that the unit tests pass, and that
+  `release-check` and `v2` stay `NOT_IMPLEMENTED`. Minting requires a
+  whole-tree clean checkout including untracked files, deliberately stricter
+  than the surface-scoped uncommitted check: the attestation must bind the
+  exact tree the artifact builds from, not just its surface.
 
 ## 9. Explicit exclusions
 
@@ -317,8 +327,8 @@ Revision 3 records why `COMPLETE` keeps its no-native-only rule while the
 depth axis exists: independent semantic judgment of every family was never
 the bar, because the oracle must not become a second semantic kernel
 (section 4, master goal 6.5); the bar is independent checking at a declared
-  depth, and the report's `coverage_depths` stop a codec-only family from
-  reading as a semantically judged one. It also records why freshness is an
+depth, and the report's `coverage_depths` stop a codec-only family from
+reading as a semantically judged one. It also records why freshness is an
 artifact-surface diff rather than a commit count: a count bound would be
 arbitrary, while a changed surface file means the attested artifact is
 provably not what this tree builds.
