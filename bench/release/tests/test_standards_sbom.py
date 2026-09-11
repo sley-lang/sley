@@ -53,6 +53,8 @@ def attested_test_candidate() -> dict:
         "member_count": first.get("member_count", 14),
         "toolchain": first["toolchain"],
         "working_tree_clean": True,
+        "result": "PASS",
+        "reproducibility": {"result": "REPRODUCIBLE"},
         "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
     }
 
@@ -524,7 +526,8 @@ class ValidateTrackedTests(unittest.TestCase):
 
     def test_the_real_attestation_filter_carries_the_filed_candidate(self) -> None:
         # Positive control: the unpatched attested_candidates() admits the
-        # tracked attestation the field records bind.
+        # tracked (commit, subject). Membership (not equality) so a future
+        # dirty filing exercises the filter instead of breaking the control.
         admitted = {
             (attestation.get("commit"), attestation.get("artifact_sha256"))
             for attestation in provenance.attested_candidates()
@@ -533,9 +536,12 @@ class ValidateTrackedTests(unittest.TestCase):
         filed = [
             (attestation.get("commit"), attestation.get("artifact_sha256"))
             for attestation in report.get("attestations", [])
+            if attestation.get("reproducibility") == "REPRODUCIBLE"
+            and attestation.get("working_tree_clean") is True
         ]
         self.assertTrue(filed)
-        self.assertEqual(admitted, set(filed))
+        for pair in filed:
+            self.assertIn(pair, admitted)
 
 
 if __name__ == "__main__":

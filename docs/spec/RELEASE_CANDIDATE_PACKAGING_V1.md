@@ -167,9 +167,11 @@ be moved, minting uses the canonical detached linked worktree procedure
 runs in a worktree that is whole-tree clean by construction, and the
 `--require-clean` gate semantics are unchanged.
 
-The register's `candidate_*` fields must name the tracked attestation
-(commit, artifact digest, manifest digest); the checker enforces the
-binding as `candidate-attestation-mismatch`, so the register cannot name
+The register's `candidate_*` fields must name the tracked attestation:
+commit, artifact digest, manifest digest, size, member count, cleanliness,
+reproducibility, and toolchain, with the attestation clean and
+`REPRODUCIBLE`; the checker enforces the binding as
+`candidate-attestation-mismatch`, so the register cannot name
 a candidate no attestation describes.
 `machine-summary.json` `artifact` stays null until an operator-approved
 release candidate exists.
@@ -251,8 +253,7 @@ provenance, and root license (S20-710 full); independent conformance
   (`workspace.create` from a packaged trusted genesis) named as the demo
   extension that moves create out of the residual.
 
-## 13. Round-7 clarifications (2026-09-11; no revision bump: gate
-semantics unchanged)
+## 13. Round-7 clarifications (2026-09-11; gate semantics unchanged)
 
 - Section 7 names the canonical detached linked worktree procedure for
   minting while the operator tree carries retained untracked material:

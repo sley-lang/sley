@@ -39,12 +39,14 @@ these documents are draft, local, and unapproved.
   whose contract tag, package list, or relationship list is absent or
   malformed is `SBOM_INVENTORY_INVALID`.
 - `evidence/runtime/s20-720-release-candidate/evidence.json`: the artifact
-  name, digest, size, member count, manifest digest, commit, and toolchain of
-  the local candidate. A missing file is `PROVENANCE_EVIDENCE_MISSING`; a
+  name, digest, size, member count, manifest digest, commit, toolchain,
+  recorded invocation, and working-tree cleanliness of the local
+  candidate. A missing file is `PROVENANCE_EVIDENCE_MISSING`; a
   record that is not a reproducible `PASS` is `PROVENANCE_EVIDENCE_INVALID`.
 - `Cargo.lock` and `oracle/scb1/uv.lock` digests, read from the inventory.
-- `evidence/release/reproducibility-report.json` (S20-730), recorded as a
-  provenance byproduct.
+- `evidence/release/reproducibility-report.json` (S20-730): the
+  subject-authority input for the attestation binding (also recorded as
+  a provenance byproduct).
 
 Every component must carry a purl, a name, a version, an ecosystem, and a
 license expression; anything else is `SBOM_COMPONENT_INCOMPLETE`, as is a
@@ -201,11 +203,12 @@ tracked documents fail their own validation), and names
 is direction-neutral: the evidence may be newer, older, or simply different.
 Both builders validate the tracked pair in the mismatch state: document
 shape and determinism pins plus the attestation binding of the SPDX
-namespace and the provenance subject. Write mode never tolerates the skew:
-both builders refuse a candidate that is not `HEAD` or that no clean
-`REPRODUCIBLE` attestation names (`SBOM_INVENTORY_INVALID` /
+namespace and the provenance subject. Write mode never tolerates the
+skew: both builders refuse a candidate that is not `HEAD` or that no
+clean `REPRODUCIBLE` attestation names (`SBOM_INVENTORY_INVALID` /
 `PROVENANCE_EVIDENCE_INVALID` / `PROVENANCE_SUBJECT_MISMATCH`), so the
-documents always derive from the attested candidate.
+documents always derive from the attested candidate rather than merely
+from the current evidence.
 
 Anything else fails closed. Missing or unreadable candidate evidence is
 missing input, not a build running ahead: the SBOM `--check` fails with
@@ -215,9 +218,10 @@ missing input, not a build running ahead: the SBOM `--check` fails with
 evidence. Tier 1 therefore requires candidate evidence and never passes the
 710 drift gates without deriving from it; on a checkout where no candidate
 has been built, the 710 check fails with the input code until
-`make release-candidate-smoke` runs. Write mode never tolerates the skew: it
-always derives from the current evidence, and a provenance derived against an
-SBOM that still names another candidate is `PROVENANCE_SUBJECT_MISMATCH`.
+`make release-candidate-smoke` runs. A provenance derived against an
+SBOM that still names another candidate is `PROVENANCE_SUBJECT_MISMATCH`
+(the write-mode gate above makes this unreachable except by hand-editing
+the tracked documents).
 
 The shared `bench/release` test suite derives the provenance against the
 *derived* CycloneDX document rather than the tracked one, for the same

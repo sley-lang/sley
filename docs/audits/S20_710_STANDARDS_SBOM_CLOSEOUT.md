@@ -50,8 +50,10 @@ re-run.
 - `scripts/build_standards_sbom.py`: `normalize_license()`,
   `valid_spdx_expression()`, normalization plus grammar validation in
   `component_facts()`; the namespace carries the artifact digest;
-  `local_build_ahead()` returns false on load failure.
-- `scripts/build_release_provenance.py`: `local_build_ahead()` returns
+  `local_build_ahead()` (round-7b rename: `candidate_evidence_mismatch()`)
+  returns false on load failure.
+- `scripts/build_release_provenance.py`: `local_build_ahead()` (round-7b
+  rename: `candidate_evidence_mismatch()`) returns
   false on load failure.
 - `docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md`: revision 3 (sections
   2, 3, 5, 6, 9).

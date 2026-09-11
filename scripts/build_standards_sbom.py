@@ -457,12 +457,21 @@ def require_attested_candidate(candidate: dict) -> None:
     The namespace and root are derived from the candidate evidence, so a
     candidate that is not HEAD or that no clean REPRODUCIBLE attestation
     names must refuse here instead of emitting documents the checker must
-    catch (contract section 5; 74001 SBOM_INVENTORY_INVALID).
+    catch (contract section 5; 74001 SBOM_INVENTORY_INVALID). The full
+    partial record a failed mint keeps is still not admissible: only a
+    PASS record whose manifest digest and size agree with the attestation
+    derives documents.
     """
     if candidate.get("commit") != git_head():
         raise SbomError(
             SbomErrorCode.INVENTORY_INVALID,
             f"candidate commit {candidate.get('commit')} is not HEAD; "
+            "rebuild the candidate on this tree before deriving SBOMs",
+        )
+    if candidate.get("result") != "PASS":
+        raise SbomError(
+            SbomErrorCode.INVENTORY_INVALID,
+            "candidate evidence is not a PASS record; "
             "rebuild the candidate on this tree before deriving SBOMs",
         )
     try:
@@ -474,6 +483,8 @@ def require_attested_candidate(candidate: dict) -> None:
         isinstance(attestation, dict)
         and attestation.get("commit") == candidate.get("commit")
         and attestation.get("artifact_sha256") == candidate.get("artifact_sha256")
+        and attestation.get("manifest_digest") == candidate.get("manifest_digest")
+        and attestation.get("artifact_size_bytes") == candidate.get("artifact_size_bytes")
         and attestation.get("reproducibility") == "REPRODUCIBLE"
         and attestation.get("working_tree_clean") is True
         for attestation in attestations

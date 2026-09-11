@@ -67,7 +67,7 @@ for marker in [
     "owner_lib_sancov_symbols",
     "corpus_persistent",
     "SLEY_FUZZ_CC",
-    "minimize_crash",
+    "-minimize_crash=1",
     "OWNER_RLIB",
     "corpus_file_count",
     "coverage_counters",

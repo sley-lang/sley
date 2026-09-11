@@ -75,15 +75,44 @@ fn observe(
         request.preimage().len() <= MAX_QUERY_REQUEST_BYTES,
         "accepted query request exceeded its frozen byte ceiling"
     );
+    // The engine-invariant and builder/verifier-disagreement classes must
+    // stay visible: an InternalInvariant anywhere, or a build-time
+    // rejection (RequestNotCanonical/ProfileUnsupported) surfacing at
+    // execute time for a request the target itself just built, is a
+    // defect, not an accepted outcome.
+    let cross_code = execute_restricted_query(alternate, &request)
+        .expect_err("a request must not execute against another snapshot")
+        .code();
     assert_eq!(
-        execute_restricted_query(alternate, &request)
-            .expect_err("a request must not execute against another snapshot")
-            .code(),
+        cross_code,
         QueryErrorCode::SnapshotMismatch,
         "cross-snapshot request binding did not fail closed"
     );
+    assert_ne!(
+        cross_code,
+        QueryErrorCode::InternalInvariant,
+        "engine invariant fired on a cross-snapshot probe"
+    );
 
-    let response = execute_restricted_query(snapshot, &request).map_err(|error| error.code())?;
+    let response = execute_restricted_query(snapshot, &request)
+        .map_err(|error| {
+            assert_ne!(
+                error.code(),
+                QueryErrorCode::InternalInvariant,
+                "engine invariant fired on a self-built request"
+            );
+            assert_ne!(
+                error.code(),
+                QueryErrorCode::RequestNotCanonical,
+                "executor rejected a self-built request as non-canonical"
+            );
+            assert_ne!(
+                error.code(),
+                QueryErrorCode::ProfileUnsupported,
+                "executor rejected a self-built request as unsupported"
+            );
+            error.code()
+        })?;
     assert_eq!(response.query_id(), request.query_id());
     assert_eq!(response.snapshot_id(), request.snapshot_id());
     assert_eq!(response.context(), request.context());

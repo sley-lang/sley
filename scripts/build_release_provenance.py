@@ -226,17 +226,16 @@ def build_statement() -> dict:
             "rebuild the candidate before deriving provenance",
         )
     # make_target is derived from the recorded invocation, never inferred
-    # from cleanliness: only the Makefile smoke renderings (900 seconds,
-    # require-clean, keep or no-keep) name the smoke target; anything else
-    # is a direct script invocation.
+    # from cleanliness: the Makefile smoke rendering (900 seconds,
+    # require-clean, no-keep) names the smoke target; anything else,
+    # including the --keep rendering the Makefile never produces, is a
+    # direct script invocation. The label therefore means
+    # smoke-equivalent invocation only where the Makefile produced it.
     invocation = candidate["invocation"]
     make_target = (
         "release-candidate-smoke"
         if invocation
-        in (
-            "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
-            "build_release_candidate.py --timeout-seconds=900 --require-clean --keep",
-        )
+        == "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep"
         else "build_release_candidate.py direct"
     )
     return {

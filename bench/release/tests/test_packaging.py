@@ -244,3 +244,51 @@ class InvocationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FailureEvidenceTests(unittest.TestCase):
+    """PackageError failures keep the partial record with failure attached."""
+
+    def test_main_writes_partial_evidence_with_failure_attached(self) -> None:
+        import tempfile
+
+        partial = {
+            "contract": "s20-720-release-candidate-v1",
+            "commit": "0" * 40,
+            "artifact_sha256": "f" * 64,
+            "artifact_size_bytes": 1,
+        }
+        original = packaging.build_candidate
+
+        def failing(**kwargs):
+            raise packaging.PackageError(
+                packaging.PackageErrorCode.NOT_REPRODUCIBLE,
+                '["member"]',
+                evidence=dict(partial),
+            )
+
+        packaging.build_candidate = failing
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                code = packaging.main(
+                    [
+                        "--timeout-seconds=900",
+                        "--require-clean",
+                        "--no-keep",
+                        "--evidence-dir",
+                        tmp,
+                    ]
+                )
+                self.assertEqual(code, 1)
+                evidence = __import__("json").loads(
+                    (Path(tmp) / "evidence.json").read_text(encoding="utf-8")
+                )
+        finally:
+            packaging.build_candidate = original
+        self.assertEqual(evidence["result"], "FAIL")
+        self.assertEqual(evidence["artifact_sha256"], "f" * 64)
+        self.assertEqual(
+            evidence["invocation"],
+            "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
+        )
+        self.assertEqual(evidence["failure"]["symbol"], "PACKAGE_NOT_REPRODUCIBLE")

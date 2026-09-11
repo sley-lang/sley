@@ -222,18 +222,21 @@ def main() -> int:
             else []
         )
         evidence["targets"][name]["stale_seeds_removed"] = stale_seeds_removed[name]
+        evidence["targets"][name]["unexpected_warnings"] = unexpected_warnings(fuzz_output)
         if (
             fuzz["returncode"] != 0
             or evidence["targets"][name]["executed_runs"] < runs_floor
             or not evidence["targets"][name]["coverage_ok"]
             or evidence["targets"][name]["crash_artifacts"]
+            or evidence["targets"][name]["unexpected_warnings"]
         ):
             evidence["targets"][name]["fuzz_result"] = "FAIL"
             evidence.setdefault("problems", []).append(
                 f"{name}: executed {evidence['targets'][name]['executed_runs']} of "
                 f"floor {runs_floor} "
                 f"(coverage={evidence['targets'][name]['coverage']}, "
-                f"crashes={evidence['targets'][name]['crash_artifacts']})"
+                f"crashes={evidence['targets'][name]['crash_artifacts']}, "
+                f"warnings={evidence['targets'][name]['unexpected_warnings']})"
             )
         failed = failed or evidence["targets"][name]["fuzz_result"] != "PASS"
 
@@ -252,6 +255,7 @@ def fuzzer_command(name: str, *, runs: int | None) -> list[str]:
     ]
     if runs is not None:
         command.append(f"-runs={runs}")
+        command.append("-len_control=0")
     command.append(str(target["corpus"]))
     return command
 
@@ -387,14 +391,16 @@ def minimize_crashes(
             )
             record["minimize_returncode"] = completed.returncode
             record["minimize_tail"] = (completed.stderr + completed.stdout)[-2000:]
-            if exact.is_file():
-                record["minimized_sha256"] = hashlib.sha256(exact.read_bytes()).hexdigest()
-                record["minimized_size_bytes"] = exact.stat().st_size
-                (artifacts_dir / f"minimized-{record['minimized_sha256']}").write_bytes(
-                    exact.read_bytes()
-                )
         except (OSError, subprocess.TimeoutExpired) as error:
             record["minimize_error"] = str(error)[:500]
+        # A partially minimized crasher libFuzzer already wrote is still
+        # hashed and kept even when the run itself timed out or errored.
+        if exact.is_file():
+            record["minimized_sha256"] = hashlib.sha256(exact.read_bytes()).hexdigest()
+            record["minimized_size_bytes"] = exact.stat().st_size
+            (artifacts_dir / f"minimized-{record['minimized_sha256']}").write_bytes(
+                exact.read_bytes()
+            )
         out.append(record)
     return out
 
@@ -436,16 +442,29 @@ def owner_lib_sancov_symbols() -> dict[str, int]:
 
     Proof that coverage instrumentation reaches the owner library code, not
     just the fuzz binary crate: with the old bin-only -Cpasses flag the
-    owner rlibs carry zero sanitizer_cov symbols.
+    owner rlibs carry zero sanitizer_cov symbols. Only the newest rlib per
+    crate counts: the persistent target dir accumulates every build's
+    rlibs, so summing all versions would let a stale instrumented rlib
+    satisfy the gate after an instrumentation regression (fail-open on a
+    warm host).
     """
     nm = shutil.which("llvm-nm") or shutil.which("nm")
     counts: dict[str, int] = {}
     if nm is None:
         return counts
+    newest: dict[str, tuple[float, Path]] = {}
     for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
         try:
+            mtime = rlib.stat().st_mtime
+        except OSError:
+            continue
+        crate = rlib.name.split("-")[0]
+        if crate not in newest or mtime > newest[crate][0]:
+            newest[crate] = (mtime, rlib)
+    for crate in sorted(newest):
+        try:
             completed = subprocess.run(
-                [nm, str(rlib)],
+                [nm, str(newest[crate][1])],
                 cwd=ROOT,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -455,10 +474,31 @@ def owner_lib_sancov_symbols() -> dict[str, int]:
             )
         except (OSError, subprocess.TimeoutExpired):
             continue
-        counts[rlib.name] = sum(
+        counts[newest[crate][1].name] = sum(
             1 for line in completed.stdout.splitlines() if "sanitizer_cov" in line
         )
     return counts
+
+
+# Without a sanitizer runtime libFuzzer prints three WARNING lines on
+# every run. They are expected for sancov-only builds; anything else
+# WARNING-shaped is recorded and fails the run.
+KNOWN_BENIGN_WARNINGS = (
+    'WARNING: Failed to find function "__sanitizer_acquire_crash_state".',
+    'WARNING: Failed to find function "__sanitizer_print_stack_trace".',
+    'WARNING: Failed to find function "__sanitizer_set_death_callback".',
+)
+
+
+def unexpected_warnings(output: str) -> list[str]:
+    """WARNING lines outside the documented sancov-only allowlist."""
+    return sorted(
+        {
+            line
+            for line in output.splitlines()
+            if line.startswith("WARNING:") and line not in KNOWN_BENIGN_WARNINGS
+        }
+    )
 
 
 def toolchain_problems() -> list[str]:
@@ -515,8 +555,8 @@ def run(
             "argv": command,
             "returncode": completed.returncode,
             "duration_seconds": round(time.monotonic() - started, 3),
-            "stdout": completed.stdout[-4000:],
-            "stderr": completed.stderr[-4000:],
+            "stdout": output_tail(completed.stdout),
+            "stderr": output_tail(completed.stderr),
         }
     except subprocess.TimeoutExpired as error:
         return {
@@ -530,11 +570,16 @@ def run(
 
 
 def output_tail(value: str | bytes | None) -> str:
+    """Newest 4000 chars plus oldest 2000: libFuzzer's startup lines carry
+    the Loaded-modules counter total, so a tail-only window degrades the
+    coverage proof silently once output grows."""
     if value is None:
         return ""
     if isinstance(value, bytes):
         value = value.decode("utf-8", errors="replace")
-    return value[-4000:]
+    if len(value) <= 6000:
+        return value
+    return value[:2000] + "\n[...middle truncated...]\n" + value[-4000:]
 
 
 def write_evidence(evidence: dict[str, object]) -> None:

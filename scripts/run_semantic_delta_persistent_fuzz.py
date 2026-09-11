@@ -114,9 +114,8 @@ def main() -> int:
             "--config",
             "target.x86_64-unknown-linux-gnu.rustflags=[\"-Cpasses=sancov-module\", \"-Cllvm-args=-sanitizer-coverage-level=4\", \"-Cllvm-args=-sanitizer-coverage-inline-8bit-counters\", \"-Cllvm-args=-sanitizer-coverage-trace-compares\", \"-Cllvm-args=-sanitizer-coverage-pc-table\"]",
             "--",
-            "-Cpasses=sancov-module",
-            "-Cllvm-args=-sanitizer-coverage-level=4",
-            "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
+            # Coverage instrumentation reaches every crate through the
+            # target rustflags above; only the link arguments stay here.
             f"-Clink-arg={FUZZER_RT}",
             "-Clink-arg=-lstdc++",
         ],
@@ -153,7 +152,7 @@ def main() -> int:
         return subprocess.call(command, cwd=ROOT)
 
     fuzz = run(
-        [str(FUZZER), f"-runs={runs_floor}", f"-max_len={MAX_LEN}", f"-artifact_prefix={ARTIFACTS}/", str(CORPUS)],
+        [str(FUZZER), f"-runs={runs_floor}", "-len_control=0", f"-max_len={MAX_LEN}", f"-artifact_prefix={ARTIFACTS}/", str(CORPUS)],
         timeout=args.timeout,
     )
     evidence["commands"].append(fuzz)
@@ -181,11 +180,13 @@ def main() -> int:
         if evidence["crash_artifacts"]
         else []
     )
+    evidence["unexpected_warnings"] = unexpected_warnings(fuzz_output)
     if (
         fuzz["returncode"] == 0
         and evidence["executed_runs"] >= runs_floor
         and evidence["coverage_ok"]
         and not evidence["crash_artifacts"]
+        and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"
     else:
@@ -193,7 +194,7 @@ def main() -> int:
         evidence.setdefault("problems", []).append(
             f"executed {evidence['executed_runs']} of floor {runs_floor} "
             f"(coverage={evidence['coverage']}, "
-            f"crashes={evidence['crash_artifacts']})"
+            f"crashes={evidence['crash_artifacts']}, warnings={evidence['unexpected_warnings']})"
         )
     EVIDENCE.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
     print(json.dumps(evidence, indent=2, sort_keys=True))
@@ -271,14 +272,16 @@ def minimize_crashes(
             )
             record["minimize_returncode"] = completed.returncode
             record["minimize_tail"] = (completed.stderr + completed.stdout)[-2000:]
-            if exact.is_file():
-                record["minimized_sha256"] = hashlib.sha256(exact.read_bytes()).hexdigest()
-                record["minimized_size_bytes"] = exact.stat().st_size
-                (artifacts_dir / f"minimized-{record['minimized_sha256']}").write_bytes(
-                    exact.read_bytes()
-                )
         except (OSError, subprocess.TimeoutExpired) as error:
             record["minimize_error"] = str(error)[:500]
+        # A partially minimized crasher libFuzzer already wrote is still
+        # hashed and kept even when the run itself timed out or errored.
+        if exact.is_file():
+            record["minimized_sha256"] = hashlib.sha256(exact.read_bytes()).hexdigest()
+            record["minimized_size_bytes"] = exact.stat().st_size
+            (artifacts_dir / f"minimized-{record['minimized_sha256']}").write_bytes(
+                exact.read_bytes()
+            )
         out.append(record)
     return out
 
@@ -320,16 +323,29 @@ def owner_lib_sancov_symbols() -> dict[str, int]:
 
     Proof that coverage instrumentation reaches the owner library code, not
     just the fuzz binary crate: with the old bin-only -Cpasses flag the
-    owner rlibs carry zero sanitizer_cov symbols.
+    owner rlibs carry zero sanitizer_cov symbols. Only the newest rlib per
+    crate counts: the persistent target dir accumulates every build's
+    rlibs, so summing all versions would let a stale instrumented rlib
+    satisfy the gate after an instrumentation regression (fail-open on a
+    warm host).
     """
     nm = shutil.which("llvm-nm") or shutil.which("nm")
     counts: dict[str, int] = {}
     if nm is None:
         return counts
+    newest: dict[str, tuple[float, Path]] = {}
     for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
         try:
+            mtime = rlib.stat().st_mtime
+        except OSError:
+            continue
+        crate = rlib.name.split("-")[0]
+        if crate not in newest or mtime > newest[crate][0]:
+            newest[crate] = (mtime, rlib)
+    for crate in sorted(newest):
+        try:
             completed = subprocess.run(
-                [nm, str(rlib)],
+                [nm, str(newest[crate][1])],
                 cwd=ROOT,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -339,10 +355,31 @@ def owner_lib_sancov_symbols() -> dict[str, int]:
             )
         except (OSError, subprocess.TimeoutExpired):
             continue
-        counts[rlib.name] = sum(
+        counts[newest[crate][1].name] = sum(
             1 for line in completed.stdout.splitlines() if "sanitizer_cov" in line
         )
     return counts
+
+
+# Without a sanitizer runtime libFuzzer prints three WARNING lines on
+# every run. They are expected for sancov-only builds; anything else
+# WARNING-shaped is recorded and fails the run.
+KNOWN_BENIGN_WARNINGS = (
+    'WARNING: Failed to find function "__sanitizer_acquire_crash_state".',
+    'WARNING: Failed to find function "__sanitizer_print_stack_trace".',
+    'WARNING: Failed to find function "__sanitizer_set_death_callback".',
+)
+
+
+def unexpected_warnings(output: str) -> list[str]:
+    """WARNING lines outside the documented sancov-only allowlist."""
+    return sorted(
+        {
+            line
+            for line in output.splitlines()
+            if line.startswith("WARNING:") and line not in KNOWN_BENIGN_WARNINGS
+        }
+    )
 
 
 def git_output(command: list[str]) -> str:
@@ -434,8 +471,8 @@ def run(command: list[str], *, env: dict[str, str] | None = None, timeout: int) 
             "argv": command,
             "returncode": completed.returncode,
             "duration_seconds": round(time.monotonic() - started, 3),
-            "stdout": completed.stdout[-4000:],
-            "stderr": completed.stderr[-4000:],
+            "stdout": output_tail(completed.stdout),
+            "stderr": output_tail(completed.stderr),
         }
     except subprocess.TimeoutExpired as error:
         return {
@@ -449,11 +486,16 @@ def run(command: list[str], *, env: dict[str, str] | None = None, timeout: int) 
 
 
 def output_tail(value: str | bytes | None) -> str:
+    """Newest 4000 chars plus oldest 2000: libFuzzer's startup lines carry
+    the Loaded-modules counter total, so a tail-only window degrades the
+    coverage proof silently once output grows."""
     if value is None:
         return ""
     if isinstance(value, bytes):
         value = value.decode("utf-8", errors="replace")
-    return value[-4000:]
+    if len(value) <= 6000:
+        return value
+    return value[:2000] + "\n[...middle truncated...]\n" + value[-4000:]
 
 
 if __name__ == "__main__":

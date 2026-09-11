@@ -186,15 +186,15 @@ def main() -> int:
                     attestation.get("member_count"),
                     attestation.get("working_tree_clean"),
                     attestation.get("reproducibility"),
-                    attestation.get("toolchain", {}).get("cargo"),
-                    attestation.get("toolchain", {}).get("rustc"),
+                    (attestation.get("toolchain") or {}).get("cargo"),
+                    (attestation.get("toolchain") or {}).get("rustc"),
                 )
                 for attestation in repro.get("attestations", [])
                 if isinstance(attestation, dict)
                 and attestation.get("working_tree_clean") is True
                 and attestation.get("reproducibility") == "REPRODUCIBLE"
             }
-            candidate_toolchain = section.get("candidate_toolchain", {})
+            candidate_toolchain = section.get("candidate_toolchain") or {}
             if (
                 section.get("candidate_commit"),
                 section.get("candidate_artifact_sha256"),
