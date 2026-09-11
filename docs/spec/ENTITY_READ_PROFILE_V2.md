@@ -270,12 +270,19 @@ and SMP1 revision references together.
   request-shape wires by the protocol corpus replay test.
 - Runtime-sequence obligations (`pending_runtime_comparison`) are discharged
   by live-session server tests, mapped here so the count is auditable:
-  `seq_wrong_session`, `seq_closed_session`, `seq_renewed_session`, and
-  `seq_epoch_mismatch` by `entity_read_session_lifecycle_binds_one_snapshot`;
-  `seq_root_advanced` by `entity_read_head_advance_fails_before_body_decode`;
-  `seq_request_id_conflict` by `entity_read_failure_precedence_is_exact`;
-  `seq_unnegotiated_precedence` by `repair_exhausted_budget_precedes_unoffered_method`;
-  `seq_work_exhausted_precedence` by `repair_session_budget_method_order_and_debit`;
+  `seq_wrong_session` by the unknown-session part of
+  `entity_read_failure_precedence_is_exact`; `seq_closed_session` by the
+  close part of `entity_read_session_lifecycle_binds_one_snapshot`;
+  `seq_renewed_session` by `entity_renew_then_read_with_live_root_succeeds`;
+  `seq_epoch_mismatch` by
+  `repair_wrong_epoch_refuses_entity_read_without_debit`;
+  `seq_root_advanced` by
+  `entity_read_head_advance_fails_before_body_decode`;
+  `seq_request_id_conflict` by `entity_request_id_reuse_refuses_second_use`;
+  `seq_unnegotiated_precedence` by
+  `version_one_selection_refuses_version_two_methods_at_tag_validity`;
+  `seq_work_exhausted_precedence` by
+  `entity_exhausted_budget_with_stale_root_answers_binding_first`;
   `seq_debit_phases` by `repair_debit_phases_observe_budget_and_followup`
   with `entity_read_budget_debit_table_is_exact`; `seq_inflight_terminal`
   by `repair_stale_refusal_then_renew_and_read_at_inflight_one`. The owner-case preconditions and fill

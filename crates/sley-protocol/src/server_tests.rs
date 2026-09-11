@@ -3580,6 +3580,119 @@ fn entity_read_head_advance_fails_before_body_decode() {
     assert_eq!(response.requested_entity, target);
 }
 
+/// A reused request identifier on an entity method refuses with
+/// `PROTOCOL_REQUEST_ID_CONFLICT` (discharges `seq_request_id_conflict`).
+#[test]
+fn entity_request_id_reuse_refuses_second_use() {
+    let mut harness = VServer::new("v2-request-id");
+    let target = sley_repo::test_support::id(30);
+    let first = harness.next_request;
+    let frame = harness.read(ENTITY_VERSION_TAG, target);
+    let _ = frame;
+    let replay = encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session: Some(harness.session),
+            request_id: first,
+            kind: FrameKind::Request,
+            method: ENTITY_VERSION_TAG,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: entity_read_body(harness.root, target),
+        },
+        PROTOCOL_VERSION_V2,
+    )
+    .unwrap()
+    .bytes;
+    let answer = harness.server.answer(&replay).unwrap();
+    assert!(answer.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap()
+    else {
+        panic!("response frame");
+    };
+    let failure = ProtocolFailure::decode(&frame.body).unwrap();
+    assert_eq!(failure.symbol, "PROTOCOL_REQUEST_ID_CONFLICT");
+    assert_eq!(failure.code, ProtocolErrorCode::RequestIdConflict.numeric());
+}
+
+/// An exhausted budget combined with a stale root answers
+/// `SESSION_ROOT_ADVANCED`: session binding precedes budget exhaustion,
+/// and the binding failure keeps no-debit semantics (discharges
+/// `seq_work_exhausted_precedence`).
+#[test]
+fn entity_exhausted_budget_with_stale_root_answers_binding_first() {
+    // Probe the M-free work part and body length on a funded server.
+    let mut probe = VServer::new("v2-exhaust-probe");
+    let target = sley_repo::test_support::id(30);
+    let (failed, frame) = probe.call(
+        ENTITY_VERSION_TAG,
+        entity_read_body(probe.root, target),
+    );
+    assert!(!failed);
+    let probed = decode_entity_read_response(&frame.body).unwrap();
+    let constant = probed.work_units - 8_388_608;
+    let body_len = frame.bounds.returned_bytes;
+    let before_commit = probe.budget();
+    let _ = advance_head_with_namespace(&mut probe);
+    let commit_cost = before_commit - probe.budget();
+    // A server whose whole budget equals one exact read plus one commit
+    // spends to exactly the commit cost, advances, and lands on zero.
+    let methods = v2_methods();
+    let mut client_hello = vhello(methods.clone(), 4);
+    client_hello.limits.max_work = constant + body_len + commit_cost + 1_000;
+    let mut harness = VServer::with_hellos(
+        "v2-exhausted-stale",
+        executable_bodies(),
+        &[],
+        &client_hello,
+        &vhello(methods, 8),
+    );
+    let opened = harness.budget();
+    assert_eq!(opened, constant + body_len + commit_cost + 1_000);
+    let spend = opened - commit_cost;
+    let exact_m = spend - constant;
+    assert!(exact_m >= body_len && exact_m <= 8_388_608);
+    let exact_body =
+        entity_read_body_capped(harness.root, target, 65_535, exact_m, opened);
+    let (failed, _) = harness.call(ENTITY_VERSION_TAG, exact_body);
+    assert!(!failed);
+    assert_eq!(harness.budget(), commit_cost);
+    // Advance the head past the session-bound root, then read stale.
+    let _ = advance_head_with_namespace(&mut harness);
+    assert_eq!(harness.budget(), 0);
+    let before = harness.budget();
+    let stale = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, target),
+    );
+    assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+    assert_eq!(harness.budget(), before);
+}
+
+/// Renewing a session then retrying with the live root succeeds
+/// (discharges `seq_renewed_session` step two).
+#[test]
+fn entity_renew_then_read_with_live_root_succeeds() {
+    let mut harness = VServer::new("v2-renew-read");
+    let (new_root, _) = advance_head_with_namespace(&mut harness);
+    let stale = harness.refuse(
+        ENTITY_VERSION_TAG,
+        entity_read_body(harness.root, sley_repo::test_support::id(30)),
+    );
+    assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
+    let (renew_failed, _) =
+        harness.call(Method::SessionRenew.tag(), harness.session.as_bytes().to_vec());
+    assert!(!renew_failed);
+    harness.root = new_root;
+    let target = sley_repo::test_support::id(30);
+    let frame = harness.read(ENTITY_VERSION_TAG, target);
+    let response = decode_entity_read_response(&frame.body).unwrap();
+    assert_eq!(response.root, new_root);
+    assert_eq!(response.requested_entity, target);
+}
+
 #[test]
 fn entity_read_exact_and_one_below_limits() {
     let mut harness = VServer::new("v2-limits");

@@ -131,11 +131,19 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
     Same lane is checked by the caller. Closure runs from the qualified or
     early round toward the general or later review: a revision-3 FAIL folds
     into the unmarked PASS, an initial FAIL into the final PASS. A slice
-    PASS never closes the overall FAIL it belongs to.
+    PASS never closes the overall FAIL it belongs to. Lane cores must be
+    compatible: a scoped PASS (entity-read core) never folds a round from
+    another subject (root-query core), so a future root-query REVISE cannot
+    be marked historical by an entity-read PASS. The unmarked general PASS
+    (empty core) still folds every round of its lane.
     """
     if pass_field == fail_field:
         return False
-    if field_core(fail_field) > field_core(pass_field):
+    pass_core = field_core(pass_field)
+    fail_core = field_core(fail_field)
+    if not (pass_core <= fail_core or fail_core <= pass_core):
+        return False
+    if fail_core > pass_core:
         return True
     return field_early(fail_field) and not field_early(pass_field)
 

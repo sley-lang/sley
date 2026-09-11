@@ -269,7 +269,10 @@ def version_record(versioned: Path, name: str) -> dict:
                 f"{display(path)}: nested entries are not corpora",
             )
         if not path.is_file():
-            continue
+            raise ConformanceError(
+                ConformanceErrorCode.FIXTURE_UNREADABLE,
+                f"{display(path)}: non-regular entries are not fixtures",
+            )
         data = path.read_bytes()
         files.append(
             {

@@ -2340,7 +2340,12 @@ mod tests {
             let relation = row["relation"].as_str().unwrap();
             if !matches!(
                 relation,
-                "k_exact" | "k_one_below" | "bytes_exact" | "bytes_one_below"
+                "k_exact"
+                    | "k_one_below"
+                    | "bytes_exact"
+                    | "bytes_one_below"
+                    | "work_exact"
+                    | "work_one_below"
             ) {
                 continue;
             }
@@ -2362,6 +2367,10 @@ mod tests {
                 }
                 "bytes_exact" | "bytes_one_below" => {
                     request.max_response_bytes = row["ceiling_m"].as_u64().unwrap();
+                }
+                "work_exact" | "work_one_below" => {
+                    request.max_response_bytes = row["ceiling_m"].as_u64().unwrap();
+                    request.max_work = row["claimed_work"].as_u64().unwrap();
                 }
                 name => panic!("{id}: unexpected bound relation {name}"),
             }
@@ -2385,7 +2394,7 @@ mod tests {
             )
             .and_then(capture_entity_read_selection);
             match relation {
-                "k_exact" | "bytes_exact" => {
+                "k_exact" | "bytes_exact" | "work_exact" => {
                     let plan = result.unwrap_or_else(|error| panic!("{id}: serve: {error:?}"));
                     let outcome = encode_entity_read_response(plan, session).unwrap();
                     if relation == "k_exact" {
@@ -2395,6 +2404,12 @@ mod tests {
                             outcome.work_units,
                             base["work"].as_u64().unwrap(),
                             "{id}: boundary work"
+                        );
+                    } else if relation == "work_exact" {
+                        assert_eq!(
+                            outcome.work_units,
+                            row["claimed_work"].as_u64().unwrap(),
+                            "{id}: claimed work"
                         );
                     } else {
                         let stored_b = case_stored_bytes(base);
@@ -2411,11 +2426,13 @@ mod tests {
                         "{id}: object count"
                     );
                 }
-                "k_one_below" | "bytes_one_below" => assert_budget_refusal(id, &result),
+                "k_one_below" | "bytes_one_below" | "work_one_below" => {
+                    assert_budget_refusal(id, &result);
+                }
                 name => panic!("{id}: unexpected bound relation {name}"),
             }
         }
-        assert_eq!(covered, 4, "k/bytes exact and one-below rows");
+        assert_eq!(covered, 6, "k/bytes/work exact and one-below rows");
     }
 
     /// Relation work values recompute through the owner selection, and

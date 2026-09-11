@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -350,6 +351,27 @@ class IndependentConformanceTests(unittest.TestCase):
             for family in report["fixtures"]
         )
         self.assertEqual(report["tracked_corpus_directories"], on_disk)
+
+    def test_recorded_paths_equal_the_tracked_conformance_set(self) -> None:
+        report = conformance.build_report()
+        recorded = set()
+        for family in report["fixtures"]:
+            recorded.add(family["directory"] + "/SHA256SUMS")
+            for entry in family["files"]:
+                recorded.add(family["directory"] + "/" + entry["name"])
+            for version, sibling in family["siblings"].items():
+                sibling_dir = f"conformance/{family['directory'].split('/')[1]}/{version}"
+                recorded.add(sibling_dir + "/SHA256SUMS")
+                for entry in sibling["files"]:
+                    recorded.add(sibling_dir + "/" + entry["name"])
+        tracked = subprocess.run(
+            ["git", "ls-files", "conformance"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.split()
+        self.assertEqual(sorted(recorded), sorted(tracked))
 
     def test_a_non_version_family_entry_fails_closed(self) -> None:
         recipe = conformance.conformance_recipe()

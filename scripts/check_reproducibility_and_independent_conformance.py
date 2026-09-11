@@ -307,6 +307,7 @@ def main() -> int:
             report = json.loads(read(CONFORMANCE_REPORT))
             for summary_key, report_key in (
                 ("fixture_directories", "fixture_directories"),
+                ("tracked_corpus_directories", "tracked_corpus_directories"),
                 ("independently_checked_families", "independently_checked"),
                 ("native_only_families", "native_only"),
                 ("independent_conformance_result", "result"),

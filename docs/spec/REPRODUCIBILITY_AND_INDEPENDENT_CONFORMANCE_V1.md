@@ -16,9 +16,11 @@ corpora, and the report digests, sums, and declares each one, claiming
 depth only for the pinned version; a tracked version without a manifest or
 a pin outside the coverage map fails closed. Revision 6 tightens the
 version rules (section 3): version directories match `^v\d+$` with any
-other family-root directory failing closed, conflicting duplicate manifest
+other family-root or nested entry failing closed, conflicting duplicate manifest
 lines are `CONFORMANCE_SUMS_MISMATCH`, shapes record mapping sizes, and the
-report carries an auditable `tracked_corpus_directories` count. The mechanics are `scripts/build_reproducibility_report.py` and
+report carries an auditable `tracked_corpus_directories` count; section 2
+records that minting requires a whole-tree clean checkout including
+untracked files, deliberately stricter than the surface-scoped check. The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -149,7 +151,7 @@ fixture = {
   "sums_consistent": true,
   "contract": string | null,
   "claim": string | null,
-  "shape": { file: { list-valued key: length, mapping key: size } },
+  "shape": { file: { list-valued key: length, mapping key: size, except manifest } },
   "coverage": { "kind": "independent_oracle", "depth": "semantic" | "codec_and_identity", "runner": string, "command": string }
             | { "kind": "native_only", "note": string },
   "tracked_versions": ["v1", "v2", ...],
@@ -173,8 +175,8 @@ Rules:
   `entity-read`, whose S20-310 vectors pin `v2` (section 10); a pin naming a
   family outside the coverage map is `CONFORMANCE_ORACLE_DRIFT`;
 - a family may carry several tracked corpus versions (`conformance/<name>/v<N>/`,
-  `N` digits; any other family-root directory is
-  `CONFORMANCE_FIXTURE_UNREADABLE`);
+  `N` digits; any other family-root entry, and any nested entry inside a
+  version directory, is `CONFORMANCE_FIXTURE_UNREADABLE`);
   the report records every one of them in `tracked_versions`, with a
   digested, summed, and declared record per version; depth is claimed only
   for the pinned version, and siblings carry `tracked_sibling` coverage that
@@ -189,7 +191,8 @@ Rules:
   conflicting duplicate lines for one file); every tracked
   version directory carries one, so a version without a manifest is
   `CONFORMANCE_FIXTURE_UNREADABLE`, never a silent gap;
-- an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`;
+- an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`
+  (non-JSON files are digested but neither parsed nor manifest-covered);
 - the result is `INDEPENDENT_CONFORMANCE_COMPLETE` exactly when no family is
   native-only. `COMPLETE` promises that every family's vectors are checked
   by an independent oracle at the recorded depth; it does not promise
@@ -295,16 +298,17 @@ implementation status the checker verifies both reports exist with their
 contract tags, that the independent conformance report passes `--check`,
 that every independent family carries a declared `semantic` or
 `codec_and_identity` depth and the report's depth roll-up matches, that the
-  reproducibility report's digest recomputes and every attestation passes the
-  section 1 shape, that every attested commit is an ancestor of the filing
-  `HEAD` with no artifact-surface file changed since and the attested
-  toolchain current, that the
-  reproducibility report has at least one attestation and claims
-  neither GA nor publication, that the unit tests pass, and that
-  `release-check` and `v2` stay `NOT_IMPLEMENTED`. Minting requires a
-  whole-tree clean checkout including untracked files, deliberately stricter
-  than the surface-scoped uncommitted check: the attestation must bind the
-  exact tree the artifact builds from, not just its surface.
+reproducibility report's digest recomputes and every attestation passes the
+section 1 shape, that every attested commit is an ancestor of the filing
+`HEAD` with no artifact-surface file changed since and the attested
+toolchain current, that the
+reproducibility report has at least one attestation and claims
+neither GA nor publication, that the unit tests pass, and that
+`release-check` and `v2` stay `NOT_IMPLEMENTED`. Minting requires a
+whole-tree clean checkout including untracked files (section 1
+`working_tree_clean`), deliberately stricter
+than the surface-scoped uncommitted check: the attestation must bind the
+exact tree the artifact builds from, not just its surface.
 
 ## 9. Explicit exclusions
 
