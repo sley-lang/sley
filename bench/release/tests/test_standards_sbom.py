@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,9 +24,68 @@ sbom = load("build_standards_sbom")
 provenance = load("build_release_provenance")
 
 
+def attested_test_candidate() -> dict:
+    """A synthetic candidate the real gates admit.
+
+    Repair round 7b test hygiene: the suite never depends on the
+    operator tree's untracked runtime evidence (which may be a stale or
+    dirty build). The commit and digest come from the tracked
+    reproducibility report, so the real HEAD and attestation gates run
+    against filed values; git_head is pinned to the attested commit for
+    the same reason records-only descendants exist.
+    """
+    report = json.loads(sbom.REPRO_REPORT.read_text(encoding="utf-8"))
+    attested = [
+        attestation
+        for attestation in report.get("attestations", [])
+        if isinstance(attestation, dict)
+        and attestation.get("reproducibility") == "REPRODUCIBLE"
+        and attestation.get("working_tree_clean") is True
+    ]
+    assert attested, "no clean REPRODUCIBLE attestation in the tracked report"
+    first = attested[0]
+    return {
+        "artifact_name": first["artifact_name"],
+        "artifact_sha256": first["artifact_sha256"],
+        "artifact_size_bytes": first["artifact_size_bytes"],
+        "commit": first["commit"],
+        "manifest_digest": first["manifest_digest"],
+        "member_count": first.get("member_count", 14),
+        "toolchain": first["toolchain"],
+        "working_tree_clean": True,
+        "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
+    }
+
+
+def patch_candidate(test: unittest.TestCase, *modules) -> dict:
+    """Point builder modules at the attested synthetic candidate."""
+    candidate = attested_test_candidate()
+    for module in modules:
+        original_load = module.load_candidate
+        module.load_candidate = lambda: dict(candidate)
+        test.addCleanup(setattr, module, "load_candidate", original_load)
+        original_head = module.git_head
+        module.git_head = lambda: candidate["commit"]
+        test.addCleanup(setattr, module, "git_head", original_head)
+    return candidate
+
+
 class StandardsSbomTests(unittest.TestCase):
     def setUp(self) -> None:
+        patch_candidate(self, sbom)
         self.cyclonedx, self.spdx, self.counts = sbom.build_documents()
+
+    def test_documents_refuse_a_candidate_no_attestation_names(self) -> None:
+        original = sbom.load_candidate
+        sbom.load_candidate = lambda: {
+            "commit": "0" * 40,
+            "artifact_sha256": "f" * 64,
+            "artifact_name": "sley-test.tar.gz",
+        }
+        self.addCleanup(setattr, sbom, "load_candidate", original)
+        with self.assertRaises(sbom.SbomError) as error:
+            sbom.build_documents()
+        self.assertEqual(error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
 
     def test_cyclonedx_is_a_1_6_bom_with_a_derived_serial_number(self) -> None:
         self.assertEqual(self.cyclonedx["bomFormat"], "CycloneDX")
@@ -232,7 +293,7 @@ class CheckSemanticsTests(unittest.TestCase):
 
         sbom.load_candidate = missing
         self.addCleanup(setattr, sbom, "load_candidate", original)
-        self.assertFalse(sbom.local_build_ahead())
+        self.assertFalse(sbom.candidate_evidence_mismatch())
 
     def test_missing_provenance_evidence_is_not_ahead(self) -> None:
         original = provenance.load_candidate
@@ -244,7 +305,7 @@ class CheckSemanticsTests(unittest.TestCase):
 
         provenance.load_candidate = missing
         self.addCleanup(setattr, provenance, "load_candidate", original)
-        self.assertFalse(provenance.local_build_ahead())
+        self.assertFalse(provenance.candidate_evidence_mismatch())
 
     def test_differing_evidence_is_ahead(self) -> None:
         sbom_original = sbom.load_candidate
@@ -256,8 +317,8 @@ class CheckSemanticsTests(unittest.TestCase):
         }
         self.addCleanup(setattr, sbom, "load_candidate", sbom_original)
         self.addCleanup(setattr, provenance, "load_candidate", provenance_original)
-        self.assertTrue(sbom.local_build_ahead())
-        self.assertTrue(provenance.local_build_ahead())
+        self.assertTrue(sbom.candidate_evidence_mismatch())
+        self.assertTrue(provenance.candidate_evidence_mismatch())
 
     def test_matching_evidence_is_not_ahead(self) -> None:
         commit, digest = sbom.tracked_candidate_facts()
@@ -267,8 +328,8 @@ class CheckSemanticsTests(unittest.TestCase):
         provenance.load_candidate = lambda: {"commit": commit, "artifact_sha256": digest}
         self.addCleanup(setattr, sbom, "load_candidate", sbom_original)
         self.addCleanup(setattr, provenance, "load_candidate", provenance_original)
-        self.assertFalse(sbom.local_build_ahead())
-        self.assertFalse(provenance.local_build_ahead())
+        self.assertFalse(sbom.candidate_evidence_mismatch())
+        self.assertFalse(provenance.candidate_evidence_mismatch())
 
 
 class ProvenanceTests(unittest.TestCase):
@@ -276,28 +337,40 @@ class ProvenanceTests(unittest.TestCase):
         # The statement is derived against the *derived* CycloneDX document, so
         # the suite never depends on whether the tracked documents have caught
         # up with an untracked local candidate build. The subject-authority
-        # gates are satisfied with the live candidate: HEAD coherence reads
-        # the candidate's own commit and the attested set carries it.
+        # gates run for real against the tracked attestation set; only
+        # git_head is pinned to the attested commit (records-only
+        # descendants move HEAD past the mint by design).
+        patch_candidate(self, sbom, provenance)
         derived_root = sbom.build_documents()[0]["metadata"]["component"]["hashes"][0]["content"]
         self.original_root = provenance.sbom_root_digest
         provenance.sbom_root_digest = lambda: derived_root
         self.addCleanup(setattr, provenance, "sbom_root_digest", self.original_root)
-        candidate = json.loads(provenance.CANDIDATE.read_text(encoding="utf-8"))
-        self.original_head = provenance.git_head
-        provenance.git_head = lambda: candidate["commit"]
-        self.addCleanup(setattr, provenance, "git_head", self.original_head)
-        self.original_attested = provenance.attested_candidates
-        provenance.attested_candidates = lambda: [
-            {
-                "commit": candidate["commit"],
-                "artifact_sha256": candidate["artifact_sha256"],
-                "reproducibility": "REPRODUCIBLE",
-                "working_tree_clean": True,
-            }
-        ]
-        self.addCleanup(setattr, provenance, "attested_candidates", self.original_attested)
         self.document = provenance.build_file()
         self.statement = self.document["statement"]
+
+    def test_a_candidate_without_invocation_refuses(self) -> None:
+        candidate = attested_test_candidate()
+        del candidate["invocation"]
+        original = provenance.load_candidate
+        provenance.load_candidate = lambda: candidate
+        self.addCleanup(setattr, provenance, "load_candidate", original)
+        with self.assertRaises(provenance.ProvenanceError) as error:
+            provenance.build_statement()
+        self.assertEqual(
+            error.exception.code, provenance.ProvenanceErrorCode.EVIDENCE_INVALID
+        )
+
+    def test_make_target_derives_from_the_recorded_invocation(self) -> None:
+        external = self.statement["predicate"]["buildDefinition"]["externalParameters"]
+        self.assertEqual(external["make_target"], "release-candidate-smoke")
+        candidate = attested_test_candidate()
+        candidate["invocation"] = "build_release_candidate.py --timeout-seconds=60 --require-clean --no-keep"
+        original = provenance.load_candidate
+        provenance.load_candidate = lambda: candidate
+        self.addCleanup(setattr, provenance, "load_candidate", original)
+        statement = provenance.build_statement()
+        direct = statement["predicate"]["buildDefinition"]["externalParameters"]
+        self.assertEqual(direct["make_target"], "build_release_candidate.py direct")
 
     def test_statement_is_in_toto_v1_with_a_slsa_predicate(self) -> None:
         self.assertEqual(self.statement["_type"], provenance.STATEMENT_TYPE)
@@ -311,7 +384,7 @@ class ProvenanceTests(unittest.TestCase):
         )
 
     def test_the_subject_agrees_with_the_candidate_and_the_sbom_root(self) -> None:
-        candidate = json.loads(provenance.CANDIDATE.read_text(encoding="utf-8"))
+        candidate = attested_test_candidate()
         self.assertEqual(
             self.statement["subject"][0]["digest"]["sha256"], candidate["artifact_sha256"]
         )
@@ -370,7 +443,9 @@ class ProvenanceTests(unittest.TestCase):
         )
 
     def test_an_unattested_candidate_refuses(self) -> None:
+        original = provenance.attested_candidates
         provenance.attested_candidates = lambda: []
+        self.addCleanup(setattr, provenance, "attested_candidates", original)
         with self.assertRaises(provenance.ProvenanceError) as error:
             provenance.build_statement()
         self.assertEqual(
@@ -378,7 +453,7 @@ class ProvenanceTests(unittest.TestCase):
         )
 
     def test_the_invocation_is_copied_from_the_candidate_evidence(self) -> None:
-        candidate = json.loads(provenance.CANDIDATE.read_text(encoding="utf-8"))
+        candidate = attested_test_candidate()
         candidate["invocation"] = "build_release_candidate.py --require-clean (test)"
         original = provenance.load_candidate
         provenance.load_candidate = lambda: candidate
@@ -388,30 +463,79 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(
             external["invocation"], "build_release_candidate.py --require-clean (test)"
         )
+        self.assertEqual(external["make_target"], "build_release_candidate.py direct")
 
 
 class ValidateTrackedTests(unittest.TestCase):
-    """The ahead-state rule: tracked documents are verified, not skipped."""
+    """The mismatch-state rule: tracked documents are verified, not skipped.
+
+    Repair round 7b test hygiene: these cases rewrite the tracked
+    documents, so they run against private copies under a temporary
+    directory. A killed run can no longer leave the tree modified.
+    """
+
+    def setUp(self) -> None:
+        self.work = tempfile.TemporaryDirectory()
+        self.addCleanup(self.work.cleanup)
+        self.paths: dict[str, Path] = {}
+        for module, name in (
+            (sbom, "CYCLONEDX"),
+            (sbom, "SPDX"),
+            (provenance, "PROVENANCE"),
+        ):
+            original: Path = getattr(module, name)
+            copy = Path(self.work.name) / original.name
+            copy.write_text(original.read_text(encoding="utf-8"), encoding="utf-8")
+            setattr(module, name, copy)
+            self.addCleanup(setattr, module, name, original)
+            self.paths[f"{module.__name__}.{name}"] = copy
+
+    def tracked(self, key: str) -> dict:
+        return json.loads(self.paths[key].read_text(encoding="utf-8"))
+
+    def rewrite(self, key: str, document: dict) -> None:
+        module_name, _, attr = key.partition(".")
+        module = {"build_standards_sbom": sbom, "build_release_provenance": provenance}[
+            module_name
+        ]
+        self.paths[key].write_text(module.canonical(document), encoding="utf-8")
 
     def test_the_current_pair_validates(self) -> None:
         self.assertEqual(sbom.validate_tracked(), [])
         self.assertEqual(provenance.validate_tracked(), [])
 
     def test_a_rewritten_namespace_fails_the_sbom_validation(self) -> None:
-        original = sbom.SPDX.read_text(encoding="utf-8")
-        document = json.loads(original)
+        document = self.tracked("build_standards_sbom.SPDX")
         document["documentNamespace"] = "urn:sley2:spdx:tampered"
-        sbom.SPDX.write_text(sbom.canonical(document), encoding="utf-8")
-        self.addCleanup(sbom.SPDX.write_text, original)
+        self.rewrite("build_standards_sbom.SPDX", document)
         self.assertIn("namespace-not-attestation-bound", sbom.validate_tracked())
 
-    def test_a_rewritten_subject_fails_the_provenance_validation(self) -> None:
-        original = provenance.PROVENANCE.read_text(encoding="utf-8")
-        document = json.loads(original)
+    def test_a_rewritten_subject_fails_the_provenance_binding(self) -> None:
+        # The digest is recomputed so only the attestation binding can
+        # fail: this isolates subject-not-attestation-bound from
+        # statement-digest.
+        document = self.tracked("build_release_provenance.PROVENANCE")
         document["statement"]["subject"][0]["digest"]["sha256"] = "f" * 64
-        provenance.PROVENANCE.write_text(provenance.canonical(document), encoding="utf-8")
-        self.addCleanup(provenance.PROVENANCE.write_text, original)
-        self.assertIn("statement-digest", provenance.validate_tracked())
+        document["statement_digest"] = provenance.digest_of(document["statement"])
+        self.rewrite("build_release_provenance.PROVENANCE", document)
+        self.assertEqual(
+            provenance.validate_tracked(), ["subject-not-attestation-bound"]
+        )
+
+    def test_the_real_attestation_filter_carries_the_filed_candidate(self) -> None:
+        # Positive control: the unpatched attested_candidates() admits the
+        # tracked attestation the field records bind.
+        admitted = {
+            (attestation.get("commit"), attestation.get("artifact_sha256"))
+            for attestation in provenance.attested_candidates()
+        }
+        report = json.loads(sbom.REPRO_REPORT.read_text(encoding="utf-8"))
+        filed = [
+            (attestation.get("commit"), attestation.get("artifact_sha256"))
+            for attestation in report.get("attestations", [])
+        ]
+        self.assertTrue(filed)
+        self.assertEqual(admitted, set(filed))
 
 
 if __name__ == "__main__":

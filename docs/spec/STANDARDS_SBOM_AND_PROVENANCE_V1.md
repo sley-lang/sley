@@ -145,10 +145,13 @@ The statement is:
 - `predicate.buildDefinition.buildType`
   `urn:sley2:buildtype:release-candidate/v1`;
 - `predicate.buildDefinition.externalParameters`: the commit, the artifact
-  name, the make target `release-candidate-smoke` (or the `--allow-dirty`
-  marker when the tree is not clean), the recorded candidate invocation
-  copied verbatim from the candidate evidence (ADR-0041 principle 1: derive,
-  never restate), and `working_tree_clean`;
+  name, the make target (derived from the recorded invocation:
+  `release-candidate-smoke` exactly for the Makefile smoke renderings,
+  `build_release_candidate.py direct` otherwise), the recorded candidate
+  invocation copied verbatim from the candidate evidence (ADR-0041
+  principle 1: derive, never restate; a candidate without a recorded
+  invocation predates invocation recording and refuses with
+  `PROVENANCE_EVIDENCE_INVALID`), and `working_tree_clean`;
 - `predicate.buildDefinition.internalParameters`: the cargo and rustc
   versions, the `release` profile, `locked` true, the path remaps of the
   S20-720 build (which are themselves path-free strings), the artifact size
@@ -159,8 +162,9 @@ The statement is:
 - `predicate.runDetails.builder.id` `urn:sley2:builder:local-primary`, naming
   a host label rather than a host;
 - `predicate.runDetails.metadata.invocationId`: the candidate manifest digest;
-- `predicate.runDetails.byproducts`: the manifest digest, the reproducibility
-  report, and the independent conformance report with their SHA-256 digests;
+- `predicate.runDetails.byproducts`: the reproducibility report and the
+  independent conformance report with their SHA-256 digests (the manifest
+  digest rides as `invocationId` above, not as a third byproduct);
 - no timestamp anywhere: `startedOn` and `finishedOn` are omitted because a
   wall clock would break determinism and leak nothing useful locally.
 
@@ -170,8 +174,11 @@ root component digest; any disagreement is `PROVENANCE_SUBJECT_MISMATCH`.
 The tracked attestation is the subject authority, not the per-checkout
 candidate evidence: `build_statement()` refuses a candidate no clean
 `REPRODUCIBLE` attestation names, and refuses a candidate whose commit is not
-the tree's `HEAD` (the inputs are read from the live tree, so a candidate
-from another commit would misbind the statement). A statement minted in a
+the tree's `HEAD` with `PROVENANCE_EVIDENCE_INVALID` (the inputs are read
+from the live tree, so a candidate from another commit would misbind the
+statement). The reproducibility report is therefore a subject-authority
+input: a missing report is `PROVENANCE_EVIDENCE_MISSING`, an unreadable or
+attestation-less report is `PROVENANCE_EVIDENCE_INVALID`. A statement minted in a
 clean linked worktree therefore verifies on any checkout of the same commit.
 
 ## 5. Determinism and check semantics
@@ -187,13 +194,18 @@ local candidate build legitimately leaves the tracked documents describing the
 previous candidate. `--check` detects exactly that state (the evidence
 loads, and its commit and artifact digest disagree with the tracked
 documents), first validates the tracked documents themselves, then reports
-`LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result
-`AHEAD_TRACKED_VALIDATED` (or `LOCAL_BUILD_AHEAD_TRACKED_INVALID` when the
+`CANDIDATE_EVIDENCE_MISMATCH_TRACKED_DOCUMENTS` with result
+`MISMATCH_TRACKED_VALIDATED` (or `MISMATCH_TRACKED_INVALID` when the
 tracked documents fail their own validation), and names
-`make release-candidate-smoke` as the reconciling command. Both builders
-validate the tracked pair in the ahead state: document shape and determinism
-pins plus the attestation binding of the SPDX namespace and the provenance
-subject.
+`make release-candidate-smoke` as the reconciling command. The state name
+is direction-neutral: the evidence may be newer, older, or simply different.
+Both builders validate the tracked pair in the mismatch state: document
+shape and determinism pins plus the attestation binding of the SPDX
+namespace and the provenance subject. Write mode never tolerates the skew:
+both builders refuse a candidate that is not `HEAD` or that no clean
+`REPRODUCIBLE` attestation names (`SBOM_INVENTORY_INVALID` /
+`PROVENANCE_EVIDENCE_INVALID` / `PROVENANCE_SUBJECT_MISMATCH`), so the
+documents always derive from the attested candidate.
 
 Anything else fails closed. Missing or unreadable candidate evidence is
 missing input, not a build running ahead: the SBOM `--check` fails with

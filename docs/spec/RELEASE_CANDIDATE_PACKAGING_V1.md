@@ -1,8 +1,9 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 3 (2026-09-05); Council review
-pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). Revision 2 records the clarifications found while implementing
+Status: S20-720 contract draft, revision 3 (2026-09-05), with round-7
+clarifications (2026-09-11, section 13); Council review pending (Ariadne
+contract review, Nabu architecture review, Vulcan surface review). Revision
+2 records the clarifications found while implementing
 revision 1 (section 11). Revision 3 orders the remaps most-general-first,
 describes the manifest's non-release status, requires a clean tree for
 tracked evidence, and enumerates the demo's 20.12 verbs honestly
@@ -42,7 +43,8 @@ run under `make release-candidate-smoke`.
    (sections 3 and 4) with the working directory inside the unpacked
    artifact and no environment variable naming the source tree;
 4. verifying every manifest entry's SHA-256 and size and scanning every
-   member for the source tree path, any `/home/` path, and the bounded
+   member for the source tree path, any `/home/` path, the
+   `/home-remapped` residue, the build username, and the bounded
    secret patterns (section 5);
 5. a second clean build in a second fresh target directory and a second
    package, compared byte for byte with the first (section 6);
@@ -157,12 +159,18 @@ provenance (S20-710 full), succession thresholds (S20-640), and the
 Council reviews. Tracked evidence requires a clean tree: the smoke passes
 `--require-clean` (opt out only with `--allow-dirty`, which no tracked
    target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
-   manifest's `working_tree_clean` flag names what was built. Where the
-   operator tree carries retained untracked material that must not be moved,
-   minting uses the canonical detached linked worktree procedure
-   (`REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` section 2): the mint
-   runs in a worktree that is whole-tree clean by construction, and the
-   `--require-clean` gate semantics are unchanged.
+   manifest's `working_tree_clean` flag names what was built.
+
+Where the operator tree carries retained untracked material that must not
+be moved, minting uses the canonical detached linked worktree procedure
+(`REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` section 2): the mint
+runs in a worktree that is whole-tree clean by construction, and the
+`--require-clean` gate semantics are unchanged.
+
+The register's `candidate_*` fields must name the tracked attestation
+(commit, artifact digest, manifest digest); the checker enforces the
+binding as `candidate-attestation-mismatch`, so the register cannot name
+a candidate no attestation describes.
 `machine-summary.json` `artifact` stays null until an operator-approved
 release candidate exists.
 
@@ -242,3 +250,19 @@ provenance, and root license (S20-710 full); independent conformance
   operation; open question 1 is answered yes, with the mechanism
   (`workspace.create` from a packaged trusted genesis) named as the demo
   extension that moves create out of the residual.
+
+## 13. Round-7 clarifications (2026-09-11; no revision bump: gate
+semantics unchanged)
+
+- Section 7 names the canonical detached linked worktree procedure for
+  minting while the operator tree carries retained untracked material:
+  the procedure changes where the mint runs, not what `--require-clean`
+  requires.
+- Section 7 states the register binding rule the checker enforces:
+  `candidate_*` must name the tracked attestation
+  (`candidate-attestation-mismatch`).
+- Section 1 step 4 names all five content needles (section 5 was already
+  exact); failures record the full partial evidence with the failure
+  attached, the invocation is recorded on every path with accepted flags
+  only, both builds' toolchains are recorded, and the version check names
+  the CLI and protocol versions.

@@ -81,10 +81,16 @@ SYMBOLS = {
 
 
 class PackageError(Exception):
-    def __init__(self, code: PackageErrorCode, detail: str = ""):
+    def __init__(
+        self, code: PackageErrorCode, detail: str = "", evidence: dict | None = None
+    ):
         super().__init__(f"{SYMBOLS[code]}:{detail}" if detail else SYMBOLS[code])
         self.code = code
         self.detail = detail
+        # Partial candidate evidence assembled before the failure: the
+        # caller attaches it to the evidence record instead of a stub, so
+        # a refused mint is reconstructible from its evidence alone.
+        self.evidence = evidence
 
     @property
     def symbol(self) -> str:
@@ -394,6 +400,7 @@ def run_conformance_subset(unpacked: Path, timeout: int) -> dict:
     checks["methods_equal_packaged_table"] = methods.returncode == 0 and methods.stdout == (unpacked / "conformance/smp1-json-bridge/v1/methods.json").read_text(encoding="utf-8")
     version = run([str(sley), "version"], cwd=unpacked, env=env, timeout=timeout)
     checks["version_names_protocol"] = version.returncode == 0 and '"protocol_version":1' in version.stdout
+    checks["version_names_cli"] = version.returncode == 0 and '"cli"' in version.stdout
     smp1 = json.loads((unpacked / "conformance/smp1/v1/accepted.json").read_text(encoding="utf-8"))
     bridge = json.loads((unpacked / "conformance/smp1-json-bridge/v1/roundtrip.json").read_text(encoding="utf-8"))
     expected = {vector["frame_hex"]: vector["json"] for vector in bridge["vectors"]}
@@ -439,7 +446,7 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
     commit, clean = git_state()
     if require_clean and not clean:
         raise PackageError(PackageErrorCode.TREE_DIRTY)
-    toolchain = toolchain_versions()
+    first_toolchain = toolchain_versions()
     DIST.mkdir(exist_ok=True)
     evidence: dict = {
         "contract": "s20-720-release-candidate-v1",
@@ -447,7 +454,8 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
         "artifact_name": ARTIFACT_NAME,
         "commit": commit,
         "working_tree_clean": clean,
-        "toolchain": toolchain,
+        "toolchain": first_toolchain,
+        "build_toolchains": {"first": first_toolchain},
         "ga_claimed": False,
         "publication_authorized": False,
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -458,101 +466,140 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
             "council_reviews",
         ],
     }
-    binary = clean_build(DIST / "target-a", timeout)
-    stage_a = DIST / "stage-a"
-    manifest = stage_artifact(
-        binary,
-        stage_a,
-        commit=commit,
-        toolchain=toolchain,
-        working_tree_clean=clean,
-        blockers=evidence["blockers"],
-    )
-    verify_manifest(stage_a, manifest)
-    # The remap residue has its own needle: after the home remap a leaked
-    # tree path reads /home-remapped/..., which contains neither the tree
-    # path nor /home/, so those two needles can never fire on it. The
-    # username catches non-path-shaped leakage (build strings, registry
-    # fragments) the remaps do not reach.
-    findings = scan_forbidden_content(
-        stage_a, (str(ROOT), "/home/", "/home-remapped", Path.home().name)
-    )
-    if findings:
-        raise PackageError(PackageErrorCode.CONTENT_FORBIDDEN, json.dumps(findings[:5]))
-    artifact_path = DIST / ARTIFACT_NAME
-    first = deterministic_tar(stage_a, artifact_path)
-    evidence.update(
-        {
-            "artifact_path": str(artifact_path.relative_to(ROOT)),
-            "artifact_sha256": sha256_bytes(first),
-            "artifact_size_bytes": len(first),
-            "manifest_digest": manifest["manifest_digest"],
-            "member_count": manifest["member_count"],
-            "forbidden_content_findings": 0,
-        }
-    )
-    unpack_root = Path(tempfile.mkdtemp(prefix="sley-candidate-"))
     try:
-        unpacked = unpack(artifact_path, unpack_root)
-        verify_manifest(unpacked, json.loads((unpacked / "MANIFEST.json").read_text(encoding="utf-8")))
-        conformance = run_conformance_subset(unpacked, timeout)
-        if conformance["result"] != "PASS":
-            raise PackageError(PackageErrorCode.CONFORMANCE_FAILED, json.dumps(conformance["checks"]))
-        evidence["conformance_subset"] = conformance
-        evidence["demo"] = run_demo(unpacked, timeout)
-    finally:
-        shutil.rmtree(unpack_root, ignore_errors=True)
-    second_binary = clean_build(DIST / "target-b", timeout)
-    stage_b = DIST / "stage-b"
-    stage_artifact(
-        second_binary,
-        stage_b,
-        commit=commit,
-        toolchain=toolchain,
-        working_tree_clean=clean,
-        blockers=evidence["blockers"],
-    )
-    second = deterministic_tar(stage_b, DIST / f"{ARTIFACT_STEM}.second.tar.gz")
-    comparison = compare_artifacts(first, second)
-    evidence["reproducibility"] = comparison
-    evidence["duration_seconds"] = round(time.monotonic() - started, 1)
-    if not keep:
-        for path in (DIST / "target-a", DIST / "target-b", stage_a, stage_b, DIST / f"{ARTIFACT_STEM}.second.tar.gz"):
-            shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(missing_ok=True)
-    if comparison["result"] != "REPRODUCIBLE":
-        raise PackageError(PackageErrorCode.NOT_REPRODUCIBLE, json.dumps(comparison["differing_members"][:10]))
+        return build_candidate_stages(evidence, timeout=timeout, keep=keep)
+    except PackageError as error:
+        if error.evidence is None:
+            error.evidence = evidence
+        raise
+
+
+def build_candidate_stages(evidence: dict, *, timeout: int, keep: bool) -> dict:
+    """Assemble the staged artifact and its evidence, failing with evidence.
+
+    Every PackageError raised below carries the partial evidence assembled
+    so far, so the caller records the failure against the full comparison
+    detail instead of a stub (contract sections 6 and 7).
+    """
+    started = time.monotonic()
+    commit = evidence["commit"]
+    clean = evidence["working_tree_clean"]
+    first_toolchain = evidence["toolchain"]
+    try:
+        binary = clean_build(DIST / "target-a", timeout)
+        stage_a = DIST / "stage-a"
+        manifest = stage_artifact(
+            binary,
+            stage_a,
+            commit=commit,
+            toolchain=first_toolchain,
+            working_tree_clean=clean,
+            blockers=evidence["blockers"],
+        )
+        verify_manifest(stage_a, manifest)
+        # The remap residue has its own needle: after the home remap a leaked
+        # tree path reads /home-remapped/..., which contains neither the tree
+        # path nor /home/, so those two needles can never fire on it. The
+        # username catches non-path-shaped leakage (build strings, registry
+        # fragments) the remaps do not reach.
+        findings = scan_forbidden_content(
+            stage_a, (str(ROOT), "/home/", "/home-remapped", Path.home().name)
+        )
+        if findings:
+            raise PackageError(PackageErrorCode.CONTENT_FORBIDDEN, json.dumps(findings[:5]))
+        artifact_path = DIST / ARTIFACT_NAME
+        first = deterministic_tar(stage_a, artifact_path)
+        evidence.update(
+            {
+                "artifact_path": str(artifact_path.relative_to(ROOT)),
+                "artifact_sha256": sha256_bytes(first),
+                "artifact_size_bytes": len(first),
+                "manifest_digest": manifest["manifest_digest"],
+                "member_count": manifest["member_count"],
+                "forbidden_content_findings": 0,
+            }
+        )
+        unpack_root = Path(tempfile.mkdtemp(prefix="sley-candidate-"))
+        try:
+            unpacked = unpack(artifact_path, unpack_root)
+            verify_manifest(unpacked, json.loads((unpacked / "MANIFEST.json").read_text(encoding="utf-8")))
+            conformance = run_conformance_subset(unpacked, timeout)
+            if conformance["result"] != "PASS":
+                raise PackageError(PackageErrorCode.CONFORMANCE_FAILED, json.dumps(conformance["checks"]))
+            evidence["conformance_subset"] = conformance
+            evidence["demo"] = run_demo(unpacked, timeout)
+        finally:
+            shutil.rmtree(unpack_root, ignore_errors=True)
+        second_toolchain = toolchain_versions()
+        evidence["build_toolchains"]["second"] = second_toolchain
+        second_binary = clean_build(DIST / "target-b", timeout)
+        stage_b = DIST / "stage-b"
+        stage_artifact(
+            second_binary,
+            stage_b,
+            commit=commit,
+            toolchain=second_toolchain,
+            working_tree_clean=clean,
+            blockers=evidence["blockers"],
+        )
+        second = deterministic_tar(stage_b, DIST / f"{ARTIFACT_STEM}.second.tar.gz")
+        comparison = compare_artifacts(first, second)
+        evidence["reproducibility"] = comparison
+        evidence["duration_seconds"] = round(time.monotonic() - started, 1)
+        if not keep:
+            for path in (DIST / "target-a", DIST / "target-b", stage_a, stage_b, DIST / f"{ARTIFACT_STEM}.second.tar.gz"):
+                shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(missing_ok=True)
+        if comparison["result"] != "REPRODUCIBLE":
+            raise PackageError(PackageErrorCode.NOT_REPRODUCIBLE, json.dumps(comparison["differing_members"][:10]))
+    except PackageError as error:
+        if error.evidence is None:
+            error.evidence = evidence
+        raise
     return evidence
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout-seconds", type=int, default=900)
     parser.add_argument("--require-clean", dest="require_clean", action="store_true", default=True)
     parser.add_argument("--allow-dirty", dest="require_clean", action="store_false")
-    parser.add_argument("--keep", action="store_true", help="keep both target directories and stages")
+    parser.add_argument("--keep", dest="keep", action="store_true", help="keep both target directories and stages")
+    parser.add_argument("--no-keep", dest="keep", action="store_false", help="discard target directories and stages (default)")
     parser.add_argument("--evidence-dir", type=Path, default=EVIDENCE_DIR)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     arguments = parser.parse_args(argv)
+    # The exact invocation is recorded, not inferred downstream: the
+    # provenance predicate copies this string instead of restating it
+    # from cleanliness plus the Makefile (ADR-0041 principle 1). Only
+    # accepted flags are recorded, never paths: an absolute evidence dir
+    # would leak the checkout location into the tracked provenance. The
+    # string is recorded on every path, so a refused mint is
+    # reconstructible from its evidence alone.
+    invocation = " ".join(
+        [
+            "build_release_candidate.py",
+            f"--timeout-seconds={arguments.timeout_seconds}",
+            "--require-clean" if arguments.require_clean else "--allow-dirty",
+            "--keep" if arguments.keep else "--no-keep",
+        ]
+    )
     evidence: dict
     try:
         evidence = build_candidate(timeout=arguments.timeout_seconds, require_clean=arguments.require_clean, keep=arguments.keep)
         evidence["result"] = "PASS"
-        # The exact invocation is recorded, not inferred downstream: the
-        # provenance predicate copies this string instead of restating it
-        # from cleanliness plus the Makefile (ADR-0041 principle 1). Only
-        # flags are recorded, never paths: an absolute evidence dir would
-        # leak the checkout location into the tracked provenance.
-        evidence["invocation"] = " ".join(
-            [
-                "build_release_candidate.py",
-                f"--timeout-seconds={arguments.timeout_seconds}",
-                "--require-clean" if arguments.require_clean else "--allow-dirty",
-                "--keep" if arguments.keep else "--no-keep",
-            ]
-        )
+        evidence["invocation"] = invocation
     except PackageError as error:
-        evidence = {"contract": "s20-720-release-candidate-v1", "result": "FAIL", "failure": {"code": int(error.code), "symbol": error.symbol, "detail": error.detail[:500]}}
+        evidence = error.evidence or {"contract": "s20-720-release-candidate-v1"}
+        evidence["result"] = "FAIL"
+        evidence["invocation"] = invocation
+        evidence["failure"] = {"code": int(error.code), "symbol": error.symbol, "detail": error.detail[:500]}
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:
         evidence = {"contract": "s20-720-release-candidate-v1", "result": "FAIL", "failure": {"code": int(PackageErrorCode.INTERNAL_INVARIANT), "symbol": "PACKAGE_INTERNAL_INVARIANT", "detail": str(error)[:500]}}
+        evidence["invocation"] = invocation
     arguments.evidence_dir.mkdir(parents=True, exist_ok=True)
     (arguments.evidence_dir / "evidence.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     summary = {key: evidence.get(key) for key in ("contract", "result", "artifact_sha256", "artifact_size_bytes", "member_count", "failure") if key in evidence}

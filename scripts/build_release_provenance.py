@@ -216,6 +216,29 @@ def build_statement() -> dict:
             "rebuild the SBOM documents",
         )
     clean = bool(candidate.get("working_tree_clean"))
+    # The invocation is derivation input, not decoration: a candidate
+    # without one predates invocation recording and cannot produce a
+    # statement (contract section 4; 74005 PROVENANCE_EVIDENCE_INVALID).
+    if "invocation" not in candidate:
+        raise ProvenanceError(
+            ProvenanceErrorCode.EVIDENCE_INVALID,
+            "candidate evidence carries no recorded invocation; "
+            "rebuild the candidate before deriving provenance",
+        )
+    # make_target is derived from the recorded invocation, never inferred
+    # from cleanliness: only the Makefile smoke renderings (900 seconds,
+    # require-clean, keep or no-keep) name the smoke target; anything else
+    # is a direct script invocation.
+    invocation = candidate["invocation"]
+    make_target = (
+        "release-candidate-smoke"
+        if invocation
+        in (
+            "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
+            "build_release_candidate.py --timeout-seconds=900 --require-clean --keep",
+        )
+        else "build_release_candidate.py direct"
+    )
     return {
         "_type": STATEMENT_TYPE,
         "subject": [
@@ -231,15 +254,8 @@ def build_statement() -> dict:
                 "externalParameters": {
                     "commit": candidate["commit"],
                     "artifact_name": candidate["artifact_name"],
-                    "make_target": (
-                        "release-candidate-smoke"
-                        if clean
-                        else "build_release_candidate.py --allow-dirty (outside make release-candidate-smoke)"
-                    ),
-                    "invocation": candidate.get(
-                        "invocation",
-                        "unrecorded: candidate evidence predates invocation recording",
-                    ),
+                    "make_target": make_target,
+                    "invocation": invocation,
                     "working_tree_clean": clean,
                 },
                 "internalParameters": {
@@ -287,7 +303,7 @@ def build_statement() -> dict:
     }
 
 
-def local_build_ahead() -> bool:
+def candidate_evidence_mismatch() -> bool:
     """Whether a local candidate build replaced the evidence the documents describe.
 
     `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
@@ -315,9 +331,9 @@ def local_build_ahead() -> bool:
 
 
 def validate_tracked() -> list[str]:
-    """Internal consistency of the tracked statement, checked even when a
-    local build is ahead (a skipped verification must not read PASS over
-    an unchecked document)."""
+    """Internal consistency of the tracked statement, checked even when the
+    untracked candidate evidence disagrees with the tracked documents
+    (a skipped verification must not read PASS over an unchecked document)."""
     problems: list[str] = []
     try:
         document = json.loads(PROVENANCE.read_text(encoding="utf-8"))
@@ -340,6 +356,27 @@ def validate_tracked() -> list[str]:
     else:
         if document.get("statement_digest") != digest_of(statement):
             problems.append("statement-digest")
+            return problems
+        # The attestation binding of the provenance subject (contract
+        # section 5, mirroring the SBOM namespace binding): a tracked
+        # statement whose subject no clean REPRODUCIBLE attestation names
+        # is not validated, even with a self-consistent digest.
+        try:
+            report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
+            attested = {
+                (attestation.get("commit"), attestation.get("artifact_sha256"))
+                for attestation in report.get("attestations", [])
+                if isinstance(attestation, dict)
+                and attestation.get("reproducibility") == "REPRODUCIBLE"
+                and attestation.get("working_tree_clean") is True
+            }
+        except (OSError, json.JSONDecodeError):
+            attested = set()
+        if (
+            external["commit"],
+            subjects[0]["digest"]["sha256"],
+        ) not in attested:
+            problems.append("subject-not-attestation-bound")
     return problems
 
 
@@ -364,7 +401,7 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     try:
-        if args.check and local_build_ahead():
+        if args.check and candidate_evidence_mismatch():
             invalid = validate_tracked()
             if invalid:
                 print(
@@ -372,7 +409,7 @@ def main() -> int:
                         {
                             "mode": "check",
                             "result": "FAIL",
-                            "state": "LOCAL_BUILD_AHEAD_TRACKED_INVALID",
+                            "state": "MISMATCH_TRACKED_INVALID",
                             "problems": invalid,
                         }
                     ),
@@ -383,10 +420,10 @@ def main() -> int:
                 canonical(
                     {
                         "mode": "check",
-                        "result": "AHEAD_TRACKED_VALIDATED",
-                        "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
-                        "detail": "a local candidate build replaced the untracked evidence this "
-                        "statement describes; make release-candidate-smoke reconciles them",
+                        "result": "MISMATCH_TRACKED_VALIDATED",
+                        "state": "CANDIDATE_EVIDENCE_MISMATCH_TRACKED_DOCUMENTS",
+                        "detail": "the untracked candidate evidence disagrees with the tracked documents; "
+                        "make release-candidate-smoke reconciles them",
                     }
                 ),
                 end="",

@@ -118,15 +118,15 @@ Rules:
    compiler upgrade changes the bytes without touching the tree. The cure
    for a stale report is `make release-candidate-smoke`, not an edit;
  - minting while the operator working tree carries retained untracked
-   material that must not be moved uses the canonical detached linked
-   worktree procedure (operator decision, S20-720 wave): start from the exact
-   candidate commit, create a detached linked worktree, prove that worktree
-   clean, mint release and reproducibility evidence there, bind the evidence
-   to the exact candidate commit and resulting artifact identity, and file
-   refreshed evidence as a records-only descendant where required. The
-   retained material stays in the operator tree untouched; the whole-tree
-   clean-tree gate semantics are unchanged, only the checkout the mint runs
-   in is made clean by construction;
+  material that must not be moved uses the canonical detached linked
+  worktree procedure (operator decision, S20-720 wave): start from the exact
+  candidate commit, create a detached linked worktree, prove that worktree
+  clean, mint release and reproducibility evidence there, bind the evidence
+  to the exact candidate commit and resulting artifact identity, and file
+  refreshed evidence as a records-only descendant where required. The
+  retained material stays in the operator tree untouched; the whole-tree
+  clean-tree gate semantics are unchanged, only the checkout the mint runs
+  in is made clean by construction;
 - the report contains no timestamp, so equal inputs give equal bytes; the
   canonical form is JSON with sorted keys, two-space indentation, and a
   trailing newline.
@@ -321,13 +321,13 @@ reproducibility report has at least one attestation and claims
 neither GA nor publication, that the unit tests pass, and that
 `release-check` and `v2` stay `NOT_IMPLEMENTED`. Minting requires a
 whole-tree clean checkout including untracked files (section 1
-`working_tree_clean`), deliberately stricter
-   than the surface-scoped uncommitted check: the attestation must bind the
-   exact tree the artifact builds from, not just its surface. Where the
-   operator tree carries retained untracked material, the binding is produced
-   with the canonical detached linked worktree procedure (section 2): the
-   mint runs in a worktree that is whole-tree clean, so the gate semantics
-   are not weakened to surface-only cleanliness.
+`working_tree_clean`), deliberately stricter than the surface-scoped
+uncommitted check: the attestation must bind the exact tree the artifact
+builds from, not just its surface. Where the operator tree carries
+retained untracked material, the binding is produced with the canonical
+detached linked worktree procedure (section 2): the mint runs in a
+worktree that is whole-tree clean, so the gate semantics are not weakened
+to surface-only cleanliness.
 
 ## 9. Explicit exclusions
 

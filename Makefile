@@ -186,6 +186,9 @@ accounting-smoke:
 # rather than the summary bytes. The supply-chain generator runs again at the
 # end because its T54 scan covers the documents the earlier steps rewrote. The reproducibility report is rebuilt
 # only by the release smoke, because it attests a clean-tree candidate build.
+# The SBOM and provenance builders refuse a candidate that is not HEAD or
+# that no clean REPRODUCIBLE attestation names, so a refresh on a stale
+# checkout fails closed instead of rewriting the documents to it.
 evidence-refresh:
 	python3 scripts/check_error_symbol_registration.py
 	python3 scripts/generate_supply_chain_evidence.py

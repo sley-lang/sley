@@ -57,6 +57,8 @@ SPEC_MARKERS = (
     "## 5. Forbidden content",
     "## 6. Reproducibility",
     "## 7. Evidence and blockers",
+    "canonical detached linked worktree",
+    "candidate-attestation-mismatch",
     "## 10. Explicit exclusions",
 )
 ADR_MARKERS = (
@@ -166,7 +168,9 @@ def main() -> int:
         problems.append("machine-summary:artifact-not-null")
     # The register's candidate identity must name the tracked
     # reproducibility attestation: without this cross-check the section can
-    # name any candidate while the checker stays green.
+    # name any candidate while the checker stays green. The attestation
+    # must be clean and REPRODUCIBLE (mirroring the S20-710 pin), and the
+    # quality fields the register hand-maintains must agree with it.
     repro_path = ROOT / "evidence/release/reproducibility-report.json"
     if status in IMPLEMENTATION_STATUSES:
         if not repro_path.exists():
@@ -178,14 +182,29 @@ def main() -> int:
                     attestation.get("commit"),
                     attestation.get("artifact_sha256"),
                     attestation.get("manifest_digest"),
+                    attestation.get("artifact_size_bytes"),
+                    attestation.get("member_count"),
+                    attestation.get("working_tree_clean"),
+                    attestation.get("reproducibility"),
+                    attestation.get("toolchain", {}).get("cargo"),
+                    attestation.get("toolchain", {}).get("rustc"),
                 )
                 for attestation in repro.get("attestations", [])
                 if isinstance(attestation, dict)
+                and attestation.get("working_tree_clean") is True
+                and attestation.get("reproducibility") == "REPRODUCIBLE"
             }
+            candidate_toolchain = section.get("candidate_toolchain", {})
             if (
                 section.get("candidate_commit"),
                 section.get("candidate_artifact_sha256"),
                 section.get("candidate_manifest_digest"),
+                section.get("candidate_artifact_size_bytes"),
+                section.get("candidate_member_count"),
+                section.get("candidate_working_tree_clean"),
+                section.get("candidate_reproducibility"),
+                candidate_toolchain.get("cargo"),
+                candidate_toolchain.get("rustc"),
             ) not in attested:
                 problems.append("machine-summary:candidate-attestation-mismatch")
 

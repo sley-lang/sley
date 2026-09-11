@@ -202,5 +202,45 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(comparison["differing_members"], [])
 
 
+class InvocationTests(unittest.TestCase):
+    """The recorded invocation replays: only accepted flags, every path."""
+
+    def test_no_keep_is_an_accepted_flag(self) -> None:
+        arguments = packaging.build_parser().parse_args(
+            ["--timeout-seconds=900", "--require-clean", "--no-keep"]
+        )
+        self.assertFalse(arguments.keep)
+        self.assertTrue(arguments.require_clean)
+
+    def test_recorded_invocations_parse(self) -> None:
+        parser = packaging.build_parser()
+        for invocation in (
+            "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
+            "build_release_candidate.py --timeout-seconds=900 --require-clean --keep",
+            "build_release_candidate.py --timeout-seconds=60 --allow-dirty --no-keep",
+        ):
+            words = invocation.split()[1:]
+            arguments = parser.parse_args(words)
+            self.assertIsInstance(arguments.timeout_seconds, int)
+
+    def test_porcelain_sees_untracked_files(self) -> None:
+        # The whole-tree property the worktree procedure rests on: the
+        # exact `git status --porcelain` command git_state() uses must
+        # report an untracked file, so --require-clean refuses it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            setup = (
+                ["git", "init", "-q", "."],
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"],
+            )
+            for argv in setup:
+                done = packaging.run(list(argv), cwd=root, env=None, timeout=60)
+                self.assertEqual(done.returncode, 0, argv)
+            (root / "probe.txt").write_text("untracked\n", encoding="utf-8")
+            scan = packaging.run(["git", "status", "--porcelain"], cwd=root, env=None, timeout=60)
+            self.assertEqual(scan.returncode, 0)
+            self.assertIn("probe.txt", scan.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

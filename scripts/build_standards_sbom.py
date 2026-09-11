@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from enum import IntEnum
 from pathlib import Path
@@ -436,9 +437,58 @@ def spdx(facts: list[dict], relationships: list, candidate: dict, inventory_dige
     return document
 
 
+def git_head() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise SbomError(SbomErrorCode.INVENTORY_INVALID, "git HEAD unavailable")
+    return completed.stdout.strip()
+
+
+def require_attested_candidate(candidate: dict) -> None:
+    """The SBOM write-mode admission gate, mirroring the provenance builder.
+
+    The namespace and root are derived from the candidate evidence, so a
+    candidate that is not HEAD or that no clean REPRODUCIBLE attestation
+    names must refuse here instead of emitting documents the checker must
+    catch (contract section 5; 74001 SBOM_INVENTORY_INVALID).
+    """
+    if candidate.get("commit") != git_head():
+        raise SbomError(
+            SbomErrorCode.INVENTORY_INVALID,
+            f"candidate commit {candidate.get('commit')} is not HEAD; "
+            "rebuild the candidate on this tree before deriving SBOMs",
+        )
+    try:
+        report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
+        attestations = report.get("attestations", [])
+    except (OSError, json.JSONDecodeError) as error:
+        raise SbomError(SbomErrorCode.INVENTORY_INVALID, f"attestation report unreadable: {error}") from error
+    if not any(
+        isinstance(attestation, dict)
+        and attestation.get("commit") == candidate.get("commit")
+        and attestation.get("artifact_sha256") == candidate.get("artifact_sha256")
+        and attestation.get("reproducibility") == "REPRODUCIBLE"
+        and attestation.get("working_tree_clean") is True
+        for attestation in attestations
+    ):
+        raise SbomError(
+            SbomErrorCode.INVENTORY_INVALID,
+            "no clean REPRODUCIBLE attestation names this candidate; "
+            "re-mint the reproducibility attestation first",
+        )
+
+
 def build_documents() -> tuple[dict, dict, dict]:
     inventory = load_inventory()
     candidate = load_candidate()
+    require_attested_candidate(candidate)
     facts = sorted(
         (component_facts(package) for package in inventory["packages"]),
         key=lambda fact: fact["purl"],
@@ -474,9 +524,10 @@ def tracked_candidate_facts() -> tuple[str, str] | None:
 
 
 def validate_tracked() -> list[str]:
-    """Internal consistency of the tracked pair, checked even when a local
-    build is ahead (a skipped verification must not read PASS over an
-    unchecked document). Mirrors the provenance builder's validate_tracked:
+    """Internal consistency of the tracked pair, checked even when the
+    untracked candidate evidence disagrees with the tracked documents
+    (a skipped verification must not read PASS over an unchecked document).
+    Mirrors the provenance builder's validate_tracked:
     shape, determinism pins, and the attestation binding of the namespace."""
     problems: list[str] = []
     try:
@@ -513,7 +564,7 @@ def validate_tracked() -> list[str]:
     return problems
 
 
-def local_build_ahead() -> bool:
+def candidate_evidence_mismatch() -> bool:
     """Whether a local candidate build replaced the evidence the documents describe.
 
     `evidence/runtime/` is not tracked, so a fresh candidate build legitimately
@@ -538,7 +589,7 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     try:
-        if args.check and local_build_ahead():
+        if args.check and candidate_evidence_mismatch():
             invalid = validate_tracked()
             if invalid:
                 print(
@@ -546,7 +597,7 @@ def main() -> int:
                         {
                             "mode": "check",
                             "result": "FAIL",
-                            "state": "LOCAL_BUILD_AHEAD_TRACKED_INVALID",
+                            "state": "MISMATCH_TRACKED_INVALID",
                             "problems": invalid,
                         }
                     ),
@@ -557,10 +608,10 @@ def main() -> int:
                 canonical(
                     {
                         "mode": "check",
-                        "result": "AHEAD_TRACKED_VALIDATED",
-                        "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
-                        "detail": "a local candidate build replaced the untracked evidence these "
-                        "documents describe; make release-candidate-smoke reconciles them",
+                        "result": "MISMATCH_TRACKED_VALIDATED",
+                        "state": "CANDIDATE_EVIDENCE_MISMATCH_TRACKED_DOCUMENTS",
+                        "detail": "the untracked candidate evidence disagrees with the tracked documents; "
+                        "make release-candidate-smoke reconciles them",
                     }
                 ),
                 end="",
