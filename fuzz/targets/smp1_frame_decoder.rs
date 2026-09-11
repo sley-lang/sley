@@ -126,10 +126,10 @@ fn check_hello(candidate: &[u8]) {
 /// Negotiation oracle shared by the bare-record lane (check_hello) and the
 /// framed lane (check_frame): fixture hello frames decode to Hello records
 /// through decode_frame, so this is where negotiation genuinely executes.
-/// A decoded-but-invalid client hello negotiates to PayloadInvalid, which
-/// is accepted; but a broken server fixture must fail loudly instead of
-/// silently killing the Ok arm again (S20-700-SMP1-001), so the fixture
-/// validates on every call.
+/// Hello::decode validates, so every decoded hello is valid and the only
+/// legitimate negotiation failure is NoCommonProfile; the server fixture
+/// validates on every call so a drift back to the S20-700-SMP1-001 state
+/// crashes deterministically instead of silently killing the Ok arm.
 fn check_negotiated_hello(hello: &Hello) {
     let server = server_hello();
     server.validate().expect("server fixture must stay valid");
@@ -145,11 +145,9 @@ fn check_negotiated_hello(hello: &Hello) {
             assert_eq!(selected.features & !hello.features, 0);
             assert!(selected.limits.max_inflight <= hello.limits.max_inflight);
         }
-        Err(error) => assert!(
-            matches!(
-                error.code(),
-                ProtocolErrorCode::NoCommonProfile | ProtocolErrorCode::PayloadInvalid
-            ),
+        Err(error) => assert_eq!(
+            error.code(),
+            ProtocolErrorCode::NoCommonProfile,
             "negotiation failed with an unexpected code"
         ),
     }

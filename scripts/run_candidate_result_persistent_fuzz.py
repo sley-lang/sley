@@ -85,6 +85,7 @@ def main() -> int:
     evidence.setdefault("toolchain_versions", toolchain_versions())
     if evidence["problems"]:
         evidence["result"] = "BLOCKED"
+        evidence["duration_seconds"] = round(time.monotonic() - started, 3)
         write_evidence(evidence)
         return 2
 
@@ -123,11 +124,12 @@ def main() -> int:
     if build["returncode"] != 0:
         evidence["duration_seconds"] = round(time.monotonic() - started, 3)
         evidence["result"] = "FAIL"
+        evidence["duration_seconds"] = round(time.monotonic() - started, 3)
         write_evidence(evidence)
         return 1
 
     evidence["owner_lib_sancov_symbols"], evidence["rlib_linkage"] = (
-        owner_lib_sancov_symbols(build_record=build)
+        owner_lib_sancov_symbols(build_record=build, env=env)
     )
     evidence["owner_lib_sancov_total"] = sum(evidence["owner_lib_sancov_symbols"].values())
     evidence["owner_lib_sancov"] = sum(
@@ -141,6 +143,7 @@ def main() -> int:
         evidence.setdefault("problems", []).append(
             f"owner-lib-sancov-missing:{OWNER_RLIB}"
         )
+        evidence["duration_seconds"] = round(time.monotonic() - started, 3)
         write_evidence(evidence)
         return 1
 
@@ -192,6 +195,11 @@ def main() -> int:
             artifacts_dir=ARTIFACTS,
             minimized_dir=RUNTIME / "minimized",
             timeout_seconds=args.timeout,
+            skip=[
+                record["artifact"]
+                for record in evidence["retested_prior_crashes"]
+                if not record.get("still_crashes", False)
+            ],
         )
         if evidence["crash_artifacts"]
         else []
@@ -221,6 +229,7 @@ def main() -> int:
             f"new_crashes={evidence['new_crash_artifacts']} "
             f"still_crashing={[r['artifact'] for r in evidence['retested_prior_crashes'] if r.get('still_crashes')]} "
             f"warnings={evidence['unexpected_warnings']})"        )
+    evidence["duration_seconds"] = round(time.monotonic() - started, 3)
     write_evidence(evidence)
     return 0 if evidence["result"] == "PASS" else 1
 
@@ -371,6 +380,7 @@ def minimize_crashes(
     artifacts_dir: Path,
     minimized_dir: Path,
     timeout_seconds: int,
+    skip: list[str] | None = None,
 ) -> list[dict[str, object]]:
     """Minimize each crasher with libFuzzer -minimize_crash=1.
 
@@ -383,7 +393,10 @@ def minimize_crashes(
     """
     minimized_dir.mkdir(parents=True, exist_ok=True)
     out: list[dict[str, object]] = []
+    skipped = set(skip or [])
     for name in crash_artifact_names(artifacts_dir):
+        if name in skipped:
+            continue
         source = artifacts_dir / name
         record: dict[str, object] = {
             "artifact": name,
@@ -396,7 +409,6 @@ def minimize_crashes(
                 [
                     fuzzer_bin,
                     "-minimize_crash=1",
-                    "-runs=1000000",
                     f"-max_total_time={max(10, timeout_seconds - 15)}",
                     f"-exact_artifact_path={exact}",
                     str(source),
@@ -458,7 +470,7 @@ def parse_executed_units(stderr: str) -> int:
     return int(matches[-1]) if matches else -1
 
 
-def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[str, int], str]:
+def owner_lib_sancov_symbols(*, build_record: dict | None = None, env: dict[str, str] | None = None) -> tuple[dict[str, int], str]:
     """sanitizer_cov symbol counts for the rlibs cargo linked into the binary.
 
     Proof that coverage instrumentation reaches the owner library code, not
@@ -470,7 +482,7 @@ def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[
     query fails, the gate counts nothing (method cargo-json-failed) and
     fails closed instead of passing on unknown provenance.
     """
-    rlibs, method = linked_sley_rlibs(build_record)
+    rlibs, method = linked_sley_rlibs(build_record, env)
     nm = shutil.which("llvm-nm") or shutil.which("nm")
     counts: dict[str, int] = {}
     if nm is None:
@@ -494,7 +506,7 @@ def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[
     return counts, method
 
 
-def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
+def linked_sley_rlibs(build_record: dict | None, env: dict[str, str] | None) -> tuple[list[Path], str]:
     """rlib paths cargo reports for the recorded build, or newest-per-crate.
 
     The recorded build argv is replayed with --message-format=json (no
@@ -512,10 +524,12 @@ def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
                 + ["--message-format=json"]
                 + argv[argv.index("--") :]
             )
+            env = dict(os.environ) if env is None else env
             try:
                 completed = subprocess.run(
                     query,
                     cwd=ROOT,
+                    env=env,
                     text=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

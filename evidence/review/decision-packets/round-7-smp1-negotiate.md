@@ -29,7 +29,9 @@ malformed hello becomes indistinguishable from an incompatible one).
 
 ## Target disposition (landed, fuzz lane)
 
-`check_negotiated_hello` accepts `NoCommonProfile` (incompatible valid
-hellos) and `PayloadInvalid` (decoded-but-invalid hellos); any other code
-still panics. The acceptance is correct under either resolution of the
-doc question above. No production code was changed in this wave.
+`check_negotiated_hello` accepts only `NoCommonProfile`: `Hello::decode`
+validates, so with a valid server fixture `PayloadInvalid` is unreachable
+and its acceptance would mask a fixture regression. The server fixture
+asserts validity on every negotiation call, so a drift back to the
+S20-700-SMP1-001 state crashes deterministically. No production code was
+changed in this wave.

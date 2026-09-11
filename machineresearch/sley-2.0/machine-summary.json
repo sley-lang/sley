@@ -2059,7 +2059,7 @@
     "outer_trailer_rehash_lane": true,
     "failed_preflight_object_writes": 0,
     "full_s20_540_profile_covered": false,
-    "vulcan_review": "REVISE_0_P0_2_P1_4_P2_3_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_1_P2_ACCEPTED_NEXT_WAVE_3_P3_6_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2171,7 +2171,7 @@
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-complete-root-libfuzzer/corpus",
     "runtime_evidence": "evidence/runtime/s20-700-complete-root-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_complete_root_persistent_fuzz.py --manual",
-    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_7_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md",
     "max_set_members": 24,
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
@@ -2229,7 +2229,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-semantic-delta-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_semantic_delta_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_4_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
@@ -2285,7 +2285,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-merge-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_merge_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_5_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_3_P3",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
@@ -2447,7 +2447,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-root-query-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_root_query_persistent_fuzz.py --manual",
     "continuation_walk": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_5_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
@@ -2558,7 +2558,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-smp1-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_6_P3",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true,
     "last_local_proof": {
@@ -2930,7 +2930,7 @@
     "atomic_failure_asserted": true,
     "replay_response_fidelity_asserted": true,
     "state_root_transcript_binding_asserted": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_6_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2971,7 +2971,13 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "must_reject_classes": [
+      "identity-changed (adapter_id)",
+      "abi-not-1 (abi_version % 4)",
+      "effect-kind-forced (StdoutWrite)"
+    ],
+    "must_reject_rule": "single decisive mutation refuses; stacked mutations stay acceptance-tested; class 3 (effects cleared) not flagged (no repo test; next target round)"
   },
   "s20_350_mutation_candidate_persistent_fuzz": {
     "status": "PASS_PROPOSAL_ONLY_RECORD_AND_ENVELOPE",
@@ -2990,7 +2996,7 @@
     "manual_command": "python3 scripts/run_mutation_candidate_persistent_fuzz.py --manual",
     "candidate_authority": false,
     "runtime_mutation": false,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_5_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -3976,7 +3982,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 269,
-    "open_reviews": 101,
+    "open_reviews": 94,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4025,7 +4031,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "101 review obligations are open",
+      "94 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
