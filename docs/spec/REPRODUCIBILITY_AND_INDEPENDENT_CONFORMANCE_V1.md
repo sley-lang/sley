@@ -1,12 +1,16 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 3 (2026-09-05); Council review
+Status: S20-730 contract draft, revision 4 (2026-09-10); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
 attestations across rebuilds, binds every attested commit to the filing
 history with an artifact-surface freshness rule, verifies the report digest
-in the checker, and gives the coverage taxonomy its depth axis. The mechanics are `scripts/build_reproducibility_report.py` and
+in the checker, and gives the coverage taxonomy its depth axis. Revision 4
+covers the versioned entity-read corpus (sections 3 and 5): the family's
+pinned S20-310 vectors live under `conformance/entity-read/v2`, so the
+report records each family's versioned corpus directory, and the
+entity-read checker joins the semantic depth. The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -130,7 +134,7 @@ report = {
   "report_digest": SHA-256 of the canonical report without this field
 }
 fixture = {
-  "directory": "conformance/<name>/v1",
+  "directory": "conformance/<name>/<version>",
   "files": [{ "name": string, "sha256": hex, "bytes": integer }, ...],
   "sums_file": bool,
   "sums_consistent": true | null,
@@ -150,6 +154,10 @@ Rules:
 - every directory under `conformance/` is a fixture family; an unmapped
   family is `CONFORMANCE_ORACLE_DRIFT`, so adding a fixture family requires
   declaring its coverage;
+- each family names its pinned corpus version in the builder's
+  `CORPUS_VERSION` map (default `v1`); today every family pins `v1` except
+  `entity-read`, whose S20-310 vectors pin `v2`; the `SHA256SUMS` and digest
+  rules below apply inside the versioned directory;
 - a family mapped to an independent oracle names the exact command of the
   `make conformance` recipe; a command absent from the recipe is
   `CONFORMANCE_ORACLE_DRIFT`;
@@ -196,8 +204,10 @@ kernel (master goal section 6.5).
   is the merge checker (recomputes both deltas and applies the merge
   judgment), the semantic-comparison checker (re-derives change classes and
   deltas), the complete-entity-impact checker (re-derives the edge set and
-  its closure), and the root-backed-query checker (re-derives result pages,
-  work accounting, and failure precedence).
+  its closure), the root-backed-query checker (re-derives result pages,
+  work accounting, and failure precedence), and the entity-read checker
+  (rebuilds expected response bytes, selection order, work accounting, and
+  failure precedence from hand-authored semantic inputs).
 - `independent_oracle` at `codec_and_identity` depth: the checker decodes
   containers and re-derives records, identities, keys, or digest trees
   without judging semantics. Today that is every other family, including
@@ -205,7 +215,7 @@ kernel (master goal section 6.5).
   cache keys and request identities from frozen preimages.
 - `native_only`: the family is exercised only through Rust code or through
   the packaged binary; it counts against the independent PASS. No family is
-  native-only at revision 3.
+  native-only at revision 4.
 
 ## 5.1 Second-host runbook
 

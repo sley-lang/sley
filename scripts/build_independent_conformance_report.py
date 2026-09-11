@@ -73,6 +73,14 @@ COVERAGE: dict[str, str | None] = {
     "state-root": f"{ORACLE_RUNNER} python scripts/check_state_root_vector.py",
     "transaction-receipt": f"{ORACLE_RUNNER} sley2-scb1-oracle check-transaction-receipt",
     "vm-extended": f"{ORACLE_RUNNER} sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
+    "entity-read": f"{ORACLE_RUNNER} python scripts/check_entity_read_vectors.py",
+}
+# Pinned corpus version per family (contract section 3). Every family pins
+# `v1` except `entity-read`, whose S20-310 vectors pin `v2` by the
+# entity-read contract. A family without an entry pins `v1`; a family whose
+# pinned version directory is absent is CONFORMANCE_FIXTURE_UNREADABLE.
+CORPUS_VERSION: dict[str, str] = {
+    "entity-read": "v2",
 }
 # Coverage depth per family (contract section 5): "semantic" when the checker
 # recomputes an outcome or judgment from frozen inputs with independent logic
@@ -110,6 +118,7 @@ DEPTH: dict[str, str] = {
     "state-root": "codec_and_identity",
     "transaction-receipt": "codec_and_identity",
     "vm-extended": "codec_and_identity",
+    "entity-read": "semantic",
 }
 COVERAGE_DEPTHS = ("semantic", "codec_and_identity")
 # Every family now has an independent checker; the mapping stays so a future
@@ -194,16 +203,17 @@ def family_record(directory: Path, recipe: str) -> dict:
             ConformanceErrorCode.ORACLE_DRIFT,
             f"fixture family {name!r} declares no coverage; add it to COVERAGE",
         )
-    version = directory / "v1"
-    if not version.is_dir():
+    version = CORPUS_VERSION.get(name, "v1")
+    versioned = directory / version
+    if not versioned.is_dir():
         raise ConformanceError(
-            ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no v1 directory"
+            ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no {version} directory"
         )
     files: list[dict] = []
     shape: dict[str, dict] = {}
     contract: str | None = None
     claim: str | None = None
-    for path in sorted(version.iterdir()):
+    for path in sorted(versioned.iterdir()):
         if not path.is_file():
             continue
         data = path.read_bytes()
@@ -230,14 +240,14 @@ def family_record(directory: Path, recipe: str) -> dict:
     if not files:
         raise ConformanceError(ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no fixtures")
 
-    sums_path = version / "SHA256SUMS"
+    sums_path = versioned / "SHA256SUMS"
     sums_consistent: bool | None = None
     if not sums_path.exists():
         # A manifest is how an independent party verifies a corpus without
         # running its generator, so every corpus carries one.
         raise ConformanceError(
             ConformanceErrorCode.FIXTURE_UNREADABLE,
-            f"{display(version)} has no SHA256SUMS manifest",
+            f"{display(versioned)} has no SHA256SUMS manifest",
         )
     if sums_path.exists():
         declared = read_sums(sums_path)
@@ -276,7 +286,7 @@ def family_record(directory: Path, recipe: str) -> dict:
             "command": command,
         }
     return {
-        "directory": f"conformance/{name}/v1",
+        "directory": f"conformance/{name}/{version}",
         "files": files,
         "sums_file": sums_path.exists(),
         "sums_consistent": sums_consistent,

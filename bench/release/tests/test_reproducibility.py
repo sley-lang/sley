@@ -207,9 +207,15 @@ class IndependentConformanceTests(unittest.TestCase):
             path.name for path in (ROOT / "conformance").iterdir() if path.is_dir()
         )
         self.assertEqual(report["fixture_directories"], len(directories))
+        # The pinned corpus version per family is itself pinned: only
+        # entity-read vectors live under v2 (S20-310 contract).
+        self.assertEqual(conformance.CORPUS_VERSION, {"entity-read": "v2"})
         self.assertEqual(
             [family["directory"] for family in report["fixtures"]],
-            [f"conformance/{name}/v1" for name in directories],
+            [
+                f"conformance/{name}/{conformance.CORPUS_VERSION.get(name, 'v1')}"
+                for name in directories
+            ],
         )
         self.assertEqual(
             report["independently_checked"] + len(report["native_only"]),
@@ -285,6 +291,7 @@ class CoverageDepthTests(unittest.TestCase):
             semantic,
             {
                 "conformance/complete-entity-impact/v1",
+                "conformance/entity-read/v2",
                 "conformance/merge/v1",
                 "conformance/root-backed-query/v1",
                 "conformance/semantic-comparison/v1",
