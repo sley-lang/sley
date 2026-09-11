@@ -41,3 +41,22 @@ python3 scripts/check_complete_root_snapshot_persistent_fuzz_slice.py
 make complete-root-snapshot-persistent-fuzz-smoke
 python3 scripts/run_complete_root_snapshot_persistent_fuzz.py --manual
 ```
+
+## Repair round 7 (REQ-06 fuzz repair wave)
+
+The REQ-06 REVISE findings against this slice's harness are repaired in
+the runner: `--locked` builds, workspace-wide owner-lib coverage via
+`-Zhost-config` + target rustflags (the old bin-only flag left zero
+`sancov` symbols in owner rlibs; the gate now fails closed on zero),
+runs-must-cover-corpus enforcement with `SMOKE_RUNS` at twice the corpus,
+persistent corpus directories with stale-seed sync, crash minimization
+via `-merge=1`, executed/coverage/crash evidence gates, a dedicated build
+timeout, and append-only artifacts. The slice proved locally PASS with
+executed == requested >= corpus, coverage feedback observed, zero crash
+artifacts, and nonzero owner-lib `sancov` counts; the durable record is
+`machine-summary.json` `last_local_proof` (runtime `evidence.json` files
+are gitignored by design). The pinned qualification toolchain is
+unchanged (`clang-18`, pinned libfuzzer path, `nightly-2026-02-27`); the
+local proof ran under documented `SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A`
+overrides. Re-review of the slice's Vulcan verdict is queued, not
+assumed.

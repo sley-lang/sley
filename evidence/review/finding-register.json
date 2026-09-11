@@ -37,7 +37,7 @@
     "p4": 0
   },
   "deferred_reviews": [],
-  "obligation_count": 262,
+  "obligation_count": 267,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -788,6 +788,18 @@
         "P2",
         "P3"
       ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES",
+      "field": "owner_registration_review",
+      "package_status": "IN_PROGRESS",
+      "reviewer": null,
+      "section": "error_symbol_registration",
+      "severities": [],
       "state": "PENDING",
       "superseded_by": null
     },
@@ -2294,6 +2306,20 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED",
+      "field": "contract_text_review",
+      "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": null,
+      "section": "root_backed_query_profile",
+      "severities": [
+        "P1"
+      ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_2_P0_7_P1_5_P2_4_P3",
       "field": "nabu_architecture_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
@@ -2501,6 +2527,18 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_S81_AMENDMENT_OR_EMITTER_CHANGE_11_SYMBOLS",
+      "field": "validator_symbol_coverage_review",
+      "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
+      "reviewer": null,
+      "section": "s20_360_candidate_validation",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_1_P0_4_P1_2_P2_2_P3",
       "field": "vulcan_operation_analysis_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
@@ -2691,6 +2729,30 @@
         "P2"
       ],
       "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING_RECLASSIFIED_FROM_REQ06_ITEM10_AWAITING_CORRECT_LANE_REVIEW",
+      "field": "legacy_adapter_contract_review",
+      "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
+      "reviewer": null,
+      "section": "s20_600_frozen_legacy_adapter",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "legacy_artifact_adapter",
+      "field": "review_lane",
+      "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
+      "reviewer": null,
+      "section": "s20_600_frozen_legacy_adapter",
+      "severities": [],
+      "state": "OTHER",
       "superseded_by": null
     },
     {
@@ -3741,7 +3803,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "339c3c7487f349aa4cbd8360ae001667cd32cee12a786354b79ed09af6bf8873",
+  "obligations_digest": "a21bff4ee2cf0102f7764bfe0b670d0c6af9d7145e92336ffc6764287a0e1ba6",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -3902,6 +3964,12 @@
         "P2",
         "P3"
       ]
+    },
+    {
+      "disposition": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES",
+      "field": "owner_registration_review",
+      "section": "error_symbol_registration",
+      "severities": []
     },
     {
       "disposition": "FAIL_2_P0_5_P1_4_P2_4_P3",
@@ -4211,6 +4279,14 @@
       ]
     },
     {
+      "disposition": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED",
+      "field": "contract_text_review",
+      "section": "root_backed_query_profile",
+      "severities": [
+        "P1"
+      ]
+    },
+    {
       "disposition": "FAIL_2_P0_7_P1_5_P2_4_P3",
       "field": "nabu_architecture_review",
       "section": "root_backed_query_profile",
@@ -4281,6 +4357,12 @@
       ]
     },
     {
+      "disposition": "PENDING_S81_AMENDMENT_OR_EMITTER_CHANGE_11_SYMBOLS",
+      "field": "validator_symbol_coverage_review",
+      "section": "s20_360_candidate_validation",
+      "severities": []
+    },
+    {
       "disposition": "FAIL_1_P0_4_P1_2_P2_2_P3",
       "field": "vulcan_operation_analysis_review",
       "section": "s20_360_candidate_validation",
@@ -4322,6 +4404,12 @@
         "P2",
         "P3"
       ]
+    },
+    {
+      "disposition": "PENDING_RECLASSIFIED_FROM_REQ06_ITEM10_AWAITING_CORRECT_LANE_REVIEW",
+      "field": "legacy_adapter_contract_review",
+      "section": "s20_600_frozen_legacy_adapter",
+      "severities": []
     },
     {
       "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3",
@@ -4781,11 +4869,11 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "179088aa607e67ab43e9cfa5201ed41837907ecbdc4c5f0ad31cb0ccc1aacade",
+  "register_digest": "12c8cd1786fcc395d8666de25142648e42e566abc7b423f4fa300c9ba08026db",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
-    "P1": 99,
+    "P1": 100,
     "P2": 124,
     "P3": 122,
     "P4": 8
@@ -4793,9 +4881,9 @@
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 28,
-    "OTHER": 2,
+    "OTHER": 3,
     "PASS": 131,
-    "PENDING": 101
+    "PENDING": 105
   },
   "superseded_rounds": [
     {
@@ -4977,6 +5065,11 @@
       "disposition": "SELF-REVIEW provisional (muse-spark/OpenCode, author line; record reviews/reweave-rw075-native-r12-2026-09-07.log): AR-01 CLOSED, AR-02 CLOSED (streaming residual declared), AR-03 CLOSED, AR-04 CLOSED (C1-exclusion declarative), AR-05 CLOSED (evidence risk), AR-06 PARTIALLY_CLOSED (revision/lifecycle evidence-binding remainder open; gate script untouched), AR-07 CLOSED, AR-08 CLOSED; 4 review-driven repairs (ingress refusal test, 4 authority legs, limits prose, boundary inventory); not independent acceptance, not gate input",
       "field": "native_review_r12_2026_09_07",
       "section": "rw075_correction"
+    },
+    {
+      "disposition": "legacy_artifact_adapter",
+      "field": "review_lane",
+      "section": "s20_600_frozen_legacy_adapter"
     }
   ],
   "work_package": "S20-740"

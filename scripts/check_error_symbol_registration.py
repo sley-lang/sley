@@ -33,8 +33,13 @@ NAMESPACE_SOURCE = ROOT / "docs/spec/ERROR_CODES_V1.md"
 REPORT = ROOT / "evidence/security/error-symbol-registration.json"
 CONTRACT = "sley2.error-symbol-registration.v1"
 # A symbol a document names as a family wildcard covers its members.
-WILDCARD = re.compile(r"`([A-Z][A-Z0-9]*)_\*`")
+# Repair round 7: multi-segment families (`STATE_ROOT_*`,
+# `MUTATION_CANDIDATE_*`, ...) are namespaces too; the old single-segment
+# wildcard plus first-segment filter silently missed every symbol in them.
+WILDCARD = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)_\*`")
 SYMBOL = re.compile(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"')
+STALE_ROOT_FAILURE = re.compile(r'stale_root_failure\(\s*"([A-Z][A-Z0-9_]*)"')
+RESOURCE_FAILURE_LITERAL = re.compile(r'resource_failure\(\s*\d+\s*,\s*"([A-Z][A-Z0-9_]*)"')
 
 
 def namespaces() -> set[str]:
@@ -62,60 +67,148 @@ def registered() -> set[str]:
 
 
 def emitted(declared: set[str]) -> dict[str, str]:
+    """Failure symbols the crates emit in a declared namespace.
+
+    Repair round 7: the namespace match is the longest declared prefix, not
+    the first segment, so multi-segment families resolve to their owners.
+    Symbols whose literal constructors hide them from the string scan (the
+    candidate-validation `stale_root_failure` / `resource_failure` helpers)
+    are included with their defining file.
+    """
     found: dict[str, str] = {}
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         if "/target/" in str(path):
             continue
-        for symbol in SYMBOL.findall(path.read_text(encoding="utf-8", errors="ignore")):
-            if symbol.split("_", 1)[0] in declared:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for symbol in SYMBOL.findall(text):
+            namespace = longest_namespace(symbol, declared)
+            if namespace is not None:
+                found.setdefault(symbol, str(path.relative_to(ROOT)))
+        for symbol in STALE_ROOT_FAILURE.findall(
+            text
+        ) + RESOURCE_FAILURE_LITERAL.findall(text):
+            namespace = longest_namespace(symbol, declared)
+            if namespace is not None:
                 found.setdefault(symbol, str(path.relative_to(ROOT)))
     return found
+
+
+def longest_namespace(symbol: str, declared: set[str]) -> str | None:
+    """Longest declared namespace owning the symbol, if any."""
+    candidates = [
+        namespace
+        for namespace in declared
+        if symbol == namespace or symbol.startswith(namespace + "_")
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
+
+
+def exercise_corpus_files() -> list[Path]:
+    """Files whose content can exercise a refusal path.
+
+    Repair round 7: expected-symbol tables, checker sources, and
+    non-test production code do not exercise anything -- a table that
+    names a symbol is the defect in finding form. Only tests, corpus
+    fixtures, fuzz targets, and oracles count.
+    """
+    files: list[Path] = []
+    for tree in ("conformance", "fuzz", "oracle"):
+        files.extend(
+            path
+            for path in sorted((ROOT / tree).rglob("*"))
+            if path.is_file()
+            and path.suffix in (".rs", ".json", ".py")
+            and "/target/" not in str(path)
+        )
+    for path in sorted((ROOT / "crates").rglob("*.rs")):
+        if "/target/" in str(path):
+            continue
+        if "/tests/" in str(path) or path.name.startswith("test_"):
+            files.append(path)
+    return files
 
 
 def unexercised() -> list[str]:
     """Stable symbols no test, corpus, fuzz target, or oracle ever reaches.
 
     A refusal path nothing exercises is where a defect survives. A test may
-    name the failure by its string or by its enum variant, so both count: the
-    variant is searched outside its own `as_str` and numeric arms.
+    name the failure by its string or by its enum variant, so both count:
+    the string must appear outside the symbol's own defining file, and a
+    variant use must be qualified to its defining enum (a bare-variant
+    substring matched every homonym across all enums). Helper-constructed
+    symbols have no variant arm; their string literal outside the defining
+    file is the exercise rule.
     """
-    variants: dict[str, tuple[str, int]] = {}
+    definitions: dict[str, tuple[str, str | None]] = {}
+    enum_names: set[str] = set()
+    test_regions: dict[str, str] = {}
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         if "/target/" in str(path):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
+        relative = str(path.relative_to(ROOT))
+        enum_names.update(re.findall(r"enum (\w+)", text))
+        # An in-file test module IS exercise: hits past the test marker
+        # count even though the file is the symbol's defining file.
+        marker = text.find("#[cfg(test)]")
+        if marker < 0:
+            marker = text.find("mod tests")
+        if marker >= 0:
+            test_regions[relative] = text[marker:]
         for match in re.finditer(
-            r'Self::(\w+)\s*=>\s*"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', text
+            r"Self::(\w+)\s*=>\s*(?:Some\()?\"([A-Z][A-Z0-9_]*)\"(?:\))?", text
         ):
-            variants.setdefault(match.group(2), (match.group(1), 0))
-    corpus = "".join(
-        path.read_text(encoding="utf-8", errors="ignore")
-        for tree in ("crates", "conformance", "fuzz", "oracle", "scripts", "bench")
-        for path in sorted((ROOT / tree).rglob("*"))
-        if path.is_file()
-        and path.suffix in (".rs", ".json", ".py")
-        and "/target/" not in str(path)
-    )
-    # One pass over the corpus for every variant at once: a regex per symbol
-    # would read thirty megabytes three hundred times.
-    names = sorted({variant for variant, _ in variants.values()})
-    if not names:
+            definitions.setdefault(match.group(2), (relative, match.group(1)))
+        for symbol in STALE_ROOT_FAILURE.findall(
+            text
+        ) + RESOURCE_FAILURE_LITERAL.findall(text):
+            definitions.setdefault(symbol, (relative, None))
+    if not definitions:
         return []
-    alternation = re.compile(r"(?:Self::)?\b(" + "|".join(map(re.escape, names)) + r")\b(\s*=>)?")
-    uses: dict[str, int] = {}
-    arms: dict[str, int] = {}
-    for match in alternation.finditer(corpus):
-        name = match.group(1)
-        uses[name] = uses.get(name, 0) + 1
-        if match.group(2) and match.group(0).startswith("Self::"):
-            arms[name] = arms.get(name, 0) + 1
-    missing = []
-    for symbol, (variant, _) in sorted(variants.items()):
-        if corpus.count(f'"{symbol}"') > 1:
+    names = sorted(definitions)
+    # One pass per file: string literals for every symbol at once, plus
+    # every qualified Owner::Variant use.
+    string_pat = re.compile("|".join(f'"{re.escape(symbol)}"' for symbol in names))
+    qualified_pat = re.compile(r"(\w+)::(\w+)(?!::)")
+    string_hits: dict[str, set[str]] = {symbol: set() for symbol in names}
+    qualified_use_files: dict[tuple[str, str], set[str]] = {}
+    for path in exercise_corpus_files():
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
             continue
-        if uses.get(variant, 0) - arms.get(variant, 0) <= 1:
+        relative = str(path.relative_to(ROOT))
+        for match in string_pat.finditer(text):
+            string_hits[match.group(0).strip('"')].add(relative)
+        for match in qualified_pat.finditer(text):
+            qualified_use_files.setdefault(
+                (match.group(1), match.group(2)), set()
+            ).add(relative)
+    missing = []
+    for symbol in names:
+        defining, variant = definitions[symbol]
+        if any(source != defining for source in string_hits[symbol]):
+            continue
+        own_tests = test_regions.get(defining, "")
+        if f'"{symbol}"' in own_tests:
+            continue
+        exercised_by_variant = variant is not None and any(
+            owner in enum_names and owner != "Self"
+            for (owner, used_variant) in qualified_use_files
+            if used_variant == variant
+            and any(source != defining for source in qualified_use_files[(owner, used_variant)])
+        )
+        if not exercised_by_variant and variant is not None:
+            exercised_by_variant = any(
+                f"{owner}::{variant}" in own_tests
+                for owner in enum_names
+                if owner != "Self"
+            )
+        if not exercised_by_variant:
             missing.append(symbol)
-    return missing
+    return sorted(missing)
 
 
 def code_symbol_pairs() -> dict[int, set[str]]:
@@ -125,14 +218,22 @@ def code_symbol_pairs() -> dict[int, set[str]]:
         if "/target/" in str(path):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        numbers = {
-            match.group(1): int(match.group(2).replace("_", ""))
-            for match in re.finditer(r"Self::(\w+)\s*=>\s*([0-9][0-9_]*),", text)
-        }
-        symbols = {
-            match.group(1): match.group(2)
-            for match in re.finditer(r'Self::(\w+)\s*=>\s*"([A-Z][A-Z0-9_]*)"', text)
-        }
+        numbers = {}
+        for match in re.finditer(
+            r"Self::((?:\w+\s*\|\s*Self::)*\w+)\s*=>\s*(?:Some\()?([0-9][0-9_]*)(?:\))?,",
+            text,
+        ):
+            for lhs in match.group(1).split("|"):
+                numbers[lhs.strip().removeprefix("Self::").strip()] = int(
+                    match.group(2).replace("_", "")
+                )
+        symbols = {}
+        for match in re.finditer(
+            r"Self::((?:\w+\s*\|\s*Self::)*\w+)\s*=>\s*(?:Some\()?\"([A-Z][A-Z0-9_]*)\"(?:\))?",
+            text,
+        ):
+            for lhs in match.group(1).split("|"):
+                symbols[lhs.strip().removeprefix("Self::").strip()] = match.group(2)
         for variant, number in numbers.items():
             if variant in symbols and number >= 1_000:
                 pairs.setdefault(number, set()).add(symbols[variant])

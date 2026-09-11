@@ -156,8 +156,13 @@ fail-closed: root license text approval (operator), standards SBOM and
 provenance (S20-710 full), succession thresholds (S20-640), and the
 Council reviews. Tracked evidence requires a clean tree: the smoke passes
 `--require-clean` (opt out only with `--allow-dirty`, which no tracked
-target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
-manifest's `working_tree_clean` flag names what was built.
+   target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
+   manifest's `working_tree_clean` flag names what was built. Where the
+   operator tree carries retained untracked material that must not be moved,
+   minting uses the canonical detached linked worktree procedure
+   (`REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` section 2): the mint
+   runs in a worktree that is whole-tree clean by construction, and the
+   `--require-clean` gate semantics are unchanged.
 `machine-summary.json` `artifact` stays null until an operator-approved
 release candidate exists.
 

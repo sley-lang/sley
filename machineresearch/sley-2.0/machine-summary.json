@@ -844,7 +844,8 @@
       "the class-kind applicability table ADR-0030 decision 1 and section 9 require was absent, so classes 16, 17, and 19 silently accepted every kind and class_applies_to constrained only classes 6, 7, 8, and 18 without ever running; raised by ariadne. Section 2 now carries the normative nineteen-class table (16, 17, and 19 explicitly every kind, since any entity may be a target or subject and the query never re-judges validity), class_applies_to executes the full table with fail-closed unknown tags, the engine checks it for every named entity and seed after binding and before running, and a matrix test pins the table unit-wide and end to end over the eighteen-kind fixture",
       "section 1 input binding checked only shape agreement and left seven root-committed answer-bearing facts caller-declared (bound ObjectIds, entry points, dependency roots, contract/test/policy roots), none in the RootQueryId preimage; raised by nabu. verify() now recomputes the StateRoot digest from the nine STATE_ROOT_V1 fields exactly as given (adding interpretation_flags to RootQueryInput, via a pure sley-state-root helper with no registry), a seven-fact tamper matrix pins QUERY_ROOT_MISMATCH for every substitution, and the honest sley-repo extraction verifies unchanged",
       "section 4 work-charging rule did not generate the implementation per-class numbers (GetEntity 3, GetSemanticFingerprint 2, ListOwningNamespaces namespace-subject scan, ListDirectDependencies full edge scan) while charged_work stayed frozen in SLEYRQR1; raised by nabu. Closed by the frozen section 4 per-class schedule: all nineteen traversal charges pinned including the class-9 namespace-subject zero-scan case, no charge value changed"
-    ]
+    ],
+    "contract_text_review": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED"
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -1943,7 +1944,18 @@
     "manual_command": "python3 scripts/run_scb1_persistent_fuzz.py --manual",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 1078,
+      "runs_requested": 2156,
+      "executed_runs": 2156,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_schema_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
@@ -1962,7 +1974,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_2_P2_5_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 255,
+      "runs_requested": 510,
+      "executed_runs": 510,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_pack_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_170_PACK_IMPORTER_ONLY",
@@ -1984,7 +2007,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 320,
+      "runs_requested": 640,
+      "executed_runs": 640,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_exchange_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_540_EXCHANGE_IMPORTER_ONLY",
@@ -2002,7 +2036,18 @@
     "outer_trailer_rehash_lane": true,
     "failed_preflight_target_writes": 0,
     "vulcan_review": "PASS_IMPLEMENTATION",
-    "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 518,
+      "runs_requested": 1036,
+      "executed_runs": 1036,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+    }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_250_FULL_COMPLETE_ROOT_JUDGMENT_ONLY",
@@ -2020,7 +2065,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_0_P2_3_P3",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md",
     "max_set_members": 24,
-    "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set"
+    "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 195,
+      "runs_requested": 512,
+      "executed_runs": 512,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_semantic_delta_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_510_SEMANTIC_DELTA_DECODER_ONLY",
@@ -2037,7 +2093,18 @@
     "manual_command": "python3 scripts/run_semantic_delta_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
-    "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 322,
+      "runs_requested": 644,
+      "executed_runs": 644,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_merge_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_S20_520_MERGE_CONFLICT_DECODER_AND_ANCESTOR_RULE",
@@ -2055,7 +2122,18 @@
     "manual_command": "python3 scripts/run_merge_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
-    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 319,
+      "runs_requested": 638,
+      "executed_runs": 638,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_merge_judgment_fuzz_slice": {
     "status": "IMPLEMENTED_S20_520_MERGE_JUDGMENT_OUTCOME_AND_DETERMINISM",
@@ -2069,7 +2147,18 @@
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-merge-judgment-libfuzzer/corpus",
     "runtime_evidence": "evidence/runtime/s20-700-merge-judgment-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_merge_judgment_fuzz.py --manual",
-    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 47,
+      "runs_requested": 512,
+      "executed_runs": 512,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+    }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY",
@@ -2086,7 +2175,18 @@
     "manual_command": "python3 scripts/run_complete_root_snapshot_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_0_P3",
-    "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 480,
+      "runs_requested": 960,
+      "executed_runs": 960,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_root_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_310_FULL_ROOT_QUERY_ENGINE_ONLY",
@@ -2103,7 +2203,18 @@
     "manual_command": "python3 scripts/run_root_query_persistent_fuzz.py --manual",
     "continuation_walk": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
-    "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 971,
+      "runs_requested": 1942,
+      "executed_runs": 1942,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_context_capsule_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_320_FULL_CONTEXT_CAPSULE_BUILDER_ONLY",
@@ -2120,7 +2231,18 @@
     "manual_command": "python3 scripts/run_context_capsule_persistent_fuzz.py --manual",
     "continuation_walk": true,
     "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3",
-    "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 971,
+      "runs_requested": 1942,
+      "executed_runs": 1942,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
@@ -2138,7 +2260,20 @@
     "outer_trailer_rehash_lane": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_4_P3",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
-    "stream_reassembly_lane": true
+    "stream_reassembly_lane": true,
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 728,
+      "runs_requested": 1456,
+      "executed_runs": 1456,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    },
+    "generated_seed_count": 728,
+    "lane_3_seeds": "multi-frame concatenated pairs + prefix-stripped hello bodies (harness-side; fixtures untouched)"
   },
   "s20_700_smp1_json_bridge_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_420_SMP1_JSON_BRIDGE_TEXT_AND_FRAME_ROUND_TRIP_ONLY",
@@ -2157,7 +2292,18 @@
     "frame_lane": true,
     "record_lane": true,
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
-    "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md"
+    "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 643,
+      "runs_requested": 1286,
+      "executed_runs": 1286,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
@@ -2188,7 +2334,30 @@
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": {
+        "graph-cfg": 396,
+        "type-checker": 385
+      },
+      "runs_requested": 792,
+      "executed_runs": {
+        "graph-cfg": 792,
+        "type-checker": 792
+      },
+      "coverage_feedback_observed": {
+        "graph-cfg": true,
+        "type-checker": true
+      },
+      "crash_artifacts": {
+        "graph-cfg": [],
+        "type-checker": []
+      },
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
@@ -2212,7 +2381,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 525,
+      "runs_requested": 1050,
+      "executed_runs": 1050,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_700_vm_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
@@ -2256,7 +2436,18 @@
       "E6 direct call with argument copy and nested callee",
       "E7a contract assertion over a Bool predicate",
       "E8 bridge adapter_invoke over frozen rows with tamper/budget sublane"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 788,
+      "runs_requested": 1576,
+      "executed_runs": 1576,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via override; tracked defaults unchanged"
+    }
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",
@@ -2286,7 +2477,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 821,
+      "runs_requested": 1642,
+      "executed_runs": 1642,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_350_mutation_candidate_persistent_fuzz": {
     "status": "PASS_PROPOSAL_ONLY_RECORD_AND_ENVELOPE",
@@ -2308,7 +2510,18 @@
     "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
-    ]
+    ],
+    "harness_repair_round": 7,
+    "last_local_proof": {
+      "result": "PASS",
+      "corpus_count": 26,
+      "runs_requested": 512,
+      "executed_runs": 512,
+      "coverage_feedback_observed": true,
+      "crash_artifacts": [],
+      "owner_lib_sancov_total": 198,
+      "toolchain": "nightly-2026-02-27 pinned; CC=clang-22.1.8 + libclang_rt.fuzzer-x86_64.a (clang-22) via SLEY_FUZZ_CC/SLEY_FUZZ_LIBFUZZER_A override; tracked defaults unchanged"
+    }
   },
   "s20_360_candidate_validation": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
@@ -2362,7 +2575,7 @@
     "ariadne_operation_analysis_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
     "nabu_operation_analysis_review": "FAIL_0_P0_2_P1_6_P2_3_P3",
     "vulcan_operation_analysis_review": "FAIL_1_P0_4_P1_2_P2_2_P3",
-    "validator_source_symbols": 26,
+    "validator_source_symbols": 37,
     "source_symbol_registration": "CANDIDATE_RESULT_V1.md section 8.1 (2026-09-03) enumerates the twenty-six source symbols the validator originates; fourteen appeared in no governed document before. The checker compares the table with the implementation's literals in both directions and requires one retryability per symbol",
     "retryability_finding": "CAP_EFFECT_MISMATCH reported FreshAuthority for a token whose effect kind is unknown and Permanent for a program requirement whose effect does not resolve. The second case involves no token, so it now reports CAPABILITY_REQUIREMENT_EFFECT_UNRESOLVED and no longer borrows the S20-380 numeric code",
     "p0_open_count": 0,
@@ -2395,7 +2608,21 @@
       "Re-review PASS (p3): P3-1 (nabu_operation_analysis_review): operation_failure Cfg arm unreachable from the judgment entry; noted as defense in depth on the match arm",
       "Re-review PASS (p3): P3-2 (nabu_operation_analysis_review): section 3.1 does not say which inventory the caller supplies; fixed by the caller-supplies statement",
       "Re-review PASS (p3): P3-3 (nabu_operation_analysis_review): section 3.1 labelled revision 8 in a revision 11 document; fixed by the landing-revision note"
-    ]
+    ],
+    "validator_undocumented_symbols": [
+      "CANDIDATE_BASE_ROOT_MISMATCH",
+      "CANDIDATE_BASE_TRANSACTION_MISMATCH",
+      "CANDIDATE_GRAPH_WORK_LIMIT",
+      "CANDIDATE_POLICY_ROOT_MISMATCH",
+      "CANDIDATE_SCHEMA_EPOCH_MISMATCH",
+      "CANDIDATE_TEST_RESOURCE_LIMIT",
+      "CANDIDATE_WORKSPACE_MISMATCH",
+      "CFG_RESOURCE_LIMIT",
+      "CONTRACT_TEST_PLAN_RESOURCE_LIMIT",
+      "SCB_RESOURCE_LIMIT",
+      "VM_LOWER_RESOURCE_LIMIT"
+    ],
+    "validator_symbol_coverage_review": "PENDING_S81_AMENDMENT_OR_EMITTER_CHANGE_11_SYMBOLS"
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
@@ -2716,7 +2943,15 @@
     "provider_or_model_execution": false,
     "benchmark_trials_executed": 0,
     "live_legacy_checkout_interaction": false,
-    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3"
+    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3",
+    "review_lane": "legacy_artifact_adapter",
+    "contract": "docs/spec/LEGACY_ARTIFACT_ADAPTER_V1.md",
+    "contract_adr": "docs/adr/ADR-0018-frozen-legacy-artifact-adapter.md",
+    "checker": "scripts/check_legacy_runner.py",
+    "smoke_target": "make legacy-runner-smoke",
+    "tests": "bench/legacy/tests/test_runner.py",
+    "legacy_adapter_contract_review": "PENDING_RECLASSIFIED_FROM_REQ06_ITEM10_AWAITING_CORRECT_LANE_REVIEW",
+    "reclassification": "evidence/review/reclassification/s20-600-item10.md"
   },
   "s20_610_offline_raw_runner": {
     "status": "IMPLEMENTED_OFFLINE_UNVERIFIED_CLAIM_CHAIN_ONLY",
@@ -3223,10 +3458,10 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 262,
-    "open_reviews": 101,
+    "obligations": 267,
+    "open_reviews": 105,
     "deferred_reviews": 0,
-    "unclassified_dispositions": 2,
+    "unclassified_dispositions": 3,
     "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
@@ -3273,7 +3508,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "101 review obligations are open",
+      "105 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -3540,17 +3775,57 @@
   "error_symbol_registration": {
     "checker": "scripts/check_error_symbol_registration.py",
     "contract": "sley2.error-symbol-registration.v1",
-    "declared_namespaces": 34,
-    "emitted_symbols": 329,
-    "unregistered": 0,
+    "declared_namespaces": 49,
+    "emitted_symbols": 399,
+    "unregistered": 6,
     "adopted": "2026-09-03",
     "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1); the three REPORT_STORE_* symbols carried only as a family wildcard; one bridge test that paired the restricted query profile's code 31004 with an invented symbol; and GRAPH_RESOURCE_LIMIT, which the policy crate attached to the S20-220 owner's code 22020 while that owner's table names it CFG_RESOURCE_LIMIT",
     "scope": "registration only; meaning, number, and freeze stay with the owning contract",
     "registration_source": "docs/spec only; an audit, threat-register row, or ADR narrative does not register a symbol",
-    "numeric_codes": 302,
+    "numeric_codes": 315,
     "ambiguous_codes": 0,
-    "unexercised": 0,
-    "exercise_rule": "every stable symbol is reached by a test, corpus, fuzz target, or oracle, by its string or by its enum variant; a refusal path nothing exercises is where a defect survives"
+    "unexercised": 27,
+    "exercise_rule": "every stable symbol is reached by a test, corpus, fuzz target, or oracle, by its string or by its enum variant; a refusal path nothing exercises is where a defect survives",
+    "invariant_repair_round": 7,
+    "invariant_repair_note": "detection hardened (multi-segment namespaces, longest-prefix, helper-originated symbols, Some()/multi-variant pairing, test-only exercise corpus); newly visible sets filed as owner-lane obligations",
+    "unregistered_symbols": [
+      "CANDIDATE_VALIDATION_VALID",
+      "PACKAGE_BINDING_MISMATCH",
+      "PACKAGE_HYDRATION_REFUSED",
+      "PACKAGE_MALFORMED",
+      "PACKAGE_OVERSIZED",
+      "PACKAGE_SECTION_DIGEST_MISMATCH"
+    ],
+    "unexercised_symbols": [
+      "CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT",
+      "CANDIDATE_APPLY_ENTRY_POINT_MISSING",
+      "CANDIDATE_APPLY_FIELD_MISMATCH",
+      "CANDIDATE_APPLY_ORDERED_EXPECTED_CHILD_MISMATCH",
+      "CANDIDATE_APPLY_ORDERED_INDEX_INVALID",
+      "CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY",
+      "CANDIDATE_APPLY_SNAPSHOT_EPOCH_MISMATCH",
+      "CANDIDATE_APPLY_TARGET_ALREADY_EXISTS",
+      "CANDIDATE_APPLY_TARGET_KIND_MISMATCH",
+      "CANDIDATE_APPLY_TARGET_MISSING",
+      "CANDIDATE_BASE_TRANSACTION_MISMATCH",
+      "CANDIDATE_GRAPH_WORK_LIMIT",
+      "CANDIDATE_POLICY_ROOT_MISMATCH",
+      "CANDIDATE_SCHEMA_EPOCH_MISMATCH",
+      "CANDIDATE_TEST_RESOURCE_LIMIT",
+      "CANDIDATE_WORKSPACE_MISMATCH",
+      "CLI_HANDSHAKE_REQUIRED",
+      "CLI_IO_FAILURE",
+      "CLI_USAGE_INVALID",
+      "EXCHANGE_ANCESTRY_CYCLE",
+      "IMPACT_ROOT_BINDING_MISMATCH",
+      "IMPACT_ROOT_WORKSPACE_MISSING",
+      "PACKAGE_SECTION_DIGEST_MISMATCH",
+      "PACK_SCHEMA_UNSUPPORTED",
+      "PACK_VERSION_UNSUPPORTED",
+      "STATE_ROOT_EXCLUDED_FACT",
+      "VM_LOWER_RESOURCE_LIMIT"
+    ],
+    "owner_registration_review": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES"
   },
   "declared_limits": {
     "checker": "scripts/check_declared_limits.py",

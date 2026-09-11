@@ -258,6 +258,17 @@ impl RootQueryInput<'_> {
                 _ => return fail(RootQueryErrorCode::RootMismatch),
             }
         }
+        // Binding rule: the root-committed fact sets arrive in canonical
+        // (strictly increasing) order. The recompute below binds order only
+        // implicitly, so an unsorted-but-self-consistent pair would otherwise
+        // pass while classes 10/11 emit verbatim out-of-order pages that the
+        // cursor predicate can silently truncate (a lost fact with
+        // truncated=false).
+        if !strictly_increasing(self.facts.entry_points)
+            || !strictly_increasing(self.facts.dependency_roots)
+        {
+            return fail(RootQueryErrorCode::RootMismatch);
+        }
         // The digest commits every answer-bearing fact, not just the
         // shapes above: the fields are encoded exactly as given, so any
         // reordered, substituted, or extended fact recomputes to another
@@ -2460,6 +2471,42 @@ pub(crate) mod tests {
         tampered.interpretation_flags = &tampered_flags;
         assert_eq!(
             tampered.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+    }
+
+    #[test]
+    fn unsorted_root_committed_fact_sets_are_root_mismatch() {
+        // Vulcan P1 (facts ordering): the recompute binds order only
+        // implicitly, so verify() explicitly requires the root-committed
+        // fact sets in canonical (strictly increasing) order. An
+        // unsorted-but-self-consistent pair must stop here, before
+        // classes 10/11 can emit verbatim out-of-order pages that the
+        // cursor predicate silently truncates.
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        input.verify().unwrap();
+        // entry_points out of order: the single committed fact followed by
+        // a smaller one is a descending pair, never canonical order.
+        let mut unsorted_entry_points = owned.fixture.entry_points.clone();
+        unsorted_entry_points.push(id(0x09));
+        assert!(!strictly_increasing(&unsorted_entry_points));
+        let mut unsorted = input;
+        unsorted.facts.entry_points = &unsorted_entry_points;
+        assert_eq!(
+            unsorted.verify().unwrap_err().code(),
+            RootQueryErrorCode::RootMismatch
+        );
+        // dependency_roots out of order: a duplicated committed root is
+        // never strictly increasing.
+        let mut unsorted_roots = owned.fixture.dependency_roots.clone();
+        unsorted_roots.push(unsorted_roots[0]);
+        assert!(!strictly_increasing(&unsorted_roots));
+        let mut unsorted = input;
+        unsorted.facts.dependency_roots = &unsorted_roots;
+        assert_eq!(
+            unsorted.verify().unwrap_err().code(),
             RootQueryErrorCode::RootMismatch
         );
     }

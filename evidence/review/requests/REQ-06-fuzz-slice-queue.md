@@ -33,3 +33,13 @@ DEFERRED (dispatch now):
 Note: `s20_700_vm_persistent_fuzz_slice.vulcan_review` reads
 `PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW` (fix landed, re-review
 pending) and belongs in this queue when its slice is dispatched.
+
+## Reclassification (append-only, qualification repair wave)
+
+Item 10 (`s20_600_frozen_legacy_adapter.vulcan_review`) is MOVED, not
+closed: it is a pinned-artifact adapter governed by
+`LEGACY_ARTIFACT_ADAPTER_V1.md` (checker `scripts/check_legacy_runner.py`,
+smoke `make legacy-runner-smoke`), not a persistent fuzz slice. Record:
+`evidence/review/reclassification/s20-600-item10.md`. The original entry
+above is preserved verbatim; the obligation is refiled under the
+`legacy_artifact_adapter` lane as `legacy_adapter_contract_review`.

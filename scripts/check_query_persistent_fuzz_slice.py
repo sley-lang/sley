@@ -60,6 +60,23 @@ for marker in [
 ]:
     if marker not in runner:
         problems.append(f"runner-missing:{marker}")
+# Repair round 7 uniform harness markers (REQ-06 wave): locked build,
+# host-config owner-lib instrumentation, corpus-coverage gate, executed and
+# coverage proof, crash minimization, and persistent corpus discipline.
+for marker in [
+    "--locked",
+    "-Zhost-config",
+    "executed_runs",
+    "sync_seed_corpus",
+    "minimize_crashes",
+    "owner_lib_sancov_symbols",
+    "corpus_persistent",
+    "SLEY_FUZZ_CC",
+    "must cover the corpus",
+]:
+    if marker not in runner:
+        problems.append(f"runner-missing:{marker}")
+
 
 makefile = MAKEFILE.read_text(encoding="utf-8")
 for marker in [

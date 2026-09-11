@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -147,6 +148,25 @@ def render(table: dict) -> str:
     return json.dumps(table, indent=2, sort_keys=True) + "\n"
 
 
+def sums_path(protocol_version: int) -> Path:
+    return table_path(protocol_version).parent / "SHA256SUMS"
+
+
+def mint_sums(version_dir: Path) -> str:
+    """Re-mint the version dir SHA256SUMS over every JSON it carries.
+
+    Repair round 7 (SMP1 sums procedure): the table writer owns the sums of
+    its version dir, so a future table change can never silently stale them;
+    the conformance report still verifies them independently
+    (CONFORMANCE_SUMS_MISMATCH stays fail-closed).
+    """
+    lines = []
+    for member in sorted(version_dir.glob("*.json")):
+        digest = hashlib.sha256(member.read_bytes()).hexdigest()
+        lines.append(f"{digest}  {member.name}")
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="fail if the table drifted")
@@ -160,6 +180,7 @@ def main() -> int:
     args = parser.parse_args()
     table_file = table_path(args.protocol_version)
     text = render(build(args.protocol_version))
+    sums_file = sums_path(args.protocol_version)
     if args.check:
         current = table_file.read_text(encoding="utf-8") if table_file.exists() else None
         if current != text:
@@ -169,6 +190,7 @@ def main() -> int:
         return 0
     table_file.parent.mkdir(parents=True, exist_ok=True)
     table_file.write_text(text, encoding="utf-8")
+    sums_file.write_text(mint_sums(table_file.parent), encoding="utf-8")
     print(json.dumps({"table": str(table_file.relative_to(ROOT)), "result": "WRITTEN"}))
     return 0
 

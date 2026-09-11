@@ -79,13 +79,25 @@ def validator_source_symbols() -> set[str]:
 
     A symbol preserved from an owning checker is that owner's to document;
     these are the validator's own, so section 8.1 must name each one.
+    Repair round 7: besides direct `Failure::new` literals, the validator
+    originates symbols through the `stale_root_failure("SYM")` and
+    `resource_failure(N, "SYM")` helpers. Forwarding sites that pass through
+    an owner's own code (`error.code().as_str()`, `error.source_symbol()`)
+    are preserved owner symbols, not validator-originated, and are excluded
+    by requiring a string literal second argument.
     """
-    return set(
+    text = VALIDATOR.read_text(encoding="utf-8")
+    direct = set(
         re.findall(
             r'Failure::new\(\s*\d+,\s*CandidateDecision::\w+,\s*"([A-Z][A-Z0-9_]*)"',
-            VALIDATOR.read_text(encoding="utf-8"),
+            text,
         )
     )
+    stale = set(re.findall(r'stale_root_failure\(\s*"([A-Z][A-Z0-9_]*)"', text))
+    resource = set(
+        re.findall(r'resource_failure\(\s*\d+\s*,\s*"([A-Z][A-Z0-9_]*)"', text)
+    )
+    return direct | stale | resource
 
 
 def retryability_by_symbol() -> dict[str, set[str]]:
@@ -95,12 +107,29 @@ def retryability_by_symbol() -> dict[str, set[str]]:
     leave a consumer unable to act on either answer.
     """
     answers: dict[str, set[str]] = {}
+    text = VALIDATOR.read_text(encoding="utf-8")
     for symbol, retryability in re.findall(
         r'Failure::new\(\s*\d+,\s*CandidateDecision::\w+,\s*"([A-Z][A-Z0-9_]*)",'
         r"\s*[^,]+,\s*DiagnosticRetryability::(\w+)",
-        VALIDATOR.read_text(encoding="utf-8"),
+        text,
     ):
         answers.setdefault(symbol, set()).add(retryability)
+    # Helper-originated symbols carry their retryability in the helper body:
+    # stale_root_failure maps to FreshBase, resource_failure to
+    # HigherCeilings (see the helper definitions). A helper symbol claimed
+    # anywhere with a different retryability still splits.
+    helper_retryability = dict(re.findall(
+        r"fn (stale_root_failure|resource_failure)\b.*?DiagnosticRetryability::(\w+)",
+        text,
+    ))
+    for symbol in re.findall(r'stale_root_failure\(\s*"([A-Z][A-Z0-9_]*)"', text):
+        answers.setdefault(symbol, set()).add(
+            helper_retryability.get("stale_root_failure", "FreshBase")
+        )
+    for symbol in re.findall(r'resource_failure\(\s*\d+\s*,\s*"([A-Z][A-Z0-9_]*)"', text):
+        answers.setdefault(symbol, set()).add(
+            helper_retryability.get("resource_failure", "HigherCeilings")
+        )
     return answers
 
 

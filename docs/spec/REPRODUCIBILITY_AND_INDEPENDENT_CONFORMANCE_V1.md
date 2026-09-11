@@ -115,8 +115,18 @@ Rules:
   differ between the attested commit and `HEAD`, else the artifact the
   report describes is not the artifact this tree builds, and the report is
   stale. The attested toolchain must also match the filing toolchain: a
-  compiler upgrade changes the bytes without touching the tree. The cure
-  for a stale report is `make release-candidate-smoke`, not an edit;
+   compiler upgrade changes the bytes without touching the tree. The cure
+   for a stale report is `make release-candidate-smoke`, not an edit;
+ - minting while the operator working tree carries retained untracked
+   material that must not be moved uses the canonical detached linked
+   worktree procedure (operator decision, S20-720 wave): start from the exact
+   candidate commit, create a detached linked worktree, prove that worktree
+   clean, mint release and reproducibility evidence there, bind the evidence
+   to the exact candidate commit and resulting artifact identity, and file
+   refreshed evidence as a records-only descendant where required. The
+   retained material stays in the operator tree untouched; the whole-tree
+   clean-tree gate semantics are unchanged, only the checkout the mint runs
+   in is made clean by construction;
 - the report contains no timestamp, so equal inputs give equal bytes; the
   canonical form is JSON with sorted keys, two-space indentation, and a
   trailing newline.
@@ -252,7 +262,12 @@ rather than automated:
 
 1. On the second host, with the same commit checked out and a clean tree, run
    `make release-candidate-smoke`. It builds the candidate twice and writes the
-   local S20-720 evidence record.
+   local S20-720 evidence record. When the checkout that must mint carries
+   retained untracked material, use the canonical detached linked worktree
+   procedure instead: `git worktree add --detach <path> <commit>`, prove the
+   worktree clean, mint there, and file refreshed evidence as a records-only
+   descendant; the gate stays whole-tree clean, the worktree is simply clean
+   by construction.
 2. Run
    `python3 scripts/build_reproducibility_report.py --host-label <label> --emit-attestation /tmp/<label>-attestation.json`.
    The attestation carries only the commit, artifact name, digest, size,
@@ -307,8 +322,12 @@ neither GA nor publication, that the unit tests pass, and that
 `release-check` and `v2` stay `NOT_IMPLEMENTED`. Minting requires a
 whole-tree clean checkout including untracked files (section 1
 `working_tree_clean`), deliberately stricter
-than the surface-scoped uncommitted check: the attestation must bind the
-exact tree the artifact builds from, not just its surface.
+   than the surface-scoped uncommitted check: the attestation must bind the
+   exact tree the artifact builds from, not just its surface. Where the
+   operator tree carries retained untracked material, the binding is produced
+   with the canonical detached linked worktree procedure (section 2): the
+   mint runs in a worktree that is whole-tree clean, so the gate semantics
+   are not weakened to surface-only cleanliness.
 
 ## 9. Explicit exclusions
 
