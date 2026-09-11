@@ -159,6 +159,20 @@ def git_head() -> str:
     return completed.stdout.strip()
 
 
+def is_admittable(attestation: object) -> bool:
+    """Whether one attestation may serve as subject authority.
+
+    Extracted so the unit lane tests the filter directly: clean
+    REPRODUCIBLE attestations admit; dirty, non-REPRODUCIBLE, malformed,
+    or non-dict entries do not.
+    """
+    return (
+        isinstance(attestation, dict)
+        and attestation.get("reproducibility") == "REPRODUCIBLE"
+        and attestation.get("working_tree_clean") is True
+    )
+
+
 def attested_candidates() -> list[dict]:
     """Tracked reproducibility attestations that may serve as the subject
     authority: REPRODUCIBLE builds from a clean tree only."""
@@ -178,9 +192,7 @@ def attested_candidates() -> list[dict]:
     return [
         attestation
         for attestation in attestations
-        if isinstance(attestation, dict)
-        and attestation.get("reproducibility") == "REPRODUCIBLE"
-        and attestation.get("working_tree_clean") is True
+        if is_admittable(attestation)
     ]
 
 
@@ -197,10 +209,14 @@ def build_statement() -> dict:
         )
     # The tracked reproducibility attestation is the subject authority: the
     # derivation refuses a candidate no clean REPRODUCIBLE attestation
-    # names, instead of emitting a statement the checker must catch.
+    # names, instead of emitting a statement the checker must catch. The
+    # binding is the full 4-tuple (contract section 5), mirroring the SBOM
+    # side: commit, artifact digest, manifest digest, and size.
     if not any(
         attestation.get("commit") == candidate["commit"]
         and attestation.get("artifact_sha256") == candidate["artifact_sha256"]
+        and attestation.get("manifest_digest") == candidate["manifest_digest"]
+        and attestation.get("artifact_size_bytes") == candidate["artifact_size_bytes"]
         for attestation in attested_candidates()
     ):
         raise ProvenanceError(
@@ -350,6 +366,8 @@ def validate_tracked() -> list[str]:
         external["artifact_name"]
         external["make_target"]
         external["working_tree_clean"]
+        predicate["buildDefinition"]["internalParameters"]["artifact_size_bytes"]
+        predicate["runDetails"]["metadata"]["invocationId"]
     except (KeyError, IndexError, TypeError):
         problems.append("statement-shape")
     else:
@@ -359,11 +377,18 @@ def validate_tracked() -> list[str]:
         # The attestation binding of the provenance subject (contract
         # section 5, mirroring the SBOM namespace binding): a tracked
         # statement whose subject no clean REPRODUCIBLE attestation names
-        # is not validated, even with a self-consistent digest.
+        # is not validated, even with a self-consistent digest. The
+        # binding is the full 4-tuple (commit, digest, manifest, size),
+        # symmetric with build_statement().
         try:
             report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
             attested = {
-                (attestation.get("commit"), attestation.get("artifact_sha256"))
+                (
+                    attestation.get("commit"),
+                    attestation.get("artifact_sha256"),
+                    attestation.get("manifest_digest"),
+                    attestation.get("artifact_size_bytes"),
+                )
                 for attestation in report.get("attestations", [])
                 if isinstance(attestation, dict)
                 and attestation.get("reproducibility") == "REPRODUCIBLE"
@@ -371,9 +396,15 @@ def validate_tracked() -> list[str]:
             }
         except (OSError, json.JSONDecodeError):
             attested = set()
+        statement_size = statement["predicate"]["buildDefinition"]["internalParameters"][
+            "artifact_size_bytes"
+        ]
+        statement_manifest = statement["predicate"]["runDetails"]["metadata"]["invocationId"]
         if (
             external["commit"],
             subjects[0]["digest"]["sha256"],
+            statement_manifest,
+            statement_size,
         ) not in attested:
             problems.append("subject-not-attestation-bound")
     return problems

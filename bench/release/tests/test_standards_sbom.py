@@ -89,6 +89,36 @@ class StandardsSbomTests(unittest.TestCase):
             sbom.build_documents()
         self.assertEqual(error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
 
+    def test_documents_refuse_a_non_pass_record(self) -> None:
+        candidate = attested_test_candidate()
+        candidate["result"] = "FAIL"
+        original = sbom.load_candidate
+        sbom.load_candidate = lambda: candidate
+        self.addCleanup(setattr, sbom, "load_candidate", original)
+        with self.assertRaises(sbom.SbomError) as error:
+            sbom.build_documents()
+        self.assertEqual(error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
+
+    def test_documents_refuse_a_manifest_size_mismatch(self) -> None:
+        candidate = attested_test_candidate()
+        candidate["artifact_size_bytes"] += 1
+        original = sbom.load_candidate
+        sbom.load_candidate = lambda: candidate
+        self.addCleanup(setattr, sbom, "load_candidate", original)
+        with self.assertRaises(sbom.SbomError) as error:
+            sbom.build_documents()
+        self.assertEqual(error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
+
+    def test_documents_refuse_a_manifest_digest_mismatch(self) -> None:
+        candidate = attested_test_candidate()
+        candidate["manifest_digest"] = "e" * 64
+        original = sbom.load_candidate
+        sbom.load_candidate = lambda: candidate
+        self.addCleanup(setattr, sbom, "load_candidate", original)
+        with self.assertRaises(sbom.SbomError) as error:
+            sbom.build_documents()
+        self.assertEqual(error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
+
     def test_cyclonedx_is_a_1_6_bom_with_a_derived_serial_number(self) -> None:
         self.assertEqual(self.cyclonedx["bomFormat"], "CycloneDX")
         self.assertEqual(self.cyclonedx["specVersion"], "1.6")
@@ -542,6 +572,32 @@ class ValidateTrackedTests(unittest.TestCase):
         self.assertTrue(filed)
         for pair in filed:
             self.assertIn(pair, admitted)
+
+    def test_admission_predicate_directly(self) -> None:
+        self.assertTrue(
+            provenance.is_admittable(
+                {"reproducibility": "REPRODUCIBLE", "working_tree_clean": True}
+            )
+        )
+        for denied in (
+            {"reproducibility": "REPRODUCIBLE", "working_tree_clean": False},
+            {"reproducibility": "DIFFERS", "working_tree_clean": True},
+            {"reproducibility": "REPRODUCIBLE"},
+            {},
+            None,
+            [],
+            "REPRODUCIBLE",
+        ):
+            self.assertFalse(provenance.is_admittable(denied), denied)
+
+    def test_unattested_pair_is_not_admitted(self) -> None:
+        # Negative control: removing the filter must fail this test, so a
+        # filter deletion cannot pass silently.
+        admitted = {
+            (attestation.get("commit"), attestation.get("artifact_sha256"))
+            for attestation in provenance.attested_candidates()
+        }
+        self.assertNotIn(("0" * 40, "f" * 64), admitted)
 
 
 if __name__ == "__main__":

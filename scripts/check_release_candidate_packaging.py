@@ -193,6 +193,13 @@ def main() -> int:
                 if isinstance(attestation, dict)
                 and attestation.get("working_tree_clean") is True
                 and attestation.get("reproducibility") == "REPRODUCIBLE"
+                # A null toolchain must not compare equal: both ends of
+                # the pin require non-empty cargo/rustc strings, so a
+                # toolchain-less attestation never binds.
+                and isinstance((attestation.get("toolchain") or {}).get("cargo"), str)
+                and (attestation.get("toolchain") or {}).get("cargo") != ""
+                and isinstance((attestation.get("toolchain") or {}).get("rustc"), str)
+                and (attestation.get("toolchain") or {}).get("rustc") != ""
             }
             candidate_toolchain = section.get("candidate_toolchain") or {}
             if (
@@ -237,6 +244,15 @@ def main() -> int:
             )
             if completed.returncode != 0:
                 problems.append("tests:failed:" + completed.stderr.strip().splitlines()[-1][:200])
+        # offline_tests names the test-method count in test_packaging.py;
+        # the field drifted silently before, so the checker pins it.
+        packaging_tests = (ROOT / "bench/release/tests/test_packaging.py").read_text(
+            encoding="utf-8"
+        )
+        if section.get("offline_tests") != len(
+            re.findall(r"    def (test_\w+)", packaging_tests)
+        ):
+            problems.append("machine-summary:offline-tests-drift")
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):

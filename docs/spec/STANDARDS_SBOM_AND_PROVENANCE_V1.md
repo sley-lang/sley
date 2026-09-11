@@ -148,8 +148,8 @@ The statement is:
   `urn:sley2:buildtype:release-candidate/v1`;
 - `predicate.buildDefinition.externalParameters`: the commit, the artifact
   name, the make target (derived from the recorded invocation:
-  `release-candidate-smoke` exactly for the Makefile smoke renderings,
-  `build_release_candidate.py direct` otherwise), the recorded candidate
+  `release-candidate-smoke` exactly for the single Makefile smoke
+  rendering, `build_release_candidate.py direct` otherwise), the recorded candidate
   invocation copied verbatim from the candidate evidence (ADR-0041
   principle 1: derive, never restate; a candidate without a recorded
   invocation predates invocation recording and refuses with
@@ -203,12 +203,15 @@ tracked documents fail their own validation), and names
 is direction-neutral: the evidence may be newer, older, or simply different.
 Both builders validate the tracked pair in the mismatch state: document
 shape and determinism pins plus the attestation binding of the SPDX
-namespace and the provenance subject. Write mode never tolerates the
-skew: both builders refuse a candidate that is not `HEAD` or that no
-clean `REPRODUCIBLE` attestation names (`SBOM_INVENTORY_INVALID` /
-`PROVENANCE_EVIDENCE_INVALID` / `PROVENANCE_SUBJECT_MISMATCH`), so the
-documents always derive from the attested candidate rather than merely
-from the current evidence.
+namespace and the provenance subject. "Names" binds the same 4-tuple on
+both builders: commit, artifact digest, manifest digest, and size, with
+the SBOM side additionally requiring a `PASS` record and the provenance
+side additionally requiring `PASS` and `REPRODUCIBLE` at candidate load.
+Write mode never tolerates the skew: both builders refuse a candidate
+that is not `HEAD` or that no clean `REPRODUCIBLE` attestation names
+(`SBOM_INVENTORY_INVALID` / `PROVENANCE_EVIDENCE_INVALID` /
+`PROVENANCE_SUBJECT_MISMATCH`), so the documents always derive from the
+attested candidate rather than merely from the current evidence.
 
 Anything else fails closed. Missing or unreadable candidate evidence is
 missing input, not a build running ahead: the SBOM `--check` fails with

@@ -3700,7 +3700,13 @@
     "p1_open_count": 0,
     "p1_open": [],
     "mint_worktree": "/home/greyforge/cache/worktrees/sley2-repro-56bac4b (detached linked worktree; label predates reuse, see mint_method)",
-    "offline_tests_note": "test methods in bench/release/tests/test_packaging.py (was 8, drifted silently; the checker does not enforce this field)"
+    "offline_tests_note": "test methods in bench/release/tests/test_packaging.py (was 8, drifted silently; the checker does not enforce this field)",
+    "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
+    "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3",
+    "vulcan_surface_review_revision_2": "PASS_0_P0_0_P1_0_P2_2_P3",
+    "ariadne_contract_review_revision_3": "PASS_0_P0_0_P1_0_P2_1_P3",
+    "nabu_architecture_review_revision_3": "PASS_0_P0_0_P1_0_P2_3_P3",
+    "vulcan_surface_review_revision_3": "PASS_0_P0_0_P1_0_P2_2_P3"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -3972,7 +3978,13 @@
     "p0_closed": 5,
     "ariadne_contract_review_revision_1": "REVISE_0_P0_3_P1_3_P2_3_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_2_P1_4_P2_3_P3",
-    "vulcan_surface_review_revision_1": "REVISE_0_P0_1_P1_4_P2_4_P3"
+    "vulcan_surface_review_revision_1": "REVISE_0_P0_1_P1_4_P2_4_P3",
+    "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_1_P2_2_P3",
+    "nabu_architecture_review_revision_2": "REVISE_0_P0_0_P1_2_P2_4_P3",
+    "vulcan_surface_review_revision_2": "REVISE_0_P0_0_P1_1_P2_8_P3",
+    "ariadne_contract_review_revision_3": "PASS_0_P0_0_P1_0_P2_4_P3",
+    "nabu_architecture_review_revision_3": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review_revision_3": "PASS_0_P0_0_P1_0_P2_4_P3"
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -3982,8 +3994,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 270,
-    "open_reviews": 93,
+    "obligations": 282,
+    "open_reviews": 97,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4032,7 +4044,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "93 review obligations are open",
+      "97 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

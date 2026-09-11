@@ -242,10 +242,6 @@ class InvocationTests(unittest.TestCase):
             self.assertIn("probe.txt", scan.stdout)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FailureEvidenceTests(unittest.TestCase):
     """PackageError failures keep the partial record with failure attached."""
 
@@ -292,3 +288,7 @@ class FailureEvidenceTests(unittest.TestCase):
             "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
         )
         self.assertEqual(evidence["failure"]["symbol"], "PACKAGE_NOT_REPRODUCIBLE")
+
+
+if __name__ == "__main__":
+    unittest.main()

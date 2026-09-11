@@ -337,11 +337,16 @@ def main() -> int:
                 problems.extend(history_problems(report, surface))
             attested_toolchains = {
                 (
-                    attestation.get("toolchain", {}).get("cargo"),
-                    attestation.get("toolchain", {}).get("rustc"),
+                    (attestation.get("toolchain") or {}).get("cargo"),
+                    (attestation.get("toolchain") or {}).get("rustc"),
                 )
                 for attestation in report.get("attestations", [])
                 if isinstance(attestation, dict)
+                # A null toolchain object must not compare: align with
+                # the packaging checker's non-empty-string rule so both
+                # checkers fail the same way instead of one crashing.
+                and isinstance((attestation.get("toolchain") or {}).get("cargo"), str)
+                and isinstance((attestation.get("toolchain") or {}).get("rustc"), str)
             }
             try:
                 if candidate is None:
