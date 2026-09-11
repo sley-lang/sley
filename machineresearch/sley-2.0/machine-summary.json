@@ -2065,23 +2065,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 320,
-      "corpus_file_count": 390,
+      "corpus_file_count": 396,
       "runs_requested": 640,
-      "runs_floor": 646,
-      "executed_runs": 646,
+      "runs_floor": 652,
+      "executed_runs": 652,
       "coverage": {
         "counters": 8106,
-        "ft_done": 3023,
-        "ft_inited": 3016,
+        "ft_done": 3042,
+        "ft_inited": 3038,
         "new_events": true,
-        "seed": 3739612343
+        "seed": 3469920373
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2177,23 +2177,23 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 491,
-      "corpus_file_count": 958,
+      "corpus_file_count": 1011,
       "runs_requested": 512,
-      "runs_floor": 1214,
-      "executed_runs": 1214,
+      "runs_floor": 1267,
+      "executed_runs": 1267,
       "coverage": {
         "counters": 7189,
-        "ft_done": 6526,
-        "ft_inited": 6447,
+        "ft_done": 6657,
+        "ft_inited": 6602,
         "new_events": true,
-        "seed": 3811972851
+        "seed": 3496777141
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2233,23 +2233,23 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 322,
-      "corpus_file_count": 364,
+      "corpus_file_count": 371,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 4141,
-        "ft_done": 1885,
-        "ft_inited": 1878,
-        "new_events": true,
-        "seed": 3963856693
+        "ft_done": 1893,
+        "ft_inited": 1893,
+        "new_events": false,
+        "seed": 3574631846
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2289,23 +2289,23 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 319,
-      "corpus_file_count": 433,
+      "corpus_file_count": 442,
       "runs_requested": 638,
-      "runs_floor": 689,
-      "executed_runs": 689,
+      "runs_floor": 698,
+      "executed_runs": 698,
       "coverage": {
         "counters": 3544,
-        "ft_done": 1523,
-        "ft_inited": 1521,
-        "new_events": true,
-        "seed": 3915529045
+        "ft_done": 1525,
+        "ft_inited": 1525,
+        "new_events": false,
+        "seed": 3522464669
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2451,23 +2451,23 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 971,
-      "corpus_file_count": 1516,
+      "corpus_file_count": 1573,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 11281,
-        "ft_done": 7730,
-        "ft_inited": 7637,
+        "ft_done": 7822,
+        "ft_inited": 7775,
         "new_events": true,
-        "seed": 3939904879
+        "seed": 3548831711
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2563,23 +2563,23 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
-      "corpus_count": 712,
-      "corpus_file_count": 841,
+      "corpus_count": 716,
+      "corpus_file_count": 864,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
-        "counters": 4435,
-        "ft_done": 3465,
-        "ft_inited": 3444,
+        "counters": 4437,
+        "ft_done": 3486,
+        "ft_inited": 3480,
         "new_events": true,
-        "seed": 3987639012
+        "seed": 3337272898
       },
       "coverage_ok": true,
       "crash_artifacts": [
@@ -2936,23 +2936,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 821,
-      "corpus_file_count": 984,
+      "corpus_file_count": 998,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 7028,
-        "ft_done": 3431,
-        "ft_inited": 3424,
+        "ft_done": 3440,
+        "ft_inited": 3435,
         "new_events": true,
-        "seed": 3787776616
+        "seed": 3600023395
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2996,23 +2996,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
-      "corpus_count": 26,
-      "corpus_file_count": 175,
+      "corpus_count": 32,
+      "corpus_file_count": 217,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 17701,
-        "ft_done": 2886,
-        "ft_inited": 2808,
+        "ft_done": 3513,
+        "ft_inited": 3499,
         "new_events": true,
-        "seed": 4128414391
+        "seed": 3625585595
       },
       "coverage_ok": true,
       "crash_artifacts": [],
