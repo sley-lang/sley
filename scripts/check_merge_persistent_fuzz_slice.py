@@ -26,7 +26,11 @@ for marker in [
     "re-encoding a decoded conflict drifted",
     "find_common_ancestor(&ours, &theirs)",
     "ancestor must be the first shared entry of ours",
-    "MergeErrorCode::ALL.contains(&code)",
+    "MergeErrorCode::ConflictFormatInvalid",
+    "MergeErrorCode::ConflictDigestMismatch",
+    "MergeErrorCode::ConflictCanonicalOrder",
+    "MergeErrorCode::ConflictVersionUnsupported",
+    "MergeErrorCode::ResourceLimit",
     "SELECTOR_COUNT: u8 = 3",
     "MAX_FUZZ_INPUT_BYTES: usize = 65_536",
 ]:
@@ -75,6 +79,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "must cover the corpus",
 ]:
     if marker not in wrapper:

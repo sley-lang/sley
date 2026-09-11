@@ -23,7 +23,8 @@ for marker in [
     "decode_frame(candidate, MAX_FRAME_BYTES)",
     "with_rehashed_trailer(payload)",
     "Hello::decode(candidate)",
-    "negotiate_identity(&hello, &server)",
+    "check_negotiated_hello(hello)",
+    "negotiate_identity(hello, &server)",
     "re-encoding a decoded frame drifted",
     "handshake identity drifted",
     "ProtocolErrorCode::ALL.contains(&error.code())",
@@ -77,6 +78,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "must cover the corpus",
 ]:
     if marker not in wrapper:

@@ -5,11 +5,11 @@ use core::slice;
 
 use sley_scb1::{
     FixtureContract, Schema, decode_payload_exact, decode_standalone_fixture,
-    encode_standalone_fixture,
+    encode_bool, encode_bytes, encode_sint64, encode_standalone_fixture, encode_uvar,
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4096;
-const SELECTOR_COUNT: u8 = 22;
+const SELECTOR_COUNT: u8 = 23;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn LLVMFuzzerTestOneInput(data: *const u8, len: usize) -> i32 {
@@ -52,7 +52,31 @@ fn fuzz_one(input: &[u8]) {
         19 => decode_payload(&Schema::FixtureRequiredBool, payload),
         20 => decode_payload(&Schema::FixtureExtensibleRecord, payload),
         21 => decode_payload(&Schema::NestedListFixture, payload),
+        22 => encode_then_decode(payload),
         _ => unreachable!(),
+    }
+}
+
+/// Encode-then-decode lane: construct canonical encodings by
+/// construction and require exact decode, so the stated re-encode
+/// oracle is reachable without forging digests.
+fn encode_then_decode(payload: &[u8]) {
+    let first = payload.first().copied().unwrap_or(0);
+    let pairs = [
+        (Schema::UInt(64), encode_uvar(u64::from(first))),
+        (
+            Schema::SInt(64),
+            encode_sint64(i64::from(first as i8)),
+        ),
+        (Schema::Bool, encode_bool(first % 2 == 0)),
+    ];
+    for (schema, input) in pairs {
+        decode_payload_exact(&schema, &input)
+            .expect("constructed encoding must decode exactly");
+    }
+    if let Ok(input) = encode_bytes(payload) {
+        decode_payload_exact(&Schema::Bytes, &input)
+            .expect("constructed bytes must decode exactly");
     }
 }
 

@@ -84,7 +84,10 @@ fn check_frame(candidate: &[u8]) {
                 "decoded frame identity is not the trailer's derivation"
             );
             let encoded = match &decoded {
-                DecodedFrame::Hello(hello) => encode_hello_frame(hello),
+                DecodedFrame::Hello(hello) => {
+                    check_negotiated_hello(hello);
+                    encode_hello_frame(hello)
+                }
                 DecodedFrame::Request(frame) | DecodedFrame::Response(frame) => {
                     assert_ne!(frame.kind, FrameKind::Hello);
                     encode_frame(frame)
@@ -105,21 +108,7 @@ fn check_hello(candidate: &[u8]) {
     match Hello::decode(candidate) {
         Ok(hello) => {
             assert_eq!(hello.encode().expect("re-encode"), candidate, "hello re-encoding drifted");
-            let server = server_hello();
-            match negotiate_identity(&hello, &server) {
-                Ok((selected, id)) => {
-                    assert_eq!(
-                        negotiate_identity(&hello, &server).expect("repeatable").1,
-                        id,
-                        "handshake identity drifted"
-                    );
-                    assert!(hello.protocol_versions.contains(&selected.protocol_version));
-                    assert!(selected.methods.iter().all(|m| hello.methods.binary_search(m).is_ok()));
-                    assert_eq!(selected.features & !hello.features, 0);
-                    assert!(selected.limits.max_inflight <= hello.limits.max_inflight);
-                }
-                Err(error) => assert_eq!(error.code(), ProtocolErrorCode::NoCommonProfile),
-            }
+            check_negotiated_hello(&hello);
         }
         Err(error) => {
             assert!(matches!(
@@ -127,6 +116,37 @@ fn check_hello(candidate: &[u8]) {
                 ProtocolErrorCode::PayloadInvalid | ProtocolErrorCode::LimitExceeded
             ));
         }
+    }
+}
+
+/// Negotiation oracle shared by the bare-record lane (check_hello) and the
+/// framed lane (check_frame): fixture hello frames decode to Hello records
+/// through decode_frame, so this is where negotiation genuinely executes.
+/// A decoded hello that fails validation negotiates to PayloadInvalid
+/// (Hello::validate), not NoCommonProfile; the doc sentence in negotiate()
+/// claiming otherwise is an owner-lane divergence (S20-410 packet), so the
+/// oracle accepts both and the packet decides the contract.
+fn check_negotiated_hello(hello: &Hello) {
+    let server = server_hello();
+    match negotiate_identity(hello, &server) {
+        Ok((selected, id)) => {
+            assert_eq!(
+                negotiate_identity(hello, &server).expect("repeatable").1,
+                id,
+                "handshake identity drifted"
+            );
+            assert!(hello.protocol_versions.contains(&selected.protocol_version));
+            assert!(selected.methods.iter().all(|m| hello.methods.binary_search(m).is_ok()));
+            assert_eq!(selected.features & !hello.features, 0);
+            assert!(selected.limits.max_inflight <= hello.limits.max_inflight);
+        }
+        Err(error) => assert!(
+            matches!(
+                error.code(),
+                ProtocolErrorCode::NoCommonProfile | ProtocolErrorCode::PayloadInvalid
+            ),
+            "negotiation failed with an unexpected code"
+        ),
     }
 }
 

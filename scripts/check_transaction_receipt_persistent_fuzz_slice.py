@@ -78,6 +78,8 @@ def main() -> int:
         "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
         "must cover the corpus",
     ]:
         if marker not in runner:

@@ -528,6 +528,11 @@ fn fuzz_one(input: &[u8]) {
         Ok(request) => request,
         Err(error) => {
             assert!(RootQueryErrorCode::ALL.contains(&error.code()));
+            assert_ne!(
+                error.code(),
+                RootQueryErrorCode::InternalInvariant,
+                "engine invariant fired while building a request"
+            );
             return;
         }
     };
@@ -568,6 +573,11 @@ fn fuzz_one(input: &[u8]) {
         }
         Err(error) => {
             assert!(RootQueryErrorCode::ALL.contains(&error.code()));
+            assert_ne!(
+                error.code(),
+                RootQueryErrorCode::InternalInvariant,
+                "engine invariant fired while executing a request"
+            );
         }
     }
 }

@@ -4,10 +4,15 @@ Status: scoped persistent landed-surface slice for S20-420; **full S20-700 remai
 
 This slice hardens the S20-420 SMP1 JSON bridge
 (`crates/sley-json-bridge/src/lib.rs`, `docs/spec/SMP1_JSON_BRIDGE_V1.md`):
-the text resource ceilings, the exact object shapes, the declared integer
+the reachable resource ceiling (`MAX_JSON_DEPTH`, 32; the MiB-scale text,
+frame, and hello-list ceilings are unreachable under the 64 KiB harness
+payload cap), the exact object shapes, the declared integer
 and hex encodings, the frozen names, and the re-encoding through the frozen
 `sley-protocol` codec. It does not cover the codec itself (the S20-410
-slice), the server, or the CLI.
+slice), the server, the CLI, or the versioned exports
+(`frame_to_json_for_version`, `frame_from_json_for_version`,
+`hello_to_json_versioned`, `selected_to_json`, `METHOD_TABLE_V2_JSON`),
+which sit outside all three lanes.
 
 The libFuzzer target has three deterministic input lanes:
 

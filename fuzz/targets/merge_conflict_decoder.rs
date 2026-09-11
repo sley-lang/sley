@@ -69,10 +69,22 @@ fn fuzz_one(input: &[u8]) {
                     assert_eq!(again, stored, "re-encoding a decoded conflict drifted");
                 }
                 Err(error) => {
+                    // Only the five decoder-emittable codes may surface
+                    // here: the conflict decoder never judges ancestry
+                    // (NoCommonAncestor), walks workspaces, or consults
+                    // policy, and InternalInvariant is never an accepted
+                    // outcome.
                     assert!(
-                        error
-                            .code()
-                            .is_some_and(|code| MergeErrorCode::ALL.contains(&code)),
+                        matches!(
+                            error.code(),
+                            Some(
+                                MergeErrorCode::ConflictFormatInvalid
+                                    | MergeErrorCode::ConflictDigestMismatch
+                                    | MergeErrorCode::ConflictCanonicalOrder
+                                    | MergeErrorCode::ConflictVersionUnsupported
+                                    | MergeErrorCode::ResourceLimit
+                            )
+                        ),
                         "unknown merge-conflict failure code"
                     );
                 }

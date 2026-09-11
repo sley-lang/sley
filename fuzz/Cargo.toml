@@ -107,3 +107,11 @@ sley-state-root = { path = "../crates/sley-state-root" }
 sley-store = { path = "../crates/sley-store" }
 sley-txn = { path = "../crates/sley-txn" }
 sley-vm = { path = "../crates/sley-vm" }
+
+# Fuzz builds run with overflow checks and debug assertions (cargo-fuzz
+# defaults): a wrapping or debug-masked defect in a decoder must surface
+# as a crash, never as silent acceptance. Release artifact builds (the
+# root workspace) are unaffected.
+[profile.release]
+overflow-checks = true
+debug-assertions = true

@@ -31,6 +31,8 @@ mutation-candidate, VM-input, or adapter-response surfaces. A bounded Vulcan
 handoff could not start because the local Forge OAuth session returned 401, so
 independent review of this persistent addition remains deferred.
 
+Superseded 2026-09-11: Vulcan re-reviews of the repaired harness are filed (round 7 wave); see evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/.
+
 Focused validation:
 
 ```text

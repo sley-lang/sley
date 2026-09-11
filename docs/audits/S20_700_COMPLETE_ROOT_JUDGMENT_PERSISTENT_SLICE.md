@@ -15,9 +15,12 @@ input. A set's length is one byte below four and two bytes for four through
 twenty-four, which is the widest set that can name every entity a request
 carries, so a seed encodes a whole fixture set rather than its first four
 members. The flags select four deterministic lanes (raw versus canonical sets,
-decoded versus kept entity order) and whether the three root facts come from
-the decoded bodies or from further bytes, so every closure rule and every
-canonicality check is reachable.
+decoded versus kept entity order) crossed with five fact lanes (facts from
+decoded bodies, or bound entities, entry points, and dependency roots from
+further bytes in every combination including all three), so every closure
+rule and every canonicality check is reachable, including the fact-only
+rejection vectors, which now encode their own mismatched facts instead of
+collapsing onto accepted seeds.
 
 A passing judgment must be repeatable, must equal the plain `ImpactIndex`
 over the same request, must cover exactly the request's entities, must name a
@@ -27,7 +30,8 @@ Inputs are bounded to 4,096 bytes.
 
 The deterministic corpus comes from
 `conformance/complete-entity-impact/v1/accepted.json` and `rejected.json`,
-encoded into the target's grammar under all four flag lanes, plus
+encoded into the target's grammar under all twenty flag lanes (four bases
+crossed with five fact lanes), plus
 trailing-byte, minimal, and single-bit mutation seeds. Runtime corpus,
 binaries, artifacts, and evidence remain under ignored
 `evidence/runtime/s20-700-complete-root-libfuzzer/` paths.

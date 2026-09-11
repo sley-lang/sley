@@ -36,6 +36,8 @@ handoff for the new target was attempted but could not start because the local
 Forge OAuth session returned 401, so an additional Vulcan review remains
 deferred. Neither result is a full S20-700 or release disposition.
 
+Superseded 2026-09-11: Vulcan re-reviews of the repaired harness are filed (round 7 wave); see evidence/review/verdicts/s20_700_schema_persistent_fuzz_slice/.
+
 Focused validation:
 
 ```text

@@ -50,7 +50,7 @@ for marker in [
     '"full_s20_700_complete": False',
     '"COMPLETE_ROOT_JUDGMENT_ONLY"',
     "MAX_LEN = 4_096",
-    "FLAG_LANES = 4",
+    "FACT_LANES = (0, 4, 8, 16, 28)",
     "MAX_SET_MEMBERS = 24",
 ]:
     if marker not in wrapper:
@@ -76,6 +76,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "must cover the corpus",
 ]:
     if marker not in wrapper:
@@ -104,7 +106,7 @@ if slice_status.get("persistent_fuzz_harness") is not True:
     problems.append("machine-summary-persistent-harness-not-true")
 if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
-if slice_status.get("flag_lanes") != 4:
+if slice_status.get("flag_lanes") != 20:
     problems.append("machine-summary-flag-lane-drift")
 if slice_status.get("max_set_members") != 24:
     problems.append("machine-summary-set-width-drift")

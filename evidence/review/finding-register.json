@@ -2453,13 +2453,12 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_2_P1_4_P2_2_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "package_status": "PASS_PROPOSAL_ONLY_RECORD_AND_ENVELOPE",
       "reviewer": "vulcan",
       "section": "s20_350_mutation_candidate_persistent_fuzz",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -2789,13 +2788,12 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_2_P1_4_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_6_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_adapter_responses_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -2805,7 +2803,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_3_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_2_P2_7_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_250_FULL_COMPLETE_ROOT_JUDGMENT_ONLY",
       "reviewer": "vulcan",
@@ -2820,31 +2818,27 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_0_P2_5_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_complete_root_snapshot_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P3"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_2_P2_5_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_320_FULL_CONTEXT_CAPSULE_BUILDER_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_context_capsule_persistent_fuzz_slice",
-      "severities": [
-        "P2",
-        "P3"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -2862,13 +2856,12 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_2_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_S20_520_MERGE_CONFLICT_DECODER_AND_ANCESTOR_RULE",
       "reviewer": "vulcan",
       "section": "s20_700_merge_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -2987,13 +2980,12 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_3_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_310_FULL_ROOT_QUERY_ENGINE_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_root_query_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -3019,29 +3011,24 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_2_P2_5_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_semantic_checkers_persistent_fuzz_slice",
-      "severities": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_2_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_4_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_510_SEMANTIC_DELTA_DECODER_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_semantic_delta_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -3051,29 +3038,27 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_3_P2_6_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_6_P3_5_P4",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_420_SMP1_JSON_BRIDGE_TEXT_AND_FRAME_ROUND_TRIP_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
       "severities": [
-        "P1",
-        "P2",
-        "P3"
+        "P3",
+        "P4"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_4_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_2_P2_6_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_smp1_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ],
@@ -3824,7 +3809,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "ac75e32da587119d3c6c7c4ac8fcdcfb6f40d93a1b536eec270d0add6e43456e",
+  "obligations_digest": "2b87a898185807408b2040ec18a55d436437dc5c36ba638f3fa030d0a9115f7f",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4351,11 +4336,10 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_2_P1_4_P2_2_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "section": "s20_350_mutation_candidate_persistent_fuzz",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
@@ -4452,17 +4436,16 @@
       "severities": []
     },
     {
-      "disposition": "REVISE_0_P0_2_P1_4_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_6_P3",
       "field": "vulcan_review",
       "section": "s20_700_adapter_responses_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
     },
     {
-      "disposition": "REVISE_0_P0_0_P1_3_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_2_P2_7_P3",
       "field": "vulcan_review",
       "section": "s20_700_complete_root_persistent_fuzz_slice",
       "severities": [
@@ -4471,29 +4454,10 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_0_P2_5_P3",
-      "field": "vulcan_review",
-      "section": "s20_700_complete_root_snapshot_persistent_fuzz_slice",
-      "severities": [
-        "P1",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_2_P2_5_P3",
-      "field": "vulcan_review",
-      "section": "s20_700_context_capsule_persistent_fuzz_slice",
-      "severities": [
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_1_P1_2_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "section": "s20_700_merge_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
@@ -4552,11 +4516,10 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_3_P2_4_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_5_P3",
       "field": "vulcan_review",
       "section": "s20_700_root_query_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
@@ -4572,41 +4535,19 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_2_P2_5_P3",
-      "field": "vulcan_review",
-      "section": "s20_700_semantic_checkers_persistent_fuzz_slice",
-      "severities": [
-        "P1",
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_1_P1_2_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_4_P3",
       "field": "vulcan_review",
       "section": "s20_700_semantic_delta_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_3_P2_6_P3",
-      "field": "vulcan_review",
-      "section": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
-      "severities": [
-        "P1",
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_1_P1_4_P2_3_P3",
+      "disposition": "REVISE_0_P0_0_P1_2_P2_6_P3",
       "field": "vulcan_review",
       "section": "s20_700_smp1_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P2",
         "P3"
       ]
@@ -4913,21 +4854,21 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "735021507a2b1f7fa0bfd57cdef26c0eb1911dd740143236e608f6c73bfc7954",
+  "register_digest": "f99e2575670ac4f8c972dc403435627d018d2e1cc11f1493ba0873a2c2d84a1c",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
-    "P1": 118,
-    "P2": 126,
-    "P3": 123,
-    "P4": 8
+    "P1": 109,
+    "P2": 123,
+    "P3": 121,
+    "P4": 9
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 28,
     "OTHER": 3,
-    "PASS": 131,
-    "PENDING": 105
+    "PASS": 135,
+    "PENDING": 101
   },
   "superseded_rounds": [
     {

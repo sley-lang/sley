@@ -20,7 +20,9 @@ The libFuzzer target has two deterministic input lanes:
 
 Both lanes read the expected context from the candidate's own header (the
 schema epoch and the bound root after option tag `2`), so a context failure
-is always a real mismatch. Both lanes are bounded to 65,536 payload bytes.
+is always a real mismatch. Both lanes are bounded to 65,536 payload bytes,
+so the record-length `ResourceLimit` path (64 MiB) is unreachable under
+this harness while the count-based `ResourceLimit` is reachable.
 An accepted record must equal its decoded bytes, carry arm `2` and a bound
 root, bind the exact derived identity, and decode again to the same
 snapshot. A rejected input must carry one of the eleven frozen

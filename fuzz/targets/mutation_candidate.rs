@@ -8,7 +8,7 @@ use sley_mutate::{
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 1_048_576;
-const SELECTOR_COUNT: u8 = 2;
+const SELECTOR_COUNT: u8 = 3;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn LLVMFuzzerTestOneInput(data: *const u8, len: usize) -> i32 {
@@ -31,8 +31,22 @@ fn fuzz_one(input: &[u8]) {
     match selector % SELECTOR_COUNT {
         0 => import_and_rebuild(payload),
         1 => decode_and_reencode_record(payload),
+        2 => build_then_import(payload),
         _ => unreachable!(),
     }
+}
+
+/// Build-to-import lane: construct a valid import by building from a
+/// decoded record and re-importing the built stored bytes (which carry
+/// the digest trailer), so import land is reached by construction
+/// instead of only by the one fixed input that carries a valid digest.
+fn build_then_import(payload: &[u8]) {
+    let Ok(record) = decode_candidate_record(payload) else {
+        return;
+    };
+    let built = build_candidate(&record).expect("rebuild decoded record");
+    let imported = import_candidate(&built.stored_bytes).expect("import built candidate");
+    assert_eq!(imported, built, "built candidate import drifted");
 }
 
 fn import_and_rebuild(payload: &[u8]) {

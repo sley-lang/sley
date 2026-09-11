@@ -103,6 +103,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "corpus_file_counts",
     "runs_floor",
 ]:

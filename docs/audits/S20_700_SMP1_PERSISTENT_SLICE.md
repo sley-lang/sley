@@ -27,8 +27,14 @@ carry one of the twelve frozen `PROTOCOL_*` codes 40000 through 40011.
 
 The deterministic corpus comes from `conformance/smp1/v1/accepted.json`
 (the request, response, failure, and both hello frames) and
-`rejected.json`, plus header-boundary truncation, trailing-byte, and
-single-bit mutation seeds in every lane. Runtime corpus, binaries,
+`rejected.json`, plus header-boundary truncation, trailing-byte,
+single-bit, and multi-frame concatenated-pair mutation seeds in every
+lane (the pairs reach stream reassembly past the single-frame ceiling).
+Negotiation executes through the shared oracle on fixture hello frames
+decoded in the framed lane; prefix-stripped bodies were removed because
+they never decode as hello records. Minimized crashers are retained as
+harness regression records (`fuzz/regressions/S20_700_SMP1_001.json`).
+Runtime corpus, binaries,
 artifacts, and evidence remain under ignored
 `evidence/runtime/s20-700-smp1-libfuzzer/` paths.
 

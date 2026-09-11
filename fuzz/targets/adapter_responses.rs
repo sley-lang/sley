@@ -5,8 +5,8 @@ use core::slice;
 use std::collections::BTreeMap;
 
 use sley_adapter::{
-    AdapterFixtureState, AdapterInvocation, AdapterLimits, AdapterOutcome, ReferenceAdapterKind,
-    ReplayEntry, invoke_reference_adapter, state_id,
+    AdapterErrorCode, AdapterFixtureState, AdapterInvocation, AdapterLimits, AdapterOutcome,
+    ReferenceAdapterKind, ReplayEntry, invoke_reference_adapter, state_id,
 };
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId, StateRoot, ValueHash};
@@ -70,16 +70,29 @@ fn fuzz_one(input: &[u8]) {
         cancel_at_action: None,
     };
 
+    let mut applied_mutations = 0_u32;
+    let mut must_reject = false;
     if !canonical_lane {
         invocation.cancel_at_action = generated_cancellation(&state, &mut cursor);
         for _ in 0..cursor.bounded(MAX_MUTATIONS) {
+            let mut forced = false;
             mutate_boundary(
                 &mut state,
                 &mut import,
                 &mut effect,
                 &mut invocation,
                 &mut cursor,
+                &mut forced,
             );
+            applied_mutations += 1;
+            must_reject = must_reject || forced;
+        }
+        // Fail-closed behaviour is asserted only for a single decisive
+        // mutation: stacked mutations interact, and their combined verdict
+        // stays acceptance-tested. A lone identity/ABI/kind break must
+        // refuse.
+        if applied_mutations != 1 {
+            must_reject = false;
         }
     }
 
@@ -121,11 +134,27 @@ fn fuzz_one(input: &[u8]) {
     }
 
     match &first {
-        Err(_) => assert_eq!(
-            first_state, before,
-            "a rejected adapter response mutated fixture state"
-        ),
+        Err(error) => {
+            // The engine-invariant class is never an accepted outcome, and
+            // a lone decisive boundary break must refuse (fail-closed
+            // behaviour, not just no-panic).
+            if let Some(code) = error.adapter_code() {
+                assert_ne!(
+                    code,
+                    AdapterErrorCode::InternalInvariant,
+                    "engine invariant fired as a normal rejection"
+                );
+            }
+            assert_eq!(
+                first_state, before,
+                "a rejected adapter response mutated fixture state"
+            );
+        }
         Ok(receipt) => {
+            assert!(
+                !must_reject,
+                "a must-reject boundary mutation was accepted"
+            );
             assert_success_bindings(&before, &first_state, receipt, &effect, &types, &invocation);
             if invocation.kind == ReferenceAdapterKind::GenericReplay {
                 let index = usize::try_from(before.replay_cursor)
@@ -466,13 +495,32 @@ fn mutate_boundary(
     effect: &mut EffectDefinition,
     invocation: &mut AdapterInvocation,
     cursor: &mut Cursor<'_>,
+    forced: &mut bool,
 ) {
+    // A lone decisive break (identity, ABI, kind) sets forced: the engine
+    // must refuse it. Anything else may or may not reject and stays
+    // acceptance-tested.
     match cursor.byte() % MUTATION_COUNT {
         0 => {}
-        1 => import.adapter_id = [cursor.byte(); 32],
-        2 => import.abi_version = u32::from(cursor.byte() % 4),
-        3 => import.effects.clear(),
-        4 => effect.effect_kind = EffectKind::StdoutWrite,
+        1 => {
+            let id = [cursor.byte(); 32];
+            if id != import.adapter_id {
+                import.adapter_id = id;
+                *forced = true;
+            }
+        }
+        2 => {
+            let abi = u32::from(cursor.byte() % 4);
+            import.abi_version = abi;
+            *forced = abi != 1;
+        }
+        3 => {
+            import.effects.clear();
+        }
+        4 => {
+            effect.effect_kind = EffectKind::StdoutWrite;
+            *forced = true;
+        }
         5 => import.request_type = raw_type(cursor),
         6 => import.response_type = raw_type(cursor),
         7 => import.failure_type = raw_type(cursor),

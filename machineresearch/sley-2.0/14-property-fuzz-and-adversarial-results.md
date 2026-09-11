@@ -110,6 +110,8 @@ Persistent fuzzing and minimized finding retention remain mandatory before
 S20-700 completion. Independent review of the new targets is deferred because
 the local Forge OAuth session returns 401.
 
+Superseded 2026-09-11 for the repaired slices: Vulcan re-reviews are filed under evidence/review/verdicts/ (round 7 wave); the lane restoration, not the OAuth session, is the standing fact.
+
 The SCB1 decoder persistent smoke is selected by:
 
 ```bash

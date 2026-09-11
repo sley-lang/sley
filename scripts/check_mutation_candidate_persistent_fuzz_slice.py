@@ -23,7 +23,8 @@ target = TARGET.read_text(encoding="utf-8")
 for marker in [
     "LLVMFuzzerTestOneInput",
     "MAX_FUZZ_INPUT_BYTES: usize = 1_048_576",
-    "SELECTOR_COUNT: u8 = 2",
+    "SELECTOR_COUNT: u8 = 3",
+    "build_then_import(payload)",
     "import_candidate(payload)",
     "build_candidate(&imported.record)",
     "assert_eq!(rebuilt, imported",
@@ -77,6 +78,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "must cover the corpus",
 ]:
     if marker not in runner:

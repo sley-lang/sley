@@ -1,0 +1,11 @@
+{
+  "contract": "s20-700-fuzz-harness-regression-v1",
+  "finding_id": "S20-700-SMP1-001",
+  "target": "smp1_frame_decoder",
+  "classification": "ORACLE_FIXED",
+  "production_checker_defect": false,
+  "root_cause": "The shared negotiation oracle asserted NoCommonProfile for every negotiation failure, but a frame-decoded hello that fails Hello::validate negotiates to PayloadInvalid. The oracle fired on deterministic seed seed-0004 (a decodable-but-invalid hello frame) once the Hello arm was wired into check_frame.",
+  "disposition": "check_negotiated_hello accepts NoCommonProfile (incompatible valid hellos) and PayloadInvalid (decoded-but-invalid hellos); the negotiate() doc sentence claiming validation failures map to NoCommonProfile is an S20-410 owner-lane divergence (decision packet round-7-smp1-negotiate).",
+  "expected": "The minimized input executes without panic; negotiation of an invalid hello fails with PayloadInvalid or NoCommonProfile, never an unlisted code.",
+  "input_hex": "00000000000000014d534c45595343423101900337522d2cf9f8b19b291e3436f2faea3e7e7a503d4f46f33202c79dae7be3615c8002080101010202000003010004010405010006010007310801190801010002010003010004010005010006010007010008010002010003010004010005010006010007010108010108b601b4010701030101010243022012121212121212121212121212121212121212121212121212121212121212122011111111111111111111111111111111111111111111111111111111111111110325080104808080020202f4030303a09c010401080504808080010604c096b10207010208010804160801640166016702ac0202ad0202ae0202af0202db0405010906220120a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a20701009bcd4d13f0a6d40bfc83729b0e9c2800d8a3be210fb17513e01784d07464dd04"
+}

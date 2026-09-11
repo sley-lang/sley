@@ -119,13 +119,16 @@ def main() -> int:
         timeout=arguments.build_timeout,
     )
     evidence["commands"].append(build)  # type: ignore[union-attr]
+    evidence.update(derived_build_provenance(build))
     if build["returncode"] != 0:
         evidence["duration_seconds"] = round(time.monotonic() - started, 3)
         evidence["result"] = "FAIL"
         write_evidence(evidence)
         return 1
 
-    evidence["owner_lib_sancov_symbols"] = owner_lib_sancov_symbols()
+    evidence["owner_lib_sancov_symbols"], evidence["rlib_linkage"] = (
+        owner_lib_sancov_symbols(build_record=build)
+    )
     evidence["owner_lib_sancov_total"] = sum(evidence["owner_lib_sancov_symbols"].values())  # type: ignore[union-attr]
     evidence["owner_lib_sancov"] = sum(
         count
@@ -139,6 +142,7 @@ def main() -> int:
         write_evidence(evidence)
         return 1
 
+    prior_crashes = crash_artifact_names(ARTIFACTS)
     if arguments.manual:
         command = fuzzer_command(runs=None)
         print(" ".join(command))
@@ -154,12 +158,28 @@ def main() -> int:
     evidence["corpus_file_count"] = corpus_file_count
     evidence["coverage"] = parse_coverage(fuzz_output)
     coverage_counters = evidence["coverage"]["counters"]
+    ft_inited = evidence["coverage"]["ft_inited"]
+    ft_done = evidence["coverage"]["ft_done"]
+    # Strict monotonic feature gate (repair round 7h): counters prove
+    # instrumentation, and ft_done >= ft_inited > 0 proves the run
+    # executed and grew coverage accounting. Saturated corpora pass
+    # with equality; a truncated or missing INITED/DONE line fails
+    # instead of degrading to substring presence.
     evidence["coverage_ok"] = (
-        coverage_counters > 0
-        if isinstance(coverage_counters, int)
-        else ("ft:" in fuzz_output)
+        isinstance(coverage_counters, int)
+        and coverage_counters > 0
+        and isinstance(ft_inited, int)
+        and isinstance(ft_done, int)
+        and ft_done >= ft_inited
+        and ft_done > 0
     )
     evidence["crash_artifacts"] = crash_artifact_names(ARTIFACTS)
+    evidence["retested_prior_crashes"] = retest_prior_crashes(
+        fuzzer_bin=str(FUZZER),
+        artifacts_dir=ARTIFACTS,
+        prior=prior_crashes,
+        timeout_seconds=arguments.timeout,
+    )
     evidence["minimized_crashes"] = (
         minimize_crashes(
             fuzzer_bin=str(FUZZER),
@@ -176,6 +196,10 @@ def main() -> int:
         and evidence["executed_runs"] >= runs_floor
         and evidence["coverage_ok"]
         and not evidence["crash_artifacts"]
+        and not any(
+            record.get("still_crashes", False)
+            for record in evidence["retested_prior_crashes"]
+        )
         and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"
@@ -199,6 +223,8 @@ def fuzzer_command(*, runs: int | None) -> list[str]:
     if runs is not None:
         command.append(f"-runs={runs}")
         command.append("-len_control=0")
+        command.append("-timeout=30")
+        command.append("-rss_limit_mb=2048")
     command.append(str(CORPUS))
     return command
 
@@ -281,6 +307,52 @@ def crash_artifact_names(artifacts_dir: Path) -> list[str]:
     )
 
 
+def retest_prior_crashes(
+    *, fuzzer_bin: str, artifacts_dir: Path, prior: list[str], timeout_seconds: int
+) -> list[dict[str, object]]:
+    """Re-execute previous runs' crash artifacts (crash-to-regression).
+
+    Repair round 7h: a fixed crasher must stay fixed. Each prior artifact
+    runs once against the current binary in an isolated retest dir (never
+    the shared artifacts dir, so retest crashes cannot pollute the
+    record). A still-crashing prior fails the run; a cleared one is
+    noted, never silently dropped.
+    """
+    if not prior:
+        return []
+    retest_dir = artifacts_dir / "retest-tmp"
+    if retest_dir.exists():
+        shutil.rmtree(retest_dir)
+    retest_dir.mkdir(parents=True)
+    out: list[dict[str, object]] = []
+    for name in sorted(prior):
+        source = artifacts_dir / name
+        record: dict[str, object] = {"artifact": name}
+        if not source.is_file():
+            record["still_crashes"] = False
+            record["note"] = "artifact cleared by owner triage"
+            out.append(record)
+            continue
+        try:
+            completed = subprocess.run(
+                [fuzzer_bin, "-runs=1", f"-artifact_prefix={retest_dir}/", str(source)],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=min(timeout_seconds, 120),
+                check=False,
+            )
+            record["still_crashes"] = completed.returncode != 0
+            record["returncode"] = completed.returncode
+        except (OSError, subprocess.TimeoutExpired) as error:
+            record["still_crashes"] = True
+            record["retest_error"] = str(error)[:200]
+        out.append(record)
+    shutil.rmtree(retest_dir, ignore_errors=True)
+    return out
+
+
 def minimize_crashes(
     *,
     fuzzer_bin: str,
@@ -355,11 +427,13 @@ def parse_coverage(output: str) -> dict[str, object]:
         counters = int(match.group(1).replace(",", ""))
     inited = re.search(r"#\d+\s+INITED\b[^\n]*ft:\s*(\d+)", output)
     done = re.search(r"#\d+\s+DONE\b[^\n]*ft:\s*(\d+)", output)
+    seed = re.search(r"INFO: Seed:\s*(\d+)", output)
     return {
         "counters": counters,
         "ft_inited": int(inited.group(1)) if inited else None,
         "ft_done": int(done.group(1)) if done else None,
         "new_events": bool(re.search(r"#\d+\s+NEW\b", output)),
+        "seed": int(seed.group(1)) if seed else None,
     }
 
 
@@ -371,34 +445,27 @@ def parse_executed_units(stderr: str) -> int:
     return int(matches[-1]) if matches else -1
 
 
-def owner_lib_sancov_symbols() -> dict[str, int]:
-    """sanitizer_cov symbol counts per sley-* rlib in this slice's target dir.
+def owner_lib_sancov_symbols(*, build_record: dict | None = None) -> tuple[dict[str, int], str]:
+    """sanitizer_cov symbol counts for the rlibs cargo linked into the binary.
 
     Proof that coverage instrumentation reaches the owner library code, not
     just the fuzz binary crate: with the old bin-only -Cpasses flag the
-    owner rlibs carry zero sanitizer_cov symbols. Only the newest rlib per
-    crate counts: the persistent target dir accumulates every build's
-    rlibs, so summing all versions would let a stale instrumented rlib
-    satisfy the gate after an instrumentation regression (fail-open on a
-    warm host).
+    owner rlibs carry zero sanitizer_cov symbols. The rlib paths come from
+    cargo itself (--message-format=json over the exact build argv, fresh
+    and fast), so the gate counts what the binary linked, never a stale
+    rlib that happens to share the persistent target dir. When the cargo
+    query fails, the gate falls back to the newest rlib per crate and
+    says so in the linkage method.
     """
+    rlibs, method = linked_sley_rlibs(build_record)
     nm = shutil.which("llvm-nm") or shutil.which("nm")
     counts: dict[str, int] = {}
     if nm is None:
-        return counts
-    newest: dict[str, tuple[float, Path]] = {}
-    for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
-        try:
-            mtime = rlib.stat().st_mtime
-        except OSError:
-            continue
-        crate = rlib.name.split("-")[0]
-        if crate not in newest or mtime > newest[crate][0]:
-            newest[crate] = (mtime, rlib)
-    for crate in sorted(newest):
+        return counts, "nm-missing"
+    for rlib in rlibs:
         try:
             completed = subprocess.run(
-                [nm, str(newest[crate][1])],
+                [nm, str(rlib)],
                 cwd=ROOT,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -408,12 +475,66 @@ def owner_lib_sancov_symbols() -> dict[str, int]:
             )
         except (OSError, subprocess.TimeoutExpired):
             continue
-        counts[newest[crate][1].name] = sum(
+        counts[rlib.name] = sum(
             1 for line in completed.stdout.splitlines() if "sanitizer_cov" in line
         )
-    return counts
+    return counts, method
 
 
+def linked_sley_rlibs(build_record: dict | None) -> tuple[list[Path], str]:
+    """rlib paths cargo reports for the recorded build, or newest-per-crate.
+
+    The recorded build argv is replayed with --message-format=json (no
+    recompilation when fresh, seconds): compiler-artifact filenames are
+    fingerprint-authoritative, unlike mtime globbing.
+    """
+    if build_record is not None:
+        argv = [str(arg) for arg in build_record.get("argv", [])]
+        if "--" in argv:
+            # The full argv is replayed (link arguments included): fresh
+            # artifacts report in seconds without recompiling, and a
+            # non-fresh tree rebuilds identically instead of failing.
+            query = (
+                argv[: argv.index("--")]
+                + ["--message-format=json"]
+                + argv[argv.index("--") :]
+            )
+            try:
+                completed = subprocess.run(
+                    query,
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=600,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                completed = None
+            if completed is not None and completed.returncode == 0:
+                rlibs = []
+                for line in completed.stdout.splitlines():
+                    try:
+                        message = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if message.get("reason") != "compiler-artifact":
+                        continue
+                    for filename in message.get("filenames", []):
+                        if "/deps/libsley_" in filename and filename.endswith(".rlib"):
+                            rlibs.append(Path(filename))
+                if rlibs:
+                    return sorted(set(rlibs)), "cargo-json"
+    newest: dict[str, tuple[float, Path]] = {}
+    for rlib in sorted((TARGET_DIR / "release" / "deps").glob("libsley_*.rlib")):
+        try:
+            mtime = rlib.stat().st_mtime
+        except OSError:
+            continue
+        crate = rlib.name.split("-")[0]
+        if crate not in newest or mtime > newest[crate][0]:
+            newest[crate] = (mtime, rlib)
+    return [path for _, path in sorted(newest.values())], "mtime-fallback"
 # Without a sanitizer runtime libFuzzer prints three WARNING lines on
 # every run. They are expected for sancov-only builds; anything else
 # WARNING-shaped is recorded and fails the run.
@@ -467,6 +588,24 @@ def toolchain_versions() -> dict[str, str]:
             else f"unavailable:{completed.returncode}"
         )
     return versions
+
+
+def derived_build_provenance(build_record: dict) -> dict[str, object]:
+    """Build provenance derived from the executed build command, not labels.
+
+    Repair round 7h: build_locked and sancov_scope describe the argv that
+    actually ran (recorded in the build entry), so a flag regression
+    changes the record instead of passing under a stale label.
+    """
+    argv = [str(arg) for arg in build_record.get("argv", [])]
+    return {
+        "build_locked": "--locked" in argv,
+        "sancov_scope": (
+            "workspace-target-units-via-host-config"
+            if any("target.x86_64-unknown-linux-gnu.rustflags" in arg for arg in argv)
+            else "unknown"
+        ),
+    }
 
 
 def toolchain_problems() -> list[str]:

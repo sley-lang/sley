@@ -21,6 +21,7 @@ for marker in [
     "LLVMFuzzerTestOneInput",
     "decode_standalone_fixture(payload, contract)",
     "encode_standalone_fixture(decoded.contract, &decoded.payload)",
+    "encode_then_decode(payload)",
     "encoded, payload",
     "assert_eq!(object_id, decoded.object_id",
     "Schema::FixtureEmptyObject",
@@ -36,7 +37,7 @@ for marker in [
     "libclang_rt.fuzzer-x86_64.a",
     "nightly-2026-02-27",
     "conformance/scb1/v1",
-    "SELECTOR_COUNT = 22",
+    "SELECTOR_COUNT = 23",
     "\"full_s20_700_complete\": False",
     "\"SCB1_DECODER_ONLY\"",
 ]:
@@ -63,6 +64,8 @@ for marker in [
     "trace-compares",
     "toolchain_versions",
     "worktree_dirty_files",
+    "-timeout=30",
+    "-rss_limit_mb=2048",
     "must cover the corpus",
 ]:
     if marker not in wrapper:
@@ -84,7 +87,7 @@ if slice_status.get("persistent_fuzz_harness") is not True:
     problems.append("machine-summary-persistent-harness-not-true")
 if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
-if slice_status.get("selector_count") != 22:
+if slice_status.get("selector_count") != 23:
     problems.append("machine-summary-selector-count-drift")
 
 for path, marker in [
