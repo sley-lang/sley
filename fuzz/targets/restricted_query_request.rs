@@ -83,15 +83,12 @@ fn observe(
     let cross_code = execute_restricted_query(alternate, &request)
         .expect_err("a request must not execute against another snapshot")
         .code();
+    // InternalInvariant needs no separate assert here: the equality
+    // below pins SnapshotMismatch, which already excludes it.
     assert_eq!(
         cross_code,
         QueryErrorCode::SnapshotMismatch,
         "cross-snapshot request binding did not fail closed"
-    );
-    assert_ne!(
-        cross_code,
-        QueryErrorCode::InternalInvariant,
-        "engine invariant fired on a cross-snapshot probe"
     );
 
     let response = execute_restricted_query(snapshot, &request)

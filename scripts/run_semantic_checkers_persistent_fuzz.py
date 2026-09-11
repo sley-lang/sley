@@ -241,7 +241,11 @@ def main() -> int:
             prior=prior_crashes[name],
             timeout_seconds=args.timeout,
         )
-        evidence["targets"][name]["unexpected_warnings"] = unexpected_warnings(fuzz_output)
+        evidence["targets"][name]["unexpected_warnings"] = [
+            line
+            for line in fuzz["warnings"]
+            if line not in KNOWN_BENIGN_WARNINGS
+        ]
         if (
             fuzz["returncode"] != 0
             or evidence["targets"][name]["executed_runs"] < runs_floor
@@ -400,7 +404,14 @@ def retest_prior_crashes(
             continue
         try:
             completed = subprocess.run(
-                [fuzzer_bin, "-runs=1", f"-artifact_prefix={retest_dir}/", str(source)],
+                [
+                    fuzzer_bin,
+                    "-runs=1",
+                    "-timeout=30",
+                    "-rss_limit_mb=2048",
+                    f"-artifact_prefix={retest_dir}/",
+                    str(source),
+                ],
                 cwd=ROOT,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -450,6 +461,7 @@ def minimize_crashes(
                     fuzzer_bin,
                     "-minimize_crash=1",
                     "-runs=1000000",
+                    f"-max_total_time={max(10, timeout_seconds - 15)}",
                     f"-exact_artifact_path={exact}",
                     str(source),
                 ],
@@ -480,9 +492,9 @@ def parse_coverage(output: str) -> dict[str, object]:
     """Coverage signals from libFuzzer output (repair round 7c).
 
     The hard proof is the inline 8-bit counter total from the Loaded
-    line; ft at INITED/DONE and NEW events corroborate. When startup
-    lines are truncated from the tail, counters is None and the caller
-    falls back to ft presence.
+    line; ft at INITED/DONE and NEW events corroborate. The caller gates strictly on counters and monotonic ft; no
+    silent fallback exists. libFuzzer WARNINGs are captured separately
+    from the full streams (see warning_lines).
     """
     import re
 
@@ -610,15 +622,23 @@ KNOWN_BENIGN_WARNINGS = (
 )
 
 
-def unexpected_warnings(output: str) -> list[str]:
-    """WARNING lines outside the documented sancov-only allowlist."""
-    return sorted(
-        {
-            line
-            for line in output.splitlines()
-            if line.startswith("WARNING:") and line not in KNOWN_BENIGN_WARNINGS
-        }
-    )
+def warning_lines(stdout: str | bytes | None, stderr: str | bytes | None) -> list[str]:
+    """Every WARNING-shaped line in the full streams (capped at 50).
+
+    Repair round 7i: libFuzzer WARNINGs are startup/teardown lines, but
+    the gate must not depend on truncation windows, so run() captures
+    them from the full output before truncating. Expected sancov-only
+    lines are filtered by the caller against KNOWN_BENIGN_WARNINGS.
+    """
+    text = ""
+    for value in (stdout, stderr):
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="replace")
+        if value:
+            text += value + "\n"
+    return sorted({line for line in text.splitlines() if line.startswith("WARNING:")})[:50]
+
+
 
 
 def toolchain_versions() -> dict[str, str]:
@@ -675,6 +695,12 @@ def derived_build_provenance(build_record: dict) -> dict[str, object]:
 
 def toolchain_problems() -> list[str]:
     problems = []
+    for poisoned in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"):
+        if poisoned in os.environ:
+            problems.append(
+                f"{poisoned}-set-in-environment: unset it so the host-config "
+                "sancov flags are the ones that build"
+            )
     if shutil.which(CC) is None:
         problems.append(f"{CC}-missing")
     if not FUZZER_RT.exists():
@@ -729,6 +755,7 @@ def run(
             "duration_seconds": round(time.monotonic() - started, 3),
             "stdout": output_tail(completed.stdout),
             "stderr": output_tail(completed.stderr),
+            "warnings": warning_lines(completed.stdout, completed.stderr),
         }
     except subprocess.TimeoutExpired as error:
         return {
@@ -737,6 +764,7 @@ def run(
             "duration_seconds": round(time.monotonic() - started, 3),
             "stdout": output_tail(error.stdout),
             "stderr": output_tail(error.stderr),
+            "warnings": warning_lines(error.stdout, error.stderr),
             "timeout_seconds": timeout,
         }
 

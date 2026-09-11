@@ -37,3 +37,23 @@ python3 scripts/check_exchange_persistent_fuzz_slice.py
 make exchange-persistent-fuzz-smoke
 python3 scripts/run_exchange_persistent_fuzz.py --manual
 ```
+
+## Rounds 7c-7i (REQ-06 re-review wave)
+
+Crash minimization uses `-minimize_crash=1` with exact artifacts (the
+round-7 `-merge=1` primitive could not minimize a crasher); the coverage
+floor measures on-disk corpus files plus 256 mutations; coverage gates
+strictly on inline counters with monotonic `ft` (no silent fallback);
+the owner gate counts the rlibs cargo linked (fingerprint-authoritative,
+`rlib_linkage` recorded) with a newest-per-crate fallback; warnings are
+captured from the full streams against an explicit allowlist; builds
+refuse ambient `RUSTFLAGS`; prior crashers re-execute every smoke
+(crash-to-regression); per-input `-timeout=30` and `-rss_limit_mb=2048`
+bound hangs; libFuzzer seeds are recorded; build provenance
+(`build_locked`, `sancov_scope`) derives from the executed argv; the
+fuzz profile enables overflow checks and debug assertions. Manual
+campaigns remain operator exploration (no floor/limits parity by
+design). Slice oracles were strengthened per verdict (engine-invariant
+asserts, must-reject refusals, narrowed Err arms, constructed-valid
+import/decode lanes); the pinned clang-18 default has no recorded proof
+on this host.
