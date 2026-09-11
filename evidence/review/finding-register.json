@@ -37,7 +37,7 @@
     "p4": 0
   },
   "deferred_reviews": [],
-  "obligation_count": 269,
+  "obligation_count": 270,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2998,6 +2998,21 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_1_P2_6_P3",
+      "field": "vulcan_review",
+      "package_status": "IMPLEMENTED_SCOPED_SCB1_DECODER_ONLY",
+      "reviewer": "vulcan",
+      "section": "s20_700_scb1_persistent_fuzz_slice",
+      "severities": [
+        "P2",
+        "P3"
+      ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "REVISE_0_P0_2_P1_5_P2_3_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
@@ -3823,7 +3838,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "51c996785bd37d6ba7c1bb764782a3783a8f29c22e61c2f2d25dca408efab152",
+  "obligations_digest": "aa9e1c7382f11ba3fc3d87eaea748ba4af6a41358e70ca72d818359cb43d3467",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4484,6 +4499,15 @@
       ]
     },
     {
+      "disposition": "REVISE_0_P0_0_P1_1_P2_6_P3",
+      "field": "vulcan_review",
+      "section": "s20_700_scb1_persistent_fuzz_slice",
+      "severities": [
+        "P2",
+        "P3"
+      ]
+    },
+    {
       "disposition": "REVISE_0_P0_2_P1_5_P2_3_P3",
       "field": "vulcan_review",
       "section": "s20_700_schema_persistent_fuzz_slice",
@@ -4804,13 +4828,13 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "9fda5fc5eb2149deded6d3498b0728fa805739d9197fa96d0b559e7eb25859a7",
+  "register_digest": "49db9e61623f996bcc9ba163eae91624ae1a12e6aa0c994b10c3cacd57171232",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
     "P1": 108,
-    "P2": 117,
-    "P3": 119,
+    "P2": 118,
+    "P3": 120,
     "P4": 10
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
@@ -4818,7 +4842,7 @@
     "HISTORICAL_ROUND": 28,
     "OTHER": 3,
     "PASS": 144,
-    "PENDING": 94
+    "PENDING": 95
   },
   "superseded_rounds": [
     {

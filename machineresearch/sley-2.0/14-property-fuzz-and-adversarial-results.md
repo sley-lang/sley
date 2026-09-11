@@ -21,7 +21,9 @@ Current landed slices:
   `LLVMFuzzerTestOneInput`, multiplexes all frozen SCB1 decoder schemas plus
   both standalone fixture contracts through a one-byte selector, and asserts
   successful standalone decodes re-encode byte-identically with preserved
-  `ObjectId`.
+  `ObjectId`. Lane 22 constructs canonical uvar/sint/bool/bytes encodings
+  and requires exact decode, so the re-encode oracle is reachable without
+  forging digests.
 - Schema bootstrap persistent libFuzzer slice: a separate local `fuzz/` target
   sends bounded arbitrary bytes to the direct `SLEYEP01` importer and asserts
   that successful imports re-encode byte-identically with a preserved

@@ -57,6 +57,7 @@ for marker in [
     "SELECTOR_COUNT = 4",
     "CRASH_REGRESSION",
     "S20_700_SMP1_001",
+    "seed-regression-S20-700-SMP1-001",
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")

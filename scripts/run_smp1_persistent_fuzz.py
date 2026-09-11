@@ -668,13 +668,13 @@ def generate_seed_corpus() -> tuple[int, int]:
         for second in frames[:4]:
             payloads.append(first + second)
     # Filed crash regressions replay every smoke: the minimized input that
-    # exposed the dead-Ok-arm fixture bug stays in the deterministic
-    # corpus, so a refactored oracle that drops it fails loudly instead
-    # of silently losing the coverage.
+    # exposed the dead-Ok-arm fixture bug is a complete seed (lane byte
+    # included), so it is written directly, never re-prefixed (which
+    # would shift it into junk that never reaches negotiation).
     regression = json.loads(CRASH_REGRESSION.read_text(encoding="utf-8"))
     if regression.get("finding_id") != "S20-700-SMP1-001":
         raise SystemExit("SMP1 crash regression fixture drifted")
-    payloads.append(bytes.fromhex(regression["input_hex"]))
+    regression_seed = bytes.fromhex(regression["input_hex"])
 
     seeds = [bytes([selector]) + payload for selector in range(SELECTOR_COUNT) for payload in payloads]
     unique_seeds = list(dict.fromkeys(seeds))
@@ -685,8 +685,12 @@ def generate_seed_corpus() -> tuple[int, int]:
         f"seed-{index:04d}-{hashlib.sha256(seed).hexdigest()[:16]}"
         for index, seed in enumerate(unique_seeds)
     }
+    regression_digest = hashlib.sha256(regression_seed).hexdigest()[:16]
+    regression_name = f"seed-regression-S20-700-SMP1-001-{regression_digest}"
+    (CORPUS / regression_name).write_bytes(regression_seed)
+    written.add(regression_name)
     stale_seeds_removed = sync_seed_corpus(CORPUS, written)
-    return len(unique_seeds), stale_seeds_removed
+    return len(unique_seeds) + 1, stale_seeds_removed
 
 
 def run(command: list[str], *, env: dict[str, str] | None = None, timeout: int) -> dict[str, object]:

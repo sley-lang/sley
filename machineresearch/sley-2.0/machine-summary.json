@@ -1982,7 +1982,8 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_6_P3"
   },
   "s20_700_schema_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
@@ -3981,8 +3982,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 269,
-    "open_reviews": 94,
+    "obligations": 270,
+    "open_reviews": 95,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4031,7 +4032,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "94 review obligations are open",
+      "95 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
