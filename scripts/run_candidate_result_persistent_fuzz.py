@@ -70,6 +70,7 @@ def main() -> int:
         "scope": "RESULT_IMPORT_AND_MONOTONIC_SHAPE_NO_AUTHORITY",
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
+        "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
         "commands": [],
     }
     # Repair round 7 durable harness provenance (uniform across slices).

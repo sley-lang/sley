@@ -69,6 +69,7 @@ def main() -> int:
         "commands": [],
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
+        "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
         "toolchain_versions": toolchain_versions(),
         "problems": [],
     }

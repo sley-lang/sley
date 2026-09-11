@@ -77,6 +77,7 @@ def main() -> int:
         "coverage_counters",
         "trace-compares",
     "toolchain_versions",
+    "worktree_dirty_files",
         "must cover the corpus",
     ]:
         if marker not in runner:

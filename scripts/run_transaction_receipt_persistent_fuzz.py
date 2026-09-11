@@ -71,6 +71,7 @@ def main() -> int:
         "scope": "TRANSACTION_RECEIPT_IMPORT_AND_CROSS_BINDING_NO_COMMIT",
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
+        "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
     }
     # Repair round 7 durable harness provenance (uniform across slices).
     evidence.setdefault("runs_requested", arguments.runs)

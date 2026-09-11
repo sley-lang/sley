@@ -102,6 +102,7 @@ for marker in [
     "coverage_counters",
     "trace-compares",
     "toolchain_versions",
+    "worktree_dirty_files",
     "corpus_file_counts",
     "runs_floor",
 ]:
