@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import tempfile
 import unittest
@@ -208,7 +209,9 @@ class IndependentConformanceTests(unittest.TestCase):
         )
         self.assertEqual(report["fixture_directories"], len(directories))
         # The pinned corpus version per family is itself pinned: only
-        # entity-read vectors live under v2 (S20-310 contract).
+        # entity-read checks its vectors at v2 (S20-310 contract); sibling
+        # v2 corpora are digested, summed, and declared without a depth
+        # claim (contract revision 5).
         self.assertEqual(conformance.CORPUS_VERSION, {"entity-read": "v2"})
         self.assertEqual(
             [family["directory"] for family in report["fixtures"]],
@@ -267,6 +270,50 @@ class IndependentConformanceTests(unittest.TestCase):
             with self.assertRaises(conformance.ConformanceError) as error:
                 conformance.family_record(directory, recipe)
             self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.SUMS_MISMATCH)
+
+    def test_a_missing_pinned_version_directory_fails_closed(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            directory.mkdir(parents=True)
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.family_record(directory, recipe)
+            self.assertEqual(
+                error.exception.code, conformance.ConformanceErrorCode.FIXTURE_UNREADABLE
+            )
+
+    def test_a_corpus_pin_outside_coverage_fails_closed(self) -> None:
+        pinned = dict(conformance.CORPUS_VERSION)
+        conformance.CORPUS_VERSION["brand-new"] = "v1"
+        try:
+            with self.assertRaises(conformance.ConformanceError) as error:
+                conformance.validate_corpus_versions()
+            self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.ORACLE_DRIFT)
+        finally:
+            conformance.CORPUS_VERSION.clear()
+            conformance.CORPUS_VERSION.update(pinned)
+
+    def test_tracked_sibling_versions_are_enumerated_without_depth(self) -> None:
+        recipe = conformance.conformance_recipe()
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp) / "scb1"
+            for version in ("v1", "v2"):
+                (directory / version).mkdir(parents=True)
+                (directory / f"{version}/accepted.json").write_text(
+                    '{"contract": "x"}', encoding="utf-8"
+                )
+            digest = hashlib.sha256(b'{"contract": "x"}').hexdigest()
+            for version in ("v1", "v2"):
+                (directory / f"{version}/SHA256SUMS").write_text(
+                    f"{digest}  accepted.json\n", encoding="utf-8"
+                )
+            family = conformance.family_record(directory, recipe)
+            self.assertEqual(family["directory"], "conformance/scb1/v1")
+            self.assertEqual(family["tracked_versions"], ["v1", "v2"])
+            self.assertEqual(set(family["siblings"]), {"v2"})
+            sibling = family["siblings"]["v2"]
+            self.assertEqual(sibling["coverage"]["kind"], "tracked_sibling")
+            self.assertEqual(sibling["coverage"]["pinned_version"], "v1")
 
 
 class CoverageDepthTests(unittest.TestCase):

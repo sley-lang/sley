@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "1f9385e902db352b906bba1baa06718e80016a2fe678c6393874bc4be1980b78",
+  "report_digest": "e78dafdad4008f876feb1abaaf8d676461afaea010342ed068690823e73064bd",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -27,7 +27,7 @@
     {
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 18,
+      "located_file_count": 24,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -74,7 +74,7 @@
     {
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
-      "located_file_count": 15,
+      "located_file_count": 20,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -90,7 +90,7 @@
           "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
           "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
           "oracle/scb1/src/sley2_scb1_oracle/codec.py",
-          "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-canon",
@@ -117,7 +117,7 @@
     {
       "expected_failure_code": "SCB_DIGEST_MISMATCH",
       "id": "T03",
-      "located_file_count": 17,
+      "located_file_count": 21,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -456,7 +456,7 @@
     {
       "expected_failure_code": "SESSION_STALE_HANDLE",
       "id": "T15",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_session_handle_profile.py",
@@ -466,6 +466,9 @@
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-protocol/src/session.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-protocol",
@@ -485,7 +488,7 @@
     {
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 23,
+      "located_file_count": 27,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -503,7 +506,7 @@
           "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
           "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
           "oracle/scb1/src/sley2_scb1_oracle/codec.py",
-          "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-mutate",
@@ -526,7 +529,7 @@
     {
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 8,
+      "located_file_count": 9,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
@@ -540,7 +543,8 @@
           "crates/sley-txn/src/repository.rs"
         ],
         "oracle": [
-          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-txn",
@@ -973,12 +977,13 @@
     {
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
         ],
         "implementation": [
+          "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
           "crates/sley-vm/src/execute.rs",
           "crates/sley-vm/src/extended.rs",
           "crates/sley-vm/src/lib.rs"
@@ -1313,7 +1318,7 @@
     {
       "expected_failure_code": "PROTOCOL_DOWNGRADE",
       "id": "T45",
-      "located_file_count": 5,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_smp1_contract.py",
@@ -1322,7 +1327,12 @@
         "implementation": [
           "crates/sley-json-bridge/src/tests.rs",
           "crates/sley-protocol/src/lib.rs",
-          "crates/sley-protocol/src/server.rs"
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py",
+          "oracle/scb1/tests/test_entity_read.py"
         ]
       },
       "owner": "sley-protocol",
@@ -1342,13 +1352,16 @@
     {
       "expected_failure_code": "PROTOCOL_REQUEST_ID_CONFLICT",
       "id": "T46",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
         "checkers": [
           "scripts/check_smp1_contract.py"
         ],
         "implementation": [
           "crates/sley-protocol/src/lib.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-protocol",
@@ -1368,7 +1381,7 @@
     {
       "expected_failure_code": "SESSION_WORKSPACE_MISMATCH",
       "id": "T47",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "checkers": [
           "scripts/check_session_handle_profile.py",
@@ -1377,6 +1390,9 @@
         "implementation": [
           "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-protocol/src/session.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
         ]
       },
       "owner": "sley-protocol",
@@ -1426,7 +1442,7 @@
     {
       "expected_failure_code": "SCB_MAGIC_INVALID",
       "id": "T49",
-      "located_file_count": 12,
+      "located_file_count": 16,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -1437,7 +1453,8 @@
         "implementation": [
           "crates/sley-repo/src/refs.rs",
           "crates/sley-scb1/src/lib.rs",
-          "crates/sley-txn/src/repository.rs"
+          "crates/sley-txn/src/repository.rs",
+          "crates/sley-vm/tests/rw080_codec_envelope.rs"
         ],
         "oracle": [
           "oracle/scb1/generate_s20_350_fixtures.py",

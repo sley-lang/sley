@@ -141,8 +141,12 @@
           "vectors_present": 1
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "bootstrap-profile-1-closure-conformance",
@@ -180,8 +184,52 @@
           "permitted_opcodes": 42
         }
       },
+      "siblings": {
+        "v2": {
+          "claim": "bootstrap-profile-1-closure-conformance",
+          "contract": "sley2-bootstrap-profile-1",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/bootstrap-profile/v2",
+          "files": [
+            {
+              "bytes": 159,
+              "name": "SHA256SUMS",
+              "sha256": "6d7d443fe498cdcabfb3f0732b6823d146cbed5b902bb6bd31e7a0ca1df17db4"
+            },
+            {
+              "bytes": 41621,
+              "name": "accepted.json",
+              "sha256": "878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad"
+            },
+            {
+              "bytes": 10614,
+              "name": "profile.json",
+              "sha256": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459"
+            }
+          ],
+          "shape": {
+            "accepted.json": {
+              "vectors": 20
+            },
+            "profile.json": {
+              "cache_key_inputs": 12,
+              "permitted_opcodes": 42
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
     },
     {
       "claim": null,
@@ -218,8 +266,12 @@
           "mutations": 4
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-250-full-complete-entity-impact-v1-conformance",
@@ -256,8 +308,12 @@
           "mutations": 19
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-300-full-complete-root-index-snapshot-v1-conformance",
@@ -294,8 +350,12 @@
           "mutations": 6
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-320-full-context-capsule-v1-conformance",
@@ -324,8 +384,12 @@
           "vectors": 24
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "independent-expected",
@@ -334,7 +398,7 @@
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_entity_read_vectors.py",
         "depth": "semantic",
         "kind": "independent_oracle",
-        "runner": "scripts/ (Python, S20-130 independent)"
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
       "directory": "conformance/entity-read/v2",
       "files": [
@@ -368,8 +432,12 @@
           "cases": 91
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v2"
+      ]
     },
     {
       "claim": null,
@@ -398,8 +466,43 @@
           "negative_corpus": 18
         }
       },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "sley2-exec-package-2",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/exec-package/v2",
+          "files": [
+            {
+              "bytes": 84,
+              "name": "SHA256SUMS",
+              "sha256": "e0992c324f64959fabc6e5a332166bbe23cc57efa218372b9f4c41091ffd2b9d"
+            },
+            {
+              "bytes": 6570,
+              "name": "exec-package.json",
+              "sha256": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94"
+            }
+          ],
+          "shape": {
+            "exec-package.json": {
+              "negative_corpus": 18
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
     },
     {
       "claim": null,
@@ -428,8 +531,43 @@
           "prohibited": 7
         }
       },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "sley2-host-abi-2",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/host-abi/v2",
+          "files": [
+            {
+              "bytes": 80,
+              "name": "SHA256SUMS",
+              "sha256": "1ffbe999c789d3cc1e3ee2627b49c2d57d6e7f1cda62c446510312d04ceeaa29"
+            },
+            {
+              "bytes": 22182,
+              "name": "host-abi.json",
+              "sha256": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5"
+            }
+          ],
+          "shape": {
+            "host-abi.json": {
+              "prohibited": 7
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
     },
     {
       "claim": "s20-520-merge-v1-conformance",
@@ -466,8 +604,12 @@
           "mutations": 4
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "complete-s20-350-conformance",
@@ -506,8 +648,12 @@
           "value_vectors": 4
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "partial",
@@ -545,8 +691,12 @@
           "vectors": 18
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": null,
@@ -575,8 +725,12 @@
           "forbidden_natives": 5
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-720-release-demo-v1",
@@ -603,8 +757,12 @@
       "shape": {
         "demo.json": {}
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-540-repository-exchange-v1-clone-equivalent-conformance",
@@ -641,8 +799,12 @@
           "mutations": 6
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-170-repository-pack-rejection-conformance",
@@ -677,8 +839,12 @@
           "mutations": 10
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-310-full-root-backed-query-v1-conformance",
@@ -715,8 +881,12 @@
           "mutations": 8
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": null,
@@ -753,8 +923,12 @@
           "vectors": 26
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": null,
@@ -787,8 +961,12 @@
           "unicode_nfc_version": 3
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-510-semantic-comparison-v1-conformance",
@@ -825,8 +1003,12 @@
           "mutations": 5
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-410-smp1-v1-conformance",
@@ -863,8 +1045,12 @@
           "mutations": 4
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-420-smp1-json-bridge-v1-conformance",
@@ -909,8 +1095,43 @@
           "vectors": 5
         }
       },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/smp1-json-bridge/v2",
+          "files": [
+            {
+              "bytes": 79,
+              "name": "SHA256SUMS",
+              "sha256": "fe804ec0aedd17c7a924233671804303a57d58897b2624ae4c1fb9f6068eff8e"
+            },
+            {
+              "bytes": 6297,
+              "name": "methods.json",
+              "sha256": "ae4746da26e3cf8d7e934177e611fb587858588f10a56475640e068604db5d7d"
+            }
+          ],
+          "shape": {
+            "methods.json": {
+              "methods": 43
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
     },
     {
       "claim": null,
@@ -937,8 +1158,12 @@
       "shape": {
         "accepted.json": {}
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
@@ -975,8 +1200,12 @@
           "mutations": 10
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     },
     {
       "claim": "s20-260-270-vm-extended-e1-e6-e7a-and-e8-conformance",
@@ -1013,8 +1242,12 @@
           "mutations": 5
         }
       },
+      "siblings": {},
       "sums_consistent": true,
-      "sums_file": true
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
     }
   ],
   "independently_checked": 25,
@@ -1039,7 +1272,7 @@
     "problems": [],
     "python_sources": 28
   },
-  "report_digest": "3bbc75ce1903f6f688be402baccec3606441cad2a2838beadba06d226b35aba4",
+  "report_digest": "e29f364f4359274cb17f7cb9320041e6c3a2c88fe5a73caea4b0d8510ba4b6b7",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

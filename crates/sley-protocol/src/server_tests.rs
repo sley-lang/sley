@@ -4423,24 +4423,24 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
         max_work: 100_000_000,
         budget_before_dispatch: before,
     };
-    let (_, plan) = sley_repo::prepare_verified_entity_read(
+    let (_, selection) = sley_repo::prepare_verified_entity_read(
         &revision,
         EntityReadMethod::Signature,
         &request,
         &ceilings,
     )
     .unwrap();
-    assert_eq!(plan.object_count(), 7);
+    assert_eq!(selection.object_count(), 7);
     assert!(
-        plan.body_len() > ceiling,
+        selection.body_len() > ceiling,
         "aggregate body must exceed the outer Bytes cap"
     );
     assert!(
-        plan.body_len() <= 24_000_000,
+        selection.body_len() <= 24_000_000,
         "aggregate body must fit the request ceiling"
     );
     assert!(
-        plan.work_units() <= before,
+        selection.work_units() <= before,
         "aggregate work must fit the live session budget"
     );
 

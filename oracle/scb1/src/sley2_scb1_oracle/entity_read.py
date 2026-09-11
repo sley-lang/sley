@@ -3142,9 +3142,15 @@ def refresh(inputs_path: Path, output_dir: Path, repo_root: Path) -> dict[str, s
     rejected_path = resolved_out / "rejected.json"
     accepted_path.write_text(json.dumps(accepted, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     rejected_path.write_text(json.dumps(rejected, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    sums = (
-        f"{hashlib.sha256(accepted_path.read_bytes()).hexdigest()}  accepted.json\n"
-        f"{hashlib.sha256(rejected_path.read_bytes()).hexdigest()}  rejected.json\n"
+    # Promote-safe manifest: the refreshed corpus is accepted.json,
+    # rejected.json, AND the exact inputs they were derived from, so a
+    # promote of this directory can never drop inputs.json from SHA256SUMS
+    # (every JSON in the corpus must be summed).
+    inputs_out = resolved_out / "inputs.json"
+    inputs_out.write_bytes(inputs_path.read_bytes())
+    sums = "".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+        for path in sorted(resolved_out.glob("*.json"))
     )
     (resolved_out / "SHA256SUMS").write_text(sums, encoding="utf-8")
     failures = check_accepted(inputs, accepted) + check_rejected(inputs, rejected)

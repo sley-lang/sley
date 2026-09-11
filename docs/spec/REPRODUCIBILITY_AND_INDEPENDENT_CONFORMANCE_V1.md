@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 4 (2026-09-10); Council review
+Status: S20-730 contract draft, revision 5 (2026-09-11); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -10,7 +10,11 @@ in the checker, and gives the coverage taxonomy its depth axis. Revision 4
 covers the versioned entity-read corpus (sections 3 and 5): the family's
 pinned S20-310 vectors live under `conformance/entity-read/v2`, so the
 report records each family's versioned corpus directory, and the
-entity-read checker joins the semantic depth. The mechanics are `scripts/build_reproducibility_report.py` and
+entity-read checker joins the semantic depth. Revision 5 enumerates every
+tracked corpus version (section 3): a family may carry several `v<N>`
+corpora, and the report digests, sums, and declares each one, claiming
+depth only for the pinned version; a tracked version without a manifest or
+a pin outside the coverage map fails closed. The mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -134,15 +138,17 @@ report = {
   "report_digest": SHA-256 of the canonical report without this field
 }
 fixture = {
-  "directory": "conformance/<name>/<version>",
+  "directory": "conformance/<name>/<pinned version>",
   "files": [{ "name": string, "sha256": hex, "bytes": integer }, ...],
-  "sums_file": bool,
-  "sums_consistent": true | null,
+  "sums_file": true,
+  "sums_consistent": true,
   "contract": string | null,
   "claim": string | null,
   "shape": { file: { list-valued key: length } },
   "coverage": { "kind": "independent_oracle", "depth": "semantic" | "codec_and_identity", "runner": string, "command": string }
-            | { "kind": "native_only", "note": string }
+            | { "kind": "native_only", "note": string },
+  "tracked_versions": ["v1", "v2", ...],
+  "siblings": { version: { <version record>, "coverage": { "kind": "tracked_sibling", "pinned_version": string, "note": string } } }
 }
 ```
 
@@ -156,14 +162,22 @@ Rules:
   declaring its coverage;
 - each family names its pinned corpus version in the builder's
   `CORPUS_VERSION` map (default `v1`); today every family pins `v1` except
-  `entity-read`, whose S20-310 vectors pin `v2`; the `SHA256SUMS` and digest
-  rules below apply inside the versioned directory;
+  `entity-read`, whose S20-310 vectors pin `v2` (section 10); a pin naming a
+  family outside the coverage map is `CONFORMANCE_ORACLE_DRIFT`;
+- a family may carry several tracked corpus versions (`conformance/<name>/v<N>/`);
+  the report records every one of them in `tracked_versions`, with a
+  digested, summed, and declared record per version; depth is claimed only
+  for the pinned version, and siblings carry `tracked_sibling` coverage that
+  names the pinned version instead of a depth, so a tracked corpus is never
+  silently outside the report and a sibling never reads as independently
+  judged;
 - a family mapped to an independent oracle names the exact command of the
   `make conformance` recipe; a command absent from the recipe is
   `CONFORMANCE_ORACLE_DRIFT`;
-- a `SHA256SUMS` file must name every JSON file of its family with the
-  correct digest (`CONFORMANCE_SUMS_MISMATCH`); a family without one records
-  `sums_consistent: null`;
+- a `SHA256SUMS` file must name every JSON file of its version directory
+  with the correct digest (`CONFORMANCE_SUMS_MISMATCH`); every tracked
+  version directory carries one, so a version without a manifest is
+  `CONFORMANCE_FIXTURE_UNREADABLE`, never a silent gap;
 - an unreadable or non-JSON fixture is `CONFORMANCE_FIXTURE_UNREADABLE`;
 - the result is `INDEPENDENT_CONFORMANCE_COMPLETE` exactly when no family is
   native-only. `COMPLETE` promises that every family's vectors are checked
@@ -215,7 +229,7 @@ kernel (master goal section 6.5).
   cache keys and request identities from frozen preimages.
 - `native_only`: the family is exercised only through Rust code or through
   the packaged binary; it counts against the independent PASS. No family is
-  native-only at revision 4.
+  native-only at revision 5.
 
 ## 5.1 Second-host runbook
 
@@ -300,7 +314,25 @@ depth axis exists: independent semantic judgment of every family was never
 the bar, because the oracle must not become a second semantic kernel
 (section 4, master goal 6.5); the bar is independent checking at a declared
 depth, and the report's `coverage_depths` stop a codec-only family from
-reading as a semantically judged one. It also records why freshness is an
+reading as semantically judged one. It also records why freshness is an
 artifact-surface diff rather than a commit count: a count bound would be
 arbitrary, while a changed surface file means the attested artifact is
 provably not what this tree builds.
+
+Revision 5 records why `entity-read` pins `v2`: the S20-310 read methods
+are protocol v2 methods (`entity.version` 306, `entity.signature` 307), so
+no v1 entity-read corpus ever existed and none is invented; the pin names
+the first and only corpus. It records the vector emission direction for the
+same family: hand-authored semantic inputs (`inputs.json`, carrying the
+authored frame-scenario inventory) flow into the oracle refresh, which
+derives `accepted.json` and `rejected.json` plus the manifest; the Python
+vector checker consumes all three. There is no automated Rust consumer of
+these vectors by design: S20-130 independence forbids the Rust
+implementation from depending on oracle outputs, so the Rust entity-read
+tests prove the same properties from hand-built fixtures instead. It
+records why tracked siblings carry no depth: a sibling corpus (today
+`bootstrap-profile`, `exec-package`, `host-abi`, and `smp1-json-bridge` at
+`v2`) is digested, summed, and declared so it can never be a silent gap,
+but depth is claimed only for the pinned version the mapped checker
+actually runs against; promoting a sibling to pinned is a contract change,
+not a builder default.

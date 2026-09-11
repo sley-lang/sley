@@ -1109,10 +1109,11 @@ impl Server {
         outcome
     }
 
-    /// Prepares, preflights, reserves, and encodes one entity read over the
-    /// retained revision. Preparation runs only through the trusted
-    /// repository adapter; the full frame size is established before any
-    /// reservation or output allocation.
+    /// Prepares, preflights, reserves, captures, and encodes one entity read
+    /// over the retained revision. Preparation runs only through the trusted
+    /// repository adapter and allocates no object-sized output; the full
+    /// frame size is established next, then the work reservation, and only
+    /// then are the selected bytes captured and encoded.
     fn entity_read(
         &mut self,
         session: SessionId,
@@ -1132,12 +1133,12 @@ impl Server {
             max_work: self.profile.limits.max_work,
             budget_before_dispatch,
         };
-        let (_, plan) = prepare_verified_entity_read(revision, read, &frame.body, &selected)
+        let (_, selection) = prepare_verified_entity_read(revision, read, &frame.body, &selected)
             .map_err(entity_read_failure)?;
         let bounds = BoundedContext {
             applied_limits: self.profile.limits,
-            returned_bytes: plan.body_len(),
-            returned_entities: plan.object_count(),
+            returned_bytes: selection.body_len(),
+            returned_entities: selection.object_count(),
             ..BoundedContext::none()
         };
         let frame_len = crate::frame_total_len(&crate::FrameSize {
@@ -1148,20 +1149,21 @@ impl Server {
             method: frame.method,
             flags: 0,
             bounds,
-            body_len: plan.body_len(),
+            body_len: selection.body_len(),
         })
         .map_err(|error| ProtocolFailure::protocol(error.code()))?;
         // The outgoing fit compares the complete wire bytes INCLUDING the
         // 8-byte length prefix against the negotiated ceiling, while the
         // prefix value stays the envelope length. This preflight runs
-        // before any work reservation or output allocation.
+        // before any work reservation or output allocation: preparation
+        // above copies no object bytes.
         let wire_len = frame_len
             .checked_add(8)
             .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::LimitExceeded))?;
         if wire_len > self.profile.limits.max_frame_bytes {
             return protocol_failure(ProtocolErrorCode::LimitExceeded);
         }
-        let reserve = plan
+        let reserve = selection
             .work_units()
             .checked_sub(1)
             .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
@@ -1172,6 +1174,12 @@ impl Server {
         *remaining = remaining
             .checked_sub(reserve)
             .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        // Capture runs only after the frame preflight and the reservation,
+        // so no object-sized output allocation precedes either gate. A
+        // capture failure here is an unexpected post-reservation failure:
+        // the complete debit is retained and no object bytes are returned.
+        let plan = sley_repo::capture_entity_read_selection(selection)
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
         #[cfg(test)]
         if self.entity_encode_fault {
             return protocol_failure(ProtocolErrorCode::InternalInvariant);

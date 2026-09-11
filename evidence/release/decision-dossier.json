@@ -2,15 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "10 review lanes are deferred and unavailable",
-    "61 review obligations are open",
+    "64 review obligations are open",
+    "9 review lanes are deferred and unavailable",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "c203be226742a58473734a38704fd15a34c22d8b505bd54784298f88c942104f",
+  "dossier_digest": "4e920aa12b02c21e208009f6f48a5b5ecdded155a937ec22a5d168155e016897",
   "entries": [
     {
       "evidence": [
@@ -146,9 +146,9 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 262,
+        "python_tests": 265,
         "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1377
+        "rust_unit_tests": 1378
       }
     },
     {
@@ -338,23 +338,23 @@
           "p3": 0,
           "p4": 0
         },
-        "deferred_reviews": 10,
-        "obligations": 221,
-        "open_reviews": 61,
+        "deferred_reviews": 9,
+        "obligations": 224,
+        "open_reviews": 64,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 83,
-          "P1": 95,
-          "P2": 98,
-          "P3": 87,
-          "P4": 0
+          "P0": 87,
+          "P1": 99,
+          "P2": 102,
+          "P3": 92,
+          "P4": 1
         },
         "states": {
-          "DEFERRED": 10,
+          "DEFERRED": 9,
           "HISTORICAL_ROUND": 35,
           "OTHER": 3,
-          "PASS": 112,
-          "PENDING": 61
+          "PASS": 113,
+          "PENDING": 64
         }
       }
     },
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "86170bc6aeb9f4ae8a0c3d4418c74cf5c125718638b4c70fd4fe021b07a410e0",
+  "entries_digest": "750f1b0c93194eeb10ff3660bff1a0abca1287cc907ca637351b0af484436310",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

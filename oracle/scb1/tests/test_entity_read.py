@@ -4985,6 +4985,11 @@ class B2OuterIntegrationCases(unittest.TestCase):
             self.assertEqual(rejected_path.name, "rejected.json")
             self.assertEqual(sums_path.resolve().parent, out.resolve())
             self.assertEqual(sums_path.name, "SHA256SUMS")
+            staged_inputs_path = out.resolve() / "inputs.json"
+            self.assertTrue(staged_inputs_path.is_file())
+            self.assertEqual(
+                staged_inputs_path.read_bytes(), inputs_path.read_bytes()
+            )
             staged_accepted = json.loads(accepted_path.read_text(encoding="utf-8"))
             staged_rejected = json.loads(rejected_path.read_text(encoding="utf-8"))
             self.assertEqual(
@@ -5065,6 +5070,7 @@ class B2OuterIntegrationCases(unittest.TestCase):
             self.assertEqual(
                 sums_path.read_text(encoding="utf-8"),
                 f"{hashlib.sha256(accepted_path.read_bytes()).hexdigest()}  accepted.json\n"
+                f"{hashlib.sha256(staged_inputs_path.read_bytes()).hexdigest()}  inputs.json\n"
                 f"{hashlib.sha256(rejected_path.read_bytes()).hexdigest()}  rejected.json\n",
             )
             staged_problems = entity_read.check_accepted(

@@ -29,6 +29,7 @@ COMPLETE_ROOT = ROOT / "crates/sley-query/src/complete_root.rs"
 SNAPSHOT = ROOT / "crates/sley-query/src/snapshot.rs"
 MUTATE_VALUE = ROOT / "crates/sley-mutate/src/value.rs"
 QUERY_MANIFEST = ROOT / "crates/sley-query/Cargo.toml"
+CARGO_LOCK = ROOT / "Cargo.lock"
 FIXTURE_DIR = ROOT / "conformance/complete-entity-impact"
 
 DRAFT_STATUS = "S20_250_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
@@ -115,9 +116,54 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def lock_packages() -> dict:
+    """Parse Cargo.lock into {package name: [dependency names]}.
+
+    Dependency entries may carry a version or source suffix; only the
+    leading name token is significant for reachability.
+    """
+    packages: dict = {}
+    name = None
+    deps: list = []
+    in_deps = False
+    for line in read(CARGO_LOCK).splitlines():
+        stripped = line.strip()
+        if stripped == "[[package]]":
+            if name is not None:
+                packages[name] = deps
+            name, deps, in_deps = None, [], False
+        elif stripped.startswith("name = "):
+            name = stripped[len("name = ") :].strip().strip('"')
+        elif stripped == "dependencies = [":
+            in_deps = True
+        elif in_deps and stripped == "]":
+            in_deps = False
+        elif in_deps and name is not None:
+            token = stripped.strip(",").strip('"').split()
+            if token:
+                deps.append(token[0])
+    if name is not None:
+        packages[name] = deps
+    return packages
+
+
+def lock_reachable(root: str) -> set:
+    """Transitive dependency closure of one package over Cargo.lock."""
+    packages = lock_packages()
+    seen = {root}
+    queue = [root]
+    while queue:
+        for dep in packages.get(queue.pop(), []):
+            if dep not in seen:
+                seen.add(dep)
+                queue.append(dep)
+    seen.discard(root)
+    return seen
+
+
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, RESTRICTED_SPEC, ERROR_CODES):
+    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, RESTRICTED_SPEC, ERROR_CODES, CARGO_LOCK):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -210,6 +256,10 @@ def main() -> int:
         for forbidden in ("sley-store", "sley-mutate", "sley-policy"):
             if forbidden in manifest:
                 problems.append(f"dependency-direction:sley-query-depends-on-{forbidden}")
+        for forbidden in sorted(
+            lock_reachable("sley-query") & {"sley-store", "sley-mutate", "sley-policy"}
+        ):
+            problems.append(f"dependency-direction:transitive-sley-query-reaches-{forbidden}")
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):

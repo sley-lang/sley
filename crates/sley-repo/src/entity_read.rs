@@ -11,9 +11,11 @@ use sley_mutate::{value::EntityBodyValue, EntityObject};
 use sley_query::{
     decode_entity_read_request, encode_entity_read_response, prepare_entity_read, EntityReadBody,
     EntityReadCeilings, EntityReadError, EntityReadMethod, EntityReadObject, EntityReadOutcome,
-    EntityReadPlan, EntityReadRequest, EntityReadRevision,
+    EntityReadPlan, EntityReadRequest, EntityReadRevision, EntityReadSelection,
 };
 use sley_txn::VerifiedRevision;
+
+pub use sley_query::capture_entity_read_selection;
 
 fn view(revision: &VerifiedRevision) -> EntityReadRevision<'_> {
     let record = &revision.state_root().record;
@@ -33,6 +35,10 @@ fn view(revision: &VerifiedRevision) -> EntityReadRevision<'_> {
 /// every other body crosses as an opaque tag. The projection borrows the
 /// verified revision, so the owner touches only the selected indices and
 /// no whole-root view is ever built.
+fn adapter_view_at(objects: &[EntityObject], index: usize) -> Option<EntityReadObject<'_>> {
+    objects.get(index).map(view_object)
+}
+
 fn view_object(object: &EntityObject) -> EntityReadObject<'_> {
     let record = object.record();
     let body = match &record.body {
@@ -59,25 +65,34 @@ fn view_object(object: &EntityObject) -> EntityReadObject<'_> {
 }
 
 /// Decodes the request and runs the ordered owner checks against one
-/// verified revision, without allocating object-sized output.
+/// verified revision, returning the borrowed selection without allocating
+/// object-sized output.
 ///
-/// The returned plan owns its captured inputs and selected objects; only
-/// it can drive encoding.
+/// The caller runs the frame preflight and the reservation against the
+/// selection, then copies with
+/// [`sley_query::capture_entity_read_selection`]; only the captured plan
+/// can drive encoding.
 ///
 /// # Errors
 ///
 /// Returns the first failing contract check.
-pub fn prepare_verified_entity_read(
-    revision: &VerifiedRevision,
+pub fn prepare_verified_entity_read<'a>(
+    revision: &'a VerifiedRevision,
     method: EntityReadMethod,
     request_bytes: &[u8],
     selected: &EntityReadCeilings,
-) -> Result<(EntityReadRequest, EntityReadPlan), EntityReadError> {
+) -> Result<(EntityReadRequest, EntityReadSelection<'a>), EntityReadError> {
     let request = decode_entity_read_request(request_bytes)?;
     let objects = revision.objects();
-    let object_at = |index: usize| objects.get(index).map(view_object);
-    let plan = prepare_entity_read(method, &view(revision), &request, selected, &object_at)?;
-    Ok((request, plan))
+    let selection = prepare_entity_read(
+        method,
+        &view(revision),
+        &request,
+        selected,
+        objects,
+        adapter_view_at,
+    )?;
+    Ok((request, selection))
 }
 
 /// Encodes the complete response for a prepared plan, consuming it.
@@ -131,7 +146,7 @@ mod tests {
         let session = SessionId::from_bytes([0x20; 32]);
         for object in revision.objects() {
             let entity = object.record().entity_id;
-            let (request, plan) = prepare_verified_entity_read(
+            let (request, selection) = prepare_verified_entity_read(
                 &revision,
                 EntityReadMethod::Version,
                 &encode_request(root, entity),
@@ -139,6 +154,7 @@ mod tests {
             )
             .unwrap();
             assert_eq!(request.entity, entity);
+            let plan = sley_query::capture_entity_read_selection(selection).unwrap();
             let outcome =
                 encode_verified_entity_read_response(plan, session).unwrap();
             assert_eq!(outcome.returned_entities, 1);
@@ -164,13 +180,14 @@ mod tests {
         let revision = transactions.verified_revision(genesis_id).unwrap();
         let root = revision.state_root().root;
         let session = SessionId::from_bytes([0x20; 32]);
-        let (_request, plan) = prepare_verified_entity_read(
+        let (_request, selection) = prepare_verified_entity_read(
             &revision,
             EntityReadMethod::Signature,
             &encode_request(root, id(30)),
             &ceilings(),
         )
         .unwrap();
+        let plan = sley_query::capture_entity_read_selection(selection).unwrap();
         let outcome = encode_verified_entity_read_response(plan, session).unwrap();
         assert_eq!(outcome.returned_entities, 3);
         let response = decode_entity_read_response(&outcome.body).unwrap();

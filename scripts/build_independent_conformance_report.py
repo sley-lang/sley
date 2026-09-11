@@ -2,11 +2,12 @@
 """S20-730 independent conformance report: coverage of every fixture family.
 
 Derives `evidence/conformance/independent-conformance-report.json` from
-tracked files only: every `conformance/<family>/v1` directory, its file
-digests, its declared coverage (an independent oracle command of the
-`make conformance` recipe at a declared semantic or codec-and-identity
-depth, or native-only), and the S20-130 oracle independence scan. Nothing
-here runs cargo or the oracle.
+tracked files only: every `conformance/<family>/v<N>` directory, its file
+digests, the pinned version's declared coverage (an independent oracle
+command of the `make conformance` recipe at a declared semantic or
+codec-and-identity depth, or native-only), and the S20-130 oracle
+independence scan. Tracked sibling versions are digested, summed, and
+declared without a depth claim. Nothing here runs cargo or the oracle.
 """
 
 from __future__ import annotations
@@ -47,7 +48,13 @@ FORBIDDEN_MARKERS = (
 ORACLE_RUNNER = "uv run --project oracle/scb1 --frozen"
 # Every fixture family maps to the independent oracle command that checks it
 # (contract section 3) or to a native-only note. Adding a family without a
-# mapping is CONFORMANCE_ORACLE_DRIFT.
+# mapping is CONFORMANCE_ORACLE_DRIFT. A family may carry several tracked
+# corpus versions (`conformance/<family>/v<N>/`); the pinned version
+# (CORPUS_VERSION, default `v1`) is checked at the declared depth while
+# every tracked sibling is digested, summed, and declared without a depth
+# claim. A tracked version without a SHA256SUMS manifest is
+# CONFORMANCE_FIXTURE_UNREADABLE: an independent party verifies a corpus
+# without running its generator, so every corpus carries one.
 COVERAGE: dict[str, str | None] = {
     "bootstrap-capability": "python3 scripts/check_bootstrap_capability.py",
     "bootstrap-profile": "python3 scripts/check_bootstrap_profile_1.py",
@@ -86,8 +93,9 @@ CORPUS_VERSION: dict[str, str] = {
 # recomputes an outcome or judgment from frozen inputs with independent logic
 # (deltas, edge closures, query results, merge judgments); "codec_and_identity"
 # when it decodes containers and re-derives records, identities, keys, or
-# digest trees without judging semantics. The assignments follow what each
-# checker recomputes: the merge checker applies the merge judgment, the
+# digest trees without judging semantics. Depth is claimed only for the
+# pinned corpus version; tracked siblings are digested, summed, and declared
+# without a depth claim. The assignments follow what each checker recomputes: the merge checker applies the merge judgment, the
 # semantic-comparison checker re-derives change classes and deltas, the
 # complete-entity-impact checker re-derives the edge set and its closure, and
 # the root-backed-query checker re-derives result pages, accounting, and
@@ -195,20 +203,39 @@ def read_sums(path: Path) -> dict[str, str]:
     return entries
 
 
-def family_record(directory: Path, recipe: str) -> dict:
-    """One fixture family: digests, declared coverage, and sums consistency."""
-    name = directory.name
-    if name not in COVERAGE:
-        raise ConformanceError(
-            ConformanceErrorCode.ORACLE_DRIFT,
-            f"fixture family {name!r} declares no coverage; add it to COVERAGE",
-        )
-    version = CORPUS_VERSION.get(name, "v1")
-    versioned = directory / version
-    if not versioned.is_dir():
-        raise ConformanceError(
-            ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no {version} directory"
-        )
+def validate_corpus_versions() -> None:
+    """Fail closed on a CORPUS_VERSION key outside COVERAGE (contract section 3).
+
+    An undeclared pin would silently select a corpus the report never maps
+    to a checker; the build refuses instead.
+    """
+    for family in CORPUS_VERSION:
+        if family not in COVERAGE:
+            raise ConformanceError(
+                ConformanceErrorCode.ORACLE_DRIFT,
+                f"{family!r} pins a corpus version but declares no coverage; add it to COVERAGE",
+            )
+
+
+def runner_label(command: str) -> str:
+    """Name the runner that actually runs, not the package that runs most of them.
+
+    Twelve oracles live under `scripts/`; a vector checker that decodes with
+    the oracle package (imports `sley2_scb1_oracle`) is still oracle logic,
+    so it carries the oracle label even when invoked as a script.
+    """
+    if "sley2-scb1-oracle" in command:
+        return "oracle/scb1 (Python, S20-130 independent)"
+    match = re.search(r"scripts/(check_[a-z0-9_]+\.py)", command)
+    if match and "sley2_scb1_oracle" in (ROOT / "scripts" / match.group(1)).read_text(
+        encoding="utf-8"
+    ):
+        return "oracle/scb1 (Python, S20-130 independent)"
+    return "scripts/ (Python, S20-130 independent)"
+
+
+def version_record(versioned: Path, name: str) -> dict:
+    """Digests, declared coverage inputs, and sums consistency for one corpus version."""
     files: list[dict] = []
     shape: dict[str, dict] = {}
     contract: str | None = None
@@ -241,7 +268,6 @@ def family_record(directory: Path, recipe: str) -> dict:
         raise ConformanceError(ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no fixtures")
 
     sums_path = versioned / "SHA256SUMS"
-    sums_consistent: bool | None = None
     if not sums_path.exists():
         # A manifest is how an independent party verifies a corpus without
         # running its generator, so every corpus carries one.
@@ -249,51 +275,94 @@ def family_record(directory: Path, recipe: str) -> dict:
             ConformanceErrorCode.FIXTURE_UNREADABLE,
             f"{display(versioned)} has no SHA256SUMS manifest",
         )
-    if sums_path.exists():
-        declared = read_sums(sums_path)
-        actual = {entry["name"]: entry["sha256"] for entry in files if entry["name"].endswith(".json")}
-        if declared != actual:
-            raise ConformanceError(
-                ConformanceErrorCode.SUMS_MISMATCH,
-                f"{display(sums_path)} does not match the fixture digests",
-            )
-        sums_consistent = True
-
-    command = COVERAGE[name]
-    if command is None:
-        coverage = {"kind": "native_only", "note": NATIVE_ONLY_NOTES[name]}
-    else:
-        if command not in recipe:
-            raise ConformanceError(
-                ConformanceErrorCode.ORACLE_DRIFT,
-                f"{name}: {command!r} is not in the make conformance recipe",
-            )
-        if DEPTH.get(name) not in COVERAGE_DEPTHS:
-            raise ConformanceError(
-                ConformanceErrorCode.ORACLE_DRIFT,
-                f"{name}: declares no coverage depth; add it to DEPTH",
-            )
-        coverage = {
-            "kind": "independent_oracle",
-            "depth": DEPTH[name],
-            # Name the runner that actually runs, not the package that runs
-            # most of them: twelve oracles live under `scripts/`.
-            "runner": (
-                "oracle/scb1 (Python, S20-130 independent)"
-                if "sley2-scb1-oracle" in command
-                else "scripts/ (Python, S20-130 independent)"
-            ),
-            "command": command,
-        }
+    declared = read_sums(sums_path)
+    actual = {entry["name"]: entry["sha256"] for entry in files if entry["name"].endswith(".json")}
+    if declared != actual:
+        raise ConformanceError(
+            ConformanceErrorCode.SUMS_MISMATCH,
+            f"{display(sums_path)} does not match the fixture digests",
+        )
     return {
-        "directory": f"conformance/{name}/{version}",
+        "directory": f"conformance/{name}/{versioned.name}",
         "files": files,
-        "sums_file": sums_path.exists(),
-        "sums_consistent": sums_consistent,
+        "sums_file": True,
+        "sums_consistent": True,
         "contract": contract,
         "claim": claim,
         "shape": shape,
-        "coverage": coverage,
+    }
+
+
+def family_record(directory: Path, recipe: str) -> dict:
+    """One fixture family: every tracked corpus version plus the pinned coverage."""
+    name = directory.name
+    if name not in COVERAGE:
+        raise ConformanceError(
+            ConformanceErrorCode.ORACLE_DRIFT,
+            f"fixture family {name!r} declares no coverage; add it to COVERAGE",
+        )
+    version = CORPUS_VERSION.get(name, "v1")
+    versioned = directory / version
+    if not versioned.is_dir():
+        raise ConformanceError(
+            ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no {version} directory"
+        )
+    versions = sorted(
+        path.name for path in directory.iterdir() if path.is_dir() and path.name.startswith("v")
+    )
+    if not versions:
+        raise ConformanceError(
+            ConformanceErrorCode.FIXTURE_UNREADABLE, f"{name} has no versioned corpus"
+        )
+    records = {version_name: version_record(directory / version_name, name) for version_name in versions}
+    pinned = records[version]
+    pinned.update(
+        {
+            "coverage": pinned_coverage(name, recipe),
+        }
+    )
+    siblings = {
+        version_name: {
+            **record,
+            "coverage": {
+                "kind": "tracked_sibling",
+                "pinned_version": version,
+                "note": (
+                    "digested, summed, and declared; depth is claimed "
+                    "only for the pinned version"
+                ),
+            },
+        }
+        for version_name, record in records.items()
+        if version_name != version
+    }
+    return {
+        **pinned,
+        "tracked_versions": versions,
+        "siblings": siblings,
+    }
+
+
+def pinned_coverage(name: str, recipe: str) -> dict:
+    """The checker command and depth for a family's pinned corpus version."""
+    command = COVERAGE[name]
+    if command is None:
+        return {"kind": "native_only", "note": NATIVE_ONLY_NOTES[name]}
+    if command not in recipe:
+        raise ConformanceError(
+            ConformanceErrorCode.ORACLE_DRIFT,
+            f"{name}: {command!r} is not in the make conformance recipe",
+        )
+    if DEPTH.get(name) not in COVERAGE_DEPTHS:
+        raise ConformanceError(
+            ConformanceErrorCode.ORACLE_DRIFT,
+            f"{name}: declares no coverage depth; add it to DEPTH",
+        )
+    return {
+        "kind": "independent_oracle",
+        "depth": DEPTH[name],
+        "runner": runner_label(command),
+        "command": command,
     }
 
 
@@ -330,6 +399,7 @@ def oracle_independence() -> dict:
 
 
 def build_report() -> dict:
+    validate_corpus_versions()
     recipe = conformance_recipe()
     families = [
         family_record(directory, recipe)

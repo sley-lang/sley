@@ -5,8 +5,10 @@
 //! parameters, against borrowed verified bindings and objects, charges the
 //! deterministic work bound, and encodes the exact response. It performs no
 //! I/O, builds no whole-root index, and owns no session or transport debit:
-//! the caller reserves `work_units - 1` after [`prepare_entity_read`]
-//! succeeds and encodes with [`encode_entity_read_response`], which writes
+//! [`prepare_entity_read`] runs every check and returns a borrowed selection
+//! without allocating object-sized output; the caller runs the frame-envelope
+//! preflight and reserves `work_units - 1`; [`capture_entity_read_selection`]
+//! then copies the selected bytes and [`encode_entity_read_response`] writes
 //! the preflighted bytes into one pre-sized buffer. Frame-envelope preflight
 //! stays with the protocol caller, which owns envelope accounting.
 
@@ -199,15 +201,42 @@ pub struct EntityReadCeilings {
     pub budget_before_dispatch: u64,
 }
 
-/// Checked preflight for one request: the caller reserves `work_units - 1`,
-/// then encodes with [`encode_entity_read_response`].
+/// Checked selection for one request: the caller runs the frame preflight
+/// and reserves `work_units - 1`, then captures with
+/// [`capture_entity_read_selection`].
 ///
-/// Opaque and immutable: the only constructor is [`prepare_entity_read`],
-/// which runs every check against the borrowed revision and lookup, then
-/// copies the selected objects' exact bytes into the plan. The encoder
-/// consumes the plan plus the session only, so no replacement method,
-/// revision, request, limit, or object can reach encoding, and one
-/// preparation encodes once.
+/// Borrowing and allocation-free by construction: the only object data held
+/// here are the borrowed [`EntityReadObject`] views resolved during
+/// selection, so no object-sized output exists before the caller establishes
+/// the frame ceiling and the reservation. The borrow checker pins the views
+/// to the revision `prepare_entity_read` selected from: while a selection
+/// lives, no replacement revision, request, limit, or object can reach the
+/// selected bytes, and one selection captures once.
+#[derive(Debug)]
+pub struct EntityReadSelection<'o> {
+    workspace: WorkspaceId,
+    root: StateRoot,
+    epoch: SchemaEpochId,
+    request: EntityReadRequest,
+    views: Vec<EntityReadObject<'o>>,
+    object_count: u64,
+    stored_bytes: u64,
+    work_units: u64,
+    body_len: u64,
+    list_len: u64,
+}
+
+/// Checked preflight for one request: the caller runs the frame preflight,
+/// reserves `work_units - 1`, captures with
+/// [`capture_entity_read_selection`], then encodes with
+/// [`encode_entity_read_response`].
+///
+/// Opaque and immutable: the only constructor is
+/// [`capture_entity_read_selection`], which copies the selected objects'
+/// exact bytes out of a checked selection after the caller established the
+/// frame ceiling and the reservation. The encoder consumes the plan plus the
+/// session only, so no replacement method, revision, request, limit, or
+/// object can reach encoding, and one preparation encodes once.
 #[derive(Debug)]
 pub struct EntityReadPlan {
     workspace: WorkspaceId,
@@ -222,17 +251,51 @@ pub struct EntityReadPlan {
     list_len: u64,
 }
 
-/// One selected object captured into the plan after every check passes.
+/// One selected object captured into the plan after the caller established
+/// the frame ceiling and the reservation.
 ///
-/// The stored bytes are copied only after the full ceiling, work, and
-/// length checks succeed, preserving the refuse-before-result-allocation
-/// order.
+/// The stored bytes are copied only after the full ceiling, work, length,
+/// frame-preflight, and reservation checks succeed, preserving the
+/// refuse-before-result-allocation order of `ENTITY_READ_PROFILE_V2`
+/// section 5: no output allocation precedes the reservation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SelectedObject {
     entity: EntityId,
     kind: u64,
     object_id: ObjectId,
     stored: Vec<u8>,
+}
+
+impl<'o> EntityReadSelection<'o> {
+    /// Returns the deterministic total charge, including the dispatch unit.
+    ///
+    /// The caller reserves `work_units - 1` after the frame preflight.
+    #[must_use]
+    pub const fn work_units(&self) -> u64 {
+        self.work_units
+    }
+
+    /// Returns the exact response body length for the frame preflight.
+    #[must_use]
+    pub const fn body_len(&self) -> u64 {
+        self.body_len
+    }
+
+    /// Returns the exact returned object count.
+    #[must_use]
+    pub const fn object_count(&self) -> u64 {
+        self.object_count
+    }
+
+    /// Returns the borrowed selected views in response order.
+    ///
+    /// Test and audit access only: capturing, not re-resolution, consumes
+    /// these views, so the selected bytes cannot drift between selection
+    /// and capture.
+    #[must_use]
+    pub fn views(&self) -> &[EntityReadObject<'o>] {
+        &self.views
+    }
 }
 
 impl EntityReadPlan {
@@ -319,32 +382,38 @@ pub fn decode_entity_read_request(input: &[u8]) -> Result<EntityReadRequest, Ent
     })
 }
 
-/// Runs the ordered owner checks and returns the reservation plan without
+/// Runs the ordered owner checks and returns the borrowed selection without
 /// allocating object-sized output.
 ///
-/// `object_at` resolves one binding index to its borrowed narrow view. The
+/// `view_at` resolves one binding index to its borrowed narrow view from the
+/// caller-supplied `ctx`. The context is passed by value (it is only ever a
+/// shared reference the caller already holds), so the resolved views borrow
+/// the caller's revision directly instead of a function-local closure: the
 /// owner calls it only for the selected indices, so no root-wide view is
-/// ever built. Stored bytes are copied into the plan only after every
-/// check succeeds.
+/// ever built. No stored bytes are copied here: the caller runs the frame
+/// preflight and the reservation against the returned selection, then
+/// copies with [`capture_entity_read_selection`].
 ///
 /// # Errors
 ///
 /// Returns the first failing contract check.
-pub fn prepare_entity_read<'o>(
+pub fn prepare_entity_read<'a, Ctx: Copy>(
     method: EntityReadMethod,
     revision: &EntityReadRevision<'_>,
     request: &EntityReadRequest,
     selected: &EntityReadCeilings,
-    object_at: &'o dyn Fn(usize) -> Option<EntityReadObject<'o>>,
-) -> Result<EntityReadPlan, EntityReadError> {
+    ctx: Ctx,
+    view_at: fn(Ctx, usize) -> Option<EntityReadObject<'a>>,
+) -> Result<EntityReadSelection<'a>, EntityReadError> {
     admit_request(request, selected, &revision.root)?;
-    let target = resolve_target(revision, &request.entity, object_at)?;
+    let object_at = |index: usize| view_at(ctx, index);
+    let target = resolve_target(revision, &request.entity, &object_at)?;
     let lookup_cost = lookup_cost(revision.bindings.len())?;
     let mut selection = EntitySelection {
         revision,
         request,
         selected,
-        object_at,
+        object_at: &object_at,
         lookup_cost,
         indices: Vec::new(),
         object_count: 0,
@@ -362,27 +431,69 @@ pub fn prepare_entity_read<'o>(
     )?;
     check_work(work, request, selected)?;
     check_collection_count(selection.object_count)?;
-    let list_len = response_list_len(object_at, &selection.indices)?;
+    let mut views = Vec::with_capacity(selection.indices.len());
+    for index in &selection.indices {
+        let view = view_at(ctx, *index).ok_or(EntityReadError::InternalInvariant)?;
+        let (bound_entity, _) = revision
+            .bindings
+            .get(*index)
+            .copied()
+            .ok_or(EntityReadError::InternalInvariant)?;
+        agree(&view, revision, &bound_entity, *index)?;
+        views.push(view);
+    }
+    let list_len = response_list_len(&views)?;
     let body_len = response_body_len(list_len, work)?;
     if body_len > request.max_response_bytes || body_len > selected.max_response_bytes {
         return Err(EntityReadError::BudgetExceeded);
     }
     check_standalone_body(body_len)?;
     usize::try_from(body_len).map_err(|_| EntityReadError::BudgetExceeded)?;
-    let mut captured = Vec::new();
-    for index in &selection.indices {
-        let view = object_at(*index).ok_or(EntityReadError::InternalInvariant)?;
-        let (bound_entity, bound_object) = revision
-            .bindings
-            .get(*index)
-            .copied()
-            .ok_or(EntityReadError::InternalInvariant)?;
-        if view.entity != bound_entity
-            || view.object_id != bound_object
-            || view.epoch != revision.epoch
-        {
-            return Err(EntityReadError::InternalInvariant);
-        }
+    Ok(EntityReadSelection {
+        workspace: revision.workspace,
+        root: revision.root,
+        epoch: revision.epoch,
+        request: *request,
+        views,
+        object_count: selection.object_count,
+        stored_bytes: selection.stored_bytes,
+        work_units: work,
+        body_len,
+        list_len,
+    })
+}
+
+/// Copies the selected objects' exact bytes out of a checked selection.
+///
+/// The caller runs this only after the frame preflight and the
+/// `work_units - 1` reservation succeed, so no output allocation precedes
+/// either gate. Capture consumes the held views instead of re-resolving
+/// through the lookup: the bytes cannot drift between selection and
+/// capture, and the surviving identity checks re-pin each view to the
+/// revision the selection was bound under.
+///
+/// # Errors
+///
+/// Returns the first failing byte-ceiling or identity check. A failure here
+/// is an unexpected post-reservation failure: the caller retains the
+/// complete debit and returns no object bytes.
+pub fn capture_entity_read_selection(
+    selection: EntityReadSelection<'_>,
+) -> Result<EntityReadPlan, EntityReadError> {
+    let EntityReadSelection {
+        workspace,
+        root,
+        epoch,
+        request,
+        views,
+        object_count,
+        stored_bytes,
+        work_units,
+        body_len,
+        list_len,
+    } = selection;
+    let mut captured = Vec::with_capacity(views.len());
+    for view in &views {
         let stored_len =
             u64::try_from(view.stored_bytes.len()).map_err(|_| EntityReadError::BudgetExceeded)?;
         check_byte_payload(stored_len)?;
@@ -394,14 +505,14 @@ pub fn prepare_entity_read<'o>(
         });
     }
     Ok(EntityReadPlan {
-        workspace: revision.workspace,
-        root: revision.root,
-        epoch: revision.epoch,
-        request: *request,
+        workspace,
+        root,
+        epoch,
+        request,
         selected: captured,
-        object_count: selection.object_count,
-        stored_bytes: selection.stored_bytes,
-        work_units: work,
+        object_count,
+        stored_bytes,
+        work_units,
         body_len,
         list_len,
     })
@@ -870,20 +981,16 @@ fn object_record_len(kind: u64, stored: u64) -> Result<u64, EntityReadError> {
     ])
 }
 
-fn response_list_len<'o>(
-    object_at: &'o dyn Fn(usize) -> Option<EntityReadObject<'o>>,
-    indices: &[usize],
-) -> Result<u64, EntityReadError> {
+fn response_list_len(views: &[EntityReadObject<'_>]) -> Result<u64, EntityReadError> {
     check_record_ceilings()?;
     let mut list_content: u64 = 0;
-    for index in indices {
-        let object = object_at(*index).ok_or(EntityReadError::InternalInvariant)?;
-        let record_len = object_record_len(u64::from(object.kind), stored_len(&object)?)?;
+    for object in views {
+        let record_len = object_record_len(u64::from(object.kind), stored_len(object)?)?;
         list_content = list_content
             .checked_add(sized_len(record_len)?)
             .ok_or(EntityReadError::BudgetExceeded)?;
     }
-    uvar_len(u64::try_from(indices.len()).map_err(|_| EntityReadError::BudgetExceeded)?)
+    uvar_len(u64::try_from(views.len()).map_err(|_| EntityReadError::BudgetExceeded)?)
         .checked_add(list_content)
         .ok_or(EntityReadError::BudgetExceeded)
 }
@@ -1085,8 +1192,15 @@ mod tests {
         ) -> Result<EntityReadPlan, EntityReadError> {
             let views = self.views();
             let revision = self.revision();
-            let object_at = |index: usize| views.get(index).copied();
-            prepare_entity_read(method, &revision, request, selected, &object_at)
+            let selection = prepare_entity_read(
+                method,
+                &revision,
+                request,
+                selected,
+                &views,
+                fixture_view_at,
+            )?;
+            capture_entity_read_selection(selection)
         }
 
         fn roundtrip(
@@ -1119,6 +1233,16 @@ mod tests {
     /// byte ceiling; oversized cases set their own lengths explicitly.
     fn stored_bytes(byte: u8) -> Vec<u8> {
         vec![byte; 64 + usize::from(byte)]
+    }
+
+    /// Test lookup over one fixture's owned view vector, matching the
+    /// production caller shape (context passed by value, views borrowed
+    /// from the fixture rather than a function-local closure).
+    fn fixture_view_at<'a>(
+        views: &Vec<EntityReadObject<'a>>,
+        index: usize,
+    ) -> Option<EntityReadObject<'a>> {
+        views.get(index).copied()
     }
 
     fn assemble(bindings: &[u8], kinds: &[u16], bodies: &[FixtureBody]) -> Fixture {
@@ -1676,6 +1800,45 @@ mod tests {
         assert_eq!(outcome.work_units, work);
         assert_eq!(outcome.returned_bytes, body_len);
         assert_eq!(outcome.returned_entities, count);
+    }
+
+    #[test]
+    fn selection_borrows_selected_bytes_and_captures_only_at_capture() {
+        let fixture = eighteen_kind_fixture();
+        let views = fixture.views();
+        let revision = fixture.revision();
+        let request = request(1, fixture.root);
+        let ceilings = ceilings();
+        let selection = prepare_entity_read(
+            EntityReadMethod::Version,
+            &revision,
+            &request,
+            &ceilings,
+            &views,
+            fixture_view_at,
+        )
+        .unwrap();
+        assert_eq!(selection.object_count(), 1);
+        assert_eq!(selection.views().len(), 1);
+        // No object-sized allocation at prepare: the selected view borrows
+        // the fixture slot's bytes in place, so the frame preflight and the
+        // reservation both precede any output allocation.
+        let slot = fixture
+            .slots
+            .iter()
+            .find(|slot| slot.entity == entity(1))
+            .unwrap();
+        assert!(core::ptr::eq(
+            selection.views()[0].stored_bytes,
+            slot.stored.as_slice()
+        ));
+        // Capture copies exactly those borrowed bytes into the owned plan.
+        let plan = capture_entity_read_selection(selection).unwrap();
+        let outcome = encode_entity_read_response(plan, fixture.session).unwrap();
+        assert_eq!(outcome.returned_entities, 1);
+        let response = decode_entity_read_response(&outcome.body).unwrap();
+        assert_eq!(response.objects.len(), 1);
+        assert_eq!(response.objects[0].stored_bytes, slot.stored);
     }
 
     #[test]

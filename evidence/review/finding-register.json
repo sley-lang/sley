@@ -40,11 +40,6 @@
     {
       "disposition": "DEFERRED_FORGE_OAUTH_401",
       "field": "vulcan_review",
-      "section": "mutation_value_profile"
-    },
-    {
-      "disposition": "DEFERRED_FORGE_OAUTH_401",
-      "field": "vulcan_review",
       "section": "s20_350_mutation_candidate_persistent_fuzz"
     },
     {
@@ -88,7 +83,7 @@
       "section": "s20_710_pre_release_audit"
     }
   ],
-  "obligation_count": 221,
+  "obligation_count": 224,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -428,12 +423,17 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PENDING",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3",
       "field": "ariadne_contract_review",
       "package_status": "S20_250_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
       "section": "complete_entity_impact_profile",
-      "severities": [],
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
       "state": "PENDING",
       "superseded_by": null
     },
@@ -1202,13 +1202,16 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "DEFERRED_FORGE_OAUTH_401",
+      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
       "field": "vulcan_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": "vulcan",
       "section": "mutation_value_profile",
-      "severities": [],
-      "state": "DEFERRED",
+      "severities": [
+        "P3",
+        "P4"
+      ],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -1708,6 +1711,23 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_2_P1_3_P2_3_P3",
+      "field": "ariadne_contract_review_revision_1",
+      "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_2_P0_4_P1_6_P2_5_P3",
       "field": "nabu_architecture_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
@@ -1725,8 +1745,42 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_2_P1_1_P2_2_P3",
+      "field": "nabu_architecture_review_revision_1",
+      "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "nabu",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "FAIL_2_P0_4_P1_6_P2_4_P3",
       "field": "vulcan_surface_review",
+      "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_2_P1_2_P2_3_P3",
+      "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
       "section": "reproducibility_and_independent_conformance",
@@ -3210,13 +3264,18 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "08a0abffb33c041050243aaf0d77c6a025ab2bb7c631c482d084b0334612410d",
+  "obligations_digest": "d78509c2aa80b11302bf0685c0fde6f7529b4ec71354fbf02b7c199ccf73812f",
   "open_reviews": [
     {
-      "disposition": "PENDING",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3",
       "field": "ariadne_contract_review",
       "section": "complete_entity_impact_profile",
-      "severities": []
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
     },
     {
       "disposition": "PENDING",
@@ -3519,6 +3578,17 @@
       ]
     },
     {
+      "disposition": "REVISE_0_P0_2_P1_3_P2_3_P3",
+      "field": "ariadne_contract_review_revision_1",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    {
       "disposition": "FAIL_2_P0_4_P1_6_P2_5_P3",
       "field": "nabu_architecture_review",
       "section": "reproducibility_and_independent_conformance",
@@ -3530,8 +3600,30 @@
       ]
     },
     {
+      "disposition": "REVISE_0_P0_2_P1_1_P2_2_P3",
+      "field": "nabu_architecture_review_revision_1",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    {
       "disposition": "FAIL_2_P0_4_P1_6_P2_4_P3",
       "field": "vulcan_surface_review",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    {
+      "disposition": "REVISE_0_P0_2_P1_2_P2_3_P3",
+      "field": "vulcan_surface_review_revision_1",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P0",
@@ -3861,22 +3953,22 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "495430451e2a69f0073b59d5d65b2af03cf02ae074a96425c756175858dd063a",
+  "register_digest": "fe584c32c076fcdf77a4b1488350193357964caf7cdc1ac6f851344e49c3e0b8",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
-    "P0": 83,
-    "P1": 95,
-    "P2": 98,
-    "P3": 87,
-    "P4": 0
+    "P0": 87,
+    "P1": 99,
+    "P2": 102,
+    "P3": 92,
+    "P4": 1
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "DEFERRED": 10,
+    "DEFERRED": 9,
     "HISTORICAL_ROUND": 35,
     "OTHER": 3,
-    "PASS": 112,
-    "PENDING": 61
+    "PASS": 113,
+    "PENDING": 64
   },
   "superseded_rounds": [
     {
