@@ -64,5 +64,7 @@ Rust, so no ASan is instrumented; the oracle and seed neighbourhood are
 unchanged (bounded smoke, not a probe). The pinned qualification
 toolchain is unchanged (`clang-18`, pinned libfuzzer path,
 `nightly-2026-02-27`); the local proof ran under documented
-`SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A` overrides. Re-review of the
-slice's Vulcan verdict is queued, not assumed.
+`SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A` overrides, and the pinned
+qualification default itself has no recorded proof on this host (the
+evidence `toolchain_versions` field captures exactly what ran).
+Re-review of the slice's Vulcan verdict is queued, not assumed.

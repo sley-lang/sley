@@ -69,10 +69,13 @@ for marker in [
     "corpus_persistent",
     "SLEY_FUZZ_CC",
     "-minimize_crash=1",
+    '"source_commit": git_output',
+    '"worktree_dirty": bool(git_output',
     "OWNER_RLIB",
     "corpus_file_count",
     "coverage_counters",
     "trace-compares",
+    "toolchain_versions",
     "must cover the corpus",
 ]:
     if marker not in wrapper:

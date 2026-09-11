@@ -73,6 +73,9 @@ def main() -> int:
         "corpus_count": corpus_count,
         "runtime_path": str(RUNTIME.relative_to(ROOT)),
         "commands": [],
+        "source_commit": git_output(["git", "rev-parse", "HEAD"]),
+        "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
+        "toolchain_versions": toolchain_versions(),
         "problems": [],
     }
 
@@ -393,6 +396,40 @@ def git_output(command: list[str]) -> str:
         check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else "UNAVAILABLE"
+
+
+def toolchain_versions() -> dict[str, str]:
+    """Resolved toolchain versions for the proof record (round 7e).
+
+    Records what actually built and ran: the resolved C compiler and the
+    pinned Rust toolchain. A qualification default with no recorded proof
+    stays visible as such instead of implied.
+    """
+    versions: dict[str, str] = {}
+    commands = (
+        ("cc", [CC, "--version"]),
+        ("rust", ["rustup", "run", RUST_TOOLCHAIN, "rustc", "--version"]),
+    )
+    for label, argv in commands:
+        try:
+            completed = subprocess.run(
+                argv,
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60,
+                check=False,
+            )
+        except OSError as error:
+            versions[label] = f"unavailable:{error}"
+            continue
+        versions[label] = (
+            completed.stdout.strip().splitlines()[0]
+            if completed.returncode == 0 and completed.stdout.strip()
+            else f"unavailable:{completed.returncode}"
+        )
+    return versions
 
 
 def toolchain_problems() -> list[str]:
