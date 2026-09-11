@@ -2559,7 +2559,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-smp1-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_2_P3",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true,
     "last_local_proof": {
@@ -3983,7 +3983,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 270,
-    "open_reviews": 94,
+    "open_reviews": 93,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4032,7 +4032,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "94 review obligations are open",
+      "93 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",

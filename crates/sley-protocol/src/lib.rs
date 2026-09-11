@@ -3508,4 +3508,55 @@ mod tests {
         let (decoded, _) = decode_frame(&legacy.bytes, MAX_FRAME_BYTES).unwrap();
         assert_eq!(decoded, DecodedFrame::Request(base));
     }
+
+    #[test]
+    fn fixture_hellos_negotiate_ok() {
+        // Dead-Ok-arm guard (S20-700-SMP1-001): the conformance fixture
+        // hellos must negotiate Ok. If the fixture drifts incompatible
+        // (versions, epochs, methods, features), this fails loudly in
+        // the unit lane instead of the fuzz oracle going quiet.
+        let accepted: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/smp1/v1/accepted.json"
+        ))
+        .unwrap();
+        let hellos = accepted["hellos"].as_object().unwrap();
+        let mut decoded = Vec::new();
+        fn hex_pair(value: u8) -> u8 {
+            match value {
+                b'0'..=b'9' => value - b'0',
+                b'a'..=b'f' => value - b'a' + 10,
+                b'A'..=b'F' => value - b'A' + 10,
+                other => panic!("non-hex digit {other}"),
+            }
+        }
+        for (name, hello) in hellos {
+            let frame_hex = hello["frame_hex"].as_str().unwrap();
+            assert!(frame_hex.len().is_multiple_of(2));
+            let bytes: Vec<u8> = frame_hex
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| hex_pair(pair[0]) << 4 | hex_pair(pair[1]))
+                .collect();
+            let (frame, _) = decode_frame(&bytes, MAX_FRAME_BYTES)
+                .unwrap_or_else(|error| panic!("{name}: fixture frame decode: {error:?}"));
+            let DecodedFrame::Hello(record) = frame else {
+                panic!("{name}: fixture frame is not a hello");
+            };
+            decoded.push((name.clone(), record));
+        }
+        assert!(decoded.len() >= 2, "fixture carries fewer than two hellos");
+        for index in 0..decoded.len() {
+            for other in 0..decoded.len() {
+                let (left_name, left) = &decoded[index];
+                let (right_name, right) = &decoded[other];
+                let (selected, _) = negotiate_identity(left, right).unwrap_or_else(|error| {
+                    panic!("{left_name} vs {right_name}: fixture hellos must negotiate Ok: {error:?}")
+                });
+                assert!(
+                    left.protocol_versions.contains(&selected.protocol_version),
+                    "{left_name}: selected version not offered"
+                );
+            }
+        }
+    }
 }

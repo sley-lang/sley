@@ -73,7 +73,7 @@ qualification default itself has no recorded proof on this host (the
 evidence `toolchain_versions` field captures exactly what ran).
 Re-review of the slice's Vulcan verdict is queued, not assumed.
 
-## Rounds 7c-7j (REQ-06 re-review wave)
+## Rounds 7c-7m (REQ-06 re-review wave)
 
 Crash minimization uses `-minimize_crash=1` with exact artifacts (the
 round-7 `-merge=1` primitive could not minimize a crasher); the coverage
@@ -92,3 +92,17 @@ design). Slice oracles were strengthened per verdict (engine-invariant
 asserts, must-reject refusals, narrowed Err arms, constructed-valid
 import/decode lanes); the pinned clang-18 default has no recorded proof
 on this host.
+
+## Rounds 7k-7m (second re-review wave)
+
+The linked-rlib replay carries the build environment (an env-less replay
+rebuilt and relinked the binary after the recorded build); the mtime
+fallback is deleted, so a failed cargo query fails the gate instead of
+passing on unknown provenance. Crash gating distinguishes new crashes
+from retested priors (fixed priors pass with a recorded retest). The
+minimize step skips clean-retested artifacts, bounds internal steps, and
+keeps partial exact artifacts; durations compute last. Slice oracles
+gained engine-invariant asserts, must-reject refusals, narrowed Err
+arms, constructed-valid lanes, and a server-fixture validity gate with
+a unit-level negotiation self-check; filed regressions replay as corpus
+seeds. See the wave's decision packets for elevated owner items.
