@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from enum import IntEnum
 from pathlib import Path
@@ -147,8 +148,66 @@ def sbom_root_digest() -> str:
         ) from error
 
 
+def git_head() -> str:
+    """The current commit, or refuse: deriving a statement while the tree's
+    commit is unknown would mix live-tree inputs with an unbound subject."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, check=False, capture_output=True, text=True
+    )
+    if completed.returncode != 0:
+        raise ProvenanceError(ProvenanceErrorCode.EVIDENCE_INVALID, "git HEAD is unavailable")
+    return completed.stdout.strip()
+
+
+def attested_candidates() -> list[dict]:
+    """Tracked reproducibility attestations that may serve as the subject
+    authority: REPRODUCIBLE builds from a clean tree only."""
+    if not REPRO_REPORT.exists():
+        raise ProvenanceError(
+            ProvenanceErrorCode.EVIDENCE_MISSING,
+            "evidence/release/reproducibility-report.json does not exist; "
+            "run make release-candidate-smoke",
+        )
+    try:
+        report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ProvenanceError(ProvenanceErrorCode.EVIDENCE_INVALID, str(error)) from error
+    attestations = report.get("attestations")
+    if not isinstance(attestations, list):
+        raise ProvenanceError(ProvenanceErrorCode.EVIDENCE_INVALID, "report has no attestation list")
+    return [
+        attestation
+        for attestation in attestations
+        if isinstance(attestation, dict)
+        and attestation.get("reproducibility") == "REPRODUCIBLE"
+        and attestation.get("working_tree_clean") is True
+    ]
+
+
 def build_statement() -> dict:
     candidate = load_candidate()
+    # The subject must be the tree under derivation: inputs below are read
+    # from the live tree, so a candidate from another commit would misbind
+    # the statement (every input digest would describe the wrong tree).
+    if candidate["commit"] != git_head():
+        raise ProvenanceError(
+            ProvenanceErrorCode.EVIDENCE_INVALID,
+            f"candidate commit {candidate['commit']} is not HEAD; "
+            "rebuild the candidate on this tree before deriving provenance",
+        )
+    # The tracked reproducibility attestation is the subject authority: the
+    # derivation refuses a candidate no clean REPRODUCIBLE attestation
+    # names, instead of emitting a statement the checker must catch.
+    if not any(
+        attestation.get("commit") == candidate["commit"]
+        and attestation.get("artifact_sha256") == candidate["artifact_sha256"]
+        for attestation in attested_candidates()
+    ):
+        raise ProvenanceError(
+            ProvenanceErrorCode.SUBJECT_MISMATCH,
+            "no clean REPRODUCIBLE attestation names this candidate; "
+            "re-mint the reproducibility attestation first",
+        )
     root_digest = sbom_root_digest()
     if root_digest != candidate["artifact_sha256"]:
         raise ProvenanceError(
@@ -176,6 +235,10 @@ def build_statement() -> dict:
                         "release-candidate-smoke"
                         if clean
                         else "build_release_candidate.py --allow-dirty (outside make release-candidate-smoke)"
+                    ),
+                    "invocation": candidate.get(
+                        "invocation",
+                        "unrecorded: candidate evidence predates invocation recording",
                     ),
                     "working_tree_clean": clean,
                 },

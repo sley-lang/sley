@@ -536,6 +536,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         evidence = build_candidate(timeout=arguments.timeout_seconds, require_clean=arguments.require_clean, keep=arguments.keep)
         evidence["result"] = "PASS"
+        # The exact invocation is recorded, not inferred downstream: the
+        # provenance predicate copies this string instead of restating it
+        # from cleanliness plus the Makefile (ADR-0041 principle 1). Only
+        # flags are recorded, never paths: an absolute evidence dir would
+        # leak the checkout location into the tracked provenance.
+        evidence["invocation"] = " ".join(
+            [
+                "build_release_candidate.py",
+                f"--timeout-seconds={arguments.timeout_seconds}",
+                "--require-clean" if arguments.require_clean else "--allow-dirty",
+                "--keep" if arguments.keep else "--no-keep",
+            ]
+        )
     except PackageError as error:
         evidence = {"contract": "s20-720-release-candidate-v1", "result": "FAIL", "failure": {"code": int(error.code), "symbol": error.symbol, "detail": error.detail[:500]}}
     except (OSError, subprocess.TimeoutExpired, ValueError) as error:

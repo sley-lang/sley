@@ -112,7 +112,9 @@ expected = {
 for key, value in expected.items():
     if slice_status.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
-if slice_status.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
+# The review lane is restored: the field must carry a filed disposition
+# (PASS/REVISE/FAIL with severity counts), never a lane-state token.
+if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REVISE", "FAIL"):
     problems.append("machine-summary-vulcan-review-drift")
 if '"adapter responses"' in summary_text:
     problems.append("machine-summary-stale-adapter-deferred-surface")

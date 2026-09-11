@@ -83,7 +83,9 @@ if slice_status.get("generated_seed_count") != 255:
     problems.append("machine-summary-generated-seed-count-drift")
 if slice_status.get("seed_source") != "conformance/schema-epoch/v1/bootstrap.json":
     problems.append("machine-summary-seed-source-drift")
-if slice_status.get("vulcan_review") != "DEFERRED_FORGE_OAUTH_401":
+# The review lane is restored: the field must carry a filed disposition
+# (PASS/REVISE/FAIL with severity counts), never a lane-state token.
+if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REVISE", "FAIL"):
     problems.append("machine-summary-vulcan-review-drift")
 
 for path, marker in [

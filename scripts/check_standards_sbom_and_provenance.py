@@ -22,10 +22,10 @@ SBOM_SCRIPT = ROOT / "scripts/build_standards_sbom.py"
 PROVENANCE_SCRIPT = ROOT / "scripts/build_release_provenance.py"
 TESTS = ROOT / "bench/release/tests/test_standards_sbom.py"
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
-CANDIDATE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
+REPRO_REPORT = ROOT / "evidence/release/reproducibility-report.json"
 
 DRAFT_STATUS = "S20_710_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_710_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -239,20 +239,27 @@ def main() -> int:
                 problems.append("spdx:version")
             if document.get("creationInfo", {}).get("created") != "1970-01-01T00:00:00Z":
                 problems.append("spdx:created")
-            # The namespace binds the inventory and the candidate (contract
-            # section 3): two candidates sharing a lock set are different
-            # documents with different namespaces. A missing binding input
-            # is reported, never silently skipped.
-            if not INVENTORY.exists() or not CANDIDATE.exists():
+            # The namespace binds the inventory and the tracked
+            # reproducibility attestation (contract section 3): two candidates
+            # sharing a lock set are different documents with different
+            # namespaces. The attestation is the subject authority, not the
+            # per-checkout untracked candidate evidence, so a statement minted
+            # in a clean linked worktree verifies on any checkout. A missing
+            # binding input is reported, never silently skipped.
+            if not INVENTORY.exists() or not REPRO_REPORT.exists():
                 problems.append("spdx:namespace-unbound")
             else:
                 inventory_digest = hashlib.sha256(INVENTORY.read_bytes()).hexdigest()
-                candidate = json.loads(read(CANDIDATE))
-                expected = (
-                    f"urn:sley2:spdx:{inventory_digest}:"
-                    f"{candidate.get('artifact_sha256')}"
-                )
-                if document.get("documentNamespace") != expected:
+                repro = json.loads(read(REPRO_REPORT))
+                attested = {
+                    attestation.get("artifact_sha256")
+                    for attestation in repro.get("attestations", [])
+                    if isinstance(attestation, dict)
+                }
+                expected = {
+                    f"urn:sley2:spdx:{inventory_digest}:{digest}" for digest in attested
+                }
+                if document.get("documentNamespace") not in expected:
                     problems.append("spdx:namespace-not-candidate-bound")
             # Every emitted license expression parses (contract section 2).
             builder = load_builder()
@@ -304,6 +311,8 @@ def main() -> int:
                     ),
                     None,
                 )
+            else:
+                root = None
             subject = statement.get("subject", [{}])[0].get("digest", {}).get("sha256")
             if root != subject:
                 problems.append("provenance:subject-mismatch")
@@ -314,14 +323,25 @@ def main() -> int:
             )
             if external.get("working_tree_clean") is not True:
                 problems.append("provenance:dirty-candidate")
-            repro_path = ROOT / "evidence/release/reproducibility-report.json"
-            if repro_path.exists():
-                repro = json.loads(read(repro_path))
+            # The attestation pin matches on digest, commit, cleanliness, and
+            # reproducibility: a digest alone cannot distinguish a dirty or
+            # unreproduced build of the same bytes, and the commit pin keeps
+            # the statement's git-commit reference bound to the attested tree.
+            if not REPRO_REPORT.exists():
+                problems.append("provenance:attestation-unbound")
+            else:
+                repro = json.loads(read(REPRO_REPORT))
                 attested = {
-                    attestation.get("artifact_sha256")
+                    (
+                        attestation.get("artifact_sha256"),
+                        attestation.get("commit"),
+                    )
                     for attestation in repro.get("attestations", [])
+                    if isinstance(attestation, dict)
+                    and attestation.get("working_tree_clean") is True
+                    and attestation.get("reproducibility") == "REPRODUCIBLE"
                 }
-                if subject not in attested:
+                if (subject, external.get("commit")) not in attested:
                     problems.append("provenance:subject-attestation-mismatch")
 
         for argv, label in (

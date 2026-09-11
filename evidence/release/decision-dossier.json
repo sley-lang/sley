@@ -2,15 +2,14 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "7 review lanes are deferred and unavailable",
-    "88 review obligations are open",
+    "101 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "ab7d20aebaae232bf36e4c043ff7c931fcd073c82afda6fa46b3843686aee235",
+  "dossier_digest": "2860b72dfb5d3a2ddfec4ee805e19fc282c7d346375e39a75abffcf91b53f5a0",
   "entries": [
     {
       "evidence": [
@@ -146,7 +145,7 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 287,
+        "python_tests": 293,
         "rust_ignored_emitters": 16,
         "rust_unit_tests": 1390
       }
@@ -280,7 +279,7 @@
         "evidence/release/reproducibility-report.json"
       ],
       "item": "SHA-256",
-      "note": "the attested artifact digest, which the provenance subject repeats",
+      "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
       "value": "ac4ce59a85c21e0c7310485bf178444cc2c026a423e339735a3dae1d095f870b"
     },
@@ -338,23 +337,22 @@
           "p3": 0,
           "p4": 0
         },
-        "deferred_reviews": 7,
-        "obligations": 254,
-        "open_reviews": 88,
+        "deferred_reviews": 0,
+        "obligations": 261,
+        "open_reviews": 101,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 61,
           "P1": 99,
-          "P2": 106,
-          "P3": 102,
+          "P2": 124,
+          "P3": 122,
           "P4": 8
         },
         "states": {
-          "DEFERRED": 7,
           "HISTORICAL_ROUND": 28,
           "OTHER": 2,
-          "PASS": 129,
-          "PENDING": 88
+          "PASS": 130,
+          "PENDING": 101
         }
       }
     },
@@ -454,7 +452,7 @@
       }
     }
   ],
-  "entries_digest": "f0e6761cb09248c47dd9f186b221f84023e54ecb36593620061e2b03ae410fe7",
+  "entries_digest": "e9ee586b43aeb1970ce3680b61ff59a28fe034d0c528ae77e3dba245d5dbfced",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

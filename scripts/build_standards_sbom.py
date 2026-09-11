@@ -20,6 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
+REPRO_REPORT = ROOT / "evidence/release/reproducibility-report.json"
 CANDIDATE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
@@ -472,6 +473,46 @@ def tracked_candidate_facts() -> tuple[str, str] | None:
         return None
 
 
+def validate_tracked() -> list[str]:
+    """Internal consistency of the tracked pair, checked even when a local
+    build is ahead (a skipped verification must not read PASS over an
+    unchecked document). Mirrors the provenance builder's validate_tracked:
+    shape, determinism pins, and the attestation binding of the namespace."""
+    problems: list[str] = []
+    try:
+        bom = json.loads(CYCLONEDX.read_text(encoding="utf-8"))
+        document = json.loads(SPDX.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"unreadable: {error}"]
+    if bom.get("specVersion") != "1.6" or bom.get("bomFormat") != "CycloneDX":
+        problems.append("cyclonedx-format")
+    if not str(bom.get("serialNumber", "")).startswith("urn:uuid:"):
+        problems.append("cyclonedx-serial")
+    if "timestamp" in bom.get("metadata", {}):
+        problems.append("cyclonedx-timestamp")
+    if document.get("spdxVersion") != "SPDX-2.3":
+        problems.append("spdx-version")
+    if document.get("creationInfo", {}).get("created") != "1970-01-01T00:00:00Z":
+        problems.append("spdx-created")
+    try:
+        inventory_digest = file_digest(INVENTORY)
+    except SbomError as error:
+        return problems + [f"inventory: {error.detail}"]
+    try:
+        report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
+        attested = {
+            attestation.get("artifact_sha256")
+            for attestation in report.get("attestations", [])
+            if isinstance(attestation, dict)
+        }
+    except (OSError, json.JSONDecodeError):
+        attested = set()
+    expected = {f"urn:sley2:spdx:{inventory_digest}:{digest}" for digest in attested}
+    if document.get("documentNamespace") not in expected:
+        problems.append("namespace-not-attestation-bound")
+    return problems
+
+
 def local_build_ahead() -> bool:
     """Whether a local candidate build replaced the evidence the documents describe.
 
@@ -498,11 +539,25 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.check and local_build_ahead():
+            invalid = validate_tracked()
+            if invalid:
+                print(
+                    canonical(
+                        {
+                            "mode": "check",
+                            "result": "FAIL",
+                            "state": "LOCAL_BUILD_AHEAD_TRACKED_INVALID",
+                            "problems": invalid,
+                        }
+                    ),
+                    end="",
+                )
+                return 1
             print(
                 canonical(
                     {
                         "mode": "check",
-                        "result": "PASS",
+                        "result": "AHEAD_TRACKED_VALIDATED",
                         "state": "LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS",
                         "detail": "a local candidate build replaced the untracked evidence these "
                         "documents describe; make release-candidate-smoke reconciles them",

@@ -1,12 +1,16 @@
 # Standards SBOM and Release Provenance v1
 
-Status: S20-710 full-audit contract draft, revision 3 (2026-09-05); Council
+Status: S20-710 full-audit contract draft, revision 4 (2026-09-11); Council
 review pending (Ariadne contract review, Nabu architecture review, Vulcan
 surface review). Revision 2 records the clarifications found while wiring the
 release smoke (section 5). Revision 3 closes the five S20-710 P0s: license
 normalization and validation (section 2), a candidate-bound SPDX namespace
 (section 3), and fail-closed `--check` semantics over missing evidence
-(section 5). The mechanics are `scripts/build_standards_sbom.py` and
+(section 5). Revision 4 binds the subject to the tracked reproducibility
+attestation instead of the per-checkout candidate evidence (sections 3 and
+4), records the candidate invocation instead of inferring it (section 4),
+symmetrizes the ahead states of both builders (section 5), and specifies the
+attestation cross-checks (section 7). The mechanics are `scripts/build_standards_sbom.py` and
 `scripts/build_release_provenance.py`; implementation state is tracked in the
 machine summary.
 
@@ -60,7 +64,9 @@ grammar.
   name, version `2.0.0-alpha.0`, and the artifact SHA-256;
 - `metadata.tools.components` names `sley2-standards-sbom` version 1;
 - `metadata.properties` records `sley2:commit`, `sley2:inventory-digest`,
-  `sley2:license-disposition-blocked` and `sley2:manifest-digest`;
+  `sley2:license-disposition-blocked`, `sley2:manifest-digest`,
+  `sley2:signed`, and `sley2:publication-authorized` (both always `false`;
+  nothing is signed and no publication is authorized);
 - `components` is one entry per inventory package, ascending by purl, with
   `bom-ref` the purl, `type` `library`, `name`, `version`, `purl`,
   `licenses` as a single `expression` (a `LicenseRef-Proprietary` expression
@@ -139,10 +145,14 @@ The statement is:
 - `predicate.buildDefinition.buildType`
   `urn:sley2:buildtype:release-candidate/v1`;
 - `predicate.buildDefinition.externalParameters`: the commit, the artifact
-  name, and the make target `release-candidate-smoke`;
+  name, the make target `release-candidate-smoke` (or the `--allow-dirty`
+  marker when the tree is not clean), the recorded candidate invocation
+  copied verbatim from the candidate evidence (ADR-0041 principle 1: derive,
+  never restate), and `working_tree_clean`;
 - `predicate.buildDefinition.internalParameters`: the cargo and rustc
-  versions, the `release` profile, `locked` true, and the path remaps of the
-  S20-720 build (which are themselves path-free strings);
+  versions, the `release` profile, `locked` true, the path remaps of the
+  S20-720 build (which are themselves path-free strings), the artifact size
+  in bytes, and the member count;
 - `predicate.buildDefinition.resolvedDependencies`: the git commit (a `sha1`
   digest), `Cargo.lock`, `oracle/scb1/uv.lock`, the T52 inventory, and both
   SBOM documents, each with its SHA-256;
@@ -154,8 +164,15 @@ The statement is:
 - no timestamp anywhere: `startedOn` and `finishedOn` are omitted because a
   wall clock would break determinism and leak nothing useful locally.
 
-The subject digest must equal the S20-720 evidence digest and the CycloneDX
+The subject digest must equal the digest of a clean `REPRODUCIBLE`
+tracked reproducibility attestation naming the same commit, and the CycloneDX
 root component digest; any disagreement is `PROVENANCE_SUBJECT_MISMATCH`.
+The tracked attestation is the subject authority, not the per-checkout
+candidate evidence: `build_statement()` refuses a candidate no clean
+`REPRODUCIBLE` attestation names, and refuses a candidate whose commit is not
+the tree's `HEAD` (the inputs are read from the live tree, so a candidate
+from another commit would misbind the statement). A statement minted in a
+clean linked worktree therefore verifies on any checkout of the same commit.
 
 ## 5. Determinism and check semantics
 
@@ -167,10 +184,16 @@ unchanged inputs rewrite byte-identical files.
 
 The candidate evidence record lives under untracked `evidence/runtime/`, so a
 local candidate build legitimately leaves the tracked documents describing the
-previous candidate. `--check` detects exactly that state - the evidence
+previous candidate. `--check` detects exactly that state (the evidence
 loads, and its commit and artifact digest disagree with the tracked
-documents — reports `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result
-`PASS`, and names `make release-candidate-smoke` as the reconciling command.
+documents), first validates the tracked documents themselves, then reports
+`LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` with result
+`AHEAD_TRACKED_VALIDATED` (or `LOCAL_BUILD_AHEAD_TRACKED_INVALID` when the
+tracked documents fail their own validation), and names
+`make release-candidate-smoke` as the reconciling command. Both builders
+validate the tracked pair in the ahead state: document shape and determinism
+pins plus the attestation binding of the SPDX namespace and the provenance
+subject.
 
 Anything else fails closed. Missing or unreadable candidate evidence is
 missing input, not a build running ahead: the SBOM `--check` fails with
@@ -207,9 +230,15 @@ Statuses: `S20_710_FULL_CONTRACT_DRAFT_REVIEW_PENDING`,
 `PASS` and the S20-710 audit blockers to be closed. In every implementation
 status the checker verifies the three documents exist with their contract
 tags and versions, that they carry no timestamp or host path, that both
-builders report no drift, that the provenance subject agrees with the
-candidate evidence and the CycloneDX root, that the unit tests pass, and that
-`release-check` and `v2` stay `NOT_IMPLEMENTED`.
+builders report no drift, that the SPDX namespace binds the inventory digest
+and a tracked attested artifact digest (`spdx:namespace-not-candidate-bound`
+otherwise, `spdx:namespace-unbound` when the inventory or the
+reproducibility report is missing), that the provenance subject names a
+clean `REPRODUCIBLE` attestation with the same commit
+(`provenance:subject-attestation-mismatch` otherwise,
+`provenance:attestation-unbound` when the report is missing) and a clean
+tree (`provenance:dirty-candidate` otherwise), that the unit tests pass, and
+that `release-check` and `v2` stay `NOT_IMPLEMENTED`.
 
 `make release-candidate-smoke` rebuilds the reproducibility report, both SBOM
 documents, and the provenance statement after a candidate build, so the

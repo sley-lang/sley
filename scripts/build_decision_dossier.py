@@ -312,7 +312,9 @@ def build_entries(sources: dict) -> list[dict]:
             "SHA-256",
             value=attestation["artifact_sha256"] if attestation else None,
             evidence=[REPRO, PROVENANCE] if attestation else [],
-            note="the attested artifact digest, which the provenance subject repeats",
+            note="the attested artifact digest; the provenance subject must "
+            "name it (checker: provenance:subject-attestation-mismatch), it "
+            "is not assumed to repeat it",
         ),
         entry(
             "byte size",

@@ -275,11 +275,27 @@ class ProvenanceTests(unittest.TestCase):
     def setUp(self) -> None:
         # The statement is derived against the *derived* CycloneDX document, so
         # the suite never depends on whether the tracked documents have caught
-        # up with an untracked local candidate build.
+        # up with an untracked local candidate build. The subject-authority
+        # gates are satisfied with the live candidate: HEAD coherence reads
+        # the candidate's own commit and the attested set carries it.
         derived_root = sbom.build_documents()[0]["metadata"]["component"]["hashes"][0]["content"]
         self.original_root = provenance.sbom_root_digest
         provenance.sbom_root_digest = lambda: derived_root
         self.addCleanup(setattr, provenance, "sbom_root_digest", self.original_root)
+        candidate = json.loads(provenance.CANDIDATE.read_text(encoding="utf-8"))
+        self.original_head = provenance.git_head
+        provenance.git_head = lambda: candidate["commit"]
+        self.addCleanup(setattr, provenance, "git_head", self.original_head)
+        self.original_attested = provenance.attested_candidates
+        provenance.attested_candidates = lambda: [
+            {
+                "commit": candidate["commit"],
+                "artifact_sha256": candidate["artifact_sha256"],
+                "reproducibility": "REPRODUCIBLE",
+                "working_tree_clean": True,
+            }
+        ]
+        self.addCleanup(setattr, provenance, "attested_candidates", self.original_attested)
         self.document = provenance.build_file()
         self.statement = self.document["statement"]
 
@@ -344,6 +360,58 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_the_statement_is_a_pure_function_of_the_evidence(self) -> None:
         self.assertEqual(self.document, provenance.build_file())
+
+    def test_a_candidate_from_another_commit_refuses(self) -> None:
+        provenance.git_head = lambda: "1" * 40
+        with self.assertRaises(provenance.ProvenanceError) as error:
+            provenance.build_statement()
+        self.assertEqual(
+            error.exception.code, provenance.ProvenanceErrorCode.EVIDENCE_INVALID
+        )
+
+    def test_an_unattested_candidate_refuses(self) -> None:
+        provenance.attested_candidates = lambda: []
+        with self.assertRaises(provenance.ProvenanceError) as error:
+            provenance.build_statement()
+        self.assertEqual(
+            error.exception.code, provenance.ProvenanceErrorCode.SUBJECT_MISMATCH
+        )
+
+    def test_the_invocation_is_copied_from_the_candidate_evidence(self) -> None:
+        candidate = json.loads(provenance.CANDIDATE.read_text(encoding="utf-8"))
+        candidate["invocation"] = "build_release_candidate.py --require-clean (test)"
+        original = provenance.load_candidate
+        provenance.load_candidate = lambda: candidate
+        self.addCleanup(setattr, provenance, "load_candidate", original)
+        statement = provenance.build_statement()
+        external = statement["predicate"]["buildDefinition"]["externalParameters"]
+        self.assertEqual(
+            external["invocation"], "build_release_candidate.py --require-clean (test)"
+        )
+
+
+class ValidateTrackedTests(unittest.TestCase):
+    """The ahead-state rule: tracked documents are verified, not skipped."""
+
+    def test_the_current_pair_validates(self) -> None:
+        self.assertEqual(sbom.validate_tracked(), [])
+        self.assertEqual(provenance.validate_tracked(), [])
+
+    def test_a_rewritten_namespace_fails_the_sbom_validation(self) -> None:
+        original = sbom.SPDX.read_text(encoding="utf-8")
+        document = json.loads(original)
+        document["documentNamespace"] = "urn:sley2:spdx:tampered"
+        sbom.SPDX.write_text(sbom.canonical(document), encoding="utf-8")
+        self.addCleanup(sbom.SPDX.write_text, original)
+        self.assertIn("namespace-not-attestation-bound", sbom.validate_tracked())
+
+    def test_a_rewritten_subject_fails_the_provenance_validation(self) -> None:
+        original = provenance.PROVENANCE.read_text(encoding="utf-8")
+        document = json.loads(original)
+        document["statement"]["subject"][0]["digest"]["sha256"] = "f" * 64
+        provenance.PROVENANCE.write_text(provenance.canonical(document), encoding="utf-8")
+        self.addCleanup(provenance.PROVENANCE.write_text, original)
+        self.assertIn("statement-digest", provenance.validate_tracked())
 
 
 if __name__ == "__main__":

@@ -164,6 +164,30 @@ def main() -> int:
     artifact = summary.get("artifact", {})
     if any(artifact.get(key) is not None for key in ("path", "sha256", "size_bytes", "reproducibility")):
         problems.append("machine-summary:artifact-not-null")
+    # The register's candidate identity must name the tracked
+    # reproducibility attestation: without this cross-check the section can
+    # name any candidate while the checker stays green.
+    repro_path = ROOT / "evidence/release/reproducibility-report.json"
+    if status in IMPLEMENTATION_STATUSES:
+        if not repro_path.exists():
+            problems.append("machine-summary:candidate-attestation-unbound")
+        else:
+            repro = json.loads(read(repro_path))
+            attested = {
+                (
+                    attestation.get("commit"),
+                    attestation.get("artifact_sha256"),
+                    attestation.get("manifest_digest"),
+                )
+                for attestation in repro.get("attestations", [])
+                if isinstance(attestation, dict)
+            }
+            if (
+                section.get("candidate_commit"),
+                section.get("candidate_artifact_sha256"),
+                section.get("candidate_manifest_digest"),
+            ) not in attested:
+                problems.append("machine-summary:candidate-attestation-mismatch")
 
     present = []
     if SCRIPT.exists():

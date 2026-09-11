@@ -1959,7 +1959,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-schema-bootstrap-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_schema_persistent_fuzz.py --manual",
     "registry_dispatch_covered": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_5_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -1981,7 +1981,7 @@
     "outer_trailer_rehash_lane": true,
     "failed_preflight_object_writes": 0,
     "full_s20_540_profile_covered": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -2017,7 +2017,7 @@
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-complete-root-libfuzzer/corpus",
     "runtime_evidence": "evidence/runtime/s20-700-complete-root-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_complete_root_persistent_fuzz.py --manual",
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_3_P3",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_JUDGMENT_PERSISTENT_SLICE.md",
     "max_set_members": 24,
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set"
@@ -2036,7 +2036,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-semantic-delta-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_semantic_delta_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md"
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2054,7 +2054,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-merge-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_merge_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md"
   },
   "s20_700_merge_judgment_fuzz_slice": {
@@ -2085,7 +2085,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-complete-root-snapshot-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_complete_root_snapshot_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_0_P3",
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md"
   },
   "s20_700_root_query_persistent_fuzz_slice": {
@@ -2102,7 +2102,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-root-query-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_root_query_persistent_fuzz.py --manual",
     "continuation_walk": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md"
   },
   "s20_700_context_capsule_persistent_fuzz_slice": {
@@ -2119,7 +2119,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-context-capsule-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_context_capsule_persistent_fuzz.py --manual",
     "continuation_walk": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3",
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md"
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -2136,7 +2136,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-smp1-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_4_P3",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true
   },
@@ -2156,7 +2156,7 @@
     "text_lane": true,
     "frame_lane": true,
     "record_lane": true,
-    "vulcan_review": "PENDING",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_3_P3",
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md"
   },
   "s20_700_semantic_checkers_persistent_fuzz_slice": {
@@ -2185,7 +2185,7 @@
     "closed_harness_finding_ids": [
       "S20-700-HARNESS-001"
     ],
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -2209,7 +2209,7 @@
     "manual_command": "python3 scripts/run_query_persistent_fuzz.py --manual",
     "alternate_snapshot_binding_asserted": true,
     "full_root_backed_query_classes_covered": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_2_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -2283,7 +2283,7 @@
     "atomic_failure_asserted": true,
     "replay_response_fidelity_asserted": true,
     "state_root_transcript_binding_asserted": true,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -2305,7 +2305,7 @@
     "manual_command": "python3 scripts/run_mutation_candidate_persistent_fuzz.py --manual",
     "candidate_authority": false,
     "runtime_mutation": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401",
+    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
     "deferred_surfaces": [
       "merge engine"
     ]
@@ -2716,7 +2716,7 @@
     "provider_or_model_execution": false,
     "benchmark_trials_executed": 0,
     "live_legacy_checkout_interaction": false,
-    "vulcan_review": "DEFERRED_FORGE_OAUTH_401"
+    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3"
   },
   "s20_610_offline_raw_runner": {
     "status": "IMPLEMENTED_OFFLINE_UNVERIFIED_CLAIM_CHAIN_ONLY",
@@ -2924,23 +2924,26 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "ec20da7ba6611d8ab4fc041d6a373803cf3b28e74b92ea23f9e0ee6136a46b3a",
-    "candidate_artifact_size_bytes": 2083924,
+    "candidate_artifact_sha256": "ac4ce59a85c21e0c7310485bf178444cc2c026a423e339735a3dae1d095f870b",
+    "candidate_artifact_size_bytes": 2131797,
     "candidate_member_count": 14,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
-    "offline_tests": 4,
+    "offline_tests": 8,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "114a940a6ec73641b852e9160353df5e5135912a21892344fb33e791bb100ae8",
-    "candidate_commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6",
+    "candidate_manifest_digest": "86e093209a92e3656f5731535b072132c4de881bcd17cacffc33acd231222624",
+    "candidate_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6"
+    "candidate_evidence_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+    "ariadne_contract_review_revision_1": "REVISE_0_P0_0_P1_2_P2_3_P3",
+    "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_3_P2_2_P3",
+    "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_5_P2_3_P3"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -3157,16 +3160,15 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
-    "attested_commit": "84bfa9c9c5d9fc3d8589b1972774430347877e68",
-    "p1_open_count": 1,
-    "p1_open": [
-      "stale 84bfa9c9 reproducibility attestation under the section 2 freshness rule (operator-constrained; carried explicitly in the ariadne and nabu PASS verdicts; enforced by check_reproducibility_and_independent_conformance)"
-    ]
+    "attested_commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+    "p1_open_count": 0,
+    "p1_open": [],
+    "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0041-standards-sbom-and-unsigned-provenance.md",
     "checker": "scripts/check_standards_sbom_and_provenance.py",
     "cyclonedx_document": "evidence/release/sbom/cyclonedx-1.6.json",
@@ -3207,7 +3209,10 @@
     ],
     "p0_open_count": 0,
     "closeout": "docs/audits/S20_710_STANDARDS_SBOM_CLOSEOUT.md",
-    "p0_closed": 5
+    "p0_closed": 5,
+    "ariadne_contract_review_revision_1": "REVISE_0_P0_0_P1_3_P2_3_P3",
+    "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_2_P2_4_P3",
+    "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_1_P2_4_P3"
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -3217,9 +3222,9 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 254,
-    "open_reviews": 88,
-    "deferred_reviews": 7,
+    "obligations": 261,
+    "open_reviews": 101,
+    "deferred_reviews": 0,
     "unclassified_dispositions": 2,
     "complete_packages": 25,
     "register_result": "FINDING_REGISTER_OPEN",
@@ -3267,8 +3272,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "7 review lanes are deferred and unavailable",
-      "88 review obligations are open",
+      "101 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
