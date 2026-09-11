@@ -117,6 +117,44 @@
       "version": "1.8.2"
     },
     {
+      "bom-ref": "pkg:cargo/block-buffer@0.12.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "block-buffer",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/block-buffer@0.12.1",
+      "type": "library",
+      "version": "0.12.1"
+    },
+    {
       "bom-ref": "pkg:cargo/cc@1.4.4",
       "externalReferences": [
         {
@@ -231,6 +269,120 @@
       "version": "0.3.1"
     },
     {
+      "bom-ref": "pkg:cargo/cpufeatures@0.3.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "cpufeatures",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/cpufeatures@0.3.1",
+      "type": "library",
+      "version": "0.3.1"
+    },
+    {
+      "bom-ref": "pkg:cargo/crypto-common@0.2.2",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "crypto-common",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/crypto-common@0.2.2",
+      "type": "library",
+      "version": "0.2.2"
+    },
+    {
+      "bom-ref": "pkg:cargo/digest@0.11.3",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "digest",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/digest@0.11.3",
+      "type": "library",
+      "version": "0.11.3"
+    },
+    {
       "bom-ref": "pkg:cargo/find-msvc-tools@0.1.11",
       "externalReferences": [
         {
@@ -269,6 +421,44 @@
       "version": "0.1.11"
     },
     {
+      "bom-ref": "pkg:cargo/hybrid-array@0.4.14",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "hybrid-array",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/hybrid-array@0.4.14",
+      "type": "library",
+      "version": "0.4.14"
+    },
+    {
       "bom-ref": "pkg:cargo/itoa@1.0.18",
       "externalReferences": [
         {
@@ -305,6 +495,44 @@
       "purl": "pkg:cargo/itoa@1.0.18",
       "type": "library",
       "version": "1.0.18"
+    },
+    {
+      "bom-ref": "pkg:cargo/libc@0.2.189",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "libc",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/libc@0.2.189",
+      "type": "library",
+      "version": "0.2.189"
     },
     {
       "bom-ref": "pkg:cargo/memchr@2.8.3",
@@ -609,6 +837,44 @@
       "purl": "pkg:cargo/serde_json@1.0.145",
       "type": "library",
       "version": "1.0.145"
+    },
+    {
+      "bom-ref": "pkg:cargo/sha2@0.11.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "sha2",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/sha2@0.11.0",
+      "type": "library",
+      "version": "0.11.0"
     },
     {
       "bom-ref": "pkg:cargo/shlex@2.0.1",
@@ -1231,6 +1497,44 @@
       "version": "0.1.1"
     },
     {
+      "bom-ref": "pkg:cargo/typenum@1.20.1",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "name": "typenum",
+      "properties": [
+        {
+          "name": "sley2:ecosystem",
+          "value": "cargo"
+        },
+        {
+          "name": "sley2:license-disposition",
+          "value": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW"
+        },
+        {
+          "name": "sley2:locked-source",
+          "value": "registry+https://github.com/rust-lang/crates.io-index"
+        }
+      ],
+      "purl": "pkg:cargo/typenum@1.20.1",
+      "type": "library",
+      "version": "1.20.1"
+    },
+    {
       "bom-ref": "pkg:cargo/unicode-ident@1.0.24",
       "externalReferences": [
         {
@@ -1450,6 +1754,12 @@
     },
     {
       "dependsOn": [
+        "pkg:cargo/hybrid-array@0.4.14"
+      ],
+      "ref": "pkg:cargo/block-buffer@0.12.1"
+    },
+    {
+      "dependsOn": [
         "pkg:cargo/find-msvc-tools@0.1.11",
         "pkg:cargo/shlex@2.0.1"
       ],
@@ -1464,12 +1774,41 @@
       "ref": "pkg:cargo/constant_time_eq@0.3.1"
     },
     {
+      "dependsOn": [
+        "pkg:cargo/libc@0.2.189"
+      ],
+      "ref": "pkg:cargo/cpufeatures@0.3.1"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/hybrid-array@0.4.14"
+      ],
+      "ref": "pkg:cargo/crypto-common@0.2.2"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/block-buffer@0.12.1",
+        "pkg:cargo/crypto-common@0.2.2"
+      ],
+      "ref": "pkg:cargo/digest@0.11.3"
+    },
+    {
       "dependsOn": [],
       "ref": "pkg:cargo/find-msvc-tools@0.1.11"
     },
     {
+      "dependsOn": [
+        "pkg:cargo/typenum@1.20.1"
+      ],
+      "ref": "pkg:cargo/hybrid-array@0.4.14"
+    },
+    {
       "dependsOn": [],
       "ref": "pkg:cargo/itoa@1.0.18"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/libc@0.2.189"
     },
     {
       "dependsOn": [],
@@ -1521,6 +1860,14 @@
         "pkg:cargo/serde_core@1.0.228"
       ],
       "ref": "pkg:cargo/serde_json@1.0.145"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/cfg-if@1.0.4",
+        "pkg:cargo/cpufeatures@0.3.1",
+        "pkg:cargo/digest@0.11.3"
+      ],
+      "ref": "pkg:cargo/sha2@0.11.0"
     },
     {
       "dependsOn": [],
@@ -1627,6 +1974,7 @@
       "dependsOn": [
         "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
       ],
@@ -1635,6 +1983,7 @@
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
@@ -1644,7 +1993,8 @@
         "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
       ],
       "ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true"
     },
@@ -1702,6 +2052,8 @@
     },
     {
       "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/sha2@0.11.0",
         "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
         "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
@@ -1727,6 +2079,10 @@
     {
       "dependsOn": [],
       "ref": "pkg:cargo/tinyvec_macros@0.1.1"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:cargo/typenum@1.20.1"
     },
     {
       "dependsOn": [],
@@ -1760,7 +2116,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "f5c48a3aa015ba008bf5ea966a111b2f3f88f27dfdb9e23fb3e24df060195405"
+          "content": "8ee23a8de3f52cdab54f20be0286cceda2f4fc0f3aea2a18fd886bcdb3f96f63"
         }
       ],
       "licenses": [
@@ -1775,11 +2131,11 @@
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "84bfa9c9c5d9fc3d8589b1972774430347877e68"
+        "value": "5b70052d48da298329512bf45c0020e30460d33c"
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "0e3674c7f45099d3747399ef3305fde6352ef85d7259e0bbcac3e396e299bed8"
+        "value": "5fbadf2dab2b1b67b4ff73ac3bd03a9b1c3fb04d56541b58d3d265c28c69a385"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -1787,7 +2143,7 @@
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "20d15438b36560f9d4a85ccfb0ec83e941d0f0242870da6784bb6690fc321412"
+        "value": "1f7059694752f7c9c750c7a15b34b4c01c0b1b9280669f59a821e788d13f6bb5"
       },
       {
         "name": "sley2:publication-authorized",
@@ -1808,7 +2164,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:2ad207a5-3b2c-8d97-8d27-a0d560ea7dcd",
+  "serialNumber": "urn:uuid:284fbdd3-843d-8686-8d1b-91cc42b14977",
   "specVersion": "1.6",
   "version": 1
 }

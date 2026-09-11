@@ -25,12 +25,13 @@
     ],
     "semantic": [
       "conformance/complete-entity-impact/v1",
+      "conformance/entity-read/v2",
       "conformance/merge/v1",
       "conformance/root-backed-query/v1",
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 24,
+  "fixture_directories": 25,
   "fixtures": [
     {
       "claim": null,
@@ -327,6 +328,50 @@
       "sums_file": true
     },
     {
+      "claim": "independent-expected",
+      "contract": "sley2-entity-read-v2",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_entity_read_vectors.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/entity-read/v2",
+      "files": [
+        {
+          "bytes": 238,
+          "name": "SHA256SUMS",
+          "sha256": "6b00ba927fe7b7e13df1e54f4b308f7b4d7d39f3fa95a472ea8372c8cb1f6241"
+        },
+        {
+          "bytes": 190716,
+          "name": "accepted.json",
+          "sha256": "85e27098e10dd880c7e8fb16c5fd508da7c32b6b111ef2039d2d7a335f932b82"
+        },
+        {
+          "bytes": 58112,
+          "name": "inputs.json",
+          "sha256": "b88fcdbe9e1f002bae01d0076a60b2cb45b394a8a1a4783e02306dda8b9f6705"
+        },
+        {
+          "bytes": 124899,
+          "name": "rejected.json",
+          "sha256": "abe861d2c1609328f019aefb90e03f380336fef0c75d48a0484a039c639a9069"
+        }
+      ],
+      "shape": {
+        "accepted.json": {},
+        "inputs.json": {
+          "rejected": 91
+        },
+        "rejected.json": {
+          "cases": 91
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true
+    },
+    {
       "claim": null,
       "contract": "sley2-exec-package-1",
       "coverage": {
@@ -575,7 +620,7 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "d2cc291542ce9a06decdbd917933763083b340e56e4a7843affb7068b0dd48ae"
+          "sha256": "74028ef9dba8fe75cb02456b5258a2f07f76ccd6a6d884d6f4379c39b85f9ead"
         },
         {
           "bytes": 16407,
@@ -583,9 +628,9 @@
           "sha256": "a0674fb84078c1a8147b04bab106f79b60c4ac78918f5692b487c4871561e31a"
         },
         {
-          "bytes": 85093,
+          "bytes": 100802,
           "name": "rejected.json",
-          "sha256": "46e5ea4477d0d90c8c33012d7c009f9b532e168644612d17f0d5783d60300b10"
+          "sha256": "bbf8129763592aea926384f7c94276da9327e57ee087bb3ac5891d48c02ddbe0"
         }
       ],
       "shape": {
@@ -593,7 +638,7 @@
           "vectors": 1
         },
         "rejected.json": {
-          "mutations": 5
+          "mutations": 6
         }
       },
       "sums_consistent": true,
@@ -972,7 +1017,7 @@
       "sums_file": true
     }
   ],
-  "independently_checked": 24,
+  "independently_checked": 25,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -992,9 +1037,9 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 26
+    "python_sources": 28
   },
-  "report_digest": "8bc9e20a3cda3f21533cc5a331d301c6e493a02aa04acd1227e29a82170f2131",
+  "report_digest": "3bbc75ce1903f6f688be402baccec3606441cad2a2838beadba06d226b35aba4",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "work_package": "S20-730"
 }

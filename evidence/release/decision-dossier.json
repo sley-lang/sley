@@ -10,7 +10,7 @@
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "69ca6208704a332343f57473d0f8a0e7a15f00ab613ab60def91dc31f4f2d6ed",
+  "dossier_digest": "c203be226742a58473734a38704fd15a34c22d8b505bd54784298f88c942104f",
   "entries": [
     {
       "evidence": [
@@ -93,7 +93,7 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 24,
+        "independently_checked_families": 25,
         "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
@@ -109,7 +109,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 26,
+        "python_sources": 28,
         "rust_dependency_check": "PASS"
       }
     },
@@ -316,7 +316,7 @@
       "note": "both standards documents exist as drafts; the root license text is unapproved, which the documents state in band",
       "state": "EVIDENCED",
       "value": {
-        "components": 43,
+        "components": 51,
         "cyclonedx_spec_version": "1.6",
         "license_disposition_blocked": 19,
         "root_license_text_approved": false,
@@ -454,7 +454,7 @@
       }
     }
   ],
-  "entries_digest": "bc915d87c4c0855c7c19b6d7ae3ad79d3c6793a6814b4a3f1e0919b0284efddf",
+  "entries_digest": "86170bc6aeb9f4ae8a0c3d4418c74cf5c125718638b4c70fd4fe021b07a410e0",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
