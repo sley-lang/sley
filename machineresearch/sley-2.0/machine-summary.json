@@ -1947,23 +1947,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "e7ad2ddff63d70c96b1d3c9690026529d2368393",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 1127,
-      "corpus_file_count": 1293,
+      "corpus_file_count": 1304,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1440,
-        "ft_done": 641,
-        "ft_inited": 637,
+        "ft_done": 648,
+        "ft_inited": 641,
         "new_events": true,
-        "seed": 3763320342
+        "seed": 770733040
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2563,23 +2563,23 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
+      "source_commit": "e7ad2ddff63d70c96b1d3c9690026529d2368393",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 716,
-      "corpus_file_count": 864,
+      "corpus_file_count": 870,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
-        "counters": 4437,
-        "ft_done": 3486,
-        "ft_inited": 3480,
+        "counters": 4436,
+        "ft_done": 3513,
+        "ft_inited": 3486,
         "new_events": true,
-        "seed": 3337272898
+        "seed": 757626363
       },
       "coverage_ok": true,
       "crash_artifacts": [
