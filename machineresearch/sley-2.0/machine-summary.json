@@ -3159,8 +3159,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "ce87e6ccaec8cc30b613f92f8f0c9ded59333ac7608c204c1f16fb851f3dad55",
-    "candidate_artifact_size_bytes": 2131792,
+    "candidate_artifact_sha256": "912d2881f115380fc5bcfeef888c5964574b0bc2a25b2007039c09a331d43e03",
+    "candidate_artifact_size_bytes": 2131798,
     "candidate_member_count": 14,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -3168,17 +3168,18 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "b004b02f882b0da67fe66109ceccfaa2fc10257710472b5e09ab9d67c27c108b",
-    "candidate_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
+    "candidate_manifest_digest": "ff3f3109d5a8ddde18ef3fd39dbf7fa1d923b36f85eb59042b402115bc080eea",
+    "candidate_commit": "6a33523c22af049cde8573e6b216bcfcf97f8455",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
+    "candidate_evidence_commit": "6a33523c22af049cde8573e6b216bcfcf97f8455",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_0_P1_2_P2_3_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_3_P2_2_P3",
-    "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_5_P2_3_P3"
+    "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_5_P2_3_P3",
+    "mint_method": "canonical-detached-linked-worktree (S20-720 round-7 procedure)"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -3395,11 +3396,12 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
-    "attested_commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
+    "attested_commit": "6a33523c22af049cde8573e6b216bcfcf97f8455",
     "p1_open_count": 0,
     "p1_open": [],
     "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "vulcan_surface_review_revision_5": "PASS_0_P0_0_P1_0_P2_0_P3"
+    "vulcan_surface_review_revision_5": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "attestation_supersedes": "9115bd0/ce87e6cc (repair-wave re-mint; prior identity preserved in history)"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
