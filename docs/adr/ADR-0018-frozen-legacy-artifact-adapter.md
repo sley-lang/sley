@@ -20,8 +20,9 @@ checkout and does not import legacy source or semantics into the Sley 2 kernel.
 
 - S20-600 now has verified artifact, staging, failure-retention, and runner
   smoke mechanics.
-- Two 10-second timeouts, one 30-second timeout, and a successful longer smoke
-  are retained as runtime evidence; the slow legacy startup is not hidden.
+- On the origin host as of 2026-09-11, two 10-second timeouts, one
+  30-second timeout, and a successful longer smoke are retained as runtime
+  evidence; the slow legacy startup is not hidden.
   Retained smoke records are host-local create-only files under the ignored
   `evidence/runtime/s20-600-legacy-smoke/` directory: they are reproducible
   on any host holding the pinned artifact (rerun the smoke with a short

@@ -3466,17 +3466,17 @@
     "provider_or_model_execution": false,
     "benchmark_trials_executed": 0,
     "live_legacy_checkout_interaction": false,
-    "vulcan_review": "REVISE_0_P0_0_P1_2_P2_4_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_5_P3",
     "review_lane": "legacy_artifact_adapter",
     "contract": "docs/spec/LEGACY_ARTIFACT_ADAPTER_V1.md",
     "contract_adr": "docs/adr/ADR-0018-frozen-legacy-artifact-adapter.md",
     "checker": "scripts/check_legacy_runner.py",
     "smoke_target": "make legacy-runner-smoke",
     "tests": "bench/legacy/tests/test_runner.py",
-    "legacy_adapter_contract_review": "REVISE_0_P0_0_P1_2_P2_3_P3",
+    "legacy_adapter_contract_review": "PASS_0_P0_0_P1_0_P2_5_P3",
     "reclassification": "evidence/review/reclassification/s20-600-item10.md",
     "retained_timeout_evidence_scope": "host-local create-only records under evidence/runtime/s20-600-legacy-smoke/ (gitignored); reproducible on any host holding the pinned artifact via a short --timeout-seconds smoke, plus the default-90s success; not reproducible from the tree; no digest index tracked. See ADR-0018.",
-    "legacy_adapter_repair_note": "Repair wave (uncommitted): 15 synthetic tests added (all 15 codes produced with symbol asserts; contamination paths; 5 ceilings; drain/wait/evidence-path behavior pins verified to fail pre-fix); drain bounded by DRAIN_GRACE_SECONDS with reap-against-deadline classification; chmod/mkdir/tempdir wrapped to STAGING_FAILED; checker upgraded (derived code/test counts, contract-spectregister reconciliation, BLOCKED on ARTIFACT_MISSING, evidence-dir read); local timeout record retained (2s smoke -> LEGACY_COMMAND_TIMEOUT); ADR-0018 + register scope amended to host-local. Fresh correct-lane review queued."
+    "legacy_adapter_repair_note": "Correct-lane re-review at 575f497 (transcript vulcan_review-575f497.md, FIELD legacy_adapter_contract_review, ROUND final): PASS_0_P0_0_P1_0_P2_5_P3. All four required repairs verified real; all 15 codes traced to producing tests; local timeout record + host-local scope verified; checker derivations + BLOCKED verified; drain/wait/wrap verified with pre-fix-failing pins. Post-verdict follow-ups applied: VS-LA-R2-A (member-count ceiling override), VS-LA-R2-B (manifest-consistent sley paths), VS-LA-R2-C (size reconciliation), VS-LA-R2-D (ADR origin-host qualification), VS-LA-R2-E (teardown cleanup wrap), VS-LA-R2-F (drain pacing), VS-LA-R2-H/I (comment + note hygiene). Suite 27/27 + checker PASS post-follow-up. Obligation PASS."
   },
   "s20_610_offline_raw_runner": {
     "status": "IMPLEMENTED_OFFLINE_UNVERIFIED_CLAIM_CHAIN_ONLY",

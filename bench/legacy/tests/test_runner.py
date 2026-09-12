@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import io
 import json
@@ -117,6 +118,7 @@ def build_artifact(
     archive_prefix: str | None = None,
     omit_manifest: bool = False,
     skip_directories: tuple[str, ...] = (),
+    contract_overrides: dict | None = None,
 ) -> LegacyArtifactContract:
     prefix = archive_prefix or TOP
     payload_files = {
@@ -197,7 +199,7 @@ def build_artifact(
         elif unsafe_kind == "setuid":
             _add_file(archive, f"{prefix}/escape-suid", b"escape\n", 0o4755)
     artifact_bytes = path.read_bytes()
-    return LegacyArtifactContract(
+    contract = LegacyArtifactContract(
         artifact_sha256=_digest(artifact_bytes),
         artifact_size_bytes=len(artifact_bytes),
         top_level_directory=TOP,
@@ -213,6 +215,9 @@ def build_artifact(
         max_member_bytes=128 * 1024,
         max_manifest_bytes=64 * 1024,
     )
+    if contract_overrides:
+        contract = dataclasses.replace(contract, **contract_overrides)
+    return contract
 
 
 SUCCESS_SCRIPT = b"#!/bin/sh\nprintf 'sley 1.2.0\\n'\n"
@@ -416,26 +421,43 @@ class LegacyRunnerTests(unittest.TestCase):
 
     def test_archive_ceilings_fail_closed(self) -> None:
         cases = {
-            "member_bytes": {"big.bin": (b"X" * (200 * 1024), 0o644)},
-            "total_bytes": {
-                f"bulk-{index}.bin": (b"Y" * (100 * 1024), 0o644)
-                for index in range(3)
-            },
-            "member_count": {
-                f"file-{index:02d}.txt": (b"filler\n", 0o644)
-                for index in range(30)
-            },
-            "file_count": {
-                f"file-{index:02d}.txt": (b"filler\n", 0o644)
-                for index in range(12)
-            },
+            "member_bytes": (
+                {"big.bin": (b"X" * (200 * 1024), 0o644)},
+                None,
+            ),
+            "total_bytes": (
+                {
+                    f"bulk-{index}.bin": (b"Y" * (100 * 1024), 0o644)
+                    for index in range(3)
+                },
+                None,
+            ),
+            # Raised file ceiling so the member-count ceiling fires first
+            # (default ceilings trip the file count at member #20).
+            "member_count": (
+                {
+                    f"file-{index:02d}.txt": (b"filler\n", 0o644)
+                    for index in range(30)
+                },
+                {"max_regular_files": 64},
+            ),
+            "file_count": (
+                {
+                    f"file-{index:02d}.txt": (b"filler\n", 0o644)
+                    for index in range(12)
+                },
+                None,
+            ),
         }
-        for name, extra in cases.items():
+        for name, (extra, overrides) in cases.items():
             with self.subTest(ceiling=name):
                 with tempfile.TemporaryDirectory() as temporary:
                     artifact = Path(temporary) / "artifact.tar.gz"
                     contract = build_artifact(
-                        artifact, SUCCESS_SCRIPT, extra_payload_files=extra
+                        artifact,
+                        SUCCESS_SCRIPT,
+                        extra_payload_files=extra,
+                        contract_overrides=overrides,
                     )
                     with self.assertRaises(LegacyRunnerError) as caught:
                         verify_frozen_artifact(artifact, contract)
@@ -584,24 +606,28 @@ class LegacyRunnerTests(unittest.TestCase):
             self.assertEqual(
                 caught.exception.code, LegacyErrorCode.PAYLOAD_MISMATCH
             )
+            # Manifest-consistent non-executable bin/sley reaches the
+            # contract-level executable check (not the manifest equality).
             nonexec = Path(temporary) / "nonexec.tar.gz"
             nonexec_contract = build_artifact(
                 nonexec,
                 SUCCESS_SCRIPT,
-                mode_overrides={"bin/sley": 0o644},
+                extra_payload_files={"bin/sley": (SUCCESS_SCRIPT, 0o644)},
             )
             with self.assertRaises(LegacyRunnerError) as caught:
                 verify_frozen_artifact(nonexec, nonexec_contract)
             self.assertEqual(
                 caught.exception.code, LegacyErrorCode.PAYLOAD_MISMATCH
             )
+            # Manifest-consistent foreign script reaches the contract-level
+            # digest check: the manifest matches the archive, but the
+            # contract pins the expected script.
+            other_script = b"#!/bin/sh\nprintf 'sley 9.9.9\\n'\n"
             drifted = Path(temporary) / "drifted-sley.tar.gz"
             drift_contract = build_artifact(
                 drifted,
                 SUCCESS_SCRIPT,
-                archive_payload_overrides={
-                    "bin/sley": b"#!/bin/sh\nprintf 'sley 9.9.9\\n'\n"
-                },
+                extra_payload_files={"bin/sley": (other_script, 0o755)},
             )
             with self.assertRaises(LegacyRunnerError) as caught:
                 verify_frozen_artifact(drifted, drift_contract)

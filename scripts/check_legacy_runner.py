@@ -101,8 +101,11 @@ for code in LegacyErrorCode:
 if code_count != 15:
     problems.append(f"legacy adapter code count drift: {code_count}")
 
-# Test coverage is discovered from the suite, never a hardcoded total, and
-# every stable code must be produced by a named test asserting its symbol.
+# Test coverage is discovered from the suite, never a hardcoded total.
+# The token-presence check below is a tripwire only: it proves the code
+# name is referenced, while the unittest run underneath proves a test
+# actually produces it (a passing suite with a dropped test fails loudly
+# on the missing name, not silently on coverage).
 test_tree = ast.parse(tests)
 discovered = sorted(
     node.name
@@ -161,17 +164,18 @@ if "host-local" not in adr:
 
 # FROZEN_CONTRACT is reconciled against the spec's pinned values and the
 # register section: sha, size, release, commit, tree digest, sley digest,
-# member/file/payload counts. A drift in any one fails here.
+# member/file/payload counts. Size and count literals are formatted from
+# the contract itself so a drift in runner.py fails here on any host.
 for token in [
     FROZEN_CONTRACT.artifact_sha256,
-    "4,611,024",
+    f"{FROZEN_CONTRACT.artifact_size_bytes:,}",
     FROZEN_CONTRACT.release,
     FROZEN_CONTRACT.source_commit,
     FROZEN_CONTRACT.payload_tree_digest,
     FROZEN_CONTRACT.expected_sley_digest,
-    "1,568 members",
-    "1,067 sorted payload entries",
-    "8,610,725 payload",
+    f"{FROZEN_CONTRACT.expected_archive_member_count:,} members",
+    f"{FROZEN_CONTRACT.expected_payload_file_count:,} sorted payload entries",
+    f"{FROZEN_CONTRACT.expected_payload_total_bytes:,} payload",
 ]:
     if token not in spec:
         problems.append(f"spec/contract drift: {token!r}")
@@ -179,6 +183,7 @@ summary = json.loads(read("machineresearch/sley-2.0/machine-summary.json"))
 section = summary.get("s20_600_frozen_legacy_adapter", {})
 for key, value in [
     ("artifact_sha256", FROZEN_CONTRACT.artifact_sha256),
+    ("artifact_size_bytes", FROZEN_CONTRACT.artifact_size_bytes),
     ("source_commit", FROZEN_CONTRACT.source_commit),
     ("archive_member_count", FROZEN_CONTRACT.expected_archive_member_count),
     ("regular_file_count", FROZEN_CONTRACT.expected_regular_file_count),

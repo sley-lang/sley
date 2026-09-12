@@ -2819,16 +2819,15 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_2_P2_3_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_5_P3",
       "field": "legacy_adapter_contract_review",
       "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
       "reviewer": null,
       "section": "s20_600_frozen_legacy_adapter",
       "severities": [
-        "P2",
         "P3"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -2846,16 +2845,15 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_2_P2_4_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_5_P3",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
       "reviewer": "vulcan",
       "section": "s20_600_frozen_legacy_adapter",
       "severities": [
-        "P2",
         "P3"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -4047,7 +4045,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "d8ef9c72944f173e0ad9fe91a9a70c0f518a18d2767986bf101cd9a541cb7ee6",
+  "obligations_digest": "5995de8c6d8a92cf5c24d4f0d73a29ba117f775c8140c19ec3f2818cee1b69b5",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4653,24 +4651,6 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_0_P1_2_P2_3_P3",
-      "field": "legacy_adapter_contract_review",
-      "section": "s20_600_frozen_legacy_adapter",
-      "severities": [
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_2_P2_4_P3",
-      "field": "vulcan_review",
-      "section": "s20_600_frozen_legacy_adapter",
-      "severities": [
-        "P2",
-        "P3"
-      ]
-    },
-    {
       "disposition": "REVISE_TO_OFFLINE_APPEND_ONLY_CONTRACT",
       "field": "nabu_review",
       "section": "s20_610_offline_raw_runner",
@@ -5042,12 +5022,12 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "6886d25da0336a9f51bc2b537acf248ef899a56a61cc7ba5b1ec7b501d5fa196",
+  "register_digest": "c88142f8f48f2c7b3a9449c0db8a079548969d295492724352d551ee9e1437e7",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
     "P1": 108,
-    "P2": 122,
+    "P2": 120,
     "P3": 136,
     "P4": 15
   },
@@ -5055,8 +5035,8 @@
   "states": {
     "HISTORICAL_ROUND": 30,
     "OTHER": 3,
-    "PASS": 156,
-    "PENDING": 95
+    "PASS": 158,
+    "PENDING": 93
   },
   "superseded_rounds": [
     {

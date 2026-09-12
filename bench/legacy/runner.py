@@ -824,7 +824,16 @@ def staged_frozen_artifact(
         )
         yield LegacyStage(stage_root, scratch, verified)
     finally:
-        temporary.cleanup()
+        # Teardown is staging work too: an escaped grandchild writing
+        # under scratch during rmtree (or ENOTEMPTY) must not erase a
+        # completed execution result with a bare traceback. Translate so
+        # the attempt still reaches the evidence path as STAGING_FAILED.
+        try:
+            temporary.cleanup()
+        except OSError as error:
+            raise LegacyRunnerError(
+                LegacyErrorCode.STAGING_FAILED, f"stage teardown: {error}"
+            ) from error
 
 
 def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
@@ -934,7 +943,13 @@ def _bounded_command(
                         selector.unregister(stream)
                 streams.clear()
                 break
-            events = selector.select(timeout=max(0.0, min(0.05, deadline - now)))
+            # Bound the select by the nearer deadline: once draining, the
+            # grace (not the 50 ms cadence) paces the loop so an escaped
+            # grandchild costs bounded CPU instead of a 5 s hot spin.
+            pace = deadline - now
+            if drain_deadline is not None:
+                pace = min(pace, drain_deadline - now)
+            events = selector.select(timeout=max(0.0, min(0.05, pace)))
             if not events and process.poll() is not None:
                 events = [
                     (type("ReadyKey", (), {"fileobj": stream, "data": name})(), None)
