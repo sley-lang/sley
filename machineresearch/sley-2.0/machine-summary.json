@@ -2055,7 +2055,7 @@
     "selector_count": 3,
     "max_payload_bytes": 65536,
     "generated_seed_count": 500,
-    "reseal_lane": "test-only decode_conformance_pack_entries_for_testing + seal_mutated_conformance_pack_for_testing reuse decode_envelope/decode_payload/build_pack verbatim; lane 2 mutates one bound component (object bytes -> PACK_OBJECT_CORRUPT, root bytes -> PACK_ROOT_INVALID, object-id claim -> PACK_OBJECT_MISSING via closure step 4, state-root claim -> PACK_ROOT_INVALID) or reseals unmutated, asserting the exact class or clean import with claim binds",
+    "reseal_lane": "test-only decode_conformance_pack_entries_for_testing + seal_mutated_conformance_pack_for_testing reuse decode_envelope/decode_payload/build_pack verbatim; lane-2 control bytes decoded FIRST (controls-first, c7fec98), undecodeable lane-2 inputs fall through to the direct lane; class 0 unmutated reseal asserts clean import + byte-identity + pack-id/root-claim binds + idempotence; class 1 object-bytes -> PACK_OBJECT_CORRUPT; class 2 root-bytes -> PACK_ROOT_INVALID; class 3 object-id claim -> {PACK_OBJECT_MISSING, PACK_CANONICAL_ORDER} (order-before-closure precedence); class 4 state-root claim -> {PACK_ROOT_INVALID, PACK_CANONICAL_ORDER}",
     "seed_source": "conformance/repository-pack/v1/accepted.json",
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-pack-import-libfuzzer/corpus",
     "runtime_evidence": "evidence/runtime/s20-700-pack-import-libfuzzer/evidence.json",
@@ -2069,27 +2069,36 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "4c30d1beda895365722e4fe1b80279aa455b2446",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "c7fec9893fa17ee30be463a3eebf491cd115c020",
+      "source_tree_clean_except_retained_slices": false,
       "worktree_dirty_files": [
+        "M docs/audits/S20_700_SEMANTIC_CHECKERS_PERSISTENT_SLICE.md",
+        " M fuzz/targets/ssmc_graph_cfg_checker.rs",
+        " M fuzz/targets/type_checker.rs",
+        " M machineresearch/sley-2.0/machine-summary.json",
+        " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
+        " M scripts/run_semantic_checkers_persistent_fuzz.py",
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
+        "?? evidence/review/verdicts/s20_600_frozen_legacy_adapter/vulcan_review-9d608c4.md",
+        "?? evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review-9d608c4.md",
+        "?? evidence/review/verdicts/s20_700_query_persistent_fuzz_slice/vulcan_review-9d608c4.md",
+        "?? evidence/review/verdicts/s20_700_schema_persistent_fuzz_slice/vulcan_review-9d608c4.md",
+        "?? evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/"
       ],
       "corpus_count": 500,
-      "corpus_file_count": 508,
-      "runs_requested": 640,
-      "runs_floor": 764,
-      "executed_runs": 764,
+      "corpus_file_count": 519,
+      "executed_runs": 775,
       "coverage": {
-        "counters": 8909,
-        "ft_done": 3373,
-        "ft_inited": 3347,
+        "counters": 8878,
+        "ft_done": 3761,
+        "ft_inited": 3756,
         "new_events": true,
-        "seed": 1560743166
+        "seed": 3404799520
       },
-      "coverage_ok": true,
       "crash_artifacts": [
-        "crash-35737a63df2135aed6a16b0c7cc910872ab490a1"
+        "crash-35737a63df2135aed6a16b0c7cc910872ab490a1",
+        "crash-4b1158f7be0287eb8c0a47441112f3d4ec9fb4f5"
       ],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [
@@ -2097,18 +2106,13 @@
           "artifact": "crash-35737a63df2135aed6a16b0c7cc910872ab490a1",
           "returncode": 0,
           "still_crashes": false
+        },
+        {
+          "artifact": "crash-4b1158f7be0287eb8c0a47441112f3d4ec9fb4f5",
+          "returncode": 0,
+          "still_crashes": false
         }
       ],
-      "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1278,
-      "owner_lib_sancov": 149,
-      "rlib_linkage": "cargo-json",
-      "build_locked": true,
-      "sancov_scope": "workspace-target-units-via-host-config",
-      "toolchain_versions": {
-        "cc": "clang version 22.1.8",
-        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
-      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"

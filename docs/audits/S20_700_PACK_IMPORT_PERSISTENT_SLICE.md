@@ -124,15 +124,21 @@ mutated object-id claims must fail `PACK_OBJECT_MISSING`, or
 checked structurally before closure); mutated root bytes must fail
 `PACK_ROOT_INVALID`; mutated state-root claims must fail
 `PACK_ROOT_INVALID`, or `PACK_CANONICAL_ORDER` likewise. All five
-classes are proven reachable: the five control seeds (one per class
-over the canonical pack) each execute clean through the proof binary.
+classes are proven reachable: the twenty control seeds (5 classes x 2
+positions x 2 bits over the canonical pack, four per class) each execute
+clean through the proof binary.
 The `Err(_)` no-store assertion now exempts only the step-6 promotion symbols
 (`STORE_IO`, `STORE_OBJECT_SUBSTITUTION`); every preflight rejection still
 asserts no store writes. Twenty control seeds (5 classes x 2 positions x
 2 bits over the canonical pack) join the corpus; generated seeds
 320 -> 500, `SELECTOR_COUNT` 2 -> 3. No change to `verify_digest_tree`,
 error codes, step order, validating paths, or `export_conformance_pack`.
-The retained smoke artifact was a harness-oracle expectation error
-(wrong class assumed for a claim flip), never an engine defect; it
-retests clean. Re-review of the c7fec98 fix is queued; proofs bound to
-older source states are invalid.
+The retained smoke artifacts were harness-oracle expectation errors
+(wrong class assumed for a claim flip; exact-symbol expectation on an
+order-breaking claim flip), never engine defects; both retest clean.
+The second artifact's bytes equal control seed-0493 (class 3 / index 0 /
+bit 7): the live oracle probe that produced the claim-order precedence
+sets. The qualifying re-review of the c7fec98 fix returned PASS
+(transcript vulcan_review-c7fec98.md); this records commit closes its
+P3 record findings (tracked proof refresh + set-based lane description
++ seed/artifact counts). Proofs bound to older source states are invalid.
