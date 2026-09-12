@@ -102,3 +102,27 @@ gained engine-invariant asserts, must-reject refusals, narrowed Err
 arms, constructed-valid lanes, and a server-fixture validity gate with
 a unit-level negotiation self-check; filed regressions replay as corpus
 seeds. See the wave's decision packets for elevated owner items.
+
+## Target-closure wave (rehash-lane repair, operator-authorized redesign)
+
+The outer-trailer rehash lane is joined by a resealed-content-mutation
+lane (selector 2 of 3): two test-only `sley-repo` helpers
+(`decode_conformance_pack_entries_for_testing`,
+`seal_mutated_conformance_pack_for_testing`) reuse `decode_envelope` /
+`decode_payload` / `build_pack` verbatim, so a mutated pack passes step 2
+(digest tree) and reaches the root/closure/object checks with
+attacker-controlled bytes. Five input-selected classes bind the exact
+contract failure per bound component: unmutated re-seal must import
+cleanly with pack-id and root-claim binds plus idempotence; mutated
+object bytes must fail `PACK_OBJECT_CORRUPT`; mutated object-id claims
+must fail `PACK_OBJECT_MISSING` (closure step 4 precedes per-object
+verification step 5; missing is checked before unexpected); mutated
+root bytes or state-root claims must fail `PACK_ROOT_INVALID`. The
+`Err(_)` no-store assertion now exempts only the step-6 promotion symbols
+(`STORE_IO`, `STORE_OBJECT_SUBSTITUTION`); every preflight rejection still
+asserts no store writes. Twenty control seeds (5 classes x 2 positions x
+2 bits over the canonical pack) join the corpus; generated seeds
+320 -> 500, `SELECTOR_COUNT` 2 -> 3. No change to `verify_digest_tree`,
+error codes, step order, validating paths, or the export surface.
+Re-review queued as REQ-08 item 4; proofs bound to older source states
+are invalid.

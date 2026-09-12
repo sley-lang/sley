@@ -426,6 +426,34 @@ pub fn import_conformance_pack<V: CanonicalVerifier>(
     })
 }
 
+/// Test-only structural decode and re-seal for the S20-700 pack fuzzer.
+///
+/// `decode_conformance_pack_entries_for_testing` reuses `decode_envelope` +
+/// `decode_payload` verbatim: a read-only structural decode with no step 1-5
+/// preflight, no validation, and no store access.
+/// `seal_mutated_conformance_pack_for_testing` reuses `build_pack` verbatim:
+/// it recomputes the digest-tree leaves and root over the supplied entries
+/// so a mutated pack passes step 2 and reaches the root/closure/object
+/// checks with attacker-controlled bytes. Neither helper changes
+/// `verify_digest_tree`, any error code, step order, or any validating path;
+/// sealing confers no acceptance (import still enforces every check).
+pub fn decode_conformance_pack_entries_for_testing(
+    input: &[u8],
+) -> Result<(Vec<PackEpochEntry>, Vec<PackRootEntry>, Vec<PackObjectEntry>)> {
+    let (_epoch, payload, _pack_id) = decode_envelope(input)?;
+    let decoded = decode_payload(payload)?;
+    Ok((decoded.epochs, decoded.roots, decoded.objects))
+}
+
+/// See `decode_conformance_pack_entries_for_testing` for the test-only terms.
+pub fn seal_mutated_conformance_pack_for_testing(
+    epochs: Vec<PackEpochEntry>,
+    roots: Vec<PackRootEntry>,
+    objects: Vec<PackObjectEntry>,
+) -> Result<AcceptedRepositoryPack> {
+    build_pack(epochs, roots, objects)
+}
+
 /// A pack that passed the complete S20-170 preflight (steps 1 through 5)
 /// without any store write.
 pub(crate) struct PreflightedPack {

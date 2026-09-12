@@ -24,10 +24,18 @@ for marker in [
     "LLVMFuzzerTestOneInput",
     "import_conformance_pack(&store, candidate, &verify_fixture_object)",
     "with_rehashed_pack_trailer(payload)",
+    "with_resealed_content_mutation(payload)",
+    "seal_mutated_conformance_pack_for_testing",
+    "decode_conformance_pack_entries_for_testing",
+    "PACK_OBJECT_CORRUPT",
+    "PACK_ROOT_INVALID",
+    "PROMOTION_ERROR_SYMBOLS",
+    "ResealExpectation",
+    "a mutated resealed pack imported cleanly",
     "RepositoryPackId::derive(&candidate[..preimage_len])",
     'store.root().join("objects").exists()',
     "an accepted repository pack must import idempotently",
-    "SELECTOR_COUNT: u8 = 2",
+    "SELECTOR_COUNT: u8 = 3",
     "MAX_FUZZ_INPUT_BYTES: usize = 65_536",
 ]:
     if marker not in target:
@@ -51,7 +59,7 @@ for marker in [
     '"full_s20_700_complete": False',
     '"REPOSITORY_PACK_IMPORTER_ONLY"',
     "MAX_PAYLOAD_LEN = 65_536",
-    "SELECTOR_COUNT = 2",
+    "SELECTOR_COUNT = 3",
     "output_tail(error.stdout)",
 ]:
     if marker not in wrapper:
@@ -107,9 +115,9 @@ if slice_status.get("persistent_fuzz_harness") is not True:
     problems.append("machine-summary-persistent-harness-not-true")
 if slice_status.get("full_s20_700_complete") is not False:
     problems.append("machine-summary-full-s20-700-not-false")
-if slice_status.get("selector_count") != 2:
+if slice_status.get("selector_count") != 3:
     problems.append("machine-summary-selector-count-drift")
-if slice_status.get("generated_seed_count") != 320:
+if slice_status.get("generated_seed_count") != 500:
     problems.append("machine-summary-generated-seed-count-drift")
 if slice_status.get("seed_source") != "conformance/repository-pack/v1/accepted.json":
     problems.append("machine-summary-seed-source-drift")

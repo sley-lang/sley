@@ -36,7 +36,7 @@ MAX_PAYLOAD_LEN = 65_536
 MAX_LEN = MAX_PAYLOAD_LEN + 1
 SMOKE_RUNS = 640
 SMOKE_TIMEOUT_SECONDS = 60
-SELECTOR_COUNT = 2
+SELECTOR_COUNT = 3
 
 
 def main() -> int:
@@ -667,6 +667,18 @@ def generate_seed_corpus() -> tuple[int, int]:
         payloads.append(bytes(value))
 
     seeds = [bytes([selector]) + payload for selector in range(SELECTOR_COUNT) for payload in payloads]
+    # Reseal-lane control seeds (repair wave): lane 2 reads class/index/bit
+    # control bytes after the selector, so seed one input per expectation
+    # class (0 accept, 1-2 value mutations, 3-4 claim mutations) at two
+    # byte positions and two bit positions over the canonical pack. Each
+    # seed binds a specific contract failure class; they are not bulk.
+    reseal_controls = [
+        bytes((2, class_byte, index_byte, bit)) + canonical
+        for class_byte in range(5)
+        for index_byte in (0, 5)
+        for bit in (0, 7)
+    ]
+    seeds.extend(reseal_controls)
     unique_seeds = list(dict.fromkeys(seeds))
     for index, seed in enumerate(unique_seeds):
         digest = hashlib.sha256(seed).hexdigest()[:16]
