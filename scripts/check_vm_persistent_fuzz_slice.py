@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,10 +29,13 @@ for marker in [
     "VM canonical-input hash judgment was not deterministic",
     "VM execution judgment was not deterministic",
     "a canonical fixture input under normal limits was rejected",
-    "did not succeed",
-    "is not result-canonical",
-    "encode_const_value",
-    "ExecutionTermination::Success",
+    # Per-lane full messages: reverting either lane to is_ok() must fail
+    # the checker, so the pins name each lane's assertion verbatim.
+    "a valid fixed VM fixture under normal limits did not succeed",
+    "a succeeded VM fixture value is not result-canonical",
+    "a family fixture under its own canonical inputs did not succeed",
+    "a succeeded family fixture value is not result-canonical",
+    "a family fixture under its own canonical inputs failed to execute",
     "a raw VM input with the wrong arity was not refused",
     "a mistyped raw VM input was accepted",
     "InputCountMismatch",
@@ -51,9 +55,11 @@ for marker in [
     "Opcode::IntAddChecked",
     "Opcode::FloatAdd",
     "Opcode::CellNew",
-    "did not succeed",
-    "is not result-canonical",
-    "failed to execute",
+    "a family fixture under its own canonical inputs did not succeed",
+    "a succeeded family fixture value is not result-canonical",
+    "a family fixture under its own canonical inputs failed to execute",
+    "encode_const_value(value)",
+    "ExecutionTermination::Success(value)",
     "the restricted refusal was not the opcode judgment",
     "code.code(),",
     "LowerErrorCode::OpcodeUnsupported",
@@ -230,6 +236,35 @@ if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov
     problems.append("proof-record-no-owner-sancov")
 if not isinstance(proof.get("source_commit"), str) or len(proof.get("source_commit", "")) != 40:
     problems.append("proof-record-bad-source-commit")
+else:
+    # Ancestry, not just shape: the proof commit must contain the current
+    # lane files, so a proof predating the last target/runner/checker (or
+    # engine) change fails instead of passing on stale evidence.
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", proof["source_commit"], "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if ancestor.returncode != 0:
+        problems.append("proof-record-not-ancestor")
+    else:
+        fresh = subprocess.run(
+            [
+                "git", "diff", "--quiet", proof["source_commit"], "HEAD", "--",
+                "fuzz/targets/vm_canonical_inputs.rs",
+                "scripts/run_vm_persistent_fuzz.py",
+                "scripts/check_vm_persistent_fuzz_slice.py",
+                "fuzz/Cargo.toml",
+                "fuzz/Cargo.lock",
+                "crates/sley-vm",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if fresh.returncode != 0:
+            problems.append("proof-record-predates-lane-change")
 
 if problems:
     raise SystemExit("\n".join(problems))

@@ -872,7 +872,7 @@ fn contract_fixture(selector: u8) -> ExtendedFixture {
             predicate,
             bindings: vec![sley_ssmc::ContractBinding {
                 predicate_parameter: 0,
-                source: sley_ssmc::ContractSource::Parameter(id(base + 1)),
+                source: sley_ssmc::ContractSource::Parameter(id(base + 3)),
             }],
             resource_limits: None,
         }],

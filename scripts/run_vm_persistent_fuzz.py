@@ -304,6 +304,12 @@ def generate_seed_corpus() -> tuple[int, int]:
             # class once let a frozen V2B1 row through as "tampered". The
             # fixed lane asserts every tampered row differs from frozen.
             bytes([0x20, 0x45, 0x6B]),
+            # Minimized oracle regression (S20_700_VM_001): the first E3
+            # float-canonicality sub-draw pinned only the Exec refusal
+            # layer; constructed values are refused one layer earlier by
+            # the type checker. The fixed oracle accepts exactly the two
+            # canonicality-layer refusals.
+            bytes([0xFF, 0xFF, 0x02]),
         ]
     )
     CORPUS.mkdir(parents=True, exist_ok=True)

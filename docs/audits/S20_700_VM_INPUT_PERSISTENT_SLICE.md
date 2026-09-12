@@ -21,7 +21,7 @@ accepted, preventing a deterministic reject-all regression from passing.
 
 Input is capped at 4,096 bytes. Raw requests contain at most four values,
 collections at most four items, and byte or text payloads at most 32 bytes. The
-deterministic synthetic corpus contains 788 seeds. Corpus, binaries, artifacts,
+deterministic synthetic corpus contains 789 seeds. Corpus, binaries, artifacts,
 and command evidence remain under ignored
 `evidence/runtime/s20-700-vm-input-libfuzzer/` paths.
 
@@ -119,7 +119,11 @@ and success requires canonical bits plus Success termination. The first
 version of the sub-draw pinned only the Exec layer and crashed on
 `ff ff 02` (retained as `crash-b55c33e9…`, retests clean): a
 harness-oracle error, never an engine defect, filed as
-`fuzz/regressions/S20_700_VM_001.json`. The earlier bridge tamper
+`fuzz/regressions/S20_700_VM_001.json`. Note the codec float arm is
+unreachable at the VM boundary for floats (`check_constant` always
+precedes `require_canonical_form` with an identical predicate): it is
+kept as the documented second layer because the map-order lane reaches
+it for maps, not because floats can reach it. The earlier bridge tamper
 no-op (`20 45 6b`, RW-050) is filed as `S20_700_VM_002.json`.
 
 Records: seed counts corrected (788 seeds, 1576-run floor); lane text
