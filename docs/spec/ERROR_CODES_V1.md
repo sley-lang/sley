@@ -49,6 +49,15 @@ and ambiguity are failures, never success.
 - `VM_*`, `TEST_*`: execution, cancellation, determinism, and oracle.
 - `PACK_*`, `GC_*`, `MERGE_*`: repository operations.
 - `MUTATION_CANDIDATE_*`: proposal-record structure and descriptor binding.
+- `CANDIDATE_BASE_*`, `CANDIDATE_GRAPH_*`, `CANDIDATE_TEST_*`:
+  S20-360 validator-originated phase and context diagnostics (phase-3
+  base/binding comparison, phase-12 graph/test resource accounting).
+  Declared narrowly on purpose: sibling CANDIDATE subgroups belong to
+  other owners (notably the S20-350 apply family) and must not be
+  claimed here. Diagnostic reuse of another family's symbol (e.g. a CFG
+  counter overflow observed while validating) is documented at the
+  emission site and needs that family's owner concurrence, or the
+  validator mints its own namespaced symbol.
 - `CANDIDATE_VALIDATION_*`: S20-360 terminal judgment and result integrity.
 
 S20-170 freezes these repository-pack codes:

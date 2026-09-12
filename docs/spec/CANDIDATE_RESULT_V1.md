@@ -339,7 +339,7 @@ the source-code field and are never collapsed into success.
 ### 8.1 Source symbols the validator originates
 
 Most source symbols are preserved from the owning checker that produced the
-failure. Twenty-six are the validator's own, because the check belongs to no
+failure. Thirty-seven are the validator's own, because the check belongs to no
 other owner: it is the validator that compares the bound context, re-derives
 identity, rebuilds the capability summary, and rebuilds the root. They are
 enumerated here so a consumer reading `source_symbol` can resolve every value
@@ -374,6 +374,17 @@ verifies that this table and the implementation name the same set.
 | 12 | `RESOURCE_LIMIT` | `CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED` |
 | 12 | `INTERNAL_ERROR` | `CANDIDATE_SELECTED_TEST_UNRESOLVED` |
 | 13 | `INTERNAL_ERROR` | `CANDIDATE_ROOT_REBUILD_MISMATCH` |
+| 2 | `RESOURCE_LIMIT` | `SCB_RESOURCE_LIMIT` |
+| 3 | `STALE_ROOT` | `CANDIDATE_BASE_TRANSACTION_MISMATCH` |
+| 3 | `STALE_ROOT` | `CANDIDATE_BASE_ROOT_MISMATCH` |
+| 3 | `STALE_ROOT` | `CANDIDATE_WORKSPACE_MISMATCH` |
+| 3 | `STALE_ROOT` | `CANDIDATE_SCHEMA_EPOCH_MISMATCH` |
+| 3 | `STALE_ROOT` | `CANDIDATE_POLICY_ROOT_MISMATCH` |
+| 7 | `RESOURCE_LIMIT` | `CFG_RESOURCE_LIMIT` |
+| 7 | `RESOURCE_LIMIT` | `VM_LOWER_RESOURCE_LIMIT` |
+| 11 | `RESOURCE_LIMIT` | `CONTRACT_TEST_PLAN_RESOURCE_LIMIT` |
+| 12 | `RESOURCE_LIMIT` | `CANDIDATE_GRAPH_WORK_LIMIT` |
+| 12 | `RESOURCE_LIMIT` | `CANDIDATE_TEST_RESOURCE_LIMIT` |
 
 The four phase-9 `CAPABILITY_*` symbols name the validator's independent
 rebuild of the capability summary, which is why they are not `CAP_*`: the
@@ -391,6 +402,17 @@ contradictory retry guidance cannot act on either answer. A phase pass record ma
 marker `CONTRACT_PREFIX_PASSED`, which records that the contract checker
 accepted every contract before a later phase failed; it is evidence, not a
 failure.
+
+Four rows above reuse another family's symbol for a counter overflow the
+validator observes while validating (`CFG_RESOURCE_LIMIT`,
+`VM_LOWER_RESOURCE_LIMIT` at phase 7, `CONTRACT_TEST_PLAN_RESOURCE_LIMIT`
+at phase 11, `SCB_RESOURCE_LIMIT` at phases 2 and 12): the table records
+the phase where each fires, all with `HigherCeilings` retryability, but
+reuse stays conditional on the owning family's concurrence (S20-220,
+S20-260, S20-240, and the SCB owner respectively) — without it the
+validator mints its own `CANDIDATE_*` symbol instead. `SCB_RESOURCE_LIMIT`
+is tabled once at its phase-2 entry gate and fires again in phase-12
+decoded-bytes accounting under the same decision and retryability.
 
 The result symbol is the unique mapping of `result_code` and is therefore not
 duplicated as a second text field. Result-integrity shape failures use numeric

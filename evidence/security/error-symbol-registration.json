@@ -1,8 +1,8 @@
 {
   "ambiguous_codes": [],
   "contract": "sley2.error-symbol-registration.v1",
-  "declared_namespaces": 49,
-  "emitted_symbols": 399,
+  "declared_namespaces": 52,
+  "emitted_symbols": 402,
   "numeric_codes": 315,
   "result": "FAIL",
   "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
@@ -36,10 +36,6 @@
     "VM_LOWER_RESOURCE_LIMIT"
   ],
   "unregistered": [
-    {
-      "first_seen": "crates/sley-policy/src/candidate_result.rs",
-      "symbol": "CANDIDATE_VALIDATION_VALID"
-    },
     {
       "first_seen": "crates/sley-vm/src/exec_package.rs",
       "symbol": "PACKAGE_BINDING_MISMATCH"

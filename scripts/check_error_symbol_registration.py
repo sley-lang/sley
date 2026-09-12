@@ -40,6 +40,11 @@ WILDCARD = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)_\*`")
 SYMBOL = re.compile(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"')
 STALE_ROOT_FAILURE = re.compile(r'stale_root_failure\(\s*"([A-Z][A-Z0-9_]*)"')
 RESOURCE_FAILURE_LITERAL = re.compile(r'resource_failure\(\s*\d+\s*,\s*"([A-Z][A-Z0-9_]*)"')
+# Success symbols are not failure emissions: the contract's terminal states
+# name VALID as the one state that permits commit, so a success symbol must
+# never be demanded to register as an error. Scoped to exact symbols, never
+# a prefix, so no failure symbol can hide behind it.
+SUCCESS_SYMBOLS = frozenset({"CANDIDATE_VALIDATION_VALID"})
 
 
 def namespaces() -> set[str]:
@@ -81,6 +86,8 @@ def emitted(declared: set[str]) -> dict[str, str]:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         for symbol in SYMBOL.findall(text):
+            if symbol in SUCCESS_SYMBOLS:
+                continue
             namespace = longest_namespace(symbol, declared)
             if namespace is not None:
                 found.setdefault(symbol, str(path.relative_to(ROOT)))
