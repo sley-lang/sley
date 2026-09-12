@@ -4,29 +4,8 @@
   "declared_namespaces": 52,
   "emitted_symbols": 402,
   "numeric_codes": 315,
-  "result": "FAIL",
+  "result": "PASS",
   "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
   "unexercised": [],
-  "unregistered": [
-    {
-      "first_seen": "crates/sley-vm/src/exec_package.rs",
-      "symbol": "PACKAGE_BINDING_MISMATCH"
-    },
-    {
-      "first_seen": "crates/sley-vm/src/exec_package.rs",
-      "symbol": "PACKAGE_HYDRATION_REFUSED"
-    },
-    {
-      "first_seen": "crates/sley-vm/src/exec_package.rs",
-      "symbol": "PACKAGE_MALFORMED"
-    },
-    {
-      "first_seen": "crates/sley-vm/src/exec_package.rs",
-      "symbol": "PACKAGE_OVERSIZED"
-    },
-    {
-      "first_seen": "crates/sley-vm/src/exec_package.rs",
-      "symbol": "PACKAGE_SECTION_DIGEST_MISMATCH"
-    }
-  ]
+  "unregistered": []
 }

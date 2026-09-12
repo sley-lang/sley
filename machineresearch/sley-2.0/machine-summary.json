@@ -4335,7 +4335,7 @@
     "contract": "sley2.error-symbol-registration.v1",
     "declared_namespaces": 49,
     "emitted_symbols": 402,
-    "unregistered": 5,
+    "unregistered": 0,
     "adopted": "2026-09-03",
     "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1); the three REPORT_STORE_* symbols carried only as a family wildcard; one bridge test that paired the restricted query profile's code 31004 with an invented symbol; and GRAPH_RESOURCE_LIMIT, which the policy crate attached to the S20-220 owner's code 22020 while that owner's table names it CFG_RESOURCE_LIMIT",
     "scope": "registration only; meaning, number, and freeze stay with the owning contract",
@@ -4346,17 +4346,12 @@
     "exercise_rule": "every stable symbol is reached by a test, corpus, fuzz target, or oracle, by its string or by its enum variant; a refusal path nothing exercises is where a defect survives",
     "invariant_repair_round": 7,
     "invariant_repair_note": "detection hardened (multi-segment namespaces, longest-prefix, helper-originated symbols, Some()/multi-variant pairing, test-only exercise corpus); newly visible sets filed as owner-lane obligations",
-    "unregistered_symbols": [
-      "PACKAGE_BINDING_MISMATCH",
-      "PACKAGE_HYDRATION_REFUSED",
-      "PACKAGE_MALFORMED",
-      "PACKAGE_OVERSIZED",
-      "PACKAGE_SECTION_DIGEST_MISMATCH"
-    ],
+    "unregistered_symbols": [],
     "unexercised_symbols": [],
     "owner_registration_review": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES",
     "wave_note": "Repair wave to 1ba36f4: CANDIDATE_VALIDATION_VALID registered (unregistered 6 -> 5); emitted 399 -> 402 (harness oracle strings); unexercised stays 27 fail-closed; 5 PACKAGE_* stay gated on the ownership decision (KEEP-CLOSED). make quick remains red only on this documented posture (previously masked by attestation staleness).",
-    "governance_wave_note": "Governance exercise wave: all 27 previously unexercised codes now exercised \u2014 10 sley-mutate APPLY (8 behavioral + 2 defense-only pins: FieldMismatch unreachable through validated descriptors, TargetAlreadyExists unreachable through the derived-id rule), 6 sley-policy (4 phase-3 bindings, graph-work ceiling, required-test ceilings), 3 sley-cli (usage/handshake symbols + I/O-fault injection), exchange ancestry cycle (decoded-receipt 2-cycle unit), 2 impact (workspace closure symbol + binding defense pin), 2 pack (version/epoch profile negatives), state-root excluded-fact pin, VM lowering ceiling (direct preflight via new pub(crate) visibility), package section-digest pin. 4 further defense-only pins document unreachable-but-named vocabulary. Remaining FAIL is the 5 unregistered PACKAGE_* symbols alone: all owner specs frozen (V1 history, V2 successor, HOST_HYDRATION) \u2014 disposition reported per wave step 4, no frozen mutation applied."
+    "governance_wave_note": "Governance exercise wave: all 27 previously unexercised codes now exercised \u2014 10 sley-mutate APPLY (8 behavioral + 2 defense-only pins: FieldMismatch unreachable through validated descriptors, TargetAlreadyExists unreachable through the derived-id rule), 6 sley-policy (4 phase-3 bindings, graph-work ceiling, required-test ceilings), 3 sley-cli (usage/handshake symbols + I/O-fault injection), exchange ancestry cycle (decoded-receipt 2-cycle unit), 2 impact (workspace closure symbol + binding defense pin), 2 pack (version/epoch profile negatives), state-root excluded-fact pin, VM lowering ceiling (direct preflight via new pub(crate) visibility), package section-digest pin. 4 further defense-only pins document unreachable-but-named vocabulary. Remaining FAIL is the 5 unregistered PACKAGE_* symbols alone: all owner specs frozen (V1 history, V2 successor, HOST_HYDRATION) \u2014 disposition reported per wave step 4, no frozen mutation applied.",
+    "owner_adoption_note": "EXEC_PACKAGE_V2 failure-vocabulary table (owner amendment, operator-approved): PACKAGE_OVERSIZED/MALFORMED/BINDING_MISMATCH/HYDRATION_REFUSED assigned LIVE with trigger definitions; PACKAGE_SECTION_DIGEST_MISMATCH assigned RESERVED/DEAD. Documentation/ownership only \u2014 no engine, precedence, spelling, numeric, or RW-075/RW-080 change. Governance gate check_error_symbol_registration now PASS (unregistered [], unexercised [])."
   },
   "declared_limits": {
     "checker": "scripts/check_declared_limits.py",

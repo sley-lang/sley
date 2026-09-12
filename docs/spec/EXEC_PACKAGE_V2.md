@@ -84,6 +84,32 @@ RW-080 builder/loader handoff will freeze together with its emitter and
 vectors; until then they are unreachable by design. Freezing the layout
 will not change the package digest preimage.
 
+## Failure vocabulary
+
+The `PackageError` symbols below are assigned by this contract (owner
+adoption, governance wave). Each names a refusal the in-process
+package paths produce today; code spelling, precedence, numeric
+assignment, and RW-075/RW-080 semantics are unchanged by this table.
+
+- `PACKAGE_OVERSIZED` — LIVE. An envelope or section exceeds its
+  ceiling: the type encoder (`encode_type_expr`, output over ceiling),
+  the constants section over `EXEC_PACKAGE_MAX_CONSTANTS_BYTES`, and
+  the approval paths that re-check section bounds.
+- `PACKAGE_MALFORMED` — LIVE. A tag, shape, or count the frozen layout
+  cannot carry: type depth over `MAX_TYPE_DEPTH`, an unencodable
+  constant value, and an ill-formed imports manifest.
+- `PACKAGE_BINDING_MISMATCH` — LIVE. A complete-closure binding does
+  not match: gate fingerprints, admitted image digest, receipt profile
+  digest, or entry/import consistency in `approve_package_v2`. Surfaces
+  through `PackageExecutionError::Package`.
+- `PACKAGE_HYDRATION_REFUSED` — LIVE. Structural hydration refused:
+  duplicate identity or count bound in `hydrate_layouts`, and imports
+  manifest refusal.
+- `PACKAGE_SECTION_DIGEST_MISMATCH` — RESERVED/DEAD. No construction
+  site exists: the binding checks report content mismatches as
+  `PACKAGE_BINDING_MISMATCH`. Reserved for a header-bound section
+  comparison, mirroring the decoder-reserved framing codes above.
+
 ## Package observation preimage (`SLEYPOBS1`)
 
 The package-bound observation identity is
