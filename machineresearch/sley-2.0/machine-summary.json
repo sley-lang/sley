@@ -3695,8 +3695,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "483124c5b6f30f184b6c91561870902b7804532720d6e63471c48d9345bcaf9f",
-    "candidate_artifact_size_bytes": 2131794,
+    "candidate_artifact_sha256": "25dc886729cf83266d950b8d021513cc43c1ddf655ab01af50f93a40d565c4dd",
+    "candidate_artifact_size_bytes": 2132451,
     "candidate_member_count": 14,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -3704,14 +3704,14 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "a93f612fb42c9019e92847e13a61642ae6be057f19ff0d973675466eec506714",
-    "candidate_commit": "9df9f9ee323040778963c46039a05e92175ec367",
+    "candidate_manifest_digest": "f2868ecc3a54a3906694ca31e096c6b63ba1932d31cf6ae5778c0b05d037a99b",
+    "candidate_commit": "1ba36f434f07e9977c738bb975fa0fdd248e8463",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "9df9f9ee323040778963c46039a05e92175ec367",
+    "candidate_evidence_commit": "1ba36f434f07e9977c738bb975fa0fdd248e8463",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -4063,7 +4063,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "97 review obligations are open",
+      "92 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -4331,8 +4331,8 @@
     "checker": "scripts/check_error_symbol_registration.py",
     "contract": "sley2.error-symbol-registration.v1",
     "declared_namespaces": 49,
-    "emitted_symbols": 399,
-    "unregistered": 6,
+    "emitted_symbols": 402,
+    "unregistered": 5,
     "adopted": "2026-09-03",
     "found_at_adoption": "fourteen candidate-validator source symbols named in no document (now CANDIDATE_RESULT_V1 section 8.1); the three REPORT_STORE_* symbols carried only as a family wildcard; one bridge test that paired the restricted query profile's code 31004 with an invented symbol; and GRAPH_RESOURCE_LIMIT, which the policy crate attached to the S20-220 owner's code 22020 while that owner's table names it CFG_RESOURCE_LIMIT",
     "scope": "registration only; meaning, number, and freeze stay with the owning contract",
@@ -4344,7 +4344,6 @@
     "invariant_repair_round": 7,
     "invariant_repair_note": "detection hardened (multi-segment namespaces, longest-prefix, helper-originated symbols, Some()/multi-variant pairing, test-only exercise corpus); newly visible sets filed as owner-lane obligations",
     "unregistered_symbols": [
-      "CANDIDATE_VALIDATION_VALID",
       "PACKAGE_BINDING_MISMATCH",
       "PACKAGE_HYDRATION_REFUSED",
       "PACKAGE_MALFORMED",
@@ -4380,7 +4379,8 @@
       "STATE_ROOT_EXCLUDED_FACT",
       "VM_LOWER_RESOURCE_LIMIT"
     ],
-    "owner_registration_review": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES"
+    "owner_registration_review": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES",
+    "wave_note": "Repair wave to 1ba36f4: CANDIDATE_VALIDATION_VALID registered (unregistered 6 -> 5); emitted 399 -> 402 (harness oracle strings); unexercised stays 27 fail-closed; 5 PACKAGE_* stay gated on the ownership decision (KEEP-CLOSED). make quick remains red only on this documented posture (previously masked by attestation staleness)."
   },
   "declared_limits": {
     "checker": "scripts/check_declared_limits.py",
