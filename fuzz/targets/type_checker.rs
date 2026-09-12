@@ -53,6 +53,64 @@ fn fuzz_one(input: &[u8]) {
     );
     let second = observe(definitions, &value_type, parameter_count, &arguments);
     assert_eq!(first, second, "type-checker judgment was not deterministic");
+    check_consistency(&value_type, &first);
+}
+
+/// Cross-judgment consistency: each field accepts exactly its domain, and
+/// the judgments cohere. A wrong neighboring code (e.g. `ConstShape` where
+/// only `NotOrderable` is contractually possible, or `Ok` where the
+/// contract requires `Err`) fails here instead of passing as determinism.
+fn check_consistency(value_type: &TypeExpr, outcome: &TypeOutcome) {
+    let TypeOutcome::Checked {
+        check,
+        traits,
+        orderable,
+        hashable,
+        persistable,
+        ..
+    } = outcome
+    else {
+        // Environment construction vs judgment failure are distinct classes
+        // by construction of the outcome enum; nothing further to cohere.
+        return;
+    };
+    if orderable.is_ok() {
+        let judged = traits
+            .as_ref()
+            .expect("require_orderable passed while traits failed");
+        assert!(
+            judged.total_order,
+            "require_orderable passed for a non-orderable trait set"
+        );
+    }
+    if hashable.is_ok() {
+        let judged = traits
+            .as_ref()
+            .expect("require_hashable passed while traits failed");
+        assert!(
+            judged.canonical_hash,
+            "require_hashable passed for a non-hashable trait set"
+        );
+    }
+    if persistable.is_ok() {
+        let judged = traits
+            .as_ref()
+            .expect("require_persistable passed while traits failed");
+        assert!(
+            judged.persistable,
+            "require_persistable passed for a non-persistable trait set"
+        );
+    }
+    // `traits` re-checks closed well-formedness first, so a checked closed
+    // type must carry traits: the only legal `Err` there is a trait-level
+    // refusal, never a well-formedness code the check already cleared.
+    if check.is_ok() && is_closed(value_type) {
+        assert!(
+            traits.is_ok(),
+            "a checked closed type failed traits: {:?}",
+            traits.as_ref().err(),
+        );
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -79,7 +137,7 @@ fn observe(
         Ok(environment) => environment,
         Err(error) => return TypeOutcome::Environment(error.code()),
     };
-    TypeOutcome::Checked {
+    let checked = TypeOutcome::Checked {
         definition_ids: environment.definition_ids().collect(),
         check: error_code(environment.check_type(value_type, parameter_count)),
         traits: error_code(environment.traits(value_type)),
@@ -91,11 +149,63 @@ fn observe(
             arguments,
             parameter_count,
         )),
+    };
+    // Substitution preserves named-argument counts, so checked arguments of
+    // matching length substituted into a checked type cannot fail arity:
+    // the wrong neighboring code would be a conformance illusion.
+    if let TypeOutcome::Checked {
+        check: Ok(()),
+        instantiated,
+        ..
+    } = &checked
+    {
+        let arity_matches =
+            usize::try_from(parameter_count).unwrap_or(usize::MAX) == arguments.len();
+        let args_checked = arguments
+            .iter()
+            .all(|argument| environment.check_type(argument, parameter_count).is_ok());
+        if arity_matches && args_checked {
+            assert_ne!(
+                instantiated.as_ref().err(),
+                Some(&TypeErrorCode::ArgumentArity),
+                "checked substitution of matching length failed arity"
+            );
+        }
     }
+    checked
 }
 
 fn error_code<T>(result: Result<T, TypeError>) -> Result<T, TypeErrorCode> {
     result.map_err(|error| error.code())
+}
+
+/// A type with no free `TypeParameter` nodes: its judgment cannot depend on
+/// the caller parameter scope, so a passed check binds closed traits too.
+fn is_closed(value: &TypeExpr) -> bool {
+    match value {
+        TypeExpr::Unit
+        | TypeExpr::Bool
+        | TypeExpr::SInt(_)
+        | TypeExpr::UInt(_)
+        | TypeExpr::F32
+        | TypeExpr::F64
+        | TypeExpr::Bytes
+        | TypeExpr::Text
+        | TypeExpr::AdapterHandle(_)
+        | TypeExpr::CapabilityToken(_)
+        | TypeExpr::BuiltinFailure(_) => true,
+        TypeExpr::TypeParameter(_) => false,
+        TypeExpr::Tuple(values) => values.iter().all(is_closed),
+        TypeExpr::Named(named) => named.arguments.iter().all(is_closed),
+        TypeExpr::Vector(inner)
+        | TypeExpr::Option(inner)
+        | TypeExpr::LocalCell(inner) => is_closed(inner),
+        TypeExpr::OrderedMap { key, value } => is_closed(key) && is_closed(value),
+        TypeExpr::Result { ok, error } => is_closed(ok) && is_closed(error),
+        TypeExpr::FunctionRef(function) => {
+            function.parameters.iter().all(is_closed) && is_closed(&function.result)
+        }
+    }
 }
 
 fn generate_definition(

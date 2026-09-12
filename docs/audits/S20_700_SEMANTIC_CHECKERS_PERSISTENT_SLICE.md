@@ -108,3 +108,28 @@ gained engine-invariant asserts, must-reject refusals, narrowed Err
 arms, constructed-valid lanes, and a server-fixture validity gate with
 a unit-level negotiation self-check; filed regressions replay as corpus
 seeds. See the wave's decision packets for elevated owner items.
+
+## Target-closure wave (semantic-Err narrowing, operator-authorized redesign)
+
+Over-broad acceptance took the form accept-any-deterministic-code: both
+targets asserted only judgment equality, so any deterministic wrong code
+passed. The graph target now threads each applied mutation class out of
+`apply_mutation` and asserts the failure belongs to that class's
+narrowest contractually correct set (single mutation: the exact class
+set; several: their union, with the determinism assert pinning which
+class stably wins): inventory/owner/ordinal/duplication arms bind the
+`GRAPH_*` group plus `CFG_ENTRY_INVALID` where entry resolution is at
+stake; terminator/target/argument arms bind the `CFG_*` target group plus
+`CFG_RETURN_TYPE`/`CFG_VALUE_UNRESOLVED` where reachable; value-use arms
+bind `CFG_VALUE_UNRESOLVED`/`CFG_RESULT_INDEX`/`CFG_USE_BEFORE_DEFINITION`;
+duplication arms bind exactly `GRAPH_DUPLICATE_ENTITY`; result-type
+mutations bind the exact `TYPE_*` set. The type target adds
+cross-judgment coherence: orderable/hashable/persistable `Ok` requires
+the matching trait flag on a successful `traits` judgment; a checked
+closed type must carry traits; and checked arguments of matching length
+substituted into a checked type must never fail `TYPE_ARGUMENT_ARITY`.
+Sets widen only with a documented contract reason, never by fiat; a
+wrong-code control run (deliberately corrupted expectation) must fail.
+No change to `TypeErrorCode`/`CfgErrorCode` sets, check order, or
+release-profile behavior. Re-review queued as REQ-08 item 7; proofs bound
+to older source states are invalid.

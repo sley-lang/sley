@@ -31,6 +31,11 @@ for marker in [
     "environment.instantiate_in_scope(",
     "MAX_GENERATED_TYPE_NODES: usize = 512",
     "type-checker judgment was not deterministic",
+    "check_consistency(",
+    "require_orderable passed while traits failed",
+    "a checked closed type failed traits",
+    "checked substitution of matching length failed arity",
+    "fn is_closed(",
 ]:
     if marker not in type_target:
         problems.append(f"type-target-missing:{marker}")
@@ -44,6 +49,12 @@ for marker in [
     "MUTATION_COUNT: u8 = 33",
     "graph/CFG judgment was not deterministic",
     "a graph/CFG base template drifted invalid",
+    "failure_class(",
+    "expected_for(",
+    "expected_union(",
+    "escaped with unexpected failure class",
+    "GRAPH_DUPLICATE_ENTITY",
+    "CFG_ENTRY_INVALID",
 ]:
     if marker not in graph_target:
         problems.append(f"graph-target-missing:{marker}")

@@ -109,6 +109,10 @@ def main() -> int:
             "scope": TARGETS[name]["scope"],
             "corpus_count": corpus_counts[name],
             "corpus_path": str(TARGETS[name]["corpus"].relative_to(ROOT)),
+            # Initialized here because the minimize skip-list below reads it
+            # before the retest records are assigned; without this any crash
+            # artifact crashed the runner itself with a KeyError.
+            "retested_prior_crashes": [],
         }
 
     # Repair round 7 durable harness provenance (uniform across slices).
@@ -259,11 +263,15 @@ def main() -> int:
             for line in fuzz["warnings"]
             if line not in KNOWN_BENIGN_WARNINGS
         ]
+        # Crash gating distinguishes new crashes from retested priors
+        # (fixed priors pass with a recorded retest), uniform with the
+        # single-target lanes: only new artifacts or still-crashing priors
+        # fail the gate.
         if (
             fuzz["returncode"] != 0
             or evidence["targets"][name]["executed_runs"] < runs_floor
             or not evidence["targets"][name]["coverage_ok"]
-            or evidence["targets"][name]["crash_artifacts"]
+            or evidence["targets"][name]["new_crash_artifacts"]
             or evidence["targets"][name]["unexpected_warnings"]
             or any(
                 record.get("still_crashes", False)
@@ -275,7 +283,8 @@ def main() -> int:
                 f"{name}: executed {evidence['targets'][name]['executed_runs']} of "
                 f"floor {runs_floor} "
                 f"(coverage={evidence['targets'][name]['coverage']}, "
-                f"crashes={evidence['targets'][name]['crash_artifacts']}, "
+                f"new_crashes={evidence['targets'][name]['new_crash_artifacts']}, "
+                f"retested={[r['artifact'] for r in evidence['targets'][name]['retested_prior_crashes'] if r.get('still_crashes')]}, "
                 f"warnings={evidence['targets'][name]['unexpected_warnings']})"
             )
         failed = failed or evidence["targets"][name]["fuzz_result"] != "PASS"

@@ -4,6 +4,7 @@
 use core::slice;
 
 use sley_check::{TypeEnvironment, cfg::validate_function_graph};
+use sley_check::cfg::CfgValidationError;
 use sley_id::EntityId;
 use sley_ssmc::{
     Block, BranchTerminator, BuiltinCase, CaseKey, CondBranchTerminator, Immediate, IntegerWidth,
@@ -36,8 +37,9 @@ fn fuzz_one(input: &[u8]) {
     let mut cursor = Cursor::new(input);
     let mut graph = graph_template(cursor.byte() % TEMPLATE_COUNT);
     let mutation_count = cursor.bounded(MAX_MUTATIONS);
+    let mut applied: Vec<u8> = Vec::new();
     for _ in 0..mutation_count {
-        apply_mutation(&mut graph, &mut cursor);
+        applied.push(apply_mutation(&mut graph, &mut cursor));
     }
 
     let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
@@ -46,6 +48,33 @@ fn fuzz_one(input: &[u8]) {
     assert_eq!(first, second, "graph/CFG judgment was not deterministic");
     if mutation_count == 0 {
         assert!(first.is_ok(), "a graph/CFG base template drifted invalid");
+    } else if let Err(error) = &first {
+        // Failure-class narrowing: a mutated graph may still validate (a
+        // benign mutation), but when it fails the code must belong to the
+        // documented set of the applied mutation class. A single mutation
+        // pins its exact class set; several mutations pin their union while
+        // the determinism assert above pins which one stably wins. A wrong
+        // neighboring code fails here instead of passing silently.
+        let class = failure_class(error);
+        if applied.len() == 1 {
+            let expected = expected_for(applied[0]);
+            assert!(
+                expected.contains(&class.as_str()),
+                "mutation class {} escaped with unexpected failure class {} (expected one of {:?})",
+                applied[0],
+                class,
+                expected
+            );
+        } else {
+            let union = expected_union(&applied);
+            assert!(
+                union.contains(&class.as_str()),
+                "mutation classes {:?} escaped with unexpected failure class {} (expected one of {:?})",
+                applied,
+                class,
+                union
+            );
+        }
     }
 }
 
@@ -298,9 +327,10 @@ fn block_parameter(
     }
 }
 
-fn apply_mutation(graph: &mut GraphCase, cursor: &mut Cursor<'_>) {
+fn apply_mutation(graph: &mut GraphCase, cursor: &mut Cursor<'_>) -> u8 {
     let known_ids = graph.known_ids();
-    match cursor.byte() % MUTATION_COUNT {
+    let arm = cursor.byte() % MUTATION_COUNT;
+    match arm {
         0 => graph.function.entity_id = selected_id(&known_ids, cursor),
         1 => graph
             .function
@@ -459,6 +489,200 @@ fn apply_mutation(graph: &mut GraphCase, cursor: &mut Cursor<'_>) {
         }
         _ => unreachable!(),
     }
+    arm
+}
+
+/// The exact failure symbol of a validation error, across both phases.
+fn failure_class(error: &CfgValidationError) -> String {
+    match error {
+        CfgValidationError::Cfg(error) => error.code().as_str().to_string(),
+        CfgValidationError::Type(error) => error.code().as_str().to_string(),
+    }
+}
+
+/// Inventory, ownership, ordinal, and duplication failures: the earliest
+/// precedence group in `validate_function_graph` (declared/passed inventory
+/// before entry, targets, values, and dominance/reachability).
+const STRUCT: &[&str] = &[
+    "GRAPH_DUPLICATE_ENTITY",
+    "GRAPH_INVENTORY_MISMATCH",
+    "GRAPH_OWNER_MISMATCH",
+    "GRAPH_ORDINAL_MISMATCH",
+    "GRAPH_UNRESOLVED_REFERENCE",
+];
+
+/// Terminator, target, argument, and switch failures: the middle precedence
+/// group (entry and targets after inventory, before values and
+/// dominance/reachability).
+const TARGET: &[&str] = &[
+    "CFG_ENTRY_INVALID",
+    "CFG_TARGET_INVALID",
+    "CFG_TARGET_ARGUMENTS",
+    "CFG_BOOL_REQUIRED",
+    "CFG_SWITCH_TYPE",
+    "CFG_SWITCH_CASES",
+    "CFG_SWITCH_PAYLOAD",
+    "CFG_TRAP_PAYLOAD",
+];
+
+/// Value-use failures are the last precedence group (values and
+/// dominance/reachability after inventory and targets). They are spelled
+/// per arm below (`CFG_VALUE_UNRESOLVED`, `CFG_RESULT_INDEX`,
+/// `CFG_USE_BEFORE_DEFINITION`) so each class keeps its narrowest set
+/// instead of the whole group.
+
+/// Exact S20-210 type failures (no `InternalInvariant` exists in this
+/// family, so no swallowed-invariant class can hide here).
+const TYPE_CODES: &[&str] = &[
+    "TYPE_DEPTH_LIMIT",
+    "TYPE_WIDTH_INVALID",
+    "TYPE_PARAMETER_OUT_OF_SCOPE",
+    "TYPE_ARGUMENT_LIMIT",
+    "TYPE_ARGUMENT_ARITY",
+    "TYPE_DEFINITION_UNKNOWN",
+    "TYPE_DEFINITION_DUPLICATE",
+    "TYPE_DEFINITION_CYCLE",
+    "TYPE_MEMBER_DUPLICATE",
+    "TYPE_MEMBER_UNKNOWN",
+    "TYPE_SET_ORDER",
+    "TYPE_NOT_ORDERABLE",
+    "TYPE_NOT_HASHABLE",
+    "TYPE_NOT_PERSISTABLE",
+    "TYPE_CONST_SHAPE",
+    "TYPE_CONST_RANGE",
+    "TYPE_FLOAT_NON_CANONICAL",
+    "TYPE_CONST_DUPLICATE_KEY",
+    "TYPE_RESOURCE_LIMIT",
+    "TYPE_IMPLICIT_COERCION",
+    "TYPE_BUILTIN_FAILURE_INVALID",
+];
+
+/// The narrowest contractually correct failure set for one mutation class.
+/// A set that proves too narrow fails loudly here (never silently); a set
+/// may only widen with a documented contract reason, never by fiat.
+fn expected_for(arm: u8) -> Vec<&'static str> {
+    match arm {
+        0 => [STRUCT, &["CFG_ENTRY_INVALID"][..]].concat(),
+        // A pushed unknown id resolves as an unresolvable reference
+        // before the inventory comparison runs, and a pushed declared id
+        // duplicates (same precedence group throughout).
+        1 => vec![
+            "GRAPH_INVENTORY_MISMATCH",
+            "GRAPH_UNRESOLVED_REFERENCE",
+            "GRAPH_DUPLICATE_ENTITY",
+        ],
+        // Reversing a declared list re-maps ordinal positions (parameters)
+        // or index bindings (blocks, operations), so the ordinal class is
+        // reachable alongside inventory.
+        2 | 6 | 31 => vec!["GRAPH_INVENTORY_MISMATCH", "GRAPH_ORDINAL_MISMATCH"],
+        // A malformed replacement fails at `check_type` (TYPE_*); a
+        // well-formed one still mismatches the `Return` terminator value,
+        // which the terminator stage reports as CFG_RETURN_TYPE.
+        3 => [TYPE_CODES, &["CFG_RETURN_TYPE"][..]].concat(),
+        // An unknown entry is invalid; a valid non-entry block orphans
+        // the old required entry, which cascades to reachability.
+        4 => vec!["CFG_ENTRY_INVALID", "CFG_REACHABILITY"],
+        // Pushing an unknown id breaks the declared/passed inventory;
+        // pushing a declared one duplicates before the comparison runs.
+        5 => vec!["GRAPH_INVENTORY_MISMATCH", "GRAPH_DUPLICATE_ENTITY"],
+        7 | 8 => vec!["GRAPH_INVENTORY_MISMATCH"],
+        9 => STRUCT.to_vec(),
+        10 => vec!["GRAPH_OWNER_MISMATCH"],
+        11 => vec!["GRAPH_OWNER_MISMATCH", "GRAPH_INVENTORY_MISMATCH"],
+        12 => vec!["GRAPH_ORDINAL_MISMATCH"],
+        // A changed parameter type also breaks target-edge argument
+        // agreement downstream of the definition it belongs to.
+        13 => [
+            TYPE_CODES,
+            &[
+                "CFG_BOOL_REQUIRED",
+                "CFG_RETURN_TYPE",
+                "CFG_VALUE_UNRESOLVED",
+                "CFG_TARGET_ARGUMENTS",
+            ][..],
+        ]
+        .concat(),
+        14 => STRUCT.to_vec(),
+        15 => vec![
+            "CFG_ENTRY_INVALID",
+            "GRAPH_OWNER_MISMATCH",
+            "GRAPH_INVENTORY_MISMATCH",
+        ],
+        // A pushed foreign-owned parameter trips the owner check; an
+        // unknown one trips inventory or resolution; pushing a member
+        // that is already present duplicates.
+        16 | 17 => vec![
+            "GRAPH_INVENTORY_MISMATCH",
+            "GRAPH_UNRESOLVED_REFERENCE",
+            "GRAPH_OWNER_MISMATCH",
+            "GRAPH_DUPLICATE_ENTITY",
+        ],
+        // Flipping a body block trips reachability; flipping the entry
+        // block itself trips entry validity (an entry must be reachable).
+        18 => vec!["CFG_REACHABILITY", "CFG_ENTRY_INVALID"],
+        // A successor-dropping replacement (Return, Trap-shaped branch)
+        // orphans downstream required blocks, which cascade to
+        // CFG_REACHABILITY past the terminator check itself.
+        19 | 20 | 21 => [
+            TARGET,
+            &[
+                "CFG_RETURN_TYPE",
+                "CFG_VALUE_UNRESOLVED",
+                "CFG_REACHABILITY",
+            ][..],
+        ]
+        .concat(),
+        // A trap terminator has no successors, so required blocks
+        // reachable only through the replaced block cascade to
+        // CFG_REACHABILITY.
+        22 => vec![
+            "CFG_TRAP_PAYLOAD",
+            "CFG_VALUE_UNRESOLVED",
+            "CFG_REACHABILITY",
+        ],
+        23 => STRUCT.to_vec(),
+        // Rehoming an operation to a foreign block trips the owner
+        // check; an unknown block trips inventory or resolution.
+        24 => vec![
+            "GRAPH_INVENTORY_MISMATCH",
+            "GRAPH_UNRESOLVED_REFERENCE",
+            "GRAPH_OWNER_MISMATCH",
+        ],
+        25 => vec!["GRAPH_ORDINAL_MISMATCH"],
+        26 => vec![
+            "CFG_VALUE_UNRESOLVED",
+            "CFG_RESULT_INDEX",
+            "CFG_USE_BEFORE_DEFINITION",
+        ],
+        27 => vec!["CFG_RESULT_INDEX"],
+        28 | 29 | 30 => vec!["GRAPH_DUPLICATE_ENTITY"],
+        // A successor-dropping switch replacement orphans downstream
+        // required blocks exactly like the Return/Trap arms.
+        32 => vec![
+            "CFG_SWITCH_TYPE",
+            "CFG_SWITCH_CASES",
+            "CFG_SWITCH_PAYLOAD",
+            "CFG_VALUE_UNRESOLVED",
+            "CFG_TARGET_INVALID",
+            "CFG_TARGET_ARGUMENTS",
+            "CFG_REACHABILITY",
+        ],
+        _ => unreachable!(),
+    }
+}
+
+/// Deduplicated union of the applied classes' sets, preserving first-seen
+/// order so multi-mutation panics name a stable expectation.
+fn expected_union(applied: &[u8]) -> Vec<&'static str> {
+    let mut union: Vec<&'static str> = Vec::new();
+    for arm in applied {
+        for code in expected_for(*arm) {
+            if !union.contains(&code) {
+                union.push(code);
+            }
+        }
+    }
+    union
 }
 
 fn selected_mut<'a, T>(values: &'a mut [T], cursor: &mut Cursor<'_>) -> Option<&'a mut T> {
