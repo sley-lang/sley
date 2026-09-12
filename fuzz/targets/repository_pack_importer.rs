@@ -26,12 +26,16 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// `import_conformance_pack` contract performs no object-store writes.
 const PROMOTION_ERROR_SYMBOLS: [&str; 2] = ["STORE_IO", "STORE_OBJECT_SUBSTITUTION"];
 
-/// The exact contract symbol a resealed mutation must produce.
+/// The exact contract symbol a resealed mutation must produce. Claim flips
+/// can break the canonical entry order (checked structurally before
+/// closure/admission), so claim classes accept both the order failure and
+/// the downstream semantic failure; value flips keep ids ordered and bind
+/// exactly one class.
 enum ResealExpectation {
     /// Unmutated re-seal: the pack must import cleanly.
     Accept { roots: Vec<StateRoot> },
-    /// Mutated re-seal: import must fail with exactly this symbol.
-    Reject { symbol: &'static str },
+    /// Mutated re-seal: import must fail with exactly one of these symbols.
+    Reject { symbols: &'static [&'static str] },
 }
 
 #[unsafe(no_mangle)]
@@ -60,12 +64,18 @@ fn fuzz_one(input: &[u8]) {
         rewritten = with_rehashed_pack_trailer(payload);
         rewritten.as_slice()
     } else if selector % SELECTOR_COUNT == 2 {
-        let Some((bytes, expectation)) = with_resealed_content_mutation(payload) else {
-            return;
-        };
-        resealed = bytes;
-        reseal_expectation = Some(expectation);
-        resealed.as_slice()
+        match with_resealed_content_mutation(payload) {
+            Some((bytes, expectation)) => {
+                resealed = bytes;
+                reseal_expectation = Some(expectation);
+                resealed.as_slice()
+            }
+            // Undecodeable lane-2 inputs fall through to the direct lane
+            // instead of being dropped: every truncation, trailing-byte,
+            // and bit-flip seed still exercises the outer envelope oracle
+            // against the floor.
+            None => payload,
+        }
     } else {
         payload
     };
@@ -117,11 +127,12 @@ fn fuzz_one(input: &[u8]) {
             );
         }
         Err(error) => {
-            if let Some(ResealExpectation::Reject { symbol }) = reseal_expectation {
-                assert_eq!(
+            if let Some(ResealExpectation::Reject { symbols }) = reseal_expectation {
+                assert!(
+                    symbols.contains(&error.symbol()),
+                    "resealed component mutation escaped with the wrong failure class: got {}, expected one of {:?}",
                     error.symbol(),
-                    symbol,
-                    "resealed component mutation escaped with the wrong failure class"
+                    symbols
                 );
             } else if reseal_expectation.is_some() {
                 panic!("an unmutated resealed pack failed preflight");
@@ -147,16 +158,20 @@ fn with_rehashed_pack_trailer(input: &[u8]) -> Vec<u8> {
 /// Decodes the fixture pack, mutates one bound component selected by the
 /// input, and re-seals so the input passes step 2 (digest tree) and reaches
 /// the root/closure/object checks with attacker-controlled bytes.
-/// Returns `None` when the input cannot drive this lane (undecodeable bytes,
-/// too few control bytes, or an empty component family); the caller then
-/// exercises the direct lane instead.
+///
+/// The class/index/bit control bytes come FIRST and the pack bytes follow:
+/// reading controls from the pack slice itself would pin them to the
+/// envelope magic for every decodeable input and leave four of the five
+/// classes dead. Returns `None` when the remainder is not a decodeable
+/// pack (the caller falls through to the direct lane) or when the selected
+/// class has no drivable component.
 fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpectation)> {
-    let Ok((epochs, mut roots, mut objects)) =
-        decode_conformance_pack_entries_for_testing(input)
-    else {
+    let [class, index, bit, rest @ ..] = input else {
         return None;
     };
-    let [class, index, bit, ..] = input else {
+    let Ok((epochs, mut roots, mut objects)) =
+        decode_conformance_pack_entries_for_testing(rest)
+    else {
         return None;
     };
     let object_count = objects.len();
@@ -175,7 +190,7 @@ fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpect
             }
             flip_byte(&mut entry.stored_bytes, *index, *bit);
             ResealExpectation::Reject {
-                symbol: "PACK_OBJECT_CORRUPT",
+                symbols: &["PACK_OBJECT_CORRUPT"],
             }
         }
         // Mutated root bytes: step 2 passes and root admission must report
@@ -187,7 +202,7 @@ fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpect
             }
             flip_byte(&mut entry.stored_bytes, *index, *bit);
             ResealExpectation::Reject {
-                symbol: "PACK_ROOT_INVALID",
+                symbols: &["PACK_ROOT_INVALID"],
             }
         }
         // Mutated object-id claim: the closure check (step 4) runs before
@@ -198,7 +213,7 @@ fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpect
                 objects.get_mut((*index as usize) % object_count.max(1))?;
             entry.object_id = mutated_id(entry.object_id.into_bytes(), *index, *bit);
             ResealExpectation::Reject {
-                symbol: "PACK_OBJECT_MISSING",
+                symbols: &["PACK_OBJECT_MISSING", "PACK_CANONICAL_ORDER"],
             }
         }
         // Mutated state-root claim: the admitted root no longer matches, so
@@ -208,7 +223,7 @@ fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpect
                 roots.get_mut((*index as usize) % root_count.max(1))?;
             entry.state_root = mutated_root(entry.state_root.into_bytes(), *index, *bit);
             ResealExpectation::Reject {
-                symbol: "PACK_ROOT_INVALID",
+                symbols: &["PACK_ROOT_INVALID", "PACK_CANONICAL_ORDER"],
             }
         }
     };
@@ -218,6 +233,15 @@ fn with_resealed_content_mutation(input: &[u8]) -> Option<(Vec<u8>, ResealExpect
         return None;
     }
     let sealed = seal_mutated_conformance_pack_for_testing(epochs, roots, objects).ok()?;
+    if matches!(expectation, ResealExpectation::Accept { .. }) {
+        // The unmutated re-seal must round-trip byte-identically: the
+        // cheapest determinism bind available, and what makes "unmutated
+        // reseal imports cleanly" more than a restatement of the direct lane.
+        assert_eq!(
+            sealed.stored_bytes, rest,
+            "unmutated pack reseal is not byte-identical"
+        );
+    }
     Some((sealed.stored_bytes.clone(), expectation))
 }
 
