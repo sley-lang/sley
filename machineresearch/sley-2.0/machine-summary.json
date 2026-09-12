@@ -2710,13 +2710,9 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "56ef0c6b886e4b1189dcaa0c61224421fe2029f0",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "df295d86a080a7332f627a685498ef1355076812",
+      "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
-        "M fuzz/targets/ssmc_graph_cfg_checker.rs",
-        " M machineresearch/sley-2.0/machine-summary.json",
-        " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
-        " M scripts/run_semantic_checkers_persistent_fuzz.py",
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
         "?? evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review-c7fec98.md",
@@ -2727,23 +2723,23 @@
         "type-checker": 385
       },
       "executed_runs": {
-        "graph-cfg": 945,
-        "type-checker": 945
+        "graph-cfg": 949,
+        "type-checker": 949
       },
       "coverage": {
         "graph-cfg": {
           "counters": 6485,
-          "ft_done": 3879,
-          "ft_inited": 3762,
+          "ft_done": 3919,
+          "ft_inited": 3879,
           "new_events": true,
-          "seed": 1589850009
+          "seed": 1615212316
         },
         "type-checker": {
           "counters": 3929,
-          "ft_done": 5942,
-          "ft_inited": 5935,
+          "ft_done": 6020,
+          "ft_inited": 5942,
           "new_events": true,
-          "seed": 1589742226
+          "seed": 1615103066
         }
       },
       "new_crash_artifacts": [],
@@ -2763,7 +2759,7 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_note": "Round-4 repair LANDED (uncommitted): oracle rescoped per reviewer option (ii) \u2014 exact per-arm sets for single mutations (arm-22 DOMINANCE restored with corrected reason; UV removed from six single sets as unreachable-under-one by derivation), multi branch asserts determinism + CODE_UNIVERSE membership (checker pins universe vs engine as_str + every set entry vs universe); 5 falsifying inputs pinned as seed-0008..0012 (405 seeds). last_local_proof refreshed to the round-4 PASS (945/945 both targets, override lane). VS-R3-004 refuted on disk. Fix awaits re-review; obligation stays REVISE."
+    "vulcan_review_note": "Round-4 repair COMMITTED as df295d8; clean-commit re-proof PASS 949/949 both targets (override lane; VS-R3-003 closed by construction \u2014 tracked files clean at proof time, only retained slices + to-be-filed transcripts untracked). last_local_proof binds df295d8. Round-4 Err re-review dispatched; obligation stays REVISE until independent PASS."
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
