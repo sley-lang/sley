@@ -2853,7 +2853,7 @@
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
     "validated_execution_input_hashes_asserted": true,
     "observation_id_rederived": true,
-    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_5_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2870,23 +2870,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "fd3293f116b6cc174e382b392bcf4b6c9ad3d31c",
+      "source_commit": "8de4d130dec517d14b2d496192370340ccfa61e7",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
-      "corpus_count": 788,
-      "corpus_file_count": 829,
+      "corpus_count": 789,
+      "corpus_file_count": 879,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
         "counters": 18753,
-        "ft_done": 10353,
-        "ft_inited": 10191,
+        "ft_done": 10493,
+        "ft_inited": 10411,
         "new_events": true,
-        "seed": 4051216119
+        "seed": 387953947
       },
       "coverage_ok": true,
       "crash_artifacts": [
@@ -2906,6 +2906,11 @@
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
+      "toolchain_versions": {
+        "cc": "clang version 22.1.8",
+        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
+      },
+      "toolchain_overridden": true,
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
@@ -2915,7 +2920,8 @@
       103,
       104
     ],
-    "vm_repair_note": "VM repairs COMMITTED as fd3293f; clean-commit re-proof PASS 1576/1576 (override lane; proof predates-runner + uninspectable-host issues closed by construction). last_local_proof binds fd3293f. Fresh review queued; obligation stays REVISE until independent PASS."
+    "vm_repair_note": "VM repairs COMMITTED as fd3293f; clean-commit re-proof PASS 1576/1576 (override lane; proof predates-runner + uninspectable-host issues closed by construction). last_local_proof binds fd3293f. Fresh review queued; obligation stays REVISE until independent PASS.",
+    "vulcan_review_note": "Qualifying re-review at a554a14 (transcript vulcan_review-fd3293f.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_0_P3_5_P4. P1 closed (Success-termination soundness traced per budget/fixture); raw-lane precedence exact; two-layer float refusal exact; records verified; b55c33e9 disposed as harness error; proof binds fd3293f clean. Post-verdict P4 follow-ups applied: per-lane checker pins, proof ancestry check, ff ff 02 tracked seed (789) + original hex recorded, E7a binding hygiene, codec-arm audit wording. Fresh clean PASS proof 1576/1576 (override lane). Transcription now carries toolchain_versions + overridden (P4-2). Obligation PASS."
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",

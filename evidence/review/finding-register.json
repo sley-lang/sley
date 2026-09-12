@@ -3215,17 +3215,15 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_5_P4",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
       "reviewer": "vulcan",
       "section": "s20_700_vm_persistent_fuzz_slice",
       "severities": [
-        "P2",
-        "P3",
         "P4"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -4045,7 +4043,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "5995de8c6d8a92cf5c24d4f0d73a29ba117f775c8140c19ec3f2818cee1b69b5",
+  "obligations_digest": "95e8ac89b7d9eb07ce20cb280242ae678aac19e1aa141af2cc4e87bd7e165983",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4690,16 +4688,6 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
-      "field": "vulcan_review",
-      "section": "s20_700_vm_persistent_fuzz_slice",
-      "severities": [
-        "P2",
-        "P3",
-        "P4"
-      ]
-    },
-    {
       "disposition": "REVISE_0_P0_0_P1_4_P2_2_P3",
       "field": "final_argus_disposition",
       "section": "s20_710_pre_release_audit",
@@ -5022,21 +5010,21 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "c88142f8f48f2c7b3a9449c0db8a079548969d295492724352d551ee9e1437e7",
+  "register_digest": "24fb33359c367c45fecbd806086d392f18dfd0d4083b6632573002de48bed863",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
     "P1": 108,
-    "P2": 120,
-    "P3": 136,
+    "P2": 119,
+    "P3": 135,
     "P4": 15
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 30,
     "OTHER": 3,
-    "PASS": 158,
-    "PENDING": 93
+    "PASS": 159,
+    "PENDING": 92
   },
   "superseded_rounds": [
     {

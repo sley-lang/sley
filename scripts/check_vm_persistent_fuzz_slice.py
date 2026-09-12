@@ -177,7 +177,7 @@ expected = {
     "max_raw_inputs": 4,
     "max_collection_items": 4,
     "max_payload_bytes": 32,
-    "generated_seed_count": 788,
+    "generated_seed_count": 789,
 }
 for key, value in expected.items():
     if slice_status.get(key) != value:
