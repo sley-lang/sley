@@ -106,23 +106,33 @@ seeds. See the wave's decision packets for elevated owner items.
 ## Target-closure wave (rehash-lane repair, operator-authorized redesign)
 
 The outer-trailer rehash lane is joined by a resealed-content-mutation
-lane (selector 2 of 3): two test-only `sley-repo` helpers
-(`decode_conformance_pack_entries_for_testing`,
-`seal_mutated_conformance_pack_for_testing`) reuse `decode_envelope` /
-`decode_payload` / `build_pack` verbatim, so a mutated pack passes step 2
+lane (selector 2 of 3): two test-only-by-convention public `sley-repo`
+helpers (`decode_conformance_pack_entries_for_testing`,
+`seal_mutated_conformance_pack_for_testing`; `export_conformance_pack`
+itself unchanged) reuse `decode_envelope` / `decode_payload` /
+`build_pack` verbatim, so a mutated pack passes step 2
 (digest tree) and reaches the root/closure/object checks with
-attacker-controlled bytes. Five input-selected classes bind the exact
+attacker-controlled bytes. The lane reads class/index/bit control bytes
+first and decodes the remaining pack bytes (controls placed after the
+selector, matching the runner's seed layout); undecodeable lane-2 inputs
+fall through to the direct lane. Five input-selected classes bind the
 contract failure per bound component: unmutated re-seal must import
-cleanly with pack-id and root-claim binds plus idempotence; mutated
-object bytes must fail `PACK_OBJECT_CORRUPT`; mutated object-id claims
-must fail `PACK_OBJECT_MISSING` (closure step 4 precedes per-object
-verification step 5; missing is checked before unexpected); mutated
-root bytes or state-root claims must fail `PACK_ROOT_INVALID`. The
-`Err(_)` no-store assertion now exempts only the step-6 promotion symbols
+cleanly with pack-id and root-claim binds, byte-identical round-trip,
+plus idempotence; mutated object bytes must fail `PACK_OBJECT_CORRUPT`;
+mutated object-id claims must fail `PACK_OBJECT_MISSING`, or
+`PACK_CANONICAL_ORDER` where the flip breaks entry ordering (order is
+checked structurally before closure); mutated root bytes must fail
+`PACK_ROOT_INVALID`; mutated state-root claims must fail
+`PACK_ROOT_INVALID`, or `PACK_CANONICAL_ORDER` likewise. All five
+classes are proven reachable: the five control seeds (one per class
+over the canonical pack) each execute clean through the proof binary.
+The `Err(_)` no-store assertion now exempts only the step-6 promotion symbols
 (`STORE_IO`, `STORE_OBJECT_SUBSTITUTION`); every preflight rejection still
 asserts no store writes. Twenty control seeds (5 classes x 2 positions x
 2 bits over the canonical pack) join the corpus; generated seeds
 320 -> 500, `SELECTOR_COUNT` 2 -> 3. No change to `verify_digest_tree`,
-error codes, step order, validating paths, or the export surface.
-Re-review queued as REQ-08 item 4; proofs bound to older source states
-are invalid.
+error codes, step order, validating paths, or `export_conformance_pack`.
+The retained smoke artifact was a harness-oracle expectation error
+(wrong class assumed for a claim flip), never an engine defect; it
+retests clean. Re-review of the c7fec98 fix is queued; proofs bound to
+older source states are invalid.

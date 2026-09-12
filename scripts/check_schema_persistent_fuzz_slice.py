@@ -112,8 +112,13 @@ if slice_status.get("generated_seed_count") != 259:
 if slice_status.get("seed_source") != "conformance/schema-epoch/v1/bootstrap.json":
     problems.append("machine-summary-seed-source-drift")
 # The review lane is restored: the field must carry a filed disposition
-# (PASS/REVISE/FAIL with severity counts), never a lane-state token.
-if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REVISE", "FAIL"):
+# (PASS/REVISE/FAIL with severity counts), never a lane-state token. A
+# final-round filing supersedes the round-1 key (now revision-marked), so
+# the final disposition is authoritative when present.
+_current_review = str(
+    slice_status.get("vulcan_final_review", slice_status.get("vulcan_review", ""))
+)
+if _current_review.split("_")[0] not in ("PASS", "REVISE", "FAIL"):
     problems.append("machine-summary-vulcan-review-drift")
 
 for path, marker in [

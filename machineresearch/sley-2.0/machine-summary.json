@@ -1987,7 +1987,7 @@
   },
   "s20_700_schema_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
-    "vulcan_review_note": "Records note at ba10c41 (target-closure wave, no verdict change): the round-1 vulcan_review REVISE row stays PENDING under the register builder rules until the reviewing lane files a final-round PASS; the vulcan_review_revision_2 PASS transcript (vulcan_review-6b12d67.md) stands and the operator REQ-06 tally counts this slice PASS. No PENDING row was closed by this note.",
+    "vulcan_review_note": "Final-round review at 9d608c4 (transcript vulcan_review-9d608c4.md, verdict block FIELD vulcan_review, ROUND final): folds round-1 REVISE (now keyed vulcan_review_revision_1, superseded), round-2 REVISE, and revision-2 PASS. All prior transcripts preserved; no PENDING row closed without qualifying review.",
     "target": "fuzz/targets/schema_bootstrap_decoder.rs",
     "runner": "scripts/run_schema_persistent_fuzz.py",
     "checker": "scripts/check_schema_persistent_fuzz_slice.py",
@@ -2000,7 +2000,7 @@
     "runtime_evidence": "evidence/runtime/s20-700-schema-bootstrap-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_schema_persistent_fuzz.py --manual",
     "registry_dispatch_covered": false,
-    "vulcan_review": "REVISE_0_P0_2_P1_5_P2_3_P3",
+    "vulcan_review_revision_1": "REVISE_0_P0_2_P1_5_P2_3_P3",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2042,7 +2042,8 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3"
+    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
+    "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4"
   },
   "s20_700_pack_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_170_PACK_IMPORTER_ONLY",
@@ -2062,7 +2063,7 @@
     "outer_trailer_rehash_lane": true,
     "failed_preflight_object_writes": 0,
     "full_s20_540_profile_covered": false,
-    "vulcan_review": "PASS_0_P0_0_P1_1_P2_ACCEPTED_NEXT_WAVE_3_P3_6_P4",
+    "vulcan_review": "REVISE_0_P0_1_P1_0_P2_3_P3_5_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2111,7 +2112,8 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "vulcan_review_note": "REQ-08 item 4 verdict at 9d608c4 (transcript vulcan_review-9d608c4.md): lane-2 control bytes pinned by the magic precondition left classes 0/1/2/4 dead (P1). Fixed in c7fec98 (controls first, direct fall-through, claim-order sets, class-0 round-trip bind); fresh PASS proof at c7fec98 with all five classes executed clean. Fix awaits re-review; obligation stays REVISE. Crash history: retained artifacts were harness-oracle errors, never engine defects."
   },
   "s20_700_exchange_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_540_EXCHANGE_IMPORTER_ONLY",
@@ -2698,7 +2700,7 @@
     "closed_harness_finding_ids": [
       "S20-700-HARNESS-001"
     ],
-    "vulcan_review": "PASS_0_P0_0_P1_0_P2_6_P3_5_P4",
+    "vulcan_review": "REVISE_0_P0_1_P1_2_P2_2_P3_1_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2777,11 +2779,12 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "vulcan_review_note": "REQ-08 item 7 verdict at 9d608c4 (transcript vulcan_review-9d608c4.md): three review-derived correct codes were missing from single-mutation sets (P1). Fixed in 16a095e (sets + 3 regression seeds + record fixes); fresh PASS proof at 9d608c4-post with wrong-code control durably recorded. Fix awaits re-review; obligation stays REVISE."
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
-    "vulcan_review_note": "Records note at ba10c41 (target-closure wave, no verdict change): the round-1 vulcan_review REVISE row stays PENDING under the register builder rules until the reviewing lane files a final-round PASS; the vulcan_review_revision_2 PASS transcript (vulcan_review-6b12d67.md) stands and the operator REQ-06 tally counts this slice PASS. No PENDING row was closed by this note.",
+    "vulcan_review_note": "Final-round review at 9d608c4 (transcript vulcan_review-9d608c4.md, verdict block FIELD vulcan_review, ROUND final): folds round-1 REVISE (now keyed vulcan_review_revision_1, superseded), round-2 REVISE, and revision-2 PASS. All prior transcripts preserved; no PENDING row closed without qualifying review.",
     "target": "fuzz/targets/restricted_query_request.rs",
     "runner": "scripts/run_query_persistent_fuzz.py",
     "checker": "scripts/check_query_persistent_fuzz_slice.py",
@@ -2799,7 +2802,7 @@
     "manual_command": "python3 scripts/run_query_persistent_fuzz.py --manual",
     "alternate_snapshot_binding_asserted": true,
     "full_root_backed_query_classes_covered": false,
-    "vulcan_review": "REVISE_0_P0_1_P1_3_P2_5_P3",
+    "vulcan_review_revision_1": "REVISE_0_P0_1_P1_3_P2_5_P3",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2841,7 +2844,8 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3"
+    "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
+    "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3"
   },
   "s20_700_vm_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
@@ -2871,7 +2875,7 @@
     "manual_command": "python3 scripts/run_vm_persistent_fuzz.py --manual",
     "validated_execution_input_hashes_asserted": true,
     "observation_id_rederived": true,
-    "vulcan_review": "PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW",
+    "vulcan_review": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -3486,7 +3490,7 @@
     "checker": "scripts/check_legacy_runner.py",
     "smoke_target": "make legacy-runner-smoke",
     "tests": "bench/legacy/tests/test_runner.py",
-    "legacy_adapter_contract_review": "PENDING_RECLASSIFIED_FROM_REQ06_ITEM10_AWAITING_CORRECT_LANE_REVIEW",
+    "legacy_adapter_contract_review": "REVISE_0_P0_0_P1_2_P2_3_P3",
     "reclassification": "evidence/review/reclassification/s20-600-item10.md"
   },
   "s20_610_offline_raw_runner": {

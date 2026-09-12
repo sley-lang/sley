@@ -123,8 +123,13 @@ for key, value in expected.items():
     if slice_status.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
 # The review lane is restored: the field must carry a filed disposition
-# (PASS/REVISE/FAIL with severity counts), never a lane-state token.
-if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REVISE", "FAIL"):
+# (PASS/REVISE/FAIL with severity counts), never a lane-state token. A
+# final-round filing supersedes the round-1 key (now revision-marked), so
+# the final disposition is authoritative when present.
+_current_review = str(
+    slice_status.get("vulcan_final_review", slice_status.get("vulcan_review", ""))
+)
+if _current_review.split("_")[0] not in ("PASS", "REVISE", "FAIL"):
     problems.append("machine-summary-vulcan-review-drift")
 
 for path, marker in [

@@ -56,3 +56,32 @@ transcripts preserved. No verdict advances without a qualifying review.
 Items 4–7 dispatched only from the post-implementation SHA with regenerated
 proofs; proofs bound to older source states are invalid and must not be
 re-filed.
+
+## Filings at 9d608c4 (append-only)
+
+- Item 1 (SMP1): filed earlier as `vulcan_review-432b535.md`
+  (PASS_0_P0_0_P1_0_P2_3_P3_3_P4); obligation PASS.
+- Item 2 (legacy): `s20_600_frozen_legacy_adapter/vulcan_review-9d608c4.md`
+  (REVISE_0_P0_0_P1_2_P2_3_P3); correct-lane repair list filed; the prior
+  fuzz REVISE stays untouched as provenance.
+- Item 3 (VM): `s20_700_vm_persistent_fuzz_slice/vulcan_review-9d608c4.md`
+  (REVISE_0_P0_0_P1_1_P2_4_P3_4_P4, new verdicts dir); machine-summary and
+  the `:162` checker pin updated in the same commit; the `load_image`
+  coverage gap escalated to the RW-070 owner, outside this obligation.
+- Item 4 (pack): `s20_700_pack_persistent_fuzz_slice/vulcan_review-9d608c4.md`
+  (REVISE_0_P0_1_P1_0_P2_3_P3_5_P4, scopes pre-fix); the P1 is fixed in
+  c7fec98 with a fresh PASS proof and per-class execution; fix awaits
+  re-review, obligation stays REVISE.
+- Item 5 (query): `s20_700_query_persistent_fuzz_slice/vulcan_review-9d608c4.md`
+  (PASS_0_P0_0_P1_0_P2_2_P3, ROUND final); round-1 key renamed to
+  `vulcan_review_revision_1` so the builder folds it HISTORICAL with
+  `superseded_by: vulcan_final_review`; revision-2 PASS stands; query
+  and schema checkers now read the final disposition when present.
+- Item 6 (schema): `s20_700_schema_persistent_fuzz_slice/vulcan_review-9d608c4.md`
+  (PASS_0_P0_0_P1_0_P2_4_P3_3_P4, ROUND final); same rename-and-fold pattern.
+- Item 7 (Err): `s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-9d608c4.md`
+  (REVISE_0_P0_1_P1_2_P2_2_P3_1_P4, scopes pre-fix); second repair round
+  in 16a095e with fresh PASS proof and durable control record; fix
+  awaits re-review, obligation stays REVISE.
+
+Register: 284 obligations, 154 PASS / 97 PENDING / 30 HISTORICAL / 3 OTHER.
