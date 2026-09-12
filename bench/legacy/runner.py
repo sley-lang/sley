@@ -36,6 +36,9 @@ DEFAULT_ARTIFACT_PATH = Path(
     "/home/greyforge/archive/sley/1.2.0/sley-1.2.0-linux-x86_64.tar.gz"
 )
 VERSION_ARGUMENTS = ("--version",)
+# Post-kill pipe-drain grace: after SIGKILL the drain loop abandons pipes
+# still held open by an escaped grandchild instead of spinning forever.
+DRAIN_GRACE_SECONDS = 5.0
 SMOKE_CONTRACT = "sley2.legacy-version-smoke.v1"
 VERIFICATION_CONTRACT = "sley2.legacy-artifact-verification.v1"
 EVIDENCE_SCOPE = "VERIFIED_FROZEN_ARTIFACT_VERSION_SMOKE_ONLY"
@@ -750,10 +753,18 @@ def _extract_verified_archive(
 
     if seen_files != set(expected_files) or seen_directories != expected_directories:
         _fail(LegacyErrorCode.STAGING_FAILED, "incomplete extraction")
-    for path, mode in file_modes.items():
-        os.chmod(path, mode)
-    for path in sorted(directories, key=lambda item: len(item.parts), reverse=True):
-        os.chmod(path, 0o555)
+    # Mode hardening is staging work: a raw OSError here (ENOSPC, EPERM)
+    # must reach the evidence path as STAGING_FAILED, never as a bare
+    # traceback past run_version_smoke's LegacyRunnerError translation.
+    try:
+        for path, mode in file_modes.items():
+            os.chmod(path, mode)
+        for path in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+            os.chmod(path, 0o555)
+    except OSError as error:
+        raise LegacyRunnerError(
+            LegacyErrorCode.STAGING_FAILED, f"mode hardening: {error}"
+        ) from error
     root = stage_parent / contract.top_level_directory
     if not root.is_dir():
         _fail(LegacyErrorCode.STAGING_FAILED, "stage root missing")
@@ -767,15 +778,30 @@ def staged_frozen_artifact(
 ) -> Iterator[LegacyStage]:
     """Yield a private verified mode-hardened stage, then remove it completely."""
 
-    with tempfile.TemporaryDirectory(prefix="sley2-legacy-stage-") as temporary:
-        temporary_root = Path(temporary)
+    # Stage setup is staging work: TemporaryDirectory creation and the
+    # scratch mkdirs translate OSError to STAGING_FAILED so every attempt
+    # reaches run_version_smoke's evidence path. Cleanup is explicit so a
+    # setup failure never leaks the temporary directory.
+    try:
+        temporary = tempfile.TemporaryDirectory(prefix="sley2-legacy-stage-")
+    except OSError as error:
+        raise LegacyRunnerError(
+            LegacyErrorCode.STAGING_FAILED, f"stage setup: {error}"
+        ) from error
+    try:
+        temporary_root = Path(temporary.name)
         private_archive = temporary_root / "frozen-artifact.tar.gz"
         stage_parent = temporary_root / "stage"
         scratch = temporary_root / "scratch"
-        stage_parent.mkdir(mode=0o700)
-        scratch.mkdir(mode=0o700)
-        (scratch / "home").mkdir(mode=0o700)
-        (scratch / "tmp").mkdir(mode=0o700)
+        try:
+            stage_parent.mkdir(mode=0o700)
+            scratch.mkdir(mode=0o700)
+            (scratch / "home").mkdir(mode=0o700)
+            (scratch / "tmp").mkdir(mode=0o700)
+        except OSError as error:
+            raise LegacyRunnerError(
+                LegacyErrorCode.STAGING_FAILED, f"stage setup: {error}"
+            ) from error
         _copy_pinned_artifact(Path(artifact_path), private_archive, contract)
         verified_private = verify_frozen_artifact(private_archive, contract)
         verified = VerifiedLegacyArtifact(
@@ -797,6 +823,8 @@ def staged_frozen_artifact(
             private_archive, stage_parent, verified, contract
         )
         yield LegacyStage(stage_root, scratch, verified)
+    finally:
+        temporary.cleanup()
 
 
 def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
@@ -862,6 +890,15 @@ def _bounded_command(
     selector = selectors.DefaultSelector()
     streams: dict[int, tuple[str, Any]] = {}
     deadline = started_monotonic + timeout_seconds
+    # Post-kill drain bound: after the group kill the loop below must not
+    # spin forever on pipes held open by an escaped (setsid) grandchild.
+    # The drain gets a short grace after the first kill, then the pipes
+    # are abandoned (closed here; the grandchild keeps only its own ends)
+    # and the attempt proceeds to reap/classify. A child that closed its
+    # fds but keeps running exits the loop on EOF and is reaped against
+    # the remaining deadline below, so it is classified by what actually
+    # happened (timeout past the deadline) rather than as a spawn failure.
+    drain_deadline: float | None = None
     try:
         process = subprocess.Popen(
             argv,
@@ -886,6 +923,17 @@ def _bounded_command(
             if termination_reason is None and now >= deadline:
                 termination_reason = "timeout"
                 _kill_process_group(process)
+            if termination_reason is not None and drain_deadline is None:
+                drain_deadline = now + DRAIN_GRACE_SECONDS
+            if drain_deadline is not None and now >= drain_deadline:
+                _kill_process_group(process)
+                for _, stream in streams.values():
+                    with contextlib.suppress(Exception):
+                        stream.close()
+                    with contextlib.suppress(Exception):
+                        selector.unregister(stream)
+                streams.clear()
+                break
             events = selector.select(timeout=max(0.0, min(0.05, deadline - now)))
             if not events and process.poll() is not None:
                 events = [
@@ -918,7 +966,24 @@ def _bounded_command(
                 ):
                     termination_reason = "output_limit"
                     _kill_process_group(process)
-        return_code = process.wait(timeout=1)
+        # Reap against the remaining deadline: a child that drained its
+        # pipes (EOF) but keeps running is waited out, not misclassified.
+        # Past the deadline the kill has already fired, so reap briefly.
+        if termination_reason is None:
+            remaining = max(0.0, deadline - time.monotonic())
+        else:
+            remaining = 1.0
+        return_code: int | None = None
+        try:
+            return_code = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            if termination_reason is None:
+                termination_reason = "timeout"
+            _kill_process_group(process)
+            with contextlib.suppress(Exception):
+                return_code = process.wait(timeout=1)
+            if return_code is None:
+                return_code = process.returncode
     except LegacyRunnerError:
         if process is not None:
             _kill_process_group(process)

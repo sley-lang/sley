@@ -3474,7 +3474,9 @@
     "smoke_target": "make legacy-runner-smoke",
     "tests": "bench/legacy/tests/test_runner.py",
     "legacy_adapter_contract_review": "REVISE_0_P0_0_P1_2_P2_3_P3",
-    "reclassification": "evidence/review/reclassification/s20-600-item10.md"
+    "reclassification": "evidence/review/reclassification/s20-600-item10.md",
+    "retained_timeout_evidence_scope": "host-local create-only records under evidence/runtime/s20-600-legacy-smoke/ (gitignored); reproducible on any host holding the pinned artifact via a short --timeout-seconds smoke, plus the default-90s success; not reproducible from the tree; no digest index tracked. See ADR-0018.",
+    "legacy_adapter_repair_note": "Repair wave (uncommitted): 15 synthetic tests added (all 15 codes produced with symbol asserts; contamination paths; 5 ceilings; drain/wait/evidence-path behavior pins verified to fail pre-fix); drain bounded by DRAIN_GRACE_SECONDS with reap-against-deadline classification; chmod/mkdir/tempdir wrapped to STAGING_FAILED; checker upgraded (derived code/test counts, contract-spectregister reconciliation, BLOCKED on ARTIFACT_MISSING, evidence-dir read); local timeout record retained (2s smoke -> LEGACY_COMMAND_TIMEOUT); ADR-0018 + register scope amended to host-local. Fresh correct-lane review queued."
   },
   "s20_610_offline_raw_runner": {
     "status": "IMPLEMENTED_OFFLINE_UNVERIFIED_CLAIM_CHAIN_ONLY",

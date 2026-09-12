@@ -22,6 +22,13 @@ checkout and does not import legacy source or semantics into the Sley 2 kernel.
   smoke mechanics.
 - Two 10-second timeouts, one 30-second timeout, and a successful longer smoke
   are retained as runtime evidence; the slow legacy startup is not hidden.
+  Retained smoke records are host-local create-only files under the ignored
+  `evidence/runtime/s20-600-legacy-smoke/` directory: they are reproducible
+  on any host holding the pinned artifact (rerun the smoke with a short
+  `--timeout-seconds` for a timeout record, the default 90 s for success),
+  but they are not reproducible from the tree alone and no digest index of
+  them is tracked. The register's retained-evidence claim is therefore a
+  host-local claim, not a tree claim.
 - The stage is mode-hardened but not mounted read-only. That is sufficient only
   for the exact trusted version command, not trial containment.
 - The routine quick gate verifies artifact bytes and adversarial synthetic
