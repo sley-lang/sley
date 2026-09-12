@@ -2060,8 +2060,8 @@ fn candidate_result_from_candidate(error: CandidateError) -> CandidateValidation
 #[cfg(test)]
 mod tests {
     use sley_id::{
-        CandidateNonce, ObjectId, PrincipalId, ReferenceAdapterId, StateRoot, TransactionId,
-        ValueHash, WorkspaceId,
+        CandidateNonce, ObjectId, PolicyRootId, PrincipalId, ReferenceAdapterId, SchemaEpochId,
+        StateRoot, TransactionId, ValueHash, WorkspaceId,
     };
     use sley_mutate::{
         BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObjectRecord,
@@ -2120,6 +2120,19 @@ mod tests {
             protect_base: bool,
             required_contract: Option<EntityId>,
         ) -> Self {
+            Self::with_policy_options_and_tests(allow_create, protect_base, required_contract, &[])
+        }
+
+        #[allow(
+            clippy::too_many_lines,
+            reason = "fixture constructor threads policy/state/candidate together; splitting hides the shared bindings"
+        )]
+        fn with_policy_options_and_tests(
+            allow_create: bool,
+            protect_base: bool,
+            required_contract: Option<EntityId>,
+            required_tests: &[EntityId],
+        ) -> Self {
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
             let transaction_id = fixed(3, TransactionId::from_bytes);
@@ -2139,6 +2152,9 @@ mod tests {
             }
             if let Some(required_contract) = required_contract {
                 policy = policy.required_contract(required_contract);
+            }
+            for required in required_tests {
+                policy = policy.required_test(*required);
             }
             let policy = policy.build(&policy_registry().unwrap()).unwrap();
 
@@ -2479,8 +2495,186 @@ mod tests {
     }
 
     #[test]
-    fn stale_root_and_exact_entity_preimage_are_distinct() {
+    fn stale_phase_three_bindings_are_refused_with_their_owned_symbols() {
         let fixture = Fixture::valid();
+
+        let mut transaction_record = fixture.candidate.record.clone();
+        transaction_record.base_transaction_id = fixed(91, TransactionId::from_bytes);
+        let transaction = build_candidate(&transaction_record).unwrap();
+        let output =
+            validate_candidate_bytes(&fixture.context(), &transaction.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::StaleRoot,
+            3,
+            "CANDIDATE_BASE_TRANSACTION_MISMATCH",
+        );
+
+        let mut workspace_record = fixture.candidate.record.clone();
+        // The workspace threads into derived create targets, so the
+        // operation and its precondition move with it; build then
+        // succeeds and phase 3 sees the disagreement with the base state.
+        let workspace_id = fixed(92, WorkspaceId::from_bytes);
+        let nonce = fixed(30, CandidateNonce::from_bytes);
+        let moved = EntityId::derive(workspace_id, nonce, 3, 0);
+        workspace_record.workspace_id = workspace_id;
+        workspace_record.operations[0].target_entity = moved;
+        if let PreconditionPayload::ExpectedIdentityAbsent(expected) =
+            &mut workspace_record.preconditions[0].payload
+        {
+            expected.entity_id = moved;
+        }
+        let workspace = build_candidate(&workspace_record).unwrap();
+        let output =
+            validate_candidate_bytes(&fixture.context(), &workspace.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::StaleRoot,
+            3,
+            "CANDIDATE_WORKSPACE_MISMATCH",
+        );
+
+        let mut epoch_record = fixture.candidate.record.clone();
+        epoch_record.schema_epoch_id = fixed(93, SchemaEpochId::from_bytes);
+        let epoch = build_candidate(&epoch_record).unwrap();
+        let output =
+            validate_candidate_bytes(&fixture.context(), &epoch.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::StaleRoot,
+            3,
+            "CANDIDATE_SCHEMA_EPOCH_MISMATCH",
+        );
+
+        let mut policy_record = fixture.candidate.record.clone();
+        policy_record.policy_root_id = fixed(94, PolicyRootId::from_bytes);
+        let policy = build_candidate(&policy_record).unwrap();
+        let output =
+            validate_candidate_bytes(&fixture.context(), &policy.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::StaleRoot,
+            3,
+            "CANDIDATE_POLICY_ROOT_MISMATCH",
+        );
+    }
+
+    #[test]
+    fn exhausted_graph_work_is_refused() {        let fixture = Fixture::valid();
+        let limits = CandidateValidationLimits {
+            max_graph_work: 0,
+            ..CandidateValidationLimits::full_v1()
+        };
+        let context =
+            fixture.context_with(&fixture.base_objects, &[], limits);
+        let output = validate_candidate_bytes(
+            &context,
+            &fixture.candidate.stored_bytes,
+        )
+        .unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::ResourceLimit,
+            12,
+            "CANDIDATE_GRAPH_WORK_LIMIT",
+        );
+    }
+
+    #[test]
+    fn over_ceiling_test_resources_are_refused() {        let workspace_id = fixed(1, WorkspaceId::from_bytes);
+        let nonce = fixed(73, CandidateNonce::from_bytes);
+        let function = EntityId::derive(workspace_id, nonce, 5, 0);
+        let parameter = EntityId::derive(workspace_id, nonce, 6, 1);
+        let block = EntityId::derive(workspace_id, nonce, 7, 2);
+        let test = EntityId::derive(workspace_id, nonce, 14, 3);
+        let fixture =
+            Fixture::with_policy_options_and_tests(true, false, None, &[test]);
+        let unit = || ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        };
+        let candidate = fixture.create_candidate(
+            73,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![parameter],
+                        result_type: TypeExpr::Unit,
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: TypeExpr::Unit,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::Parameter(parameter),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+                (
+                    14,
+                    EntityBodyValue::TestCase(TestCaseBody {
+                        target: function,
+                        inputs: vec![unit()],
+                        effect_environment: EffectEnvironment::Replay(vec![]),
+                        expected: ExpectedOutcome::Value(unit()),
+                        observations: vec![],
+                        resource_limits: ResourceLimits {
+                            fuel: 1_000_000,
+                            memory_bytes: 1,
+                            output_bytes: 1,
+                            effect_count: 1,
+                            call_depth: 1,
+                            wall_timeout_millis: 1,
+                        },
+                    }),
+                ),
+            ],
+        );
+        let output = validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::ResourceLimit,
+            12,
+            "CANDIDATE_TEST_RESOURCE_LIMIT",
+        );
+    }
+
+    // Guard-mapping pin: phase 7 names VM_LOWER_RESOURCE_LIMIT on
+    // operation-counter overflow (u64 checked_add). Overflow is not
+    // constructible in a test input, so the pin asserts the guard
+    // constructor carries phase 7, the ResourceLimit decision, and the
+    // exact lowering symbol (the behavioral ceiling itself is exercised
+    // in sley-vm's lowering tests).
+    #[test]
+    fn phase_seven_overflow_guard_names_the_lowering_symbol() {
+        let failure = resource_failure(7, "VM_LOWER_RESOURCE_LIMIT");
+        assert_eq!(failure.phase, 7);
+        assert_eq!(failure.decision, CandidateDecision::ResourceLimit);
+        assert_eq!(failure.source_symbol, "VM_LOWER_RESOURCE_LIMIT");
+    }
+
+    #[test]
+    fn stale_root_and_exact_entity_preimage_are_distinct() {        let fixture = Fixture::valid();
 
         let mut stale_root_record = fixture.candidate.record.clone();
         stale_root_record.base_root = fixed(90, StateRoot::from_bytes);

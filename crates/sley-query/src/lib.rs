@@ -1287,7 +1287,7 @@ pub(crate) fn charge_work(work: &mut u64, amount: u64) -> Result<(), ImpactError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sley_ssmc::{CondBranchTerminator, IntegerWidth, Reachability, TargetEdge, Visibility};
+    use sley_ssmc::{CondBranchTerminator, IntegerWidth, NamespaceDefinition, Reachability, TargetEdge, Visibility};
 
     fn id(byte: u8) -> EntityId {
         EntityId::from_bytes([byte; 32])
@@ -1453,5 +1453,39 @@ mod tests {
         for (offset, kind) in kinds.into_iter().enumerate() {
             assert_eq!(kind.tag(), 1 + u32::try_from(offset).unwrap());
         }
+    }
+
+    #[test]
+    fn empty_workspaces_fail_closed_with_the_closure_symbol() {
+        let namespace = NamespaceDefinition {
+            entity_id: id(2),
+            parent: None,
+            members: Vec::new(),
+        };
+        let bound = [id(2)];
+        let error = judge_complete_root(
+            &[ImpactEntity::Namespace(&namespace)],
+            CompleteRootFacts {
+                bound_entities: &bound,
+                entry_points: &[],
+                dependency_roots: &[],
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), ImpactErrorCode::RootWorkspaceMissing);
+        assert_eq!(error.code().as_str(), "IMPACT_ROOT_WORKSPACE_MISSING");
+    }
+
+    // Defense-only pin: RootBindingMismatch fires in the adapter's
+    // extract() when store objects misalign with bindings, which a
+    // verified revision cannot produce through the public API (private
+    // fields, verified coherence). The variant and its stable symbol are
+    // pinned here so the vocabulary stays exercised.
+    #[test]
+    fn binding_mismatch_variant_is_stable() {
+        assert_eq!(
+            ImpactErrorCode::RootBindingMismatch.as_str(),
+            "IMPACT_ROOT_BINDING_MISMATCH"
+        );
     }
 }

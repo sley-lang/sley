@@ -259,7 +259,6 @@ mod tests {
     use core::fmt::Write as _;
 
     use super::*;
-
     #[test]
     fn cache_key_is_exact_and_profile_bound() {
         let preimage = cache_key_preimage(
@@ -325,5 +324,98 @@ mod tests {
             LowerErrorCode::CacheKeyUnsupported
         );
         assert_ne!(key.as_bytes(), &[0; 32]);
+    }
+
+    // Fail-loud exercise for the lowering resource ceiling: preflight is
+    // called directly because graph validation (which always precedes it
+    // through lower_function) refuses oversized inputs first with the CFG
+    // resource code. The direct call pins the lowering ceiling itself.
+    #[test]
+    fn lowering_resource_ceiling_fails_with_the_stable_symbol() {
+        use sley_ssmc::{
+            Block, FunctionGraph, Immediate, Opcode, Operation, Parameter, ParameterRole,
+            ReturnTerminator, Terminator, TypeExpr, Visibility,
+        };
+        let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+        let function_id = EntityId::from_bytes([1; 32]);
+        let left = EntityId::from_bytes([2; 32]);
+        let right = EntityId::from_bytes([3; 32]);
+        let block_id = EntityId::from_bytes([4; 32]);
+        let operation_id = EntityId::from_bytes([5; 32]);
+        let function = FunctionGraph {
+            entity_id: function_id,
+            type_parameters: Vec::new(),
+            parameters: vec![left, right],
+            result_type: TypeExpr::Bool,
+            effects: Vec::new(),
+            entry_block: block_id,
+            blocks: vec![block_id],
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        };
+        let parameters = vec![
+            Parameter {
+                entity_id: left,
+                owner: function_id,
+                role: ParameterRole::Function,
+                ordinal: 0,
+                value_type: TypeExpr::Bool,
+            },
+            Parameter {
+                entity_id: right,
+                owner: function_id,
+                role: ParameterRole::Function,
+                ordinal: 1,
+                value_type: TypeExpr::Bool,
+            },
+        ];
+        let blocks = vec![Block {
+            entity_id: block_id,
+            function: function_id,
+            parameters: Vec::new(),
+            operations: vec![operation_id],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: sley_ssmc::ValueRef::OperationResult(
+                    sley_ssmc::OperationResultRef {
+                        operation: operation_id,
+                        result_index: 0,
+                    },
+                ),
+            }),
+            reachability: sley_ssmc::Reachability::Required,
+        }];
+        let operations = vec![Operation {
+            entity_id: operation_id,
+            block: block_id,
+            ordinal: 0,
+            opcode: Opcode::BoolAnd,
+            operands: vec![
+                sley_ssmc::ValueRef::Parameter(left),
+                sley_ssmc::ValueRef::Parameter(right),
+            ],
+            result_types: vec![TypeExpr::Bool; 65_536],
+            immediate: Immediate::None,
+        }];
+        let input = crate::lower::LoweringInput {
+            types: &types,
+            function: &function,
+            parameters: &parameters,
+            blocks: &blocks,
+            operations: &operations,
+            schema_epoch: SchemaEpochId::from_bytes([6; 32]),
+            state_root: StateRoot::from_bytes([7; 32]),
+            profile: CacheProfile::RESTRICTED_V1,
+            constants: &[],
+            globals: &[],
+            functions: &[],
+            contracts: &[],
+            adapters: &[],
+        };
+        let LoweringError::Lower(error) = crate::lower::preflight_resources(&input).unwrap_err()
+        else {
+            panic!("expected a lowering resource refusal");
+        };
+        assert_eq!(error.code(), LowerErrorCode::ResourceLimit);
+        assert_eq!(error.code().as_str(), "VM_LOWER_RESOURCE_LIMIT");
     }
 }

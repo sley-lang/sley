@@ -1352,8 +1352,34 @@ mod tests {
     }
 
     #[test]
-    fn outer_digest_tamper_fails_before_promotion() {
+    fn wrong_version_and_epoch_set_fail_with_their_owned_symbols() {
         let (_source_temp, source, root, _) = fixture();
+        let pack =
+            export_conformance_pack(&source, std::slice::from_ref(&root), &verifier).unwrap();
+        let (pack_epoch, payload, _pack_id) = decode_envelope(&pack.stored_bytes).unwrap();
+        let decoded = decode_payload(payload).unwrap();
+        // A version the profile does not define fails closed even though
+        // the envelope digest is intact (byte tamper cannot reach here:
+        // the digest gate fires first).
+        let versioned = DecodedPack {
+            version: FORMAT_VERSION + 1,
+            epochs: decoded.epochs.clone(),
+            roots: decoded.roots.clone(),
+            objects: decoded.objects.clone(),
+            compression_profile: decoded.compression_profile,
+            leaves: decoded.leaves.clone(),
+            digest_tree_root: decoded.digest_tree_root,
+        };
+        let error = validate_profile(&versioned).unwrap_err();
+        assert_eq!(error.symbol(), "PACK_VERSION_UNSUPPORTED");
+        let mut epochs = decoded.epochs.clone();
+        epochs[0].schema_epoch_id = SchemaEpochId::from_bytes([7; 32]);
+        let error = validate_epochs(&epochs, pack_epoch).unwrap_err();
+        assert_eq!(error.symbol(), "PACK_SCHEMA_UNSUPPORTED");
+    }
+
+    #[test]
+    fn outer_digest_tamper_fails_before_promotion() {        let (_source_temp, source, root, _) = fixture();
         let mut bytes = export_conformance_pack(&source, &[root], &verifier)
             .unwrap()
             .stored_bytes;

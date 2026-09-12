@@ -523,6 +523,45 @@ fn a_prefix_above_the_ceiling_is_answered_without_reading_the_body() {
 
 type Case<'a> = (Vec<&'a str>, Vec<u8>, i32, u32, Option<&'a str>);
 
+struct FailWrite;
+
+impl std::io::Write for FailWrite {
+    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "injected output fault",
+        ))
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn cli_failures_name_their_stable_symbols() {
+    let (_temp, path) = repository("cli-symbols");
+    let repo = path.to_str().unwrap();
+    let (_, _, stderr) = run(&["bogus"], &[]);
+    assert_eq!(stderr_object(&stderr)["symbol"], "CLI_USAGE_INVALID");
+    let (_, _, stderr) = run(&["serve", "--repository", repo], &[]);
+    assert_eq!(
+        stderr_object(&stderr)["symbol"],
+        "CLI_HANDSHAKE_REQUIRED"
+    );
+    // I/O fault injection: a failing stdout turns a would-be success into
+    // CLI_IO_FAILURE (status 4), proving the write path is fallible-loud.
+    let args: Vec<String> = ["methods".to_owned()].to_vec();
+    let mut input: &[u8] = &[];
+    let mut stderr = Vec::new();
+    let status = sley_cli::run(&args, &mut input, &mut FailWrite, &mut stderr);
+    assert_eq!(status, 4);
+    assert_eq!(
+        stderr_object(&String::from_utf8(stderr).unwrap())["symbol"],
+        "CLI_IO_FAILURE"
+    );
+}
+
 #[test]
 fn cli_failures_carry_their_exit_status_and_one_stderr_object() {
     let (temp, path) = repository("cli-failures");

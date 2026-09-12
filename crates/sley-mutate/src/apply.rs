@@ -510,7 +510,7 @@ mod tests {
     use super::*;
     use crate::candidate::{
         CandidateExpiry, ExactContainerVersion, ExactEntityVersion, ExpectedIdentityAbsent,
-        OrderedInsert, OrderedMove,
+        OrderedInsert, OrderedMove, OrderedRemove,
     };
     use crate::value::{
         EntityIdSet, EntryExposure, EntryPointBody, FieldValue, FunctionBody, TestCaseBody,
@@ -812,8 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {
-        let epoch = SchemaEpochId::from_bytes([1; 32]);
+    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {        let epoch = SchemaEpochId::from_bytes([1; 32]);
         let target = id(40);
         let base = object(
             epoch,
@@ -850,5 +849,393 @@ mod tests {
                 .unwrap_err(),
             CandidateApplyError::SnapshotEntryPointUnbound
         );
+    }
+
+    fn ordered_function(target: EntityId) -> EntityObject {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        object(
+            epoch,
+            target,
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: vec![],
+                parameters: vec![id(1), id(2), id(3)],
+                result_type: sley_ssmc::TypeExpr::Unit,
+                effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                entry_block: id(21),
+                blocks: vec![],
+                contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                visibility: sley_ssmc::Visibility::Private,
+            }),
+        )
+    }
+
+    fn single_operation(
+        epoch: SchemaEpochId,
+        operation: MutationOperation,
+        precondition: BoundPrecondition,
+    ) -> CandidateRecord {
+        candidate(
+            epoch,
+            WorkspaceId::from_bytes([9; 32]),
+            CandidateNonce::from_bytes([8; 32]),
+            vec![operation],
+            vec![precondition],
+        )
+    }
+
+    fn absent_precondition(target: EntityId) -> BoundPrecondition {
+        BoundPrecondition {
+            operation_ordinal: 0,
+            requirement: PreimageRequirement::ExpectedIdentityAbsent,
+            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                entity_id: target,
+            }),
+        }
+    }
+
+    fn container_precondition(
+        ordinal: u32,
+        container: EntityId,
+        object_id: ObjectId,
+        field_tag: u32,
+    ) -> BoundPrecondition {
+        BoundPrecondition {
+            operation_ordinal: ordinal,
+            requirement: PreimageRequirement::ExactContainerVersion,
+            payload: PreconditionPayload::ExactContainerVersion(ExactContainerVersion {
+                container_id: container,
+                object_id,
+                field_tag,
+            }),
+        }
+    }
+
+    #[test]
+    fn duplicate_snapshot_entities_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(50);
+        let base = object(epoch, target, workspace_body(id(51)));
+        let fresh = EntityId::derive(
+            WorkspaceId::from_bytes([9; 32]),
+            CandidateNonce::from_bytes([8; 32]),
+            1,
+            0,
+        );
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::CreateEntity,
+                target_kind: 1,
+                target_entity: fresh,
+                field_tag: None,
+                payload: MutationPayload::CreateEntity(workspace_body(id(52))),
+                precondition_ordinal: 0,
+            },
+            absent_precondition(fresh),
+        );
+        let error = apply_candidate_to_snapshot(epoch, &record, &[base.clone(), base], &[])
+            .unwrap_err();
+        assert_eq!(error, CandidateApplyError::SnapshotDuplicateEntity);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY");
+    }
+
+    #[test]
+    fn epoch_drifted_records_and_objects_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let other = SchemaEpochId::from_bytes([2; 32]);
+        let target = id(50);
+        let base = object(epoch, target, workspace_body(id(51)));
+        let fresh = EntityId::derive(
+            WorkspaceId::from_bytes([9; 32]),
+            CandidateNonce::from_bytes([8; 32]),
+            1,
+            0,
+        );
+        let operation = MutationOperation {
+            ordinal: 0,
+            class: MutationClass::CreateEntity,
+            target_kind: 1,
+            target_entity: fresh,
+            field_tag: None,
+            payload: MutationPayload::CreateEntity(workspace_body(id(52))),
+            precondition_ordinal: 0,
+        };
+        let record = single_operation(epoch, operation.clone(), absent_precondition(fresh));
+        let error = apply_candidate_to_snapshot(other, &record, core::slice::from_ref(&base), &[])
+            .unwrap_err();
+        assert_eq!(error, CandidateApplyError::SnapshotEpochMismatch);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_SNAPSHOT_EPOCH_MISMATCH");
+        let drifted = object(other, target, workspace_body(id(51)));
+        let error = apply_candidate_to_snapshot(epoch, &record, &[drifted], &[]).unwrap_err();
+        assert_eq!(error, CandidateApplyError::SnapshotEpochMismatch);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_SNAPSHOT_EPOCH_MISMATCH");
+    }
+
+    // TargetMissing needs two operations: each operation's precondition
+    // must agree with its descriptor and pass against the original base,
+    // so a lone delete of an absent entity dies in validation, not in the
+    // operation. Deleting a live entity first makes the second delete miss.
+    #[test]
+    fn operations_on_absent_entities_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let victim = object(
+            epoch,
+            id(60),
+            EntityBodyValue::EntryPoint(EntryPointBody {
+                function: id(61),
+                exposure: EntryExposure::Protocol,
+            }),
+        );
+        let delete = |ordinal: u32| MutationOperation {
+            ordinal,
+            class: MutationClass::DeleteEntityBinding,
+            target_kind: 16,
+            target_entity: id(60),
+            field_tag: None,
+            payload: MutationPayload::DeleteEntityBinding,
+            precondition_ordinal: ordinal,
+        };
+        let record = candidate(
+            epoch,
+            WorkspaceId::from_bytes([9; 32]),
+            CandidateNonce::from_bytes([8; 32]),
+            vec![delete(0), delete(1)],
+            vec![
+                exact_precondition(0, id(60), victim.object_id()),
+                exact_precondition(1, id(60), victim.object_id()),
+            ],
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&victim), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::TargetMissing);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_TARGET_MISSING");
+    }
+
+    // Defense-only pin: TargetAlreadyExists is unreachable through
+    // validated candidates (the derived-id rule forces distinct create
+    // targets per ordinal, and an Absent precondition fails on a live
+    // base before the operation runs), so no behavioral trigger exists.
+    // The variant and its stable symbol are pinned here; the collision
+    // arm stays as defense-in-depth behind validation.
+    #[test]
+    fn creation_collision_variant_is_stable() {
+        assert_eq!(
+            CandidateApplyError::TargetAlreadyExists.code(),
+            "CANDIDATE_APPLY_TARGET_ALREADY_EXISTS"
+        );
+    }
+
+    #[test]
+    fn kind_mismatched_replacement_is_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(50);
+        let base = object(epoch, target, workspace_body(id(51)));
+        let replacement = TestCaseBody {
+            target: id(53),
+            inputs: vec![],
+            effect_environment: sley_ssmc::EffectEnvironment::Replay(vec![]),
+            expected: sley_ssmc::ExpectedOutcome::Value(sley_ssmc::ConstValue {
+                value_type: sley_ssmc::TypeExpr::Unit,
+                data: sley_ssmc::ConstData::Unit,
+            }),
+            observations: vec![],
+            resource_limits: sley_ssmc::ResourceLimits {
+                fuel: 1,
+                memory_bytes: 1,
+                output_bytes: 1,
+                effect_count: 1,
+                call_depth: 1,
+                wall_timeout_millis: 1,
+            },
+        };
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::ReplaceTest,
+                target_kind: 14,
+                target_entity: target,
+                field_tag: None,
+                payload: MutationPayload::ReplaceTest(replacement),
+                precondition_ordinal: 0,
+            },
+            exact_precondition(0, target, base.object_id()),
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::TargetKindMismatch);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_TARGET_KIND_MISMATCH");
+    }
+
+    // Defense-only pin: FieldMismatch is unreachable through validated
+    // descriptors (every descriptor-valid (body, tag) pair maps to Some or
+    // true in `ordered_entity_children_mut` / `replace_direct_reference`),
+    // so no behavioral trigger exists. The variant and its stable symbol
+    // are pinned here so the refusal vocabulary stays exercised; if a
+    // future body/tag pair ever falls through, the path is already named.
+    #[test]
+    fn field_mismatch_variant_is_stable() {
+        assert_eq!(
+            CandidateApplyError::FieldMismatch.code(),
+            "CANDIDATE_APPLY_FIELD_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn out_of_range_ordered_writes_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(55);
+        let base = ordered_function(target);
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::InsertOrderedChild,
+                target_kind: 5,
+                target_entity: target,
+                field_tag: Some(2),
+                payload: MutationPayload::InsertOrderedChild(OrderedInsert {
+                    index: 99,
+                    child: id(56),
+                }),
+                precondition_ordinal: 0,
+            },
+            container_precondition(0, target, base.object_id(), 2),
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::OrderedIndexInvalid);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_ORDERED_INDEX_INVALID");
+        let removal = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::RemoveOrderedChild,
+                target_kind: 5,
+                target_entity: target,
+                field_tag: Some(2),
+                payload: MutationPayload::RemoveOrderedChild(OrderedRemove {
+                    index: 7,
+                    expected_child: id(1),
+                }),
+                precondition_ordinal: 0,
+            },
+            container_precondition(0, target, base.object_id(), 2),
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &removal, core::slice::from_ref(&base), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::OrderedIndexInvalid);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_ORDERED_INDEX_INVALID");
+    }
+
+    #[test]
+    fn unexpected_ordered_child_moves_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(55);
+        let base = ordered_function(target);
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::MoveOrderedChild,
+                target_kind: 5,
+                target_entity: target,
+                field_tag: Some(2),
+                payload: MutationPayload::MoveOrderedChild(OrderedMove {
+                    from: 0,
+                    to: 2,
+                    expected_child: id(99),
+                }),
+                precondition_ordinal: 0,
+            },
+            container_precondition(0, target, base.object_id(), 2),
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::OrderedExpectedChildMismatch);
+        assert_eq!(
+            error.code(),
+            "CANDIDATE_APPLY_ORDERED_EXPECTED_CHILD_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn duplicate_entry_point_adds_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(60);
+        let base = object(
+            epoch,
+            target,
+            EntityBodyValue::EntryPoint(EntryPointBody {
+                function: id(61),
+                exposure: EntryExposure::Protocol,
+            }),
+        );
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::AddEntryPoint,
+                target_kind: 16,
+                target_entity: target,
+                field_tag: None,
+                payload: MutationPayload::AddEntryPoint(EntryPointBody {
+                    function: id(62),
+                    exposure: EntryExposure::Protocol,
+                }),
+                precondition_ordinal: 0,
+            },
+            exact_precondition(0, target, base.object_id()),
+        );
+        let error = apply_candidate_to_snapshot(
+            epoch,
+            &record,
+            core::slice::from_ref(&base),
+            core::slice::from_ref(&target),
+        )
+        .unwrap_err();
+        assert_eq!(error, CandidateApplyError::EntryPointAlreadyPresent);
+        assert_eq!(
+            error.code(),
+            "CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT"
+        );
+    }
+
+    #[test]
+    fn removals_of_unlisted_entry_points_are_refused() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
+        let target = id(60);
+        let base = object(
+            epoch,
+            target,
+            EntityBodyValue::EntryPoint(EntryPointBody {
+                function: id(61),
+                exposure: EntryExposure::Protocol,
+            }),
+        );
+        let record = single_operation(
+            epoch,
+            MutationOperation {
+                ordinal: 0,
+                class: MutationClass::RemoveEntryPoint,
+                target_kind: 16,
+                target_entity: target,
+                field_tag: None,
+                payload: MutationPayload::RemoveEntryPoint,
+                precondition_ordinal: 0,
+            },
+            exact_precondition(0, target, base.object_id()),
+        );
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+                .unwrap_err();
+        assert_eq!(error, CandidateApplyError::EntryPointMissing);
+        assert_eq!(error.code(), "CANDIDATE_APPLY_ENTRY_POINT_MISSING");
     }
 }

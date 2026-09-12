@@ -888,6 +888,19 @@ mod tests {
     use super::*;
     use core::fmt::Write as _;
 
+    // Defense-only pin: ExcludedFact is reserved by STATE_ROOT_V1 for
+    // higher-level typed requests that do not exist in epoch 1, so no
+    // builder input produces it (validate_record_semantics returns only
+    // EntryUnbound/FlagUnknown). The variant and its stable symbol are
+    // pinned here so the vocabulary stays exercised.
+    #[test]
+    fn excluded_fact_variant_is_stable() {
+        assert_eq!(
+            StateRootErrorCode::ExcludedFact.as_str(),
+            "STATE_ROOT_EXCLUDED_FACT"
+        );
+    }
+
     fn id(byte: u8) -> [u8; ID_LEN] {
         [byte; ID_LEN]
     }

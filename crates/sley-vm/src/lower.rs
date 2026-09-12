@@ -463,7 +463,7 @@ fn lower_callees(
     Ok(done.into_values().collect())
 }
 
-fn preflight_resources(input: &LoweringInput<'_>) -> Result<u64, LoweringError> {
+pub(crate) fn preflight_resources(input: &LoweringInput<'_>) -> Result<u64, LoweringError> {
     if input.blocks.len() > MAX_LOWERED_BLOCKS || input.operations.len() > MAX_INSTRUCTIONS {
         return lower_fail(LowerErrorCode::ResourceLimit);
     }

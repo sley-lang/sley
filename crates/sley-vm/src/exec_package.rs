@@ -1335,6 +1335,20 @@ mod tests {
     use sley_ssmc::{FunctionType, MemberId, NamedType};
     use std::collections::BTreeMap;
 
+    // Defense-only pin: SectionDigestMismatch is never constructed (the
+    // binding checks report content mismatches as BindingMismatch), but
+    // the vocabulary reserves it for a header-bound section comparison.
+    // The variant and its stable symbol are pinned here. Registration of
+    // the symbol with its owning contract remains an open governance
+    // item; this test exercises the vocabulary, not the ownership.
+    #[test]
+    fn section_digest_mismatch_variant_is_stable() {
+        assert_eq!(
+            PackageError::SectionDigestMismatch.as_str(),
+            "PACKAGE_SECTION_DIGEST_MISMATCH"
+        );
+    }
+
     fn test_digest() -> [u8; 32] {
         [0x08; 32]
     }
