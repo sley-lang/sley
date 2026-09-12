@@ -3168,7 +3168,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3",
+      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3_OPERATOR_HOLD_PENDING_FRESH_QUALIFYING_VERDICT_AT_BA10C41",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
       "reviewer": "vulcan",
@@ -3176,7 +3176,7 @@
       "severities": [
         "P3"
       ],
-      "state": "PASS",
+      "state": "PENDING",
       "superseded_by": null
     },
     {
@@ -4008,7 +4008,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "e551766e5697ba9fdee724dd38667ef55f064d5580302b2887f00062822053a3",
+  "obligations_digest": "db8bd0a903930a32c80d4576cb0f781ec50f2ff905a38a45a9c8574cd2c4ff13",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4688,6 +4688,14 @@
       ]
     },
     {
+      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3_OPERATOR_HOLD_PENDING_FRESH_QUALIFYING_VERDICT_AT_BA10C41",
+      "field": "vulcan_review",
+      "section": "s20_700_smp1_persistent_fuzz_slice",
+      "severities": [
+        "P3"
+      ]
+    },
+    {
       "disposition": "PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW",
       "field": "vulcan_review",
       "section": "s20_700_vm_persistent_fuzz_slice",
@@ -5016,7 +5024,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "282c7779482ee11b755a842af064d64765965f035c3ce2d2a35bb239553b7cce",
+  "register_digest": "815323ab01d82e5ef82bc3ef216091dcfa07af25e7487380187340cea5ee001a",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
@@ -5029,8 +5037,8 @@
   "states": {
     "HISTORICAL_ROUND": 28,
     "OTHER": 3,
-    "PASS": 154,
-    "PENDING": 97
+    "PASS": 153,
+    "PENDING": 98
   },
   "superseded_rounds": [
     {

@@ -1987,6 +1987,7 @@
   },
   "s20_700_schema_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
+    "vulcan_review_note": "Records note at ba10c41 (target-closure wave, no verdict change): the round-1 vulcan_review REVISE row stays PENDING under the register builder rules until the reviewing lane files a final-round PASS; the vulcan_review_revision_2 PASS transcript (vulcan_review-6b12d67.md) stands and the operator REQ-06 tally counts this slice PASS. No PENDING row was closed by this note.",
     "target": "fuzz/targets/schema_bootstrap_decoder.rs",
     "runner": "scripts/run_schema_persistent_fuzz.py",
     "checker": "scripts/check_schema_persistent_fuzz_slice.py",
@@ -2559,7 +2560,8 @@
     "runtime_evidence": "evidence/runtime/s20-700-smp1-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_smp1_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
-    "vulcan_review": "PASS_0_P0_0_P1_0_P2_2_P3",
+    "vulcan_review": "REVISE_0_P0_0_P1_0_P2_2_P3_OPERATOR_HOLD_PENDING_FRESH_QUALIFYING_VERDICT_AT_BA10C41",
+    "vulcan_review_note": "Operator hold at ba10c41 (target-closure wave): the b64ab9e Vulcan PASS transcript is preserved untouched under evidence/review/verdicts/s20_700_smp1_persistent_fuzz_slice/, but its review scope is ad46a43 and the 9df9f9e filing was a revision disposition by tag count; 9df9f9e then added the fixture_hellos_negotiate_ok self-check test to crates/sley-protocol/src/lib.rs, which no review has covered. The obligation returns to REVISE until a fresh explicit qualifying verdict verifies the narrowed oracle arm, server-side gate, live regression seed, S20-700-SMP1-001, corpus execution, instrumentation reach, and crash absence. Crash history retained. See evidence/review/requests/REQ-06-fuzz-slice-queue.md records correction.",
     "audit": "docs/audits/S20_700_SMP1_PERSISTENT_SLICE.md",
     "stream_reassembly_lane": true,
     "last_local_proof": {
@@ -2763,6 +2765,7 @@
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
+    "vulcan_review_note": "Records note at ba10c41 (target-closure wave, no verdict change): the round-1 vulcan_review REVISE row stays PENDING under the register builder rules until the reviewing lane files a final-round PASS; the vulcan_review_revision_2 PASS transcript (vulcan_review-6b12d67.md) stands and the operator REQ-06 tally counts this slice PASS. No PENDING row was closed by this note.",
     "target": "fuzz/targets/restricted_query_request.rs",
     "runner": "scripts/run_query_persistent_fuzz.py",
     "checker": "scripts/check_query_persistent_fuzz_slice.py",
@@ -3995,7 +3998,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 282,
-    "open_reviews": 97,
+    "open_reviews": 98,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
