@@ -3168,15 +3168,16 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3_OPERATOR_HOLD_PENDING_FRESH_QUALIFYING_VERDICT_AT_BA10C41",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_3_P4",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_smp1_persistent_fuzz_slice",
       "severities": [
-        "P3"
+        "P3",
+        "P4"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -4008,7 +4009,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "db8bd0a903930a32c80d4576cb0f781ec50f2ff905a38a45a9c8574cd2c4ff13",
+  "obligations_digest": "2f5dc10880be10cb82fb0a408e54d1a90a02fbcbfc394ef54a99c8b95a220668",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4688,14 +4689,6 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3_OPERATOR_HOLD_PENDING_FRESH_QUALIFYING_VERDICT_AT_BA10C41",
-      "field": "vulcan_review",
-      "section": "s20_700_smp1_persistent_fuzz_slice",
-      "severities": [
-        "P3"
-      ]
-    },
-    {
       "disposition": "PENDING_S20_700FUZZ_FIX_LANDED_REREVIEW",
       "field": "vulcan_review",
       "section": "s20_700_vm_persistent_fuzz_slice",
@@ -5024,21 +5017,21 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "815323ab01d82e5ef82bc3ef216091dcfa07af25e7487380187340cea5ee001a",
+  "register_digest": "cc3fc7b31a82a5236949ec25fcd0687abc7f2e474484aa6f8191f8a9168264dc",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
     "P1": 108,
     "P2": 121,
     "P3": 131,
-    "P4": 11
+    "P4": 12
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 28,
     "OTHER": 3,
-    "PASS": 153,
-    "PENDING": 98
+    "PASS": 154,
+    "PENDING": 97
   },
   "superseded_rounds": [
     {
