@@ -2687,7 +2687,7 @@
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 396,
+    "graph_cfg_seed_count": 399,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,
@@ -2698,7 +2698,7 @@
     "closed_harness_finding_ids": [
       "S20-700-HARNESS-001"
     ],
-    "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_6_P3_5_P4",
     "deferred_surfaces": [
       "merge engine"
     ],

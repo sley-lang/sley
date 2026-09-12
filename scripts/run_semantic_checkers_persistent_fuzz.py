@@ -337,6 +337,25 @@ def generate_type_checker_corpus() -> tuple[int, int]:
 
 def generate_graph_cfg_corpus() -> tuple[int, int]:
     seeds = [bytes([template, 0]) for template in range(4)]
+    # Review-derived regression seeds (second repair round): single-mutation
+    # inputs that each pin a previously omitted correct failure class
+    # (arm 27 TYPE_PARAMETER_OUT_OF_SCOPE, terminator RESULT_INDEX,
+    # terminator DOMINANCE). Each binds a documented contract reason in
+    # expected_for; if the engine ever reports a different code here, the
+    # oracle fails instead of passing silently.
+    seeds.extend(
+        [
+            bytes([0x03, 0x01, 0x1B, 0x00, 0x06]),
+            bytes([0x03, 0x01, 0x13, 0x00, 0x01, 0x00, 0x02, 0x02]),
+            bytes(
+                [
+                    0x01, 0x01, 0x15, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04,
+                    0x01, 0x00, 0x00, 0x01, 0x00, 0x04, 0x01, 0x00, 0x00,
+                    0x01,
+                ]
+            ),
+        ]
+    )
     for template in range(4):
         for mutation in range(33):
             for argument in (0, 0xFF):

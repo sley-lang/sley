@@ -133,3 +133,30 @@ wrong-code control run (deliberately corrupted expectation) must fail.
 No change to `TypeErrorCode`/`CfgErrorCode` sets, check order, or
 release-profile behavior. Re-review queued as REQ-08 item 7; proofs bound
 to older source states are invalid.
+
+## Second repair round (review-derived sets + durable control record)
+
+The fresh review (REQ-08 item 7, REVISE) derived three reachable correct
+codes from checker precedence that the first-round sets omitted, and the
+oracle confirmed each by failing on correct engine behaviour before the
+widening: arm 27 reports `TYPE_PARAMETER_OUT_OF_SCOPE` (result-type
+push of a free parameter; `CFG_RESULT_INDEX` removed — pushing cannot
+produce it); terminator arms report `CFG_RESULT_INDEX` (result_index % 4
+against single-result template operations) and `CFG_DOMINANCE` (Block-role
+parameter used from a reachable non-owner block); arm 0 narrows to
+`GRAPH_DUPLICATE_ENTITY`/`CFG_ENTRY_INVALID` (entry resolution precedes
+the inventories). Three single-mutation inputs pin the newly covered
+paths as permanent corpus seeds (arm 27 `03 01 1b 00 06`, terminator
+index `03 01 13 00 01 00 02 02`, terminator dominance
+`01 01 15 00 00 00 02 00 04 01 00 00 01 00 04 01 00 00 01`);
+graph-cfg seeds 396 -> 399.
+
+Wrong-code control (durable record): with arm 28/29/30's expectation
+corrupted to `GRAPH_INVENTORY_MISMATCH` (one-line sed, uncommitted
+scratch), the smoke FAILs on the committed class-28 control seed with
+`escaped with unexpected failure class GRAPH_DUPLICATE_ENTITY`
+(expected one of `["GRAPH_INVENTORY_MISMATCH"]`); reverted, the lane
+returns to PASS. The oracle discriminates rather than accepting any
+registered error. The closed-traits coherence assert is sound within the
+harness envelope (generator nesting capped at depth 8 under the 512-node
+budget; engine limit 64).

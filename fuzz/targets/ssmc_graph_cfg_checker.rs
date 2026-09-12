@@ -562,14 +562,19 @@ const TYPE_CODES: &[&str] = &[
 /// may only widen with a documented contract reason, never by fiat.
 fn expected_for(arm: u8) -> Vec<&'static str> {
     match arm {
-        0 => [STRUCT, &["CFG_ENTRY_INVALID"][..]].concat(),
+        // Entry resolution precedes parameter/operation inventory
+        // (cfg.rs:280-286 before the index_unique inventories), so a
+        // function-id mutation yields duplication or entry-invalid only.
+        0 => vec!["GRAPH_DUPLICATE_ENTITY", "CFG_ENTRY_INVALID"],
         // A pushed unknown id resolves as an unresolvable reference
-        // before the inventory comparison runs, and a pushed declared id
-        // duplicates (same precedence group throughout).
+        // before the inventory comparison runs, a pushed declared id
+        // duplicates, and a pushed foreign-owned id trips the owner
+        // check (same precedence group throughout).
         1 => vec![
             "GRAPH_INVENTORY_MISMATCH",
             "GRAPH_UNRESOLVED_REFERENCE",
             "GRAPH_DUPLICATE_ENTITY",
+            "GRAPH_OWNER_MISMATCH",
         ],
         // Reversing a declared list re-maps ordinal positions (parameters)
         // or index bindings (blocks, operations), so the ordinal class is
@@ -622,23 +627,32 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         18 => vec!["CFG_REACHABILITY", "CFG_ENTRY_INVALID"],
         // A successor-dropping replacement (Return, Trap-shaped branch)
         // orphans downstream required blocks, which cascade to
-        // CFG_REACHABILITY past the terminator check itself.
+        // CFG_REACHABILITY past the terminator check itself. Terminator
+        // value refs resolve result_index % 4 against single-result
+        // template operations, so an out-of-range reference reports
+        // CFG_RESULT_INDEX; a Block-role parameter used from a reachable
+        // non-owner block reports CFG_DOMINANCE (cfg.rs:501-507).
         19 | 20 | 21 => [
             TARGET,
             &[
                 "CFG_RETURN_TYPE",
                 "CFG_VALUE_UNRESOLVED",
                 "CFG_REACHABILITY",
+                "CFG_RESULT_INDEX",
+                "CFG_DOMINANCE",
             ][..],
         ]
         .concat(),
         // A trap terminator has no successors, so required blocks
         // reachable only through the replaced block cascade to
-        // CFG_REACHABILITY.
+        // CFG_REACHABILITY. Its payload value ref resolves like any
+        // terminator value (result-index and dominance reachable).
         22 => vec![
             "CFG_TRAP_PAYLOAD",
             "CFG_VALUE_UNRESOLVED",
             "CFG_REACHABILITY",
+            "CFG_RESULT_INDEX",
+            "CFG_DOMINANCE",
         ],
         23 => STRUCT.to_vec(),
         // Rehoming an operation to a foreign block trips the owner
@@ -654,10 +668,15 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
             "CFG_RESULT_INDEX",
             "CFG_USE_BEFORE_DEFINITION",
         ],
-        27 => vec!["CFG_RESULT_INDEX"],
+        // Pushing a result type cannot change result indexing (the count
+        // only grows by a well-formed leaf or a free parameter, both
+        // resolved by validate_operation_inventory's check_type): the only
+        // reachable failure is an out-of-scope parameter.
+        27 => vec!["TYPE_PARAMETER_OUT_OF_SCOPE"],
         28 | 29 | 30 => vec!["GRAPH_DUPLICATE_ENTITY"],
         // A successor-dropping switch replacement orphans downstream
-        // required blocks exactly like the Return/Trap arms.
+        // required blocks exactly like the Return/Trap arms; its edge
+        // arguments and selectors resolve values the same way.
         32 => vec![
             "CFG_SWITCH_TYPE",
             "CFG_SWITCH_CASES",
@@ -666,6 +685,8 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
             "CFG_TARGET_INVALID",
             "CFG_TARGET_ARGUMENTS",
             "CFG_REACHABILITY",
+            "CFG_RESULT_INDEX",
+            "CFG_DOMINANCE",
         ],
         _ => unreachable!(),
     }
