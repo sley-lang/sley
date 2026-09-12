@@ -20,7 +20,7 @@ and do not define serialized graph, type, CFG, or mutation authority. The graph
 target covers the current public S20-220 graph-inventory and CFG boundary; it
 does not claim a future complete SSMC object decoder.
 
-The deterministic runtime corpora contain 385 type-checker seeds and 396
+The deterministic runtime corpora contain 385 type-checker seeds and 400
 graph/CFG seeds. Corpus, binaries, artifacts, and command evidence remain under
 ignored `evidence/runtime/s20-700-semantic-checkers-libfuzzer/` paths.
 
@@ -157,6 +157,60 @@ scratch), the smoke FAILs on the committed class-28 control seed with
 `escaped with unexpected failure class GRAPH_DUPLICATE_ENTITY`
 (expected one of `["GRAPH_INVENTORY_MISMATCH"]`); reverted, the lane
 returns to PASS. The oracle discriminates rather than accepting any
-registered error. The closed-traits coherence assert is sound within the
-harness envelope (generator nesting capped at depth 8 under the 512-node
-budget; engine limit 64).
+registered error. The control's crash artifact was pruned from
+`graph-cfg-artifacts/` during repair (runner is append-only; pruning is
+an explicit owner step, recorded here). The closed-traits coherence
+assert is sound because `check_type` is `check_type_inner` plus
+`check_map_keys` over the same fields at the same depth accounting (any
+DepthLimit `traits_inner` could reach is returned first by `check`).
+
+## Third repair round (union closure + dead-entry correction)
+
+The qualifying re-review (fixed lane at 16a095e, REVISE) verified the
+second-round fix complete at the single-mutation level, then falsified
+the lane one level up: `CFG_UNREACHABLE_VALUE` is a correct
+deterministic engine code reachable inside the harness envelope by three
+mutations (classes [4, 18, 20] on template 1: entry rerouted to block
+13, block 12 flipped to ExplicitlyUnreachable, block 12 given a Branch
+using Parameter(14) owned by block 13 — the terminator loop still visits
+unreachable block 12, and `resolve_value` reports UnreachableValue at
+`cfg.rs:504-506` instead of Dominance), yet it appeared in no arm's set,
+so the union assert panicked on correct engine behaviour. The session
+owner confirmed the counterexample with a direct binary run (byte-exact
+panic signature) before repairing.
+
+Fix: `CFG_UNREACHABLE_VALUE` is bound with a contract reason on arm 18
+and the value-using terminator arms 19/20/21/22/32 (the only arms that
+can place a value-use in an unreachable use-block in this envelope —
+verified: single-block templates cannot unreach their entry, multi-block
+templates hold no operations, and no arm creates operations, so arm 26
+cannot participate); the 15-byte input pins the path as permanent corpus
+seed `seed-0007` (graph-cfg seeds 399 -> 400). Dead entries with false
+contract reasons are removed, each re-derived from the engine (arm 1
+`GRAPH_INVENTORY_MISMATCH`: :673-679 precede the count check; arms 2/6/31
+`GRAPH_INVENTORY_MISMATCH`: reversal preserves the multiset, and arms 6/31
+bind the empty set — block/operation table order is validated nowhere,
+so they cannot fail; arm 11 `GRAPH_INVENTORY_MISMATCH`: id/ordinal kept,
+owner check first; arm 13 `CFG_VALUE_UNRESOLVED`: type change cannot
+unresolve an id; arm 15 `GRAPH_INVENTORY_MISMATCH`: back-pointer outside
+the inventoried sets; arm 24 `GRAPH_INVENTORY_MISMATCH` +
+`GRAPH_UNRESOLVED_REFERENCE`: the declaring block still names the op, so
+the owner check fires first; arm 22 `CFG_DOMINANCE`: a Trap at the entry
+orphans the target and reachability precedes terminators, a Trap in the
+non-entry block uses self-owned values). Over-wide-but-sound entries are
+narrowed where derived (arms 9/14/23); arms 3/13 keep the full
+`TYPE_CODES` deliberately — the round-2 arm-27 narrowing reasoning does
+not transfer without verifying `small_type` case-7 (`AdapterHandle`)
+semantics through `check_type`, so wideness stays until derived.
+
+Also recorded (fourth set change, mid-repair): narrowing arm 0 exposed a
+harness false-positive — template-2 input pushing block-param 25 onto
+`function.parameters` reports `GRAPH_OWNER_MISMATCH` (retained artifact
+`crash-47e105f9…`, five mutations [1, 8, 0, 0, 0]), so arm 1 gains
+`GRAPH_OWNER_MISMATCH`. Artifact dispositions: `crash-47e105f9…` is a
+documented harness-oracle correction probe (retests clean, permanent
+retest seed); `minimized-615e37…` is its failed-minimization stub
+("did not crash", permanent retest seed). The slice checker now pins the
+four review-derived codes and both regression-seed blocks, so a silent
+revert of any repair round fails the contract. Fresh PASS proof 937/937
+on both targets (override lane); fix awaits re-review.

@@ -500,17 +500,6 @@ fn failure_class(error: &CfgValidationError) -> String {
     }
 }
 
-/// Inventory, ownership, ordinal, and duplication failures: the earliest
-/// precedence group in `validate_function_graph` (declared/passed inventory
-/// before entry, targets, values, and dominance/reachability).
-const STRUCT: &[&str] = &[
-    "GRAPH_DUPLICATE_ENTITY",
-    "GRAPH_INVENTORY_MISMATCH",
-    "GRAPH_OWNER_MISMATCH",
-    "GRAPH_ORDINAL_MISMATCH",
-    "GRAPH_UNRESOLVED_REFERENCE",
-];
-
 /// Terminator, target, argument, and switch failures: the middle precedence
 /// group (entry and targets after inventory, before values and
 /// dominance/reachability).
@@ -569,17 +558,23 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         // A pushed unknown id resolves as an unresolvable reference
         // before the inventory comparison runs, a pushed declared id
         // duplicates, and a pushed foreign-owned id trips the owner
-        // check (same precedence group throughout).
+        // check (cfg.rs:673-679 all precede the count check at :706, so
+        // the inventory class is unreachable through this arm).
         1 => vec![
-            "GRAPH_INVENTORY_MISMATCH",
             "GRAPH_UNRESOLVED_REFERENCE",
             "GRAPH_DUPLICATE_ENTITY",
             "GRAPH_OWNER_MISMATCH",
         ],
-        // Reversing a declared list re-maps ordinal positions (parameters)
-        // or index bindings (blocks, operations), so the ordinal class is
-        // reachable alongside inventory.
-        2 | 6 | 31 => vec!["GRAPH_INVENTORY_MISMATCH", "GRAPH_ORDINAL_MISMATCH"],
+        // Reversing a declared parameter list re-maps ordinal positions,
+        // so the ordinal class is reachable (T2); the inventory multiset
+        // is unchanged, so the inventory class is not. Reversing the
+        // block or operation tables disturbs nothing the engine checks:
+        // order is validated only for effects/contracts
+        // (validate_sorted_unique), ordinals are per-position within each
+        // block's own parameter/operation lists, and indexing is
+        // order-independent, so those arms cannot fail at all.
+        2 => vec!["GRAPH_ORDINAL_MISMATCH"],
+        6 | 31 => vec![],
         // A malformed replacement fails at `check_type` (TYPE_*); a
         // well-formed one still mismatches the `Return` terminator value,
         // which the terminator stage reports as CFG_RETURN_TYPE.
@@ -591,28 +586,36 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         // pushing a declared one duplicates before the comparison runs.
         5 => vec!["GRAPH_INVENTORY_MISMATCH", "GRAPH_DUPLICATE_ENTITY"],
         7 | 8 => vec!["GRAPH_INVENTORY_MISMATCH"],
-        9 => STRUCT.to_vec(),
+        // Renaming a function parameter resolves unknown (the function
+        // list still names the old id, cfg.rs:673-676) or duplicates
+        // (cfg.rs:270); owner/role/ordinal travel with the entry.
+        9 => vec!["GRAPH_DUPLICATE_ENTITY", "GRAPH_UNRESOLVED_REFERENCE"],
         10 => vec!["GRAPH_OWNER_MISMATCH"],
-        11 => vec!["GRAPH_OWNER_MISMATCH", "GRAPH_INVENTORY_MISMATCH"],
+        // A role-flipped parameter keeps its id and ordinal, so the
+        // declared set still resolves; the owner/role check
+        // (cfg.rs:697-698) trips before the count comparison.
+        11 => vec!["GRAPH_OWNER_MISMATCH"],
         12 => vec!["GRAPH_ORDINAL_MISMATCH"],
         // A changed parameter type also breaks target-edge argument
-        // agreement downstream of the definition it belongs to.
+        // agreement downstream of the definition it belongs to. The
+        // parameter id itself still resolves (only its type changed).
         13 => [
             TYPE_CODES,
             &[
                 "CFG_BOOL_REQUIRED",
                 "CFG_RETURN_TYPE",
-                "CFG_VALUE_UNRESOLVED",
                 "CFG_TARGET_ARGUMENTS",
             ][..],
         ]
         .concat(),
-        14 => STRUCT.to_vec(),
-        15 => vec![
-            "CFG_ENTRY_INVALID",
-            "GRAPH_OWNER_MISMATCH",
-            "GRAPH_INVENTORY_MISMATCH",
-        ],
+        // Renaming a block collides (cfg.rs:271) or desynchronises the
+        // function block list from the block table (cfg.rs:275-279).
+        14 => vec!["GRAPH_DUPLICATE_ENTITY", "GRAPH_INVENTORY_MISMATCH"],
+        // A block back-pointer is not part of any declared/passed
+        // inventory (cfg.rs:706-709 compares parameter sets only), so an
+        // unknown function id trips the owner check (cfg.rs:687-689), and
+        // a retargeted entry block trips entry validity (:284-286).
+        15 => vec!["CFG_ENTRY_INVALID", "GRAPH_OWNER_MISMATCH"],
         // A pushed foreign-owned parameter trips the owner check; an
         // unknown one trips inventory or resolution; pushing a member
         // that is already present duplicates.
@@ -624,14 +627,24 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         ],
         // Flipping a body block trips reachability; flipping the entry
         // block itself trips entry validity (an entry must be reachable).
-        18 => vec!["CFG_REACHABILITY", "CFG_ENTRY_INVALID"],
+        // A flipped block stays in the terminator loop, so in combination
+        // with a value-using terminator arm (or a rerouted entry) its
+        // foreign-owned value refs report CFG_UNREACHABLE_VALUE
+        // (cfg.rs:504-506, :530-532) instead of CFG_DOMINANCE.
+        18 => vec![
+            "CFG_REACHABILITY",
+            "CFG_ENTRY_INVALID",
+            "CFG_UNREACHABLE_VALUE",
+        ],
         // A successor-dropping replacement (Return, Trap-shaped branch)
         // orphans downstream required blocks, which cascade to
         // CFG_REACHABILITY past the terminator check itself. Terminator
         // value refs resolve result_index % 4 against single-result
         // template operations, so an out-of-range reference reports
         // CFG_RESULT_INDEX; a Block-role parameter used from a reachable
-        // non-owner block reports CFG_DOMINANCE (cfg.rs:501-507).
+        // non-owner block reports CFG_DOMINANCE (cfg.rs:501-507). When the
+        // use-block itself is unreachable (arm 18, rerouted entry), the
+        // same refs report CFG_UNREACHABLE_VALUE instead.
         19 | 20 | 21 => [
             TARGET,
             &[
@@ -640,28 +653,34 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
                 "CFG_REACHABILITY",
                 "CFG_RESULT_INDEX",
                 "CFG_DOMINANCE",
+                "CFG_UNREACHABLE_VALUE",
             ][..],
         ]
         .concat(),
         // A trap terminator has no successors, so required blocks
         // reachable only through the replaced block cascade to
         // CFG_REACHABILITY. Its payload value ref resolves like any
-        // terminator value (result-index and dominance reachable).
+        // terminator value (result-index reachable); a Trap placed at the
+        // entry orphans the target, and reachability precedes terminators,
+        // so CFG_DOMINANCE is not reachable through the payload in this
+        // envelope (a Trap in the non-entry block uses self-owned values).
+        // In an unreachable use-block the payload reports
+        // CFG_UNREACHABLE_VALUE like any other terminator value.
         22 => vec![
             "CFG_TRAP_PAYLOAD",
             "CFG_VALUE_UNRESOLVED",
             "CFG_REACHABILITY",
             "CFG_RESULT_INDEX",
-            "CFG_DOMINANCE",
+            "CFG_UNREACHABLE_VALUE",
         ],
-        23 => STRUCT.to_vec(),
-        // Rehoming an operation to a foreign block trips the owner
-        // check; an unknown block trips inventory or resolution.
-        24 => vec![
-            "GRAPH_INVENTORY_MISMATCH",
-            "GRAPH_UNRESOLVED_REFERENCE",
-            "GRAPH_OWNER_MISMATCH",
-        ],
+        // Renaming an operation collides (cfg.rs:272) or desynchronises
+        // the declaring block's operation list (cfg.rs:726-729).
+        23 => vec!["GRAPH_DUPLICATE_ENTITY", "GRAPH_UNRESOLVED_REFERENCE"],
+        // Rehoming an operation leaves the old block's declaration
+        // intact, so the declaration-side owner check (cfg.rs:730-732)
+        // trips for every non-identity value before any inventory or
+        // resolution class is reachable.
+        24 => vec!["GRAPH_OWNER_MISMATCH"],
         25 => vec!["GRAPH_ORDINAL_MISMATCH"],
         26 => vec![
             "CFG_VALUE_UNRESOLVED",
@@ -676,7 +695,8 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         28 | 29 | 30 => vec!["GRAPH_DUPLICATE_ENTITY"],
         // A successor-dropping switch replacement orphans downstream
         // required blocks exactly like the Return/Trap arms; its edge
-        // arguments and selectors resolve values the same way.
+        // arguments and selectors resolve values the same way, including
+        // the unreachable-use-block path (cfg.rs:504-506, :530-532).
         32 => vec![
             "CFG_SWITCH_TYPE",
             "CFG_SWITCH_CASES",
@@ -687,6 +707,7 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
             "CFG_REACHABILITY",
             "CFG_RESULT_INDEX",
             "CFG_DOMINANCE",
+            "CFG_UNREACHABLE_VALUE",
         ],
         _ => unreachable!(),
     }

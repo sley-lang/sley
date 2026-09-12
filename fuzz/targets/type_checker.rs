@@ -102,12 +102,13 @@ fn check_consistency(value_type: &TypeExpr, outcome: &TypeOutcome) {
         );
     }
     // `traits` re-checks closed well-formedness first, so a checked closed
-    // type must carry traits. Sound within this harness's envelope: the
-    // generator caps nesting at depth 8 under a 512-node budget while the
-    // engine limit is 64, so traits_inner cannot reach DepthLimit on
-    // harness-built types the way a 63-deep hand-built chain could; the
-    // only legal `Err` here is a trait-level refusal, never a
-    // well-formedness code the check already cleared.
+    // type must carry traits. Sound because `check_type` is
+    // `check_type_inner` plus `check_map_keys` over the same definition
+    // fields/payloads at the same depth accounting (and deeper on
+    // FunctionRef): any DepthLimit `traits_inner` could reach is returned
+    // first by `check`, so the assert below is never entered on that
+    // ground; the only legal `Err` here is a trait-level refusal, never
+    // a well-formedness code the check already cleared.
     if check.is_ok() && is_closed(value_type) {
         assert!(
             traits.is_ok(),

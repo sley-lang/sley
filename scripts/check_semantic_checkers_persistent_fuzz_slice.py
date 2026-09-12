@@ -55,9 +55,22 @@ for marker in [
     "escaped with unexpected failure class",
     "GRAPH_DUPLICATE_ENTITY",
     "CFG_ENTRY_INVALID",
+    # Repair-round pins: the review-derived failure classes must survive
+    # in the target, so a silent revert of the set fixes fails here.
+    "TYPE_PARAMETER_OUT_OF_SCOPE",
+    "CFG_RESULT_INDEX",
+    "CFG_DOMINANCE",
+    "CFG_UNREACHABLE_VALUE",
 ]:
     if marker not in graph_target:
         problems.append(f"graph-target-missing:{marker}")
+runner_text = RUNNER.read_text(encoding="utf-8")
+for marker in [
+    "0x03, 0x01, 0x1B,",
+    "0x01, 0x03, 0x04,",
+]:
+    if marker not in runner_text:
+        problems.append(f"runner-seed-missing:{marker}")
 
 for path, body in [(TYPE_TARGET, type_target), (GRAPH_TARGET, graph_target)]:
     for forbidden in ["sley_mutate", "decode_mutation_value", "canonical graph decoder"]:
@@ -155,7 +168,7 @@ expected = {
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 399,
+    "graph_cfg_seed_count": 400,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,

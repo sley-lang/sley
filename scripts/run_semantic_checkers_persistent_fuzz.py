@@ -354,6 +354,20 @@ def generate_graph_cfg_corpus() -> tuple[int, int]:
                     0x01,
                 ]
             ),
+            # Review-derived regression seed (third repair round, VS-R2-001):
+            # multi-mutation classes [4, 18, 20] on template 1. Arm 4
+            # reroutes the entry to block 13, arm 18 flips block 12 to
+            # ExplicitlyUnreachable, arm 20 gives block 12 a Branch using
+            # Parameter(14) owned by block 13: the terminator loop still
+            # visits unreachable block 12, and resolve_value reports
+            # CFG_UNREACHABLE_VALUE (cfg.rs:504-506) instead of
+            # CFG_DOMINANCE. Pins the union-closure fix in expected_for.
+            bytes(
+                [
+                    0x01, 0x03, 0x04, 0x00, 0x04, 0x12, 0x00, 0x14, 0x00,
+                    0x00, 0x04, 0x01, 0x00, 0x00, 0x02,
+                ]
+            ),
         ]
     )
     for template in range(4):

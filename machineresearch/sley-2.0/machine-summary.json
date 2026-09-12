@@ -2063,7 +2063,7 @@
     "outer_trailer_rehash_lane": true,
     "failed_preflight_object_writes": 0,
     "full_s20_540_profile_covered": false,
-    "vulcan_review": "REVISE_0_P0_1_P1_0_P2_3_P3_5_P4",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_3_P3_4_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2113,7 +2113,7 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_note": "REQ-08 item 4 verdict at 9d608c4 (transcript vulcan_review-9d608c4.md): lane-2 control bytes pinned by the magic precondition left classes 0/1/2/4 dead (P1). Fixed in c7fec98 (controls first, direct fall-through, claim-order sets, class-0 round-trip bind); fresh PASS proof at c7fec98 with all five classes executed clean. Fix awaits re-review; obligation stays REVISE. Crash history: retained artifacts were harness-oracle errors, never engine defects."
+    "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS."
   },
   "s20_700_exchange_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_S20_540_EXCHANGE_IMPORTER_ONLY",
@@ -2689,7 +2689,7 @@
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 399,
+    "graph_cfg_seed_count": 400,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,
@@ -2700,87 +2700,68 @@
     "closed_harness_finding_ids": [
       "S20-700-HARNESS-001"
     ],
-    "vulcan_review": "REVISE_0_P0_1_P1_2_P2_2_P3_1_P4",
+    "vulcan_review": "REVISE_0_P0_1_P1_1_P2_2_P3_3_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "4c30d1beda895365722e4fe1b80279aa455b2446",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "a525797855c6216f25faebd6c52c18d64d5a9dda",
+      "source_tree_clean_except_retained_slices": false,
       "worktree_dirty_files": [
+        "M evidence/release/decision-dossier.json",
+        " M evidence/review/finding-register.json",
+        " M fuzz/targets/ssmc_graph_cfg_checker.rs",
+        " M fuzz/targets/type_checker.rs",
+        " M machineresearch/sley-2.0/machine-summary.json",
+        " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
+        " M scripts/run_semantic_checkers_persistent_fuzz.py",
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
+        "?? evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review-c7fec98.md",
+        "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-16a095e.md"
       ],
       "corpus_count": {
-        "graph-cfg": 396,
+        "graph-cfg": 400,
         "type-checker": 385
       },
-      "corpus_file_count": {
-        "graph-cfg": 531,
-        "type-checker": 663
-      },
-      "runs_requested": 792,
-      "runs_floor": {
-        "graph-cfg": 919,
-        "type-checker": 919
-      },
       "executed_runs": {
-        "graph-cfg": 919,
-        "type-checker": 919
+        "graph-cfg": 937,
+        "type-checker": 937
       },
       "coverage": {
         "graph-cfg": {
-          "counters": 6587,
-          "ft_done": 3993,
-          "ft_inited": 3907,
+          "counters": 6569,
+          "ft_done": 4218,
+          "ft_inited": 4127,
           "new_events": true,
-          "seed": 1604271084
+          "seed": 650351555
         },
         "type-checker": {
           "counters": 3929,
-          "ft_done": 5794,
-          "ft_inited": 5791,
+          "ft_done": 5935,
+          "ft_inited": 5851,
           "new_events": true,
-          "seed": 1604170854
+          "seed": 650238076
         }
       },
-      "coverage_ok": {
-        "graph-cfg": true,
-        "type-checker": true
-      },
-      "crash_artifacts": [
-        "crash-2bbc9acb2d294f8418a268231e37b2989d38cab3",
-        "crash-b7d7cc07bf4da1693995a6d05d25f0f917a295ad"
-      ],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [
         {
-          "artifact": "crash-2bbc9acb2d294f8418a268231e37b2989d38cab3",
-          "returncode": 0,
-          "still_crashes": false
-        },
-        {
-          "artifact": "crash-b7d7cc07bf4da1693995a6d05d25f0f917a295ad",
+          "artifact": "crash-47e105f95bc7b3581d8589e761bfaeb2c79239b1",
           "returncode": 0,
           "still_crashes": false
         }
       ],
-      "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1278,
-      "owner_lib_sancov": 115,
-      "rlib_linkage": "cargo-json",
-      "build_locked": true,
-      "sancov_scope": "workspace-target-units-via-host-config",
-      "toolchain_versions": {
-        "cc": "clang version 22.1.8",
-        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
-      },
+      "regression_seeds": [
+        "seed-0004/0005/0006 (round 2)",
+        "seed-0007-e728ff874984d6e2 (round 3, VS-R2-001 union closure)"
+      ],
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_note": "REQ-08 item 7 verdict at 9d608c4 (transcript vulcan_review-9d608c4.md): three review-derived correct codes were missing from single-mutation sets (P1). Fixed in 16a095e (sets + 3 regression seeds + record fixes); fresh PASS proof at 9d608c4-post with wrong-code control durably recorded. Fix awaits re-review; obligation stays REVISE."
+    "vulcan_review_note": "Round-3 repair LANDED (uncommitted): CFG_UNREACHABLE_VALUE bound on arms 18/19/20/21/22/32 with reason + seed-0007 (VS-R2-001, counterexample confirmed by direct run pre-repair); dead entries with false reasons removed (VS-R2-004, each re-derived; arms 6/31 bind empty \u2014 order validated nowhere); arms 9/14/23 narrowed (arms 3/13 deliberately unchanged \u2014 small_type case-7 semantics unverified); arm-1 widening + artifact dispositions recorded (VS-R2-003); checker pins for 4 codes + 2 seed blocks (VS-R2-007); type_checker comment corrected (VS-R2-006). last_local_proof refreshed to the round-3 PASS (937/937 both targets, override lane). Fix awaits re-review; obligation stays REVISE."
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
