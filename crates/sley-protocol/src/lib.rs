@@ -841,8 +841,9 @@ pub fn handshake_transcript(
 /// # Errors
 ///
 /// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common version, epoch, or
-/// method exists, the hellos fail validation, or the transcript cannot be
-/// digested.
+/// method (including the `session.open` floor) exists; a decoded-but-invalid
+/// hello propagates `Hello::validate`'s own `PROTOCOL_PAYLOAD_INVALID` /
+/// `PROTOCOL_LIMIT_EXCEEDED`, or the transcript cannot be digested.
 pub fn negotiate_identity(
     client: &Hello,
     server: &Hello,
@@ -860,7 +861,9 @@ pub fn negotiate_identity(
 /// # Errors
 ///
 /// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common version, epoch, or
-/// method exists, or the hellos fail validation.
+/// method (including the `session.open` floor) exists; a decoded-but-invalid
+/// hello propagates `Hello::validate`'s own `PROTOCOL_PAYLOAD_INVALID` /
+/// `PROTOCOL_LIMIT_EXCEEDED`.
 pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
     client.validate()?;
     server.validate()?;
@@ -916,7 +919,9 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 /// # Errors
 ///
 /// Returns `PROTOCOL_NO_COMMON_PROFILE` when no common version, epoch, or
-/// method exists, or the hellos fail validation.
+/// method (including the `session.open` floor) exists; a decoded-but-invalid
+/// hello propagates `Hello::validate`'s own `PROTOCOL_PAYLOAD_INVALID` /
+/// `PROTOCOL_LIMIT_EXCEEDED`.
 pub fn negotiate_versioned(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
     let mut profile = negotiate(client, server)?;
     // The operational explicit path implements versions 1 and 2 only: an
