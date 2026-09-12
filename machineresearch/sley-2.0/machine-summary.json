@@ -2704,7 +2704,7 @@
     "closed_harness_finding_ids": [
       "S20-700-HARNESS-001"
     ],
-    "vulcan_review": "REVISE_0_P0_1_P1_1_P2_2_P3_3_P4",
+    "vulcan_review": "REVISE_0_P0_2_P1_1_P2_1_P3_2_P4",
     "deferred_surfaces": [
       "merge engine"
     ],
@@ -2765,7 +2765,7 @@
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_note": "Round-3 repair LANDED (uncommitted): CFG_UNREACHABLE_VALUE bound on arms 18/19/20/21/22/32 with reason + seed-0007 (VS-R2-001, counterexample confirmed by direct run pre-repair); dead entries with false reasons removed (VS-R2-004, each re-derived; arms 6/31 bind empty \u2014 order validated nowhere); arms 9/14/23 narrowed (arms 3/13 deliberately unchanged \u2014 small_type case-7 semantics unverified); arm-1 widening + artifact dispositions recorded (VS-R2-003); checker pins for 4 codes + 2 seed blocks (VS-R2-007); type_checker comment corrected (VS-R2-006). last_local_proof refreshed to the round-3 PASS (937/937 both targets, override lane). Fix awaits re-review; obligation stays REVISE."
+    "vulcan_review_note": "Round-3 re-review at 40feff2 (transcript vulcan_review-67ad3a3.md, FIELD vulcan_review, ROUND final): 2 fresh P1. VS-R3-001: three round-3 changes opened NEW union holes \u2014 arm-22 CFG_DOMINANCE removal wrong ([18,22] -> Dominance; Dominance keys on USE-block reachability only), arms 9/23 narrowing missed rename+re-push ORDINAL ([9,1], [23,17]). VS-R3-002: two pre-existing holes ([29,14,5] -> REACHABILITY, [1,10,11] -> ORDINAL) prove per-instance patching cannot close the class. ALL FIVE counterexamples CONFIRMED by direct binary run this session (byte-exact signatures). Owner design decision (round 4): reviewer option (ii) \u2014 exact per-arm sets for single mutations, multi-mutation branch asserts determinism + membership in the code universe; union assert documented as single-mutation oracle. VS-R3-004 (register stale) REFUTED on disk: register row carries the round-2 string. VS-R3-003 (proof binding) addressed via clean-commit re-proof pattern. Obligation stays REVISE."
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",

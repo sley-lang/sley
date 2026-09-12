@@ -2,14 +2,14 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "97 review obligations are open",
+    "96 review obligations are open",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "29a7bec94a8b74c29272088c7ba7f7040e1f80d6939fa126555e3a7c9ad64ea6",
+  "dossier_digest": "a184e2af93767e500aca2782c81e71e6f8b51d0eb2a475974241c498ec5a8761",
   "entries": [
     {
       "evidence": [
@@ -339,11 +339,11 @@
         },
         "deferred_reviews": 0,
         "obligations": 284,
-        "open_reviews": 97,
+        "open_reviews": 96,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 61,
-          "P1": 110,
+          "P1": 109,
           "P2": 123,
           "P3": 136,
           "P4": 15
@@ -351,8 +351,8 @@
         "states": {
           "HISTORICAL_ROUND": 30,
           "OTHER": 3,
-          "PASS": 154,
-          "PENDING": 97
+          "PASS": 155,
+          "PENDING": 96
         }
       }
     },
@@ -452,7 +452,7 @@
       }
     }
   ],
-  "entries_digest": "618015bcaf6a3b49031c348453591703ecd2bfe73430108319025c097cd1002f",
+  "entries_digest": "28648346f25acaccf76f3db9c2f3e57b87295cd71e64474bcced4c00fe6c7f24",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

@@ -2951,17 +2951,16 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_0_P2_3_P3_5_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_4_P4",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_170_PACK_IMPORTER_ONLY",
       "reviewer": "vulcan",
       "section": "s20_700_pack_persistent_fuzz_slice",
       "severities": [
-        "P1",
         "P3",
         "P4"
       ],
-      "state": "PENDING",
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -3161,7 +3160,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_2_P2_2_P3_1_P4",
+      "disposition": "REVISE_0_P0_2_P1_1_P2_1_P3_2_P4",
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
       "reviewer": "vulcan",
@@ -4050,7 +4049,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "fd1a819443719df6bf540f2f4270618e14caa094b187d0df7820564a05c4274b",
+  "obligations_digest": "0dd8bd0db30dd0164fbea0c9f0e7233f57608b60856bc8a99851fa3f8ad482f0",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4680,16 +4679,6 @@
       "severities": []
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_0_P2_3_P3_5_P4",
-      "field": "vulcan_review",
-      "section": "s20_700_pack_persistent_fuzz_slice",
-      "severities": [
-        "P1",
-        "P3",
-        "P4"
-      ]
-    },
-    {
       "disposition": "FAIL_1_P0_4_P1_6_P2_2_P3",
       "field": "ariadne_contract_review",
       "section": "s20_700_remaining_surface_audit",
@@ -4723,7 +4712,7 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_1_P1_2_P2_2_P3_1_P4",
+      "disposition": "REVISE_0_P0_2_P1_1_P2_1_P3_2_P4",
       "field": "vulcan_review",
       "section": "s20_700_semantic_checkers_persistent_fuzz_slice",
       "severities": [
@@ -5066,11 +5055,11 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "00090f8cd51185290f32366af0e7223c736abc90e11dbcccdc82e0d52f75ea54",
+  "register_digest": "c84e98259a9e93c4cc5901d73fa4db7ce6ad6d703489bd35bcd6202456912e6c",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
-    "P1": 110,
+    "P1": 109,
     "P2": 123,
     "P3": 136,
     "P4": 15
@@ -5079,8 +5068,8 @@
   "states": {
     "HISTORICAL_ROUND": 30,
     "OTHER": 3,
-    "PASS": 154,
-    "PENDING": 97
+    "PASS": 155,
+    "PENDING": 96
   },
   "superseded_rounds": [
     {
