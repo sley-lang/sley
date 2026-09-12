@@ -2870,38 +2870,42 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
+      "source_commit": "fd3293f116b6cc174e382b392bcf4b6c9ad3d31c",
       "source_tree_clean_except_retained_slices": true,
       "worktree_dirty_files": [
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 788,
-      "corpus_file_count": 956,
+      "corpus_file_count": 829,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
-        "counters": 18668,
-        "ft_done": 10547,
-        "ft_inited": 10532,
+        "counters": 18753,
+        "ft_done": 10353,
+        "ft_inited": 10191,
         "new_events": true,
-        "seed": 4239760226
+        "seed": 4051216119
       },
       "coverage_ok": true,
-      "crash_artifacts": [],
+      "crash_artifacts": [
+        "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90"
+      ],
       "new_crash_artifacts": [],
-      "retested_prior_crashes": [],
+      "retested_prior_crashes": [
+        {
+          "artifact": "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90",
+          "returncode": 0,
+          "still_crashes": false
+        }
+      ],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1278,
       "owner_lib_sancov": 125,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "toolchain_versions": {
-        "cc": "clang version 22.1.8",
-        "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
-      },
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
@@ -2911,7 +2915,7 @@
       103,
       104
     ],
-    "vm_repair_note": "Repair wave (uncommitted): completion oracle strengthened to Success-termination + result-canonical payload in both lanes (P1, target root fix); raw-lane must-reject oracle (count/type) + E3 two-layer float-canonicality sub-draw (P3); audit/GAPS re-scoped to loaded-image path with checker-forbidden symbols; checker validates the durable proof record; ADR-0039 E8 line; S20_700_VM_001/002 regression filings; E6/E7a + map-order/limit adequacy notes. Fresh review queued."
+    "vm_repair_note": "VM repairs COMMITTED as fd3293f; clean-commit re-proof PASS 1576/1576 (override lane; proof predates-runner + uninspectable-host issues closed by construction). last_local_proof binds fd3293f. Fresh review queued; obligation stays REVISE until independent PASS."
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",
