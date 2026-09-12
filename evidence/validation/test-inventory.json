@@ -178,7 +178,7 @@
   "conformance_rejections": 270,
   "conformance_vectors": 473,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "3825c5c0be01e49daf64965c78f6f96bec0d983732fd324c1562bc93ba58826d",
+  "inventory_digest": "6f8d3881b024e5abd98dcd40cb49f4be5c650889575f3d0d2acf5f6b8dcfcd29",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -262,7 +262,7 @@
     {
       "crate": "sley-cli",
       "ignored": 0,
-      "tests": 25
+      "tests": 26
     },
     {
       "crate": "sley-conformance",
@@ -282,12 +282,12 @@
     {
       "crate": "sley-mutate",
       "ignored": 0,
-      "tests": 60
+      "tests": 70
     },
     {
       "crate": "sley-policy",
       "ignored": 1,
-      "tests": 54
+      "tests": 58
     },
     {
       "crate": "sley-protocol",
@@ -297,12 +297,12 @@
     {
       "crate": "sley-query",
       "ignored": 4,
-      "tests": 104
+      "tests": 106
     },
     {
       "crate": "sley-repo",
       "ignored": 4,
-      "tests": 389
+      "tests": 391
     },
     {
       "crate": "sley-scb1",
@@ -322,7 +322,7 @@
     {
       "crate": "sley-state-root",
       "ignored": 0,
-      "tests": 12
+      "tests": 13
     },
     {
       "crate": "sley-store",
@@ -337,11 +337,11 @@
     {
       "crate": "sley-vm",
       "ignored": 2,
-      "tests": 230
+      "tests": 232
     }
   ],
   "rust_ignored_emitters": 16,
-  "rust_unit_tests": 1392,
+  "rust_unit_tests": 1414,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

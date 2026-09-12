@@ -2870,23 +2870,25 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "8de4d130dec517d14b2d496192370340ccfa61e7",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "7804432d0bcebd0f6e2cd9f2b90aa187dbd19c7c",
+      "source_tree_clean_except_retained_slices": false,
       "worktree_dirty_files": [
+        "M evidence/release/decision-dossier.json",
+        " M evidence/validation/test-inventory.json",
         "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
         "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
       ],
       "corpus_count": 789,
-      "corpus_file_count": 879,
+      "corpus_file_count": 903,
       "runs_requested": 1576,
       "runs_floor": 1576,
       "executed_runs": 1576,
       "coverage": {
         "counters": 18753,
-        "ft_done": 10493,
-        "ft_inited": 10411,
+        "ft_done": 10529,
+        "ft_inited": 10494,
         "new_events": true,
-        "seed": 387953947
+        "seed": 3148480253
       },
       "coverage_ok": true,
       "crash_artifacts": [
@@ -2913,7 +2915,8 @@
       "toolchain_overridden": true,
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host",
+      "note": "Governance-wave refresh: sley-vm test-only additions + one pub(crate) visibility widening (no behavior change); lane proof re-run PASS 1576/1576 (override lane). Release mint 1ba36f4 untouched (records/source delta nil for the artifact)."
     },
     "restricted_profile_opcodes": [
       102,
