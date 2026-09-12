@@ -1,0 +1,12 @@
+{
+ "classification": "HARNESS_ONLY_FIXED",
+ "contract": "s20-700-fuzz-harness-regression-v1",
+ "disposition": "The bridge tamper arm is entry-aware (the replacement always differs from the frozen response) plus a structural guard asserting every tampered row differs from frozen; the minimized input is a permanent corpus seed.",
+ "expected": "The vm_canonical_inputs target completes; tamper class 11 on a V2B1 row produces a genuinely tampered row and the expected refusal fires only on tampered programs.",
+ "finding_id": "S20-700-VM-002",
+ "input_hex": "20456b",
+ "minimized_input_hex": "20456b",
+ "production_checker_defect": false,
+ "root_cause": "No-op tamper mutant: tamper class 11 (response-rewrite) left a frozen V2B1 row unchanged (response already Bytes), so an accepted program flowed through as tampered and the refusal oracle fired wrongly. Production was correct; the lane oracle was wrong.",
+ "target": "vm_canonical_inputs"
+}

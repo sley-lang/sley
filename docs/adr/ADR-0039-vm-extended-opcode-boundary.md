@@ -3,7 +3,9 @@
 Status: accepted; the S20-260/S20-270 full-profile contract is at revision
 12 with Nabu architecture review PASS and the Ariadne contract and Vulcan
 surface re-reviews PASS with no new findings; slices E1 through E6 plus E7a
-implemented (2026-09-05), the rest of E7 excluded
+implemented (2026-09-05), the rest of E7 excluded; slice E8 (bridge
+adapter_invoke over frozen rows, contract rev 13, RW-030/RW-050) implemented
+in the VM persistent fuzz lane
 
 Date: 2026-09-03
 

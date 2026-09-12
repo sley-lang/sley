@@ -28,7 +28,16 @@ for marker in [
     "VM canonical-input hash judgment was not deterministic",
     "VM execution judgment was not deterministic",
     "a canonical fixture input under normal limits was rejected",
-    "a valid fixed VM fixture under normal limits was rejected",
+    "did not succeed",
+    "is not result-canonical",
+    "encode_const_value",
+    "ExecutionTermination::Success",
+    "a raw VM input with the wrong arity was not refused",
+    "a mistyped raw VM input was accepted",
+    "InputCountMismatch",
+    "a canonical float input was refused as non-canonical",
+    "a non-canonical float input executed",
+    "InputNotCanonical",
     "cross-profile termination drifted",
     "assert_eq!(hashes.len(), request.inputs.len())",
     "FIXTURE_COUNT: u8 = 9",
@@ -42,7 +51,9 @@ for marker in [
     "Opcode::IntAddChecked",
     "Opcode::FloatAdd",
     "Opcode::CellNew",
-    "a family fixture under its own canonical inputs failed to execute",
+    "did not succeed",
+    "is not result-canonical",
+    "failed to execute",
     "the restricted refusal was not the opcode judgment",
     "code.code(),",
     "LowerErrorCode::OpcodeUnsupported",
@@ -68,7 +79,13 @@ for marker in [
 ]:
     if marker not in target:
         problems.append(f"target-missing:{marker}")
-for forbidden in ["decode_bytecode", "execute_bytecode", "RawBytecode"]:
+for forbidden in [
+    "decode_bytecode",
+    "execute_bytecode",
+    "RawBytecode",
+    "load_image",
+    "execute_loaded_image",
+]:
     if forbidden in target:
         problems.append(f"raw-bytecode-surface:{forbidden}")
 
@@ -184,12 +201,35 @@ for path, marker in [
     (RESULTS, "VM canonical-input persistent libFuzzer slice"),
     (RESULTS, "do not complete S20-700"),
     (GAPS, "Full-GA S20-240 through S20-270 semantics, adapters, persistent reports, and"),
-    (GAPS, "no raw-bytecode decoder"),
-    (GAPS, "execution entry"),
+    (GAPS, "does not cover the loaded-image path"),
+    (GAPS, "RW-070 owner obligation"),
     (AUDIT, "make vm-persistent-fuzz-smoke"),
+    (AUDIT, "does not cover the loaded-image path"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):
         problems.append(f"doc-missing:{path.relative_to(ROOT)}:{marker}")
+
+# The durable proof record is validated, not just pinned: a recorded PASS
+# must have covered the corpus, crashed nothing new, and instrumented the
+# owner library. A stale or failing proof record fails the contract.
+proof = slice_status.get("last_local_proof", {})
+if proof.get("result") != "PASS":
+    problems.append("proof-record-not-pass")
+for key in ("executed_runs", "runs_floor"):
+    if not isinstance(proof.get(key), int):
+        problems.append(f"proof-record-not-int:{key}")
+if (
+    isinstance(proof.get("executed_runs"), int)
+    and isinstance(proof.get("runs_floor"), int)
+    and proof["executed_runs"] < proof["runs_floor"]
+):
+    problems.append("proof-record-below-floor")
+if proof.get("new_crash_artifacts"):
+    problems.append("proof-record-new-crashes")
+if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0:
+    problems.append("proof-record-no-owner-sancov")
+if not isinstance(proof.get("source_commit"), str) or len(proof.get("source_commit", "")) != 40:
+    problems.append("proof-record-bad-source-commit")
 
 if problems:
     raise SystemExit("\n".join(problems))

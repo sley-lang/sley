@@ -26,10 +26,10 @@
   not claim a canonical query decoder, the nineteen root-backed query classes,
   continuation, or master context-capsule authority.
 - The restricted-VM target is a fuzz-only typed input constructor over nine
-  fixed valid graphs. Sley 2 has no raw-bytecode decoder or execution entry
-  point, and the target does not cover the other 52 opcode signatures,
-  generics, adapters, live cancellation, execution flags, decoding, or
-  persistent reports.
+  fixed valid graphs plus nine extended-family fixtures. This slice does not cover the loaded-image path
+  (`sley_vm::load_image`/`execute_loaded_image`,
+  RW-070 owner obligation), and the target does not cover generics,
+  live cancellation, execution flags, decoding, or persistent reports.
 - The adapter-response target is a fuzz-only typed fixture constructor over
   request-owned memory. It does not cover the authorized S20-380 wrapper, VM
   adapter opcodes, live host confinement, handle cleanup, or persistent

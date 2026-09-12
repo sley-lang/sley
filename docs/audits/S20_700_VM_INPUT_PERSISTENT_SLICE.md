@@ -21,21 +21,25 @@ accepted, preventing a deterministic reject-all regression from passing.
 
 Input is capped at 4,096 bytes. Raw requests contain at most four values,
 collections at most four items, and byte or text payloads at most 32 bytes. The
-deterministic synthetic corpus contains 625 seeds. Corpus, binaries, artifacts,
+deterministic synthetic corpus contains 788 seeds. Corpus, binaries, artifacts,
 and command evidence remain under ignored
 `evidence/runtime/s20-700-vm-input-libfuzzer/` paths.
 
 The byte mapping is a fuzz-only typed constructor, not a VM bytecode format.
 The target calls the existing public execution API, which re-lowers a validated
-graph. Sley 2 has no raw-bytecode decoder or execution entry point, and this
-slice claims neither. It covers the restricted three-opcode execution profile
-and identity pass-through inputs only. The other 52 opcode signatures,
-generics, adapters, live cancellation, execution flags, decoding, persistent
-reports, and full S20-270 remain unavailable.
+graph. This slice does not cover the loaded-image path
+(`sley_vm::load_image`/`execute_loaded_image`, an RW-070 owner obligation
+flagged for escalation): no fuzz target in this lane touches it, and the
+slice checker forbids those symbols. The lane covers the restricted
+three-opcode execution profile, identity pass-through inputs, and the nine
+extended-family fixtures (E1 constant, E2 arithmetic, E3 float, E4 map, E5
+cell, E6 direct call, E7a contract assertion, E8 bridge adapter_invoke).
+Generics, live cancellation, execution flags, decoding, persistent reports,
+and full S20-270 remain unavailable.
 
-Independent Vulcan review remains deferred because the local Forge OAuth
-session returns 401. Mutation candidates, merge, and the full S20-700 finding
-register remain required.
+Independent Vulcan reviews dispatch through forge-council; the review
+transcripts are filed under `evidence/review/verdicts/`. Mutation
+candidates, merge, and the full S20-700 finding register remain required.
 
 Focused validation:
 
@@ -76,7 +80,7 @@ The fix, all in the harness plus contract text, no production-code change:
   name for every outer fixture (verified by enumeration).
 - The E6 fixture threads a Bool argument through a nested callee pair,
   exercising argument copy and the multi-entry callee table.
-- The runner requires `--runs` to cover the corpus (default 1024 over 769
+- The runner requires `--runs` to cover the corpus (default 1576 over 788
   seeds) and records the executed run count from the `Done N runs` line,
   failing when it does not cover the corpus.
 - Contract revision 11 binds the 128 repeated executions to the vectors,
@@ -89,6 +93,43 @@ per-opcode vectors for `function_ref` and the map accessors, the
 per-signature-rule rejection matrix, the `Cursor` distribution rework, the
 fuzz input cap raise, and encoder/decoder disjointness assertions. The E6
 separate-inventory question stays with Nabu.
+
+## Repair round (completion oracle + must-reject + records)
+
+The correct-lane re-review (REQ-08 item 3, REVISE) found the completion
+oracle one step short of the contract: `is_ok()` admits
+InternalInvariant, Trap, and ResourceLimit outcomes. Fixed at the root
+(target, not checker-only): both the outer lane (canonical fixtures
+under normal limits) and the family lane now require
+`ExecutionTermination::Success` and require the Success payload to be
+result-canonical (`sley_mutate::encode_const_value` succeeds, closing
+the E3 result-canonicality gap too). Every family's value failure (E2
+Arithmetic, E4 DuplicateKey, E7a ContractViolation) is a
+Success(Result::Err) value, so the strengthening is uniform; the
+checker pins the new assert messages.
+
+The raw lane carries a must-reject oracle: a count mismatch asserts
+`Err(Exec(InputCountMismatch))`, any type mismatch asserts failure
+(a fail-open validation regression would otherwise stay green on
+determinism). The E3 float-canonicality sub-draw feeds raw u64 bits
+with the F64 type: refusal must come from exactly one of the two
+canonicality layers — `TYPE_FLOAT_NON_CANONICAL` at the type layer for
+constructed values, `VM_EXEC_INPUT_NOT_CANONICAL` on the codec path —
+and success requires canonical bits plus Success termination. The first
+version of the sub-draw pinned only the Exec layer and crashed on
+`ff ff 02` (retained as `crash-b55c33e9…`, retests clean): a
+harness-oracle error, never an engine defect, filed as
+`fuzz/regressions/S20_700_VM_001.json`. The earlier bridge tamper
+no-op (`20 45 6b`, RW-050) is filed as `S20_700_VM_002.json`.
+
+Records: seed counts corrected (788 seeds, 1576-run floor); lane text
+covers E1–E8; the loaded-image path is re-scoped to this slice (RW-070
+owner obligation, checker-forbidden symbols); the checker validates the
+durable proof record (PASS, floor coverage, no new crashes, owner
+sancov, source-commit shape). Adequacy notes for the next target round:
+E6/E7a accept any `LoweringError::Cfg` (not the specific single-graph
+failure); the map-order lane covers one top-level map shape; limit
+profiles 1–3 assert determinism only.
 
 ## Rounds 7c-7m (REQ-06 re-review wave)
 

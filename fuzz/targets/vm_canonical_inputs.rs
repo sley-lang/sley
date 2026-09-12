@@ -133,10 +133,59 @@ fn fuzz_one(input: &[u8]) {
             first_hashes.is_ok(),
             "a canonical fixture input under normal limits was rejected"
         );
-        assert!(
-            first.is_ok(),
-            "a valid fixed VM fixture under normal limits was rejected"
-        );
+        // Completion oracle: `is_ok` admits InternalInvariant, Trap, and
+        // ResourceLimit outcomes, exactly the engine-defect class this
+        // slice exists to surface. The contract requires a completed
+        // termination, so a canonical fixture must Success-terminate, and
+        // the Success payload must be result-canonical (encodeable).
+        match &first {
+            Ok(outcome) => {
+                let ExecutionTermination::Success(value) = &outcome.termination
+                else {
+                    panic!(
+                        "a valid fixed VM fixture under normal limits did not succeed: {:?}",
+                        outcome.termination
+                    )
+                };
+                assert!(
+                    sley_mutate::encode_const_value(value).is_ok(),
+                    "a succeeded VM fixture value is not result-canonical"
+                );
+            }
+            Err(error) => panic!(
+                "a valid fixed VM fixture under normal limits was rejected: {error:?}"
+            ),
+        }
+    }
+
+    if !canonical_inputs {
+        // Must-reject oracle: input validation refuses a count mismatch
+        // unconditionally and first, then a type mismatch before
+        // canonicality. A raw draw that disagrees with the fixture shape
+        // must therefore fail; a fail-open regression that lets it through
+        // would otherwise stay green on determinism alone.
+        let expected = &fixture.expected_input_types;
+        if request.inputs.len() != expected.len() {
+            assert_eq!(
+                first.as_ref().err(),
+                Some(
+                    &sley_vm::ExecutionError::Exec(
+                        sley_vm::ExecutionErrorCode::InputCountMismatch
+                    )
+                ),
+                "a raw VM input with the wrong arity was not refused"
+            );
+        } else if request
+            .inputs
+            .iter()
+            .zip(expected.iter())
+            .any(|(input, value_type)| &input.value_type != value_type)
+        {
+            assert!(
+                first.is_err(),
+                "a mistyped raw VM input was accepted"
+            );
+        }
     }
 
     if let (Ok(hashes), Ok(outcome)) = (first_hashes, first) {
@@ -327,12 +376,29 @@ fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
         "extended-family execution judgment was not deterministic"
     );
     // A family lane that never reaches execution is a lowering-judgment lane
-    // wearing a determinism assertion: the first draw must complete under
-    // generous limits, whether to a success or to the family's value failure.
-    assert!(
-        first.is_ok(),
-        "a family fixture under its own canonical inputs failed to execute"
-    );
+    // wearing a determinism assertion: the first draw must Success-terminate
+    // under generous limits. Every family's failure path (E2 Arithmetic, E4
+    // DuplicateKey, E7a ContractViolation) is a Success(Result::Err) value,
+    // so Success-termination is uniform; `is_ok` would additionally admit
+    // InternalInvariant, Trap, and ResourceLimit outcomes.
+    match &first {
+        Ok(outcome) => {
+            let ExecutionTermination::Success(value) = &outcome.termination
+            else {
+                panic!(
+                    "a family fixture under its own canonical inputs did not succeed: {:?}",
+                    outcome.termination
+                )
+            };
+            assert!(
+                sley_mutate::encode_const_value(value).is_ok(),
+                "a succeeded family fixture value is not result-canonical"
+            );
+        }
+        Err(error) => panic!(
+            "a family fixture under its own canonical inputs failed to execute: {error:?}"
+        ),
+    }
 
     // Every extended family program is outside the restricted profile, and the
     // refusal must be the lowering profile's: a bare error would stay green
@@ -384,6 +450,67 @@ fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
             outcome.observation_id,
             "extended observation identity drifted"
         );
+    }
+
+    // Float-canonicality sub-draw (E3): the codec refuses -0.0 and
+    // non-canonical NaN before execution, but the family lane only ever
+    // feeds pre-canonicalised bits. Feed raw u64 bits with the F64 type
+    // and require refusal exactly when the bits are non-canonical.
+    if selector == 2 {
+        let arity = fixture.fixture.expected_input_types.len();
+        let raws: Vec<u64> = (0..arity).map(|_| cursor.u64()).collect();
+        let non_canonical = raws.iter().any(|raw| canonical_f64_bits(*raw) != *raw);
+        let probe = ExecutionRequest {
+            inputs: raws
+                .into_iter()
+                .map(|raw| ConstValue {
+                    value_type: TypeExpr::F64,
+                    data: ConstData::F64Bits(raw),
+                })
+                .collect(),
+            limits: generous_limits(),
+        };
+        let outcome = execute_function(extended, probe);
+        // Refusal must come from exactly one of the two canonicality
+        // layers: the type layer rejects non-canonical bits in an already
+        // constructed value (TYPE_FLOAT_NON_CANONICAL) before the
+        // execution layer's InputNotCanonical check is reached (that code
+        // fires on the codec path, e.g. the map-order lane). Either layer
+        // proves the bits never execute; anything else — or success on
+        // non-canonical bits — fails loudly.
+        match &outcome {
+            Err(sley_vm::ExecutionError::Exec(
+                sley_vm::ExecutionErrorCode::InputNotCanonical,
+            )) => assert!(
+                non_canonical,
+                "a canonical float input was refused as non-canonical"
+            ),
+            Err(sley_vm::ExecutionError::Type(error))
+                if error.code() == sley_check::TypeErrorCode::FloatNonCanonical =>
+            {
+                assert!(
+                    non_canonical,
+                    "a canonical float input was refused as non-canonical"
+                )
+            }
+            Err(other) => panic!(
+                "a raw float input failed with the wrong error: {other:?}"
+            ),
+            Ok(outcome) => {
+                assert!(
+                    !non_canonical,
+                    "a non-canonical float input executed"
+                );
+                assert!(
+                    matches!(
+                        outcome.termination,
+                        ExecutionTermination::Success(_)
+                    ),
+                    "a canonical float input did not succeed: {:?}",
+                    outcome.termination
+                );
+            }
+        }
     }
 }
 

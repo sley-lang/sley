@@ -2843,11 +2843,6 @@
     "fixture_count": 9,
     "identity_fixture_count": 6,
     "boolean_opcode_fixture_count": 3,
-    "supported_opcodes": [
-      102,
-      103,
-      104
-    ],
     "max_input_bytes": 4096,
     "max_raw_inputs": 4,
     "max_collection_items": 4,
@@ -2910,7 +2905,13 @@
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
-    }
+    },
+    "restricted_profile_opcodes": [
+      102,
+      103,
+      104
+    ],
+    "vm_repair_note": "Repair wave (uncommitted): completion oracle strengthened to Success-termination + result-canonical payload in both lanes (P1, target root fix); raw-lane must-reject oracle (count/type) + E3 two-layer float-canonicality sub-draw (P3); audit/GAPS re-scoped to loaded-image path with checker-forbidden symbols; checker validates the durable proof record; ADR-0039 E8 line; S20_700_VM_001/002 regression filings; E6/E7a + map-order/limit adequacy notes. Fresh review queued."
   },
   "s20_700_adapter_responses_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",
