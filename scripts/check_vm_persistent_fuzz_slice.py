@@ -238,8 +238,9 @@ if not isinstance(proof.get("source_commit"), str) or len(proof.get("source_comm
     problems.append("proof-record-bad-source-commit")
 else:
     # Ancestry, not just shape: the proof commit must contain the current
-    # lane files, so a proof predating the last target/runner/checker (or
-    # engine) change fails instead of passing on stale evidence.
+    # proof inputs, so a proof predating the last target/runner/engine
+    # change fails instead of passing on stale evidence. The checker
+    # script itself is contract, not proof input, and is excluded.
     ancestor = subprocess.run(
         ["git", "merge-base", "--is-ancestor", proof["source_commit"], "HEAD"],
         cwd=ROOT,
@@ -254,7 +255,6 @@ else:
                 "git", "diff", "--quiet", proof["source_commit"], "HEAD", "--",
                 "fuzz/targets/vm_canonical_inputs.rs",
                 "scripts/run_vm_persistent_fuzz.py",
-                "scripts/check_vm_persistent_fuzz_slice.py",
                 "fuzz/Cargo.toml",
                 "fuzz/Cargo.lock",
                 "crates/sley-vm",
