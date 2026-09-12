@@ -214,3 +214,34 @@ retest seed); `minimized-615e37…` is its failed-minimization stub
 four review-derived codes and both regression-seed blocks, so a silent
 revert of any repair round fails the contract. Fresh PASS proof 937/937
 on both targets (override lane); fix awaits re-review.
+
+## Fourth repair round (oracle scope: single-exact, multi-membership)
+
+The round-3 re-review (fixed lane at 67ad3a3, REVISE) verified the
+round-3 diff correct at the single-mutation level, then falsified the
+per-arm-union design as a class: three round-3 changes opened new
+false-positives (arm-22 `CFG_DOMINANCE` removal wrong — Dominance keys
+on the USE block's reachability only, so `[18,22]` reports it; arms 9/23
+narrowing missed rename-plus-re-push `GRAPH_ORDINAL_MISMATCH`), and two
+pre-existing holes (`[29,14,5]` reachability, `[1,10,11]` ordinal) show
+instance-patching cannot close combinations. All five counterexamples
+were confirmed by direct binary run before repairing (byte-exact
+signatures); the register-staleness claim (VS-R3-004) was refuted on
+disk — the row already carried the round-2 string.
+
+Fix (reviewer option (ii), owner-adopted): the union assert is now
+documented as a single-mutation oracle. One applied mutation pins its
+exact per-arm set (arm-22 `CFG_DOMINANCE` restored with the corrected
+use-block-only reason; `CFG_UNREACHABLE_VALUE` removed from the six
+single sets — unreachable under one mutation by derivation, so the
+single branch is exact again). Two or more mutations assert determinism
+(already pinned for every input by the repeat-judgment assert) plus
+membership in `CODE_UNIVERSE` (all 21 `CfgErrorCode` strings plus
+`TYPE_CODES`; the slice checker pins the universe against the engine's
+`as_str` literals and every set entry against the universe, so comment
+text alone no longer satisfies a pin). Combinations may reach any
+registered code through interacting arms, but never an unregistered one,
+never nondeterministically, never via panic. The five falsifying inputs
+pin the multi branch as permanent corpus seeds `seed-0008..0012`
+(graph-cfg seeds 400 -> 405). Fresh PASS proof 945/945 on both targets
+(override lane); fix awaits re-review.

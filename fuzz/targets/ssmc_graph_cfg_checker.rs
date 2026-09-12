@@ -50,11 +50,17 @@ fn fuzz_one(input: &[u8]) {
         assert!(first.is_ok(), "a graph/CFG base template drifted invalid");
     } else if let Err(error) = &first {
         // Failure-class narrowing: a mutated graph may still validate (a
-        // benign mutation), but when it fails the code must belong to the
-        // documented set of the applied mutation class. A single mutation
-        // pins its exact class set; several mutations pin their union while
-        // the determinism assert above pins which one stably wins. A wrong
-        // neighboring code fails here instead of passing silently.
+        // benign mutation), but when it fails the oracle pins the failure
+        // precisely where precision is sound. A single mutation pins its
+        // exact class set: one arm, one derivation, no interactions. Two
+        // or more mutations interact (a rename enables a re-push, a flip
+        // enables an orphan-plus-use), so no per-arm union can be closed
+        // by instance-patching (rounds 1-3 proved it); the multi branch
+        // therefore asserts only what combinations cannot break —
+        // determinism (pinned above for every input) plus membership in
+        // the engine's finite failure-code universe. A wrong neighboring
+        // code on a single mutation, a nondeterministic judgment, a
+        // panic, or an unregistered code all fail here loudly.
         let class = failure_class(error);
         if applied.len() == 1 {
             let expected = expected_for(applied[0]);
@@ -66,13 +72,11 @@ fn fuzz_one(input: &[u8]) {
                 expected
             );
         } else {
-            let union = expected_union(&applied);
             assert!(
-                union.contains(&class.as_str()),
-                "mutation classes {:?} escaped with unexpected failure class {} (expected one of {:?})",
+                CODE_UNIVERSE.contains(&class.as_str()),
+                "mutation classes {:?} escaped with unregistered failure class {}",
                 applied,
                 class,
-                union
             );
         }
     }
@@ -546,9 +550,63 @@ const TYPE_CODES: &[&str] = &[
     "TYPE_BUILTIN_FAILURE_INVALID",
 ];
 
+/// The engine's finite failure-code universe: every `CfgErrorCode::as_str`
+/// string (cfg.rs) plus every `TYPE_CODES` entry. The multi-mutation
+/// branch asserts membership here: combinations may reach any registered
+/// code through interacting arms, but never an unregistered one, never
+/// nondeterministically, never via panic. The slice checker pins this
+/// list against the engine's `as_str` literals, so a new engine code
+/// without a universe entry fails the contract instead of passing.
+const CODE_UNIVERSE: &[&str] = &[
+    "GRAPH_DUPLICATE_ENTITY",
+    "GRAPH_INVENTORY_MISMATCH",
+    "GRAPH_OWNER_MISMATCH",
+    "GRAPH_ORDINAL_MISMATCH",
+    "GRAPH_UNRESOLVED_REFERENCE",
+    "CFG_ENTRY_INVALID",
+    "CFG_TARGET_INVALID",
+    "CFG_TARGET_ARGUMENTS",
+    "CFG_RETURN_TYPE",
+    "CFG_BOOL_REQUIRED",
+    "CFG_SWITCH_TYPE",
+    "CFG_SWITCH_CASES",
+    "CFG_SWITCH_PAYLOAD",
+    "CFG_VALUE_UNRESOLVED",
+    "CFG_RESULT_INDEX",
+    "CFG_USE_BEFORE_DEFINITION",
+    "CFG_DOMINANCE",
+    "CFG_REACHABILITY",
+    "CFG_UNREACHABLE_VALUE",
+    "CFG_TRAP_PAYLOAD",
+    "CFG_RESOURCE_LIMIT",
+    "TYPE_DEPTH_LIMIT",
+    "TYPE_WIDTH_INVALID",
+    "TYPE_PARAMETER_OUT_OF_SCOPE",
+    "TYPE_ARGUMENT_LIMIT",
+    "TYPE_ARGUMENT_ARITY",
+    "TYPE_DEFINITION_UNKNOWN",
+    "TYPE_DEFINITION_DUPLICATE",
+    "TYPE_DEFINITION_CYCLE",
+    "TYPE_MEMBER_DUPLICATE",
+    "TYPE_MEMBER_UNKNOWN",
+    "TYPE_SET_ORDER",
+    "TYPE_NOT_ORDERABLE",
+    "TYPE_NOT_HASHABLE",
+    "TYPE_NOT_PERSISTABLE",
+    "TYPE_CONST_SHAPE",
+    "TYPE_CONST_RANGE",
+    "TYPE_FLOAT_NON_CANONICAL",
+    "TYPE_CONST_DUPLICATE_KEY",
+    "TYPE_RESOURCE_LIMIT",
+    "TYPE_IMPLICIT_COERCION",
+    "TYPE_BUILTIN_FAILURE_INVALID",
+];
+
 /// The narrowest contractually correct failure set for one mutation class.
 /// A set that proves too narrow fails loudly here (never silently); a set
 /// may only widen with a documented contract reason, never by fiat.
+/// These sets are consulted ONLY for single mutations (applied.len() == 1);
+/// multi-mutation inputs assert determinism plus CODE_UNIVERSE membership.
 fn expected_for(arm: u8) -> Vec<&'static str> {
     match arm {
         // Entry resolution precedes parameter/operation inventory
@@ -627,24 +685,18 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         ],
         // Flipping a body block trips reachability; flipping the entry
         // block itself trips entry validity (an entry must be reachable).
-        // A flipped block stays in the terminator loop, so in combination
-        // with a value-using terminator arm (or a rerouted entry) its
-        // foreign-owned value refs report CFG_UNREACHABLE_VALUE
-        // (cfg.rs:504-506, :530-532) instead of CFG_DOMINANCE.
-        18 => vec![
-            "CFG_REACHABILITY",
-            "CFG_ENTRY_INVALID",
-            "CFG_UNREACHABLE_VALUE",
-        ],
+        // (Round 4: CFG_UNREACHABLE_VALUE needs a second arm's value-use
+        // in the flipped block, so it lives in CODE_UNIVERSE, not here.)
+        18 => vec!["CFG_REACHABILITY", "CFG_ENTRY_INVALID"],
         // A successor-dropping replacement (Return, Trap-shaped branch)
         // orphans downstream required blocks, which cascade to
         // CFG_REACHABILITY past the terminator check itself. Terminator
         // value refs resolve result_index % 4 against single-result
         // template operations, so an out-of-range reference reports
         // CFG_RESULT_INDEX; a Block-role parameter used from a reachable
-        // non-owner block reports CFG_DOMINANCE (cfg.rs:501-507). When the
-        // use-block itself is unreachable (arm 18, rerouted entry), the
-        // same refs report CFG_UNREACHABLE_VALUE instead.
+        // non-owner block reports CFG_DOMINANCE (cfg.rs:501-507).
+        // (Round 4: the unreachable-use-block variants need a second arm,
+        // so they live in CODE_UNIVERSE, not here.)
         19 | 20 | 21 => [
             TARGET,
             &[
@@ -653,25 +705,24 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
                 "CFG_REACHABILITY",
                 "CFG_RESULT_INDEX",
                 "CFG_DOMINANCE",
-                "CFG_UNREACHABLE_VALUE",
             ][..],
         ]
         .concat(),
         // A trap terminator has no successors, so required blocks
         // reachable only through the replaced block cascade to
         // CFG_REACHABILITY. Its payload value ref resolves like any
-        // terminator value (result-index reachable); a Trap placed at the
-        // entry orphans the target, and reachability precedes terminators,
-        // so CFG_DOMINANCE is not reachable through the payload in this
-        // envelope (a Trap in the non-entry block uses self-owned values).
-        // In an unreachable use-block the payload reports
-        // CFG_UNREACHABLE_VALUE like any other terminator value.
+        // terminator value (result-index and dominance reachable). Round 4
+        // correction: CFG_DOMINANCE is restored — it keys on the USE
+        // block's reachability only (cfg.rs:507), so a Trap in a reachable
+        // block whose payload owner was declared unreachable by another
+        // arm still reports Dominance; the round-3 removal was wrong.
+        // (The unreachable-use-block variant lives in CODE_UNIVERSE.)
         22 => vec![
             "CFG_TRAP_PAYLOAD",
             "CFG_VALUE_UNRESOLVED",
             "CFG_REACHABILITY",
             "CFG_RESULT_INDEX",
-            "CFG_UNREACHABLE_VALUE",
+            "CFG_DOMINANCE",
         ],
         // Renaming an operation collides (cfg.rs:272) or desynchronises
         // the declaring block's operation list (cfg.rs:726-729).
@@ -695,8 +746,9 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         28 | 29 | 30 => vec!["GRAPH_DUPLICATE_ENTITY"],
         // A successor-dropping switch replacement orphans downstream
         // required blocks exactly like the Return/Trap arms; its edge
-        // arguments and selectors resolve values the same way, including
-        // the unreachable-use-block path (cfg.rs:504-506, :530-532).
+        // arguments and selectors resolve values the same way.
+        // (Round 4: the unreachable-use-block variants need a second arm,
+        // so they live in CODE_UNIVERSE, not here.)
         32 => vec![
             "CFG_SWITCH_TYPE",
             "CFG_SWITCH_CASES",
@@ -707,24 +759,9 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
             "CFG_REACHABILITY",
             "CFG_RESULT_INDEX",
             "CFG_DOMINANCE",
-            "CFG_UNREACHABLE_VALUE",
         ],
         _ => unreachable!(),
     }
-}
-
-/// Deduplicated union of the applied classes' sets, preserving first-seen
-/// order so multi-mutation panics name a stable expectation.
-fn expected_union(applied: &[u8]) -> Vec<&'static str> {
-    let mut union: Vec<&'static str> = Vec::new();
-    for arm in applied {
-        for code in expected_for(*arm) {
-            if !union.contains(&code) {
-                union.push(code);
-            }
-        }
-    }
-    union
 }
 
 fn selected_mut<'a, T>(values: &'a mut [T], cursor: &mut Cursor<'_>) -> Option<&'a mut T> {

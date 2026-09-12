@@ -2693,7 +2693,7 @@
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 400,
+    "graph_cfg_seed_count": 405,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,
@@ -2710,13 +2710,10 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a525797855c6216f25faebd6c52c18d64d5a9dda",
+      "source_commit": "56ef0c6b886e4b1189dcaa0c61224421fe2029f0",
       "source_tree_clean_except_retained_slices": false,
       "worktree_dirty_files": [
-        "M evidence/release/decision-dossier.json",
-        " M evidence/review/finding-register.json",
-        " M fuzz/targets/ssmc_graph_cfg_checker.rs",
-        " M fuzz/targets/type_checker.rs",
+        "M fuzz/targets/ssmc_graph_cfg_checker.rs",
         " M machineresearch/sley-2.0/machine-summary.json",
         " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
         " M scripts/run_semantic_checkers_persistent_fuzz.py",
@@ -2726,27 +2723,27 @@
         "?? evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review-16a095e.md"
       ],
       "corpus_count": {
-        "graph-cfg": 400,
+        "graph-cfg": 405,
         "type-checker": 385
       },
       "executed_runs": {
-        "graph-cfg": 937,
-        "type-checker": 937
+        "graph-cfg": 945,
+        "type-checker": 945
       },
       "coverage": {
         "graph-cfg": {
-          "counters": 6569,
-          "ft_done": 4218,
-          "ft_inited": 4127,
+          "counters": 6485,
+          "ft_done": 3879,
+          "ft_inited": 3762,
           "new_events": true,
-          "seed": 650351555
+          "seed": 1589850009
         },
         "type-checker": {
           "counters": 3929,
-          "ft_done": 5935,
-          "ft_inited": 5851,
+          "ft_done": 5942,
+          "ft_inited": 5935,
           "new_events": true,
-          "seed": 650238076
+          "seed": 1589742226
         }
       },
       "new_crash_artifacts": [],
@@ -2759,13 +2756,14 @@
       ],
       "regression_seeds": [
         "seed-0004/0005/0006 (round 2)",
-        "seed-0007-e728ff874984d6e2 (round 3, VS-R2-001 union closure)"
+        "seed-0007 (round 3, VS-R2-001)",
+        "seed-0008..0012 (round 4, VS-R3-001/002 multi-branch pins)"
       ],
       "cc": "clang",
       "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
     },
-    "vulcan_review_note": "Round-3 re-review at 40feff2 (transcript vulcan_review-67ad3a3.md, FIELD vulcan_review, ROUND final): 2 fresh P1. VS-R3-001: three round-3 changes opened NEW union holes \u2014 arm-22 CFG_DOMINANCE removal wrong ([18,22] -> Dominance; Dominance keys on USE-block reachability only), arms 9/23 narrowing missed rename+re-push ORDINAL ([9,1], [23,17]). VS-R3-002: two pre-existing holes ([29,14,5] -> REACHABILITY, [1,10,11] -> ORDINAL) prove per-instance patching cannot close the class. ALL FIVE counterexamples CONFIRMED by direct binary run this session (byte-exact signatures). Owner design decision (round 4): reviewer option (ii) \u2014 exact per-arm sets for single mutations, multi-mutation branch asserts determinism + membership in the code universe; union assert documented as single-mutation oracle. VS-R3-004 (register stale) REFUTED on disk: register row carries the round-2 string. VS-R3-003 (proof binding) addressed via clean-commit re-proof pattern. Obligation stays REVISE."
+    "vulcan_review_note": "Round-4 repair LANDED (uncommitted): oracle rescoped per reviewer option (ii) \u2014 exact per-arm sets for single mutations (arm-22 DOMINANCE restored with corrected reason; UV removed from six single sets as unreachable-under-one by derivation), multi branch asserts determinism + CODE_UNIVERSE membership (checker pins universe vs engine as_str + every set entry vs universe); 5 falsifying inputs pinned as seed-0008..0012 (405 seeds). last_local_proof refreshed to the round-4 PASS (945/945 both targets, override lane). VS-R3-004 refuted on disk. Fix awaits re-review; obligation stays REVISE."
   },
   "s20_700_query_persistent_fuzz_slice": {
     "status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
