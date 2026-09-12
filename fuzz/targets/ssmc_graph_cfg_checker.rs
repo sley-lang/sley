@@ -711,18 +711,19 @@ fn expected_for(arm: u8) -> Vec<&'static str> {
         // A trap terminator has no successors, so required blocks
         // reachable only through the replaced block cascade to
         // CFG_REACHABILITY. Its payload value ref resolves like any
-        // terminator value (result-index and dominance reachable). Round 4
-        // correction: CFG_DOMINANCE is restored — it keys on the USE
-        // block's reachability only (cfg.rs:507), so a Trap in a reachable
-        // block whose payload owner was declared unreachable by another
-        // arm still reports Dominance; the round-3 removal was wrong.
-        // (The unreachable-use-block variant lives in CODE_UNIVERSE.)
+        // terminator value (result-index reachable). Round-4 follow-up:
+        // CFG_DOMINANCE is NOT bound here — no single Trap placement in
+        // this envelope yields it (a Trap at the entry orphans the target
+        // and reachability precedes terminators; a Trap in the non-entry
+        // block uses self-owned or Function-role values; single-block
+        // templates hold no foreign Block-role parameters). The [18,22]
+        // combination reports Dominance through the multi-membership
+        // branch (CODE_UNIVERSE), which is where it belongs.
         22 => vec![
             "CFG_TRAP_PAYLOAD",
             "CFG_VALUE_UNRESOLVED",
             "CFG_REACHABILITY",
             "CFG_RESULT_INDEX",
-            "CFG_DOMINANCE",
         ],
         // Renaming an operation collides (cfg.rs:272) or desynchronises
         // the declaring block's operation list (cfg.rs:726-729).

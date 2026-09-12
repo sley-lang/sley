@@ -72,26 +72,40 @@ for marker in [
     if marker not in graph_target:
         problems.append(f"graph-target-missing:{marker}")
 # The universe must cover every failure string the engine can emit:
-# each CfgErrorCode as_str literal has a quoted entry in CODE_UNIVERSE.
+# each CfgErrorCode as_str literal has a quoted entry INSIDE the
+# CODE_UNIVERSE array body (file-wide presence is insufficient, since
+# set lines and comments also carry code strings).
 engine_cfg = (ROOT / "crates/sley-check/src/cfg.rs").read_text(encoding="utf-8")
+engine_lib = (ROOT / "crates/sley-check/src/lib.rs").read_text(encoding="utf-8")
+universe_body = graph_target.split("const CODE_UNIVERSE")[1].split("];")[0]
+type_codes_body = graph_target.split("const TYPE_CODES")[1].split("];")[0]
+TYPE_CODES_BODY = type_codes_body
 import re as _re
 for literal in _re.findall(r'Self::\w+ => "([A-Z_0-9]+)"', engine_cfg):
-    if f'"{literal}",' not in graph_target:
+    if f'"{literal}",' not in universe_body:
         problems.append(f"universe-missing:{literal}")
+for literal in _re.findall(r'Self::\w+ => "(TYPE_[A-Z_0-9]+)"', engine_lib):
+    if f'"{literal}",' not in universe_body and literal not in TYPE_CODES_BODY:
+        problems.append(f"universe-missing-type:{literal}")
 # Every per-arm set entry must be a universe member (no invented codes).
 universe_block = graph_target.split("const CODE_UNIVERSE")[1].split("];")[0]
 for literal in _re.findall(r'"([A-Z_0-9]+)"', graph_target.split("fn expected_for")[1].split("fn expected_union")[0] if "fn expected_union" in graph_target else graph_target.split("fn expected_for")[1].split("fn selected_mut")[0]):
     if f'"{literal}"' not in universe_block and literal != "TYPE_CODES":
         problems.append(f"set-not-in-universe:{literal}")
 runner_text = RUNNER.read_text(encoding="utf-8")
+# Full seed byte lists (prefix-only pins are insufficient: a truncation
+# that keeps the prefix would still pass).
 for marker in [
-    "0x03, 0x01, 0x1B,",
-    "0x01, 0x03, 0x04,",
-    "0x01, 0x02, 0x12,",
-    "0x00, 0x02, 0x09,",
-    "0x03, 0x02, 0x17,",
-    "0x00, 0x03, 0x1D,",
-    "0x01, 0x03, 0x01,",
+    "bytes([0x03, 0x01, 0x1B, 0x00, 0x06])",
+    "bytes([0x03, 0x01, 0x13, 0x00, 0x01, 0x00, 0x02, 0x02])",
+    "0x01, 0x03, 0x04, 0x00, 0x04, 0x12, 0x00, 0x14, 0x00,",
+    "0x00, 0x04, 0x01, 0x00, 0x00, 0x02,",
+    "bytes([0x01, 0x02, 0x12, 0x01, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02])",
+    "bytes([0x00, 0x02, 0x09, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01])",
+    "bytes([0x03, 0x02, 0x17, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x11, 0x00, 0x00, 0x02])",
+    "bytes([0x00, 0x03, 0x1D, 0x00, 0x0E, 0x01, 0x01, 0x00, 0x00, 0x00, 0x07, 0x05, 0x00, 0x03])",
+    "bytes([0x01, 0x03, 0x01, 0x00, 0x02, 0x0A, 0x01, 0x00, 0x00, 0x0B, 0x01])",
+    "bytes([0x01, 0x02, 0x09, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x02])",
 ]:
     if marker not in runner_text:
         problems.append(f"runner-seed-missing:{marker}")
@@ -192,7 +206,7 @@ expected = {
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 405,
+    "graph_cfg_seed_count": 406,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,

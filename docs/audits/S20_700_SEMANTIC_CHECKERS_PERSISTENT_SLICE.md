@@ -20,7 +20,7 @@ and do not define serialized graph, type, CFG, or mutation authority. The graph
 target covers the current public S20-220 graph-inventory and CFG boundary; it
 does not claim a future complete SSMC object decoder.
 
-The deterministic runtime corpora contain 385 type-checker seeds and 400
+The deterministic runtime corpora contain 385 type-checker seeds and 406
 graph/CFG seeds. Corpus, binaries, artifacts, and command evidence remain under
 ignored `evidence/runtime/s20-700-semantic-checkers-libfuzzer/` paths.
 
@@ -226,15 +226,23 @@ narrowing missed rename-plus-re-push `GRAPH_ORDINAL_MISMATCH`), and two
 pre-existing holes (`[29,14,5]` reachability, `[1,10,11]` ordinal) show
 instance-patching cannot close combinations. All five counterexamples
 were confirmed by direct binary run before repairing (byte-exact
-signatures); the register-staleness claim (VS-R3-004) was refuted on
-disk — the row already carried the round-2 string.
+signatures). Correction (round-4 follow-up): the VS-R3-004
+register-staleness claim was closed by regeneration in 56ef0c6, not
+refuted — at 67ad3a3/40feff2 the register row still carried the round-1
+string while the summary carried round-2; the owner checked the live
+tree instead of the historical blobs. Process lesson recorded: verify
+record claims at the cited commit, not at HEAD.
 
 Fix (reviewer option (ii), owner-adopted): the union assert is now
 documented as a single-mutation oracle. One applied mutation pins its
-exact per-arm set (arm-22 `CFG_DOMINANCE` restored with the corrected
-use-block-only reason; `CFG_UNREACHABLE_VALUE` removed from the six
-single sets — unreachable under one mutation by derivation, so the
-single branch is exact again). Two or more mutations assert determinism
+per-arm set — exact where derived (arms 0/1/2/4/5/9/10/11/12/14/15/23/
+24/26/27/28/29/30), sound-but-wider where a derivation stops (arms
+3/13 full TYPE_CODES, arm 16/17 inventory/owner entries, arm 19/20/21/22
+terminator-group entries, arm 32 switch entries: all engine-emittable,
+precision-only cost). Arm-22 `CFG_DOMINANCE` was first restored with a
+two-arm reason, then removed again in the round-4 follow-up: no single
+Trap placement yields it in this envelope, and combinations consult the
+universe branch, so the entry is dead in the only branch that reads it. Two or more mutations assert determinism
 (already pinned for every input by the repeat-judgment assert) plus
 membership in `CODE_UNIVERSE` (all 21 `CfgErrorCode` strings plus
 `TYPE_CODES`; the slice checker pins the universe against the engine's
@@ -242,6 +250,7 @@ membership in `CODE_UNIVERSE` (all 21 `CfgErrorCode` strings plus
 text alone no longer satisfies a pin). Combinations may reach any
 registered code through interacting arms, but never an unregistered one,
 never nondeterministically, never via panic. The five falsifying inputs
-pin the multi branch as permanent corpus seeds `seed-0008..0012`
-(graph-cfg seeds 400 -> 405). Fresh PASS proof 945/945 on both targets
+pin the multi branch as permanent corpus seeds `seed-0008..0012`,
+plus the `[9,16]` variant as `seed-0013`
+(graph-cfg seeds 400 -> 406). Fresh PASS proof 945/945 on both targets
 (override lane); fix awaits re-review.
