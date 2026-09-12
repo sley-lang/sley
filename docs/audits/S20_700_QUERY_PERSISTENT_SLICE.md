@@ -105,3 +105,22 @@ gained engine-invariant asserts, must-reject refusals, narrowed Err
 arms, constructed-valid lanes, and a server-fixture validity gate with
 a unit-level negotiation self-check; filed regressions replay as corpus
 seeds. See the wave's decision packets for elevated owner items.
+
+## Target-closure wave (fixture-depth repair, operator-authorized redesign)
+
+Three bounded additions, each binding a named rule; no fixture inflation.
+(1) Sorted/dedup lanes for kind filters and closure seeds: canonical sets
+reach the `binary_search` filter path, `reverse_closure` depth/charging,
+and the step 3 -> 5 transition (`RequestNotCanonical` vs
+`UnresolvedEntity`) instead of dying at shape/seed canonicality (§2).
+(2) A five-entity fixture arm (narrow graph plus a second function with a
+self-branching block, selected by input bit): closure fanout, multi-depth
+reach, and dependent-vs-dependency direction become representable; every
+shape stays one the snapshot builder already accepts. Fixture count 1->2.
+(3) Two dual-defect precedence probes pinning the §6 ladder:
+over-ceiling limits + unsorted kinds must report `ResourceLimit`
+(step 1 beats step 3); unsorted kinds + unresolved entity must report
+`RequestNotCanonical` (step 3 beats step 5). No change to filter/seed
+canonicality, limit ceilings, the precedence ladder, or modeled kinds.
+Re-review queued as REQ-08 items 5-6; proofs bound to older source states
+are invalid.

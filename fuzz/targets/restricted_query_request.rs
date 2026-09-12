@@ -12,8 +12,8 @@ use sley_query::{
     execute_restricted_query,
 };
 use sley_ssmc::{
-    Block, CondBranchTerminator, FunctionGraph, Parameter, ParameterRole, Reachability, TargetEdge,
-    Terminator, TypeExpr, ValueRef, Visibility,
+    Block, BranchTerminator, CondBranchTerminator, FunctionGraph, Parameter, ParameterRole,
+    Reachability, TargetEdge, Terminator, TypeExpr, ValueRef, Visibility,
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4096;
@@ -38,7 +38,14 @@ fn fuzz_one(input: &[u8]) {
     }
 
     let mut cursor = Cursor::new(input);
-    let fixture = QueryFixture::new();
+    // Wide fixture lane: a second function with its own self-loop widens
+    // closure fanout, depth, and dependent-vs-dependency direction without
+    // changing the narrow fixture arm.
+    let fixture = if cursor.byte().is_multiple_of(2) {
+        QueryFixture::wide()
+    } else {
+        QueryFixture::new()
+    };
     let with_root = cursor.byte().is_multiple_of(2);
     let snapshot = fixture.snapshot(context(with_root));
     let alternate = fixture.snapshot(context(!with_root));
@@ -55,6 +62,42 @@ fn fuzz_one(input: &[u8]) {
     assert_eq!(
         first, second,
         "restricted-query judgment was not deterministic"
+    );
+    precedence_probes(&snapshot);
+}
+
+/// Dual-defect precedence probes (§6 ladder): an input carrying two defects
+/// must report the earlier step, deterministically. Step 1 (limit profile)
+/// beats step 3 (shape); step 3 beats step 5 (entity resolution).
+fn precedence_probes(snapshot: &IndexSnapshot) {
+    let over_ceiling = QueryLimits {
+        max_returned_entities: MAX_QUERY_RETURNED_ENTITIES + 1,
+        max_returned_edges: MAX_QUERY_RETURNED_EDGES + 1,
+        max_depth: MAX_QUERY_DEPTH + 1,
+        max_response_bytes: MAX_QUERY_RESPONSE_BYTES + 1,
+        max_work: MAX_QUERY_WORK + 1,
+    };
+    // Call sorts after Ownership, so this pair is non-canonical by
+    // construction; the fixture entity itself is resolvable.
+    let unsorted = RestrictedQuery::ListDirectDependencies {
+        entity: id(1),
+        kinds: vec![ImpactKind::Call, ImpactKind::Ownership],
+    };
+    assert_eq!(
+        build_restricted_query_request(snapshot, unsorted, over_ceiling)
+            .map_err(|error| error.code()),
+        Err(QueryErrorCode::ResourceLimit),
+        "limit-profile precedence (step 1) lost to shape (step 3)"
+    );
+    let unknown = RestrictedQuery::ListDirectDependencies {
+        entity: id(0xFFFF_FFFF),
+        kinds: vec![ImpactKind::Call, ImpactKind::Ownership],
+    };
+    assert_eq!(
+        build_restricted_query_request(snapshot, unknown, QueryLimits::profile_maximum())
+            .map_err(|error| error.code()),
+        Err(QueryErrorCode::RequestNotCanonical),
+        "shape precedence (step 3) lost to entity resolution (step 5)"
     );
 }
 
@@ -141,18 +184,38 @@ fn generated_query(cursor: &mut Cursor<'_>) -> RestrictedQuery {
             kinds: generated_kinds(cursor),
         },
         3 => RestrictedQuery::ReverseImpactClosure {
-            seeds: (0..cursor.bounded(MAX_GENERATED_SEEDS))
-                .map(|_| generated_entity(cursor))
-                .collect(),
+            seeds: sorted_entity_set(cursor),
         },
         _ => unreachable!(),
     }
 }
 
+/// Sorted/dedup seed lane: canonical seed sets reach `reverse_closure`
+/// depth and charging paths plus step-5 entity resolution instead of dying
+/// at seed canonicality (step 3).
+fn sorted_entity_set(cursor: &mut Cursor<'_>) -> Vec<EntityId> {
+    let mut seeds: Vec<EntityId> = (0..cursor.bounded(MAX_GENERATED_SEEDS))
+        .map(|_| generated_entity(cursor))
+        .collect();
+    if cursor.byte().is_multiple_of(2) {
+        seeds.sort();
+        seeds.dedup();
+    }
+    seeds
+}
+
 fn generated_kinds(cursor: &mut Cursor<'_>) -> Vec<ImpactKind> {
-    (0..cursor.bounded(MAX_GENERATED_KINDS))
+    let mut kinds: Vec<ImpactKind> = (0..cursor.bounded(MAX_GENERATED_KINDS))
         .map(|_| impact_kind(cursor.byte()))
-        .collect()
+        .collect();
+    // Sorted/dedup lane: canonical kind sets reach the `binary_search`
+    // filter path and the step 3 -> 5 transition (RequestNotCanonical vs
+    // UnresolvedEntity) instead of dying at `validate_query_shape`.
+    if cursor.byte().is_multiple_of(2) {
+        kinds.sort();
+        kinds.dedup();
+    }
+    kinds
 }
 
 fn generated_entity(cursor: &mut Cursor<'_>) -> EntityId {
@@ -262,15 +325,17 @@ struct QueryFixture {
     function: FunctionGraph,
     parameter: Parameter,
     block: Block,
+    extra_function: Option<FunctionGraph>,
+    extra_block: Option<Block>,
 }
 
 impl QueryFixture {
-    fn new() -> Self {
+    fn narrow() -> (FunctionGraph, Parameter, Block) {
         let function = id(1);
         let parameter = id(2);
         let block = id(3);
-        Self {
-            function: FunctionGraph {
+        (
+            FunctionGraph {
                 entity_id: function,
                 type_parameters: Vec::new(),
                 parameters: vec![parameter],
@@ -281,14 +346,14 @@ impl QueryFixture {
                 contracts: Vec::new(),
                 visibility: Visibility::Private,
             },
-            parameter: Parameter {
+            Parameter {
                 entity_id: parameter,
                 owner: function,
                 role: ParameterRole::Function,
                 ordinal: 0,
                 value_type: TypeExpr::Bool,
             },
-            block: Block {
+            Block {
                 entity_id: block,
                 function,
                 parameters: Vec::new(),
@@ -306,19 +371,74 @@ impl QueryFixture {
                 }),
                 reachability: Reachability::Required,
             },
+        )
+    }
+
+    fn new() -> Self {
+        let (function, parameter, block) = Self::narrow();
+        Self {
+            function,
+            parameter,
+            block,
+            extra_function: None,
+            extra_block: None,
+        }
+    }
+
+    /// Five-entity arm: the narrow graph plus a second function whose block
+    /// branches to itself. Two functions, two self-cycles, no shared edges:
+    /// closure fanout, multi-depth reach, and dependent-vs-dependency
+    /// direction become representable while every shape stays one the
+    /// snapshot builder already accepts.
+    fn wide() -> Self {
+        let (function, parameter, block) = Self::narrow();
+        let extra_function = id(4);
+        let extra_block = id(5);
+        Self {
+            function,
+            parameter,
+            block,
+            extra_function: Some(FunctionGraph {
+                entity_id: extra_function,
+                type_parameters: Vec::new(),
+                parameters: Vec::new(),
+                result_type: TypeExpr::Bool,
+                effects: Vec::new(),
+                entry_block: extra_block,
+                blocks: vec![extra_block],
+                contracts: Vec::new(),
+                visibility: Visibility::Private,
+            }),
+            extra_block: Some(Block {
+                entity_id: extra_block,
+                function: extra_function,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Branch(BranchTerminator {
+                    edge: TargetEdge {
+                        target: extra_block,
+                        arguments: Vec::new(),
+                    },
+                }),
+                reachability: Reachability::Required,
+            }),
         }
     }
 
     fn snapshot(&self, context: SnapshotContext) -> IndexSnapshot {
-        build_index_snapshot(
-            context,
-            &[
-                ImpactEntity::Function(&self.function),
-                ImpactEntity::Parameter(&self.parameter),
-                ImpactEntity::Block(&self.block),
-            ],
-        )
-        .expect("the closed restricted-query fuzz fixture must remain valid")
+        let mut entities = vec![
+            ImpactEntity::Function(&self.function),
+            ImpactEntity::Parameter(&self.parameter),
+            ImpactEntity::Block(&self.block),
+        ];
+        if let (Some(function), Some(block)) =
+            (self.extra_function.as_ref(), self.extra_block.as_ref())
+        {
+            entities.push(ImpactEntity::Function(function));
+            entities.push(ImpactEntity::Block(block));
+        }
+        build_index_snapshot(context, &entities)
+            .expect("the closed restricted-query fuzz fixture must remain valid")
     }
 }
 
