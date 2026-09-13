@@ -539,9 +539,77 @@ def main() -> int:
             continue
         if not first["next_after"] or second["after"] != first["next_after"] or second["next_after"] is not None:
             problems.append(f"{prefix}:chain")
+    # Single-item-class walks (rev-5): the first page is complete, and the
+    # second page carries the typed after-cursor; the oracle re-derives
+    # both pages and requires the exact total on each and a disjoint,
+    # complete union, so no page can hide a fact.
+    for prefix, tag in (("page-roots", 3), ("page-entry-points", 1)):
+        first, second = pages.get(f"{prefix}-1"), pages.get(f"{prefix}-2")
+        if first is None or second is None:
+            problems.append(f"{prefix}:missing")
+            continue
+        after = second["after"] or {}
+        if after.get("tag") != tag:
+            problems.append(f"{prefix}:cursor-tag")
+        if second["next_after"] is not None:
+            problems.append(f"{prefix}:chain")
+        try:
+            kind_f, items_f, _ = compute(root, first["query"], Work(first["limits"]["max_work"]))
+            kind_s, items_s, _ = compute(root, second["query"], Work(second["limits"]["max_work"]))
+            sel_f, total_f, _, _, _, _ = page(
+                kind_f, items_f, first["limits"], True, first["after"]
+            )
+            sel_s, total_s, _, _, _, _ = page(
+                kind_s, items_s, second["limits"], True, second["after"]
+            )
+        except (Failure, KeyError) as error:
+            problems.append(f"{prefix}:oracle:{error}")
+            continue
+        if total_f != len(items_f) or total_s != len(items_f):
+            problems.append(f"{prefix}:total")
+        if sorted(map(repr, sel_f + sel_s)) != sorted(map(repr, items_f)):
+            problems.append(f"{prefix}:union")
     for mutation in rejected.get("mutations", []):
+        # Tamper-described mutations (rev-5 binding matrix): the row names
+        # the tamper the engine emitter applied, and the oracle proves the
+        # tamper is load-bearing by first running the honest request to
+        # acceptance. A tamper that masks an already-failing request, or
+        # names no real substitution, is a problem, not a pin. Rows
+        # without tamper keep the original rule: the honest request must
+        # refuse with the expected code.
+        tamper = mutation.get("tamper") or {}
+        if not tamper:
+            try:
+                answer(root, context, mutation)
+            except Failure as failure:
+                if failure.code != mutation["expected_code"]:
+                    problems.append(f"{mutation['id']}:code:{failure.code}")
+                elif CODES[failure.code] != mutation["expected_numeric"]:
+                    problems.append(f"{mutation['id']}:numeric")
+            except KeyError:
+                problems.append(f"{mutation['id']}:oracle-key-error")
+            else:
+                problems.append(f"{mutation['id']}:accepted")
+            continue
         try:
             answer(root, context, mutation)
+        except Failure as failure:
+            problems.append(f"{mutation['id']}:tamper-masks:{failure.code}")
+            continue
+        except KeyError:
+            problems.append(f"{mutation['id']}:oracle-key-error")
+            continue
+        try:
+            if tamper.get("arm") == 1:
+                raise Failure("QUERY_PROFILE_UNSUPPORTED")
+            substituted = tamper.get("substituted_root")
+            if substituted is not None:
+                if substituted == context["root_hex"]:
+                    problems.append(f"{mutation['id']}:tamper-not-substituted")
+                    continue
+                raise Failure("QUERY_ROOT_MISMATCH")
+            problems.append(f"{mutation['id']}:tamper-empty")
+            continue
         except Failure as failure:
             if failure.code != mutation["expected_code"]:
                 problems.append(f"{mutation['id']}:code:{failure.code}")
@@ -549,8 +617,6 @@ def main() -> int:
                 problems.append(f"{mutation['id']}:numeric")
         except KeyError:
             problems.append(f"{mutation['id']}:oracle-key-error")
-        else:
-            problems.append(f"{mutation['id']}:accepted")
     print(
         json.dumps(
             {

@@ -132,7 +132,7 @@ expected_summary = {
     "accepted_change_tokens_derived": False,
     "public_claim_authorized": False,
     "implementation_complete": True,
-    "nabu_review": "REVISE_TO_OFFLINE_APPEND_ONLY_CONTRACT",
+    "nabu_review": "PASS_TO_OFFLINE_APPEND_ONLY_CONTRACT",
 }
 summary_registered = True
 for field, expected in expected_summary.items():
@@ -170,7 +170,7 @@ result = {
     "oracle_claims_verified": False,
     "accounting_claims_verified": False,
     "act_derived": False,
-    "nabu_review": "REVISE_TO_OFFLINE_APPEND_ONLY_CONTRACT",
+    "nabu_review": "PASS_TO_OFFLINE_APPEND_ONLY_CONTRACT",
     "machine_summary_registered": summary_registered,
     "problems": problems,
     "result": "PASS" if not problems else "FAIL",

@@ -103,17 +103,24 @@ def main() -> int:
             )
         elif line.startswith("ROOT_QUERY_REJECT|"):
             parts = line.split("|")
-            rejections.append(
-                {
-                    "after": json.loads(parts[5]),
-                    "allow_continuation": parts[4] == "true",
-                    "expected_code": parts[6],
-                    "expected_numeric": int(parts[7]),
-                    "id": parts[1],
-                    "limits": json.loads(parts[3]),
-                    "query": json.loads(parts[2]),
-                }
-            )
+            rejection = {
+                "after": json.loads(parts[5]),
+                "allow_continuation": parts[4] == "true",
+                "expected_code": parts[6],
+                "expected_numeric": int(parts[7]),
+                "id": parts[1],
+                "limits": json.loads(parts[3]),
+                "query": json.loads(parts[2]),
+            }
+            # The tamper the emitter applied, so the independent oracle
+            # can prove it load-bearing: a substituted root that matches
+            # StateRoot::from_bytes([0x09; 32]), and the arm-1 snapshot
+            # built from the fixture's restricted-kind subset.
+            if parts[1] == "binding-substituted-fact":
+                rejection["tamper"] = {"substituted_root": "09" * 32}
+            elif parts[1] == "arm-1-snapshot-profile":
+                rejection["tamper"] = {"arm": 1}
+            rejections.append(rejection)
     if context is None:
         raise RuntimeError("no root-query context line")
     if context["snapshot_id"] != snapshot_source["snapshot_id"]:

@@ -621,15 +621,32 @@ def stub_closure(test: unittest.TestCase, status: "closure.ClosureStatus"):
 
 
 class RecordsClosureTests(unittest.TestCase):
-    def test_live_tree_is_a_records_closure_of_the_attested_candidate(self) -> None:
-        # Integration against the real tree: the attested source candidate
-        # stays behind a records-only HEAD, which the amended contract
-        # admits without any re-mint.
+    def test_builders_admit_exactly_the_live_closure_verdict(self) -> None:
+        # Live coupling, state-independent: whatever the real tree says
+        # about the attested candidate, both builders follow it. A tree
+        # past a records-closure admits byte-identical derivation; any
+        # other advanced tree refuses closed with the closure reason.
+        # (A fixed is_closure assertion here would rot: the amendment
+        # commit itself carries attestation-bound changes, so no live
+        # checkout past it is a records-closure by design. git_head
+        # stays real here: patch_candidate would pin it to the candidate
+        # commit and bypass the closure path under test.)
         candidate = attested_test_candidate()
+        for module in (sbom, provenance):
+            original_load = module.load_candidate
+            module.load_candidate = lambda current=candidate: dict(current)
+            self.addCleanup(setattr, module, "load_candidate", original_load)
         status = closure.closure_status(candidate["commit"])
-        self.assertTrue(status.is_closure, status.reason)
-        self.assertNotEqual(status.head, status.attested_commit)
-        self.assertIn("records-closure-eligible", status.reason)
+        if status.is_closure:
+            sbom.build_documents()
+            provenance.build_statement()
+        else:
+            with self.assertRaises(sbom.SbomError) as sbom_error:
+                sbom.build_documents()
+            self.assertIn("records-closure-", sbom_error.exception.detail)
+            with self.assertRaises(provenance.ProvenanceError) as provenance_error:
+                provenance.build_statement()
+            self.assertIn("records-closure-", provenance_error.exception.detail)
 
     def test_attestation_bound_change_is_ineligible(self) -> None:
         candidate = attested_test_candidate()
