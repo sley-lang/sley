@@ -317,13 +317,21 @@ def toolchain_versions() -> dict[str, str]:
         if completed.returncode != 0:
             raise PackageError(PackageErrorCode.BUILD_FAILED, f"{tool} --version")
         versions[tool] = completed.stdout.strip()
-    # The release link is pinned by target, not by ambient cc: record the
-    # pinned target and the hermetic link unit so the evidence binds what
-    # the binary was linked with (fail closed below if the pinned target
-    # std is not installed).
-    versions["target"] = RELEASE_TARGET
-    versions["linker"] = "rust-lld+musl self-contained (pinned toolchain; ambient CC scrubbed)"
     return versions
+
+
+def link_contract() -> dict[str, str]:
+    """The pinned release link unit, kept out of `toolchain`.
+
+    S20-730 requires evidence `toolchain` to name exactly cargo and rustc,
+    so link provenance rides alongside it: the release link is pinned by
+    target (self-contained musl via the pinned toolchain's rust-lld),
+    never the ambient host cc/linker or host glibc/CRT.
+    """
+    return {
+        "target": RELEASE_TARGET,
+        "linker": "rust-lld+musl self-contained (pinned toolchain; ambient CC scrubbed)",
+    }
 
 
 def require_release_target() -> None:
@@ -494,6 +502,7 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
         "commit": commit,
         "working_tree_clean": clean,
         "toolchain": first_toolchain,
+        "link_contract": link_contract(),
         "build_toolchains": {"first": first_toolchain},
         "ga_claimed": False,
         "publication_authorized": False,
