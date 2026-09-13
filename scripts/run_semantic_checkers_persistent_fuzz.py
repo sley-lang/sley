@@ -222,10 +222,13 @@ def main() -> int:
                 "host.rustflags=[]",
                 "--config",
                 "target.x86_64-unknown-linux-gnu.rustflags=[\"-Cpasses=sancov-module\", \"-Cllvm-args=-sanitizer-coverage-level=4\", \"-Cllvm-args=-sanitizer-coverage-inline-8bit-counters\", \"-Cllvm-args=-sanitizer-coverage-trace-compares\", \"-Cllvm-args=-sanitizer-coverage-pc-table\"]",
+                # No trailing -Cpasses/-Cllvm-args here: the config rustflags
+                # above are the single instrumentation source. A duplicated
+                # sancov-module pass emits a second module ctor per object,
+                # registering the merged PC table repeatedly at startup,
+                # which libFuzzer 18.1.8 rejects (duplicate-registration
+                # repair; instrumentation set itself is unchanged).
                 "--",
-                "-Cpasses=sancov-module",
-                "-Cllvm-args=-sanitizer-coverage-level=4",
-                "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
                 f"-Clink-arg={FUZZER_RT}",
                 "-Clink-arg=-lstdc++",
             ],
