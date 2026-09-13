@@ -89,7 +89,7 @@ for marker in [
 fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
 if fixture.get("contract") != "sley2-root-backed-query-v1":
     problems.append("fixture-contract-drift")
-if len(fixture.get("vectors", [])) != 23:
+if len(fixture.get("vectors", [])) != 27:
     problems.append("fixture-vector-count-drift")
 
 makefile = MAKEFILE.read_text(encoding="utf-8")
