@@ -3651,7 +3651,7 @@
     "release_candidate_history_reanchored": true,
     "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
     "final_argus_disposition_note": "PASS via fresh Argus review 2026-09-13 on 21acb7f (security surface only; full S20-710 stays BLOCKED on license + final mint): all cb841a6 P1/P2 closed with evidence (tracked-only manifest + --check, 17-pattern set then, working_tree_clean + attestation guards, doc refresh); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md",
-    "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_1_P3_0_P4",
+    "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_0_P4",
     "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); repaired post-scope (4 patterns added with controls: 21 total; PGP-armour declined with rationale: header-only shape self-fires on audit discussion and secret findings have no disposition path; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
@@ -4025,7 +4025,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 291,
-    "open_reviews": 51,
+    "open_reviews": 50,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4419,8 +4419,8 @@
       "S20-770 registry drift over every crate"
     ],
     "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
-    "independent_review": "REVISE_1_P0_1_P1_1_P2_3_P3_2_P4",
-    "independent_review_note": "REVISE via harness independent review 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/invariant_audit/independent_review-a4b6029.md): exercise/limits/lint repairs verified live (402/0/0, 155/0 undocumented, lint gate filed FAIL); 1 P1 (undeclared namespaces) + P2/P3/P4 items open",
+    "independent_review": "REVISE_0_P0_1_P1_0_P2_0_P3_2_P4",
+    "independent_review_note": "REVISE via fresh independent review 2026-09-13 on db1bc62 (transcript evidence/review/verdicts/invariant_audit/independent_review-db1bc62.md): round-9 repairs verified live (census 483/28/53, limits 155/2/153 tracked+drift-gated, phantom enforcement 50/50, fmt+clippy clean by re-run, fixture byte-identical, split-test assertions preserved); 1xP1 (payload arm AUTHORITY_DIGESTS + 11 Failure::new literals missed, true 29/64) + 2xP4 (lint stamp, unregistered_symbols record); P1 shapes closed post-scope (495/29/64), records pending refresh; transcript stands",
     "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one",
     "oracle_independence_finding": "the S20-130 independence scan read oracle/scb1/src only, while thirteen of the nineteen independent oracles live under scripts/, so the check vouched for twelve files it never read. The property held, but nothing verified it; both the checker and the conformance report now scan every oracle the coverage map names, and the report labels the runner that actually runs",
     "oracle_sources_scanned": 22,
