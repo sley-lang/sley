@@ -204,7 +204,7 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 5827,
         "history_bytes_scanned": 374_805_717,
-        "secret_patterns": 17,
+        "secret_patterns": 22,
         "secret_findings": 0,
         "matched_secret_values_emitted": False,
         "candidate_scan_recomputed_by_generator": True,
@@ -212,8 +212,8 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "standards_sbom": False,
         "release_provenance": False,
         "release_candidate_history_reanchored": True,
-        "final_argus_disposition": "REVISE_0_P0_0_P1_4_P2_2_P3",
-        "final_vulcan_disposition": "REVISE_0_P0_2_P1_3_P2_4_P3",
+        "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
+        "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_1_P3_0_P4",
         "publication_authorized": False,
     }
     for field, expected_value in expected.items():

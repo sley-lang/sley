@@ -392,6 +392,18 @@ class ProvenanceTests(unittest.TestCase):
             error.exception.code, provenance.ProvenanceErrorCode.EVIDENCE_INVALID
         )
 
+    def test_a_dirty_candidate_refuses_at_derivation(self) -> None:
+        candidate = attested_test_candidate()
+        candidate["working_tree_clean"] = False
+        original = provenance.load_candidate
+        provenance.load_candidate = lambda: candidate
+        self.addCleanup(setattr, provenance, "load_candidate", original)
+        with self.assertRaises(provenance.ProvenanceError) as error:
+            provenance.build_statement()
+        self.assertEqual(
+            error.exception.code, provenance.ProvenanceErrorCode.EVIDENCE_INVALID
+        )
+
     def test_make_target_derives_from_the_recorded_invocation(self) -> None:
         external = self.statement["predicate"]["buildDefinition"]["externalParameters"]
         self.assertEqual(external["make_target"], "release-candidate-smoke")

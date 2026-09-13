@@ -246,6 +246,17 @@ def build_statement() -> dict:
             "rebuild the SBOM documents",
         )
     clean = bool(candidate.get("working_tree_clean"))
+    # A dirty tree cannot produce a statement: the subject would bind a
+    # commit to an artifact built from a modified tree, which the release
+    # packaging contract forbids. Enforcement lives at derivation, not
+    # downstream in the checker (S20-710 re-review round: the builder
+    # emitted what only the checker refused).
+    if not clean:
+        raise ProvenanceError(
+            ProvenanceErrorCode.EVIDENCE_INVALID,
+            "candidate working tree is not clean; rebuild the candidate "
+            "from a clean tree before deriving provenance",
+        )
     # The invocation is derivation input, not decoration: a candidate
     # without one predates invocation recording and cannot produce a
     # statement (contract section 4; 74005 PROVENANCE_EVIDENCE_INVALID).
