@@ -213,7 +213,7 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "release_provenance": False,
         "release_candidate_history_reanchored": True,
         "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
-        "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_0_P4",
+        "final_vulcan_disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
         "publication_authorized": False,
     }
     for field, expected_value in expected.items():
