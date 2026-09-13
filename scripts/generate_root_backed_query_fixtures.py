@@ -19,6 +19,10 @@ EXPECTED_VECTORS = [f"class-{index:02}" for index in range(1, 20)] + [
     "page-namespaces-2",
     "page-edges-1",
     "page-edges-2",
+    "page-roots-1",
+    "page-roots-2",
+    "page-entry-points-1",
+    "page-entry-points-2",
 ]
 EXPECTED_REJECTIONS = [
     "truncated-without-continuation",
@@ -29,6 +33,8 @@ EXPECTED_REJECTIONS = [
     "filter-not-canonical",
     "depth-cut",
     "work-exhausted",
+    "binding-substituted-fact",
+    "arm-1-snapshot-profile",
 ]
 
 

@@ -156,6 +156,40 @@
       "query": {
         "class": 1
       }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_ROOT_MISMATCH",
+      "expected_numeric": 31008,
+      "id": "binding-substituted-fact",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 1
+      }
+    },
+    {
+      "after": null,
+      "allow_continuation": false,
+      "expected_code": "QUERY_PROFILE_UNSUPPORTED",
+      "expected_numeric": 31000,
+      "id": "arm-1-snapshot-profile",
+      "limits": {
+        "max_depth": 65535,
+        "max_response_bytes": 67108864,
+        "max_returned_edges": 400000,
+        "max_returned_entities": 65535,
+        "max_work": 100000000
+      },
+      "query": {
+        "class": 1
+      }
     }
   ]
 }

@@ -1,9 +1,15 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 4 (2026-09-11); implemented
+Status: S20-310 full contract draft, revision 5 (2026-09-13); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
-and the package is not complete. Revision 4 composes the entity-read
+and the package is not complete. Revision 5 repairs the review-round P1/P2
+text items without touching the nineteen-class contract: the arm rule is
+split (arm-1 snapshots fail `QUERY_PROFILE_UNSUPPORTED`, section 8 item 2),
+the precedence list states the engine's cursor-before-drift order for the
+drift subcase (section 8 items 3-4), paging keys are named with the
+page-union consumer rule (section 3), and the exclusion list names the
+non-enumerating lookup classes (section 10). Revision 4 composes the entity-read
 surface (section 11): the S20-310 methods 306/307 stay governed by
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, whose owner, adapter, corpus, and
 vector line are listed as profile surface without changing the
@@ -60,8 +66,12 @@ RootQueryInput {
 }
 ```
 
-The input is accepted only when all of the following hold, else the query
-fails `QUERY_ROOT_MISMATCH` before any class runs:
+The input is accepted only when all of the following hold. A snapshot
+whose completeness is not `CompleteRoot(2)` is not a binding failure: the
+arm selects the profile before binding runs, so an arm-1 snapshot fails
+`QUERY_PROFILE_UNSUPPORTED` (precedence item 2), never
+`QUERY_ROOT_MISMATCH`. Every other rule below fails `QUERY_ROOT_MISMATCH`
+(precedence item 5) before any class runs:
 
 1. `snapshot.completeness = CompleteRoot(2)` and
    `snapshot.context = (schema_epoch, Some(root))`;
@@ -224,7 +234,15 @@ next_after  = key of the last returned item when truncated, else None
 `allow_continuation = true` the page is returned with `truncated = true`
 and `next_after`, and the caller continues with `after = next_after`. The
 `after` cursor must be the class's key type (`QUERY_CONTINUATION_INVALID`
-otherwise); it need not name an item of the result. Because `total_count`
+otherwise); it need not name an item of the result. The entity key is the
+named identity the class answers about: for `ListNamespaceMembers` the
+member identity, for `ListEntryPoints` the entry-point identity, for edge
+classes the canonical `(dependent, dependency, kind)` triple, for
+`ListDependencyRoots` the `StateRoot`. Keys are unique identities, so pages
+compose only when successive requests are identical except for `after`
+(same snapshot, root, epoch, workspace, limits, class, and body): then the
+union of the pages is the complete result and keys strictly increase
+across the walk, so no page can hide a fact. Because `total_count`
 is exact on every page and the key order is canonical, the union of the
 pages is the complete result and no page can hide a fact. Closure depth
 keeps the restricted rule: a `max_depth` that cuts a closure short is
@@ -372,9 +390,13 @@ Precedence:
 1. invalid limit profile or ceiling (`QUERY_RESOURCE_LIMIT`);
 2. unsupported format, profile, or arm (`QUERY_PROFILE_UNSUPPORTED`), then
    unsupported class, kind, or filter tag (`QUERY_UNSUPPORTED`);
-3. noncanonical filters, seeds, or request-identity drift
-   (`QUERY_REQUEST_NOT_CANONICAL`);
-4. cursor of the wrong key type (`QUERY_CONTINUATION_INVALID`);
+3. noncanonical filters or seeds (`QUERY_REQUEST_NOT_CANONICAL`); the
+   shape check runs before the cursor check. Request-identity drift (a
+   preimage or `RootQueryId` that does not recompute) is checked after
+   the cursor (see item 4), because the cursor type gates before the
+   identity comparison runs;
+4. cursor of the wrong key type (`QUERY_CONTINUATION_INVALID`), checked
+   before request-identity drift;
 5. input binding failure (`QUERY_ROOT_MISMATCH`);
 6. request and snapshot binding mismatch (`QUERY_SNAPSHOT_MISMATCH`);
 7. absent entity or seed (`QUERY_UNRESOLVED_ENTITY`);
@@ -421,6 +443,10 @@ This contract does not claim:
   transport of S20-400, which consume this profile;
 - cross-root, cross-repository, label, path, text, or ranked queries;
 - fingerprint recomputation (only the stored field-4 claim is returned);
+- enumeration by the lookup classes: `GetEntity`, `GetSemanticFingerprint`,
+  `ListOwningNamespaces`, and `ListDeclaredEffects` answer only their named
+  subject and never list a class population (`ListEntitiesByKind` is the
+  enumerating class);
 - any authority beyond read-only derived query evidence;
 - runtime, benchmark, packaging, release, or GA.
 

@@ -18,6 +18,12 @@ import sys
 from enum import IntEnum
 from pathlib import Path
 
+try:
+    import records_closure
+except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import records_closure
+
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
@@ -457,17 +463,24 @@ def require_attested_candidate(candidate: dict) -> None:
     The namespace and root are derived from the candidate evidence, so a
     candidate that is not HEAD or that no clean REPRODUCIBLE attestation
     names must refuse here instead of emitting documents the checker must
-    catch (contract section 5; 74001 SBOM_INVENTORY_INVALID). The full
+    catch (contract section 5; 74001 SBOM_INVENTORY_INVALID). A candidate
+    behind HEAD is still admissible when HEAD is a provable records-closure
+    of the candidate commit (contract revision 5: attestation-bound inputs
+    unchanged, bound artifacts invariant, SBOM stays candidate-bound, the
+    closure HEAD is recorded separately and nothing is re-minted). The full
     partial record a failed mint keeps is still not admissible: only a
     PASS record whose manifest digest and size agree with the attestation
     derives documents.
     """
     if candidate.get("commit") != git_head():
-        raise SbomError(
-            SbomErrorCode.INVENTORY_INVALID,
-            f"candidate commit {candidate.get('commit')} is not HEAD; "
-            "rebuild the candidate on this tree before deriving SBOMs",
-        )
+        status = records_closure.closure_status(str(candidate.get("commit")))
+        if not status.is_closure:
+            raise SbomError(
+                SbomErrorCode.INVENTORY_INVALID,
+                f"candidate commit {candidate.get('commit')} is not HEAD; "
+                f"{status.reason}; rebuild the candidate on this tree "
+                "before deriving SBOMs",
+            )
     if candidate.get("result") != "PASS":
         raise SbomError(
             SbomErrorCode.INVENTORY_INVALID,

@@ -17,6 +17,12 @@ import sys
 from enum import IntEnum
 from pathlib import Path
 
+try:
+    import records_closure
+except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import records_closure
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
@@ -201,12 +207,20 @@ def build_statement() -> dict:
     # The subject must be the tree under derivation: inputs below are read
     # from the live tree, so a candidate from another commit would misbind
     # the statement (every input digest would describe the wrong tree).
+    # Contract revision 5 admits one narrow exception: a HEAD that is a
+    # provable records-closure of the candidate commit (records-only
+    # advancement, bound artifacts invariant) derives the identical
+    # candidate-bound statement with nothing re-minted; the closure HEAD is
+    # recorded separately, never inside the statement.
     if candidate["commit"] != git_head():
-        raise ProvenanceError(
-            ProvenanceErrorCode.EVIDENCE_INVALID,
-            f"candidate commit {candidate['commit']} is not HEAD; "
-            "rebuild the candidate on this tree before deriving provenance",
-        )
+        status = records_closure.closure_status(str(candidate["commit"]))
+        if not status.is_closure:
+            raise ProvenanceError(
+                ProvenanceErrorCode.EVIDENCE_INVALID,
+                f"candidate commit {candidate['commit']} is not HEAD; "
+                f"{status.reason}; rebuild the candidate on this tree "
+                "before deriving provenance",
+            )
     # The tracked reproducibility attestation is the subject authority: the
     # derivation refuses a candidate no clean REPRODUCIBLE attestation
     # names, instead of emitting a statement the checker must catch. The

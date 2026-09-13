@@ -74,6 +74,7 @@ SBOM_MARKERS = (
     "def derived_uuid(",
     "def normalize_license(",
     "def valid_spdx_expression(",
+    "records-closure",
     '"SPDX-2.3"',
     '"specVersion": "1.6"',
 )
@@ -83,6 +84,7 @@ PROVENANCE_MARKERS = (
     "https://in-toto.io/Statement/v1",
     "https://slsa.dev/provenance/v1",
     "def build_statement(",
+    "records-closure",
     '"signed": False',
 )
 # Neither document may carry a host path, a user name, or a wall clock
@@ -127,6 +129,7 @@ def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     problems: list[str] = []
+    closure: dict[str, object] = {"advanced": False}
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES, AUDIT):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
@@ -350,6 +353,26 @@ def main() -> int:
         ):
             if run(argv).returncode != 0:
                 problems.append(f"{label}:drift")
+        # Records-closure accounting (contract revision 5): the closure
+        # HEAD is recorded separately, never inside the documents. An
+        # advanced HEAD that is not a provable closure is reported
+        # explicitly; the builders above already refuse it.
+        try:
+            candidate = json.loads(read(ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"))
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=ROOT, check=False, capture_output=True, text=True,
+            ).stdout.strip()
+            if isinstance(candidate, dict) and candidate.get("commit") != head:
+                closure = {"advanced": True, "attested_source_commit": candidate.get("commit"), "records_closure_head": head}
+                sys.path.insert(0, str(ROOT / "scripts"))
+                import records_closure
+                cstat = records_closure.closure_status(str(candidate.get("commit")))
+                closure["reason"] = cstat.reason
+                if not cstat.is_closure:
+                    problems.append("closure:ineligible")
+        except (OSError, json.JSONDecodeError):
+            problems.append("closure:unverifiable")
         if run(["-m", "unittest", "discover", "-s", "bench/release/tests", "-t", "."]).returncode != 0:
             problems.append("release-tests:fail")
 
@@ -362,6 +385,7 @@ def main() -> int:
         "contract": "s20-710-full-standards-sbom-and-provenance-v1",
         "implementation_complete": status == COMPLETE_STATUS,
         "problems": problems,
+        "records_closure": closure,
         "result": "FAIL" if problems else "PASS",
         "s20_710_audit_complete": False,
         "status": status,

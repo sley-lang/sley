@@ -2943,6 +2943,44 @@ pub(crate) mod tests {
             true,
             first.next_after(),
         );
+        // P1-6: every paged class walks. The frozen fixture carries one
+        // dependency root and one entry point, so each walk is a full page
+        // plus the after-cursor page whose union is the complete result;
+        // the second pages pin the tag-3 Root cursor and the entity cursor.
+        let only_root = borrowed.input().facts.dependency_roots[0];
+        emit(
+            &input,
+            "page-roots-1",
+            RootQuery::ListDependencyRoots,
+            paged,
+            true,
+            None,
+        );
+        emit(
+            &input,
+            "page-roots-2",
+            RootQuery::ListDependencyRoots,
+            paged,
+            true,
+            Some(Cursor::Root(only_root)),
+        );
+        let only_entry = borrowed.input().facts.entry_points[0];
+        emit(
+            &input,
+            "page-entry-points-1",
+            RootQuery::ListEntryPoints,
+            paged,
+            true,
+            None,
+        );
+        emit(
+            &input,
+            "page-entry-points-2",
+            RootQuery::ListEntryPoints,
+            paged,
+            true,
+            Some(Cursor::Entity(only_entry)),
+        );
         let rejections: Vec<(&str, RootQuery, QueryLimits, bool, Option<Cursor>)> = vec![
             (
                 "truncated-without-continuation",
@@ -3031,5 +3069,78 @@ pub(crate) mod tests {
                 code.numeric()
             );
         }
+        // P2-7: the binding-failure matrix pins the headline binding
+        // failure, not just the shape rejections above. A substituted root
+        // no longer recomputes, so verification fails QUERY_ROOT_MISMATCH
+        // (31008) rather than entering an answer.
+        let mut tampered = borrowed.input();
+        tampered.root = StateRoot::from_bytes([0x09; 32]);
+        // Binding is verified at build as well as at execute: either
+        // stage must refuse the substituted fact with the same code.
+        let tampered_code = match build_root_query_request(
+            &tampered,
+            RootQuery::GetRootSummary,
+            full,
+            false,
+            None,
+        ) {
+            Ok(tampered_request) => execute_root_query(&tampered, &tampered_request)
+                .unwrap_err()
+                .code(),
+            Err(error) => error.code(),
+        };
+        assert_eq!(tampered_code.numeric(), 31_008);
+        println!(
+            "ROOT_QUERY_REJECT|binding-substituted-fact|{}|{}|{}|{}|{}|{}",
+            describe(&RootQuery::GetRootSummary),
+            describe_limits(full),
+            false,
+            describe_cursor(None),
+            tampered_code.as_str(),
+            tampered_code.numeric()
+        );
+        // P2-7 and section 9: the restricted arm-1 snapshot is not a
+        // binding failure; the arm selects the profile first, so the
+        // engine answers QUERY_PROFILE_UNSUPPORTED (31000).
+        let restricted: Vec<ImpactEntity<'_>> = borrowed
+            .entities
+            .iter()
+            .filter(|entity| entity.kind().restricted_kind())
+            .copied()
+            .collect();
+        let arm1 = build_index_snapshot(
+            SnapshotContext {
+                schema_epoch: epoch(),
+                claimed_root_context: Some(root()),
+            },
+            &restricted,
+        )
+        .expect("fixture restricted-kind subset builds the arm-1 snapshot");
+        let mut arm1_input = borrowed.input();
+        arm1_input.snapshot = &arm1;
+        // Like the binding case, the arm is refused at build as well as
+        // at execute: either stage must answer QUERY_PROFILE_UNSUPPORTED.
+        let arm1_code = match build_root_query_request(
+            &arm1_input,
+            RootQuery::GetRootSummary,
+            full,
+            false,
+            None,
+        ) {
+            Ok(arm1_request) => execute_root_query(&arm1_input, &arm1_request)
+                .unwrap_err()
+                .code(),
+            Err(error) => error.code(),
+        };
+        assert_eq!(arm1_code.numeric(), 31_000);
+        println!(
+            "ROOT_QUERY_REJECT|arm-1-snapshot-profile|{}|{}|{}|{}|{}|{}",
+            describe(&RootQuery::GetRootSummary),
+            describe_limits(full),
+            false,
+            describe_cursor(None),
+            arm1_code.as_str(),
+            arm1_code.numeric()
+        );
     }
 }

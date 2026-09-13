@@ -467,6 +467,14 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(self.document, provenance.build_file())
 
     def test_a_candidate_from_another_commit_refuses(self) -> None:
+        # Amended contract (revision 5): a commit behind HEAD is admitted
+        # only as a provable records-closure, so this refusal case names a
+        # commit no tree contains and the closure check fails closed.
+        candidate = attested_test_candidate()
+        candidate["commit"] = "0" * 40
+        original = provenance.load_candidate
+        provenance.load_candidate = lambda: candidate
+        self.addCleanup(setattr, provenance, "load_candidate", original)
         provenance.git_head = lambda: "1" * 40
         with self.assertRaises(provenance.ProvenanceError) as error:
             provenance.build_statement()
@@ -598,6 +606,127 @@ class ValidateTrackedTests(unittest.TestCase):
             for attestation in provenance.attested_candidates()
         }
         self.assertNotIn(("0" * 40, "f" * 64), admitted)
+
+
+closure = load("records_closure")
+
+
+def stub_closure(test: unittest.TestCase, status: "closure.ClosureStatus"):
+    """Point both builders at one synthetic closure verdict."""
+    module = sbom.records_closure
+    original = module.closure_status
+    module.closure_status = lambda attested: status
+    test.addCleanup(setattr, module, "closure_status", original)
+    return module
+
+
+class RecordsClosureTests(unittest.TestCase):
+    def test_live_tree_is_a_records_closure_of_the_attested_candidate(self) -> None:
+        # Integration against the real tree: the attested source candidate
+        # stays behind a records-only HEAD, which the amended contract
+        # admits without any re-mint.
+        candidate = attested_test_candidate()
+        status = closure.closure_status(candidate["commit"])
+        self.assertTrue(status.is_closure, status.reason)
+        self.assertNotEqual(status.head, status.attested_commit)
+        self.assertIn("records-closure-eligible", status.reason)
+
+    def test_attestation_bound_change_is_ineligible(self) -> None:
+        candidate = attested_test_candidate()
+        status = closure.ClosureStatus(
+            attested_commit=candidate["commit"],
+            head="b" * 40,
+            changed=["scripts/build_standards_sbom.py"],
+            ineligible=["scripts/build_standards_sbom.py"],
+        )
+        self.assertFalse(status.is_closure)
+        self.assertIn("records-closure-ineligible", status.reason)
+
+    def test_bound_input_change_refuses(self) -> None:
+        candidate = attested_test_candidate()
+        status = closure.ClosureStatus(
+            attested_commit=candidate["commit"],
+            head="b" * 40,
+            changed=["evidence/security/T52/pre-release-inventory.json"],
+            bound_changed=["evidence/security/T52/pre-release-inventory.json"],
+        )
+        self.assertFalse(status.is_closure)
+        self.assertIn("records-closure-bound-changed", status.reason)
+
+    def test_unverifiable_git_refuses_closed(self) -> None:
+        status = closure.closure_status("0" * 40)
+        self.assertFalse(status.is_closure)
+        self.assertIn("records-closure-unverifiable", status.reason)
+
+    def test_builders_admit_an_eligible_closure_without_remint(self) -> None:
+        candidate = patch_candidate(self, sbom, provenance)
+        descendant = "b" * 40
+        sbom.git_head = lambda: descendant
+        provenance.git_head = lambda: descendant
+        stub_closure(
+            self,
+            closure.ClosureStatus(
+                attested_commit=candidate["commit"],
+                head=descendant,
+                changed=["evidence/review/finding-register.json"],
+            ),
+        )
+        expected_cyclonedx, expected_spdx, _ = sbom.build_documents()
+        expected_statement = provenance.build_statement()
+        self.assertEqual(
+            expected_cyclonedx["metadata"]["properties"],
+            sbom.build_documents()[0]["metadata"]["properties"],
+        )
+        self.assertEqual(
+            expected_statement["subject"], provenance.build_statement()["subject"]
+        )
+        self.assertEqual(expected_spdx["spdxVersion"], "SPDX-2.3")
+
+    def test_builders_refuse_an_ineligible_closure(self) -> None:
+        candidate = patch_candidate(self, sbom, provenance)
+        descendant = "b" * 40
+        sbom.git_head = lambda: descendant
+        provenance.git_head = lambda: descendant
+        stub_closure(
+            self,
+            closure.ClosureStatus(
+                attested_commit=candidate["commit"],
+                head=descendant,
+                changed=["crates/smp1/src/lib.rs"],
+                ineligible=["crates/smp1/src/lib.rs"],
+            ),
+        )
+        with self.assertRaises(sbom.SbomError) as sbom_error:
+            sbom.build_documents()
+        self.assertEqual(sbom_error.exception.code, sbom.SbomErrorCode.INVENTORY_INVALID)
+        self.assertIn("records-closure-ineligible", sbom_error.exception.detail)
+        with self.assertRaises(provenance.ProvenanceError) as provenance_error:
+            provenance.build_statement()
+        self.assertEqual(
+            provenance_error.exception.code,
+            provenance.ProvenanceErrorCode.EVIDENCE_INVALID,
+        )
+        self.assertIn("records-closure-ineligible", provenance_error.exception.detail)
+
+    def test_builders_refuse_a_bound_artifact_change(self) -> None:
+        candidate = patch_candidate(self, sbom, provenance)
+        descendant = "c" * 40
+        sbom.git_head = lambda: descendant
+        provenance.git_head = lambda: descendant
+        stub_closure(
+            self,
+            closure.ClosureStatus(
+                attested_commit=candidate["commit"],
+                head=descendant,
+                changed=["evidence/security/T52/pre-release-inventory.json"],
+                bound_changed=["evidence/security/T52/pre-release-inventory.json"],
+            ),
+        )
+        with self.assertRaises(sbom.SbomError) as sbom_error:
+            sbom.build_documents()
+        self.assertIn("records-closure-bound-changed", sbom_error.exception.detail)
+        with self.assertRaises(provenance.ProvenanceError):
+            provenance.build_statement()
 
 
 if __name__ == "__main__":

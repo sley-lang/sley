@@ -7,6 +7,17 @@ limits as exact numbers. Nothing checked that the crates' public `MAX_*`
 constants still match, so a raised ceiling could change acceptance while every
 document still stated the old bound.
 
+Repair round 8 (invariant audit): the old test was "this number appears
+somewhere in the concatenated spec tree", so raising a limit to any value
+another contract already states passed. The test is now coupled: a value
+must appear in a spec file that also names the constant. A bare number
+anywhere else is not evidence for this constant. Constants whose name no
+contract states keep the whole-tree value test as a fallback but are
+reported as weak evidence, so a reviewer can see exactly how thin the
+claim is. Non-literal initializers (`(1 << 53) - 1`, `u16::MAX`) are
+evaluated where the meaning is platform-independent and otherwise
+reported as unevaluated with the same name-coupling requirement.
+
 The audit is deliberately narrow: it reads public constants only, because a
 test-local bound is not a declared limit, and it checks that the value appears
 somewhere in `docs/spec/`. It does not judge which contract owns which limit;
@@ -25,17 +36,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "sley2.declared-limits.v1"
 DECLARATION = re.compile(
-    r"pub(?:\(crate\))? const (MAX_[A-Z0-9_]+):\s*\w+\s*=\s*([0-9][0-9_]*)"
+    r"pub(?:\(crate\))? const (MAX_[A-Z0-9_]+):\s*\w+\s*=\s*([^;]+);"
 )
+NUMERIC = re.compile(r"[0-9][0-9_]*")
+SHIFT = re.compile(r"\(\s*1\s*<<\s*(\d+)\s*\)\s*([+-])\s*(\d+)")
+TYPE_MAX = re.compile(r"u(8|16|32|64)::MAX")
 # Below this a bare number is too common in prose to carry evidence.
 SIGNIFICANT = 16
 
 
-def spec_text() -> str:
-    return "\n".join(
-        path.read_text(encoding="utf-8", errors="ignore")
+def spec_texts() -> dict[str, str]:
+    return {
+        str(path): path.read_text(encoding="utf-8", errors="ignore")
         for path in sorted((ROOT / "docs/spec").rglob("*.md"))
-    )
+    }
+
+
+def spec_text() -> str:
+    return "\n".join(spec_texts().values())
 
 
 def spellings(value: int) -> set[str]:
@@ -48,33 +66,88 @@ def spellings(value: int) -> set[str]:
         parts.insert(0, rust[-3:])
         rust = rust[:-3]
     parts.insert(0, rust)
-    return {plain, grouped, "_".join(parts)}
+    forms = {plain, grouped, "_".join(parts)}
+    # Powers-of-two idiom: contracts state 2^53 - 1, not 9007199254740991.
+    for candidate in (value - 1, value + 1):
+        power = candidate.bit_length() - 1
+        if candidate > 0 and (1 << power) == candidate:
+            sign = "-" if candidate == value + 1 else "+"
+            for template in ("2^{n} {s} 1", "2^{n}{s}1"):
+                forms.add(template.format(n=power, s=sign))
+    return forms
+
+
+def evaluate(initializer: str) -> int | None:
+    """A platform-independent value for simple initializers, else None."""
+    text = initializer.strip()
+    if NUMERIC.fullmatch(text):
+        return int(text.replace("_", ""))
+    shift = SHIFT.fullmatch(text)
+    if shift:
+        value = 1 << int(shift.group(1))
+        return value + int(shift.group(3)) if shift.group(2) == "+" else value - int(shift.group(3))
+    type_max = TYPE_MAX.fullmatch(text)
+    if type_max:
+        return (1 << int(type_max.group(1))) - 1
+    return None
+
+
+def check_constant(
+    name: str, value: int | None, initializer: str, docs: dict[str, str]
+) -> dict[str, object]:
+    """The evidence grade for one declared limit.
+
+    `documented`: a spec file names the constant and states the value.
+    `weak`: the value appears somewhere but no file names the constant
+    (the old whole-tree test; a shared value is not evidence for this
+    constant). `undocumented`: the value appears nowhere, or (for an
+    unevaluated initializer) the name appears nowhere.
+    """
+    named = [path for path, text in docs.items() if name in text]
+    if value is None:
+        grade = "documented" if named else "undocumented"
+        return {"constant": name, "grade": grade, "initializer": initializer}
+    forms = spellings(value)
+    if any(any(form in docs[path] for form in forms) for path in named):
+        return {"constant": name, "grade": "documented", "value": value}
+    if value >= SIGNIFICANT and any(
+        any(form in text for form in forms) for text in docs.values()
+    ):
+        return {"constant": name, "grade": "weak", "value": value}
+    return {"constant": name, "grade": "undocumented", "value": value}
 
 
 def main() -> int:
     argparse.ArgumentParser(description=__doc__).parse_args()
-    docs = spec_text()
+    docs = spec_texts()
     declared = 0
     undocumented = []
+    weak = []
+    unevaluated = []
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         if "/target/" in str(path):
             continue
         for match in DECLARATION.finditer(path.read_text(encoding="utf-8", errors="ignore")):
-            value = int(match.group(2).replace("_", ""))
+            name, initializer = match.group(1), match.group(2)
             declared += 1
-            if value >= SIGNIFICANT and not any(text in docs for text in spellings(value)):
-                undocumented.append(
-                    {
-                        "constant": match.group(1),
-                        "value": value,
-                        "source": str(path.relative_to(ROOT)),
-                    }
+            value = evaluate(initializer)
+            verdict = check_constant(name, value, initializer.strip(), docs)
+            verdict["source"] = str(path.relative_to(ROOT))
+            if verdict["grade"] == "undocumented":
+                undocumented.append(verdict)
+            elif verdict["grade"] == "weak":
+                weak.append({k: verdict[k] for k in ("constant", "value", "source")})
+            elif value is None:
+                unevaluated.append(
+                    {k: verdict[k] for k in ("constant", "initializer", "source")}
                 )
     result = {
         "contract": CONTRACT,
         "declared_limits": declared,
         "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
         "undocumented": undocumented,
+        "weak_evidence": weak,
+        "unevaluated_initializers": unevaluated,
         "result": "PASS" if not undocumented else "FAIL",
     }
     print(json.dumps(result, indent=2, sort_keys=True))

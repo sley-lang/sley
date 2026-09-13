@@ -1,8 +1,9 @@
 # Standards SBOM and Release Provenance v1
 
-Status: S20-710 full-audit contract draft, revision 4 (2026-09-11); Council
+Status: S20-710 full-audit contract draft, revision 5 (2026-09-13); Council
 review pending (Ariadne contract review, Nabu architecture review, Vulcan
-surface review). Revision 2 records the clarifications found while wiring the
+surface review, plus Council review of the revision 5 records-closure
+model before any standards review row closes on a closure HEAD). Revision 2 records the clarifications found while wiring the
 release smoke (section 5). Revision 3 closes the five S20-710 P0s: license
 normalization and validation (section 2), a candidate-bound SPDX namespace
 (section 3), and fail-closed `--check` semantics over missing evidence
@@ -10,7 +11,10 @@ normalization and validation (section 2), a candidate-bound SPDX namespace
 attestation instead of the per-checkout candidate evidence (sections 3 and
 4), records the candidate invocation instead of inferring it (section 4),
 symmetrizes the ahead states of both builders (section 5), and specifies the
-attestation cross-checks (section 7). The mechanics are `scripts/build_standards_sbom.py` and
+attestation cross-checks (section 7). Revision 5 adds the records-closure
+model (section 5): the attested source candidate commit is distinguished
+from a later records-closure HEAD, and a records-only advancement derives
+the identical candidate-bound documents with nothing re-minted. The mechanics are `scripts/build_standards_sbom.py` and
 `scripts/build_release_provenance.py`; implementation state is tracked in the
 machine summary.
 
@@ -178,7 +182,9 @@ candidate evidence: `build_statement()` refuses a candidate no clean
 `REPRODUCIBLE` attestation names, and refuses a candidate whose commit is not
 the tree's `HEAD` with `PROVENANCE_EVIDENCE_INVALID` (the inputs are read
 from the live tree, so a candidate from another commit would misbind the
-statement). The reproducibility report is therefore a subject-authority
+statement), except for a provable records-closure HEAD under the
+records-closure model below, whose attestation-bound inputs are unchanged
+so the derived statement is byte-identical. The reproducibility report is therefore a subject-authority
 input: a missing report is `PROVENANCE_EVIDENCE_MISSING`, an unreadable or
 attestation-less report is `PROVENANCE_EVIDENCE_INVALID`. A statement minted in a
 clean linked worktree therefore verifies on any checkout of the same commit.
@@ -208,7 +214,9 @@ both builders: commit, artifact digest, manifest digest, and size, with
 the SBOM side additionally requiring a `PASS` record and the provenance
 side additionally requiring `PASS` and `REPRODUCIBLE` at candidate load.
 Write mode never tolerates the skew: both builders refuse a candidate
-that is not `HEAD` or that no clean `REPRODUCIBLE` attestation names
+that is not `HEAD` (other than a provable records-closure HEAD, which
+derives byte-identical documents with nothing re-minted) or that no clean
+`REPRODUCIBLE` attestation names
 (`SBOM_INVENTORY_INVALID` / `PROVENANCE_EVIDENCE_INVALID` /
 `PROVENANCE_SUBJECT_MISMATCH`), so the documents always derive from the
 attested candidate rather than merely from the current evidence.
@@ -229,6 +237,33 @@ the tracked documents).
 The shared `bench/release` test suite derives the provenance against the
 *derived* CycloneDX document rather than the tracked one, for the same
 reason.
+
+### Records-closure model
+
+The attested source candidate commit and a later records-closure HEAD are
+different things, and the contract treats them differently. A HEAD past the
+candidate commit admits derivation only when the source-to-HEAD diff is
+provably records-only, decided by `scripts/records_closure.py`:
+
+- every changed tracked path is under `evidence/` or `machineresearch/`;
+  any change to `crates/`, `scripts/`, specs/contracts, lockfiles, build
+  inputs, or any other attestation-bound path makes the HEAD ineligible;
+- none of the bound inputs changed (the T52 inventory the SPDX namespace
+  binds; the emitted documents are validated instead by byte-identical
+  re-derivation, and the candidate still needs its clean `REPRODUCIBLE`
+  attestation 4-tuple).
+
+The SBOM and provenance documents stay bound to the original attested
+source candidate, the closure HEAD is recorded separately (checker output
+and machine summary, never inside the documents), and no artifact is
+rebuilt or re-minted solely for a permitted records-only advancement.
+This is not a general commit-skew tolerance: any attestation-bound change,
+any bound-artifact change, or any unverifiable diff refuses closed with
+the same codes (`SBOM_INVENTORY_INVALID` / `PROVENANCE_EVIDENCE_INVALID`)
+carrying a `records-closure-…` reason, and write mode still names
+`make release-candidate-smoke` as the reconciling command. Closing any
+standards review row on a closure HEAD additionally requires the fresh
+Council review of this model named in the Status line.
 
 ## 6. Codes
 

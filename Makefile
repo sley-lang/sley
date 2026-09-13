@@ -86,6 +86,7 @@ quick:
 	python3 scripts/check_clean_room_boundary.py
 	python3 scripts/check_error_symbol_registration.py --check
 	python3 scripts/check_declared_limits.py
+	python3 -m unittest discover -s bench/invariant/tests -t .
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
@@ -110,10 +111,11 @@ core:
 	python3 scripts/check_m1_gate.py core
 
 # The workspace configures `clippy::all` and `clippy::pedantic` as warnings, so
-# nothing enforced them. This target denies them.
+# nothing enforced them. This target denies them and files the tracked
+# evidence/build/lint-report.json (invariant audit: a gate nothing runs and
+# nothing files is not evidence). check-changed depends on lint.
 lint:
-	cargo fmt --all --check
-	cargo clippy --no-deps --workspace --all-targets --locked -- -D warnings
+	python3 scripts/record_lint_report.py
 
 conformance:
 	python3 scripts/check_scb1_spec.py
@@ -311,7 +313,7 @@ transaction-receipt-persistent-fuzz-smoke:
 s20-530-verify:
 	python3 scripts/verify_s20_530_accepted_state.py
 
-check-changed: quick core conformance adversarial fuzz-smoke
+check-changed: quick core conformance adversarial fuzz-smoke lint
 	@python3 scripts/check_changed.py
 
 # Every persistent libFuzzer slice in one run. Individual smokes stay the
