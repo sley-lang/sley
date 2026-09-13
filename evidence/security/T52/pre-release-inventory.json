@@ -5,7 +5,7 @@
   "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
-  "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
+  "history_anchor_commit": "db1bc623d01e838d49c153feb0be05a7502b8794",
   "license_text_files": [],
   "packages": [
     {

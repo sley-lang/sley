@@ -3629,7 +3629,7 @@
     "contract": "docs/audits/S20_710_PRE_RELEASE_AUDIT.md",
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
-    "history_anchor_commit": "51863f7b93271bd7a73f9b7b3b02eeca93447d9a",
+    "history_anchor_commit": "db1bc623d01e838d49c153feb0be05a7502b8794",
     "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 18,
@@ -3639,8 +3639,8 @@
     "dependency_relationships": 138,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
-    "history_blobs_scanned": 499,
-    "history_bytes_scanned": 4082788,
+    "history_blobs_scanned": 5827,
+    "history_bytes_scanned": 374805717,
     "secret_patterns": 17,
     "secret_findings": 0,
     "matched_secret_values_emitted": false,
@@ -3648,7 +3648,7 @@
     "root_license_text_approved": false,
     "standards_sbom": false,
     "release_provenance": false,
-    "release_candidate_history_reanchored": false,
+    "release_candidate_history_reanchored": true,
     "final_argus_disposition": "REVISE_0_P0_0_P1_4_P2_2_P3",
     "final_argus_disposition_note": "REVISE via forge-council argus/claude-code 2026-09-11 on cb841a6 (drain, first review): T54 untracked-state manifest plus working-tree candidate set, provenance build-description mismatch, secret-pattern gaps; all addressed in the round-5 repairs; transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-cb841a6.md",
     "final_vulcan_disposition": "REVISE_0_P0_2_P1_3_P2_4_P3",
@@ -3659,7 +3659,8 @@
       "evidence/release/sbom/spdx-2.3.json"
     ],
     "release_provenance_draft_statement": "evidence/release/provenance.json",
-    "draft_documents_contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md"
+    "draft_documents_contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
+    "history_reanchor_note": "2026-09-13 re-anchored 51863f7 to db1bc62 (pushed head): 5827 blobs / 374805717 bytes, 0 findings, 0 blockers; zero deletions db1bc62 to round-9 HEAD so history-plus-candidate coverage through the committed tree is complete; future commits reopen the gap until the release candidate re-anchors at final mint"
   },
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
