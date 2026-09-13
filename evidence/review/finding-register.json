@@ -37,7 +37,7 @@
     "p4": 0
   },
   "deferred_reviews": [],
-  "obligation_count": 288,
+  "obligation_count": 290,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -1190,7 +1190,19 @@
       "reviewer": "nabu",
       "section": "mutation_schema",
       "severities": [],
-      "state": "PENDING",
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "nabu_final_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": true,
+      "disposition": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
+      "field": "nabu_final_review",
+      "package_status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
+      "reviewer": "nabu",
+      "section": "mutation_schema",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -1317,7 +1329,19 @@
       "reviewer": "nabu",
       "section": "protected_policy_root",
       "severities": [],
-      "state": "PENDING",
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "nabu_final_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": true,
+      "disposition": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
+      "field": "nabu_final_review",
+      "package_status": "S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
+      "reviewer": "nabu",
+      "section": "protected_policy_root",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -4091,7 +4115,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "d89f521b02a39218813cd2e16870a982938d22fe6bb97183710a892142e6457b",
+  "obligations_digest": "2d77dba1f265a59508f171986398faf3c034290035a798ab4c33d318804835d6",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4378,18 +4402,6 @@
         "P2",
         "P3"
       ]
-    },
-    {
-      "disposition": "REVISE_TO_FULL_IMMUTABLE_DESCRIPTOR_CODEGEN",
-      "field": "nabu_architecture_review",
-      "section": "mutation_schema",
-      "severities": []
-    },
-    {
-      "disposition": "REVISE_TO_NARROW_PROTECTED_POLICY_ROOT",
-      "field": "nabu_architecture_review",
-      "section": "protected_policy_root",
-      "severities": []
     },
     {
       "disposition": "FAIL_0_P0_3_P1_6_P2_2_P3",
@@ -4934,7 +4946,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "ef616a935c3b42c29dcfcc73b6da12b1331be3f537fbac428d33e087b6aebbc0",
+  "register_digest": "6e688f417dca492fd7d20a0d281ff504d3e5259101647f31695b1c9ae4f11850",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 61,
@@ -4945,10 +4957,10 @@
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "HISTORICAL_ROUND": 41,
+    "HISTORICAL_ROUND": 43,
     "OTHER": 3,
-    "PASS": 165,
-    "PENDING": 79
+    "PASS": 167,
+    "PENDING": 77
   },
   "superseded_rounds": [
     {
@@ -5000,10 +5012,22 @@
       "superseded_by": "vulcan_final_review"
     },
     {
+      "disposition": "REVISE_TO_FULL_IMMUTABLE_DESCRIPTOR_CODEGEN",
+      "field": "nabu_architecture_review",
+      "section": "mutation_schema",
+      "superseded_by": "nabu_final_review"
+    },
+    {
       "disposition": "FAIL_2_P1",
       "field": "vulcan_initial_review",
       "section": "object_store",
       "superseded_by": "vulcan_final_review"
+    },
+    {
+      "disposition": "REVISE_TO_NARROW_PROTECTED_POLICY_ROOT",
+      "field": "nabu_architecture_review",
+      "section": "protected_policy_root",
+      "superseded_by": "nabu_final_review"
     },
     {
       "disposition": "FAIL_P2_TRANSITION_MODE_ERROR_UNREACHABLE",

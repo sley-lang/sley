@@ -1172,7 +1172,9 @@
     "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
     "s20_350_input_available": true,
     "m3_exit_complete": false,
-    "implementation_complete": true
+    "implementation_complete": true,
+    "nabu_final_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
+    "nabu_final_review_note": "PASS via opencode/muse-spark nabu-lane final verification 2026-09-13 on 17122b5 (candidate 36f0e1f): check_mutation_schema PASS 0 problems; 18 kinds/75 fields/16 classes/179 descriptors/75 typed replacements; candidate_construction false runtime_mutation false; generator --check clean; vulcan_review already PASS; REVISE scope fulfilled"
   },
   "mutation_value_profile": {
     "status": "S20_350_COMPLETE_PROPOSAL_ONLY",
@@ -1273,7 +1275,9 @@
     "merlin_implementation_handoff": "TIMED_OUT_PARTIAL_FILES_RECOVERED_AND_INTEGRATED_BY_CODEX",
     "vulcan_initial_review": "FAIL_P2_TRANSITION_MODE_ERROR_UNREACHABLE",
     "vulcan_final_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
-    "implementation_complete": true
+    "implementation_complete": true,
+    "nabu_final_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
+    "nabu_final_review_note": "PASS via opencode/muse-spark nabu-lane final verification 2026-09-13 on 17122b5 (candidate 36f0e1f): check_policy_root PASS 0 problems; transition EXTERNAL_HIGHER_AUTHORITY_ONLY authority false issuance false; vulcan_final_review already PASS; REVISE narrowing fulfilled"
   },
   "capability_token_profile": {
     "status": "S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
@@ -4013,8 +4017,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 288,
-    "open_reviews": 79,
+    "obligations": 290,
+    "open_reviews": 77,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4063,7 +4067,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "79 review obligations are open",
+      "77 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
