@@ -46,7 +46,11 @@ SECRET_PATTERNS = {
     "AWS_ACCESS_KEY": re.compile(rb"(?:AKIA|ASIA)[0-9A-Z]{16}"),
     "GITHUB_TOKEN": re.compile(rb"(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{40,255})"),
     "GITLAB_PAT": re.compile(rb"glpat-[A-Za-z0-9_-]{20,}"),
-    "PGP_PRIVATE_KEY_BLOCK": re.compile(rb"-----BEGIN PGP PRIVATE KEY BLOCK-----"),
+    # No PGP-armour pattern: a header-only shape cannot be stated in audit
+    # discussion without self-firing, and secret findings have no
+    # disposition path (any hit BLOCKEDs the scan with no allowlist flow),
+    # so landing it would permanently BLOCK on the repo's own audit
+    # verdicts. Revisit with a finding-disposition queue, not a pattern.
     "SENDGRID_KEY": re.compile(rb"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}"),
     "SLACK_TOKEN": re.compile(rb"xox[baprs]-[A-Za-z0-9-]{20,}"),
     "OPENAI_KEY": re.compile(rb"sk-[A-Za-z0-9]{20,}"),

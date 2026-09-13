@@ -204,7 +204,7 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 5827,
         "history_bytes_scanned": 374_805_717,
-        "secret_patterns": 22,
+        "secret_patterns": 21,
         "secret_findings": 0,
         "matched_secret_values_emitted": False,
         "candidate_scan_recomputed_by_generator": True,

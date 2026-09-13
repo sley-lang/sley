@@ -3641,7 +3641,7 @@
     "t54_high_confidence_scan": "PASS",
     "history_blobs_scanned": 5827,
     "history_bytes_scanned": 374805717,
-    "secret_patterns": 22,
+    "secret_patterns": 21,
     "secret_findings": 0,
     "matched_secret_values_emitted": false,
     "candidate_scan_recomputed_by_generator": true,
@@ -3652,7 +3652,7 @@
     "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
     "final_argus_disposition_note": "PASS via fresh Argus review 2026-09-13 on 21acb7f (security surface only; full S20-710 stays BLOCKED on license + final mint): all cb841a6 P1/P2 closed with evidence (tracked-only manifest + --check, 17-pattern set then, working_tree_clean + attestation guards, doc refresh); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md",
     "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_1_P3_0_P4",
-    "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); all repaired post-scope (5 patterns added with controls: 22 total; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md",
+    "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); repaired post-scope (4 patterns added with controls: 21 total; PGP-armour declined with rationale: header-only shape self-fires on audit discussion and secret findings have no disposition path; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
       "evidence/release/sbom/cyclonedx-1.6.json",

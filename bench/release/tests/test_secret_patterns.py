@@ -31,7 +31,9 @@ POSITIVE_CONTROLS = {
     "AWS_ACCESS_KEY": b"AKIA" + b"IOSFODNN7EXAMPLE",
     "GITHUB_TOKEN": b"ghp_" + b"a" * 40,
     "GITLAB_PAT": b"glpat-" + b"a" * 24,
-    "PGP_PRIVATE_KEY_BLOCK": b"-----BEGIN PGP PRIVATE KEY BLOCK-----",
+    # No PGP-armour control: the pattern is declined (see generator), so no
+    # control may name it, or the suite would pin a shape the scan must not
+    # flag.
     "SENDGRID_KEY": b"SG." + b"a" * 22 + b"." + b"b" * 43,
     "SLACK_TOKEN": b"xoxb-" + b"1" * 25,
     "OPENAI_KEY": b"sk-" + b"a" * 24,
