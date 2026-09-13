@@ -375,12 +375,10 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![operation_id],
             terminator: Terminator::Return(ReturnTerminator {
-                value: sley_ssmc::ValueRef::OperationResult(
-                    sley_ssmc::OperationResultRef {
-                        operation: operation_id,
-                        result_index: 0,
-                    },
-                ),
+                value: sley_ssmc::ValueRef::OperationResult(sley_ssmc::OperationResultRef {
+                    operation: operation_id,
+                    result_index: 0,
+                }),
             }),
             reachability: sley_ssmc::Reachability::Required,
         }];

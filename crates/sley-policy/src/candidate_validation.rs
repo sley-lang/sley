@@ -2525,8 +2525,7 @@ mod tests {
             expected.entity_id = moved;
         }
         let workspace = build_candidate(&workspace_record).unwrap();
-        let output =
-            validate_candidate_bytes(&fixture.context(), &workspace.stored_bytes).unwrap();
+        let output = validate_candidate_bytes(&fixture.context(), &workspace.stored_bytes).unwrap();
         assert_terminal(
             &output,
             CandidateDecision::StaleRoot,
@@ -2537,8 +2536,7 @@ mod tests {
         let mut epoch_record = fixture.candidate.record.clone();
         epoch_record.schema_epoch_id = fixed(93, SchemaEpochId::from_bytes);
         let epoch = build_candidate(&epoch_record).unwrap();
-        let output =
-            validate_candidate_bytes(&fixture.context(), &epoch.stored_bytes).unwrap();
+        let output = validate_candidate_bytes(&fixture.context(), &epoch.stored_bytes).unwrap();
         assert_terminal(
             &output,
             CandidateDecision::StaleRoot,
@@ -2549,8 +2547,7 @@ mod tests {
         let mut policy_record = fixture.candidate.record.clone();
         policy_record.policy_root_id = fixed(94, PolicyRootId::from_bytes);
         let policy = build_candidate(&policy_record).unwrap();
-        let output =
-            validate_candidate_bytes(&fixture.context(), &policy.stored_bytes).unwrap();
+        let output = validate_candidate_bytes(&fixture.context(), &policy.stored_bytes).unwrap();
         assert_terminal(
             &output,
             CandidateDecision::StaleRoot,
@@ -2560,18 +2557,14 @@ mod tests {
     }
 
     #[test]
-    fn exhausted_graph_work_is_refused() {        let fixture = Fixture::valid();
+    fn exhausted_graph_work_is_refused() {
+        let fixture = Fixture::valid();
         let limits = CandidateValidationLimits {
             max_graph_work: 0,
             ..CandidateValidationLimits::full_v1()
         };
-        let context =
-            fixture.context_with(&fixture.base_objects, &[], limits);
-        let output = validate_candidate_bytes(
-            &context,
-            &fixture.candidate.stored_bytes,
-        )
-        .unwrap();
+        let context = fixture.context_with(&fixture.base_objects, &[], limits);
+        let output = validate_candidate_bytes(&context, &fixture.candidate.stored_bytes).unwrap();
         assert_terminal(
             &output,
             CandidateDecision::ResourceLimit,
@@ -2581,14 +2574,14 @@ mod tests {
     }
 
     #[test]
-    fn over_ceiling_test_resources_are_refused() {        let workspace_id = fixed(1, WorkspaceId::from_bytes);
+    fn over_ceiling_test_resources_are_refused() {
+        let workspace_id = fixed(1, WorkspaceId::from_bytes);
         let nonce = fixed(73, CandidateNonce::from_bytes);
         let function = EntityId::derive(workspace_id, nonce, 5, 0);
         let parameter = EntityId::derive(workspace_id, nonce, 6, 1);
         let block = EntityId::derive(workspace_id, nonce, 7, 2);
         let test = EntityId::derive(workspace_id, nonce, 14, 3);
-        let fixture =
-            Fixture::with_policy_options_and_tests(true, false, None, &[test]);
+        let fixture = Fixture::with_policy_options_and_tests(true, false, None, &[test]);
         let unit = || ConstValue {
             value_type: TypeExpr::Unit,
             data: ConstData::Unit,
@@ -2674,7 +2667,8 @@ mod tests {
     }
 
     #[test]
-    fn stale_root_and_exact_entity_preimage_are_distinct() {        let fixture = Fixture::valid();
+    fn stale_root_and_exact_entity_preimage_are_distinct() {
+        let fixture = Fixture::valid();
 
         let mut stale_root_record = fixture.candidate.record.clone();
         stale_root_record.base_root = fixed(90, StateRoot::from_bytes);

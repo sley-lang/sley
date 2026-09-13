@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORY_ANCHOR = "51863f7b93271bd7a73f9b7b3b02eeca93447d9a"
+HISTORY_ANCHOR = "db1bc623d01e838d49c153feb0be05a7502b8794"
 MAX_SCANNED_BLOB_BYTES = 64 * 1024 * 1024
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -471,6 +471,7 @@ def build_outputs() -> dict[Path, bytes]:
             "history is frozen through the pre-audit anchor; later release audit must re-anchor",
             "generated T52/T54 reports are excluded from their own candidate scan",
             "the recorded manifest covers tracked files only and is reproducible from the commit; untracked files are scanned for secrets and counted separately, never manifested",
+            "byte-regex over raw bytes only; compressed or encoded content (archives, base64) is opaque to the scan",
             "no ignored local files, reflogs, remotes, provider stores, or external secret managers scanned",
         ],
         "matched_secret_values_emitted": False,

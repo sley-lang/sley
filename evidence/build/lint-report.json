@@ -1,9 +1,9 @@
 {
-  "clippy_clean": false,
-  "clippy_warnings": 2,
-  "commit": "b5dceae495e46ffdc5d13eeac772cef27f862c03",
+  "clippy_clean": true,
+  "clippy_warnings": 0,
+  "commit": "db1bc623d01e838d49c153feb0be05a7502b8794",
   "contract": "sley2.lint-report.v1",
-  "fmt_clean": false,
-  "fmt_detail": "Diff in /home/gfarch/Work/workspaces/sley2/crates/sley-cli/tests/cli.rs:545:\n     let (_, _, stderr) = run(&[\"bogus\"], &[]);\n     assert_eq!(stderr_object(&stderr)[\"symbol\"], \"CLI_USAGE_INVALID\");\n     let (_, _, stderr) = run(&[\"serve\", \"--repository\", repo], &[]);\n\u001b[31m-    assert_eq!(\n\u001b(B\u001b[m\u001b[31m-        stderr_object(&stderr)[\"symbol\"],\n\u001b(B\u001b[m\u001b[31m-        \"CLI_HANDSHAKE_REQUIRED\"\n\u001b(B\u001b[m\u001b[31m-    );\n\u001b(B\u001b[m\u001b[32m+    assert_eq!(stderr_object(&stderr)[\"symbol\"], \"CLI_HANDSHAKE_REQUIRED\");\n\u001b(B\u001b[m     // I/O fault injection: a failing stdout turns a would-be success into\n     // CLI_IO_FAILURE (status 4), proving the write path is fallible-loud.\n     let args: Vec<String> = [\"methods\".to_owned()].to_vec();\nDiff in /home/gfarch/Work/workspaces/sley2/crates/sley-mutate/src/apply.rs:812:\n     }\n \n     #[test]\n\u001b[31m-    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {        let epoch = SchemaEpochId::from_bytes([1; 32]);\n\u001b(B\u001b[m\u001b[32m+    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {\n\u001b(B\u001b[m\u001b[32m+        let epoch = SchemaEpochId::from_bytes([1; 32]);\n\u001b(B\u001b[m         let target = id(40);\n         let base = object(\n             epoch,\nDiff in /home/gfarch/Work/workspaces/sley2/crates/sley-mutate/src/apply.rs:934:\n             },\n             absent_precondition(fresh),\n         );\n\u001b[31m-        let error = apply_candidate_to_snapshot(epoch, &record, &[base.clone(), base], &[])\n\u001b(B\u001b[m\u001b[31m-            .unwrap_err();\n\u001b(B\u001b[m\u001b[32m+        let error =\n\u001b(B\u001b[m\u001b[32m+            apply_candidate_to_snapshot(epoch, &record, &[base.clone(), base], &[]).unwrap_err();\n\u001b(B\u001b[m         assert_eq!(error, CandidateApplyError::SnapshotDuplicateEntity);\n         assert_eq!(error.code(), \"CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY\");\n     }\nDiff in /home/gfarch/Work/workspaces/sley2/crates/sley-mutate/src/apply.rs:1063:\n             },\n             exact_precondition(0, target, base.object_id()),\n         );\n\u001b[31m-        let error =\n\u001b(B\u001b[m\u001b[31m-      ",
-  "result": "FAIL"
+  "fmt_clean": true,
+  "fmt_detail": "",
+  "result": "PASS"
 }

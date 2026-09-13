@@ -3077,24 +3077,19 @@ pub(crate) mod tests {
         tampered.root = StateRoot::from_bytes([0x09; 32]);
         // Binding is verified at build as well as at execute: either
         // stage must refuse the substituted fact with the same code.
-        let tampered_code = match build_root_query_request(
-            &tampered,
-            RootQuery::GetRootSummary,
-            full,
-            false,
-            None,
-        ) {
-            Ok(tampered_request) => execute_root_query(&tampered, &tampered_request)
-                .unwrap_err()
-                .code(),
-            Err(error) => error.code(),
-        };
+        let tampered_code =
+            match build_root_query_request(&tampered, RootQuery::GetRootSummary, full, false, None)
+            {
+                Ok(tampered_request) => execute_root_query(&tampered, &tampered_request)
+                    .unwrap_err()
+                    .code(),
+                Err(error) => error.code(),
+            };
         assert_eq!(tampered_code.numeric(), 31_008);
         println!(
-            "ROOT_QUERY_REJECT|binding-substituted-fact|{}|{}|{}|{}|{}|{}",
+            "ROOT_QUERY_REJECT|binding-substituted-fact|{}|{}|false|{}|{}|{}",
             describe(&RootQuery::GetRootSummary),
             describe_limits(full),
-            false,
             describe_cursor(None),
             tampered_code.as_str(),
             tampered_code.numeric()
@@ -3134,10 +3129,9 @@ pub(crate) mod tests {
         };
         assert_eq!(arm1_code.numeric(), 31_000);
         println!(
-            "ROOT_QUERY_REJECT|arm-1-snapshot-profile|{}|{}|{}|{}|{}|{}",
+            "ROOT_QUERY_REJECT|arm-1-snapshot-profile|{}|{}|false|{}|{}|{}",
             describe(&RootQuery::GetRootSummary),
             describe_limits(full),
-            false,
             describe_cursor(None),
             arm1_code.as_str(),
             arm1_code.numeric()

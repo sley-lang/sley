@@ -812,7 +812,8 @@ mod tests {
     }
 
     #[test]
-    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {        let epoch = SchemaEpochId::from_bytes([1; 32]);
+    fn entry_points_must_be_live_and_explicitly_removed_before_delete() {
+        let epoch = SchemaEpochId::from_bytes([1; 32]);
         let target = id(40);
         let base = object(
             epoch,
@@ -934,8 +935,8 @@ mod tests {
             },
             absent_precondition(fresh),
         );
-        let error = apply_candidate_to_snapshot(epoch, &record, &[base.clone(), base], &[])
-            .unwrap_err();
+        let error =
+            apply_candidate_to_snapshot(epoch, &record, &[base.clone(), base], &[]).unwrap_err();
         assert_eq!(error, CandidateApplyError::SnapshotDuplicateEntity);
         assert_eq!(error.code(), "CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY");
     }
@@ -1063,9 +1064,8 @@ mod tests {
             },
             exact_precondition(0, target, base.object_id()),
         );
-        let error =
-            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
-                .unwrap_err();
+        let error = apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+            .unwrap_err();
         assert_eq!(error, CandidateApplyError::TargetKindMismatch);
         assert_eq!(error.code(), "CANDIDATE_APPLY_TARGET_KIND_MISMATCH");
     }
@@ -1105,9 +1105,8 @@ mod tests {
             },
             container_precondition(0, target, base.object_id(), 2),
         );
-        let error =
-            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
-                .unwrap_err();
+        let error = apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+            .unwrap_err();
         assert_eq!(error, CandidateApplyError::OrderedIndexInvalid);
         assert_eq!(error.code(), "CANDIDATE_APPLY_ORDERED_INDEX_INVALID");
         let removal = single_operation(
@@ -1126,9 +1125,8 @@ mod tests {
             },
             container_precondition(0, target, base.object_id(), 2),
         );
-        let error =
-            apply_candidate_to_snapshot(epoch, &removal, core::slice::from_ref(&base), &[])
-                .unwrap_err();
+        let error = apply_candidate_to_snapshot(epoch, &removal, core::slice::from_ref(&base), &[])
+            .unwrap_err();
         assert_eq!(error, CandidateApplyError::OrderedIndexInvalid);
         assert_eq!(error.code(), "CANDIDATE_APPLY_ORDERED_INDEX_INVALID");
     }
@@ -1155,9 +1153,8 @@ mod tests {
             },
             container_precondition(0, target, base.object_id(), 2),
         );
-        let error =
-            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
-                .unwrap_err();
+        let error = apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+            .unwrap_err();
         assert_eq!(error, CandidateApplyError::OrderedExpectedChildMismatch);
         assert_eq!(
             error.code(),
@@ -1201,10 +1198,7 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error, CandidateApplyError::EntryPointAlreadyPresent);
-        assert_eq!(
-            error.code(),
-            "CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT"
-        );
+        assert_eq!(error.code(), "CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT");
     }
 
     #[test]
@@ -1232,9 +1226,8 @@ mod tests {
             },
             exact_precondition(0, target, base.object_id()),
         );
-        let error =
-            apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
-                .unwrap_err();
+        let error = apply_candidate_to_snapshot(epoch, &record, core::slice::from_ref(&base), &[])
+            .unwrap_err();
         assert_eq!(error, CandidateApplyError::EntryPointMissing);
         assert_eq!(error.code(), "CANDIDATE_APPLY_ENTRY_POINT_MISSING");
     }

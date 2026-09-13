@@ -2,10 +2,385 @@
   "ambiguous_codes": [],
   "contract": "sley2.error-symbol-registration.v1",
   "declared_namespaces": 52,
-  "emitted_symbols": 402,
+  "emitted_symbols": 495,
   "numeric_codes": 315,
-  "result": "PASS",
+  "registered_without_declared_namespace": [
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_ANCESTRY_CYCLE"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_NOT_FAST_FORWARD"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_ORIGIN_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_RECORD_DIGEST_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_RECORD_FIELD_SHAPE"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/refs.rs",
+      "symbol": "BRANCH_RECORD_FORMAT_VERSION"
+    },
+    {
+      "first_seen": "crates/sley-protocol/src/server.rs",
+      "symbol": "BRANCH_RESOURCE_LIMIT"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_EXACT_PREIMAGE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_CONTEXT_INVENTORY_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_CONTEXT_POLICY_BINDING_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_CONTEXT_STATE_REGISTRY_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_CONTEXT_STATE_ROOT_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_CONTEXT_TOMBSTONE_SET_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_DEPENDENCY_ROOT_CHANGE_UNSUPPORTED"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_EXPIRY_EXPIRED"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_IDENTITY_COLLISION"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_POLICY_ROOT_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_CANDIDATE_ID_SHAPE"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_DECISION_PHASE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_DIAGNOSTIC_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_FORMAT_VERSION"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_PHASE_SHAPE"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_PROFILE_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_ROOT_SHAPE"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_result.rs",
+      "symbol": "CANDIDATE_RESULT_SET_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_ROOT_REBUILD_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_SCHEMA_EPOCH_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_SELECTED_TEST_UNRESOLVED"
+    },
+    {
+      "first_seen": "crates/sley-policy/src/candidate_validation.rs",
+      "symbol": "CANDIDATE_WORKSPACE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-query/src/context_capsule.rs",
+      "symbol": "CONTEXT_CAPSULE_DICTIONARY_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-query/src/context_capsule.rs",
+      "symbol": "CONTEXT_CAPSULE_INTERNAL_INVARIANT"
+    },
+    {
+      "first_seen": "crates/sley-protocol/src/server.rs",
+      "symbol": "CONTEXT_CAPSULE_RESOURCE_LIMIT"
+    },
+    {
+      "first_seen": "crates/sley-query/src/context_capsule.rs",
+      "symbol": "CONTEXT_CAPSULE_SOURCE_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_ANCESTRY_CYCLE"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_ANCESTRY_OPEN"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_ANCESTRY_SURPLUS"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_BRANCH_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_BRANCH_NOT_FAST_FORWARD"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_CANONICAL_ORDER"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_COMPRESSION_UNSUPPORTED"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_DIGEST_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_DIGEST_TREE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_DUPLICATE_ENTRY"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_HEAD_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_INTERNAL_INVARIANT"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_IO"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_PACK_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_PROFILE_UNSUPPORTED"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_RECEIPT_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-protocol/src/server.rs",
+      "symbol": "EXCHANGE_RESOURCE_LIMIT"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_ROOT_CLOSURE"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_TARGET_INCOMPLETE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_TARGET_NOT_EMPTY"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_VERSION_UNSUPPORTED"
+    },
+    {
+      "first_seen": "crates/sley-repo/src/exchange.rs",
+      "symbol": "EXCHANGE_WORKSPACE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_BINDING_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_DIGEST_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_MALFORMED"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_OVERSIZED"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_TRAILING_DATA"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_TRUNCATED"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_UNKNOWN_MAGIC"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/host_abi.rs",
+      "symbol": "IMAGE_UNSUPPORTED_VERSION"
+    }
+  ],
+  "result": "FAIL",
   "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
   "unexercised": [],
-  "unregistered": []
+  "unregistered": [
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_APPROVAL_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_CLAIMS_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_DIGESTS"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_GATE_REFUSED"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_REFERENCE_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/admission_authority.rs",
+      "symbol": "AUTHORITY_UNKNOWN_ENTRY"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_ENTRY_POINT_MISSING"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_ENTRY_POINT_STILL_BOUND"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_FIELD_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_IDENTITY_ALREADY_LIVE"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_ORDERED_EXPECTED_CHILD_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_ORDERED_INDEX_INVALID"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTRY_POINT"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_SNAPSHOT_ENTRY_POINT_UNBOUND"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_SNAPSHOT_EPOCH_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_TARGET_ALREADY_EXISTS"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_TARGET_KIND_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/apply.rs",
+      "symbol": "CANDIDATE_APPLY_TARGET_MISSING"
+    },
+    {
+      "first_seen": "crates/sley-query/src/entity_read.rs",
+      "symbol": "ENTITY_READ_BUDGET_EXCEEDED"
+    },
+    {
+      "first_seen": "crates/sley-query/src/entity_read.rs",
+      "symbol": "ENTITY_READ_NOT_CANONICAL"
+    },
+    {
+      "first_seen": "crates/sley-query/src/entity_read.rs",
+      "symbol": "ENTITY_READ_UNKNOWN"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/value.rs",
+      "symbol": "MUTATION_VALUE_DESCRIPTOR_UNKNOWN"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/value.rs",
+      "symbol": "MUTATION_VALUE_KIND_MISMATCH"
+    },
+    {
+      "first_seen": "crates/sley-mutate/src/value.rs",
+      "symbol": "MUTATION_VALUE_SET_DUPLICATE"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/raw_hash.rs",
+      "symbol": "RAW_HASH_RESOURCE_LIMIT"
+    },
+    {
+      "first_seen": "crates/sley-vm/src/raw_hash.rs",
+      "symbol": "RAW_HASH_UNKNOWN_VARIANT"
+    }
+  ]
 }

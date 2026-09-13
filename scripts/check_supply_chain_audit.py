@@ -15,7 +15,7 @@ INVENTORY_PATH = ROOT / "evidence/security/T52/pre-release-inventory.json"
 SECRET_SCAN_PATH = ROOT / "evidence/security/T54/secret-scan.json"
 SUMMARY_PATH = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 EXPECTED_BLOCKERS = ["workspace-license-text:missing-operator-approved-root-license"]
-EXPECTED_ANCHOR = "51863f7b93271bd7a73f9b7b3b02eeca93447d9a"
+EXPECTED_ANCHOR = "db1bc623d01e838d49c153feb0be05a7502b8794"
 EXPECTED_COUNTS = {
     ("cargo", False): 30,
     ("cargo", True): 18,

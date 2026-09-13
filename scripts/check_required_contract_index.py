@@ -126,7 +126,11 @@ def main() -> int:
 
     # Registry drift validation, which IDENTIFIERS_V1.md requires of every
     # added domain: the implementation's derived domains and the frozen
-    # registry must be the same set.
+    # registry must be the same set. Both directions are enforced: a
+    # derived domain the registry does not freeze is drift, and a frozen
+    # registry row no crate derives is a phantom (invariant-audit repair
+    # round 9: the comment always required the same set, but only the
+    # derived-subset-registry direction was checked).
     # Every crate that hashes may define a domain, not only `sley-id`.
     derived = sorted(
         {
@@ -139,6 +143,10 @@ def main() -> int:
     unregistered = [domain for domain in derived if f"`{domain}`" not in identifiers]
     for domain in unregistered:
         problems.append(f"identifier-registry-drift:{domain}")
+    registered = sorted(set(re.findall(r"`(sley2\.[a-z0-9.\-]+)`", identifiers)))
+    for domain in registered:
+        if domain not in derived:
+            problems.append(f"identifier-registry-phantom:{domain}")
 
     summary = json.loads(read(SUMMARY))
     section = summary.get("required_contract_index")

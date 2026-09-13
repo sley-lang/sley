@@ -29,9 +29,8 @@ use sley_policy::{
 };
 use sley_query::{
     Cursor, EntityReadCeilings, EntityReadError, EntityReadMethod, ImpactEdge, ImpactKind,
-    IndexCompleteness, ModeledEntityKind, QueryLimits, RestrictedQuery, RootQuery,
-    SnapshotContext, build_index_snapshot, build_restricted_query_request,
-    execute_restricted_query,
+    IndexCompleteness, ModeledEntityKind, QueryLimits, RestrictedQuery, RootQuery, SnapshotContext,
+    build_index_snapshot, build_restricted_query_request, execute_restricted_query,
 };
 use sley_repo::{
     BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, GcDecision, GcReport,
@@ -834,12 +833,7 @@ impl Server {
         // Entity reads on the explicit path retain the admitted revision
         // through preparation with no second head load; every other method
         // keeps the legacy admission order and accounting.
-        if self.version_aware
-            && matches!(
-                method,
-                Method::EntityVersion | Method::EntitySignature
-            )
-        {
+        if self.version_aware && matches!(method, Method::EntityVersion | Method::EntitySignature) {
             return self.dispatch_entity_read(session, method, frame);
         }
         let outcome = match self.session_check(session, method) {
@@ -1030,10 +1024,7 @@ impl Server {
     /// legacy partition is unchanged.
     const fn head_bound_versioned(method: Method) -> bool {
         Self::head_bound(method)
-            || matches!(
-                method,
-                Method::EntityVersion | Method::EntitySignature
-            )
+            || matches!(method, Method::EntityVersion | Method::EntitySignature)
     }
 
     /// Admits a session and retains the owned verified revision whose

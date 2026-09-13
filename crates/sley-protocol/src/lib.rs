@@ -1431,8 +1431,8 @@ pub(crate) fn encode_single_frame_direct(
 ) -> Result<EncodedFrame> {
     frame.validate_for_version(frame.protocol_version)?;
     let bounds_bytes = frame.bounds.encode_bounds()?;
-    let body_len =
-        u64::try_from(frame.body.len()).map_err(|_| ProtocolError(ProtocolErrorCode::FrameInvalid))?;
+    let body_len = u64::try_from(frame.body.len())
+        .map_err(|_| ProtocolError(ProtocolErrorCode::FrameInvalid))?;
     let total = frame_total_len(&FrameSize {
         version: frame.protocol_version,
         session: frame.session,
@@ -1511,7 +1511,8 @@ fn push_frame_payload(
         Some(session) => {
             let mut union = vec![
                 1,
-                u8::try_from(ID_LEN).map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?,
+                u8::try_from(ID_LEN)
+                    .map_err(|_| ProtocolError(ProtocolErrorCode::InternalInvariant))?,
             ];
             union.extend_from_slice(session.as_bytes());
             push_field(bytes, 2, &union)?;
@@ -3224,10 +3225,7 @@ mod tests {
         assert_eq!(Method::EntityVersion.name(), "entity.version");
         assert_eq!(Method::EntitySignature.name(), "entity.signature");
         assert_eq!(Method::EntityVersion.family(), 3);
-        assert_eq!(
-            Method::EntityVersion.introduced_in(),
-            PROTOCOL_VERSION_V2
-        );
+        assert_eq!(Method::EntityVersion.introduced_in(), PROTOCOL_VERSION_V2);
         assert_eq!(Method::QueryRoot.introduced_in(), PROTOCOL_VERSION);
         assert!(!Method::EntityVersion.is_reserved());
         assert!(!Method::EntitySignature.is_reserved());
@@ -3326,8 +3324,7 @@ mod tests {
         );
         let encoded = encode_frame_for_version(&frame, PROTOCOL_VERSION_V2).unwrap();
         let (decoded, _) =
-            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
-                .unwrap();
+            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2).unwrap();
         assert_eq!(decoded, DecodedFrame::Request(frame.clone()));
         assert_eq!(
             decode_frame(&encoded.bytes, MAX_FRAME_BYTES)
@@ -3359,8 +3356,9 @@ mod tests {
         let direct = encode_single_frame_direct(&v1_frame, MAX_FRAME_BYTES).unwrap();
         assert_eq!(direct.bytes, legacy.bytes);
         assert_eq!(direct.frame_id, legacy.frame_id);
-        let frames = stream_response_for_version(&v1_frame, MAX_FRAME_BYTES, false, PROTOCOL_VERSION)
-            .unwrap_err();
+        let frames =
+            stream_response_for_version(&v1_frame, MAX_FRAME_BYTES, false, PROTOCOL_VERSION)
+                .unwrap_err();
         assert_eq!(frames.code(), ProtocolErrorCode::FrameInvalid);
     }
 
@@ -3398,20 +3396,26 @@ mod tests {
             };
             for expected in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2] {
                 let outcome = encode_frame_for_version(&frame, expected);
-                if claimed == expected {
-                    outcome.unwrap();
-                } else if claimed < expected {
-                    assert_eq!(outcome.unwrap_err().code(), ProtocolErrorCode::Downgrade);
-                } else {
-                    assert_eq!(
-                        outcome.unwrap_err().code(),
-                        ProtocolErrorCode::VersionUnsupported
-                    );
+                match claimed.cmp(&expected) {
+                    std::cmp::Ordering::Equal => {
+                        outcome.unwrap();
+                    }
+                    std::cmp::Ordering::Less => {
+                        assert_eq!(outcome.unwrap_err().code(), ProtocolErrorCode::Downgrade);
+                    }
+                    std::cmp::Ordering::Greater => {
+                        assert_eq!(
+                            outcome.unwrap_err().code(),
+                            ProtocolErrorCode::VersionUnsupported
+                        );
+                    }
                 }
             }
             for expected in [0, 3, u32::MAX] {
                 assert_eq!(
-                    encode_frame_for_version(&frame, expected).unwrap_err().code(),
+                    encode_frame_for_version(&frame, expected)
+                        .unwrap_err()
+                        .code(),
                     ProtocolErrorCode::VersionUnsupported,
                     "encode claimed {claimed} under undefined selection {expected}"
                 );
@@ -3516,16 +3520,6 @@ mod tests {
 
     #[test]
     fn fixture_hellos_negotiate_ok() {
-        // Dead-Ok-arm guard (S20-700-SMP1-001): the conformance fixture
-        // hellos must negotiate Ok. If the fixture drifts incompatible
-        // (versions, epochs, methods, features), this fails loudly in
-        // the unit lane instead of the fuzz oracle going quiet.
-        let accepted: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../conformance/smp1/v1/accepted.json"
-        ))
-        .unwrap();
-        let hellos = accepted["hellos"].as_object().unwrap();
-        let mut decoded = Vec::new();
         fn hex_pair(value: u8) -> u8 {
             match value {
                 b'0'..=b'9' => value - b'0',
@@ -3534,6 +3528,15 @@ mod tests {
                 other => panic!("non-hex digit {other}"),
             }
         }
+        // Dead-Ok-arm guard (S20-700-SMP1-001): the conformance fixture
+        // hellos must negotiate Ok. If the fixture drifts incompatible
+        // (versions, epochs, methods, features), this fails loudly in
+        // the unit lane instead of the fuzz oracle going quiet.
+        let accepted: serde_json::Value =
+            serde_json::from_str(include_str!("../../../conformance/smp1/v1/accepted.json"))
+                .unwrap();
+        let hellos = accepted["hellos"].as_object().unwrap();
+        let mut decoded = Vec::new();
         for (name, hello) in hellos {
             let frame_hex = hello["frame_hex"].as_str().unwrap();
             assert!(frame_hex.len().is_multiple_of(2));
@@ -3555,7 +3558,9 @@ mod tests {
                 let (left_name, left) = &decoded[index];
                 let (right_name, right) = &decoded[other];
                 let (selected, _) = negotiate_identity(left, right).unwrap_or_else(|error| {
-                    panic!("{left_name} vs {right_name}: fixture hellos must negotiate Ok: {error:?}")
+                    panic!(
+                        "{left_name} vs {right_name}: fixture hellos must negotiate Ok: {error:?}"
+                    )
                 });
                 assert!(
                     left.protocol_versions.contains(&selected.protocol_version),

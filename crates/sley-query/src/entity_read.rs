@@ -16,8 +16,8 @@ use core::fmt;
 
 use sley_id::{EntityId, ObjectId, SchemaEpochId, SessionId, StateRoot, WorkspaceId};
 use sley_scb1::{
-    ScbValueCursor, MAX_BYTE_PAYLOAD, MAX_COLLECTION_ELEMENTS, MAX_RECORD_FIELDS,
-    MAX_STANDALONE_BYTES,
+    MAX_BYTE_PAYLOAD, MAX_COLLECTION_ELEMENTS, MAX_RECORD_FIELDS, MAX_STANDALONE_BYTES,
+    ScbValueCursor,
 };
 use sley_ssmc::ParameterRole;
 
@@ -675,9 +675,12 @@ fn resolve_target<'o>(
 }
 
 fn lookup_cost(bindings: usize) -> Result<u64, EntityReadError> {
-    let count =
-        u64::try_from(bindings).map_err(|_| EntityReadError::BudgetExceeded)?;
-    let bits = if count == 0 { 0 } else { 64 - count.leading_zeros() };
+    let count = u64::try_from(bindings).map_err(|_| EntityReadError::BudgetExceeded)?;
+    let bits = if count == 0 {
+        0
+    } else {
+        64 - count.leading_zeros()
+    };
     u64::from(bits)
         .checked_add(1)
         .ok_or(EntityReadError::BudgetExceeded)
@@ -799,7 +802,10 @@ pub fn decode_entity_read_response(input: &[u8]) -> Result<EntityReadResponse, E
     if response_uvar(fields.first().copied())? != ENTITY_READ_RESPONSE_VERSION {
         return Err(EntityReadError::NotCanonical);
     }
-    let list_bytes = fields.get(6).copied().ok_or(EntityReadError::NotCanonical)?;
+    let list_bytes = fields
+        .get(6)
+        .copied()
+        .ok_or(EntityReadError::NotCanonical)?;
     let mut list = ScbValueCursor::new(list_bytes).map_err(|_| EntityReadError::NotCanonical)?;
     let elements = list
         .read_list_count()
@@ -834,14 +840,17 @@ fn read_ordered_fields<'a>(
     if count != expected {
         return Err(EntityReadError::NotCanonical);
     }
-    let mut fields = Vec::with_capacity(
-        usize::try_from(expected).map_err(|_| EntityReadError::NotCanonical)?,
-    );
+    let mut fields =
+        Vec::with_capacity(usize::try_from(expected).map_err(|_| EntityReadError::NotCanonical)?);
     for position in 0..expected {
         let tag = cursor
             .read_uvar(32)
             .map_err(|_| EntityReadError::NotCanonical)?;
-        if tag != position.checked_add(1).ok_or(EntityReadError::NotCanonical)? {
+        if tag
+            != position
+                .checked_add(1)
+                .ok_or(EntityReadError::NotCanonical)?
+        {
             return Err(EntityReadError::NotCanonical);
         }
         fields.push(
@@ -904,8 +913,7 @@ fn stored_len(object: &EntityReadObject<'_>) -> Result<u64, EntityReadError> {
 }
 
 fn check_byte_payload(stored: u64) -> Result<(), EntityReadError> {
-    let ceiling =
-        u64::try_from(MAX_BYTE_PAYLOAD).map_err(|_| EntityReadError::BudgetExceeded)?;
+    let ceiling = u64::try_from(MAX_BYTE_PAYLOAD).map_err(|_| EntityReadError::BudgetExceeded)?;
     if stored > ceiling {
         return Err(EntityReadError::BudgetExceeded);
     }
@@ -1562,10 +1570,25 @@ mod tests {
             truncated,
             raw_record(4, &fields[..4]),
             raw_record(6, &[&fields[..], &[(6, encode_uvar(1))][..]].concat()),
-            raw_record(5, &[fields[1].clone(), fields[0].clone(), fields[2].clone(), fields[3].clone(), fields[4].clone()]),
             raw_record(
                 5,
-                &[fields[0].clone(), fields[0].clone(), fields[2].clone(), fields[3].clone(), fields[4].clone()],
+                &[
+                    fields[1].clone(),
+                    fields[0].clone(),
+                    fields[2].clone(),
+                    fields[3].clone(),
+                    fields[4].clone(),
+                ],
+            ),
+            raw_record(
+                5,
+                &[
+                    fields[0].clone(),
+                    fields[0].clone(),
+                    fields[2].clone(),
+                    fields[3].clone(),
+                    fields[4].clone(),
+                ],
             ),
             raw_record(5, &short_fixed),
             raw_record(5, &non_minimal_uvar),
@@ -2601,7 +2624,10 @@ mod tests {
             EntityReadError::InternalInvariant.owner_symbol(),
             Some("QUERY_INTERNAL_INVARIANT")
         );
-        assert_eq!(EntityReadError::InternalInvariant.owner_numeric(), Some(31_007));
+        assert_eq!(
+            EntityReadError::InternalInvariant.owner_numeric(),
+            Some(31_007)
+        );
         assert_eq!(EntityReadError::NotCanonical.owner_symbol(), None);
         assert_eq!(EntityReadError::NotCanonical.owner_numeric(), None);
         assert_eq!(EntityReadError::BudgetExceeded.owner_symbol(), None);
@@ -2856,7 +2882,11 @@ mod tests {
         let request = request(40, fixture.root);
         let ((_, _, _), _, response) =
             fixture.roundtrip(EntityReadMethod::Signature, &request, &ceilings());
-        let order: Vec<EntityId> = response.objects.iter().map(|object| object.entity).collect();
+        let order: Vec<EntityId> = response
+            .objects
+            .iter()
+            .map(|object| object.entity)
+            .collect();
         assert_eq!(order, vec![entity(40), entity(43), entity(41), entity(42)]);
     }
 

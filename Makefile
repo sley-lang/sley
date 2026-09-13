@@ -85,7 +85,7 @@ quick:
 	python3 scripts/check_domain_tags_and_strings.py
 	python3 scripts/check_clean_room_boundary.py
 	python3 scripts/check_error_symbol_registration.py --check
-	python3 scripts/check_declared_limits.py
+	python3 scripts/check_declared_limits.py --check
 	python3 -m unittest discover -s bench/invariant/tests -t .
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py

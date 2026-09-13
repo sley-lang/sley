@@ -437,15 +437,27 @@ pub fn import_conformance_pack<V: CanonicalVerifier>(
 /// checks with attacker-controlled bytes. Neither helper changes
 /// `verify_digest_tree`, any error code, step order, or any validating path;
 /// sealing confers no acceptance (import still enforces every check).
+///
+/// # Errors
+///
+/// Returns the envelope or payload decode error when `input` is malformed.
 pub fn decode_conformance_pack_entries_for_testing(
     input: &[u8],
-) -> Result<(Vec<PackEpochEntry>, Vec<PackRootEntry>, Vec<PackObjectEntry>)> {
+) -> Result<(
+    Vec<PackEpochEntry>,
+    Vec<PackRootEntry>,
+    Vec<PackObjectEntry>,
+)> {
     let (_epoch, payload, _pack_id) = decode_envelope(input)?;
     let decoded = decode_payload(payload)?;
     Ok((decoded.epochs, decoded.roots, decoded.objects))
 }
 
 /// See `decode_conformance_pack_entries_for_testing` for the test-only terms.
+///
+/// # Errors
+///
+/// Returns the pack build error when the supplied entries fail validation.
 pub fn seal_mutated_conformance_pack_for_testing(
     epochs: Vec<PackEpochEntry>,
     roots: Vec<PackRootEntry>,
@@ -1379,7 +1391,8 @@ mod tests {
     }
 
     #[test]
-    fn outer_digest_tamper_fails_before_promotion() {        let (_source_temp, source, root, _) = fixture();
+    fn outer_digest_tamper_fails_before_promotion() {
+        let (_source_temp, source, root, _) = fixture();
         let mut bytes = export_conformance_pack(&source, &[root], &verifier)
             .unwrap()
             .stored_bytes;

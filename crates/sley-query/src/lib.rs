@@ -1287,7 +1287,10 @@ pub(crate) fn charge_work(work: &mut u64, amount: u64) -> Result<(), ImpactError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sley_ssmc::{CondBranchTerminator, IntegerWidth, NamespaceDefinition, Reachability, TargetEdge, Visibility};
+    use sley_ssmc::{
+        CondBranchTerminator, IntegerWidth, NamespaceDefinition, Reachability, TargetEdge,
+        Visibility,
+    };
 
     fn id(byte: u8) -> EntityId {
         EntityId::from_bytes([byte; 32])

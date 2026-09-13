@@ -7,11 +7,11 @@
 //! whole-root extraction, and owns no session admission or transport debit.
 
 use sley_id::SessionId;
-use sley_mutate::{value::EntityBodyValue, EntityObject};
+use sley_mutate::{EntityObject, value::EntityBodyValue};
 use sley_query::{
-    decode_entity_read_request, encode_entity_read_response, prepare_entity_read, EntityReadBody,
-    EntityReadCeilings, EntityReadError, EntityReadMethod, EntityReadObject, EntityReadOutcome,
-    EntityReadPlan, EntityReadRequest, EntityReadRevision, EntityReadSelection,
+    EntityReadBody, EntityReadCeilings, EntityReadError, EntityReadMethod, EntityReadObject,
+    EntityReadOutcome, EntityReadPlan, EntityReadRequest, EntityReadRevision, EntityReadSelection,
+    decode_entity_read_request, encode_entity_read_response, prepare_entity_read,
 };
 use sley_txn::VerifiedRevision;
 
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn projection_exposes_function_parameter_and_opaque_views() {
         use sley_mutate::value::{FunctionBody, ParameterBody};
-        use sley_mutate::{build_entity_object, EntityObjectRecord};
+        use sley_mutate::{EntityObjectRecord, build_entity_object};
         use sley_query::EntityReadBody;
         use sley_ssmc::{ParameterRole, TypeExpr, Visibility};
 
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn projection_covers_every_body_variant_without_interpretation() {
-        use sley_mutate::{build_entity_object, EntityObjectRecord};
+        use sley_mutate::{EntityObjectRecord, build_entity_object};
         use sley_query::EntityReadBody;
         for (byte, body) in crate::complete_root::tests::complete_bodies() {
             let expected_kind = body.kind_tag();
@@ -426,9 +426,8 @@ mod tests {
                 let imported = sley_mutate::import_entity_object(epoch, &stored)
                     .unwrap_or_else(|error| panic!("{id}/{name}: import: {error:?}"));
                 let view = view_object(&imported);
-                let expected_entity = EntityId::from_bytes(corpus_hex32(
-                    entities[name]["id"].as_str().unwrap(),
-                ));
+                let expected_entity =
+                    EntityId::from_bytes(corpus_hex32(entities[name]["id"].as_str().unwrap()));
                 let expected_kind =
                     u16::try_from(entities[name]["kind"].as_u64().unwrap()).unwrap();
                 assert_eq!(view.entity, expected_entity, "{id}/{name}: identity");

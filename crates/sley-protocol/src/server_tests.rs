@@ -2817,8 +2817,7 @@ impl VServer {
         client_hello: &Hello,
         server_hello: &Hello,
     ) -> Self {
-        let mut server =
-            Server::new_versioned(&repository, client_hello, server_hello).unwrap();
+        let mut server = Server::new_versioned(&repository, client_hello, server_hello).unwrap();
         assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V2);
         let handshake = server.handshake_id();
         let open = server
@@ -3153,7 +3152,10 @@ fn versioned_hello_travels_at_frame_one_and_selects_two() {
     let DecodedFrame::Hello(label) = decoded else {
         panic!("hello frame");
     };
-    assert_eq!(label.protocol_versions, vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2]);
+    assert_eq!(
+        label.protocol_versions,
+        vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2]
+    );
     decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap();
     assert_eq!(
         decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
@@ -3239,8 +3241,7 @@ fn versioned_session_open_binds_and_claims_split() {
 #[test]
 fn entity_version_returns_exact_bytes_and_bounded_context() {
     let mut harness = VServer::new("v2-version");
-    let transactions =
-        sley_txn::TransactionRepository::new(&harness.repository).accepted_head();
+    let transactions = sley_txn::TransactionRepository::new(&harness.repository).accepted_head();
     let revision = transactions.unwrap().verified_revision().clone();
     let target = revision
         .objects()
@@ -3269,11 +3270,11 @@ fn entity_version_returns_exact_bytes_and_bounded_context() {
     assert_eq!(response.root, harness.root);
     assert_eq!(response.session, harness.session);
     assert_eq!(response.requested_entity, target.record().entity_id);
-    assert_eq!(response.workspace, revision.state_root().record.workspace_id);
     assert_eq!(
-        response.epoch,
-        revision.state_root().record.schema_epoch_id
+        response.workspace,
+        revision.state_root().record.workspace_id
     );
+    assert_eq!(response.epoch, revision.state_root().record.schema_epoch_id);
     let direct = encode_single_frame_direct(&frame, MAX_FRAME_BYTES).unwrap();
     let (DecodedFrame::Response(reframed), _) =
         decode_frame_for_version(&direct.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2).unwrap()
@@ -3288,7 +3289,11 @@ fn entity_signature_returns_declaration_order() {
     let mut harness = VServer::with_bodies("v2-signature", nonmonotonic_bodies(), &[]);
     let frame = harness.read(ENTITY_SIGNATURE_TAG, EntityId::from_bytes([40; 32]));
     let response = decode_entity_read_response(&frame.body).unwrap();
-    let order: Vec<EntityId> = response.objects.iter().map(|object| object.entity).collect();
+    let order: Vec<EntityId> = response
+        .objects
+        .iter()
+        .map(|object| object.entity)
+        .collect();
     assert_eq!(
         order,
         vec![
@@ -3334,7 +3339,10 @@ fn entity_read_failure_precedence_is_exact() {
     assert_eq!(over.code, ProtocolErrorCode::LimitExceeded.numeric());
     let wrong_root = harness.refuse(
         ENTITY_VERSION_TAG,
-        entity_read_body(StateRoot::from_bytes([0x77; 32]), sley_repo::test_support::id(30)),
+        entity_read_body(
+            StateRoot::from_bytes([0x77; 32]),
+            sley_repo::test_support::id(30),
+        ),
     );
     assert_eq!(wrong_root.code, 31_008);
     assert_eq!(wrong_root.symbol, "QUERY_ROOT_MISMATCH");
@@ -3491,12 +3499,12 @@ fn entity_read_session_lifecycle_binds_one_snapshot() {
 #[test]
 fn entity_read_head_advance_fails_before_body_decode() {
     use sley_id::{CandidateNonce, PrincipalId};
-    use sley_mutate::{
-        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent,
-        MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
-        PreimageRequirement, build_candidate, full_validation_profile_id,
-    };
     use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent, MutationClass,
+        MutationOperation, MutationPayload, PreconditionPayload, PreimageRequirement,
+        build_candidate, full_validation_profile_id,
+    };
     use sley_policy::build_capability_summary_projection;
     let mut harness = VServer::new("v2-advance");
     let transactions = sley_txn::TransactionRepository::new(&harness.repository);
@@ -3571,7 +3579,10 @@ fn entity_read_head_advance_fails_before_body_decode() {
     assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
     let malformed_stale = harness.refuse(ENTITY_VERSION_TAG, b"junk".to_vec());
     assert_eq!(malformed_stale.symbol, "SESSION_ROOT_ADVANCED");
-    let (renew_failed, _) = harness.call(Method::SessionRenew.tag(), harness.session.as_bytes().to_vec());
+    let (renew_failed, _) = harness.call(
+        Method::SessionRenew.tag(),
+        harness.session.as_bytes().to_vec(),
+    );
     assert!(!renew_failed);
     harness.root = new_root;
     let frame = harness.read(ENTITY_VERSION_TAG, target);
@@ -3626,10 +3637,7 @@ fn entity_exhausted_budget_with_stale_root_answers_binding_first() {
     // Probe the M-free work part and body length on a funded server.
     let mut probe = VServer::new("v2-exhaust-probe");
     let target = sley_repo::test_support::id(30);
-    let (failed, frame) = probe.call(
-        ENTITY_VERSION_TAG,
-        entity_read_body(probe.root, target),
-    );
+    let (failed, frame) = probe.call(ENTITY_VERSION_TAG, entity_read_body(probe.root, target));
     assert!(!failed);
     let probed = decode_entity_read_response(&frame.body).unwrap();
     let constant = probed.work_units - 8_388_608;
@@ -3654,8 +3662,7 @@ fn entity_exhausted_budget_with_stale_root_answers_binding_first() {
     let spend = opened - commit_cost;
     let exact_m = spend - constant;
     assert!(exact_m >= body_len && exact_m <= 8_388_608);
-    let exact_body =
-        entity_read_body_capped(harness.root, target, 65_535, exact_m, opened);
+    let exact_body = entity_read_body_capped(harness.root, target, 65_535, exact_m, opened);
     let (failed, _) = harness.call(ENTITY_VERSION_TAG, exact_body);
     assert!(!failed);
     assert_eq!(harness.budget(), commit_cost);
@@ -3663,10 +3670,7 @@ fn entity_exhausted_budget_with_stale_root_answers_binding_first() {
     let _ = advance_head_with_namespace(&mut harness);
     assert_eq!(harness.budget(), 0);
     let before = harness.budget();
-    let stale = harness.refuse(
-        ENTITY_VERSION_TAG,
-        entity_read_body(harness.root, target),
-    );
+    let stale = harness.refuse(ENTITY_VERSION_TAG, entity_read_body(harness.root, target));
     assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
     assert_eq!(harness.budget(), before);
 }
@@ -3682,8 +3686,10 @@ fn entity_renew_then_read_with_live_root_succeeds() {
         entity_read_body(harness.root, sley_repo::test_support::id(30)),
     );
     assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
-    let (renew_failed, _) =
-        harness.call(Method::SessionRenew.tag(), harness.session.as_bytes().to_vec());
+    let (renew_failed, _) = harness.call(
+        Method::SessionRenew.tag(),
+        harness.session.as_bytes().to_vec(),
+    );
     assert!(!renew_failed);
     harness.root = new_root;
     let target = sley_repo::test_support::id(30);
@@ -3871,10 +3877,7 @@ fn entity_read_budget_debit_table_is_exact() {
     );
     harness.server.set_entity_encode_fault(true);
     let faulted = harness.refuse(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
-    assert_eq!(
-        faulted.code,
-        ProtocolErrorCode::InternalInvariant.numeric()
-    );
+    assert_eq!(faulted.code, ProtocolErrorCode::InternalInvariant.numeric());
     assert_eq!(harness.budget(), before - 1 - work - work);
     harness.server.set_entity_encode_fault(false);
     // Post-reservation cleanup and viability: after clearing the fault,
@@ -3883,8 +3886,13 @@ fn entity_read_budget_debit_table_is_exact() {
     // fault debit.
     let (failed_again, again_frame) =
         harness.call(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
-    assert!(!failed_again, "session stays viable after the fault refusal");
-    let again_work = decode_entity_read_response(&again_frame.body).unwrap().work_units;
+    assert!(
+        !failed_again,
+        "session stays viable after the fault refusal"
+    );
+    let again_work = decode_entity_read_response(&again_frame.body)
+        .unwrap()
+        .work_units;
     assert_eq!(again_work, work);
     assert_eq!(again_frame.bounds.returned_entities, 1);
     assert_eq!(harness.budget(), before - 1 - work - work - again_work);
@@ -3909,9 +3917,9 @@ fn advance_head_with_namespace(harness: &mut VServer) -> (StateRoot, EntityId) {
     use sley_id::{CandidateNonce, PrincipalId};
     use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
     use sley_mutate::{
-        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent,
-        MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
-        PreimageRequirement, build_candidate, full_validation_profile_id,
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent, MutationClass,
+        MutationOperation, MutationPayload, PreconditionPayload, PreimageRequirement,
+        build_candidate, full_validation_profile_id,
     };
     use sley_policy::build_capability_summary_projection;
     let transactions = sley_txn::TransactionRepository::new(&harness.repository);
@@ -4012,10 +4020,7 @@ fn repair_unnegotiated_refusal_releases_its_slot() {
         before - 3,
         "each refused admission still costs the dispatch unit"
     );
-    let frame = harness.read(
-        ENTITY_SIGNATURE_TAG,
-        sley_repo::test_support::id(30),
-    );
+    let frame = harness.read(ENTITY_SIGNATURE_TAG, sley_repo::test_support::id(30));
     assert_eq!(frame.bounds.returned_entities, 3);
 }
 
@@ -4074,7 +4079,11 @@ fn repair_session_budget_method_order_and_debit() {
         stale_unoffered.symbol, "SESSION_ROOT_ADVANCED",
         "session binding precedes method negotiation"
     );
-    assert_eq!(harness.budget(), before, "session errors keep no-debit semantics");
+    assert_eq!(
+        harness.budget(),
+        before,
+        "session errors keep no-debit semantics"
+    );
     let (renew_failed, _) = harness.call(
         Method::SessionRenew.tag(),
         harness.session.as_bytes().to_vec(),
@@ -4095,10 +4104,7 @@ fn repair_session_budget_method_order_and_debit() {
         funded - 1,
         "live unoffered method still costs the dispatch unit"
     );
-    let frame = harness.read(
-        ENTITY_SIGNATURE_TAG,
-        sley_repo::test_support::id(30),
-    );
+    let frame = harness.read(ENTITY_SIGNATURE_TAG, sley_repo::test_support::id(30));
     assert_eq!(frame.bounds.returned_entities, 3);
 }
 
@@ -4129,10 +4135,7 @@ fn repair_exhausted_budget_precedes_unoffered_method() {
                 3,
             ),
         );
-        assert_eq!(
-            denied.code,
-            ProtocolErrorCode::MethodUnsupported.numeric()
-        );
+        assert_eq!(denied.code, ProtocolErrorCode::MethodUnsupported.numeric());
     }
     assert_eq!(harness.budget(), 0);
     for _ in 0..2 {
@@ -4285,16 +4288,20 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
     let mut opaque = v2_methods();
     opaque.push(999);
     opaque.sort_unstable();
-    let selected_v1 =
-        negotiate_versioned(&with_versions_opaque(vec![1], &opaque), &with_versions_opaque(vec![1], &opaque))
-            .unwrap();
+    let selected_v1 = negotiate_versioned(
+        &with_versions_opaque(vec![1], &opaque),
+        &with_versions_opaque(vec![1], &opaque),
+    )
+    .unwrap();
     assert_eq!(selected_v1.protocol_version, PROTOCOL_VERSION);
     assert!(selected_v1.methods.contains(&999));
     assert!(!selected_v1.methods.contains(&ENTITY_VERSION_TAG));
     assert!(!selected_v1.methods.contains(&ENTITY_SIGNATURE_TAG));
-    let selected_v2 =
-        negotiate_versioned(&with_versions_opaque(vec![1, 2], &opaque), &with_versions_opaque(vec![1, 2], &opaque))
-            .unwrap();
+    let selected_v2 = negotiate_versioned(
+        &with_versions_opaque(vec![1, 2], &opaque),
+        &with_versions_opaque(vec![1, 2], &opaque),
+    )
+    .unwrap();
     assert_eq!(selected_v2.protocol_version, PROTOCOL_VERSION_V2);
     assert!(selected_v2.methods.contains(&999));
     assert!(selected_v2.methods.contains(&ENTITY_VERSION_TAG));
@@ -4340,7 +4347,14 @@ fn repair_full_wire_ceiling_exact_and_one_below() {
             FEATURE_CANCEL
         };
         let capped = |max_frame_bytes: u64| {
-            vhello_capped(v2_methods(), 4, 100_000_000, max_frame_bytes, 8_388_608, features)
+            vhello_capped(
+                v2_methods(),
+                4,
+                100_000_000,
+                max_frame_bytes,
+                8_388_608,
+                features,
+            )
         };
         // The target server's bounds carry its own negotiated limits, so
         // the expected wire length is solved under those exact limits: the
@@ -4396,7 +4410,10 @@ fn repair_full_wire_ceiling_exact_and_one_below() {
             ENTITY_SIGNATURE_TAG,
             entity_read_body(exact.root, sley_repo::test_support::id(30)),
         );
-        assert!(!answer.failed, "exact full wire length must fit (stream={stream})");
+        assert!(
+            !answer.failed,
+            "exact full wire length must fit (stream={stream})"
+        );
         assert!(answer.events.is_empty());
         assert_eq!(
             answer.frame.bytes.len(),
@@ -4611,8 +4628,7 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
             (object.stored_bytes().len() as u64) < ceiling,
             "wide object {byte} must pass its own Bytes cap"
         );
-        let imported =
-            sley_mutate::import_entity_object(epoch, object.stored_bytes()).unwrap();
+        let imported = sley_mutate::import_entity_object(epoch, object.stored_bytes()).unwrap();
         assert_eq!(imported.object_id(), object.object_id());
     }
     let before = harness.budget();
@@ -4670,10 +4686,7 @@ fn repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve() {
         before - 1,
         "outer-ceiling refusal costs only the dispatch unit: no work reserved"
     );
-    let followup = harness.read(
-        ENTITY_VERSION_TAG,
-        sley_repo::test_support::id(31),
-    );
+    let followup = harness.read(ENTITY_VERSION_TAG, sley_repo::test_support::id(31));
     assert_eq!(followup.bounds.returned_entities, 1);
 }
 
@@ -4745,8 +4758,13 @@ fn repair_response_body_ceiling_tracks_work_feedback() {
     };
     let _ = decode_entity_read_response(&frame.body).unwrap();
     let body_len = frame.bounds.returned_bytes;
-    let exact_bytes =
-        entity_read_body_capped(bodies.root, sley_repo::test_support::id(30), 65_535, body_len, 100_000_000);
+    let exact_bytes = entity_read_body_capped(
+        bodies.root,
+        sley_repo::test_support::id(30),
+        65_535,
+        body_len,
+        100_000_000,
+    );
     let (failed_bytes, _) = bodies.call(ENTITY_SIGNATURE_TAG, exact_bytes);
     assert!(!failed_bytes, "exact response bytes must serve");
     // The charged work rides inside the body, so shrinking the ceiling
@@ -4778,7 +4796,10 @@ fn repair_response_body_ceiling_tracks_work_feedback() {
             100_000_000,
         ),
     );
-    assert_eq!(denied_bytes.code, ProtocolErrorCode::LimitExceeded.numeric());
+    assert_eq!(
+        denied_bytes.code,
+        ProtocolErrorCode::LimitExceeded.numeric()
+    );
 }
 
 #[test]
@@ -4800,8 +4821,7 @@ fn repair_exact_and_one_below_session_budget() {
         &capped,
     );
     assert_eq!(alias.budget(), work);
-    let exact_work =
-        entity_read_body_capped(alias.root, entity, 65_535, 8_388_608, work);
+    let exact_work = entity_read_body_capped(alias.root, entity, 65_535, 8_388_608, work);
     let (failed_work, _) = alias.call(ENTITY_VERSION_TAG, exact_work);
     assert!(!failed_work, "exact session budget must serve");
     assert_eq!(alias.budget(), 0);
@@ -4836,10 +4856,7 @@ fn repair_foreign_workspace_swap_refuses_entity_read() {
     assert_eq!(harness.budget(), before, "session refusals debit nothing");
     std::fs::rename(&harness.repository, foreign_temp.child("repo")).unwrap();
     std::fs::rename(parked.child("repo"), &harness.repository).unwrap();
-    let frame = harness.read(
-        ENTITY_VERSION_TAG,
-        sley_repo::test_support::id(30),
-    );
+    let frame = harness.read(ENTITY_VERSION_TAG, sley_repo::test_support::id(30));
     assert_eq!(frame.bounds.returned_entities, 1);
 }
 
@@ -4891,10 +4908,7 @@ fn repair_debit_phases_observe_budget_and_followup() {
     ])
     .unwrap();
     let denied_work = harness.refuse(ENTITY_VERSION_TAG, over_work);
-    assert_eq!(
-        denied_work.code,
-        ProtocolErrorCode::LimitExceeded.numeric()
-    );
+    assert_eq!(denied_work.code, ProtocolErrorCode::LimitExceeded.numeric());
     expected -= 1;
     assert_eq!(harness.budget(), expected);
 
@@ -4917,17 +4931,16 @@ fn repair_debit_phases_observe_budget_and_followup() {
 
     let followup = harness.read(ENTITY_VERSION_TAG, sley_repo::test_support::id(31));
     assert_eq!(followup.bounds.returned_entities, 1);
-    expected -= decode_entity_read_response(&followup.body).unwrap().work_units;
+    expected -= decode_entity_read_response(&followup.body)
+        .unwrap()
+        .work_units;
     assert_eq!(harness.budget(), expected);
 
     // Session-binding failures debit nothing and release the slot.
     let (new_root, target) = advance_head_with_namespace(&mut harness);
     let after_commit = harness.budget();
     for _ in 0..2 {
-        let stale = harness.refuse(
-            ENTITY_VERSION_TAG,
-            entity_read_body(harness.root, entity),
-        );
+        let stale = harness.refuse(ENTITY_VERSION_TAG, entity_read_body(harness.root, entity));
         assert_eq!(stale.symbol, "SESSION_ROOT_ADVANCED");
         assert_eq!(harness.budget(), after_commit);
     }
@@ -5075,10 +5088,7 @@ fn repair_wrong_epoch_refuses_entity_read_without_debit() {
     harness
         .server
         .authority_mut()
-        .set_session_epoch_for_test(
-            harness.session,
-            sley_id::SchemaEpochId::from_bytes(wrong),
-        )
+        .set_session_epoch_for_test(harness.session, sley_id::SchemaEpochId::from_bytes(wrong))
         .unwrap();
     let before = harness.budget();
     for _ in 0..2 {
@@ -5126,8 +5136,14 @@ fn repair_one_below_session_budget_refuses_before_reserve() {
         ENTITY_VERSION_TAG,
         entity_read_body_capped(harness.root, entity, 65_535, 8_388_608, work),
     );
-    assert!(answer.failed, "remaining budget one below required work must refuse");
-    assert!(answer.events.is_empty(), "one-below refusal carries no events");
+    assert!(
+        answer.failed,
+        "remaining budget one below required work must refuse"
+    );
+    assert!(
+        answer.events.is_empty(),
+        "one-below refusal carries no events"
+    );
     let (DecodedFrame::Response(response), _) =
         decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
             .unwrap()

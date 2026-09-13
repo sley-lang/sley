@@ -2379,10 +2379,10 @@ pub(crate) mod tests {
         let source = Source::new("ancestry-cycle");
         let exchange = source.export();
         assert!(exchange.receipts.len() >= 2);
-        let first = sley_txn::import_transaction_receipt(&exchange.receipts[0].stored_bytes)
-            .unwrap();
-        let second = sley_txn::import_transaction_receipt(&exchange.receipts[1].stored_bytes)
-            .unwrap();
+        let first =
+            sley_txn::import_transaction_receipt(&exchange.receipts[0].stored_bytes).unwrap();
+        let second =
+            sley_txn::import_transaction_receipt(&exchange.receipts[1].stored_bytes).unwrap();
         let a_id = exchange.receipts[0].transaction_id;
         let b_id = exchange.receipts[1].transaction_id;
         let mut a = first.clone();
@@ -2396,7 +2396,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn export_import_is_clone_equivalent_and_re_export_is_byte_identical() {        let source = Source::new("round-trip");
+    fn export_import_is_clone_equivalent_and_re_export_is_byte_identical() {
+        let source = Source::new("round-trip");
         let exchange = source.export();
         assert_eq!(exchange.receipts.len(), 2);
         assert_eq!(exchange.branches.len(), 2);

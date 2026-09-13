@@ -1,0 +1,778 @@
+{
+  "contract": "sley2.declared-limits.v1",
+  "declared_limits": 155,
+  "documented_limits": 2,
+  "result": "PASS",
+  "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
+  "undocumented": [],
+  "undocumented_limits": 0,
+  "unevaluated_initializers": [],
+  "weak_evidence": [
+    {
+      "constant": "MAX_CFG_BLOCKS",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_CFG_EDGES",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 16384
+    },
+    {
+      "constant": "MAX_CFG_OPERATIONS",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_CFG_VALUES",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_CFG_USES",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_CFG_PARAMETERS",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CFG_OPERATION_VALUES",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_DOMINATOR_WORD_OPERATIONS",
+      "source": "crates/sley-check/src/cfg.rs",
+      "value": 50000000
+    },
+    {
+      "constant": "MAX_CONTRACT_TYPE_DEFINITIONS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTRACT_CONSTANTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTRACT_GLOBALS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTRACTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TEST_CASES",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTRACT_BINDINGS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TOTAL_CONTRACT_BINDINGS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_TEST_INPUTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TOTAL_TEST_INPUTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_FUNCTION_CONTRACTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TOTAL_FUNCTION_CONTRACTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_AFFECTED_FUNCTIONS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_REQUIRED_TESTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_SELECTED_TESTS",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTRACT_TEST_WORK",
+      "source": "crates/sley-check/src/contracts.rs",
+      "value": 50000000
+    },
+    {
+      "constant": "MAX_EFFECT_FUNCTIONS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_EFFECT_DEFINITIONS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_CAPABILITY_REQUIREMENTS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_ADAPTER_IMPORTS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_EFFECT_CONTRACTS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_EFFECT_GRAPH_ENTITIES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 2000000
+    },
+    {
+      "constant": "MAX_EFFECT_OPERATIONS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_EFFECT_CFG_USES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 2000000
+    },
+    {
+      "constant": "MAX_EFFECT_CFG_EDGES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_EFFECT_DOMINATOR_WORK",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 50000000
+    },
+    {
+      "constant": "MAX_EFFECT_CALL_EDGES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 16384
+    },
+    {
+      "constant": "MAX_EFFECT_SET",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_ALLOWED_SCOPES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TOTAL_ALLOWED_SCOPES",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_CONSTRAINT_CONTRACTS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_TOTAL_CONSTRAINT_CONTRACTS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_EFFECT_CLOSURE_MEMBERSHIPS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_EFFECT_CLOSURE_ROUNDS",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_EFFECT_CLOSURE_WORK",
+      "source": "crates/sley-check/src/effects.rs",
+      "value": 50000000
+    },
+    {
+      "constant": "MAX_REPORT_PREIMAGE_BYTES",
+      "source": "crates/sley-conformance/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_REPORT_TEST_ENTRIES",
+      "source": "crates/sley-conformance/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_JSON_TEXT_BYTES",
+      "source": "crates/sley-json-bridge/src/lib.rs",
+      "value": 268435456
+    },
+    {
+      "constant": "MAX_JSON_DEPTH",
+      "source": "crates/sley-json-bridge/src/lib.rs",
+      "value": 32
+    },
+    {
+      "constant": "MAX_JSON_NUMBER",
+      "source": "crates/sley-json-bridge/src/lib.rs",
+      "value": 9007199254740991
+    },
+    {
+      "constant": "MAX_ENTITY_OBJECT_LABEL_BYTES",
+      "source": "crates/sley-mutate/src/object.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_POLICY_PRINCIPAL_GRANTS",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_POLICY_GRANT_TAGS",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_POLICY_GRANT_ADAPTERS",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_POLICY_PROTECTED_ENTITIES",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_POLICY_REQUIRED_TESTS",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_POLICY_REQUIRED_CONTRACTS",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_POLICY_RESOURCE_CEILING",
+      "source": "crates/sley-policy/src/lib.rs",
+      "value": 1000000000000000
+    },
+    {
+      "constant": "MAX_FRAME_BYTES",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_LIMIT_ENTITIES",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_LIMIT_EDGES",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 400000
+    },
+    {
+      "constant": "MAX_LIMIT_DEPTH",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_LIMIT_RESPONSE_BYTES",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_LIMIT_WORK",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_LIMIT_INFLIGHT",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_LIMIT_SESSIONS",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_HELLO_LIST",
+      "source": "crates/sley-protocol/src/lib.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_SESSION_RENEWALS",
+      "source": "crates/sley-protocol/src/session.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CAPSULE_SOURCE_RESPONSE_BYTES",
+      "source": "crates/sley-query/src/capsule.rs",
+      "value": 33554432
+    },
+    {
+      "constant": "MAX_CAPSULE_ENTITIES",
+      "source": "crates/sley-query/src/capsule.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CAPSULE_RELATIONSHIPS",
+      "source": "crates/sley-query/src/capsule.rs",
+      "value": 400000
+    },
+    {
+      "constant": "MAX_RESTRICTED_CAPSULE_BYTES",
+      "source": "crates/sley-query/src/capsule.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_RESTRICTED_CAPSULE_WORK",
+      "source": "crates/sley-query/src/capsule.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_SOURCE_BYTES",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 33554432
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_ENTITIES",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_RELATIONSHIPS",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 400000
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_TABLE",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_BYTES",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_CONTEXT_CAPSULE_WORK",
+      "source": "crates/sley-query/src/context_capsule.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_IMPACT_ENTITIES",
+      "source": "crates/sley-query/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_IMPACT_EDGES",
+      "source": "crates/sley-query/src/lib.rs",
+      "value": 4000000
+    },
+    {
+      "constant": "MAX_IMPACT_SEEDS",
+      "source": "crates/sley-query/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_IMPACT_WORK",
+      "source": "crates/sley-query/src/lib.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_QUERY_REQUEST_BYTES",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 4194304
+    },
+    {
+      "constant": "MAX_QUERY_RETURNED_ENTITIES",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_QUERY_RETURNED_EDGES",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 400000
+    },
+    {
+      "constant": "MAX_QUERY_DEPTH",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_QUERY_RESPONSE_BYTES",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_QUERY_WORK",
+      "source": "crates/sley-query/src/query.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_SNAPSHOT_RECORD_BYTES",
+      "source": "crates/sley-query/src/snapshot.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_SNAPSHOT_EDGES",
+      "source": "crates/sley-query/src/snapshot.rs",
+      "value": 400000
+    },
+    {
+      "constant": "MAX_SNAPSHOT_WORK",
+      "source": "crates/sley-query/src/snapshot.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_DELTA_BYTES",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_ENTITY_DELTAS",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 131070
+    },
+    {
+      "constant": "MAX_FIELD_DELTAS",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 1048560
+    },
+    {
+      "constant": "MAX_BODY_DELTAS",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_RELATION_DELTAS",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 8000000
+    },
+    {
+      "constant": "MAX_IDENTITY_SET",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 131070
+    },
+    {
+      "constant": "MAX_COMPARE_WORK",
+      "source": "crates/sley-repo/src/compare.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_EXCHANGE_BYTES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_EMBEDDED_PACK_BYTES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_EXCHANGE_RECEIPTS",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_EXCHANGE_BRANCHES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_EXCHANGE_LEAVES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 8194
+    },
+    {
+      "constant": "MAX_EXCHANGE_ALLOCATION",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 134217728
+    },
+    {
+      "constant": "MAX_PREFLIGHT_OBJECT_VERIFICATIONS",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 2097152
+    },
+    {
+      "constant": "MAX_PREFLIGHT_BINDING_VISITS",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 4194304
+    },
+    {
+      "constant": "MAX_PREFLIGHT_OBJECT_BYTES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 1073741824
+    },
+    {
+      "constant": "MAX_PREFLIGHT_RECEIPT_BYTES",
+      "source": "crates/sley-repo/src/exchange.rs",
+      "value": 1073741824
+    },
+    {
+      "constant": "MAX_GC_ANCHORS",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_GC_TARGETS",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_GC_ROOTS",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_GC_DEPENDENCY_EDGES",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_GC_OBJECT_REFERENCE_EDGES",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_GC_INVENTORY_OBJECTS",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_GC_REPORT_ENTRIES",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 786432
+    },
+    {
+      "constant": "MAX_GC_ALLOCATION",
+      "source": "crates/sley-repo/src/gc.rs",
+      "value": 134217728
+    },
+    {
+      "constant": "MAX_PACK_BYTES",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_EXPANDED_BYTES",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_PACK_EPOCHS",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_PACK_ROOTS",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_PACK_OBJECTS",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_PACK_LEAVES",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 69888
+    },
+    {
+      "constant": "MAX_PACK_ALLOCATION",
+      "source": "crates/sley-repo/src/lib.rs",
+      "value": 134217728
+    },
+    {
+      "constant": "MAX_CONFLICT_ENTRIES",
+      "source": "crates/sley-repo/src/merge.rs",
+      "value": 131070
+    },
+    {
+      "constant": "MAX_PLAN_OPERATIONS",
+      "source": "crates/sley-repo/src/merge.rs",
+      "value": 131070
+    },
+    {
+      "constant": "MAX_ANCESTRY_NODES",
+      "source": "crates/sley-repo/src/merge.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_CONFLICT_BYTES",
+      "source": "crates/sley-repo/src/merge.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_MERGE_WORK",
+      "source": "crates/sley-repo/src/merge.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_BRANCHES",
+      "source": "crates/sley-repo/src/refs.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_STORED_REPORT_BYTES",
+      "source": "crates/sley-repo/src/reports.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_STANDALONE_BYTES",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_BYTE_PAYLOAD",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_NESTING_DEPTH",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_RECORD_FIELDS",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_COLLECTION_ELEMENTS",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_TOTAL_ALLOCATION",
+      "source": "crates/sley-scb1/src/lib.rs",
+      "value": 134217728
+    },
+    {
+      "constant": "MAX_FINGERPRINT_PREIMAGE_BYTES",
+      "source": "crates/sley-ssmc/src/fingerprint.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_FINGERPRINT_GRAPH_ENTITIES",
+      "source": "crates/sley-ssmc/src/fingerprint.rs",
+      "value": 2000000
+    },
+    {
+      "constant": "MAX_FINGERPRINT_OPERATIONS",
+      "source": "crates/sley-ssmc/src/fingerprint.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_FINGERPRINT_WORK",
+      "source": "crates/sley-ssmc/src/fingerprint.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_TYPE_ARGUMENTS",
+      "source": "crates/sley-ssmc/src/lib.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_TUPLE_ITEMS",
+      "source": "crates/sley-ssmc/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_MEMBERS",
+      "source": "crates/sley-ssmc/src/lib.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONSTANT_ELEMENTS",
+      "source": "crates/sley-ssmc/src/lib.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_CONSTANT_PAYLOAD_BYTES",
+      "source": "crates/sley-ssmc/src/lib.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_OBSERVATION_PREIMAGE_BYTES",
+      "source": "crates/sley-vm/src/execute.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_EXECUTION_INPUTS",
+      "source": "crates/sley-vm/src/execute.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_EXECUTION_INPUT_VALUE_UNITS",
+      "source": "crates/sley-vm/src/execute.rs",
+      "value": 67108864
+    },
+    {
+      "constant": "MAX_TUPLE_ARITY",
+      "source": "crates/sley-vm/src/extended.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_REGISTERS",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_LOWERED_BLOCKS",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_INSTRUCTIONS",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 1000000
+    },
+    {
+      "constant": "MAX_INSTRUCTION_VALUES",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_LOWERING_WORK",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 100000000
+    },
+    {
+      "constant": "MAX_BYTECODE_BYTES",
+      "source": "crates/sley-vm/src/lower.rs",
+      "value": 67108864
+    }
+  ],
+  "weak_limits": 153
+}

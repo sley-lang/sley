@@ -6,17 +6,29 @@ carries its own code table. Nothing checked that the two agree, so a crate
 could emit a symbol that no document defines, and a consumer reading a
 `source_symbol` or a protocol `symbol` field would have nothing to look up.
 
-This audit reads every string literal in `crates/` that looks like a failure
-symbol in a declared namespace and requires a *registration*: a row of a
-document's code table, a reserved-code sentence, or a phase/decision row. A
-passing mention in prose does not register a symbol, because prose can
-mention a symbol that no owner ever assigned. It judges nothing else: a
-symbol's meaning, numeric code, and freeze state stay with its owning
-contract and that contract's checker.
+This audit reads every failure-shaped string literal in `crates/` (any
+namespace or none) plus every `Self::Variant => "SYMBOL"` definition arm
+and the candidate-validation helper literals, and requires a
+*registration*: a backticked `SCREAMING_CASE` token in `docs/spec/`. The
+registration rule is deliberately textual: it counts tables, bullet lists,
+reservation sentences, and prose mentions alike, because the implementation
+cannot tell a code table from a paragraph. That is a known limitation, not
+a vouch: a prose mention laundering an unassigned symbol reads registered,
+so reviewers must still spot-check that named symbols are actually
+assigned by an owning contract (the `GRAPH_RESOURCE_LIMIT` lesson).
 
 It also verifies the pairing: one numeric code carries one symbol across the
 whole tree. A module that attaches an owner's number to its own symbol is
 how `GRAPH_RESOURCE_LIMIT` came to share 22020 with `CFG_RESOURCE_LIMIT`.
+
+Invariant-audit repair round 9: the emission census no longer filters by
+declared namespace. Symbols outside every namespace used to be invisible
+to both `unregistered` and the headline counts; now every defined or used
+failure symbol is measured, unassigned ones fail exactly like
+in-namespace ones, and assigned-but-family-less ones are named in
+`registered_without_declared_namespace` and fail too: a symbol with no
+declared namespace has no owning contract for meaning, number, and
+freeze, so it is out of contract even when some document names it.
 """
 
 from __future__ import annotations
@@ -52,13 +64,13 @@ def namespaces() -> set[str]:
 
 
 def registered() -> set[str]:
-    """Symbols a contract assigns, rather than any document mentioning them.
+    """Symbols a document names, textually.
 
-    Only `docs/spec/` counts. Contracts assign codes in tables, in bullet
-    lists, and in reservation sentences, and all three are registrations. An
-    audit, a threat-register row, or an ADR narrative is not: prose can name a
-    symbol no owner ever assigned, which is how `GRAPH_RESOURCE_LIMIT` looked
-    registered while sharing 22020 with the S20-220 owner's own symbol.
+    Only `docs/spec/` counts. The rule is textual on purpose: any
+    backticked `SCREAMING_CASE` token in tables, bullet lists, reservation
+    sentences, or prose registers. Prose therefore counts, with the known
+    limitation stated in the module docstring (a prose mention can launder
+    an unassigned symbol; reviewers spot-check assignment).
     """
     found: set[str] = set()
     for path in sorted((ROOT / "docs/spec").rglob("*.md")):
@@ -71,33 +83,69 @@ def registered() -> set[str]:
     return found
 
 
-def emitted(declared: set[str]) -> dict[str, str]:
-    """Failure symbols the crates emit in a declared namespace.
+def emitted(declared: set[str]) -> dict[str, tuple[str, str | None]]:
+    """Failure symbols the crates emit, with file and namespace-or-None.
 
-    Repair round 7: the namespace match is the longest declared prefix, not
-    the first segment, so multi-segment families resolve to their owners.
-    Symbols whose literal constructors hide them from the string scan (the
-    candidate-validation `stale_root_failure` / `resource_failure` helpers)
-    are included with their defining file.
+    Repair round 9: the namespace filter is gone from the census. Every
+    failure-shaped literal (`"FOO_BAR"`, single-token status words like
+    `"CREATED"` excluded by the underscore requirement) plus the helper
+    literals is collected; the caller partitions by registration and
+    family instead of the census silently dropping the family-less.
     """
-    found: dict[str, str] = {}
+    found: dict[str, tuple[str, str | None]] = {}
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         if "/target/" in str(path):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
+        relative = str(path.relative_to(ROOT))
         for symbol in SYMBOL.findall(text):
             if symbol in SUCCESS_SYMBOLS:
                 continue
-            namespace = longest_namespace(symbol, declared)
-            if namespace is not None:
-                found.setdefault(symbol, str(path.relative_to(ROOT)))
+            if symbol not in found:
+                found[symbol] = (relative, longest_namespace(symbol, declared))
         for symbol in STALE_ROOT_FAILURE.findall(
             text
         ) + RESOURCE_FAILURE_LITERAL.findall(text):
-            namespace = longest_namespace(symbol, declared)
-            if namespace is not None:
-                found.setdefault(symbol, str(path.relative_to(ROOT)))
+            if symbol not in found:
+                found[symbol] = (relative, longest_namespace(symbol, declared))
     return found
+
+
+def defined_symbols() -> set[str]:
+    """Symbols the crates map an error variant to: the failure-precise census.
+
+    A `Self::Variant => "SYMBOL"` arm, a payload-carrying arm
+    (`Self::Digests(_) => "SYMBOL"` — the payload changes nothing about
+    the variant-to-string role), a `write_str("SYMBOL")` Display mapping
+    (the same variant-to-string role in another shape), a direct
+    `Failure::new(..., "SYMBOL", ...)` construction, or a
+    candidate-validation helper literal is emittable by construction.
+    Single-token arms (`Self::Created => "CREATED"`) are status words, not
+    failure symbols, and are excluded by the underscore requirement — the
+    same shape the literal scan requires. Bare literals with no mapping
+    role (test fixtures, log fragments, inline words in production files)
+    are out of scope: without a mapping site their failure-hood cannot be
+    told from data, so censusing them would force misregistration to
+    clear. In-namespace bare literals stay censused (existing behavior:
+    a test inventing a symbol in a declared family is still caught).
+    """
+    ARM = re.compile(
+        r"Self::\w+(?:\([^)]*\))?\s*=>\s*(?:Some\()?\"([A-Z][A-Z0-9]*_[A-Z0-9_]*)\"(?:\))?"
+    )
+    WRITE = re.compile(r"write_str\(\"([A-Z][A-Z0-9]*_[A-Z0-9_]*)\"\)")
+    DIRECT = re.compile(r"Failure::new\([^)]*\"([A-Z][A-Z0-9]*_[A-Z0-9_]*)\"")
+    found: set[str] = set()
+    for path in sorted((ROOT / "crates").rglob("*.rs")):
+        if "/target/" in str(path):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        found.update(ARM.findall(text))
+        found.update(WRITE.findall(text))
+        found.update(DIRECT.findall(text))
+        found.update(
+            STALE_ROOT_FAILURE.findall(text) + RESOURCE_FAILURE_LITERAL.findall(text)
+        )
+    return found - SUCCESS_SYMBOLS
 
 
 def longest_namespace(symbol: str, declared: set[str]) -> str | None:
@@ -258,24 +306,46 @@ def main() -> int:
     declared = namespaces()
     assigned = registered()
     symbols = emitted(declared)
-    unregistered = sorted(symbol for symbol in symbols if symbol not in assigned)
+    mapped = defined_symbols()
+    # The census is in-namespace literals (existing behavior: a test
+    # inventing a symbol in a declared family is caught) plus every
+    # mapped symbol in any namespace or none. Out-of-namespace bare
+    # literals with no mapping role are not failures by any evidence
+    # the census can see, so they stay out rather than force
+    # misregistration to clear.
+    census = {
+        symbol: source
+        for symbol, source in symbols.items()
+        if source[1] is not None or symbol in mapped
+    }
+    unregistered = sorted(symbol for symbol in census if symbol not in assigned)
+    familyless = sorted(
+        (
+            {"symbol": symbol, "first_seen": census[symbol][0]}
+            for symbol in census
+            if symbol not in unregistered and census[symbol][1] is None
+        ),
+        key=lambda entry: entry["symbol"],
+    )
     pairs = code_symbol_pairs()
     ambiguous = sorted(number for number, names in pairs.items() if len(names) > 1)
     never_exercised = unexercised()
+    failures = bool(unregistered or ambiguous or never_exercised or familyless)
     result = {
         "contract": CONTRACT,
         "declared_namespaces": len(declared),
-        "emitted_symbols": len(symbols),
+        "emitted_symbols": len(census),
         "numeric_codes": len(pairs),
         "ambiguous_codes": [
             {"code": number, "symbols": sorted(pairs[number])} for number in ambiguous
         ],
         "unexercised": never_exercised,
-        "unregistered": [{"symbol": s, "first_seen": symbols[s]} for s in unregistered],
+        "unregistered": [
+            {"symbol": s, "first_seen": census[s][0]} for s in unregistered
+        ],
+        "registered_without_declared_namespace": familyless,
         "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
-        "result": (
-            "PASS" if not unregistered and not ambiguous and not never_exercised else "FAIL"
-        ),
+        "result": "PASS" if not failures else "FAIL",
     }
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.check:
@@ -297,7 +367,7 @@ def main() -> int:
         REPORT.parent.mkdir(parents=True, exist_ok=True)
         REPORT.write_text(text, encoding="utf-8")
     print(text, end="")
-    return 0 if not unregistered and not ambiguous and not never_exercised else 1
+    return 0 if not failures else 1
 
 
 if __name__ == "__main__":

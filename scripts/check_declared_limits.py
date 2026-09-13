@@ -18,6 +18,11 @@ claim is. Non-literal initializers (`(1 << 53) - 1`, `u16::MAX`) are
 evaluated where the meaning is platform-independent and otherwise
 reported as unevaluated with the same name-coupling requirement.
 
+Repair round 9 (invariant audit): the checker files tracked
+`evidence/build/declared-limits.json` (write mode) and `--check` compares
+against it, so the weak tier the summary records is drift-checked
+instead of re-derived-and-forgotten. `make quick` runs `--check`.
+
 The audit is deliberately narrow: it reads public constants only, because a
 test-local bound is not a declared limit, and it checks that the value appears
 somewhere in `docs/spec/`. It does not judge which contract owns which limit;
@@ -35,6 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = "sley2.declared-limits.v1"
+REPORT = ROOT / "evidence/build/declared-limits.json"
 DECLARATION = re.compile(
     r"pub(?:\(crate\))? const (MAX_[A-Z0-9_]+):\s*\w+\s*=\s*([^;]+);"
 )
@@ -118,9 +124,16 @@ def check_constant(
 
 
 def main() -> int:
-    argparse.ArgumentParser(description=__doc__).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare the derived report with the tracked one instead of writing it",
+    )
+    arguments = parser.parse_args()
     docs = spec_texts()
     declared = 0
+    documented = 0
     undocumented = []
     weak = []
     unevaluated = []
@@ -137,20 +150,57 @@ def main() -> int:
                 undocumented.append(verdict)
             elif verdict["grade"] == "weak":
                 weak.append({k: verdict[k] for k in ("constant", "value", "source")})
-            elif value is None:
-                unevaluated.append(
-                    {k: verdict[k] for k in ("constant", "initializer", "source")}
-                )
+            else:
+                documented += 1
+                if value is None:
+                    unevaluated.append(
+                        {k: verdict[k] for k in ("constant", "initializer", "source")}
+                    )
     result = {
         "contract": CONTRACT,
         "declared_limits": declared,
+        "documented_limits": documented,
+        "weak_limits": len(weak),
+        "undocumented_limits": len(undocumented),
         "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
         "undocumented": undocumented,
         "weak_evidence": weak,
         "unevaluated_initializers": unevaluated,
         "result": "PASS" if not undocumented else "FAIL",
     }
-    print(json.dumps(result, indent=2, sort_keys=True))
+    text = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    if arguments.check:
+        current = REPORT.read_text(encoding="utf-8") if REPORT.is_file() else None
+        if current != text:
+            print(
+                json.dumps(
+                    {
+                        "mode": "check",
+                        "result": "FAIL",
+                        "detail": "the tracked limits report differs from the derived report",
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 1
+        print(
+            json.dumps(
+                {
+                    "mode": "check",
+                    "result": "PASS",
+                    "declared_limits": declared,
+                    "weak_limits": len(weak),
+                    "undocumented_limits": len(undocumented),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
+    REPORT.write_text(text, encoding="utf-8")
+    print(text, end="")
     return 0 if not undocumented else 1
 
 

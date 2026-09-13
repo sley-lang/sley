@@ -66,6 +66,10 @@ SCRIPT_MARKERS = (
     "def field_early(",
     "def collect(",
     "def build_register(",
+    "def unclaimed_carried(",
+    "def mid_string_complete(",
+    "def closed_severities(",
+    "def negated_severities(",
     "COMPLETION_VIOLATION",
 )
 FORBIDDEN_REGISTER_MARKERS = ("/home/", "/greyforge/", "file://")
@@ -156,7 +160,7 @@ def main() -> int:
         ("adr", "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md"),
         ("checker", "scripts/check_finding_register.py"),
         ("register", "evidence/review/finding-register.json"),
-        ("contract_revision", 3),
+        ("contract_revision", 4),
         ("new_stable_error_codes", 4),
         ("new_error_code_range", "75000 through 75003"),
         ("ga_claimed", False),
@@ -220,6 +224,19 @@ def main() -> int:
             for entry in register.get("open_reviews", []):
                 if set(entry) != {"section", "field", "disposition", "severities"}:
                     problems.append("finding-register:open-reviews-shape")
+                    break
+            for entry in register.get("unclaimed_carried_findings", []):
+                if set(entry) != {
+                    "section",
+                    "field",
+                    "disposition",
+                    "unclaimed_severities",
+                }:
+                    problems.append("finding-register:carried-shape")
+                    break
+            for entry in register.get("mid_string_complete_packages", []):
+                if set(entry) != {"section", "status", "open_obligations"}:
+                    problems.append("finding-register:mid-complete-shape")
                     break
             if not isinstance(register.get("superseded_rounds"), list):
                 problems.append("finding-register:superseded-rounds-shape")

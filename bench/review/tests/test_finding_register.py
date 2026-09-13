@@ -349,6 +349,172 @@ class InvariantTests(unittest.TestCase):
         )
         self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
 
+    def test_an_unclaimed_carried_finding_blocks_clearance(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": "PASS_WITH_P1_P3_FOLLOWUPS_NO_P0_P2",
+                    "p1_open": [],
+                    "p1_open_count": 0,
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+        self.assertEqual(
+            [
+                (entry["field"], entry["unclaimed_severities"])
+                for entry in derived["unclaimed_carried_findings"]
+            ],
+            [("vulcan_review", ["P1", "P3"])],
+        )
+
+    def test_a_claimed_carried_finding_does_not_block_clearance(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": "PASS_WITH_P1_FOLLOWUPS_NO_P0_P2_P3_P4",
+                    "p1_open": ["finding-1"],
+                    "p1_open_count": 1,
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        # The section tracks the carried P1, so nothing is unclaimed; the
+        # nonzero package claim itself still blocks clearance elsewhere.
+        self.assertEqual(derived["unclaimed_carried_findings"], [])
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+
+    def test_a_closed_carried_finding_does_not_block_clearance(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": "PASS_PRIOR_P1_CLOSED_NO_NEW_P0_P1",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(derived["unclaimed_carried_findings"], [])
+        self.assertEqual(derived["result"], "FINDING_REGISTER_CLEAR")
+
+    def test_a_partial_closure_leaves_followups_unclaimed(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": (
+                        "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2"
+                        "_WITH_P3_P4_FOLLOWUPS"
+                    ),
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(
+            [
+                (entry["field"], entry["unclaimed_severities"])
+                for entry in derived["unclaimed_carried_findings"]
+            ],
+            [("vulcan_review", ["P3", "P4"])],
+        )
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+
+    def test_a_stacked_negation_declares_nothing(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": "PASS_NO_NO_OPEN_P1",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        # The stacked negation is void: P1 stays a visible mention and,
+        # unclaimed, blocks clearance.
+        self.assertEqual(
+            derived["open_reviews"], [],
+        )
+        self.assertEqual(
+            [
+                (entry["field"], entry["unclaimed_severities"])
+                for entry in derived["unclaimed_carried_findings"]
+            ],
+            [("vulcan_review", ["P1"])],
+        )
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+
+    def test_a_closed_substring_smuggles_nothing(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_review": "PASS_WITH_P1_DISCLOSED",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(
+            [
+                (entry["field"], entry["unclaimed_severities"])
+                for entry in derived["unclaimed_carried_findings"]
+            ],
+            [("vulcan_review", ["P1"])],
+        )
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+
+    def test_a_closed_suffix_salad_exempts_nothing(self) -> None:
+        for disposition in (
+            "PASS_WITH_P1_CLOSED_LOOP",
+            "PASS_WITH_P1_CLOSEDNESS",
+            "PASS_WITH_P1_CLOSED_CIRCUIT",
+        ):
+            derived = self.build_from(
+                {
+                    "example_package": {
+                        "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                        "vulcan_review": disposition,
+                    },
+                    "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+                }
+            )
+            self.assertEqual(
+                [
+                    (entry["field"], entry["unclaimed_severities"])
+                    for entry in derived["unclaimed_carried_findings"]
+                ],
+                [("vulcan_review", ["P1"])],
+                disposition,
+            )
+            self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN", disposition)
+
+    def test_mid_string_complete_packages_are_named_with_open_counts(self) -> None:
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "COMPLETE_RESTRICTED_EXAMPLE_BOUNDARY",
+                    "vulcan_review": "FAIL_1_P0",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(
+            derived["mid_string_complete_packages"],
+            [
+                {
+                    "section": "example_package",
+                    "status": "COMPLETE_RESTRICTED_EXAMPLE_BOUNDARY",
+                    "open_obligations": 1,
+                }
+            ],
+        )
+        # Visibility only: the open review itself blocks clearance, and a
+        # mid-string status is never a completion violation.
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+        self.assertEqual(derived["complete_packages_with_open_reviews"], [])
+
     def test_a_summary_without_obligations_fails_closed(self) -> None:
         error = self.build_fails({"nothing": {"status": "OPEN"}})
         self.assertEqual(error.code, register.RegisterErrorCode.SUMMARY_INVALID)

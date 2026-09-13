@@ -6,13 +6,15 @@ review obligations each package recorded, their states, the severities their
 dispositions name, and the invariant that a completed package carries no open
 review. It never edits a disposition, issues a finding, or dispatches a review.
 
-Contract revision 2 (2026-09-05) tightens revision 1 after the three Council
-reviews of the draft (8 P0s): dispositions are classified by first
-underscore-delimited token over a closed head set plus a declared alias
-table, a FAIL/REVISE round is historical only with a same-reviewer
-superseding PASS in the same section, severity tokens exclude negated
-NO_OPEN groups, and CLEAR requires the top-level counters and every
-per-package open claim to read zero.
+Contract revision 4 (2026-09-13) closes two precision gaps the Vulcan
+re-review of the live register kept open as P3s: a PASS that still names
+findings now blocks clearance unless the review declares them closed or the
+section tracks them in its per-package open claims
+(`unclaimed_carried_findings`), and sections whose status says COMPLETE
+without satisfying the completion test are named with their open counts
+(`mid_string_complete_packages`) instead of leaving the gap in prose.
+Neither repair reclassifies a verdict: states still read dispositions, and
+clearance is what the carried findings can no longer survive.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 3
+CONTRACT_REVISION = 4
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -157,15 +159,68 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
     return field_early(fail_field) and not field_early(pass_field)
 
 
+def strip_negations(text: str) -> str:
+    """Remove absence declarations, but never a stacked one.
+
+    A negation group immediately prefixed by `NO_` (`NO_NO_OPEN_P1`) is a
+    double negation: it declares nothing, so voiding it would let a carried
+    finding read absent. Only unprefixed groups are stripped.
+    """
+    parts: list[str] = []
+    last = 0
+    for match in NEGATION.finditer(text):
+        if text[max(0, match.start() - 3) : match.start()] == "NO_":
+            continue
+        parts.append(text[last : match.start()])
+        last = match.end()
+    parts.append(text[last:])
+    return "".join(parts)
+
+
+def negated_severities(disposition: str) -> set[str]:
+    """Severities a valid (unstacked) negation group declares absent."""
+    negated: set[str] = set()
+    for match in NEGATION.finditer(disposition):
+        if disposition[max(0, match.start() - 3) : match.start()] == "NO_":
+            continue
+        negated.update(re.findall(r"P[0-4]", match.group(0)))
+    return negated
+
+
+def closed_severities(disposition: str) -> set[str]:
+    """Severities the disposition's own CLOSED scope names, per severity.
+
+    Only lane words (`PRIOR`, other severities) may stand between the
+    severity and the `_CLOSED` anchor, the anchor needs a right word
+    boundary (so `CLOSED_LOOP`/`CLOSEDNESS` never exempt), and the claim
+    must be terminal except for absence declarations (`NO_...`) and
+    followup declarations (`WITH_...`): `P1_CLOSED_CIRCUIT` is word salad,
+    not a closure claim. Substring smuggling (`DISCLOSED`, `UNCLOSED`,
+    `PRECLOSED`) lacks the `_CLOSED` anchor by construction and never
+    exempts. A future review needing another continuation word fails
+    closed (the row lists as unclaimed) until the contract is amended.
+    """
+    closed: set[str] = set()
+    for severity in ("P0", "P1", "P2", "P3", "P4"):
+        if re.search(
+            rf"{severity}(?:_(?:PRIOR|P[0-4]))*_CLOSED(?=$|_(?:NO|WITH)(?![A-Z0-9]))",
+            disposition,
+        ):
+            closed.add(severity)
+    return closed
+
+
 def severities_of(disposition: str) -> list[str]:
-    """Distinct severity tokens a disposition names outside negations.
+    """Distinct severity tokens a disposition names outside valid negations.
 
     Count-prefixed encodings name a zero count explicitly (`FAIL_0_P0`,
     `PASS_0_P0_0_P1_0_P2_0_P3`): a severity token immediately preceded by
     the count `0` is an absence claim, never a mention. A token without a
-    zero count, including a trailing bare token, is a mention.
+    zero count, including a trailing bare token, is a mention. Stacked
+    negations (`NO_NO_OPEN_P1`) are void and stripped of nothing, so the
+    finding they smuggle stays a visible mention.
     """
-    text = NEGATION.sub("", disposition)
+    text = strip_negations(disposition)
     tokens = re.split(r"_", text)
     mentions: set[str] = set()
     for index, token in enumerate(tokens):
@@ -294,6 +349,99 @@ def collect(summary: dict) -> list[dict]:
     return obligations
 
 
+def section_claimed_severities(summary: dict, section: str) -> set[str]:
+    """Severities the section's per-package open claims already track.
+
+    A non-empty `pN_open` list or a positive `pN_open_count` is the section
+    claiming its carried PN findings through the contract's own tracking
+    mechanism (contract section 3), so a PASS naming PN is claimed there.
+    """
+    node = summary.get(section.split(".")[0])
+    if not isinstance(node, dict):
+        return set()
+    claimed: set[str] = set()
+    for index in range(5):
+        token = f"P{index}"
+        open_list = node.get(f"p{index}_open")
+        open_count = node.get(f"p{index}_open_count")
+        if isinstance(open_list, list) and open_list:
+            claimed.add(token)
+        if isinstance(open_count, int) and open_count > 0:
+            claimed.add(token)
+    return claimed
+
+
+def unclaimed_carried(obligations: list[dict], summary: dict) -> list[dict]:
+    """PASS rows naming findings the section neither closes nor tracks.
+
+    A PASS whose disposition still names severities (after valid-negation
+    strip and zero-count absence) is unclaimed unless every named severity
+    is accounted for: inside the review's own per-severity CLOSED scope,
+    inside a valid negation group, or in the section's per-package open
+    claims. Unclaimed rows block clearance without reclassifying the
+    verdict: the state stays PASS, the result cannot be CLEAR until the
+    findings are claimed or closed.
+    """
+    unclaimed: list[dict] = []
+    for item in obligations:
+        if item["state"] != "PASS" or not item["severities"]:
+            continue
+        closed = closed_severities(item["disposition"])
+        negated = negated_severities(item["disposition"])
+        tracked = section_claimed_severities(summary, item["section"])
+        missing = [
+            severity
+            for severity in item["severities"]
+            if severity not in closed and severity not in negated and severity not in tracked
+        ]
+        if missing:
+            unclaimed.append(
+                {
+                    "section": item["section"],
+                    "field": item["field"],
+                    "disposition": item["disposition"],
+                    "unclaimed_severities": missing,
+                }
+            )
+    return unclaimed
+
+
+def mid_string_complete(summary: dict, obligations: list[dict]) -> list[dict]:
+    """Sections whose status says COMPLETE without satisfying the test.
+
+    A status containing COMPLETE that neither ends COMPLETE nor reads
+    INCOMPLETE/NOT_COMPLETE is boundary language (restricted, proposal):
+    not a completion claim, so not a violation — the unsuperseded reviews
+    still block clearance as PENDING — but the word is present, so the
+    register names these sections with their open-obligation counts
+    instead of leaving the precision gap in prose.
+    """
+    open_count: dict[str, int] = {}
+    for item in obligations:
+        if item["state"] in ("PENDING", "DEFERRED", "OTHER"):
+            top = item["section"].split(".")[0]
+            open_count[top] = open_count.get(top, 0) + 1
+    rolled: list[dict] = []
+    for section, value in summary.items():
+        if not isinstance(value, dict):
+            continue
+        status = value.get("status")
+        if (
+            isinstance(status, str)
+            and "COMPLETE" in status
+            and not is_complete_status(status)
+        ):
+            rolled.append(
+                {
+                    "section": section,
+                    "status": status,
+                    "open_obligations": open_count.get(section, 0),
+                }
+            )
+    rolled.sort(key=lambda entry: entry["section"])
+    return rolled
+
+
 def load_summary() -> dict:
     if not SUMMARY.exists():
         raise RegisterError(
@@ -404,11 +552,17 @@ def build_register() -> dict:
     ]
     # CLEAR demands every recorded open claim read zero: the top-level
     # counters and each per-package open list and count. An unclassified
-    # disposition also blocks clearance: it is unresolved either way.
+    # disposition also blocks clearance: it is unresolved either way. A
+    # PASS that still names findings the section neither closes nor tracks
+    # blocks clearance too: the carried findings are visible but unclaimed,
+    # so the shape cannot survive into a CLEAR read (contract revision 4).
+    carried = unclaimed_carried(obligations, summary)
+    mid_complete = mid_string_complete(summary, obligations)
     clear = (
         not open_reviews
         and not unclassified
         and not violations
+        and not carried
         and all(value == 0 for value in declared.values())
         and all(value == 0 for value in claims.values())
     )
@@ -426,6 +580,8 @@ def build_register() -> dict:
         "severity_mentions": severities,
         "obligations": obligations,
         "open_reviews": open_reviews,
+        "unclaimed_carried_findings": carried,
+        "mid_string_complete_packages": mid_complete,
         "deferred_reviews": [
             {
                 "section": item["section"],

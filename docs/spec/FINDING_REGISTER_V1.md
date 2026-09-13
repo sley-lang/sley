@@ -1,9 +1,16 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 3 (2026-09-11); Council review
+Status: S20-740 contract draft, revision 4 (2026-09-13); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
+
+Revision 4 closes the two precision gaps the Vulcan re-review of the live
+register kept open as P3s: a `PASS` that still names findings blocks
+clearance unless the review declares them closed or the section tracks them
+(`unclaimed_carried_findings`), and sections whose status says `COMPLETE`
+without satisfying the completion test are named with their open counts
+(`mid_string_complete_packages`). Neither repair reclassifies a verdict.
 
 Revision 2 answers the three Council reviews of the revision-1 draft (8
 P0s); the answers are itemized in section 7. No register value changed
@@ -138,6 +145,27 @@ register = {
     obligations_digest covers,
   "open_reviews": [ {section, field, disposition, severities} ... ]
     ascending, the PENDING obligations with what each records,
+  "unclaimed_carried_findings": [ {section, field, disposition,
+    unclaimed_severities} ... ] ascending: PASS obligations that still name
+    severities (after valid-negation strip and zero-count absence) where
+    every named severity is unaccounted for: outside the review's own
+    per-severity `CLOSED` scope (only lane words may stand between the
+    severity and the `_CLOSED` anchor, the anchor needs a right word
+    boundary, and the claim must be terminal except for absence
+    (`NO_...`) and followup (`WITH_...`) declarations — so a `P2`
+    closure never covers carried `P3/P4` followups, `DISCLOSED`/
+    `UNCLOSED` substrings never exempt, and `P1_CLOSED_CIRCUIT` word
+    salad is not a closure claim),
+    outside a valid negation group (a group stacked under `NO_` is void
+    and declares nothing), and outside the section's per-package open
+    claims. Visible in severity_mentions but able to survive into a CLEAR
+    read, so they block clearance until claimed or closed — without
+    reclassifying the verdict.
+  "mid_string_complete_packages": [ {section, status, open_obligations} ... ]
+    ascending: sections whose status contains `COMPLETE` but does not end
+    `COMPLETE` (restricted / proposal / boundary language). Not a
+    completion claim, so not a violation; named here with open counts so
+    the precision gap lives in the artifact, not in prose.
   "deferred_reviews": [ {section, field, disposition} ... ] ascending,
   "unclassified": [ {section, field, disposition} ... ] ascending, state OTHER,
   "superseded_rounds": [ {section, field, disposition, superseded_by} ... ]
@@ -161,7 +189,8 @@ Rules:
   per-package open count a non-negative int, or the summary is likewise
   invalid;
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
-  `PENDING`, no obligation is `OTHER`, `complete_packages_with_open_reviews`
+  `PENDING`, no obligation is `OTHER`, `unclaimed_carried_findings` is
+  empty, `complete_packages_with_open_reviews`
   is empty, every top-level open-finding counter is zero, and every
   per-package open claim is zero; otherwise it is `FINDING_REGISTER_OPEN`
   and the register names what is open. A `DEFERRED` lane is recorded
@@ -220,6 +249,13 @@ fails the gate.
 
 ## 7. Clarifications
 
+Revision 4 (2026-09-13) closes the two precision gaps the Vulcan re-review
+of the live register kept open as P3s: a `PASS` that still names findings
+blocks clearance unless the review declares them closed or the section
+tracks them in its per-package open claims (`unclaimed_carried_findings`;
+states unchanged, verdicts not reclassified), and mid-string-`COMPLETE`
+statuses are named with open counts (`mid_string_complete_packages`).
+
 Revision 3 (2026-09-11) enforces the round ordering section 7 already
 required: a cross-core fold needs round evidence, so the older general
 `PASS`es no longer close the newer qualified `FAIL`s they predate (the
@@ -247,7 +283,9 @@ and `NOT_COMPLETE`); mid-string boundary statuses such as
 `S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY` are not treated as complete
 for the violation check, but their unsuperseded reviews still block
 clearance as `PENDING`, so the gap is reporting precision, not a silent
-pass.
+pass. Since revision 4 the precision gap lives in the artifact: every
+status containing `COMPLETE` without satisfying the suffix test is named
+in `mid_string_complete_packages` with its open-obligation count.
 
 Round ordering is a field-name convention the register reads
 directionally: closure runs early-or-qualified toward late-or-general, so a

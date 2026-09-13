@@ -527,10 +527,7 @@ struct FailWrite;
 
 impl std::io::Write for FailWrite {
     fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "injected output fault",
-        ))
+        Err(std::io::Error::other("injected output fault"))
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -545,10 +542,7 @@ fn cli_failures_name_their_stable_symbols() {
     let (_, _, stderr) = run(&["bogus"], &[]);
     assert_eq!(stderr_object(&stderr)["symbol"], "CLI_USAGE_INVALID");
     let (_, _, stderr) = run(&["serve", "--repository", repo], &[]);
-    assert_eq!(
-        stderr_object(&stderr)["symbol"],
-        "CLI_HANDSHAKE_REQUIRED"
-    );
+    assert_eq!(stderr_object(&stderr)["symbol"], "CLI_HANDSHAKE_REQUIRED");
     // I/O fault injection: a failing stdout turns a would-be success into
     // CLI_IO_FAILURE (status 4), proving the write path is fallible-loud.
     let args: Vec<String> = ["methods".to_owned()].to_vec();
@@ -817,7 +811,12 @@ fn profile_serve_reports_the_actual_selected_version() {
     assert_eq!(report["contract"], "sley2-cli-report-v2");
     assert_eq!(report["protocol_profile"], "v2-capable");
     assert_eq!(report["selected_protocol_version"], 2);
+}
 
+#[test]
+fn profile_serve_reports_legacy_selection_and_method_refusal() {
+    let (_temp, path) = repository("cli-profile-serve-legacy");
+    let repo = path.to_str().unwrap();
     // A legacy client hello against the capable server still selects 1,
     // opens a version 1 session, and is refused the version 2 methods:
     // exit 0 alone would also satisfy a NO_COMMON_PROFILE rejection, so
@@ -1300,12 +1299,12 @@ fn failed_negotiation_rejection_stays_version_one() {
 }
 
 #[test]
-fn capable_code_counts_sum_to_failed_answers_under_both_selections() {
-    // Vulcan R6-P2-2: every failed answer whose terminal body decodes as a
-    // failure contributes its code, so ordinary refusals satisfy
-    // sum(codes) == failed_answers under selection 2 (a dispatched refusal,
-    // 40008) and selection 1 (a tag-validity refusal, 40007). The version 2
-    // probe is session-bound, so the test drives one live capable serve
+fn capable_code_counts_sum_to_failed_answers_under_selection_2() {
+    // Vulcan R6-P2-2 (selection 2 half): every failed answer whose
+    // terminal body decodes as a failure contributes its code, so an
+    // ordinary refusal satisfies sum(codes) == failed_answers under
+    // selection 2 (a dispatched refusal, 40008). The version 2 probe is
+    // session-bound, so the test drives one live capable serve
     // interactively, the way the S20-620 runner consumes it.
     use std::io::{BufRead, BufReader};
 
@@ -1394,9 +1393,13 @@ fn capable_code_counts_sum_to_failed_answers_under_both_selections() {
         1
     );
     assert_eq!(codes.keys().next().unwrap(), "40008");
+}
 
-    // Selection 1 over the same profile: 306 refuses at tag validity, so a
-    // sessionless probe in one shot suffices.
+#[test]
+fn capable_code_counts_sum_to_failed_answers_under_selection_1() {
+    // Vulcan R6-P2-2 (selection 1 half): selection 1 over the same
+    // profile refuses 306 at tag validity (40007), so a sessionless probe
+    // in one shot suffices for sum(codes) == failed_answers.
     let (_temp, path) = repository("cli-codes-v1");
     let repo = path.to_str().unwrap();
     let report_path = path
