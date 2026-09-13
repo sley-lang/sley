@@ -21,15 +21,80 @@ EVIDENCE = RUNTIME / "evidence.json"
 TARGET_DIR = RUNTIME / "target"
 FUZZER = TARGET_DIR / "release/mutation_candidate"
 FIXTURES = ROOT / "conformance/mutation-candidate/v1"
-CLANG = "clang-18"
+CLANG_VERSION = "18.1.8"
 RUST_TOOLCHAIN = "nightly-2026-02-27"
-LIBFUZZER = Path("/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a")
-# Owner-lane toolchain resolution (repair round 7): the pinned clang-18 and
-# libfuzzer paths above stay the qualification defaults. SLEY_FUZZ_CC and
+# Canonical LLVM-18 layouts (pin-layout repair): the official Debian-style
+# and Arch-style package layouts. Compiler and runtime must pair within one
+# layout; explicit paths only, no PATH fallback beyond the Debian layout's
+# own clang-18 name, no symlinks, no ambient toolchain. SLEY_FUZZ_CC and
 # SLEY_FUZZ_LIBFUZZER_A let an owner lane prove the harness on an equivalent
-# toolchain without editing it; the resolved values land in evidence.json.
-CC = os.environ.get("SLEY_FUZZ_CC", CLANG)
-FUZZER_RT = Path(os.environ.get("SLEY_FUZZ_LIBFUZZER_A", str(LIBFUZZER)))
+# toolchain without editing it; such runs resolve as layout "override"
+# (noncanonical) and the resolved values land in evidence.json.
+CANONICAL_LAYOUTS = (
+    (
+        "debian",
+        "clang-18",
+        Path("/usr/lib/llvm-18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a"),
+    ),
+    (
+        "arch",
+        "/usr/lib/llvm18/bin/clang-18",
+        Path("/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a"),
+    ),
+)
+CC_ENV = os.environ.get("SLEY_FUZZ_CC")
+FUZZER_RT_ENV = os.environ.get("SLEY_FUZZ_LIBFUZZER_A")
+
+
+def resolve_fuzz_toolchain() -> tuple[str, Path, str]:
+    """Resolve (compiler, runtime, layout) from the canonical layouts.
+
+    Any explicit SLEY_FUZZ_* override resolves as layout "override". Else
+    the first layout whose compiler and runtime both exist wins; if no
+    layout pairs up, resolve the first-layout defaults as "missing".
+    """
+    if CC_ENV is not None or FUZZER_RT_ENV is not None:
+        return (
+            CC_ENV or CANONICAL_LAYOUTS[0][1],
+            Path(FUZZER_RT_ENV) if FUZZER_RT_ENV else CANONICAL_LAYOUTS[0][2],
+            "override",
+        )
+    for layout, cc, rt in CANONICAL_LAYOUTS:
+        if layout == "debian":
+            if shutil.which(cc) is not None and rt.exists():
+                return cc, rt, layout
+        elif Path(cc).is_file() and rt.exists():
+            return cc, rt, layout
+    return CANONICAL_LAYOUTS[0][1], CANONICAL_LAYOUTS[0][2], "missing"
+
+
+def clang_version_string(cc: str) -> str:
+    """First line of `<cc> --version`, or unavailable:<reason>."""
+    try:
+        completed = subprocess.run(
+            [cc, "--version"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+    except OSError as error:
+        return f"unavailable:{error}"
+    if completed.returncode == 0 and completed.stdout.strip():
+        return completed.stdout.strip().splitlines()[0]
+    return f"unavailable:{completed.returncode}"
+
+
+def libfuzzer_runtime_sha256(rt: Path) -> str:
+    """SHA-256 of the linked libFuzzer runtime archive, or missing:<path>."""
+    try:
+        return hashlib.sha256(rt.read_bytes()).hexdigest()
+    except OSError:
+        return f"missing:{rt}"
+
+
+CC, FUZZER_RT, FUZZ_LAYOUT = resolve_fuzz_toolchain()
 BUILD_TIMEOUT_SECONDS = 1200
 OWNER_RLIB = "libsley_mutate-"
 MAX_CANDIDATE_BYTES = 1_048_576
@@ -82,9 +147,12 @@ def main() -> int:
     evidence.setdefault("build_locked", True)
     evidence.setdefault("corpus_persistent", True)
     evidence.setdefault("sancov_scope", "workspace-target-units-via-host-config")
-    evidence.setdefault("toolchain_overridden", CC != CLANG or FUZZER_RT != LIBFUZZER)
+    evidence.setdefault("toolchain_overridden", FUZZ_LAYOUT == "override")
     evidence.setdefault("cc", CC)
     evidence.setdefault("libfuzzer_runtime", str(FUZZER_RT))
+    evidence.setdefault("fuzz_toolchain_layout", FUZZ_LAYOUT)
+    evidence.setdefault("fuzz_toolchain_version", clang_version_string(CC))
+    evidence.setdefault("libfuzzer_runtime_sha256", libfuzzer_runtime_sha256(FUZZER_RT))
     evidence.setdefault("stale_seeds_removed", stale_seeds_removed)
     evidence.setdefault("toolchain_versions", toolchain_versions())
     if evidence["problems"]:
@@ -639,8 +707,15 @@ def toolchain_problems() -> list[str]:
                 f"{poisoned}-set-in-environment: unset it so the host-config "
                 "sancov flags are the ones that build"
             )
-    if shutil.which(CC) is None:
-        problems.append(f"{CC}-missing")
+    if FUZZ_LAYOUT == "override":
+        if shutil.which(CC) is None and not Path(CC).is_file():
+            problems.append(f"{CC}-missing")
+    elif FUZZ_LAYOUT == "missing":
+        problems.append("canonical-clang-18-missing")
+    else:
+        version = clang_version_string(CC)
+        if not version.startswith(f"clang version {CLANG_VERSION}"):
+            problems.append(f"clang-version-mismatch:{version}")
     if not FUZZER_RT.exists():
         problems.append(f"libfuzzer-runtime-missing:{FUZZER_RT}")
     rustup = shutil.which("rustup")
