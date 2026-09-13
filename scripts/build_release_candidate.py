@@ -28,6 +28,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 ARTIFACT_STEM = "sley-2.0.0-linux-x86_64"
 ARTIFACT_NAME = f"{ARTIFACT_STEM}.tar.gz"
+# Release link contract (cross-host reproducibility repair): the candidate
+# links self-contained static (musl) with the rust-lld and musl runtime from
+# the pinned Rust toolchain, never the ambient host cc/linker or host
+# glibc/CRT. Forensics on 2f93364 showed the ambient cc (gcc 16.2.1 vs
+# 13.3.0) and host glibc/CRT (2.44 vs 2.39) diverging bin/sley across hosts
+# while rustc stayed pinned; pinning the whole link unit to the pinned
+# toolchain removes the host from the link. No clang-18 (fuzz lanes) is
+# involved: the release link is hermetic by target selection.
+RELEASE_TARGET = "x86_64-unknown-linux-musl"
+# Link environment that must never influence the release build: any ambient
+# CC (or flags) would reselect the host toolchain behind the target pin.
+SCRUBBED_LINK_ENV = ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD")
 MANIFEST_CONTRACT = "sley2.release-candidate-manifest.v1"
 EVIDENCE_DIR = ROOT / "evidence/runtime/s20-720-release-candidate"
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
@@ -161,7 +173,7 @@ def build_manifest(
         "ga_claimed": ga_claimed,
         "member_count": len(files),
         "publication_authorized": publication_authorized,
-        "target": "x86_64-unknown-linux-gnu",
+        "target": RELEASE_TARGET,
         "toolchain": toolchain,
         "working_tree_clean": working_tree_clean,
     }
@@ -305,23 +317,50 @@ def toolchain_versions() -> dict[str, str]:
         if completed.returncode != 0:
             raise PackageError(PackageErrorCode.BUILD_FAILED, f"{tool} --version")
         versions[tool] = completed.stdout.strip()
+    # The release link is pinned by target, not by ambient cc: record the
+    # pinned target and the hermetic link unit so the evidence binds what
+    # the binary was linked with (fail closed below if the pinned target
+    # std is not installed).
+    versions["target"] = RELEASE_TARGET
+    versions["linker"] = "rust-lld+musl self-contained (pinned toolchain; ambient CC scrubbed)"
     return versions
+
+
+def require_release_target() -> None:
+    """Fail closed unless the pinned release target std is installed."""
+    completed = run(["rustc", "--print", "sysroot"], cwd=ROOT)
+    if completed.returncode != 0:
+        raise PackageError(PackageErrorCode.BUILD_FAILED, "rustc --print sysroot")
+    std = Path(completed.stdout.strip()) / "lib" / "rustlib" / RELEASE_TARGET
+    if not std.is_dir():
+        raise PackageError(
+            PackageErrorCode.BUILD_FAILED,
+            f"release target std missing: {RELEASE_TARGET} (rustup target add {RELEASE_TARGET})",
+        )
 
 
 def clean_build(target: Path, timeout: int) -> Path:
     if target.exists():
         shutil.rmtree(target)
+    require_release_target()
     env = dict(os.environ)
     env["CARGO_TARGET_DIR"] = str(target)
+    for name in SCRUBBED_LINK_ENV:
+        env.pop(name, None)
     cargo_home = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")))
     home = Path.home()
     # The working tree, the cargo registry sources, and the home directory
     # itself are remapped so no local absolute path survives in the binary.
     env["RUSTFLAGS"] = " ".join(remap_flags(ROOT, cargo_home, home))
-    completed = run(["cargo", "build", "--release", "--locked", "-p", "sley-cli"], cwd=ROOT, env=env, timeout=timeout)
+    completed = run(
+        ["cargo", "build", "--release", "--locked", "--target", RELEASE_TARGET, "-p", "sley-cli"],
+        cwd=ROOT,
+        env=env,
+        timeout=timeout,
+    )
     if completed.returncode != 0:
         raise PackageError(PackageErrorCode.BUILD_FAILED, completed.stderr[-500:])
-    binary = target / "release" / "sley"
+    binary = target / RELEASE_TARGET / "release" / "sley"
     if not binary.is_file():
         raise PackageError(PackageErrorCode.BUILD_FAILED, "binary missing")
     return binary
