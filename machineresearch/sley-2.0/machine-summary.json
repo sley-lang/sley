@@ -4338,7 +4338,7 @@
     "tier": "Tier 2 handoff; the workspace configured these lints but no target enforced them",
     "allows_with_reasons": 6,
     "lint_report": "evidence/build/lint-report.json",
-    "gate": "make check-changed depends on make lint; filed report PASS at db1bc62 post-red-fix (fmt clean, 0 clippy diagnostics): 13 files cargo-fmt, print_literal inlined x2 (byte-identical REJECT lines), 2x missing-Errors docs, io::Error::other, 2x oversized test fns split (coverage kept), if-chain to match, items-before-statements; evidence/build/lint-report.json"
+    "gate": "make check-changed depends on make lint; filed report PASS (fmt clean, 0 clippy diagnostics): 13 files cargo-fmt, print_literal inlined x2 (byte-identical REJECT lines), 2x missing-Errors docs, io::Error::other, 2x oversized test fns split (all assertions preserved), if-chain to match, items-before-statements; report stamps its derivation HEAD, see evidence/build/lint-report.json"
   },
   "error_symbol_registration": {
     "checker": "scripts/check_error_symbol_registration.py",
