@@ -152,7 +152,8 @@ register = {
     per-severity `CLOSED` scope (only lane words may stand between the
     severity and the `_CLOSED` anchor, the anchor needs a right word
     boundary, and the claim must be terminal except for absence
-    (`NO_...`) and followup (`WITH_...`) declarations — so a `P2`
+    (`NO_...`) and followup (`WITH_...`) declarations carrying content
+    (a bare trailing `NO`/`WITH` keyword is vacuous) — so a `P2`
     closure never covers carried `P3/P4` followups, `DISCLOSED`/
     `UNCLOSED` substrings never exempt, and `P1_CLOSED_CIRCUIT` word
     salad is not a closure claim),

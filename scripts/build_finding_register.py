@@ -194,7 +194,9 @@ def closed_severities(disposition: str) -> set[str]:
     severity and the `_CLOSED` anchor, the anchor needs a right word
     boundary (so `CLOSED_LOOP`/`CLOSEDNESS` never exempt), and the claim
     must be terminal except for absence declarations (`NO_...`) and
-    followup declarations (`WITH_...`): `P1_CLOSED_CIRCUIT` is word salad,
+    followup declarations (`WITH_...`) that carry content: a bare trailing
+    `NO`/`WITH` keyword (`P1_CLOSED_NO`) is vacuous, not a declaration.
+    `P1_CLOSED_CIRCUIT` is word salad,
     not a closure claim. Substring smuggling (`DISCLOSED`, `UNCLOSED`,
     `PRECLOSED`) lacks the `_CLOSED` anchor by construction and never
     exempts. A future review needing another continuation word fails
@@ -203,7 +205,7 @@ def closed_severities(disposition: str) -> set[str]:
     closed: set[str] = set()
     for severity in ("P0", "P1", "P2", "P3", "P4"):
         if re.search(
-            rf"{severity}(?:_(?:PRIOR|P[0-4]))*_CLOSED(?=$|_(?:NO|WITH)(?![A-Z0-9]))",
+            rf"{severity}(?:_(?:PRIOR|P[0-4]))*_CLOSED(?=$|_(?:NO|WITH)_[A-Z0-9])",
             disposition,
         ):
             closed.add(severity)

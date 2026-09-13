@@ -490,6 +490,30 @@ class InvariantTests(unittest.TestCase):
             )
             self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN", disposition)
 
+    def test_a_vacuous_continuation_exempts_nothing(self) -> None:
+        for disposition in (
+            "PASS_WITH_P1_CLOSED_NO",
+            "PASS_WITH_P1_CLOSED_WITH",
+        ):
+            derived = self.build_from(
+                {
+                    "example_package": {
+                        "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                        "vulcan_review": disposition,
+                    },
+                    "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+                }
+            )
+            self.assertEqual(
+                [
+                    (entry["field"], entry["unclaimed_severities"])
+                    for entry in derived["unclaimed_carried_findings"]
+                ],
+                [("vulcan_review", ["P1"])],
+                disposition,
+            )
+            self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN", disposition)
+
     def test_mid_string_complete_packages_are_named_with_open_counts(self) -> None:
         derived = self.build_from(
             {
