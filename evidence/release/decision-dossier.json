@@ -4,12 +4,11 @@
   "decision_reasons": [
     "46 review obligations are open",
     "no succession trial has been executed",
-    "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed",
     "the root license text is not operator-approved"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "a4784367cb6312f1b965af4bf5d8b6a402b31b79e9a9e9b10d8e010085a0679d",
+  "dossier_digest": "feb7221f64ea893318052b85d862330edfdc5cc3384fd0df1049a75463d389d2",
   "entries": [
     {
       "evidence": [
@@ -300,9 +299,9 @@
       "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
-        "distinct_hosts": 1,
-        "result": "SINGLE_HOST_REPRODUCIBLE",
-        "second_host": "GATED_OPERATOR_LANE"
+        "distinct_hosts": 2,
+        "result": "MULTI_HOST_REPRODUCIBLE",
+        "second_host": "ATTESTED"
       }
     },
     {
@@ -452,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "5e4c207798dd5330a08345e5975564231fcf7bbbcafd93a4c8d46fd87433fc9b",
+  "entries_digest": "cb2a85379b235dc2b1069301158cdcaaea847ad3c035280d7f98e6437d3ccfef",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

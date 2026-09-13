@@ -16,10 +16,26 @@
         "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
       },
       "working_tree_clean": true
+    },
+    {
+      "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+      "artifact_sha256": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d",
+      "artifact_size_bytes": 2184818,
+      "commit": "ae16df87f7b1990e8804f87001d5a63f87b41611",
+      "contract": "sley2.reproducibility-attestation.v1",
+      "differing_members": [],
+      "host_label": "secondary",
+      "manifest_digest": "0b14da146f88d672986830c8251519af2ce4c7e094d3639a4c08b98a9b9fffb6",
+      "member_count": 14,
+      "reproducibility": "REPRODUCIBLE",
+      "toolchain": {
+        "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
+        "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+      },
+      "working_tree_clean": true
     }
   ],
   "blockers": [
-    "second_host_attestation_operator_lane",
     "root_license_text_operator_approval",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
@@ -29,20 +45,21 @@
     "ae16df87f7b1990e8804f87001d5a63f87b41611": {
       "artifact_sha256": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d",
       "hosts": [
-        "primary"
+        "primary",
+        "secondary"
       ]
     }
   },
   "contract": "sley2.reproducibility-report.v1",
-  "distinct_hosts": 1,
+  "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "4b0400d8116b6c19b795bc7b946e6abf43b3cb43244c128cdc3e68b3ad66dc1d",
+  "report_digest": "959e5896e0faddae86de5a1ce3b9372455dc4f702722e9b59080c3126051df6b",
   "required_hosts": 2,
-  "result": "SINGLE_HOST_REPRODUCIBLE",
+  "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "the second host build is an operator-gated lane; only the primary host attested",
-    "status": "GATED_OPERATOR_LANE"
+    "note": "at least two hosts attested the same commit and artifact digest",
+    "status": "ATTESTED"
   },
   "work_package": "S20-730"
 }

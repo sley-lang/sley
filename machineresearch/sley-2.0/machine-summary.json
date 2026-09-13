@@ -4078,7 +4078,6 @@
     "decision_reasons": [
       "46 review obligations are open",
       "no succession trial has been executed",
-      "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
       "the root license text is not operator-approved"
     ],
