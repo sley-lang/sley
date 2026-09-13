@@ -91,7 +91,7 @@
           },
           {
             "digest": {
-              "sha256": "64572a64bc1f36242004bc0d0a6b656b38e170755652d77b2bb722dee19705e9"
+              "sha256": "cff46ef36d9da8ea6cd5f3c989c61773a12c0b3cced6279362915a9ab3f8a54f"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
@@ -111,5 +111,5 @@
       }
     ]
   },
-  "statement_digest": "9b4c21043764fbb8b9e9718e85db773ede9a61b0eee8d3e78fdbf2240c1f422e"
+  "statement_digest": "edf11300cdebb39e1be6ec993b19c2a256774dcacdaad18f72ad698aa1648a1e"
 }
