@@ -3146,20 +3146,9 @@
       "Re-review PASS (p3): P3-2 (nabu_operation_analysis_review): section 3.1 does not say which inventory the caller supplies; fixed by the caller-supplies statement",
       "Re-review PASS (p3): P3-3 (nabu_operation_analysis_review): section 3.1 labelled revision 8 in a revision 11 document; fixed by the landing-revision note"
     ],
-    "validator_undocumented_symbols": [
-      "CANDIDATE_BASE_ROOT_MISMATCH",
-      "CANDIDATE_BASE_TRANSACTION_MISMATCH",
-      "CANDIDATE_GRAPH_WORK_LIMIT",
-      "CANDIDATE_POLICY_ROOT_MISMATCH",
-      "CANDIDATE_SCHEMA_EPOCH_MISMATCH",
-      "CANDIDATE_TEST_RESOURCE_LIMIT",
-      "CANDIDATE_WORKSPACE_MISMATCH",
-      "CFG_RESOURCE_LIMIT",
-      "CONTRACT_TEST_PLAN_RESOURCE_LIMIT",
-      "SCB_RESOURCE_LIMIT",
-      "VM_LOWER_RESOURCE_LIMIT"
-    ],
-    "validator_symbol_coverage_review": "PENDING_S81_AMENDMENT_OR_EMITTER_CHANGE_11_SYMBOLS"
+    "validator_undocumented_symbols": [],
+    "validator_symbol_coverage_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "validator_symbol_coverage_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: S81 amendment 5d0f00c expanded CANDIDATE_RESULT_V1 section 8.1 26->37 rows covering all 11 formerly undocumented symbols (verified present at HEAD); live recomputation emitted 37 documented 37 diff empty; no emitter change needed; prior PENDING string superseded, list refreshed to []"
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
@@ -3728,7 +3717,13 @@
     "vulcan_surface_review_revision_2": "PASS_0_P0_0_P1_0_P2_2_P3",
     "ariadne_contract_review_revision_3": "PASS_0_P0_0_P1_0_P2_1_P3",
     "nabu_architecture_review_revision_3": "PASS_0_P0_0_P1_0_P2_3_P3",
-    "vulcan_surface_review_revision_3": "PASS_0_P0_0_P1_0_P2_2_P3"
+    "vulcan_surface_review_revision_3": "PASS_0_P0_0_P1_0_P2_2_P3",
+    "ariadne_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "ariadne_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943 (candidate 36f0e1f): check_release_candidate_packaging PASS 0 problems rev 3; 9/9 binding fields match clean REPRODUCIBLE attestation; 0 P0/P1/P2, 1xP3 residual; Council rev3 transcript scoped 9df9f9e, 2 mechanical re-mints plus musl/toolchain builder deltas re-validated by REPRODUCIBLE smokes; ga/publication null preserved",
+    "nabu_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "nabu_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943 (candidate 36f0e1f): architecture perspective, checker PASS 0 problems; binding match; 0 P0/P1/P2, 3xP3 residuals; fail-closed gates intact",
+    "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943 (candidate 36f0e1f): surface perspective, checker PASS 0 problems; binding match; 0 P0/P1/P2, 2xP3 residuals; offline tests 12/12 in-process"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -3950,6 +3945,8 @@
     "p1_open": [],
     "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review_revision_5": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: check_reproducibility_and_independent_conformance PASS, independent-conformance COMPLETE; SINGLE_HOST_REPRODUCIBLE with second-host GATED_OPERATOR_LANE per contract; 36f0e1f ancestor of HEAD with zero artifact-surface diff; r1-r3 REVISE items repaired (sibling manifest, re-mint chain, rev6 text); residuals P4 record notes only",
     "attestation_supersedes": "cd3864a/c1dec862 (round-7n re-mint for the protocol self-check test; prior identities preserved in history)"
   },
   "standards_sbom_and_provenance": {
@@ -4016,8 +4013,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 284,
-    "open_reviews": 92,
+    "obligations": 288,
+    "open_reviews": 79,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4066,7 +4063,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "92 review obligations are open",
+      "79 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -4333,7 +4330,7 @@
   "error_symbol_registration": {
     "checker": "scripts/check_error_symbol_registration.py",
     "contract": "sley2.error-symbol-registration.v1",
-    "declared_namespaces": 49,
+    "declared_namespaces": 52,
     "emitted_symbols": 402,
     "unregistered": 0,
     "adopted": "2026-09-03",
@@ -4348,7 +4345,8 @@
     "invariant_repair_note": "detection hardened (multi-segment namespaces, longest-prefix, helper-originated symbols, Some()/multi-variant pairing, test-only exercise corpus); newly visible sets filed as owner-lane obligations",
     "unregistered_symbols": [],
     "unexercised_symbols": [],
-    "owner_registration_review": "PENDING_ROUND7_6_UNREGISTERED_27_UNEXERCISED_OWNER_AND_GOVERNANCE_LANES",
+    "owner_registration_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "owner_registration_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: check_error_symbol_registration --check PASS (exit 0), unregistered [] unexercised [] ambiguous [], 402 emitted / 315 numeric; tracked report matches derived (no drift); owner EXEC_PACKAGE_V2 amendment plus governance exercise wave landed (see owner_adoption_note/governance_wave_note); prior PENDING_ROUND7 string superseded; declared_namespaces refreshed 49->52 to live report",
     "wave_note": "Repair wave to 1ba36f4: CANDIDATE_VALIDATION_VALID registered (unregistered 6 -> 5); emitted 399 -> 402 (harness oracle strings); unexercised stays 27 fail-closed; 5 PACKAGE_* stay gated on the ownership decision (KEEP-CLOSED). make quick remains red only on this documented posture (previously masked by attestation staleness).",
     "governance_wave_note": "Governance exercise wave: all 27 previously unexercised codes now exercised \u2014 10 sley-mutate APPLY (8 behavioral + 2 defense-only pins: FieldMismatch unreachable through validated descriptors, TargetAlreadyExists unreachable through the derived-id rule), 6 sley-policy (4 phase-3 bindings, graph-work ceiling, required-test ceilings), 3 sley-cli (usage/handshake symbols + I/O-fault injection), exchange ancestry cycle (decoded-receipt 2-cycle unit), 2 impact (workspace closure symbol + binding defense pin), 2 pack (version/epoch profile negatives), state-root excluded-fact pin, VM lowering ceiling (direct preflight via new pub(crate) visibility), package section-digest pin. 4 further defense-only pins document unreachable-but-named vocabulary. Remaining FAIL is the 5 unregistered PACKAGE_* symbols alone: all owner specs frozen (V1 history, V2 successor, HOST_HYDRATION) \u2014 disposition reported per wave step 4, no frozen mutation applied.",
     "owner_adoption_note": "EXEC_PACKAGE_V2 failure-vocabulary table (owner amendment, operator-approved): PACKAGE_OVERSIZED/MALFORMED/BINDING_MISMATCH/HYDRATION_REFUSED assigned LIVE with trigger definitions; PACKAGE_SECTION_DIGEST_MISMATCH assigned RESERVED/DEAD. Documentation/ownership only \u2014 no engine, precedence, spelling, numeric, or RW-075/RW-080 change. Governance gate check_error_symbol_registration now PASS (unregistered [], unexercised [])."
