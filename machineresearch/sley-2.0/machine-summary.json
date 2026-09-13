@@ -3651,8 +3651,8 @@
     "release_candidate_history_reanchored": true,
     "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
     "final_argus_disposition_note": "PASS via fresh Argus review 2026-09-13 on 21acb7f (security surface only; full S20-710 stays BLOCKED on license + final mint): all cb841a6 P1/P2 closed with evidence (tracked-only manifest + --check, 17-pattern set then, working_tree_clean + attestation guards, doc refresh); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md",
-    "final_vulcan_disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_0_P4",
-    "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); repaired post-scope (4 patterns added with controls: 21 total; PGP-armour declined with rationale: header-only shape self-fires on audit discussion and secret findings have no disposition path; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md",
+    "final_vulcan_disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
+    "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); repaired post-scope (4 patterns added with controls: 21 total; PGP-armour declined with rationale: header-only shape self-fires on audit discussion and secret findings have no disposition path; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md | CONFIRMATION 2026-09-13 c703bd5: P2 admin/svcacct + backlog (GITLAB/SENDGRID) fire with controls, PGP held with in-code rationale, linode/Azure held per finding non-blocker framing, builder refuses dirty at derivation (pinned), anchor db1bc62 + scan valid at pushed candidate, license CLOSED; argus PASS preserved in scope; transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_confirmation-c703bd5.md",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
       "evidence/release/sbom/cyclonedx-1.6.json",
@@ -4025,7 +4025,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 291,
-    "open_reviews": 50,
+    "open_reviews": 46,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4039,9 +4039,9 @@
       "independent_review_s20_740"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "REVISE_0_P0_0_P1_0_P2_1_P3",
+    "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
-    "vulcan_surface_review": "REVISE_0_P0_0_P1_0_P2_2_P3",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
     "vulcan_surface_review_note": "REVISE via harness vulcan re-review 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/finding_register/vulcan_surface_review-a4b6029.md): 56bac4b repairs verified closed (temporal fold, delta collection, zero-count); 2 P3 remain (carried-severity PASS classification, mid-string COMPLETE)",
     "implementation_complete": false,
     "implementation_started": true,
@@ -4061,7 +4061,7 @@
       "contract section 3 omitted the obligations array that carries the per-obligation payload behind obligations_digest; raised by vulcan. The obligations payload is now part of the frozen shape with superseded_rounds and package_open_claims, and the checker validates count and digest against a re-derivation rather than trusting the tallies",
       "severity_mentions counted negations as occurrences so PASS_NO_OPEN_P0_P1_P2 contributed P0,P1,P2; raised by vulcan. NO_OPEN/NO_NEW negation groups are stripped before a deduplicating scan, and the contract states the list is distinct tokens per obligation rather than a finding count"
     ],
-    "finding_review_note": "2026-09-13 db1bc62 finals rev4: nabu PASS-0 (full-scope); ariadne REVISE-1P3 (coarse CLOSED exemption, scb1 live) + vulcan REVISE-2P3 (CLOSED-substring + stacked-negation evasions, no live instances); all repaired post-scope per-severity (closed-scope/negation-void) with 3 pinning tests; transcripts evidence/review/verdicts/finding_register/*-db1bc62.md"
+    "finding_review_note": "2026-09-13 db1bc62 finals rev4: nabu PASS-0 (full-scope); ariadne REVISE-1P3 (coarse CLOSED exemption, scb1 live) + vulcan REVISE-2P3 (CLOSED-substring + stacked-negation evasions, no live instances); all repaired post-scope per-severity (closed-scope/negation-void) with 3 pinning tests; transcripts evidence/review/verdicts/finding_register/*-db1bc62.md | CONFIRMATION 2026-09-13 c703bd5 (scope: post-scope repairs incl. suffix + vacuous amendments): ariadne confirmation PASS-0 (per-severity rule re-verified incl. named scb1 row, PGP disposition retained; transcript evidence/review/verdicts/finding_register/ariadne_contract_confirmation-c703bd5.md); vulcan confirmation PASS-0 (3 recorded P3 bypasses re-verified repaired + 1 new vacuous-continuation P3 repaired+pinned in-scope c703bd5; transcript evidence/review/verdicts/finding_register/vulcan_surface_confirmation-c703bd5.md); nabu PASS preserved in reviewed scope"
   },
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
@@ -4075,7 +4075,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "52 review obligations are open",
+      "46 review obligations are open",
       "no succession trial has been executed",
       "only one host has attested the candidate",
       "the release-check and v2 product gates are fail-closed",
@@ -4419,8 +4419,8 @@
       "S20-770 registry drift over every crate"
     ],
     "method": "does a stated invariant's check cover its claim, and what did a later package change that an earlier contract still describes the old way",
-    "independent_review": "REVISE_0_P0_1_P1_0_P2_0_P3_2_P4",
-    "independent_review_note": "REVISE via fresh independent review 2026-09-13 on db1bc62 (transcript evidence/review/verdicts/invariant_audit/independent_review-db1bc62.md): round-9 repairs verified live (census 483/28/53, limits 155/2/153 tracked+drift-gated, phantom enforcement 50/50, fmt+clippy clean by re-run, fixture byte-identical, split-test assertions preserved); 1xP1 (payload arm AUTHORITY_DIGESTS + 11 Failure::new literals missed, true 29/64) + 2xP4 (lint stamp, unregistered_symbols record); P1 shapes closed post-scope (495/29/64), records pending refresh; transcript stands",
+    "independent_review": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
+    "independent_review_note": "REVISE via fresh independent review 2026-09-13 on db1bc62 (transcript evidence/review/verdicts/invariant_audit/independent_review-db1bc62.md): round-9 repairs verified live (census 483/28/53, limits 155/2/153 tracked+drift-gated, phantom enforcement 50/50, fmt+clippy clean by re-run, fixture byte-identical, split-test assertions preserved); 1xP1 (payload arm AUTHORITY_DIGESTS + 11 Failure::new literals missed, true 29/64) + 2xP4 (lint stamp, unregistered_symbols record); P1 shapes closed post-scope (495/29/64), records pending refresh; transcript stands | CONFIRMATION 2026-09-13 c703bd5: P1 shapes closed live (495/29/64 exact, AUTHORITY_DIGESTS + 11 Failure::new now censused, gate honestly FAIL owned-elsewhere); P4 records corrected/bounded (unregistered_symbols 29/29; lint stamp-tree Rust == HEAD Rust, fmt/clippy live PASS, freeze re-stamp recorded); transcript evidence/review/verdicts/invariant_audit/independent_confirmation-c703bd5.md",
     "corpus_manifest_finding": "conformance/candidate-result/v1 was the one corpus of nineteen with no SHA256SUMS manifest, because its generator never emitted one. The manifest is how an independent party verifies a corpus without running the generator; it is now emitted and the conformance report refuses a corpus without one",
     "oracle_independence_finding": "the S20-130 independence scan read oracle/scb1/src only, while thirteen of the nineteen independent oracles live under scripts/, so the check vouched for twelve files it never read. The property held, but nothing verified it; both the checker and the conformance report now scan every oracle the coverage map names, and the report labels the runner that actually runs",
     "oracle_sources_scanned": 22,

@@ -1,0 +1,17 @@
+# Independent confirmation — invariant round-9 repairs
+
+Baseline verified: `git rev-parse HEAD` = `c703bd5c5c2aeb34f0d52d778a90c738287ab190`, tree clean except this verdict file. Read-only throughout except this file. History stands: `independent_review-a4b6029.md`, `independent_review-cb841a6.md`, `independent_review-db1bc62.md` (REVISE_0_P0_1_P1_0_P2_0_P3_2_P4). First confirmation of this field; no prior involvement beyond the transcripts. Scope: the P1 two-shape repair, the two P4 record corrections, and the standing red/green facts. The symbol gate outcome is explicitly NOT in scope for a PASS here: detection coverage passing does not pass the gate, whose 29+64 rows stay actionable under their owning contracts.
+
+## What I verified (independently, live at c703bd5)
+
+- **P1 shape 1 (payload arms) closed**: live census reads emitted 495 / unregistered 29 / family-less 64 / unexercised 0 / ambiguous 0 / result FAIL (honest, tracked==derived). `AUTHORITY_DIGESTS` (the exact arm the REVISE named, `admission_authority.rs` payload arm) is now row 3 of the 29 unregistered. AUTHORITY family counts 7 (was 6): the bounded one-symbol arm gap is closed. Tree-wide re-scan for further mapping-role arm shapes: `Failure::protocol(code)` takes codes not literals (re-checked, no third shape); the deliberate `SUCCESS_SYMBOLS` exclusion stands documented.
+- **P1 shape 2 (direct `Failure::new` literals) closed**: all six named `CANDIDATE_*` literals plus all five `CANDIDATE_CONTEXT_*` literals sit inside the 64 `registered_without_declared_namespace` rows — true familyless count is 64 as the REVISE computed, and the census now sees it. FAIL list is no longer true-of-a-subset.
+- **P4-1 (lint stamp) bounded and mechanism verified**: live `cargo fmt --all --check` exit 0; `cargo clippy --workspace --all-targets -- -D warnings` exit 0, zero diagnostics; stamp reads commit `873ce3c` PASS. Zero `.rs` files differ `873ce3c..HEAD`, so the stamp's verdict holds for the current Rust tree; the stamp names its derivation tree (filed-record semantics per `record_lint_report.py:63`), and the derivation tree was clean at filing. Record refresh (re-stamp from the freeze tree) is a recorded freeze action, not a repair of the verdict.
+- **P4-2 (empty `unregistered_symbols`) repaired**: summary `error_symbol_registration.unregistered_symbols` now lists 29/29, matching `unregistered: 29` and the tracked report's 29 rows (spot-checked head/tail incl. `AUTHORITY_DIGESTS`).
+- **Standing greens hold**: `check_declared_limits.py --check` PASS (weak 153, tracked==file); index checker PASS (12 required contracts; 50 derived vs 50 registered, 0 phantoms); limits regression tests 9/9; the prose-laundering limitation stays named in the checker docstring; gate scope stays registration-only.
+
+## Findings
+
+None open in the audit scope. The P1 is closed (true counts 495/29/64 measured, gate fails honestly owned-elsewhere). Both P4 records are corrected-or-bounded with the freeze re-stamp recorded. The 29 unregistered + 64 family-less rows are NOT closed by this verdict: they remain actionable under their owning contracts, and the gate still exits 1.
+
+VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_0_P4 / SECTION: invariant_audit / FIELD: independent_review / SCOPE_SHA: c703bd5c5c2aeb34f0d52d778a90c738287ab190 / FINDINGS: none open in audit scope (P1 shapes closed 495/29/64; P4 records corrected/bounded; gate 29+64 stays actionable owned-elsewhere, gate still FAIL)

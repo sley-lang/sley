@@ -858,15 +858,13 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_0_P2_1_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
       "field": "ariadne_contract_review",
       "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
       "section": "finding_register",
-      "severities": [
-        "P3"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -884,15 +882,13 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
       "field": "vulcan_surface_review",
       "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
       "section": "finding_register",
-      "severities": [
-        "P3"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -1048,16 +1044,13 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_1_P1_0_P2_0_P3_2_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
       "field": "independent_review",
       "package_status": "IN_PROGRESS",
       "reviewer": null,
       "section": "invariant_audit",
-      "severities": [
-        "P1",
-        "P4"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -3346,16 +3339,13 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_0_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
       "field": "final_vulcan_disposition",
       "package_status": "DEFERRED_ROOT_LICENSE_AND_RELEASE_BOUNDARY",
       "reviewer": "vulcan",
       "section": "s20_710_pre_release_audit",
-      "severities": [
-        "P2",
-        "P3"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -4148,7 +4138,7 @@
       "superseded_by": null
     }
   ],
-  "obligations_digest": "b5c1edfbc253bbfb67f86e5150b201963cb9c709daba5a804480d6a295614999",
+  "obligations_digest": "a27c8a3c0e8c95a3e64f4bf5ab0535efd8d350e32a2e31c4484152619400c6f9",
   "open_reviews": [
     {
       "disposition": "FAIL_1_P0_5_P1_3_P2_4_P3",
@@ -4308,31 +4298,6 @@
         "P1",
         "P2",
         "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_0_P2_1_P3",
-      "field": "ariadne_contract_review",
-      "section": "finding_register",
-      "severities": [
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_0_P2_2_P3",
-      "field": "vulcan_surface_review",
-      "section": "finding_register",
-      "severities": [
-        "P3"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_1_P1_0_P2_0_P3_2_P4",
-      "field": "independent_review",
-      "section": "invariant_audit",
-      "severities": [
-        "P1",
-        "P4"
       ]
     },
     {
@@ -4537,15 +4502,6 @@
       ]
     },
     {
-      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_0_P4",
-      "field": "final_vulcan_disposition",
-      "section": "s20_710_pre_release_audit",
-      "severities": [
-        "P2",
-        "P3"
-      ]
-    },
-    {
       "disposition": "FAIL_1_P0_6_P1_9_P2_6_P3",
       "field": "ariadne_contract_review",
       "section": "semantic_comparison",
@@ -4741,21 +4697,21 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "715184214354c04eabf4eae1bd7087fb60789f7e1ee35663c617270865d2bcad",
+  "register_digest": "8903455b4d9728b272cb3dc110af1f1a9c963868a53a4a1ae2963e720397001a",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 54,
-    "P1": 98,
-    "P2": 109,
-    "P3": 128,
-    "P4": 21
+    "P1": 97,
+    "P2": 108,
+    "P3": 125,
+    "P4": 20
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 53,
     "OTHER": 3,
-    "PASS": 185,
-    "PENDING": 50
+    "PASS": 189,
+    "PENDING": 46
   },
   "superseded_rounds": [
     {
