@@ -1,13 +1,15 @@
 # S20-700 Remaining-Surface Blockers
 
-Status: **merge boundary absent; full S20-700 remains incomplete**
+Status: **every required surface has a landed target; full S20-700 remains
+incomplete pending review and proof currency (re-verified 2026-09-14)**
 
 Section 18.5 names eleven required persistent-fuzz surfaces. Eleven landed
 libFuzzer binaries exercise ten of those required surfaces because the single
 `ssmc_graph_cfg_checker` target covers both graph and CFG judgments. Two
 additional binaries cover the adjacent S20-360 candidate-result importer and
-the S20-390 transaction/receipt importers. The only remaining required gap is
-the merge engine.
+the S20-390 transaction/receipt importers. The merge engine was the last
+remaining required gap; its decoder and judgment targets have landed (see
+below), so no required surface lacks a target.
 
 ## Mutation candidates
 

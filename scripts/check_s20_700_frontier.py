@@ -94,9 +94,11 @@ if "fixed accepted-head transaction boundary is implemented" not in repository_m
     problems.append("repository-merge-model-drift")
 if "S20-500 native named-ref and branch boundary is implemented" not in repository_model:
     problems.append("repository-ref-implementation-drift")
-# Re-audited 2026-09-03 (ADR-0028): the merge module is staged by
-# scripts/check_merge_spec.py; its presence is expected while S20-520 is in
-# progress and the merge fuzz target is the remaining required surface.
+# Re-audited 2026-09-03 (ADR-0028), confirmed 2026-09-14: the merge module
+# is staged by scripts/check_merge_spec.py; both merge fuzz targets landed
+# (merge_conflict_decoder.rs with two lanes plus the ancestor rule, and
+# merge_judgment.rs), the merge smoke passes, and no required surface
+# remains without a target.
 merge_status = json.loads(MACHINE_SUMMARY.read_text(encoding="utf-8")).get("merge", {}).get("status")
 if (ROOT / "crates/sley-repo/src/merge.rs").exists() and merge_status not in (
     "S20_520_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS",
@@ -195,7 +197,7 @@ print(
         {
             "contract": "s20-700-persistent-fuzz-frontier-v1",
             "full_s20_700_complete": False,
-            "remaining_required_surfaces": ["merge engine"],
+            "remaining_required_surfaces": [],
             "result": "PASS",
         },
         indent=2,

@@ -24,7 +24,7 @@ for marker in [
     "with_rehashed_trailer(payload)",
     "SemanticDeltaId::derive(&candidate[..preimage_len])",
     "re-encoding a decoded delta drifted",
-    "CompareErrorCode::ALL.contains(&error.code())",
+    "decoder emitted a judgment-only failure code",
     "SELECTOR_COUNT: u8 = 2",
     "MAX_FUZZ_INPUT_BYTES: usize = 65_536",
 ]:

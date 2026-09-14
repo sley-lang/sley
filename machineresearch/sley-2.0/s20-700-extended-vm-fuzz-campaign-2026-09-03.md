@@ -84,3 +84,12 @@ refusal, never an input error). The E6 fixture threads an argument through a
 nested callee pair. The runner fails when the executed run count does not
 cover the corpus. Open questions 1 (pin the code: yes) and 3 (E7a landed, the
 premise is stale) are answered; question 2 stays with Nabu.
+
+## P-C refresh (2026-09-14)
+
+- VM lane proof re-run at 209c661: PASS 1576/1576, no new crashes, prior
+  crash artifact retested clear; summary `last_local_proof` synced.
+- Merge, semantic-delta, and complete-root-snapshot smokes re-run PASS
+  over the P-C amended targets.
+- Frontier checker output fixed (`remaining_required_surfaces` now `[]`,
+  matching the summary it already asserted); blockers-doc header cured.

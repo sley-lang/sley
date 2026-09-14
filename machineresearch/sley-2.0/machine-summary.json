@@ -2876,32 +2876,27 @@
       "E8 bridge adapter_invoke over frozen rows with tamper/budget sublane"
     ],
     "last_local_proof": {
-      "result": "PASS",
-      "source_commit": "7804432d0bcebd0f6e2cd9f2b90aa187dbd19c7c",
-      "source_tree_clean_except_retained_slices": false,
-      "worktree_dirty_files": [
-        "M evidence/release/decision-dossier.json",
-        " M evidence/validation/test-inventory.json",
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
-      ],
+      "build_locked": true,
+      "cc": "/usr/lib/llvm18/bin/clang-18",
       "corpus_count": 789,
-      "corpus_file_count": 903,
-      "runs_requested": 1576,
-      "runs_floor": 1576,
-      "executed_runs": 1576,
+      "corpus_file_count": 935,
       "coverage": {
         "counters": 18753,
-        "ft_done": 10529,
-        "ft_inited": 10494,
+        "ft_done": 10568,
+        "ft_inited": 10553,
         "new_events": true,
-        "seed": 3148480253
+        "seed": 1382374593
       },
       "coverage_ok": true,
       "crash_artifacts": [
         "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90"
       ],
+      "executed_runs": 1576,
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "new_crash_artifacts": [],
+      "owner_lib_sancov": 125,
+      "owner_lib_sancov_total": 1278,
+      "result": "PASS",
       "retested_prior_crashes": [
         {
           "artifact": "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90",
@@ -2909,21 +2904,40 @@
           "still_crashes": false
         }
       ],
-      "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1278,
-      "owner_lib_sancov": 125,
       "rlib_linkage": "cargo-json",
-      "build_locked": true,
+      "runs_floor": 1576,
+      "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
+      "source_commit": "209c661574c82d7adf8e1da21607b890f559d0e9",
+      "toolchain_overridden": false,
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "toolchain_overridden": true,
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host",
-      "note": "Governance-wave refresh: sley-vm test-only additions + one pub(crate) visibility widening (no behavior change); lane proof re-run PASS 1576/1576 (override lane). Release mint 1ba36f4 untouched (records/source delta nil for the artifact)."
+      "unexpected_warnings": [],
+      "worktree_dirty_files": [
+        "M scripts/check_semantic_delta_persistent_fuzz_slice.py"
+      ],
+      "owner_lib_sancov_symbols": {
+        "libsley_adapter-d8a0f3c14f39b91a.rlib": 37,
+        "libsley_check-d5cf0ba20e74a5ae.rlib": 115,
+        "libsley_conformance-358d0808fc4892fc.rlib": 14,
+        "libsley_id-92ca56df56b1cd1c.rlib": 4,
+        "libsley_json_bridge-0dec76bf7b93377c.rlib": 48,
+        "libsley_mutate-560e2544151ce3d6.rlib": 106,
+        "libsley_policy-f4be17cc304b1099.rlib": 109,
+        "libsley_protocol-dd93b5700caa2022.rlib": 121,
+        "libsley_query-04c8a4b9bb7e73f8.rlib": 111,
+        "libsley_repo-b39f667e617630c3.rlib": 149,
+        "libsley_scb1-32028f29635b7db0.rlib": 54,
+        "libsley_schema-3c7c5f9d6ee04d9d.rlib": 41,
+        "libsley_ssmc-854c319f3131bcaa.rlib": 26,
+        "libsley_state_root-68a25bbfc46133db.rlib": 49,
+        "libsley_store-a91188634b85d3ed.rlib": 46,
+        "libsley_txn-89a12c9044cea3c3.rlib": 123,
+        "libsley_vm-8ad0bce08ba1b9c4.rlib": 125
+      },
+      "note": "P-C wave refresh: proof re-run at 209c661 (PASS 1576/1576, no new crashes); prior crash artifact retested clear."
     },
     "restricted_profile_opcodes": [
       102,
