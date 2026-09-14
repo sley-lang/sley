@@ -1,9 +1,10 @@
 # ADR-0046: profile separation is preferred to an epoch bump, and migrations are additive
 
-Status: proposed; the S20-760 policy is a draft at revision 1 with Council
-review pending; no epoch is created and no migration is performed
+Status: proposed; the S20-760 policy is a draft at revision 3 (2026-09-14)
+with Council review pending; no epoch is created and no migration is
+performed
 
-Date: 2026-09-03
+Date: 2026-09-03; revision 3 record 2026-09-14
 
 ## Context
 
@@ -59,5 +60,7 @@ profile.
   recalling the master goal's prose.
 - Recording the profile-first preference makes the extended opcode profile and
   the semantic profile value defensible rather than improvised.
-- The epoch gate is smaller than it looked: three of the six determinations are
-  profile work under epoch 1, and one of those three is unblocked today.
+- The epoch gate is smaller than it looked: three of the six rows are
+  profile work under epoch 1 (row 3d splits: invocation is profile work,
+  replay scope as schema needs an epoch), and one of those three carries no
+  epoch blocker.

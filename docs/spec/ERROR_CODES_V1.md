@@ -204,7 +204,7 @@ and resource ceilings; wrapped `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*` codes
 are preserved. They do not claim merge, conflict objects, or S20-520.
 
 S20-520 reserves numeric codes 52000 through 52013 for the exact `MERGE_*`
-failures listed in `MERGE_V1.md` (contract draft revision 4; frozen with
+failures listed in `MERGE_V1.md` (contract draft revision 5; frozen with
 that contract).
 They cover the verified common-ancestor preconditions, shared workspace and epoch,
 unsupported dependency-root changes, wrapped comparison and extraction failures, resource

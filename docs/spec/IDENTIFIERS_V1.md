@@ -69,7 +69,7 @@ part of the `sley-id` kernel API.
 | reference adapter deterministic randomness (S20-280) | `sley2.reference-random.v1` |
 | S20-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
 
-Four rows were added on 2026-09-03 (ADR-0047) and sixteen more later the same
+Four rows were added on 2026-09-03 (ADR-0047) and fifteen more later the same
 day (ADR-0048). Every one was specified and fixtured by its own package but never reached
 this registry: the first four because no check compared the registry with the
 implementation, and the next sixteen because the check that was then added read

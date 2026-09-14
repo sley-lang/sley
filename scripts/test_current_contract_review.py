@@ -89,7 +89,7 @@ def pass_current_review(section: dict, revision: int) -> None:
 class BridgeValidBaseline(unittest.TestCase):
     def test_valid_baseline_accepted(self):
         section = json.loads(SUMMARY_TEXT)["json_bridge"]
-        self.assertEqual(section["contract_revision"], 8)
+        self.assertEqual(section["contract_revision"], 9)
         code, payload = run_checker_with_summary(BRIDGE_CHECKER, SUMMARY_TEXT)
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("result"), "PASS")
@@ -133,9 +133,9 @@ class IndexTerminalAcceptance(unittest.TestCase):
         section = summary["required_contract_index"]
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = INDEX_CHECKER.ACCEPTED_STATUS
-        pass_current_review(section, 2)
+        pass_current_review(section, 3)
         self.assertEqual(section["status"], "S20_770_INDEX_ACCEPTED")
-        self.assertEqual(section["contract_revision"], 2)
+        self.assertEqual(section["contract_revision"], 3)
         self.assertFalse(section["implementation_complete"])
         for key, value in preserved.items():
             self.assertEqual(section[key], value)
@@ -155,7 +155,7 @@ class BridgeTerminalAcceptance(unittest.TestCase):
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = BRIDGE_CHECKER.COMPLETE_STATUS
         section["implementation_complete"] = True
-        pass_current_review(section, 8)
+        pass_current_review(section, 9)
         self.assertEqual(section["status"], "S20_420_COMPLETE")
         self.assertTrue(section["implementation_complete"])
         for key, value in preserved.items():

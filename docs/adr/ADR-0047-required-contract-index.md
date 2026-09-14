@@ -1,13 +1,16 @@
 # ADR-0047: the required contracts are indexed, not restated
 
-Status: proposed; the S20-770 index is a draft at revision 2 with Council
-review pending; it defines no contract and changes no identity. Revision
+Status: proposed; the S20-770 index is a draft at revision 3 with Council
+review pending; it defines no contract and derives no new identifier. Revision
 2 record (2026-09-08): row 17.12 gains the accepted
 `ENTITY_READ_PROFILE_V2.md` document and the additive
 `conformance/smp1-json-bridge/v2` metadata directory; twelve rows and all
-digest domains unchanged.
+digest domains unchanged. Revision 3 record (2026-09-14): curative-notes
+amendment against the three 2026-09-04 Council reviews (all FAIL, no P0);
+rows 17.1/17.9/17.10/17.12 corrected, machine-readable non-acceptance
+stated, checker behaviours documented.
 
-Date: 2026-09-03; revision 2 record 2026-09-08
+Date: 2026-09-03; revision 2 record 2026-09-08; revision 3 record 2026-09-14
 
 ## Context
 
@@ -37,7 +40,18 @@ second source that can drift from the first.
    because no test has been executed under any authority.
 4. **No claim of completeness.** Several of the twelve are implemented under
    draft revisions with reviews pending; the index says where they are defined,
-   not that they are accepted.
+   not that they are accepted. The machine summary carries
+   `asserts_contract_acceptance: false` and `asserts_completeness: false`
+   beside the status so the disclaimer survives into the machine surface.
+5. **Four already-derived domains registered, none coined (2026-09-14
+   record).** `sley2.candidate-attempt.v1` (S20-360,
+   `CANDIDATE_RESULT_V1.md`), `sley2.protocol-frame.v1` (S20-410, `SMP1.md`
+   section 1), `sley2.root-query.v1` (S20-310 full,
+   `ROOT_BACKED_QUERY_PROFILE_V1.md`), and `sley2.session.v1` (S20-330,
+   `SESSION_HANDLE_PROFILE_V1.md`) were each specified and fixtured by their
+   owning packages but had never reached the central registry. This decision
+   registers those four as already-derived domains; it derives no new
+   identifier and coins no new digest domain.
 
 ## Consequences
 

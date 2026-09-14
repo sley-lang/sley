@@ -28,6 +28,40 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def quick_recipe_checkers(makefile: str) -> set[str]:
+    """Checkers invoked by the `quick:` recipe (not a whole-file substring).
+
+    A checker named in a comment or an unrelated target must not satisfy the
+    index rule that every required name maps to a checker `make quick` runs.
+    """
+    members: set[str] = set()
+    in_quick = False
+    for line in makefile.splitlines():
+        if line.startswith("quick:"):
+            in_quick = True
+            continue
+        if not in_quick:
+            continue
+        if line == "" or line.startswith("\t") or line.startswith(" "):
+            members.update(re.findall(r"scripts/([A-Za-z0-9_]+\.py)", line))
+        elif line.startswith("#"):
+            continue
+        else:
+            break
+    return members
+
+
+def iter_crate_sources() -> "object":
+    """Yield Rust sources under crates/, pruning build output directories."""
+    import os
+
+    for dirpath, dirnames, filenames in os.walk(ROOT / "crates"):
+        dirnames[:] = [d for d in dirnames if d != "target"]
+        for filename in filenames:
+            if filename.endswith(".rs"):
+                yield Path(dirpath) / filename
+
+
 def table_rows(text: str) -> list[list[str]]:
     start = text.index("## 1. The twelve required contracts")
     end = text.index("## 2. Rules", start)
@@ -96,19 +130,20 @@ def main() -> int:
     documents = 0
     checkers = 0
     domains = 0
+    quick_members = quick_recipe_checkers(makefile)
     for row in rows:
         number, name, document_cell, domain_cell, checker_cell, corpus_cell = row[:6]
         if not name.startswith("`sley-") or not name.endswith("-v1`"):
             problems.append(f"{number}: required name is not a versioned contract name")
         for document in BACKTICKED.findall(document_cell):
-            if not document.endswith(".md"):
+            if not document.endswith((".md", ".txt")):
                 continue
             documents += 1
             if not (ROOT / "docs/spec" / document).exists():
                 problems.append(f"{number}: missing document {document}")
         for domain in BACKTICKED.findall(domain_cell):
             domains += 1
-            if domain not in identifiers:
+            if f"`{domain}`" not in identifiers:
                 problems.append(f"{number}: domain {domain} is not frozen in IDENTIFIERS_V1.md")
         for checker in BACKTICKED.findall(checker_cell):
             if not checker.endswith(".py"):
@@ -116,8 +151,11 @@ def main() -> int:
             checkers += 1
             if not (ROOT / "scripts" / checker).exists():
                 problems.append(f"{number}: missing checker {checker}")
-            elif f"scripts/{checker}" not in makefile:
+            elif checker not in quick_members:
                 problems.append(f"{number}: checker {checker} is not run by the Makefile")
+        if not corpus_cell.strip():
+            problems.append(f"{number}: empty corpus cell")
+            continue
         for corpus in BACKTICKED.findall(corpus_cell):
             if corpus.startswith("conformance/") and not (ROOT / corpus).is_dir():
                 problems.append(f"{number}: missing corpus {corpus}")
@@ -135,8 +173,7 @@ def main() -> int:
     derived = sorted(
         {
             domain
-            for path in sorted((ROOT / "crates").rglob("*.rs"))
-            if "/target/" not in str(path)
+            for path in sorted(iter_crate_sources())
             for domain in re.findall(r'"(sley2\.[a-z0-9.\-]+)"', read(path))
         }
     )
@@ -182,6 +219,8 @@ def main() -> int:
         ("required_contracts", REQUIRED_ROWS),
         ("new_error_code_range", "77000 through 77001"),
         ("defines_no_contract", True),
+        ("asserts_contract_acceptance", False),
+        ("asserts_completeness", False),
     ):
         if section.get(key) != value:
             problems.append(f"machine-summary:{key}")

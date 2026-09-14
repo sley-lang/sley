@@ -4135,7 +4135,7 @@
   "epoch_migration_policy": {
     "status": "S20_760_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/EPOCH_MIGRATION_POLICY_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0046-epoch-migration-policy-and-profile-preference.md",
     "checker": "scripts/check_epoch_migration_policy.py",
     "master_goal_deliverable": "M6 migration policy for Sley 2.x epochs",
@@ -4161,11 +4161,11 @@
     "determinations": {
       "epoch_required": [
         "the four unsupported contract kinds (ContractSource is a closed four-variant union)",
-        "test_observe execution (S20-240 rejects it under epoch 1 and forbids reinterpretation)",
+        "test_observe execution (S20-240 section 3.4 rejects it under epoch 1; preamble forbids reinterpreting rejection as acceptance)",
         "adapter replay and configuration (AdapterImport carries no configuration type)"
       ],
       "profile": [
-        "the production-epoch fingerprint requirement (a validation profile rule; the field is already optional field 4)",
+        "the production-epoch fingerprint requirement (a validation profile rule; CANDIDATE_RESULT_V1 phases 7-8 with validation_profile_id field 4 carrying the full-v1 identity)",
         "contract_assert execution (statically accepted under epoch 1; execution assigned to S20-270; landed as slice E7a)",
         "effect_request and capability_narrow execution (owner blocked, re-verified against the code: no narrowing function exists and no host services an effect)",
         "adapter_invoke against an existing import (profile shaped, but the request-side binding is a design S20-280 full owes)"
@@ -4176,18 +4176,20 @@
   "required_contract_index": {
     "status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
     "contract": "docs/spec/REQUIRED_CONTRACT_INDEX_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "current_delta_review": {
-      "contract_revision": 2,
-      "ariadne": "PASS",
-      "nabu": "PASS",
-      "vulcan": "PASS"
+      "contract_revision": 3,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0047-required-contract-index.md",
     "checker": "scripts/check_required_contract_index.py",
     "master_goal_section": 17,
     "required_contracts": 12,
     "defines_no_contract": true,
+    "asserts_contract_acceptance": false,
+    "asserts_completeness": false,
     "new_stable_error_codes": 2,
     "new_error_code_range": "77000 through 77001",
     "contracts_without_corpus": [

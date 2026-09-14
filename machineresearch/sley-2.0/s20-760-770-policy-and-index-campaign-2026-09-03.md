@@ -1,5 +1,10 @@
 # S20-760 epoch migration policy and S20-770 required contract index (2026-09-03)
 
+Status: contract drafts revision 3 committed 2026-09-14 (curative-notes
+amendments against the three 2026-09-04 Council reviews per package, all FAIL,
+no P0); re-review pending. No closeout file exists for either draft package
+(drafts with no implementation); none created by this wave.
+
 Two master-goal deliverables that had no document. Owner of record Ariadne for
 both; executed by the integrator with the Council lanes unavailable (ADR-0026).
 Neither creates an epoch, a contract, an identity, or an authority.
@@ -76,3 +81,39 @@ E7 opcodes need an epoch or a further profile (Ariadne), whether
 profile-separation-first risks an unbounded profile space (Nabu), and whether
 four domains reaching production unregistered indicates a process gap beyond
 those four (Vulcan).
+
+## Revision 3 answers recorded (2026-09-14, curative-notes amendments, no implementation)
+
+S20-760 (`EPOCH_MIGRATION_POLICY_V1.md` revision 3, ADR-0046 revision 3
+record): the section 1 epoch test now scopes to the nine facts for an
+existing identity, counts additive changes, and permits a profile only under
+a new disjoint identity; section 6 citations corrected (item 1 to sections
+1.1/1.3 with preamble, item 2 to `CANDIDATE_RESULT_V1.md` phases 7-8 with
+`validation_profile_id` field 4, item 3b to section 3.4 with preamble, item
+3d to section 3.2 with its MUST); section 7 records the E7a sequencing
+correction (determination 3a consumed before schema-owner review;
+independent basis is `CONTRACT_TEST_PROFILE_V1.md` section 2); section 8
+claims only the bootstrap record, not a tree scan; the checker pins ADR
+decision 6 and the item 2 / item 3c determination facts. Open for the FINAL
+draft per section 10 notes: multi-descriptor obligation shape, ref-scoped
+ordering, the in-place-widening rule, the profile gate, the retention
+anchor, the standing decoder invariant, migration atomicity, failure-code
+binding, and exact `ContractSource` names.
+
+S20-770 (`REQUIRED_CONTRACT_INDEX_V1.md` revision 3, ADR-0047 revision 3
+record with decision 5 registering the four already-derived domains):
+row 17.1 names `SSMC1_EPOCH1_SCHEMA.txt` as the entity-body-kinds definer;
+row 17.12 cites `SMP1.md` sections 1 and 2 and lists the bridge checker;
+rows 17.9/17.10 cite numbered envelope sections; section 2 states the
+`docs/spec/` scope, the non-empty corpus rule, and the presence-vs-
+derivation split; section 3 carries the machine-readable non-acceptance
+(`asserts_contract_acceptance: false`, `asserts_completeness: false`);
+section 5 documents the full checker (quick-recipe membership, `.txt`
+definers, backticked domains, both-direction drift). The drift gate already
+enforces both directions (round-9 repair, 50 vs 50); the Python-tooling
+namespace boundary is stated in `IDENTIFIERS_V1.md` with the
+`check_domain_tags_and_strings.py` gate. Open for the FINAL draft per
+section 7 notes: frozen `(number, name)` authority pairs, declaration-site
+domain derivation, drift-ownership extraction, emitted 77000/77001 codes,
+checkable section pointers, the 17.10-to-S20-290 linkage, and the
+report-envelope heading repair.

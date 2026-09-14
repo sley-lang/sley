@@ -76,9 +76,9 @@ class ValidBaselineControl(unittest.TestCase):
     def test_valid_baseline_accepted(self):
         summary = json.loads(SUMMARY_TEXT)
         section = summary["required_contract_index"]
-        self.assertEqual(section["contract_revision"], 2)
+        self.assertEqual(section["contract_revision"], 3)
         self.assertEqual(
-            section["current_delta_review"]["contract_revision"], 2
+            section["current_delta_review"]["contract_revision"], 3
         )
         code, payload = run_checker_with_summary(SUMMARY_TEXT)
         self.assertEqual(code, 0)
@@ -92,9 +92,9 @@ class SectionRevisionCases(unittest.TestCase):
     def test_stale_section_revision_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         section = summary["required_contract_index"]
-        self.assertEqual(section["contract_revision"], 2)
+        self.assertEqual(section["contract_revision"], 3)
         self.assertEqual(
-            section["current_delta_review"]["contract_revision"], 2
+            section["current_delta_review"]["contract_revision"], 3
         )
         section["contract_revision"] = 1
         code, payload = run_checker_with_summary(json.dumps(summary))
@@ -103,7 +103,7 @@ class SectionRevisionCases(unittest.TestCase):
     def test_bool_section_revision_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         section = summary["required_contract_index"]
-        self.assertEqual(section["contract_revision"], 2)
+        self.assertEqual(section["contract_revision"], 3)
         section["contract_revision"] = True
         code, payload = run_checker_with_summary(json.dumps(summary))
         assert_refused(self, code, payload, "revision")

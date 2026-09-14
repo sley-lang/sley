@@ -24,7 +24,7 @@ SUPERSEDED_STATUS = "S20_760_SUPERSEDED"
 
 SPEC_MARKERS = (
     "# Epoch Migration Policy v1",
-    "Status: S20-760 contract draft, revision 2",
+    "Status: S20-760 contract draft, revision 3",
     "## 1. What forces a new epoch",
     "## 2. What a migration must prove",
     "## 3. Who decides",
@@ -35,6 +35,8 @@ SPEC_MARKERS = (
     "| 3b | `test_observe` (145) execution | **EPOCH REQUIRED** |",
     "## 7. Explicit exclusions",
     "## 8. Staging",
+    "## 9. Revision history",
+    "## 10. Curative notes (revision 3",
     "Profile separation is the preferred alternative to an epoch bump",
 )
 ADR_MARKERS = (
@@ -44,6 +46,7 @@ ADR_MARKERS = (
     "3. **One successor at a time.**",
     "4. **Four approvals.**",
     "5. **An agenda, not a decision.**",
+    "6. **A determination is not an approval**",
 )
 WORK_PACKAGE_MARKERS = ("`docs/spec/EPOCH_MIGRATION_POLICY_V1.md`", "ADR-0046")
 
@@ -56,7 +59,12 @@ def determination_facts() -> list[str]:
     """Verify the tree still supports every section 6 determination.
 
     A determination that rests on a fact must fail when the fact changes.
-    These are the five facts the revision 2 table cites.
+    These are the six determination groups the revision 3 table cites:
+    item 1 (closed ContractSource union + frozen field-schema hash), items
+    3a/3b (contract_assert accepted, test_observe rejected), item 2 (the
+    candidate-result fingerprint rule and the value-2 validation-profile
+    condition), item 3c (E7 effect/capability opcodes still blocked on
+    owning-package semantics), and the cache-key profile binding.
     """
     problems: list[str] = []
     ssmc = read(ROOT / "crates/sley-ssmc/src/lib.rs")
@@ -91,6 +99,19 @@ def determination_facts() -> list[str]:
         problems.append("contract-assert-acceptance-drift")
     if "`test_observe` is rejected in every" not in profile:
         problems.append("test-observe-rejection-drift")
+
+    candidate_result = read(ROOT / "docs/spec/CANDIDATE_RESULT_V1.md")
+    if "The restricted conformance epoch allows" not in candidate_result:
+        problems.append("fingerprint-rule-drift")
+    txn_model = read(ROOT / "docs/spec/TRANSACTION_MODEL_V1.md")
+    if "may only be emitted under a validation profile that performs the" not in txn_model:
+        problems.append("semantic-profile-validation-condition-drift")
+
+    extended = read(ROOT / "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md")
+    if "`VM_LOWER_OPCODE_UNSUPPORTED` until S20-240 full, S20-280 full, and S20-380" not in extended:
+        problems.append("effect-capability-ownership-drift")
+    if "full own their runtime" not in extended:
+        problems.append("effect-capability-ownership-drift")
 
     if "push_u32(&mut preimage, profile.lowering_profile);" not in read(
         ROOT / "crates/sley-vm/src/lib.rs"
