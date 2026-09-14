@@ -9,10 +9,13 @@ effects, no publication.
 ## Contract
 
 - `docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md` with
-  `docs/spec/TRANSACTION_MODEL_V1.md` draft revision 2 (commit metadata table
-  and its rules).
-- Addendum in `docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md`; summary section
-  `s20_390_atomic_commit`; frontier checker pins the new status.
+  `docs/spec/TRANSACTION_MODEL_V1.md` draft revision 4 (2026-09-14 currency:
+  revision 3 rules stand; revision 4 records 39023
+  `TXN_SEMANTIC_PROFILE_UNSUPPORTED` WITHDRAWN in `docs/spec/ERROR_CODES_V1.md`,
+  no numeric or semantic changes).
+- Addendum in `docs/audits/S20_390_ATOMIC_COMMIT_CLOSEOUT.md` (with the
+  2026-09-14 explicit retraction of the withdrawn refusal); summary section
+  `s20_390_atomic_commit` (`transaction_model_revision` 4); frontier checker pins the new status.
 
 ## Mechanics
 
@@ -34,6 +37,9 @@ effects, no publication.
    revision states the value's real meaning: profile 1 says no operation
    analysis ran in the transaction, which is exactly true of a genesis and of
    an operation-free commit.
+   Currency 2026-09-14: the canonical `docs/spec/ERROR_CODES_V1.md` table now
+   carries the WITHDRAWN line for 39023, so the number cannot be reused for
+   unrelated semantics; the closeout carries the explicit retraction.
 2. `make conformance` then failed on the oracle's own unit gate, which pinned
    two accepted vectors; it now expects three and names why.
 3. Repeated manual counter syncing after each evidence rebuild was replaced by

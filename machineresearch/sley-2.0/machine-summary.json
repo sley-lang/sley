@@ -423,7 +423,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 13,
+    "contract_revision": 14,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -3196,7 +3196,7 @@
       "2": "the transaction judged at least one semantic operation under the S20-360 full operation analysis"
     },
     "adr_extended_profile": "docs/adr/ADR-0045-transaction-semantic-profile-names-the-analysis.md",
-    "transaction_model_revision": 3,
+    "transaction_model_revision": 4,
     "ariadne_extended_profile_review": "FAIL_2_P0_4_P1_3_P2_2_P3",
     "nabu_extended_profile_review": "FAIL_2_P0_2_P1_2_P2_2_P3",
     "vulcan_extended_profile_review": "FAIL_0_P0_4_P1_3_P2_2_P3",
@@ -4195,7 +4195,7 @@
   "clean_room_disposition_register": {
     "status": "S20_780_REGISTER_ACCEPTED",
     "contract": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
     "checker": "scripts/check_clean_room_boundary.py",
     "reused_concepts": 3,

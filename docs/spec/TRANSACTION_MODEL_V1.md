@@ -1,7 +1,10 @@
 # Transaction Model v1
 
 Status: restricted S20-390 implementation complete with the extended operation
-profile at draft revision 3 (Council review pending); S20-500 named refs and
+profile at draft revision 4 (2026-09-14, Council review pending); revision 4
+is a currency revision only (no rule changes): it records that code 39023
+(`TXN_SEMANTIC_PROFILE_UNSUPPORTED`) is WITHDRAWN in `ERROR_CODES_V1.md`
+and must not be reused. S20-500 named refs and
 S20-530 full recovery remain separate.
 
 ## Authority boundary

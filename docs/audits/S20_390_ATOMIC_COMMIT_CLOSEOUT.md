@@ -160,6 +160,13 @@ model revision that adds a semantic profile value, regenerates the receipt and
 exchange vectors, and passes Council review; it is recorded as the follow-on
 package rather than taken here.
 
+Retraction (2026-09-14, contract revision 4): the refusal stated in this
+addendum, `TXN_SEMANTIC_PROFILE_UNSUPPORTED` (39023), and the named test
+above are WITHDRAWN — none of the code, the error, or the test exists.
+`commit` selects semantic profile 1 or 2 per the extended addendum below.
+39023 is recorded WITHDRAWN in `docs/spec/ERROR_CODES_V1.md` and must not be
+reused.
+
 ## Extended semantic profile addendum (2026-09-03)
 
 Transaction model draft revision 2 (ADR-0045) adds semantic profile `2` for the

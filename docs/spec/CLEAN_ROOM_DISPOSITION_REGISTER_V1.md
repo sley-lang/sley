@@ -1,12 +1,17 @@
 # Clean-Room Disposition Register v1
 
-Status: S20-780 contract draft, revision 4 (2026-09-05); revision 3 closed
+Status: S20-780 contract draft, revision 5 (2026-09-14); revision 3 closed
 the P0s and addressed the P1/P2/P3 findings; the first re-review round
 returned Ariadne PASS and Vulcan PASS with no new findings, and Nabu FAIL
 with two residuals (lockfile stanza parsing, transcript-tree bounding), both
-closed by this revision; Nabu re-review of revision 4 is pending. No
-similarity or provenance audit of the legacy source has been performed; that
-gap is recorded as a remaining gate, not waived (§3).
+closed by revision 4 and confirmed by the Nabu re-review PASS of revision 4
+(2026-09-05). Revision 5 is a prose-currency revision only (no rule changes):
+it records that the similarity/provenance audit was performed 2026-09-07 as
+local evidence with independent review pending
+(`machineresearch/sley-2.0/s20-780-similarity-audit-2026-09-07.md`); the
+revision 4 Status wording stating that no audit has been performed is
+superseded, and §3 now reads as no independent audit claimed. The remaining
+gate is recorded as a remaining gate, not waived (§3).
 
 ## Boundary
 

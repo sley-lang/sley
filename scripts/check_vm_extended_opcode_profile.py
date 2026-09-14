@@ -265,7 +265,7 @@ def main() -> int:
             if not str(section.get(key, "")).startswith("PASS"):
                 problems.append(f"completion-without-review:{key}")
 
-    revision = re.search(r"revision (\d+)", spec)
+    revision = re.search(r"^Status:.*revision (\d+)", spec, flags=re.M)
     result = {
         "contract": "s20-260-270-vm-extended-opcode-profile-v1",
         "status": status,

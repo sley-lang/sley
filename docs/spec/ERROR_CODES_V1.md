@@ -403,7 +403,11 @@ construct candidates, commit state, or complete M3/M4/GA.
 
 S20-390 freezes numeric codes 39000 through 39022 for transaction-core,
 receipt, fixed accepted-head, recovery, and incomplete-clone guard failures
-(`39022` was appended by S20-540 under ADR-0025):
+(`39022` was appended by S20-540 under ADR-0025). Code `39023`
+(`TXN_SEMANTIC_PROFILE_UNSUPPORTED`) was allocated 2026-09-03 for the
+withdrawn operation-carrying commit refusal and is WITHDRAWN as of
+2026-09-14; the frozen live range stays 39000 through 39022 with no numeric
+changes, and 39023 must not be reused for unrelated semantics:
 
 | Numeric | Symbolic |
 |---:|---|
@@ -430,6 +434,7 @@ receipt, fixed accepted-head, recovery, and incomplete-clone guard failures
 | 39020 | `TXN_INTERNAL_INVARIANT` |
 | 39021 | `TXN_RESOURCE_LIMIT` |
 | 39022 | `TXN_INCOMPLETE_CLONE` |
+| 39023 | `TXN_SEMANTIC_PROFILE_UNSUPPORTED` — WITHDRAWN (2026-09-14) |
 
 A live-head mismatch exposed by ordinary commit is the existing `STALE_ROOT`
 terminal decision, not last-write-wins. Exact S20-360 `STALE_ENTITY` and all

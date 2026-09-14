@@ -1,8 +1,12 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 13 (2026-09-06);
+Status: S20-260/S20-270 full-profile contract draft, revision 14 (2026-09-14);
 Council review pending (Ariadne contract review, Vulcan surface review; Nabu
-architecture review PASS). Revisions 2 through 7 record the clarifications of
+architecture review PASS). Revision 14 is a currency/hardening revision only
+(no rule changes): it records the review status of the revision-13 E8 delta
+(slice E8 implemented; re-review pending with the Ariadne FAIL and Vulcan
+FAIL rows open and no Nabu row), and the stage checker now anchors its
+revision extraction to this Status line. Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
 the judgment-only entry external owners use (section 3.1). Revision 9 lands
 slice E7a, `contract_assert` execution, which the S20-760 revision 2

@@ -1,6 +1,9 @@
 # S20-260/S20-270 VM Extended Opcode Campaign (2026-09-03)
 
-Status: contract draft revision 12 with slices E1 through E6 plus E7a
+Status: contract draft revision 14 (2026-09-14 currency; revision 13 landed
+slice E8, the host bridge imports over frozen opcode 161; revision 14 records
+the E8 re-review status and anchors the stage checker to the Status line, no
+rule changes) with slices E1 through E6 plus E7a
 landed (twenty-two conformance vectors); Nabu architecture review PASS;
 Ariadne contract review and Vulcan surface review re-reviews queued. Slices
 E1 through E6 landed under revisions 2 through 7 in order; revision 8 added
