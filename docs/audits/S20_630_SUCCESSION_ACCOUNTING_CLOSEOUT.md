@@ -1,8 +1,8 @@
 # S20-630 Succession Accounting Closeout
 
-Status: **implemented under the draft Succession Accounting v1 contract (revision 3); the Ariadne, Nabu, and Vulcan reviews returned FAIL against revision 2 and every P0 and every P1 lands in this revision; the package is not complete until those lanes re-review; no trial exists and no accounting number is evidence; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Succession Accounting v1 contract (revision 4); the Ariadne, Nabu, and Vulcan reviews returned FAIL against revision 2 and every P0 and every P1 lands in revision 3; revision 4 adds the FAIL-path end-to-end test through `derive_report` and the residual P2/P3 precision; the package is not complete until those lanes re-review; no trial exists and no accounting number is evidence; the Sley 2 goal remains incomplete**
 
-Date: 2026-09-05
+Date: 2026-09-05; revised 2026-09-14 (revision 4)
 
 Validation tier: **Tier 1 plus benchmark-focused Tier 2 handoff**
 
@@ -47,8 +47,13 @@ The implementation provides:
 
 - Contract draft revision 1, ADR-0037, and the stage checker at
   `539c0f9`; revision 2 and the implementation at `33d90af`; revision 3
-  (this slice) closing every review finding.
-- Offline tests (eight, all pass): ratios and medians are exact over odd
+  (this slice) closing every review finding; revision 4 (2026-09-14)
+  adding the FAIL-path end-to-end test, the deliberate empty-chain
+  collapse, the `ARM_UNKNOWN` reachability statement, the ratio
+  legibility rule, the corrected ADR-0037 carriage wording, and the
+  smoke-checker boundary (checker pins the recorded digest; the
+  gitignored runtime artifact is regenerable, never a checker input).
+- Offline tests (nine, all pass): ratios and medians are exact over odd
   and even counts with zero denominators as nulls and a float refused;
   every attempt stays in the denominator across accepted, rejected,
   timeout, and harness-failure claims with exact sums, medians, the

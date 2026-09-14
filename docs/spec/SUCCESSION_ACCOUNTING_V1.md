@@ -1,11 +1,14 @@
 # Succession Accounting v1
 
-Status: S20-630 contract draft, revision 3 (2026-09-05); the Ariadne
+Status: S20-630 contract draft, revision 4 (2026-09-14); the Ariadne
 contract review (2 P0, 8 P1), Nabu architecture review (4 P0, 7 P1), and
 Vulcan surface review (1 P0, 5 P1) all returned FAIL against revision 2,
-and every P0 and every P1 lands in this revision. The implementation is
-`bench/accounting/report.py`; implementation state is tracked in the
-machine summary.
+and every P0 and every P1 lands in revision 3. Revision 4 exercises the
+failing-threshold path end to end through `derive_report` and writes down
+the residual P2/P3 precision (empty-chain collapse, `ARM_UNKNOWN`
+reachability, ratio legibility, smoke-checker boundary). The
+implementation is `bench/accounting/report.py`; implementation state is
+tracked in the machine summary.
 
 ## Boundary
 
@@ -39,8 +42,16 @@ sections 21.4 through 21.6, 22.1 through 22.4; dossiers 16 through 18).
 
 An arm whose chain is absent is reported as `NO_CLAIM_CHAIN`; an arm whose
 chain does not cover the manifest's full task and seed product is
-`PARTIAL`; a covered arm is `COMPLETE`. A claim loaded under a required
-arm that names a different arm is `ACCOUNTING_ARM_UNKNOWN`. Chain
+`PARTIAL`; a covered arm is `COMPLETE`. A verifier-accepted empty chain
+carries no head digest and no trial product, so accounting cannot form
+denominators from it: it reads as `NO_CLAIM_CHAIN` by construction, and
+the collapse is deliberate and fail-closed in the direction that matters
+(a chain the verifier rejects is `ACCOUNTING_CHAIN_INVALID`, never
+absence). A claim loaded under a required arm that names a different arm
+is `ACCOUNTING_ARM_UNKNOWN`: the code guards a claim filed under the
+wrong required arm, while a chain for a non-required arm never reaches
+accounting at all, because discovery iterates required arms only
+(section 8). Chain
 discovery covers required arms only; chains for non-required plan arms
 (such as `zerolang`) are not discovered until a verifier is registered
 for them (section 8). The legacy arm has no verifier until S20-600
@@ -58,7 +69,11 @@ Every quantity is an integer or an exact ratio `{ "numerator": integer,
 "denominator": integer }` reduced by the greatest common divisor with a
 positive denominator. Floats never appear in inputs, intermediate values, or
 outputs (`ACCOUNTING_FLOAT_FORBIDDEN`). A median over an even count is the
-exact ratio of the two middle values' sum to two. A ratio whose denominator
+exact ratio of the two middle values' sum to two. Every ratio already
+travels as an exact integer numerator/denominator pair, which subsumes
+basis-point legibility without rounding: the report carries no second
+rounded representation beside the exact pair, so no rounded figure can be
+mistaken for the comparison basis. A ratio whose denominator
 would be zero is `null` with a named reason, never an error and never a
 substituted value. Dossier display may render a ratio as a decimal string
 by explicit formatting of the exact numerator and denominator; that
@@ -257,7 +272,9 @@ report (`--require-complete`) over partial chains.
   correctness with collateral sums, per-seed grouping, threshold
   evaluation on real `arm_accounting` outputs over synthetic complete
   chains (both PASS and FAIL cases), a complete report through
-  `derive_report` over two full chains, `UNDETERMINED` on absent and
+  `derive_report` over two full chains with a passing threshold row, a
+  failing threshold row through `derive_report` over two full chains
+  (the failure-rate row on a Sley 2 arm worse than legacy), `UNDETERMINED` on absent and
   partial arms and on undefined regressions and empty denominators,
   `NOT_EVALUATED` rows, threshold-coverage and criticality-flag failure
   closure, duplicate-slot and pre-derived-ACT refusal, the legacy
@@ -313,3 +330,19 @@ revision 2 clarifications stand.
   recorded; threshold coverage is asserted structurally.
 - The smoke report is regenerable runtime evidence with its digest in
   the closeout; `derive` prints `DERIVED`.
+
+## 10. Revision 4 changes
+
+- The failing-threshold path runs end to end through `derive_report`
+  (section 7): a worse-than-legacy Sley 2 arm reaches `COMPLETE` with
+  the failure-rate row `FAIL` beside a passing cap row.
+- The verifier-empty-chain collapse is named deliberate with its
+  fail-closed justification (section 1).
+- `ACCOUNTING_ARM_UNKNOWN` reachability is stated: it guards claims
+  filed under the wrong required arm; non-required chains never reach
+  discovery (section 1).
+- Ratio legibility is stated: exact integer pairs subsume basis points;
+  no rounded second representation enters the report (section 2).
+- The stage checker pins the recorded smoke digest rather than reading
+  the gitignored runtime artifact, so it passes on clean clones without
+  runtime evidence; regeneration reproduces the digest (section 7).

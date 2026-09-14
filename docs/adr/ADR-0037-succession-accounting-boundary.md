@@ -51,5 +51,8 @@ soon as a lane returns.
   numbers with no new arithmetic.
 - Every number in the report travels with its threshold verdict (or its
   explicit non-verdict), its evidence status, and its arm's fixture
-  status, so nothing in the report reads as a result on its own; the
-  `derive` command prints `DERIVED`, never `PASS`.
+  status, so no number is lifted out of the report as a bare result: a
+  threshold row IS a verdict (`PASS`/`FAIL`), and what travels with it
+  is the provenance that keeps the verdict attributable. The guarantee
+  is carriage, not verdictlessness. The `derive` command prints
+  `DERIVED`, never `PASS`.

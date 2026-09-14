@@ -1,9 +1,11 @@
 # S20-630 Succession Accounting Campaign (2026-09-03)
 
-Status: contract draft revision 3 written closing every Council finding;
+Status: contract draft revision 4 committed (revision 3 closed every
+Council finding; revision 4 adds the FAIL-path end-to-end test and the
+residual P2/P3 precision);
 Ariadne contract review, Nabu architecture review, and Vulcan surface
 review returned FAIL against revision 2 (7 P0, 20 P1) and re-review of
-revision 3 is queued.
+revision 4 is queued.
 
 ## Frontier at start
 

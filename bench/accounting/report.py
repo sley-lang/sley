@@ -553,6 +553,11 @@ def _arm_claims(run_directory: Path, arm: str, fixture_status: Any) -> tuple[lis
             return None, None
         _fail(AccountingErrorCode.ARM_UNKNOWN, arm)
     try:
+        # A verifier-accepted empty chain carries no head digest and no
+        # trial product, so accounting cannot form denominators from it: it
+        # reads as NO_CLAIM_CHAIN by construction, and the collapse is
+        # deliberate. It is fail-closed in the direction that matters: a
+        # chain the verifier rejects is CHAIN_INVALID, never absence.
         return verifier(run_directory) or None, verifier.__name__
     except (RawRunnerError, Sley2RunnerError) as error:
         raise AccountingError(AccountingErrorCode.CHAIN_INVALID, f"{arm}:{error}") from error

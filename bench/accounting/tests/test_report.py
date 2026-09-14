@@ -361,6 +361,35 @@ class AccountingTests(unittest.TestCase):
             verify_report(forged)
         self.assertEqual(bad.exception.code, AccountingErrorCode.REPORT_INVALID)
 
+    def test_failing_thresholds_through_derive_over_two_full_chains(self) -> None:
+        # The FAIL path is exercised end to end through derive_report, not
+        # only through evaluate_thresholds: a Sley 2 arm worse than legacy
+        # reaches COMPLETE and the failure-rate row reads FAIL on the
+        # report, beside a passing regression-cap row (contract rev 4).
+        run_id = self.manifest["run_id"]
+        legacy_claims = []
+        for index, task_id in enumerate(self.tasks):
+            claim = raw_claim(run_id, task_id, 1, "accepted" if index < 9 else "rejected", tokens=1_000, context=1_000, repairs=4, arm_id=LEGACY_ARM)
+            claim["record_digest"] = digest(70 + index)
+            legacy_claims.append(claim)
+        def legacy_loader(_run: Path) -> list[dict]:
+            return legacy_claims
+
+        with mock.patch.dict(ARM_VERIFIERS, {LEGACY_ARM: legacy_loader}):
+            for index, task_id in enumerate(self.tasks):
+                append_trial_digest_claim(self.run, raw_claim(run_id, task_id, 1, "accepted", tokens=100 + index, context=1_000 + index, repairs=index % 4))
+            for index, task_id in enumerate(self.tasks):
+                append_trial_claim(self.run, sley2_claim(run_id, task_id, 1, "accepted" if index < 6 else "rejected", tokens=1_000, context=900, repairs=4))
+            report = derive_report(self.run)
+        verify_report(report)
+        self.assertEqual(report["status"], "COMPLETE")
+        failure = report["thresholds"]["failure_rate_relative_reduction_percent_or_equal_correctness_act_reduction_percent"]
+        self.assertEqual(failure["result"], "FAIL")
+        self.assertEqual(failure["facts"]["failure_rate"][LEGACY_ARM], {"denominator": 5, "numerator": 2})
+        self.assertEqual(failure["facts"]["failure_rate"][SLEY2_ARM], {"denominator": 5, "numerator": 3})
+        cap = report["thresholds"]["other_context_metric_max_regression_percent"]
+        self.assertEqual(cap["result"], "PASS")
+
     def test_report_over_real_chains_is_exact_digested_and_fails_closed(self) -> None:
         empty = derive_report(self.run)
         self.assertEqual(empty["status"], "NO_TRIALS")

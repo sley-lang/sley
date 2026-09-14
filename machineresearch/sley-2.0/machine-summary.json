@@ -3565,7 +3565,7 @@
   "succession_accounting": {
     "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SUCCESSION_ACCOUNTING_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0037-succession-accounting-boundary.md",
     "checker": "scripts/check_succession_accounting.py",
     "report_contract": "sley2.succession-accounting-report.v1",
@@ -3591,7 +3591,7 @@
       "bench/accounting/report.py",
       "bench/accounting/tests/test_report.py"
     ],
-    "offline_tests": 8,
+    "offline_tests": 9,
     "smoke_target": "make accounting-smoke",
     "smoke_evidence": "evidence/runtime/s20-630-accounting-smoke/evidence.json",
     "smoke_report_status": "PARTIAL",
