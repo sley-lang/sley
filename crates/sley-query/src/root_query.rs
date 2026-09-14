@@ -438,6 +438,15 @@ impl RootQuery {
         }
     }
 
+    /// The question's subject for single-entity attribution: the first
+    /// named entity, if the question names any. The capsule dictionary
+    /// attributes single-entity payloads to this subject (S20-320 full
+    /// revision 4); positional `named_entities().first()` call sites must
+    /// use this accessor so the convention has one declared home.
+    pub(crate) fn subject_entity(&self) -> Option<EntityId> {
+        self.named_entities().into_iter().next()
+    }
+
     fn validate_shape(&self) -> Result<(), RootQueryError> {
         match self {
             Self::ListDirectDependencies { kinds, .. }

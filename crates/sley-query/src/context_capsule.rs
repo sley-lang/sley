@@ -425,6 +425,17 @@ fn validate_source(
     {
         return fail(ContextCapsuleErrorCode::SourceInvalid);
     }
+    // `Complete` is derived exactly when the response is not truncated and
+    // the question carries no `after` cursor; a `Complete` capsule must
+    // then carry the whole result, so a dropped fact can never present as
+    // complete (S20-320 revision 4). Remainder pages (`Page` with no
+    // truncation) legitimately return fewer than the total.
+    let complete = !response.truncated() && request.after().is_none();
+    if complete
+        && (response.returned() != response.total_count() || response.next_after().is_some())
+    {
+        return fail(ContextCapsuleErrorCode::SourceInvalid);
+    }
     if response.response_bytes() > MAX_CONTEXT_CAPSULE_SOURCE_BYTES {
         return fail(ContextCapsuleErrorCode::ResourceLimit);
     }
@@ -512,7 +523,7 @@ fn derive_facts(
     let mut relationships = Vec::new();
     let mut objects = Vec::new();
     let mut fingerprints = Vec::new();
-    let subject = request.query().named_entities().first().copied();
+    let subject = request.query().subject_entity();
     match response.result() {
         RootQueryResult::Entity {
             kind,
@@ -553,6 +564,21 @@ fn derive_facts(
             }
         }
         _ => {}
+    }
+    // The table ceilings bind the encoded tables, not just the entity and
+    // root lists: a future result shape emitting more object or fingerprint
+    // rows than the contract allows fails here, before encoding (S20-320
+    // revision 4). Unreachable through the current result shapes, which
+    // emit at most one row each; defense in depth, like `index_of` below.
+    if objects.len() > MAX_CONTEXT_CAPSULE_TABLE || fingerprints.len() > MAX_CONTEXT_CAPSULE_TABLE
+    {
+        return fail(ContextCapsuleErrorCode::ResourceLimit);
+    }
+    // Structural invariant the preimage depends on: exactly one kind per
+    // dictionary entry. A mismatch is a builder bug, never a source defect,
+    // so it carries the internal-invariant code (S20-320 revision 4).
+    if kinds.len() != ids.len() {
+        return fail(ContextCapsuleErrorCode::InternalInvariant);
     }
     Ok(Facts {
         entities: ids,
@@ -841,8 +867,44 @@ mod tests {
     }
 
     #[test]
-    fn foreign_and_drifted_sources_and_the_code_table_are_exact() {
+    fn complete_means_whole_result_and_remainder_pages_stay_pages() {
+        // Regression pin for the revision-4 source gate: `Complete` holds
+        // exactly when the response is not truncated and the question
+        // carries no `after` cursor, and then `returned` must equal the
+        // total with no `next_after`. The deny path (a `Complete` that
+        // drops facts) is unreachable through the engine, so it is
+        // defense in depth; this test pins the allow path over every
+        // class and pins that a remainder page (no truncation, fewer
+        // than the total) is still accepted as a `Page`, never refused.
         let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        let full = QueryLimits::profile_maximum();
+        for query in all_classes() {
+            let (_, _, capsule) = capsule(&input, query, full, false, None);
+            if capsule.completeness() == CapsuleCompleteness::Complete {
+                assert_eq!(capsule.returned(), capsule.total_count());
+                assert_eq!(capsule.omitted(), 0);
+                assert!(capsule.next_after().is_none());
+            }
+        }
+        let paged = QueryLimits {
+            max_returned_entities: 2,
+            max_returned_edges: 3,
+            ..QueryLimits::profile_maximum()
+        };
+        let query = RootQuery::ListEntitiesByKind {
+            kind: ModeledEntityKind::Namespace,
+        };
+        let (_, _, first) = capsule(&input, query.clone(), paged, true, None);
+        let (_, _, remainder) = capsule(&input, query, paged, true, first.next_after());
+        assert!(!remainder.is_truncated());
+        assert!(remainder.returned() < remainder.total_count());
+        assert_eq!(remainder.completeness(), CapsuleCompleteness::Page);
+    }
+
+    #[test]
+    fn foreign_and_drifted_sources_and_the_code_table_are_exact() {        let owned = Owned::new();
         let borrowed = Borrowed::new(&owned);
         let input = borrowed.input();
         let full = QueryLimits::profile_maximum();

@@ -85,3 +85,17 @@ Implementation commit: `e695c7d`.
 
 Total 31 seconds. `make v1` skipped: subsystem handoff, not a release
 boundary. Council reviews remain pending; the package is not complete.
+
+## Revision note (2026-09-14)
+
+This brief stays as the revision-1-start campaign record above. The
+contract has since moved to revision 4 (Status lines in the contract,
+ADR-0031, and the closeout name revision 4; the checker cross-checks all
+three): revision 3 added the `u64be(response_bytes)` prefix and the
+authority-minted `Negotiated` arm, and revision 4 binds `Complete` to the
+whole result, enforces the table ceilings at encoding, wires the
+internal-invariant code, and restates the evidence set. The open
+questions above are answered: walks prove complete by exact `total_count`
+plus canonical key order (no chained lineage), named entities stay in the
+dictionary as non-existence claims, and `kinds` stays a parallel list
+with reserved `0`.

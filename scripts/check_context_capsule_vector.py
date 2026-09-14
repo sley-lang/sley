@@ -217,6 +217,10 @@ def build(context: dict, vector: dict) -> tuple[bytes, dict]:
     objects = [(index[subjects[0]], facts["object"])] if facts["object"] is not None else []
     fingerprints = [(index[subjects[0]], facts["fingerprint"])] if facts["fingerprint"] is not None else []
     total, returned = vector["total_count"], vector["returned"]
+    # The fixture schema carries no truncation flag: truncated is derived
+    # from `next_after`, which is sound because the builder enforces
+    # `truncated == next_after.is_some()` on every pair (contract section
+    # 6; `validate_source` in `crates/sley-query/src/context_capsule.rs`).
     truncated = vector["next_after"] is not None
     completeness = COMPLETE if not truncated and vector["after"] is None else PAGE
     omitted = total - returned
@@ -230,6 +234,8 @@ def build(context: dict, vector: dict) -> tuple[bytes, dict]:
     out += encode_question(vector)
     out += u32(completeness) + u32(FLAG_TRUE if truncated else FLAG_FALSE)
     out += u64(total) + u64(returned) + u64(omitted) + encode_cursor(vector["next_after"])
+    # Contract section 6: the copied record is length-prefixed with
+    # `u64be(response_bytes)`; `bytes(x)` carries no prefix.
     out += u64(len(record)) + record
     out += u64(len(entities)) + b"".join(entities)
     out += u64(len(kinds)) + b"".join(u32(kind) for kind in kinds)

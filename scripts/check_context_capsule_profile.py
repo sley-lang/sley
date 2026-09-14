@@ -173,13 +173,19 @@ def main() -> int:
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
 
-    revision = re.search(r"revision (\d+)", spec)
+    revision = re.search(r"^Status:.*revision (\d+)", spec, re.MULTILINE)
     # The contract revision is the single source: the ADR and the
     # closeout must name the same revision, so a downstream package can
     # never again amend the contract while the boundary record still
-    # states the old rule and the gate reports clean.
+    # states the old rule and the gate reports clean. All three reads
+    # are Status-line anchored, never first-match, so body prose that
+    # mentions older revisions cannot satisfy or break the check.
     for path, label in ((ADR, "adr"), (CLOSEOUT, "closeout")):
-        match = re.search(r"revision (\d+)", read(path)) if path.exists() else None
+        match = (
+            re.search(r"^Status:.*revision (\d+)", read(path), re.MULTILINE)
+            if path.exists()
+            else None
+        )
         if match is None:
             problems.append(f"revision-missing:{label}")
         elif revision is None or int(match.group(1)) != int(revision.group(1)):

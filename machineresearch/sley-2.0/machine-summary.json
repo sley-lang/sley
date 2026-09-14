@@ -889,7 +889,7 @@
   "context_capsule_profile": {
     "status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
     "checker": "scripts/check_context_capsule_profile.py",
     "identifier_domain": "sley2.context-capsule.v1",

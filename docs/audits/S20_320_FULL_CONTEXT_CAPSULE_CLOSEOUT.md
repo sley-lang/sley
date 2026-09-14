@@ -1,6 +1,6 @@
 # S20-320 Full Context Capsule Closeout
 
-Status: **implemented under the draft Context Capsule Profile v1 contract (revision 3); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Context Capsule Profile v1 contract (revision 4); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 

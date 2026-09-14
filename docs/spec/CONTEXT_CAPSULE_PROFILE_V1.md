@@ -1,9 +1,12 @@
 # Context Capsule Profile v1
 
-Status: S20-320 full contract draft, revision 3 (2026-09-05; revision 3
-spells the `u64be(response_bytes)` record prefix, mints the `Negotiated`
-session arm through the session authority only, and reconciles section 11
-and ADR-0031 with the kept arm); implemented
+Status: S20-320 full contract draft, revision 4 (2026-09-14; revision 4
+binds `Complete` to the whole result in the builder, enforces the table
+ceilings at their encoding point, wires the internal-invariant code to the
+dictionary structure check, enumerates the exact source-checked set,
+states the kind-0 and walk-coverage rules normatively, and restates the
+evidence set to what the builder, tests, fuzz target, and independent
+reproduction actually prove); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Implementation state is tracked in the
@@ -108,12 +111,27 @@ Status {
 ```
 
 `Complete` holds exactly when the response is not truncated and the
-question had no `after` cursor; every other response is a `Page`.
-`omitted` counts every fact of the complete result that this capsule does
-not carry, before and after the window. Because `total_count` is exact and
-the key order is canonical, a reader holding the capsules of a full
-continuation walk can prove it holds every fact, and a single capsule can
-never present a page as complete.
+question had no `after` cursor; every other response is a `Page`. The
+builder refuses a `Complete` whose `returned` differs from `total_count`
+or that carries a `next_after`, with `CONTEXT_CAPSULE_SOURCE_INVALID`, so
+a dropped fact can never present as complete; `omitted` is then zero by
+construction (`total_count - returned`). A `Page` carries no completeness
+promise: a remainder page (no truncation, fewer than the total) is a
+`Page` with `omitted > 0`, while a degenerate page can carry `omitted =
+0`, so `Page` never implies a missing fact. `omitted` counts every fact
+of the complete result that this capsule does not carry, before and after
+the window. `returned` counts response items, not dictionary entries: a
+class whose payload carries no identities (class 1, or a `Fingerprint`
+over nothing queried) still returns its item. Because `total_count` is
+exact and the key order is canonical, a reader holding the capsules of a
+full continuation walk can prove it holds every fact, and a single capsule
+can never present a page as complete. A walk covers the result exactly
+when its capsules share one `(workspace, epoch, root, snapshot, class
+tag, class body, limits, allow_continuation)` tuple, the first carries no
+`after` cursor, each next `after` equals the previous `next_after`, the
+last carries no `next_after`, all `total_count` values agree, and the
+`returned` values sum to `total_count`; the join key is that tuple, not
+the `query_id`.
 
 ## 5. Facts
 
@@ -121,9 +139,16 @@ The facts are derived only from the typed response result and the question:
 
 - `entities`: strict raw-`EntityId`-sorted unique list of every identity in
   the payload (entities, rows, inventory entries, edge endpoints) plus the
-  question's named entities and seeds;
+  question's named entities and seeds. This list is not an existence,
+  presence, or membership claim: it names the identities the question
+  asked about or the payload carried, whether or not any fact about them
+  follows;
 - `kinds`: one `u32` per dictionary entry, the SSMC1 kind when the payload
-  states it (class 2 and class 8 entries) and `0` otherwise;
+  states it (class 2 and class 8 entries) and `0` otherwise. Kind `0`
+  means "kind not stated by this payload", never "this entity has no
+  kind": the SSMC1 kind tags start at 1, so `0` is reserved by this
+  profile and collides with no stated kind. A namespace the question
+  names but the payload never states (class 8) carries kind `0`;
 - `relationships`: for edge results, `(dependent_index, dependency_index,
   impact_kind)` in source edge order, indexes into `entities`;
 - `roots`: strict raw-sorted unique `StateRoot` list from class 7 rows and
@@ -134,7 +159,10 @@ The facts are derived only from the typed response result and the question:
 
 No label, type expression, path, source position, ranking, summary,
 diagnostic, mutation affordance, or caller-supplied identity enters the
-facts. Class 1 (root summary) yields empty dictionaries; its facts are the
+facts. Single-entity classes attribute their payload to the question's
+subject: the first named entity, read through the query's declared
+subject accessor, never a positional call-site convention. Class 1 (root
+summary) yields empty dictionaries; its facts are the
 copied record.
 
 ## 6. Canonical record
@@ -167,11 +195,22 @@ capsule_record = capsule_preimage || ContextCapsuleId[32]
 ```
 
 Every repeated field must equal the trusted request and response getters,
-the copied record must begin `SLEYRQR1` and have the response's exact
-length, `u64be(response_bytes)` is the byte length of the copied record
+and the builder checks exactly this set, in order: the `query_id`,
+`snapshot_id`, root, and class tag bind the request to the response; the
+copied record must begin `SLEYRQR1` and have the response's exact length;
+`returned` must equal the response item count and must not exceed
+`total_count`; truncation must agree with carrying a `next_after`; and a
+response counted `Complete` (not truncated, no `after` cursor) must
+return exactly `total_count` with no `next_after`. The workspace, epoch,
+snapshot, and root provenance is copied from the response, whose fields
+the engine bound to a verified root; the builder cross-checks provenance
+against nothing of its own, because only the session authority holds an
+independent binding to compare against (section 2). `u64be(response_bytes)`
+is the byte length of the copied record
 (the builder refuses a record whose length differs with
 `CONTEXT_CAPSULE_SOURCE_INVALID`), and `kinds` must have the length of
-`entities`. The trailer is
+`entities` (a mismatch is a builder defect and carries
+`CONTEXT_CAPSULE_INTERNAL_INVARIANT`). The trailer is
 outside its own preimage. There is no public record decoder, importer,
 hydrator, continuation expander, or constructor from components.
 
@@ -188,7 +227,12 @@ hydrator, continuation expander, or constructor from components.
 
 Work charges one unit per inspected result item, dictionary insertion or
 lookup, relationship projection, copied source byte, and emitted capsule
-byte, checked before allocation or append. A response larger than the
+byte. Charging happens during derivation, item by item, so every
+allocation the builder performs is already charged; the table-length
+gates (dictionaries, relationships, roots, objects, fingerprints) run
+after derivation and before encoding, and the transient derivation state
+is bounded by the source ceiling (a 33,554,432-byte response bounds every
+dictionary the derivation can build). A response larger than the
 source ceiling cannot be capsuled; the failure returns no capsule.
 
 ## 8. Repository surface
@@ -213,7 +257,12 @@ Precedence: request and response identity or record disagreement
 (`CONTEXT_CAPSULE_SOURCE_INVALID`); count, byte, and work preflight
 (`CONTEXT_CAPSULE_RESOURCE_LIMIT`); dictionary or index canonicality
 (`CONTEXT_CAPSULE_DICTIONARY_INVALID`); checked encoding and identity
-derivation (`CONTEXT_CAPSULE_INTERNAL_INVARIANT`). S20-310 failures occur
+derivation (`CONTEXT_CAPSULE_INTERNAL_INVARIANT`). The dictionary code
+fires on index misses, which cannot occur for engine-produced pairs
+(every attributed identity is collected before indexing) and stands as
+defense in depth; the invariant code fires on the dictionary structure
+itself (exactly one kind per entry), which is a builder defect, never a
+source defect. S20-310 failures occur
 before construction and keep their `QUERY_*` codes; session failures occur
 before construction and keep their `SESSION_*` codes (`SESSION_UNKNOWN`
 for a session that is not live).
@@ -229,11 +278,22 @@ Implementation acceptance requires at least:
   reproduced by the same independent path;
 - 128 equal derivations producing byte-identical records and identities;
 - proof that a page capsule is never `Complete`, that `omitted` equals
-  `total_count - returned`, and that the capsules of a walk cover the
-  complete result;
-- the source binding matrix (foreign request, drifted response, restricted
-  response) and the dictionary, index, count, size, and work perturbations
-  failing without a capsule;
+  `total_count - returned`, that a `Complete` returns exactly the total
+  with no `next_after`, and that the capsules of a walk cover the
+  complete result under the section 4 predicate;
+- the source binding matrix: swapped request/response pairs fail without
+  a capsule at the builder; a response whose provenance drifts from the
+  session's authority-held binding fails at the session authority; a
+  restricted response cannot reach the builder at all, because it is a
+  distinct type the builder never accepts (type-excluded, not
+  runtime-checked);
+- the dictionary, index, count, size, and work failure paths: the builder
+  enforces every ceiling before encoding and refuses inconsistent
+  sources, but inconsistent engine pairs are unconstructible (responses
+  originate only in the engine, whose outputs satisfy the checks by
+  construction), so these paths are defense in depth, unreachable
+  through any public input, and covered by inspection rather than by a
+  failing execution;
 - a repository test producing the same capsule from a cache hit and a
   rebuild;
 - an S20-700 persistent libFuzzer target over the capsule builder,

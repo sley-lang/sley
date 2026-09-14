@@ -1,6 +1,6 @@
 # ADR-0031: Context capsule provenance and omission boundary
 
-Status: proposed; the S20-320 full contract is a draft at revision 3 with
+Status: proposed; the S20-320 full contract is a draft at revision 4 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_320_FULL_CONTEXT_CAPSULE_CLOSEOUT.md`)
 
