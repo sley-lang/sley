@@ -23,7 +23,7 @@ and the `SESSION_*` codes. It composes, and never alters:
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;
-- `docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md` at revision 3: the
+- `docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md` at revision 4: the
   `SessionBinding` field, whose `Negotiated(2)` arm this profile fills;
 - `docs/spec/STATE_ROOT_V1.md` (S20-160 normative contract, unversioned),
   and the S20-390 verified revision, which supply the workspace, root,

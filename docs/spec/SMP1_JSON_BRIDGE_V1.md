@@ -234,8 +234,9 @@ benchmark, packaging, release, or GA.
   length is `JSON_BRIDGE_SHAPE_INVALID`; `JSON_BRIDGE_HEX_INVALID` names
   only uppercase, odd-length, and non-hex text.
 - A `hello` Frame carries a null `session`, a zero `request_id`, an empty
-  `method`, both flags false, and the all-zero bounds. The session, request
-  id, method, and flags are the codec's hello header rule (SMP1 section 2):
+  `method`, all flags false, and the all-zero bounds. The protocol version,
+  session, request id, method, and flags are the codec's hello header rule
+  (SMP1 section 2):
   the reader builds the frame and the codec judges it, so any other value
   there is `PROTOCOL_FRAME_INVALID`, never a bridge code. The all-zero
   bounds are the bridge's own rule, judged before the codec runs, so any

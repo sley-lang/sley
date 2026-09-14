@@ -43,7 +43,7 @@ CONTRACT_REVISION = 4
 # against that document's own status line, so the pin fails the moment
 # the authority moves instead of matching a stale substring elsewhere.
 SMP1_REVISION = 12
-CAPSULE_REVISION = 3
+CAPSULE_REVISION = 4
 SMP1_PIN = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
 CAPSULE_PIN = (
     f"`docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md` at revision {CAPSULE_REVISION}"

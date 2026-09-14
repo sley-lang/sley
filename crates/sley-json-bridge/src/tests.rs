@@ -502,9 +502,10 @@ fn hello_header_violations_carry_the_codec_code() {
     let hello: Value =
         serde_json::from_str(&frame_to_json(&bytes).expect("renders")).expect("parses");
     let request = request_value();
-    // The session, request id, method, and flags of a hello frame are the
-    // codec's hello header rule (SMP1 section 2): the codec judges them, so
-    // the bridge carries PROTOCOL_FRAME_INVALID, never a bridge code.
+    // The protocol version, session, request id, method, and flags of a
+    // hello frame are the codec's hello header rule (SMP1 section 2): the
+    // codec judges them, so the bridge carries a PROTOCOL_* code, never a
+    // bridge code.
     let codec = protocol(ProtocolErrorCode::FrameInvalid);
     for (label, value) in [
         ("session", request["session"].clone()),
@@ -518,6 +519,13 @@ fn hello_header_violations_carry_the_codec_code() {
         let text = with(hello.clone(), &[label], value).to_string();
         assert_eq!(frame_from_json(&text), Err(codec.clone()), "{label}");
     }
+    // A hello naming another protocol version is judged by the same codec
+    // rule (contract section 8): any PROTOCOL_* code, never a bridge code.
+    let versioned = with(hello.clone(), &["protocol_version"], Value::from(99)).to_string();
+    assert!(
+        matches!(frame_from_json(&versioned), Err(BridgeError::Protocol(_))),
+        "protocol_version"
+    );
     // The all-zero bounds are the bridge's own rule (contract section 8),
     // judged before the codec runs.
     let bounded = with(hello.clone(), &["bounds", "omitted"], Value::from(1)).to_string();

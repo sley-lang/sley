@@ -95,7 +95,7 @@ def gate_result(gate: str) -> str:
     )
     try:
         return str(json.loads(completed.stdout).get("result", "UNKNOWN"))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, OSError):
         return "UNKNOWN"
 
 
