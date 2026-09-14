@@ -4,11 +4,10 @@
   "decision_reasons": [
     "46 review obligations are open",
     "no succession trial has been executed",
-    "the release-check and v2 product gates are fail-closed",
-    "the root license text is not operator-approved"
+    "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "feb7221f64ea893318052b85d862330edfdc5cc3384fd0df1049a75463d389d2",
+  "dossier_digest": "44ba6cb50c5865dd3dc658c657e916491deac38c87a24d6e00a628173b70957e",
   "entries": [
     {
       "evidence": [
@@ -296,7 +295,7 @@
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "single-host reproducibility; the second host is an operator-gated lane",
+      "note": "multi-host reproducibility across distinct attested hosts",
       "state": "EVIDENCED",
       "value": {
         "distinct_hosts": 2,
@@ -311,13 +310,13 @@
         "evidence/security/T52/pre-release-inventory.json"
       ],
       "item": "SBOM and license inventory",
-      "note": "both standards documents exist as drafts; the root license text is unapproved, which the documents state in band",
+      "note": "both standards documents exist as drafts; the root license text is operator-approved, which the documents state in band",
       "state": "EVIDENCED",
       "value": {
         "components": 51,
         "cyclonedx_spec_version": "1.6",
-        "license_disposition_blocked": 19,
-        "root_license_text_approved": false,
+        "license_disposition_blocked": 0,
+        "root_license_text_approved": true,
         "spdx_version": "SPDX-2.3"
       }
     },
@@ -451,7 +450,7 @@
       }
     }
   ],
-  "entries_digest": "cb2a85379b235dc2b1069301158cdcaaea847ad3c035280d7f98e6437d3ccfef",
+  "entries_digest": "946887450992c21fc6a2a38c0bd1d1f3f8a039bdf739b2cbdadf610436ceb617",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

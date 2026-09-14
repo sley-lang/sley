@@ -241,12 +241,14 @@ class SourceSeparationTests(unittest.TestCase):
         self.assertEqual(counts["value"]["rust_unit_tests"], 424242)
         self.assertEqual(counts["value"]["property_tests"], 7)
         sbom = self.entry(entries, "SBOM and license inventory")
-        self.assertEqual(sbom["value"]["license_disposition_blocked"], 19)
+        self.assertEqual(sbom["value"]["license_disposition_blocked"], 0)
+        self.assertTrue(sbom["value"]["root_license_text_approved"])
 
-    def test_the_live_tree_reports_nineteen_blocked_licenses(self) -> None:
+    def test_the_live_tree_reports_zero_blocked_licenses(self) -> None:
         sbom = self.entry(dossier.build_dossier()["entries"], "SBOM and license inventory")
         self.assertEqual(sbom["state"], "EVIDENCED")
-        self.assertEqual(sbom["value"]["license_disposition_blocked"], 19)
+        self.assertEqual(sbom["value"]["license_disposition_blocked"], 0)
+        self.assertTrue(sbom["value"]["root_license_text_approved"])
 
     def test_the_property_count_is_a_counted_zero(self) -> None:
         counts = self.entry(dossier.build_dossier()["entries"], "property-test counts")

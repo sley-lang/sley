@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORY_ANCHOR = "db1bc623d01e838d49c153feb0be05a7502b8794"
+HISTORY_ANCHOR = "724a899b1dfcc0ee8f3bf0b67f647d3156a24895"
 # Operator-approved root license material (S20-710 license decision
 # 2026-09-14: Apache License, Version 2.0, Copyright 2026 Greyforge Labs).
 # The digests pin the exact installed bytes: any added, removed, or

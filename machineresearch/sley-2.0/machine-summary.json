@@ -3624,12 +3624,12 @@
     "full_s20_650_complete": true
   },
   "s20_710_pre_release_audit": {
-    "status": "DEFERRED_ROOT_LICENSE_AND_RELEASE_BOUNDARY",
+    "status": "DEFERRED_SBOM_PROVENANCE_APPROVAL_AND_RELEASE_BOUNDARY",
     "full_s20_710_complete": false,
     "contract": "docs/audits/S20_710_PRE_RELEASE_AUDIT.md",
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
-    "history_anchor_commit": "db1bc623d01e838d49c153feb0be05a7502b8794",
+    "history_anchor_commit": "724a899b1dfcc0ee8f3bf0b67f647d3156a24895",
     "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 18,
@@ -3639,20 +3639,20 @@
     "dependency_relationships": 138,
     "t52_local_lock_inventory": "PASS",
     "t54_high_confidence_scan": "PASS",
-    "history_blobs_scanned": 5827,
-    "history_bytes_scanned": 374805717,
+    "history_blobs_scanned": 5950,
+    "history_bytes_scanned": 380847122,
     "secret_patterns": 21,
     "secret_findings": 0,
     "matched_secret_values_emitted": false,
     "candidate_scan_recomputed_by_generator": true,
-    "root_license_text_approved": false,
+    "root_license_text_approved": true,
     "standards_sbom": false,
     "release_provenance": false,
     "release_candidate_history_reanchored": true,
     "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "final_argus_disposition_note": "PASS via fresh Argus review 2026-09-13 on 21acb7f (security surface only; full S20-710 stays BLOCKED on license + final mint): all cb841a6 P1/P2 closed with evidence (tracked-only manifest + --check, 17-pattern set then, working_tree_clean + attestation guards, doc refresh); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md",
+    "final_argus_disposition_note": "Prior PASS scoped to 21acb7f/c703bd5 + anchor db1bc62 (transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md); fresh Argus final for the licensed candidate pending (pre-mint review)",
     "final_vulcan_disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
-    "final_vulcan_disposition_note": "REVISE via fresh Vulcan review 2026-09-13 on 21acb7f: 1xP2 sk-admin-/sk-svcacct- pattern gap + 2xP3 (pattern backlog, builder-emits-dirty); repaired post-scope (4 patterns added with controls: 21 total; PGP-armour declined with rationale: header-only shape self-fires on audit discussion and secret findings have no disposition path; builder refuses dirty at derivation with pinning test); transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md | CONFIRMATION 2026-09-13 c703bd5: P2 admin/svcacct + backlog (GITLAB/SENDGRID) fire with controls, PGP held with in-code rationale, linode/Azure held per finding non-blocker framing, builder refuses dirty at derivation (pinned), anchor db1bc62 + scan valid at pushed candidate, license CLOSED; argus PASS preserved in scope; transcript evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_confirmation-c703bd5.md",
+    "final_vulcan_disposition_note": "Prior PASS scoped to 21acb7f/c703bd5 + anchor db1bc62 (transcripts evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md and final_vulcan_confirmation-c703bd5.md); fresh Vulcan final for the licensed candidate pending (pre-mint review)",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
       "evidence/release/sbom/cyclonedx-1.6.json",
@@ -3660,7 +3660,10 @@
     ],
     "release_provenance_draft_statement": "evidence/release/provenance.json",
     "draft_documents_contract": "docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md",
-    "history_reanchor_note": "2026-09-13 re-anchored 51863f7 to db1bc62 (pushed head): 5827 blobs / 374805717 bytes, 0 findings, 0 blockers; zero deletions db1bc62 to round-9 HEAD so history-plus-candidate coverage through the committed tree is complete; future commits reopen the gap until the release candidate re-anchors at final mint"
+    "history_reanchor_note": "2026-09-14 re-anchored facfa86 to 724a899 (licensed-candidate L1): 5950 blobs / 380847122 bytes, 0 findings, 0 blockers; zero deletions facfa86..L1 so history-plus-candidate coverage through the checkpoint tree is complete; the freeze commit L2 and the mint re-anchor the release audit",
+    "root_license_spdx": "Apache-2.0",
+    "root_license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "notice_sha256": "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
   },
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
@@ -3780,7 +3783,7 @@
     "protocol_boundary_available": true,
     "merge_boundary_available": true,
     "real_benchmark_run_authorized": false,
-    "root_license_text_approved": false,
+    "root_license_text_approved": true,
     "release_artifact_available": false,
     "required_specialist_review": "PASS_S20_500_NABU_ARIADNE_VULCAN",
     "focused_semantic_security_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",
@@ -4078,8 +4081,7 @@
     "decision_reasons": [
       "46 review obligations are open",
       "no succession trial has been executed",
-      "the release-check and v2 product gates are fail-closed",
-      "the root license text is not operator-approved"
+      "the release-check and v2 product gates are fail-closed"
     ],
     "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
     "operator_decision": "PENDING",
