@@ -2,8 +2,8 @@
   "by_severity": {
     "P0": {
       "PLANNED_EVIDENCE_PRESENT": 6,
-      "STRUCTURAL_CONTROL_RECORDED": 3,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 37
+      "STRUCTURAL_CONTROL_RECORDED": 4,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 36
     },
     "P1": {
       "PLANNED_EVIDENCE_PRESENT": 3,
@@ -15,12 +15,12 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "e78dafdad4008f876feb1abaaf8d676461afaea010342ed068690823e73064bd",
+  "report_digest": "edec8738d5f5fbfd43a62c4c3e26210a9e17776f7d90a6534d653d05863acdf6",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
-    "STRUCTURAL_CONTROL_RECORDED": 3,
-    "SYMBOL_REALIZED_WITH_EXERCISE": 44
+    "STRUCTURAL_CONTROL_RECORDED": 4,
+    "SYMBOL_REALIZED_WITH_EXERCISE": 43
   },
   "threat_count": 56,
   "threats": [
@@ -155,11 +155,14 @@
     {
       "expected_failure_code": "STORE_OBJECT_SUBSTITUTION",
       "id": "T04",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_object_store_spec.py",
           "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
         ],
         "implementation": [
           "crates/sley-repo/src/lib.rs",
@@ -287,8 +290,11 @@
     {
       "expected_failure_code": "GRAPH_UNRESOLVED_REFERENCE",
       "id": "T09",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
           "crates/sley-policy/src/candidate_program.rs",
@@ -312,10 +318,13 @@
     {
       "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
       "id": "T10",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_type_system.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
         ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
@@ -344,10 +353,13 @@
     {
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
         ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
@@ -373,8 +385,11 @@
     {
       "expected_failure_code": "TYPE_RESOURCE_LIMIT",
       "id": "T12",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
         "implementation": [
           "crates/sley-check/src/lib.rs",
           "crates/sley-protocol/src/server.rs"
@@ -488,13 +503,16 @@
     {
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 27,
+      "located_file_count": 28,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
           "scripts/check_mutation_value_codecs.py",
           "scripts/check_s20_530_crash_recovery.py",
           "scripts/check_scb1_spec.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
         ],
         "implementation": [
           "crates/sley-check/src/cfg.rs",
@@ -529,11 +547,12 @@
     {
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 9,
+      "located_file_count": 10,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
           "scripts/check_candidate_result_persistent_fuzz_slice.py",
+          "scripts/check_error_symbol_registration.py",
           "scripts/check_transaction_contract.py"
         ],
         "implementation": [
@@ -623,18 +642,20 @@
       "located_file_count": 1,
       "located_in": {
         "implementation": [
-          "crates/sley-schema/src/lib.rs"
+          "crates/sley-policy/src/lib.rs"
         ]
       },
       "owner": "sley-schema",
       "planned_evidence_path": "evidence/security/T20/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the candidate validation isolation tests"
+      ],
       "related_family_symbols": [],
       "required_test": "epoch-isolation E2E",
       "searched_codes": [
-        "SCHEMA_SELF_MODIFICATION"
+        "POLICY_ISOLATION_SCHEMA_EPOCH_CHANGED"
       ],
       "severity": "P0",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
@@ -1067,17 +1088,20 @@
         "VM_LOWER_CACHE_KEY_UNSUPPORTED"
       ],
       "severity": "P0",
-      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "state": "STRUCTURAL_CONTROL_RECORDED",
       "threat": "cache poisoning"
     },
     {
       "expected_failure_code": "STORE_DERIVED_INPUT_FORBIDDEN",
       "id": "T36",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_object_store_spec.py",
           "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
         ],
         "implementation": [
           "crates/sley-repo/src/lib.rs",
@@ -1224,12 +1248,14 @@
       "owner": "sley-repo",
       "planned_evidence_path": "evidence/security/T41/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "repository_pack_importer"
+      ],
       "related_family_symbols": [],
       "required_test": "importer fuzz/corruption",
       "searched_codes": [
-        "PACK_INVALID"
+        "EXCHANGE_PACK_INVALID"
       ],
       "severity": "P0",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
@@ -1247,12 +1273,14 @@
       "owner": "sley-repo",
       "planned_evidence_path": "evidence/security/T42/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the pack import unit tests"
+      ],
       "related_family_symbols": [],
       "required_test": "ratio/size boundary",
       "searched_codes": [
-        "PACK_DECOMPRESSION_LIMIT"
+        "PACK_COMPRESSION_UNSUPPORTED"
       ],
       "severity": "P1",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
@@ -1352,13 +1380,14 @@
     {
       "expected_failure_code": "PROTOCOL_REQUEST_ID_CONFLICT",
       "id": "T46",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
           "scripts/check_smp1_contract.py"
         ],
         "implementation": [
-          "crates/sley-protocol/src/lib.rs"
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server_tests.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
@@ -1543,12 +1572,15 @@
     {
       "expected_failure_code": "RELEASE_ARTIFACT_MISMATCH",
       "id": "T53",
-      "located_file_count": 3,
+      "located_file_count": 4,
       "located_in": {
         "checkers": [
           "scripts/build_release_candidate.py",
           "scripts/check_release_candidate_packaging.py",
           "scripts/check_reproducibility_and_independent_conformance.py"
+        ],
+        "harness": [
+          "bench/release/tests/test_packaging.py"
         ]
       },
       "owner": "release",
@@ -1620,19 +1652,33 @@
       "threat": "benchmark contamination/cherry-pick"
     },
     {
-      "expected_failure_code": "SESSION_UNKNOWN` for foreign-instance names",
+      "expected_failure_code": "SESSION_UNKNOWN",
       "id": "T56",
-      "located_file_count": 0,
-      "located_in": {},
+      "located_file_count": 8,
+      "located_in": {
+        "checkers": [
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
+        ],
+        "implementation": [
+          "crates/sley-cli/tests/cli.rs",
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
       "owner": "sley-protocol",
       "planned_evidence_path": "evidence/security/T56/",
       "planned_evidence_present": true,
       "realized_code_recorded": false,
       "recorded_exercise": [],
       "related_family_symbols": [],
-      "required_test": "twin-instance inequality and restart-unknown matrix; peer isolation is a transport obligation on the S20-420/430 boundary",
+      "required_test": "twin-instance inequality and restart-unknown matrix over foreign-instance names; peer isolation is a transport obligation on the S20-420/430 boundary",
       "searched_codes": [
-        "SESSION_UNKNOWN` for foreign-instance names"
+        "SESSION_UNKNOWN"
       ],
       "severity": "P1",
       "state": "PLANNED_EVIDENCE_PRESENT",

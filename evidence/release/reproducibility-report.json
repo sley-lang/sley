@@ -19,14 +19,14 @@
     },
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d",
-      "artifact_size_bytes": 2184818,
-      "commit": "ae16df87f7b1990e8804f87001d5a63f87b41611",
+      "artifact_sha256": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512",
+      "artifact_size_bytes": 2187943,
+      "commit": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "secondary",
-      "manifest_digest": "0b14da146f88d672986830c8251519af2ce4c7e094d3639a4c08b98a9b9fffb6",
-      "member_count": 14,
+      "manifest_digest": "e3943eed26edd51429179438d40bb24321d1205f7a65495fde06572a8acf3fc7",
+      "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
         "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
@@ -36,7 +36,6 @@
     }
   ],
   "blockers": [
-    "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews"
@@ -45,12 +44,7 @@
     "74bb0ba43203790399d05ff2fe167d6e46a9c6f1": {
       "artifact_sha256": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512",
       "hosts": [
-        "primary"
-      ]
-    },
-    "ae16df87f7b1990e8804f87001d5a63f87b41611": {
-      "artifact_sha256": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d",
-      "hosts": [
+        "primary",
         "secondary"
       ]
     }
@@ -59,12 +53,12 @@
   "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "355c0db41ecbccdd82ed1d099eb1d419e2a82ef05b5d8219af779129e23ec641",
+  "report_digest": "f2d925a84d6dde4e7cb0043ccff85c37f6523be91f9c469962a2e219f5e06327",
   "required_hosts": 2,
-  "result": "SINGLE_HOST_REPRODUCIBLE",
+  "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "the second host build is an operator-gated lane; only the primary host attested",
-    "status": "GATED_OPERATOR_LANE"
+    "note": "at least two hosts attested the same commit and artifact digest",
+    "status": "ATTESTED"
   },
   "work_package": "S20-730"
 }

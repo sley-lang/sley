@@ -4,11 +4,10 @@
   "decision_reasons": [
     "46 review obligations are open",
     "no succession trial has been executed",
-    "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "a7c4e57be0dda9c62fcd9e8007345c5753da9d8b985411b3be94110553126cba",
+  "dossier_digest": "be3e920cb54ce6a6e9897d5b59ae96803c489b1bca5e5156ea2b1a06376a0bb3",
   "entries": [
     {
       "evidence": [
@@ -189,7 +188,7 @@
     {
       "evidence": [],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located control that a test or corpus exercises, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 43 have a located control that a test or corpus exercises, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
       "state": "GATED",
       "value": null
     },
@@ -296,12 +295,12 @@
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "single-host reproducibility; the second host is an operator-gated lane",
+      "note": "multi-host reproducibility across distinct attested hosts",
       "state": "EVIDENCED",
       "value": {
         "distinct_hosts": 2,
-        "result": "SINGLE_HOST_REPRODUCIBLE",
-        "second_host": "GATED_OPERATOR_LANE"
+        "result": "MULTI_HOST_REPRODUCIBLE",
+        "second_host": "ATTESTED"
       }
     },
     {
@@ -451,7 +450,7 @@
       }
     }
   ],
-  "entries_digest": "cc71fbe0c132567b795d3f160a71a6a87a88abfc61be175c1f2b7ec11cd15a30",
+  "entries_digest": "46d0b6fa62d899f081b946d462bff58c37535a00ec14a51a6a4eb699e113a0fe",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
